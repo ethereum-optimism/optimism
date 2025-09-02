@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Foundry
-import { VmSafe } from "forge-std/Vm.sol";
-
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 

@@ -16,6 +16,7 @@ const (
 	ProofMaturityDelaySecondsFlagName       = "proof-maturity-delay-seconds"
 	DisputeGameFinalityDelaySecondsFlagName = "dispute-game-finality-delay-seconds"
 	MIPSVersionFlagName                     = "mips-version"
+	DevFeatureBitmapFlagName                = "dev-feature-bitmap"
 	ProxyOwnerFlagName                      = "proxy-owner"
 	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
 	ProtocolVersionsOwnerFlagName           = "protocol-versions-owner"
@@ -67,6 +68,12 @@ var (
 		Usage:   "MIPS version.",
 		EnvVars: deployer.PrefixEnvVar("MIPS_VERSION"),
 		Value:   standard.MIPSVersion,
+	}
+	DevFeatureBitmapFlag = &cli.StringFlag{
+		Name:    DevFeatureBitmapFlagName,
+		Usage:   "Development feature bitmap.",
+		EnvVars: deployer.PrefixEnvVar("DEV_FEATURE_BITMAP"),
+		Value:   common.Hash{}.Hex(),
 	}
 	ProxyOwnerFlag = &cli.StringFlag{
 		Name:    ProxyOwnerFlagName,
@@ -145,6 +152,7 @@ var ImplementationsFlags = []cli.Flag{
 	OutfileFlag,
 	deployer.ArtifactsLocatorFlag,
 	MIPSVersionFlag,
+	DevFeatureBitmapFlag,
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
 	ChallengePeriodSecondsFlag,

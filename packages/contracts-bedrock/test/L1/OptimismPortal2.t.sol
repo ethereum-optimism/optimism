@@ -20,6 +20,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -117,7 +118,10 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
         vm.warp(block.timestamp + game.maxClockDuration().raw() + 1 seconds);
 
         // Fund the portal so that we can withdraw ETH.
-        vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        }
     }
 
     /// @notice Asserts that the reentrant call will revert.
@@ -148,6 +152,13 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
 
         // Store the new value at the correct slot/offset.
         vm.store(address(optimismPortal2), bytes32(slot.slot), newValue);
+    }
+
+    /// @notice Checks if the ETHLockbox feature is enabled.
+    /// @return bool True if the ETHLockbox feature is enabled.
+    function isUsingLockbox() public view returns (bool) {
+        return
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(optimismPortal2.ethLockbox()) != address(0);
     }
 }
 
@@ -190,7 +201,12 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
         assertEq(optimismPortal2.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal2.paused(), false);
         assertEq(address(optimismPortal2.systemConfig()), address(systemConfig));
-        assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
+
+        if (isUsingLockbox()) {
+            assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
+        } else {
+            assertEq(address(optimismPortal2.ethLockbox()), address(0));
+        }
 
         returnIfForkTest(
             "OptimismPortal2_Initialize_Test: Do not check guardian and respectedGameType on forked networks"
@@ -670,8 +686,10 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
             _data: hex""
         });
 
-        // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
-        vm.expectCall(address(ethLockbox), _value, abi.encodeCall(ethLockbox.lockETH, ()), _value > 0 ? 1 : 0);
+        if (isUsingLockbox()) {
+            // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
+            vm.expectCall(address(ethLockbox), _value, abi.encodeCall(ethLockbox.lockETH, ()), _value > 0 ? 1 : 0);
+        }
 
         // give alice money and send as an eoa
         vm.deal(alice, _value);
@@ -679,8 +697,13 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
         (bool s,) = address(optimismPortal2).call{ value: _value }(hex"");
 
         assertTrue(s);
-        assertEq(address(optimismPortal2).balance, balanceBefore);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _value);
+
+        if (isUsingLockbox()) {
+            assertEq(address(optimismPortal2).balance, balanceBefore);
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _value);
+        } else {
+            assertEq(address(optimismPortal2).balance, balanceBefore + _value);
+        }
     }
 }
 
@@ -888,14 +911,16 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
             _withdrawalProof: _withdrawalProof
         });
 
-        _defaultTx.target = address(ethLockbox);
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.proveWithdrawalTransaction({
-            _tx: _defaultTx,
-            _disputeGameIndex: _proposedGameIndex,
-            _outputRootProof: _outputRootProof,
-            _withdrawalProof: _withdrawalProof
-        });
+        if (isUsingLockbox()) {
+            _defaultTx.target = address(ethLockbox);
+            vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+            optimismPortal2.proveWithdrawalTransaction({
+                _tx: _defaultTx,
+                _disputeGameIndex: _proposedGameIndex,
+                _outputRootProof: _outputRootProof,
+                _withdrawalProof: _withdrawalProof
+            });
+        }
     }
 
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the current timestamp is less
@@ -1365,9 +1390,11 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
-        _defaultTx.target = address(ethLockbox);
-        vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
-        optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        if (isUsingLockbox()) {
+            _defaultTx.target = address(ethLockbox);
+            vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
+            optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
+        }
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the target reverts and caller
@@ -1435,7 +1462,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
         // Fund the portal so that we can withdraw ETH.
         vm.store(address(optimismPortal2), bytes32(uint256(61)), bytes32(uint256(0xFFFFFFFF)));
-        vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        }
 
         uint256 bobBalanceBefore = bob.balance;
 
@@ -1653,6 +1683,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the target reverts.
     function test_finalizeWithdrawalTransaction_targetFails_fails() external {
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.deal(address(optimismPortal2), 0); // no balance
+        }
+
         uint256 bobBalanceBefore = address(bob).balance;
         vm.etch(bob, hex"fe"); // Contract with just the invalid opcode.
 
@@ -1679,8 +1713,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         // Bob's balance should not have changed.
         assertEq(address(bob).balance, bobBalanceBefore);
 
-        // OptimismPortal2 should not have any stuck ETH.
-        assertEq(address(optimismPortal2).balance, 0);
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            // OptimismPortal2 should not have any stuck ETH.
+            assertEq(address(optimismPortal2).balance, 0);
+        }
     }
 
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts if the withdrawal has already
@@ -1824,7 +1860,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
-        vm.deal(address(ethLockbox), value);
+        vm.deal(address(optimismPortal2), value);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), value);
+        }
 
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
         uint256 nonce = l2ToL1MessagePasser.messageNonce();
@@ -1905,7 +1944,10 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
 
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
-        vm.deal(address(ethLockbox), value);
+        vm.deal(address(optimismPortal2), value);
+        if (isUsingLockbox()) {
+            vm.deal(address(ethLockbox), value);
+        }
 
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
         uint256 nonce = l2ToL1MessagePasser.messageNonce();
@@ -2437,8 +2479,10 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _data: _data
         });
 
-        // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
-        vm.expectCall(address(ethLockbox), _mint, abi.encodeCall(ethLockbox.lockETH, ()), _mint > 0 ? 1 : 0);
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
+            vm.expectCall(address(ethLockbox), _mint, abi.encodeCall(ethLockbox.lockETH, ()), _mint > 0 ? 1 : 0);
+        }
 
         vm.deal(depositor, _mint);
         vm.prank(depositor, depositor);
@@ -2450,8 +2494,12 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _data: _data
         });
 
-        assertEq(address(optimismPortal2).balance, balanceBefore);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, balanceBefore);
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        } else {
+            assertEq(address(optimismPortal2).balance, balanceBefore + _mint);
+        }
     }
 
     /// @notice Tests that `depositTransaction` succeeds for an EOA using 7702 delegation.
@@ -2508,8 +2556,13 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _isCreation: _isCreation,
             _data: _data
         });
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + _mint);
+        }
     }
 
     /// @notice Tests that `depositTransaction` succeeds for a contract.
@@ -2549,8 +2602,10 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _data: _data
         });
 
-        // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
-        vm.expectCall(address(ethLockbox), _mint, abi.encodeCall(ethLockbox.lockETH, ()), _mint > 0 ? 1 : 0);
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            // Expect call to the ETHLockbox to lock the funds only if the value is greater than 0.
+            vm.expectCall(address(ethLockbox), _mint, abi.encodeCall(ethLockbox.lockETH, ()), _mint > 0 ? 1 : 0);
+        }
 
         vm.deal(address(this), _mint);
         vm.prank(address(this));
@@ -2561,8 +2616,13 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _isCreation: _isCreation,
             _data: _data
         });
-        assertEq(address(optimismPortal2).balance, balanceBefore);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, balanceBefore);
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _mint);
+        } else {
+            assertEq(address(optimismPortal2).balance, balanceBefore + _mint);
+        }
     }
 }
 

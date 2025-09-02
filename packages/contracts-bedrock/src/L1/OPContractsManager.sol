@@ -7,6 +7,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -66,10 +67,8 @@ contract OPContractsManagerContractsContainer {
         devFeatureBitmap = _devFeatureBitmap;
 
         // Development features MUST NOT be enabled on Mainnet.
-        if (block.chainid == 1) {
-            if (uint256(_devFeatureBitmap) != 0) {
-                revert DevFeatureInProd();
-            }
+        if (block.chainid == 1 && !_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {
+            revert DevFeatureInProd();
         }
     }
 
@@ -89,6 +88,14 @@ contract OPContractsManagerContractsContainer {
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
         return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature);
+    }
+
+    /// @notice Returns true if the contract is running in a testing environment. Checks that the
+    ///         code for the address 0xbeefcafe is not zero, which is an address that should never
+    ///         have any code in production environments but can be made to have code in tests.
+    /// @return True if the contract is running in a testing environment, false otherwise.
+    function _isTestingEnvironment() public view returns (bool) {
+        return address(0xbeefcafe).code.length > 0;
     }
 }
 
@@ -798,6 +805,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 optimismPortal.upgrade(anchorStateRegistry);
             }
 
+            // We can now guarantee that the OptimismPortal has the ethLockbox() function. Using
+            // this function, determine if the ETHLockbox exists. If it does, enable the feature in
+            // the SystemConfig.
+            if (address(optimismPortal.ethLockbox()) != address(0)) {
+                _opChainConfigs[i].systemConfigProxy.toggleFeature(Features.ETH_LOCKBOX, true);
+            }
+
             // Separate context to avoid stack too deep.
             {
                 // Grab chain addresses here. We need to do this after the SystemConfig upgrade or
@@ -1138,6 +1152,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
+        // Initialize the OptimismPortal.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             data = encodeOptimismPortalInteropInitializer(output);
             upgradeToAndCall(
@@ -1165,6 +1180,13 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         portals[0] = output.optimismPortalProxy;
         data = encodeETHLockboxInitializer(output, portals);
         upgradeToAndCall(output.opChainProxyAdmin, address(output.ethLockboxProxy), implementation.ethLockboxImpl, data);
+
+        // If the interop feature was requested, enable the ETHLockbox feature in the SystemConfig
+        // contract. Only other way to get the ETHLockbox feature as of u16a is to have already had
+        // the ETHLockbox in U16 and then upgrade to U16a.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            output.systemConfigProxy.toggleFeature(Features.ETH_LOCKBOX, true);
+        }
 
         data = encodeOptimismMintableERC20FactoryInitializer(output);
         upgradeToAndCall(
@@ -1852,9 +1874,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

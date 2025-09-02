@@ -88,7 +88,7 @@
     "label": "provenWithdrawals",
     "offset": 0,
     "slot": "57",
-    "type": "mapping(bytes32 => mapping(address => struct OptimismPortal2.ProvenWithdrawal))"
+    "type": "mapping(bytes32 => mapping(address => struct OptimismPortalInterop.ProvenWithdrawal))"
   },
   {
     "bytes": "32",
@@ -141,7 +141,7 @@
   },
   {
     "bytes": "1",
-    "label": "spacer_63_20_1",
+    "label": "superRootsActive",
     "offset": 20,
     "slot": "63",
     "type": "bool"

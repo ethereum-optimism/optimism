@@ -14,6 +14,7 @@ type DeployImplementationsInput struct {
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
+	DevFeatureBitmap                common.Hash
 	SuperchainConfigProxy           common.Address
 	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address

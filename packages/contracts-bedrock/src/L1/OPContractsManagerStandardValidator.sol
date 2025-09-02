@@ -192,7 +192,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected OptimismPortal version.
     function optimismPortalVersion() public pure returns (string memory) {
-        return "4.6.0";
+        return "4.7.0";
     }
 
     /// @notice Returns the expected L1CrossDomainMessenger version.

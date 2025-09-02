@@ -16,6 +16,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -124,7 +125,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @custom:legacy
     /// @custom:spacer superRootsActive
-    bool public spacer_63_20_1;
+    bool private spacer_63_20_1;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
@@ -201,9 +202,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_Unauthorized();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.6.0
+    /// @custom:semver 4.7.0
     function version() public pure virtual returns (string memory) {
-        return "4.6.0";
+        return "4.7.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -462,8 +463,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
-        // Unlock the ETH from the ETHLockbox.
-        if (_tx.value > 0) ethLockbox.unlockETH(_tx.value);
+        // If using ETHLockbox, unlock the ETH from the ETHLockbox.
+        if (_isUsingLockbox()) {
+            if (_tx.value > 0) ethLockbox.unlockETH(_tx.value);
+        }
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
@@ -484,10 +487,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
 
-        // Send ETH back to the Lockbox in the case of a failed transaction or it'll get stuck here
-        // and would need to be moved back via the migrateLiquidity function.
-        if (!success && _tx.value > 0) {
-            ethLockbox.lockETH{ value: _tx.value }();
+        // If using ETHLockbox, send ETH back to the Lockbox in the case of a failed transaction or
+        // it'll get stuck here and would need to be moved back via the migrateLiquidity function.
+        if (_isUsingLockbox()) {
+            if (!success && _tx.value > 0) {
+                ethLockbox.lockETH{ value: _tx.value }();
+            }
         }
 
         // Reverting here is useful for determining the exact gas cost to successfully execute the
@@ -559,8 +564,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         payable
         metered(_gasLimit)
     {
-        // Lock the ETH in the ETHLockbox.
-        if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
+        // If using ETHLockbox, lock the ETH in the ETHLockbox.
+        if (_isUsingLockbox()) {
+            if (msg.value > 0) ethLockbox.lockETH{ value: msg.value }();
+        }
 
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
@@ -603,6 +610,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Checks if the ETHLockbox feature is enabled.
+    /// @return bool True if the ETHLockbox feature is enabled.
+    function _isUsingLockbox() internal view returns (bool) {
+        return systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0);
     }
 
     /// @notice Asserts that the contract is not paused.

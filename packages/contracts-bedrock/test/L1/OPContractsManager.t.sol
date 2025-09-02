@@ -14,7 +14,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
-import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -25,18 +24,11 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
-import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -47,11 +39,7 @@ import {
     IOPContractsManager,
     IOPCMImplementationsWithoutLockbox,
     IOPContractsManagerGameTypeAdder,
-    IOPContractsManagerDeployer,
-    IOPContractsManagerUpgrader,
-    IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator
+    IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManager200 } from "interfaces/L1/IOPContractsManager200.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -59,7 +47,6 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
-import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 // Contracts
 import {
@@ -392,8 +379,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Predict the address of the new AnchorStateRegistry proxy.
         // Subcontext to avoid stack too deep.
-        address newAsrProxy;
-        {
+        address asr;
+        try optimismPortal2.anchorStateRegistry() returns (IAnchorStateRegistry asr_) {
+            asr = address(asr_);
+        } catch {
             // Compute the salt using the system config address.
             bytes32 salt = keccak256(
                 abi.encode(
@@ -407,8 +396,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             address proxyBp = opcm.blueprints().proxy;
             Blueprint.Preamble memory preamble = Blueprint.parseBlueprintPreamble(proxyBp.code);
             bytes memory initCode = bytes.concat(preamble.initcode, abi.encode(proxyAdmin));
-            newAsrProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
-            vm.label(newAsrProxy, "NewAnchorStateRegistryProxy");
+            asr = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
+            vm.label(asr, "NewAnchorStateRegistryProxy");
         }
 
         // Grab the PermissionedDisputeGame and FaultDisputeGame implementations before upgrade.
@@ -417,9 +406,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         IPermissionedDisputeGame oldPDG = IPermissionedDisputeGame(oldPDGImpl);
         IFaultDisputeGame oldFDG = IFaultDisputeGame(oldFDGImpl);
 
-        // Expect the SystemConfig and OptimismPortal to be upgraded.
+        // Expect the SystemConfig upgraded.
         expectEmitUpgraded(impls.systemConfigImpl, address(systemConfig));
-        expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal2));
+
+        // Expect the OptimismPortal to be upgraded, impl depends on interop feature.
+        if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            expectEmitUpgraded(impls.optimismPortalInteropImpl, address(optimismPortal2));
+        } else {
+            expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal2));
+        }
 
         // We always expect the PermissionedDisputeGame to be deployed. We don't yet know the
         // address of the new permissionedGame which will be deployed by the
@@ -482,11 +477,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
 
-        // Make sure that the OptimismPortal is upgraded to the right version. It must also have a
-        // reference to the new AnchorStateRegistry.
-        assertEq(ISemver(address(optimismPortal2)).version(), "4.6.0");
-        assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
-        assertEq(address(optimismPortal2.anchorStateRegistry()), address(newAsrProxy));
+        // Make sure that the OptimismPortal is upgraded correctly.
+        assertEq(address(optimismPortal2.anchorStateRegistry()), address(asr));
         DeployUtils.assertInitialized({
             _contractAddress: address(optimismPortal2),
             _isProxy: true,
@@ -494,11 +486,19 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             _offset: 0
         });
 
+        if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            assertEq(ISemver(address(optimismPortal2)).version(), "4.7.0");
+            assertEq(impls.optimismPortalInteropImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
+        } else {
+            assertEq(ISemver(address(optimismPortal2)).version(), "4.7.0");
+            assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
+        }
+
         // Make sure the new AnchorStateRegistry has the right version and is initialized.
-        assertEq(ISemver(address(newAsrProxy)).version(), "3.5.0");
+        assertEq(ISemver(address(asr)).version(), "3.5.0");
         vm.prank(address(proxyAdmin));
-        assertEq(IProxy(payable(newAsrProxy)).admin(), address(proxyAdmin));
-        DeployUtils.assertInitialized({ _contractAddress: address(newAsrProxy), _isProxy: true, _slot: 0, _offset: 0 });
+        assertEq(IProxy(payable(asr)).admin(), address(proxyAdmin));
+        DeployUtils.assertInitialized({ _contractAddress: address(asr), _isProxy: true, _slot: 0, _offset: 0 });
     }
 
     function runUpgradeTestAndChecks(address _delegateCaller) public {
