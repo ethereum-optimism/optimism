@@ -375,27 +375,3 @@ interface IOPContractsManager {
 
     function upgradeController() external view returns (address);
 }
-
-/// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox
-///         on it, since the OPCM contracts already deployed on mainnet don't have it.
-/// @dev    Only used for testing.
-interface IOPCMImplementationsWithoutLockbox {
-    /// @notice The implementation contracts for the OP Stack, without the newly added ETHLockbox.
-    struct Implementations {
-        address superchainConfigImpl;
-        address protocolVersionsImpl;
-        address l1ERC721BridgeImpl;
-        address optimismPortalImpl;
-        address systemConfigImpl;
-        address optimismMintableERC20FactoryImpl;
-        address l1CrossDomainMessengerImpl;
-        address l1StandardBridgeImpl;
-        address disputeGameFactoryImpl;
-        address anchorStateRegistryImpl;
-        address delayedWETHImpl;
-        address mipsImpl;
-    }
-
-    /// @notice Returns the implementation contracts without the ETHLockbox.
-    function implementations() external view returns (Implementations memory);
-}

@@ -8,6 +8,7 @@ import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
+import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -197,17 +198,17 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected L1CrossDomainMessenger version.
     function l1CrossDomainMessengerVersion() public pure returns (string memory) {
-        return "2.9.0";
+        return "2.10.0";
     }
 
     /// @notice Returns the expected L1ERC721Bridge version.
     function l1ERC721BridgeVersion() public pure returns (string memory) {
-        return "2.7.0";
+        return "2.8.0";
     }
 
     /// @notice Returns the expected L1StandardBridge version.
     function l1StandardBridgeVersion() public pure returns (string memory) {
-        return "2.6.0";
+        return "2.7.0";
     }
 
     /// @notice Returns the expected MIPS version.
@@ -475,8 +476,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
         // If this chain isn't using the ETHLockbox, skip the validation.
-        // TODO(#?????): Use SystemConfig feature flag here instead.
-        if (address(_lockbox) == address(0)) {
+        if (!_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX)) {
             return _errors;
         }
 

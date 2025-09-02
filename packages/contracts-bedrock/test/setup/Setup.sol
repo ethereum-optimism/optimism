@@ -265,7 +265,10 @@ contract Setup is FeatureFlags {
         // Only skip ETHLockbox assignment if we're in a fork test with non-upgraded fork
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
         if (!isForkTest() || deploy.cfg().useUpgradedFork()) {
-            ethLockbox = IETHLockbox(artifacts.mustGetAddress("ETHLockboxProxy"));
+            // Here we use getAddress instead of mustGetAddress because some chains might not have
+            // the ETHLockbox proxy. Chains that don't have the ETHLockbox proxy will just return
+            // address(0) and cause a revert if we use mustGetAddress.
+            ethLockbox = IETHLockbox(artifacts.getAddress("ETHLockboxProxy"));
         }
 
         systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));

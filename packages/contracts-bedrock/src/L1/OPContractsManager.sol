@@ -720,16 +720,22 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // that gets provided and (2) the absolute worst case scenario is that a new ASR gets
             // deployed which invalidates withdrawals but has no other real downsides.
             IAnchorStateRegistry anchorStateRegistry;
-            // eip150-safe
+
+            // nosemgrep: sol-safety-trycatch-eip150
             try optimismPortal.anchorStateRegistry() returns (IAnchorStateRegistry anchorStateRegistry_) {
                 anchorStateRegistry = anchorStateRegistry_;
+
+                // Upgrade the ASR implementation anyway. Since the ASR code didn't change, this
+                // won't have any impact in production but is required because the address is
+                // different when deployed in a testing environment because the OPCM deployer
+                // address is different.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(anchorStateRegistry), impls.anchorStateRegistryImpl);
             } catch {
                 // Grab the current respectedGameType from the OptimismPortal contract before the
                 // upgrade.
                 GameType respectedGameType = optimismPortal.respectedGameType();
 
                 // Deploy a new AnchorStateRegistry contract.
-                // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
                 anchorStateRegistry = IAnchorStateRegistry(
                     deployProxy({
                         _l2ChainId: l2ChainId,
@@ -777,7 +783,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox-U16"
+                        _contractName: "ETHLockbox-U16a"
                     })
                 );
 
@@ -853,7 +859,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             _l2ChainId: l2ChainId,
                             _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                             _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                            _contractName: "PermissionedDelayedWETH-U16"
+                            _contractName: "PermissionedDelayedWETH-U16a"
                         })
                     )
                 );
@@ -892,7 +898,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                                 _l2ChainId: l2ChainId,
                                 _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                                 _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                                _contractName: "PermissionlessDelayedWETH-U16"
+                                _contractName: "PermissionlessDelayedWETH-U16a"
                             })
                         )
                     );

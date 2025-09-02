@@ -7,7 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { LibString } from "@solady/utils/LibString.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -32,7 +32,7 @@ contract FeatureFlags {
 
     /// @notice Resolves the development feature bitmap.
     function resolveFeaturesFromEnv() public {
-        if (LibString.eq(vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", string("0")), "1")) {
+        if (Config.devFeatureInterop()) {
             console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
         }
