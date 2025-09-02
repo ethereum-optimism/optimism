@@ -1,4 +1,4 @@
-build:
+build: build-contracts copy-contract-artifacts
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
 build-contracts:
