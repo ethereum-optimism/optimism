@@ -161,9 +161,19 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
     function test_clear_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
+        // First disable the module at the Safe level
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
+            Enum.Operation.Call
+        );
+
         vm.expectEmit(true, true, true, true);
         emit ModuleDisabled(address(safeInstance.safe));
 
+        // Now clear the configuration
         _disableModule(safeInstance);
 
         (uint256 period, address fbOwner) = livenessModule2.safeConfigs(address(safeInstance.safe));
@@ -277,10 +287,12 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
 
     function test_respond_moduleNotEnabled_reverts() external {
         // Create a Safe that hasn't enabled the module
-        address safeThatDidntEnable = makeAddr("safeThatDidntEnable");
+        (, uint256[] memory newKeys) = SafeTestLib.makeAddrsAndKeys("safeThatDidntEnable", NUM_OWNERS);
+        SafeInstance memory safeThatDidntEnable = _setupSafe(newKeys, THRESHOLD);
+        // Note: we don't call SafeTestLib.enableModule here
 
         vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
-        vm.prank(safeThatDidntEnable);
+        vm.prank(address(safeThatDidntEnable.safe));
         livenessModule2.respond();
     }
 }

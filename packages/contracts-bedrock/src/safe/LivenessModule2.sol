@@ -55,19 +55,20 @@ contract LivenessModule2 is ILivenessModule2 {
     }
 
     /// @notice Clears the module configuration for a Safe
-    /// @dev MUST only be executable by a Safe that has this module enabled
+    /// @dev MUST only be executable by a Safe that has DISABLED this module first
     /// @dev MUST erase the existing liveness_response_period and fallback_owner data related to the calling safe
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges
     function clear() external {
-        // Check that this module is enabled on the calling Safe
-        Safe safe = Safe(payable(msg.sender));
-        if (!safe.isModuleEnabled(address(this))) {
+        // Check if the calling safe has configuration set
+        ModuleConfig storage config = safeConfigs[msg.sender];
+        if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
-        ModuleConfig storage config = safeConfigs[msg.sender];
-        // Check if the calling safe has configuration set
-        if (config.fallbackOwner == address(0)) {
+        // Check that this module is NOT enabled on the calling Safe
+        // This prevents clearing configuration while module is still enabled
+        Safe safe = Safe(payable(msg.sender));
+        if (safe.isModuleEnabled(address(this))) {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
@@ -105,6 +106,12 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
+        // Check that the module is still enabled on the target Safe
+        Safe safe = Safe(payable(_safe));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
+        }
+
         if (msg.sender != config.fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
@@ -123,8 +130,15 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @dev MUST revert if there is a challenge for the calling safe but the response period has expired
     /// @dev MUST emit the ChallengeCancelled event
     function respond() external {
+        // Check that this module is enabled on the calling Safe
+        Safe safe = Safe(payable(msg.sender));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
+        }
+
         ModuleConfig storage config = safeConfigs[msg.sender];
 
+        // Check if the calling safe has configuration set
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
         }
@@ -158,6 +172,12 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
+        // Check that the module is still enabled on the target Safe
+        Safe safe = Safe(payable(_safe));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
+        }
+
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
@@ -168,26 +188,26 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_ResponsePeriodActive();
         }
 
-        Safe safe = Safe(payable(_safe));
+        Safe targetSafe = Safe(payable(_safe));
 
         // Get current owners
-        address[] memory owners = safe.getOwners();
+        address[] memory owners = targetSafe.getOwners();
 
         // Remove all owners after the first one
         while (owners.length > 1) {
             // removeOwner automatically updates the threshold, so we don't need to do it manually
-            safe.execTransactionFromModule({
+            targetSafe.execTransactionFromModule({
                 to: _safe,
                 value: 0,
                 operation: Enum.Operation.Call,
                 data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNER, owners[0], 1))
             });
             // Get updated owners list after removal
-            owners = safe.getOwners();
+            owners = targetSafe.getOwners();
         }
 
         // Now swap the remaining single owner with the fallback owner
-        safe.execTransactionFromModule({
+        targetSafe.execTransactionFromModule({
             to: _safe,
             value: 0,
             operation: Enum.Operation.Call,
