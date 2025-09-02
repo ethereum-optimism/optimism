@@ -471,9 +471,9 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
     }
 }
 
-/// @title LivenessModule2_IsChallenged_Test
+/// @title LivenessModule2_GetChallengePeriodEnd_Test
 /// @notice Tests the getChallengePeriodEnd function and related view functionality
-contract LivenessModule2_IsChallenged_Test is LivenessModule2_TestInit {
+contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit {
     function test_safeConfigs_succeeds() external {
         // Before enabling
         (uint256 period1, address fbOwner1) = livenessModule2.safeConfigs(address(safeInstance.safe));

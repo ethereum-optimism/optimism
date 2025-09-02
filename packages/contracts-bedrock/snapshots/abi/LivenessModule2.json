@@ -97,7 +97,7 @@
         "type": "address"
       }
     ],
-    "name": "isChallenged",
+    "name": "getChallengePeriodEnd",
     "outputs": [
       {
         "internalType": "uint256",
