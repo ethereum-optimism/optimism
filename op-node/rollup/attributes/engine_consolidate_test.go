@@ -36,6 +36,55 @@ type matchArgs struct {
 	parentHash common.Hash
 }
 
+func jovianArgs() matchArgs {
+	var (
+		validParentHash       = common.HexToHash("0x123")
+		validTimestamp        = eth.Uint64Quantity(150)
+		validParentBeaconRoot = common.HexToHash("0x456")
+		validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
+		validGasLimit         = eth.Uint64Quantity(1000)
+		validFeeRecipient     = predeploys.SequencerFeeVaultAddr
+		validTx               = testutils.RandomLegacyTxNotProtected(rand.New(rand.NewSource(42)))
+		validTxData, _        = validTx.MarshalBinary()
+		minBaseFee            = uint64(1e9)
+
+		validJovianExtraData = eth.BytesMax32(eip1559.EncodeJovianExtraData(
+			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, minBaseFee))
+		validJovianEIP1559Params = new(eth.Bytes8)
+	)
+	// Populate the EIP1559 params with the encoded values
+	copy((*validJovianEIP1559Params)[:], eip1559.EncodeHolocene1559Params(
+		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
+
+	return matchArgs{
+		envelope: &eth.ExecutionPayloadEnvelope{
+			ParentBeaconBlockRoot: &validParentBeaconRoot,
+			ExecutionPayload: &eth.ExecutionPayload{
+				ParentHash:   validParentHash,
+				Timestamp:    validTimestamp,
+				PrevRandao:   validPrevRandao,
+				GasLimit:     validGasLimit,
+				Transactions: []eth.Data{validTxData},
+				Withdrawals:  &types.Withdrawals{},
+				FeeRecipient: validFeeRecipient,
+				ExtraData:    validJovianExtraData,
+			},
+		},
+		attrs: &eth.PayloadAttributes{
+			Timestamp:             validTimestamp,
+			PrevRandao:            validPrevRandao,
+			GasLimit:              &validGasLimit,
+			ParentBeaconBlockRoot: &validParentBeaconRoot,
+			Transactions:          []eth.Data{validTxData},
+			Withdrawals:           &types.Withdrawals{},
+			SuggestedFeeRecipient: validFeeRecipient,
+			EIP1559Params:         validJovianEIP1559Params,
+			MinBaseFee:            minBaseFee,
+		},
+		parentHash: validParentHash,
+	}
+}
+
 func holoceneArgs() matchArgs {
 	var (
 		validParentHash       = common.HexToHash("0x123")
@@ -190,6 +239,7 @@ func TestAttributesMatch(t *testing.T) {
 
 	rollupCfgPreCanyon := &rollup.Config{CanyonTime: &futureTime, ChainOpConfig: defaultOpConfig}
 	rollupCfgPreIsthmus := &rollup.Config{CanyonTime: &pastTime, IsthmusTime: &futureTime, ChainOpConfig: defaultOpConfig}
+	rollupCfgPostJovian := &rollup.Config{CanyonTime: &pastTime, JovianTime: &futureTime, ChainOpConfig: defaultOpConfig}
 
 	tests := []struct {
 		args      matchArgs
@@ -222,6 +272,11 @@ func TestAttributesMatch(t *testing.T) {
 			args:      holoceneArgs(),
 			rollupCfg: rollupCfgPreIsthmus,
 			desc:      "validholoceneArgs",
+		},
+		{
+			args:      jovianArgs(),
+			rollupCfg: rollupCfgPostJovian,
+			desc:      "validJovianArgs",
 		},
 		{
 			args:      mismatchedParentHashArgs(),
@@ -545,7 +600,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData)
+			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, 0, false)
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {
