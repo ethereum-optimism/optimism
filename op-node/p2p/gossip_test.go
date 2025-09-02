@@ -10,23 +10,21 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGuardGossipValidator(t *testing.T) {
@@ -278,6 +276,84 @@ func TestGossipTimestampThreshold(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildGossipSubParams(t *testing.T) {
+	t.Parallel()
+	rollupCfg := &rollup.Config{
+		L2ChainID: big.NewInt(100),
+	}
+
+	t.Run("UsesDefaultsWhenConfigValuesAreZero", func(t *testing.T) {
+		t.Parallel()
+		// Create config with zero values (unset)
+		cfg := &Config{}
+
+		// Build the params directly using the new function
+		params := cfg.BuildGossipSubParams(rollupCfg)
+
+		// Verify defaults are used when config values are zero
+		require.Equal(t, DefaultMeshD, params.D)
+		require.Equal(t, DefaultMeshDlo, params.Dlo)
+		require.Equal(t, DefaultMeshDhi, params.Dhi)
+		require.Equal(t, DefaultMeshDlazy, params.Dlazy)
+	})
+
+	t.Run("OverridesDefaultsWhenConfigValuesAreSet", func(t *testing.T) {
+		t.Parallel()
+		// Create config with custom values
+		cfg := &Config{
+			MeshD:     8,
+			MeshDLo:   4,
+			MeshDHi:   16,
+			MeshDLazy: 10,
+		}
+
+		// Build the params directly using the new function
+		params := cfg.BuildGossipSubParams(rollupCfg)
+
+		// Verify custom values override defaults
+		require.Equal(t, 8, params.D)
+		require.Equal(t, 4, params.Dlo)
+		require.Equal(t, 16, params.Dhi)
+		require.Equal(t, 10, params.Dlazy)
+	})
+
+	t.Run("PartialOverrideKeepsOtherDefaults", func(t *testing.T) {
+		t.Parallel()
+		// Create config with only some values set
+		cfg := &Config{
+			MeshD:     10, // Override this
+			MeshDLo:   0,  // Use default
+			MeshDHi:   20, // Override this
+			MeshDLazy: 0,  // Use default
+		}
+
+		// Build the params directly using the new function
+		params := cfg.BuildGossipSubParams(rollupCfg)
+
+		// Verify partial overrides work correctly
+		require.Equal(t, 10, params.D)
+		require.Equal(t, DefaultMeshDlo, params.Dlo)
+		require.Equal(t, 20, params.Dhi)
+		require.Equal(t, DefaultMeshDlazy, params.Dlazy)
+	})
+}
+
+func TestConfigureGossip(t *testing.T) {
+	t.Parallel()
+	rollupCfg := &rollup.Config{
+		L2ChainID: big.NewInt(100),
+	}
+
+	// Just test that ConfigureGossip returns the expected options
+	cfg := &Config{
+		FloodPublish: true,
+	}
+
+	opts := cfg.ConfigureGossip(rollupCfg)
+	require.Len(t, opts, 2) // WithGossipSubParams and WithFloodPublish
+}
+
 
 // mockGossipSetupConfigurablesWithThreshold implements GossipSetupConfigurables with configurable threshold
 type mockGossipSetupConfigurablesWithThreshold struct {

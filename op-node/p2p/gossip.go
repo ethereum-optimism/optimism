@@ -10,15 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru/v2"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -143,14 +142,30 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 	}
 }
 
-func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+// BuildGossipSubParams builds the gossipsub parameters for the network,
+// starting with defaults and applying any configured overrides.
+func (p *Config) BuildGossipSubParams(rollupCfg *rollup.Config) pubsub.GossipSubParams {
 	params := BuildGlobalGossipParams(rollupCfg)
 
-	// override with CLI changes
-	params.D = p.MeshD
-	params.Dlo = p.MeshDLo
-	params.Dhi = p.MeshDHi
-	params.Dlazy = p.MeshDLazy
+	// override with CLI changes (only if non-zero)
+	if p.MeshD > 0 {
+		params.D = p.MeshD
+	}
+	if p.MeshDLo > 0 {
+		params.Dlo = p.MeshDLo
+	}
+	if p.MeshDHi > 0 {
+		params.Dhi = p.MeshDHi
+	}
+	if p.MeshDLazy > 0 {
+		params.Dlazy = p.MeshDLazy
+	}
+
+	return params
+}
+
+func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	params := p.BuildGossipSubParams(rollupCfg)
 
 	// in the future we may add more advanced options like scoring and PX / direct-mesh / episub
 	return []pubsub.Option{
