@@ -377,7 +377,7 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "OptimismPortalInterop",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOptimismPortal.__constructor__, (proofMaturityDelaySeconds))
+                    abi.encodeCall(IOptimismPortalInterop.__constructor__, (proofMaturityDelaySeconds))
                 ),
                 _salt: _salt
             })

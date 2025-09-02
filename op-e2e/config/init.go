@@ -177,7 +177,7 @@ func init() {
 		})
 
 		errHandler = oplog.NewLogHandler(os.Stderr, oplog.CLIConfig{
-			Level:  log.LevelError,
+			Level:  log.LevelTrace,
 			Color:  false,
 			Format: oplog.FormatTerminal,
 		})

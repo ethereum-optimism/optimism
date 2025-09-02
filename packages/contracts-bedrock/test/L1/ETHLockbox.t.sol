@@ -11,6 +11,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -36,6 +37,9 @@ contract ETHLockbox_TestInit is CommonTest {
         // deployed
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
         if (isForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
+
+        // If the ETHLockbox system feature is not enabled, skip these tests.
+        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
     }
 }
 

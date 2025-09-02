@@ -139,10 +139,9 @@ contract ReadImplementationAddresses is Script {
             address(_rii.disputeGameFactoryProxy())
         ];
 
-        bytes4[7] memory sels = [
+        bytes4[6] memory sels = [
             _rio.delayedWETH.selector,
             _rio.optimismPortal.selector,
-            _rio.optimismPortalInterop.selector,
             _rio.systemConfig.selector,
             _rio.l1ERC721Bridge.selector,
             _rio.optimismMintableERC20Factory.selector,
