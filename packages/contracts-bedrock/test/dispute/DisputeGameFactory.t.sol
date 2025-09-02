@@ -268,8 +268,8 @@ contract DisputeGameFactory_TestInit is CommonTest {
         address _proposer,
         address _challenger
     )
-    internal
-    returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
         (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
@@ -277,11 +277,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IPermissionedDisputeGameV2.__constructor__,
-                    (
-                        _getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON),
-                        _proposer,
-                        _challenger
-                    )
+                    (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON), _proposer, _challenger)
                 )
             )
         });
