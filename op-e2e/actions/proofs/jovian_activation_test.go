@@ -51,7 +51,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			t.Log("Unsafe block with timestamp %d", b.Time)
 		}
 		b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		require.Len(t, b.Extra(), 10, "extra data should be 10 bytes after Jovian activation (adds minBaseFee)")
+		require.Len(t, b.Extra(), 17, "extra data should be 17 bytes after Jovian activation (adds minBaseFee)")
 
 		env.BatchMineAndSync(t)
 
