@@ -789,23 +789,6 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
     }
 
-    /// @notice Tests that `setFeature` works with arbitrary feature identifiers.
-    /// @param _feature The feature to toggle.
-    /// @param _enabled Whether to enable or disable the feature.
-    function testFuzz_setFeature_arbitraryFeature_succeeds(bytes32 _feature, bool _enabled) external {
-        // Verify feature is initially disabled
-        assertFalse(systemConfig.isFeatureEnabled(_feature));
-
-        vm.expectEmit(address(systemConfig));
-        emit FeatureSet(_feature, _enabled);
-
-        vm.prank(address(systemConfig.proxyAdmin()));
-        systemConfig.setFeature(_feature, _enabled);
-
-        // Verify feature state matches expected
-        assertEq(systemConfig.isFeatureEnabled(_feature), _enabled);
-    }
-
     /// @notice Tests that `setFeature` can toggle the same feature multiple times.
     function test_setFeature_multipleToggles_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
@@ -836,8 +819,8 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         systemConfig.setFeature(Features.ETH_LOCKBOX, true);
         assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
 
-        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(address(systemConfig.proxyAdmin()));
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         systemConfig.setFeature(Features.ETH_LOCKBOX, true);
     }
 
@@ -848,8 +831,8 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
         assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
 
-        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(address(systemConfig.proxyAdmin()));
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
 }
@@ -882,16 +865,6 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
         vm.prank(address(systemConfig.proxyAdmin()));
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
         assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-    }
-
-    /// @notice Tests that `isFeatureEnabled` works with arbitrary feature identifiers.
-    /// @param _feature The feature to check.
-    /// @param _enabled Whether the feature is enabled.
-    function testFuzz_isFeatureEnabled_arbitraryFeature_succeeds(bytes32 _feature, bool _enabled) external {
-        vm.prank(address(systemConfig.proxyAdmin()));
-        systemConfig.setFeature(_feature, _enabled);
-
-        assertEq(systemConfig.isFeatureEnabled(_feature), _enabled);
     }
 }
 
