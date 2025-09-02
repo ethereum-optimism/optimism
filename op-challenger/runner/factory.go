@@ -40,13 +40,13 @@ func createTraceProvider(
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeCannonKona:
 		serverExecutor := vm.NewKonaExecutor()
-		stateConverter := cannon.NewStateConverter(cfg.Cannon)
-		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
+		stateConverter := cannon.NewStateConverter(cfg.CannonKona)
+		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
+		return cannon.NewTraceProvider(logger, m, cfg.CannonKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsterisc:
 		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)

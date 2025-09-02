@@ -30,6 +30,8 @@ var (
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
+	cannonKonaServer        = "./bin/kona-host"
+	cannonKonaPreState      = "./cannon-kona-pre.json"
 	datadir                 = "./test_data"
 	rollupRpc               = "http://example.com:8555"
 	asteriscBin             = "./bin/asterisc"
@@ -1285,8 +1287,10 @@ func requiredArgs(traceType types.TraceType) map[string]string {
 		"--datadir":              datadir,
 	}
 	switch traceType {
-	case types.TraceTypeCannon, types.TraceTypePermissioned, types.TraceTypeCannonKona:
+	case types.TraceTypeCannon, types.TraceTypePermissioned:
 		addRequiredCannonArgs(args)
+	case types.TraceTypeCannonKona:
+		addRequiredCannonKonaArgs(args)
 	case types.TraceTypeAsterisc:
 		addRequiredAsteriscArgs(args)
 	case types.TraceTypeAsteriscKona:
@@ -1311,6 +1315,11 @@ func addRequiredCannonArgs(args map[string]string) {
 	addRequiredOutputRootArgs(args)
 }
 
+func addRequiredCannonKonaArgs(args map[string]string) {
+	addRequiredCannonKonaBaseArgs(args)
+	addRequiredOutputRootArgs(args)
+}
+
 func addRequiredOutputRootArgs(args map[string]string) {
 	args["--rollup-rpc"] = rollupRpc
 }
@@ -1320,6 +1329,13 @@ func addRequiredCannonBaseArgs(args map[string]string) {
 	args["--cannon-bin"] = cannonBin
 	args["--cannon-server"] = cannonServer
 	args["--cannon-prestate"] = cannonPreState
+}
+
+func addRequiredCannonKonaBaseArgs(args map[string]string) {
+	args["--network"] = network
+	args["--cannon-bin"] = cannonBin
+	args["--cannon-kona-server"] = cannonKonaServer
+	args["--cannon-kona-prestate"] = cannonKonaPreState
 }
 
 func addRequiredAsteriscArgs(args map[string]string) {
