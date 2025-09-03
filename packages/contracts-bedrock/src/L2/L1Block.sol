@@ -68,9 +68,9 @@ contract L1Block is ISemver {
     /// @notice The scalar value applied to the operator fee.
     uint32 public operatorFeeScalar;
 
-    /// @custom:semver 1.6.2
+    /// @custom:semver 1.7.0
     function version() public pure virtual returns (string memory) {
-        return "1.6.2";
+        return "1.7.0";
     }
 
     /// @notice Returns whether the gas paying token is custom.
