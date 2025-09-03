@@ -80,7 +80,6 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
         assertEq(actual.maximumBaseFee, 0);
         assertEq(impl.startBlock(), type(uint256).max);
         assertEq(address(impl.batchInbox()), address(0));
-        assertEq(impl.isCustomGasToken(), false);
         // Check addresses
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
