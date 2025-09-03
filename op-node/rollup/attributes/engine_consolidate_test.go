@@ -79,7 +79,7 @@ func jovianArgs() matchArgs {
 			Withdrawals:           &types.Withdrawals{},
 			SuggestedFeeRecipient: validFeeRecipient,
 			EIP1559Params:         validJovianEIP1559Params,
-			MinBaseFee:            minBaseFee,
+			MinBaseFee:            &minBaseFee,
 		},
 		parentHash: validParentHash,
 	}
@@ -600,7 +600,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, 0, false)
+			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, nil, false)
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {

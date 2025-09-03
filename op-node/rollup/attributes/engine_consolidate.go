@@ -97,7 +97,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee uint64, isJovian bool) error {
+func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee *uint64, isJovian bool) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -138,9 +138,12 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 		// Decode block parameters and check for mismatch
 		var bd, be, bm uint64
 		if isJovian {
+			if minBaseFee == nil {
+				return fmt.Errorf("minBaseFee is nil but isJovian is true")
+			}
 			bd, be, bm = eip1559.DecodeJovianExtraData(blockExtraData)
-			if bm != minBaseFee {
-				return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", minBaseFee, bm)
+			if bm != *minBaseFee {
+				return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", *minBaseFee, bm)
 			}
 		} else {
 			bd, be = eip1559.DecodeHoloceneExtraData(blockExtraData)
