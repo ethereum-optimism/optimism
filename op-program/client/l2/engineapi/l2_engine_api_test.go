@@ -49,6 +49,7 @@ func TestNewPayloadV4(t *testing.T) {
 		genesisHash := genesisBlock.Hash()
 		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 		minBaseFee := uint64(1e9)
+		minBaseFeePtr := &minBaseFee
 		gasLimit := eth.Uint64Quantity(4712388)
 		result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 			HeadBlockHash:      genesisHash,
@@ -63,7 +64,7 @@ func TestNewPayloadV4(t *testing.T) {
 			NoTxPool:              false,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
-			MinBaseFee:            minBaseFee,
+			MinBaseFee:            minBaseFeePtr,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
@@ -103,6 +104,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	genesisHash := genesis.Hash()
 	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 	minBaseFee := uint64(1e9)
+	minBaseFeePtr := &minBaseFee
 	gasLimit := eth.Uint64Quantity(genesis.GasLimit)
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
@@ -117,7 +119,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 		NoTxPool:              false,
 		GasLimit:              &gasLimit,
 		EIP1559Params:         &eip1559Params,
-		MinBaseFee:            minBaseFee,
+		MinBaseFee:            minBaseFeePtr,
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
