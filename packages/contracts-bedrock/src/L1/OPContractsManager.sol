@@ -670,7 +670,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // same SuperchainConfig contract. We will assert this later. NOTE that we are temporarily
         // doing a strict version comparison instead of an implementation address comparison
         // because the implementation address is different when running test coverage + upgrade
-        // tests. Will be replaced shortly by proper version comparison.ProxyType
+        // tests. Will be replaced shortly by proper version comparison.
         if (
             !LibString.eq(
                 ISuperchainConfig(_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig))).version(),

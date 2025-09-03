@@ -193,7 +193,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected OptimismPortal version.
     function optimismPortalVersion() public pure returns (string memory) {
-        return "4.7.0";
+        return "5.0.0";
     }
 
     /// @notice Returns the expected L1CrossDomainMessenger version.
@@ -441,14 +441,20 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_portal)), optimismPortalVersion()), "PORTAL-10", _errors);
 
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            _errors = internalRequire(
+                LibString.eq(getVersion(address(_portal)), string.concat(optimismPortalVersion(), "+interop")),
+                "PORTAL-10",
+                _errors
+            );
             _errors = internalRequire(
                 getProxyImplementation(_admin, address(_portal)) == optimismPortalInteropImpl, "PORTAL-20", _errors
             );
         } else {
+            _errors = internalRequire(
+                LibString.eq(getVersion(address(_portal)), optimismPortalVersion()), "PORTAL-10", _errors
+            );
             _errors = internalRequire(
                 getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
             );
