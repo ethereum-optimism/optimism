@@ -1,0 +1,30 @@
+configType = "custom"
+l1ChainID = 1337
+fundDevAccounts = false
+useInterop = false
+l1ContractsLocator = "file:///PathToOptimism/packages/contracts-bedrock/forge-artifacts"
+l2ContractsLocator = "file:///PathToOptimism/packages/contracts-bedrock/forge-artifacts"
+
+[superchainRoles]
+proxyAdminOwner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+protocolVersionsOwner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+guardian = "0x602c62a0458429842e063902B2840C6Bc608c839"
+
+[[chains]]
+id = "0x000000000000000000000000000000000000000000000000000000000000a455"
+baseFeeVaultRecipient = "0x602c62a0458429842e063902B2840C6Bc608c839"
+l1FeeVaultRecipient = "0x602c62a0458429842e063902B2840C6Bc608c839"
+sequencerFeeVaultRecipient = "0x602c62a0458429842e063902B2840C6Bc608c839"
+eip1559DenominatorCanyon = 250
+eip1559Denominator = 50
+eip1559Elasticity = 6
+operatorFeeScalar = 0
+operatorFeeConstant = 0
+[chains.roles]
+l1ProxyAdminOwner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+l2ProxyAdminOwner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+systemConfigOwner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+unsafeBlockSigner = "0x602c62a0458429842e063902B2840C6Bc608c839"
+batcher = "0xbEb098B8DF32982Ce0080a4e0675C3bdC66bD25A"
+proposer = "0x7Fe61668A73c66CCBc54F987d86847DAEE1Be1eC"
+challenger = "0x088db7DeFFd95547906230B846333AE78557fa4B"

@@ -940,12 +940,6 @@ func (m *SimpleTxManager) RoundGasPrice(ctx context.Context, tx *types.Transacti
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 
-	//add gas multiplier
-	gas = gas * 100
-	if tx.Gas() > gas {
-		gas = tx.Gas()
-	}
-
 	var newTx *types.Transaction
 	if tx.Type() == types.BlobTxType {
 		message := &types.BlobTx{
