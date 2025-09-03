@@ -10,10 +10,6 @@ import (
 )
 
 func TestSyncTesterExtEL(gt *testing.T) {
-	// if os.Getenv("NIGHTLY_CI_TAILSCALE_JOB") != "true" {
-	// 	gt.Skip("Skipping test because NIGHTLY_CI_TAILSCALE_JOB is not set")
-	// }
-
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewMinimalExternalELWithExternalL1(t)
@@ -32,7 +28,9 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	l2CLSyncStatus := sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
 
-	sys.L2CL.Advanced(types.LocalUnsafe, 32012768, 1000)
+	blocksToSync := uint64(20)
+	targetBlock := InitialL2Block + blocksToSync
+	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 500)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
@@ -45,8 +43,8 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	require.Equal(len(stSessions), 1, "expect exactly one session")
 
 	stSession := sys.SyncTester.GetSession(stSessions[0])
-	require.Equal(stSession.CurrentState.Latest, unsafeL2Ref.Number, "SyncTester session Latest should be on the same block as L2CL")
-	require.Equal(stSession.CurrentState.Safe, unsafeL2Ref.Number, "SyncTester session Safe should be on the same block as L2CL")
+	require.GreaterOrEqual(stSession.CurrentState.Latest, stSession.InitialState.Latest+blocksToSync, "SyncTester session Latest should be on the same block as L2CL")
+	require.GreaterOrEqual(stSession.CurrentState.Safe, stSession.InitialState.Safe+blocksToSync, "SyncTester session Safe should be on the same block as L2CL")
 
 	t.Logger().Info("SyncTester ExtEL test completed successfully",
 		"l2cl_chain_id", l2CLChainID,

@@ -9,12 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func TestMain(m *testing.M) {
-	// if os.Getenv("NIGHTLY_CI_TAILSCALE_JOB") != "true" {
-	// 	// Skipping tests because NIGHTLY_CI_TAILSCALE_JOB is not set
-	// 	return
-	// }
+var (
+	InitialL2Block = uint64(32012748)
+)
 
+func TestMain(m *testing.M) {
 	L2NetworkName := "op-sepolia"
 	L1ChainID := eth.ChainIDFromUInt64(11155111)
 
@@ -24,15 +23,15 @@ func TestMain(m *testing.M) {
 
 	// Endpoints when running with Tailscale networking
 	if os.Getenv("TAILSCALE_NETWORKING") == "true" {
-		L2ELEndpoint = "https://sepolia.optimism.io/"
+		L2ELEndpoint = "https://proxyd-l2-sepolia.primary.client.dev.oplabs.cloud"
 		L1CLBeaconEndpoint = "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"
 		L1ELEndpoint = "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
 	}
 
 	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
-		Latest:    32012748,
-		Safe:      32012748,
-		Finalized: 32012748,
+		Latest:    InitialL2Block,
+		Safe:      InitialL2Block,
+		Finalized: InitialL2Block,
 	}),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
