@@ -54,6 +54,7 @@ func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig:     shim.NewCommonConfig(system.T()),
 		ID:               k.id,
 		Client:           rpcCl,
+		UserRPC:          k.userRPC,
 		InteropEndpoint:  k.interopEndpoint,
 		InteropJwtSecret: k.interopJwtSecret,
 	})
@@ -107,7 +108,7 @@ func (k *KonaNode) Start() {
 	k.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &k.userRPC), "need user RPC")
+	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &userRPCAddr), "need user RPC")
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
 }
@@ -197,7 +198,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
 			envVars = append(envVars,
 				"KONA_NODE_P2P_SEQUENCER_KEY="+p2pKeyHex,
-				"KONA_NODE_SEQUENCER_L1_CONFS=0",
+				"KONA_NODE_SEQUENCER_L1_CONFS=2",
 				"KONA_NODE_MODE=Sequencer",
 			)
 		} else {

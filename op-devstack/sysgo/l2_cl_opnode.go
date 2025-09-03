@@ -65,6 +65,7 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig:     shim.NewCommonConfig(system.T()),
 		ID:               n.id,
 		Client:           rpcCl,
+		UserRPC:          n.userRPC,
 		InteropEndpoint:  n.interopEndpoint,
 		InteropJwtSecret: n.interopJwtSecret,
 	})
