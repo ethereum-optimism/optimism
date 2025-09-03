@@ -75,7 +75,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, rollupCfg.IsConfigurableMinBaseFee(uint64(block.Timestamp))); err != nil {
+	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, rollupCfg.IsJovian(uint64(block.Timestamp))); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee uint64, isConfigurableMinBaseFee bool) error {
+func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee uint64, isJovian bool) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -113,8 +113,8 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 		}
 
 		// Validate block extraData based on fork
-		if isConfigurableMinBaseFee {
-			if err := eip1559.ValidateMinBaseFeeExtraData(blockExtraData); err != nil {
+		if isJovian {
+			if err := eip1559.ValidateJovianExtraData(blockExtraData); err != nil {
 				return fmt.Errorf("invalid block extraData: %w", err)
 			}
 		} else {
@@ -137,8 +137,8 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 
 		// Decode block parameters and check for mismatch
 		var bd, be, bm uint64
-		if isConfigurableMinBaseFee {
-			bd, be, bm = eip1559.DecodeMinBaseFeeExtraData(blockExtraData)
+		if isJovian {
+			bd, be, bm = eip1559.DecodeJovianExtraData(blockExtraData)
 			if bm != minBaseFee {
 				return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", minBaseFee, bm)
 			}

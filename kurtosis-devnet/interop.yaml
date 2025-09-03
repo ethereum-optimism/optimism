@@ -47,7 +47,7 @@ optimism_package:
         node0: &x-node
           el:
             type: op-geth
-            image: ""
+            image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:710a9697279600e7812c8847283eeb750d60ed8e@sha256:0e0dd748d5596ebd728b8d4691f26c4a4a6f387a834f2aa38534e192514bec2a"
             log_level: ""
             extra_env_vars: {}
             extra_labels: {}

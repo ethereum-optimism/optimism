@@ -519,7 +519,7 @@ type PayloadAttributes struct {
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
 	// EIP-1559 parameters, to be specified only post-Holocene
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
-	// MinBaseFee is the minimum base fee.
+	// MinBaseFee is the minimum base fee, to be specified only post-Jovian
 	MinBaseFee uint64 `json:"minBaseFee,omitempty"`
 }
 

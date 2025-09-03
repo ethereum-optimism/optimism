@@ -211,6 +211,7 @@ func initAllocType(root string, allocType AllocType) {
 	allocModes := []genesis.L2AllocsMode{
 		genesis.L2AllocsJovian,
 		genesis.L2AllocsInterop,
+		genesis.L2AllocsJovian,
 		genesis.L2AllocsIsthmus,
 		genesis.L2AllocsHolocene,
 		genesis.L2AllocsGranite,

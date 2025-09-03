@@ -280,6 +280,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		isthmus := ctx.Uint64(opflags.IsthmusOverrideFlagName)
 		rollupConfig.IsthmusTime = &isthmus
 	}
+	if ctx.IsSet(opflags.JovianOverrideFlagName) {
+		jovian := ctx.Uint64(opflags.JovianOverrideFlagName)
+		rollupConfig.JovianTime = &jovian
+	}
 	if ctx.IsSet(opflags.InteropOverrideFlagName) {
 		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
 		rollupConfig.InteropTime = &interop
