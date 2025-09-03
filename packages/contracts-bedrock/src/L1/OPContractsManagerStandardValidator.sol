@@ -188,7 +188,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected SystemConfig version.
     function systemConfigVersion() public pure returns (string memory) {
-        return "3.5.0";
+        return "3.6.0";
     }
 
     /// @notice Returns the expected OptimismPortal version.
