@@ -50,6 +50,9 @@ parameters:
   acceptance_tests_dispatch:
     type: boolean
     default: false
+  sync_test_op_node_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -2451,6 +2454,41 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
+
+  scheduled-sync-test-op-node:
+    when:
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>>]
+        # Trigger on manual triggers if explicitly requested
+        - equal: [true, << pipeline.parameters.sync_test_op_node_dispatch >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: sync-test-op-node-daily
+          gate: sync-test-op-node
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+          environment:
+            SYNC_TEST_OP_NODE_DISPATCH: "true"
 
   # Acceptance tests (post-merge to develop)
   acceptance-tests:
