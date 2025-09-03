@@ -337,6 +337,7 @@ var excludedPaths = []string{
 	"test/vendor/InitializableOZv5.t.sol",  // Tests external vendor code
 	"test/L2/L1BlockCGT.t.sol",             // Tests L1Block with custom gas token
 	"test/L2/L2ToL1MessagePasserCGT.t.sol", // Tests L2ToL1MessagePasser with custom gas token
+	"test/L1/OptimismPortal2CGT.t.sol",     // Tests OptimismPortal2 with custom gas token
 
 	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
 	// These paths are excluded because they don't follow the standard naming convention where the
@@ -361,7 +362,6 @@ var excludedPaths = []string{
 	"test/L2/CrossDomainOwnable3.t.sol",                 // Contains contracts not matching CrossDomainOwnable3 base name
 	"test/L2/GasPriceOracle.t.sol",                      // Contains contracts not matching GasPriceOracle base name
 	"test/universal/StandardBridge.t.sol",               // Contains contracts not matching StandardBridge base name
-	"test/L1/OptimismPortal2.t.sol",                     // Contains contracts not matching OptimismPortal2 base name
 
 	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
 	// These paths are excluded because they don't pass the function name validation, which checks
