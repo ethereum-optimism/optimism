@@ -34,7 +34,7 @@ impl FlashBlock {
         let payload: FlashblocksPayloadV1 = serde_json::from_slice(&bytes)
             .map_err(|e| eyre::eyre!("failed to parse message: {e}"))?;
 
-        let metadata: Metadata = serde_json::from_value(payload.metadata.clone())
+        let metadata: Metadata = serde_json::from_value(payload.metadata)
             .map_err(|e| eyre::eyre!("failed to parse message metadata: {e}"))?;
 
         Ok(Self {
