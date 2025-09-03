@@ -712,6 +712,10 @@ jobs:
         description: List of changed files to run tests on
         type: string
         default: contracts-bedrock
+      dev_features:
+        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
+        type: string
+        default: ""
     steps:
       - checkout-from-workspace
       - run:
@@ -744,6 +748,20 @@ jobs:
       - run:
           name: Run tests
           command: |
+            # Set dev feature environment variables if provided
+            if [ -n "<<parameters.dev_features>>" ]; then
+              echo "Enabling dev features: <<parameters.dev_features>>"
+              IFS=',' read -ra FEATURES <<< "<<parameters.dev_features>>"
+              for feature in "${FEATURES[@]}"; do
+                feature=$(echo "$feature" | xargs)  # trim whitespace
+                if [ -n "$feature" ]; then
+                  env_var="DEV_FEATURE__${feature}"
+                  echo "Setting ${env_var}=true"
+                  export "${env_var}=true"
+                fi
+              done
+            fi
+
             TEST_FILES=$(<<parameters.test_list>>)
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
@@ -1957,6 +1975,10 @@ workflows:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -1966,6 +1988,10 @@ workflows:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_list: find test -name "PreimageOracle.t.sol"
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -1976,6 +2002,10 @@ workflows:
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
