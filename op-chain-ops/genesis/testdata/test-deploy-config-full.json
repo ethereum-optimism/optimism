@@ -84,6 +84,8 @@
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
   "isCustomGasToken": false,
+  "gasPayingTokenName": "",
+  "gasPayingTokenSymbol": "",
   "useFaultProofs": false,
   "useAltDA": false,
   "daBondSize": 0,
