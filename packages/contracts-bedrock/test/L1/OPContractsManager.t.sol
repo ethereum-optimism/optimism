@@ -282,10 +282,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         });
 
         if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            assertEq(ISemver(address(optimismPortal2)).version(), "4.7.0");
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0+interop");
             assertEq(impls.optimismPortalInteropImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
         } else {
-            assertEq(ISemver(address(optimismPortal2)).version(), "4.7.0");
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0");
             assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
         }
 
