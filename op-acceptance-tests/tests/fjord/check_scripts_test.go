@@ -1,89 +1,188 @@
 package fjord
 
 import (
-	"math/big"
+	"context"
+	"crypto/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	fjordChecks "github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-fjord/checks"
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// TestCheckFjordScript ensures the op-chain-ops/cmd/check-fjord script runs successfully
-// against a test chain with the fjord hardfork activated/unactivated
-func TestCheckFjordScript(t *testing.T) {
+var (
+	rip7212Precompile = common.HexToAddress("0x0000000000000000000000000000000000000100")
+	invalid7212Data   = []byte{0x00}
+	valid7212Data     = common.FromHex("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e")
+)
 
-	l2ChainIndex := uint64(0)
+func TestCheckFjordScript(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewMinimal(t)
+	require := t.Require()
+	ctx := t.Ctx()
 
-	walletGetter, walletValidator := validators.AcquireL2WalletWithFunds(l2ChainIndex, types.NewBalance(big.NewInt(1_000_000)))
-	forkConfigGetter, forkValidatorA := validators.AcquireL2WithFork(l2ChainIndex, rollup.Fjord)
-	_, forkValidatorB := validators.AcquireL2WithoutFork(l2ChainIndex, rollup.Granite)
-	systest.SystemTest(t,
-		checkFjordScriptScenario(walletGetter, forkConfigGetter, l2ChainIndex),
-		walletValidator,
-		forkValidatorA,
-		forkValidatorB,
-	)
+	err := dsl.RequiresL2Fork(ctx, sys, 0, rollup.Fjord)
+	require.NoError(err)
 
-	forkConfigGetter, notForkValidator := validators.AcquireL2WithoutFork(l2ChainIndex, rollup.Fjord)
-	systest.SystemTest(t,
-		checkFjordScriptScenario(walletGetter, forkConfigGetter, l2ChainIndex),
-		walletValidator,
-		notForkValidator,
-	)
+	wallet := sys.FunderL2.NewFundedEOA(eth.OneThirdEther)
 
+	checkRIP7212(t, ctx, sys)
+	checkGasPriceOracle(t, ctx, sys)
+	checkFastLZTransactions(t, ctx, sys, wallet)
 }
 
-func checkFjordScriptScenario(walletGetter validators.WalletGetter, chainConfigGetter validators.ChainConfigGetter, chainIndex uint64) systest.SystemTestFunc {
-	return func(t systest.T, sys system.System) {
-		wallet := walletGetter(t.Context())
-		chainConfig := chainConfigGetter(t.Context())
+func checkRIP7212(t devtest.T, ctx context.Context, sys *presets.Minimal) {
+	require := t.Require()
+	l2Client := sys.L2EL.Escape().EthClient()
 
-		l2 := sys.L2s()[chainIndex]
-		l2LowLevelClient, err := sys.L2s()[chainIndex].Nodes()[0].GethClient()
-		require.NoError(t, err)
+	// Test invalid signature
+	response, err := l2Client.Call(ctx, ethereum.CallMsg{
+		To:   &rip7212Precompile,
+		Data: invalid7212Data,
+	}, rpc.LatestBlockNumber)
+	require.NoError(err)
+	require.Empty(response)
 
-		// Get the wallet's private key and address
-		privateKey := wallet.PrivateKey()
+	// Test valid signature
+	response, err = l2Client.Call(ctx, ethereum.CallMsg{
+		To:   &rip7212Precompile,
+		Data: valid7212Data,
+	}, rpc.LatestBlockNumber)
+	require.NoError(err)
+	expected := common.LeftPadBytes([]byte{1}, 32)
+	require.Equal(expected, response)
+}
+
+func checkGasPriceOracle(t devtest.T, ctx context.Context, sys *presets.Minimal) {
+	require := t.Require()
+
+	l2Client := sys.L2EL.Escape().EthClient()
+	gpo := txib.NewGasPriceOracle(
+		txib.WithClient(l2Client),
+		txib.WithTo(predeploys.GasPriceOracleAddr),
+		txib.WithTest(t),
+	)
+
+	isFjord, err := contractio.Read(gpo.IsFjord(), ctx)
+	require.NoError(err)
+	require.True(isFjord)
+}
+
+func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Minimal, wallet *dsl.EOA) {
+	require := t.Require()
+
+	l2Client := sys.L2EL.Escape().EthClient()
+	gasPriceOracle := txib.NewGasPriceOracle(
+		txib.WithClient(l2Client),
+		txib.WithTo(predeploys.GasPriceOracleAddr),
+		txib.WithTest(t),
+	)
+
+	testCases := []struct {
+		name string
+		data []byte
+	}{
+		{"empty", nil},
+		{"all-zero-256", make([]byte, 256)},
+		{"all-42-256", func() []byte {
+			data := make([]byte, 256)
+			for i := range data {
+				data[i] = 0x42
+			}
+			return data
+		}()},
+		{"random-256", func() []byte {
+			data := make([]byte, 256)
+			_, _ = rand.Read(data)
+			return data
+		}()},
+	}
+
+	for _, tc := range testCases {
 		walletAddr := wallet.Address()
+		var receipt *types.Receipt
+		var signedTx *types.Transaction
 
-		logger := testlog.Logger(t, log.LevelDebug)
-		checkFjordConfig := &fjordChecks.CheckFjordConfig{
-			Log:  logger,
-			L2:   l2LowLevelClient,
-			Key:  privateKey,
-			Addr: walletAddr,
-		}
+		if len(tc.data) == 0 {
+			plannedTx := wallet.Transfer(walletAddr, eth.ZeroWei)
+			var err error
+			receipt, err = plannedTx.Included.Eval(ctx)
+			require.NoError(err)
+			require.NotNil(receipt)
 
-		block, err := l2.Nodes()[0].BlockByNumber(t.Context(), nil)
-		require.NoError(t, err)
-		time := block.Time()
+			_, txs, err := l2Client.InfoAndTxsByHash(ctx, receipt.BlockHash)
+			require.NoError(err)
 
-		isFjordActivated, err := validators.IsForkActivated(chainConfig, rollup.Fjord, time)
-		require.NoError(t, err)
-
-		if !isFjordActivated {
-			err = fjordChecks.CheckRIP7212(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckRIP7212")
-			err = fjordChecks.CheckGasPriceOracle(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckGasPriceOracle")
-			err = fjordChecks.CheckTxEmpty(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckTxEmpty")
-			err = fjordChecks.CheckTxAllZero(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckTxAllZero")
-			err = fjordChecks.CheckTxAll42(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckTxAll42")
-			err = fjordChecks.CheckTxRandom(t.Context(), checkFjordConfig)
-			require.Error(t, err, "expected error for CheckTxRandom")
+			for _, tx := range txs {
+				if tx.Hash() == receipt.TxHash {
+					signedTx = tx
+					break
+				}
+			}
+			require.NotNil(signedTx)
 		} else {
-			err = fjordChecks.CheckAll(t.Context(), checkFjordConfig)
-			require.NoError(t, err, "should not error on CheckAll")
+			opt := txplan.Combine(
+				wallet.Plan(),
+				txplan.WithTo(&walletAddr),
+				txplan.WithValue(eth.ZeroWei),
+				txplan.WithData(tc.data),
+			)
+			plannedTx := txplan.NewPlannedTx(opt)
+			var err error
+			receipt, err = plannedTx.Included.Eval(ctx)
+			require.NoError(err)
+			require.NotNil(receipt)
+
+			signedTx, err = dsl.FindSignedTransactionFromReceipt(ctx, l2Client, receipt)
+			require.NoError(err)
+			require.NotNil(signedTx)
 		}
+
+		require.Equal(uint64(1), receipt.Status)
+
+		unsignedTx, err := dsl.CreateUnsignedTransactionFromSigned(signedTx)
+		require.NoError(err)
+
+		txUnsigned, err := unsignedTx.MarshalBinary()
+		require.NoError(err)
+
+		gpoFee, err := dsl.ReadGasPriceOracleL1FeeAt(ctx, l2Client, gasPriceOracle, txUnsigned, receipt.BlockHash)
+		require.NoError(err)
+
+		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
+		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockHash)
+		require.NoError(err)
+		require.Equalf(gethGPOFee.Uint64(), gpoFee.Uint64(), "GPO L1 fee mismatch (expected=%d actual=%d)", gethGPOFee.Uint64(), gpoFee.Uint64())
+
+		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, signedTx.RollupCostData(), receipt.BlockHash)
+		require.NoError(err)
+		require.NotNil(receipt.L1Fee)
+		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
+
+		upperBound, err := dsl.ReadGasPriceOracleL1FeeUpperBoundAt(ctx, l2Client, gasPriceOracle, len(txUnsigned), receipt.BlockHash)
+		require.NoError(err)
+		txLenGPO := len(txUnsigned) + 68
+		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
+		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockHash)
+		require.NoError(err)
+		require.Equalf(upperBoundCost.Uint64(), upperBound.Uint64(), "GPO L1 upper bound mismatch (expected=%d actual=%d)", upperBoundCost.Uint64(), upperBound.Uint64())
+
+		_, err = contractio.Read(gasPriceOracle.BaseFeeScalar(), ctx)
+		require.NoError(err)
+		_, err = contractio.Read(gasPriceOracle.BlobBaseFeeScalar(), ctx)
+		require.NoError(err)
 	}
 }

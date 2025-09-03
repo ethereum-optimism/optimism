@@ -151,6 +151,9 @@ func (c *Intent) validateStandardValues() error {
 			chain.Eip1559Elasticity != standard.Eip1559Elasticity {
 			return fmt.Errorf("%w: chainId=%s", ErrNonStandardValue, chain.ID)
 		}
+		if chain.GasLimit != standard.GasLimit {
+			return fmt.Errorf("%w: chainId=%s", ErrNonStandardValue, chain.ID)
+		}
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
@@ -293,7 +296,8 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 
 	for _, l2ChainID := range l2ChainIds {
 		intent.Chains = append(intent.Chains, &ChainIntent{
-			ID: l2ChainID,
+			ID:       l2ChainID,
+			GasLimit: standard.GasLimit,
 		})
 	}
 	return intent, nil
@@ -332,6 +336,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 			Eip1559DenominatorCanyon: standard.Eip1559DenominatorCanyon,
 			Eip1559Denominator:       standard.Eip1559Denominator,
 			Eip1559Elasticity:        standard.Eip1559Elasticity,
+			GasLimit:                 standard.GasLimit,
 			Roles: ChainRoles{
 				Challenger:        challenger,
 				L1ProxyAdminOwner: l1ProxyAdminOwner,

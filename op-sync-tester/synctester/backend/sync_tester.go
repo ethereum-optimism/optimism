@@ -40,6 +40,8 @@ type SyncTester struct {
 	elReader ReadOnlyELBackend
 
 	sessions map[string]*eth.SyncTesterSession
+
+	deletedSessionIDs map[string]interface{}
 }
 
 // HeaderNumberOnly is a lightweight header type that only contains the
@@ -65,12 +67,13 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 
 func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
-		log:      logger,
-		m:        m,
-		id:       stID,
-		chainID:  chainID,
-		elReader: elReader,
-		sessions: make(map[string]*eth.SyncTesterSession),
+		log:               logger,
+		m:                 m,
+		id:                stID,
+		chainID:           chainID,
+		elReader:          elReader,
+		sessions:          make(map[string]*eth.SyncTesterSession),
+		deletedSessionIDs: make(map[string]interface{}),
 	}
 }
 
@@ -85,6 +88,10 @@ func (s *SyncTester) fetchSession(ctx context.Context) (*eth.SyncTesterSession, 
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.deletedSessionIDs[session.SessionID]; ok {
+		s.log.Warn("Using deleted session", "sessionID", session.SessionID)
+		return nil, fmt.Errorf("session already deleted: %s", session.SessionID)
+	}
 	if existing, ok := s.sessions[session.SessionID]; ok {
 		s.log.Info("Using existing session", "session", existing)
 		return existing, nil
@@ -108,12 +115,23 @@ func (s *SyncTester) DeleteSession(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// mark as deleted
+	s.deletedSessionIDs[session.SessionID] = struct{}{}
 	delete(s.sessions, session.SessionID)
 	return nil
 }
 
 func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
-	panic("not implemented")
+	// No need to fetch session
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	keys := make([]string, 0, len(s.sessions))
+	for k := range s.sessions {
+		keys = append(keys, k)
+	}
+	return keys, nil
 }
 
 func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {

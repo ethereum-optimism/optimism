@@ -682,42 +682,6 @@ jobs:
             docker pull $image_name || exit 1
             docker run $image_name <<parameters.op_component>> --version || exit 1
 
-
-  contracts-bedrock-frozen-code:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
-    steps:
-      - checkout-from-workspace
-      - check-changed:
-          patterns: contracts-bedrock
-      - get-target-branch
-      - run:
-          name: Check if target branch is develop
-          command: |
-            # If the target branch is not develop, do not run this check
-            if [ "${TARGET_BRANCH}" != "develop" ]; then
-              echo "Target branch is not develop, skipping frozen files check"
-              circleci-agent step halt
-            fi
-      - run:
-          name: Check if PR has exempt label
-          command: |
-            # Get PR number from CIRCLE_PULL_REQUEST
-            PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | rev | cut -d/ -f1 | rev)
-
-            # Use GitHub API to get labels
-            LABELS=$(curl -s "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${PR_NUMBER}" | jq -r .labels)
-
-            # If the PR has the "M-exempt-frozen-files" label, do not run this check
-            if echo $LABELS | jq -e 'any(.[]; .name == "M-exempt-frozen-files")' > /dev/null; then
-              echo "Skipping frozen files check, PR has exempt label"
-              circleci-agent step halt
-            fi
-      - run:
-          name: Check frozen files
-          command: just check-frozen-code
-          working_directory: packages/contracts-bedrock
-
   contracts-bedrock-tests:
     circleci_ip_ranges: true
     docker:
@@ -1426,8 +1390,9 @@ jobs:
             - "op-program/bin/meta*"
 
   publish-cannon-prestates:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    resource_class: medium
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise
       - attach_workspace:
@@ -1919,11 +1884,6 @@ workflows:
           requires:
             - initialize
       - contracts-bedrock-checks:
-          requires:
-            - contracts-bedrock-build
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-frozen-code:
           requires:
             - contracts-bedrock-build
           context:

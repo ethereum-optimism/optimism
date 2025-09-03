@@ -49,7 +49,7 @@ type Orchestrator struct {
 	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
-	syncTester *SyncTester
+	syncTester *SyncTesterService
 	faucet     *FaucetService
 
 	controlPlane *ControlPlane

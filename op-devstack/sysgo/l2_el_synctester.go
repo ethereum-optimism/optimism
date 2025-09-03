@@ -29,7 +29,6 @@ type SyncTesterEL struct {
 	userProxy *tcpproxy.Proxy
 
 	// Sync tester specific fields
-	clNodeID stack.L2CLNodeID
 	fcuState eth.FCUState
 	p        devtest.P
 
@@ -71,7 +70,7 @@ func (n *SyncTesterEL) Start() {
 	}
 
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
-	endpoint := n.orch.syncTester.service.NewEndpoint(n.id.ChainID())
+	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID(), true)
 
 	if n.authProxy == nil {
 		n.authProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-auth"))
@@ -120,14 +119,13 @@ func (n *SyncTesterEL) JWTPath() string {
 }
 
 // WithSyncTesterL2ELNode creates a SyncTesterEL that satisfies the L2ELNode interface
-// and configures a sync tester for a given CL node.
 // The sync tester acts as an EL node that can be used by CL nodes for testing sync.
-func WithSyncTesterL2ELNode(id stack.L2ELNodeID, clNodeID stack.L2CLNodeID, fcuState eth.FCUState, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, fcuState eth.FCUState, opts ...L2ELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(id.ChainID())
+		l2Net, ok := orch.l2Nets.Get(readonlyEL.ChainID())
 		require.True(ok, "L2 network required")
 
 		cfg := DefaultL2ELConfig()
@@ -140,13 +138,12 @@ func WithSyncTesterL2ELNode(id stack.L2ELNodeID, clNodeID stack.L2CLNodeID, fcuS
 			id:       id,
 			l2Net:    l2Net,
 			jwtPath:  jwtPath,
-			clNodeID: clNodeID,
 			fcuState: fcuState,
 			p:        p,
 			orch:     orch,
 		}
 
-		p.Logger().Info("Starting sync tester EL", "id", id, "clNodeID", clNodeID)
+		p.Logger().Info("Starting sync tester EL", "id", id)
 		syncTesterEL.Start()
 		p.Cleanup(syncTesterEL.Stop)
 		p.Logger().Info("sync tester EL is ready", "userRPC", syncTesterEL.userRPC, "authRPC", syncTesterEL.authRPC)
