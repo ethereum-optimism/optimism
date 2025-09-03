@@ -2,7 +2,9 @@ use crate::{sequence::FlashBlockSequence, ExecutionPayloadBaseV1, FlashBlock};
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
-use reth_chain_state::{CanonStateNotifications, CanonStateSubscriptions, ExecutedBlock};
+use reth_chain_state::{
+    CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions, ExecutedBlock,
+};
 use reth_errors::RethError;
 use reth_evm::{
     execute::{BlockBuilder, BlockBuilderOutcome},
@@ -167,6 +169,12 @@ where
             },
         )))
     }
+
+    /// Takes out `current` [`PendingBlock`] if `state` is not preceding it.
+    fn on_new_tip(&mut self, state: CanonStateNotification<N>) -> Option<PendingBlock<N>> {
+        let latest = state.tip_checked()?.hash();
+        self.current.take_if(|current| current.parent_hash() != latest)
+    }
 }
 
 impl<N, S, EvmConfig, Provider> Stream for FlashBlockService<N, S, EvmConfig, Provider>
@@ -199,22 +207,24 @@ where
             }
         }
 
-        // advance new canonical message, if any to reset flashblock
-        {
+        if let Poll::Ready(Ok(state)) = {
             let fut = this.canon_receiver.recv();
             pin!(fut);
-            if fut.poll_unpin(cx).is_ready() {
-                // if we have a new canonical message, we know the currently tracked flashblock is
-                // invalidated
-                if let Some(current) = this.current.take() {
-                    trace!(parent_hash=%current.block().parent_hash(), block_number=current.block().number(), "Clearing current flashblock on new canonical block");
-                    return Poll::Ready(Some(Ok(None)))
-                }
+            fut.poll_unpin(cx)
+        } {
+            if let Some(current) = this.on_new_tip(state) {
+                trace!(
+                    parent_hash = %current.block().parent_hash(),
+                    block_number = current.block().number(),
+                    "Clearing current flashblock on new canonical block"
+                );
+
+                return Poll::Ready(Some(Ok(None)))
             }
         }
 
         if !this.rebuild && this.current.is_some() {
-            return Poll::Pending;
+            return Poll::Pending
         }
 
         let now = Instant::now();
