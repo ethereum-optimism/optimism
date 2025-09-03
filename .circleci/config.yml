@@ -1182,12 +1182,14 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      use_circleci_runner:
+        description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
+        type: boolean
+        default: false
     machine:
-      image: ubuntu-2404:current
-      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
-    resource_class: xlarge
-    environment:
-      OP_ACCEPTOR_CONCURRENCY: 4 # limit concurrency to 4 to reduce strain on the CI runner
+      image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
+      docker_layer_caching: <<parameters.use_circleci_runner>>
+    resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
     steps:
       - checkout-from-workspace
       - unless:
@@ -2498,6 +2500,7 @@ workflows:
           name: kurtosis-simple
           devnet: simple
           gate: base
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2511,6 +2514,7 @@ workflows:
           name: kurtosis-isthmus
           devnet: isthmus
           gate: isthmus
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2524,6 +2528,7 @@ workflows:
           name: kurtosis-interop
           devnet: interop
           gate: interop
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2574,6 +2579,7 @@ workflows:
           name: kurtosis-simple
           devnet: simple
           gate: base
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2587,6 +2593,7 @@ workflows:
           name: kurtosis-isthmus
           devnet: isthmus
           gate: isthmus
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2600,6 +2607,7 @@ workflows:
           name: kurtosis-interop
           devnet: interop
           gate: interop
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
