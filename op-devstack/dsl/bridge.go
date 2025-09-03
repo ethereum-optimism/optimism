@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -129,13 +130,21 @@ func (b *StandardBridge) RespectedGameType() uint32 {
 	return gameType
 }
 
+func (b *StandardBridge) PortalVersion() string {
+	version, err := contractio.Read(b.l1Portal.Version(), b.ctx)
+	b.require.NoError(err, "Failed to read portal version")
+	return version
+}
+
 func (b *StandardBridge) UsesSuperRoots() bool {
-	superRootsActive, err := contractio.Read(b.l1Portal.SuperRootsActive(), b.ctx)
-	if err != nil {
-		// SuperRootsActive method doesn't exist on base contracts, only on interop contracts
-		// Return false for base deployments
+	// Only interop contracts have SuperRootsActive functionality
+	version := b.PortalVersion()
+	if !strings.HasSuffix(version, "+interop") {
 		return false
 	}
+
+	superRootsActive, err := contractio.Read(b.l1Portal.SuperRootsActive(), b.ctx)
+	b.require.NoError(err, "Failed to read super roots active")
 	return superRootsActive
 }
 
