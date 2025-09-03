@@ -50,6 +50,9 @@ type BatcherConfig struct {
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
 
 	PreferLocalSafeL2 bool
+
+	// GasLimitMultiplier is the multiplier for estimated gas limit
+	GasLimitMultiplier float64
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -107,6 +110,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
+	bs.GasLimitMultiplier = cfg.GasLimitMultiplier
 
 	bs.ThrottleThreshold = cfg.ThrottleThreshold
 	bs.ThrottleTxSize = cfg.ThrottleTxSize

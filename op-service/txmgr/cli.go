@@ -41,6 +41,7 @@ const (
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
+	RoundGasPriceToGweiFlagName        = "txmgr.round-gas-price-to-gwei"
 )
 
 var (
@@ -209,6 +210,11 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Usage:   "List of custom RPC error messages that indicate that a transaction has already been published.",
 			EnvVars: prefixEnvVars("TXMGR_ALREADY_PUBLISHED_CUSTOM_ERRS"),
 		},
+		&cli.BoolFlag{
+			Name:    RoundGasPriceToGweiFlagName,
+			Usage:   "Rounds gas prices up to the nearest gwei to ensure compatibility with networks that require gwei-only gas prices.",
+			EnvVars: prefixEnvVars("TXMGR_ROUND_GAS_PRICE_TO_GWEI"),
+		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -234,6 +240,7 @@ type CLIConfig struct {
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
+	RoundGasPriceToGwei        bool
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -312,6 +319,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
+		RoundGasPriceToGwei:        ctx.Bool(RoundGasPriceToGweiFlagName),
 	}
 }
 
@@ -392,6 +400,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		NumConfirmations:           cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
+		RoundGasPriceToGwei:        cfg.RoundGasPriceToGwei,
 	}
 
 	res.ResubmissionTimeout.Store(int64(cfg.ResubmissionTimeout))
@@ -475,6 +484,9 @@ type Config struct {
 	// List of custom RPC error messages that indicate that a transaction has
 	// already been published.
 	AlreadyPublishedCustomErrs []string
+
+	// RoundGasPriceToGwei rounds gas prices up to the nearest gwei for compatibility
+	RoundGasPriceToGwei bool
 }
 
 func (m *Config) Check() error {

@@ -136,6 +136,12 @@ var (
 		}(),
 		EnvVars: prefixEnvVars("DATA_AVAILABILITY_TYPE"),
 	}
+	GasLimitMultiplierFlag = &cli.Float64Flag{
+		Name:    "gas-limit-multiplier",
+		Usage:   "Multiplier for estimated gas limit to ensure sufficient gas for batch transactions.",
+		Value:   1.2,
+		EnvVars: prefixEnvVars("GAS_LIMIT_MULTIPLIER"),
+	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
 		Usage:   "The duration between checks to determine the active sequencer endpoint.",
@@ -219,6 +225,7 @@ var optionalFlags = []cli.Flag{
 	ThrottleBlockSizeFlag,
 	ThrottleAlwaysBlockSizeFlag,
 	PreferLocalSafeL2Flag,
+	GasLimitMultiplierFlag,
 }
 
 func init() {

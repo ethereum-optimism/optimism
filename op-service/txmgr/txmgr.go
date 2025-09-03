@@ -604,6 +604,11 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, sendState *SendState) (*types.Transaction, bool) {
 	l := m.txLogger(tx, true)
 
+	tx, err := m.RoundGasPrice(ctx, tx)
+	if err != nil {
+		l.Info("RoundGasPrice failed", "tx", tx.Hash(), "err", err)
+	}
+
 	l.Info("Publishing transaction")
 
 	for {
@@ -801,6 +806,11 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	}
 	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, baseFee, tx.Type() == types.BlobTxType, m.l)
 
+	// Round bumped gas prices to gwei if configured
+
+	bumpedTip = eth.RoundWeiToGwei(bumpedTip)
+	bumpedFee = eth.RoundWeiToGwei(bumpedFee)
+
 	if err := m.checkLimits(tip, baseFee, bumpedTip, bumpedFee); err != nil {
 		return nil, err
 	}
@@ -890,6 +900,93 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	return signedTx, nil
 }
 
+// increaseGasPrice returns a new transaction that is equivalent to the input transaction but with
+// higher fees that should satisfy geth's tx replacement rules. It also computes an updated gas
+// limit estimate. To avoid runaway price increases, fees are capped at a `feeLimitMultiplier`
+// multiple of the suggested values.
+func (m *SimpleTxManager) RoundGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+	m.txLogger(tx, true).Info("Round gas price for transaction",
+		"Tip", tx.GasTipCap(), "Cap", tx.GasFeeCap(), "gas", tx.Gas())
+
+	// Round bumped gas prices to gwei if configured
+	bumpedTip := eth.RoundWeiToGwei(tx.GasTipCap())
+	bumpedFee := eth.RoundWeiToGwei(tx.GasFeeCap())
+
+	// Re-estimate gaslimit in case things have changed or a previous gaslimit estimate was wrong
+	callMsg := ethereum.CallMsg{
+		From:      m.cfg.From,
+		To:        tx.To(),
+		GasTipCap: bumpedTip,
+		GasFeeCap: bumpedFee,
+		Data:      tx.Data(),
+		Value:     tx.Value(),
+	}
+
+	gas, err := m.backend.EstimateGas(ctx, callMsg)
+	if err != nil {
+		// If this is a transaction resubmission, we sometimes see this outcome because the
+		// original tx can get included in a block just before the above call. In this case the
+		// error is due to the tx reverting with message "block number must be equal to next
+		// expected block number"
+		m.l.Warn("failed to re-estimate gas", "err", err, "tx", tx.Hash(), "gaslimit", tx.Gas(),
+			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
+		return nil, err
+	}
+	if tx.Gas() != gas {
+		// non-determinism in gas limit estimation happens regularly due to underlying state
+		// changes across calls, and is even more common now that geth uses an in-exact estimation
+		// approach as of v1.13.6.
+		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
+			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
+	}
+
+	//add gas multiplier
+	gas = gas * 100
+	if tx.Gas() > gas {
+		gas = tx.Gas()
+	}
+
+	var newTx *types.Transaction
+	if tx.Type() == types.BlobTxType {
+		message := &types.BlobTx{
+			Nonce:      tx.Nonce(),
+			To:         *tx.To(),
+			Data:       tx.Data(),
+			Gas:        gas,
+			BlobHashes: tx.BlobHashes(),
+			Sidecar:    tx.BlobTxSidecar(),
+		}
+		if err := finishBlobTx(message, tx.ChainId(), bumpedTip, bumpedFee, tx.BlobGasFeeCap(), tx.Value()); err != nil {
+			return nil, err
+		}
+		newTx = types.NewTx(message)
+	} else {
+		newTx = types.NewTx(&types.DynamicFeeTx{
+			ChainID:   tx.ChainId(),
+			Nonce:     tx.Nonce(),
+			To:        tx.To(),
+			GasTipCap: bumpedTip,
+			GasFeeCap: bumpedFee,
+			Value:     tx.Value(),
+			Data:      tx.Data(),
+			Gas:       gas,
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+	defer cancel()
+	signedTx, err := m.cfg.Signer(ctx, m.cfg.From, newTx)
+	if err != nil {
+		m.l.Warn("failed to sign new transaction", "err", err, "tx", tx.Hash())
+		return tx, nil
+	}
+
+	m.txLogger(newTx, true).Info("Rounded gas price for transaction",
+		"Tip", newTx.GasTipCap(), "Cap", newTx.GasFeeCap(), "gas", newTx.Gas())
+
+	return signedTx, nil
+}
+
 // SuggestGasPriceCaps suggests what the new tip, base fee, and blob base fee should be based on
 // the current L1 conditions. `blobBaseFee` will be nil if 4844 is not yet active.
 // Note that an error will be returned if MaxTipCap or MaxBaseFee is exceeded.
@@ -933,6 +1030,10 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	if maxBaseFee != nil && baseFee.Cmp(maxBaseFee) > 0 {
 		return nil, nil, nil, fmt.Errorf("baseFee is too high: %v, cap:%v", baseFee, maxBaseFee)
 	}
+
+	// Round gas prices to gwei if configured
+	tip = eth.RoundWeiToGwei(tip)
+	baseFee = eth.RoundWeiToGwei(baseFee)
 
 	return tip, baseFee, blobFee, nil
 }

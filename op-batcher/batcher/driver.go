@@ -895,7 +895,7 @@ func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.T
 		// We log instead of return an error here because the txmgr will do its own gas estimation.
 		l.Log.Warn("Failed to calculate floor data gas", "err", err)
 	} else {
-		candidate.GasLimit = floorDataGas
+		candidate.GasLimit = uint64(float64(floorDataGas) * l.Config.GasLimitMultiplier)
 	}
 
 	queue.Send(txRef{id: txdata.ID(), isCancel: isCancel, isBlob: txdata.asBlob}, *candidate, receiptsCh)

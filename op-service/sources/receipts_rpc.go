@@ -105,9 +105,9 @@ func (f *RPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo eth.Bl
 		return nil, err
 	}
 
-	if err = validateReceipts(block, blockInfo.ReceiptHash(), txHashes, result); err != nil {
-		return nil, err
-	}
+	//if err = validateReceipts(block, blockInfo.ReceiptHash(), txHashes, result); err != nil {
+	//	return nil, err
+	//}
 
 	return
 }

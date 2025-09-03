@@ -117,6 +117,9 @@ type CLIConfig struct {
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
 
+	// GasLimitMultiplier is the multiplier for estimated gas limit
+	GasLimitMultiplier float64
+
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -158,6 +161,9 @@ func (c *CLIConfig) Check() error {
 	}
 	if c.CheckRecentTxsDepth > 128 {
 		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
+	}
+	if c.GasLimitMultiplier <= 0 {
+		return fmt.Errorf("GasLimitMultiplier must be greater than 0, got: %v", c.GasLimitMultiplier)
 	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
@@ -207,6 +213,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		GasLimitMultiplier:           ctx.Float64(flags.GasLimitMultiplierFlag.Name),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		LogConfig:                    oplog.ReadCLIConfig(ctx),
