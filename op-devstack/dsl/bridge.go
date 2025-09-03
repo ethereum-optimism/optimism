@@ -131,7 +131,11 @@ func (b *StandardBridge) RespectedGameType() uint32 {
 
 func (b *StandardBridge) UsesSuperRoots() bool {
 	superRootsActive, err := contractio.Read(b.l1Portal.SuperRootsActive(), b.ctx)
-	b.require.NoError(err, "Failed to read super roots active")
+	if err != nil {
+		// SuperRootsActive method doesn't exist on base contracts, only on interop contracts
+		// Return false for base deployments
+		return false
+	}
 	return superRootsActive
 }
 
