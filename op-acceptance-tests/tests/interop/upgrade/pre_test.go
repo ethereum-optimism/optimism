@@ -26,6 +26,10 @@ func TestPreNoInbox(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
 
+	// This test must run in pre-interop mode to verify that CrossL2Inbox
+	// is not initialized before the interop hardfork activation.
+	// The test verifies that interop messages fail with "implementation not initialized"
+	// when sent before the scheduled interop time.
 	t.Logger().Info("Starting")
 
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
