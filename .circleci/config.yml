@@ -1975,12 +1975,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
-          name: contracts-bedrock-tests
+          name: contracts-bedrock-tests-<<matrix.dev_features>>
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
+              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -1988,26 +1988,26 @@ workflows:
           check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
-          name: contracts-bedrock-tests-preimage-oracle
+          name: contracts-bedrock-tests-preimage-oracle-<<matrix.dev_features>>
           test_list: find test -name "PreimageOracle.t.sol"
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
+              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified
+          name: contracts-bedrock-tests-heavy-fuzz-modified-<<matrix.dev_features>>
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["", "OPTIMISM_PORTAL_INTEROP"]
+              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP"]
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
