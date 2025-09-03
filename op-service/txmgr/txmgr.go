@@ -383,10 +383,10 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		gasLimit = gas
 	} else {
 		callMsg.Gas = gasLimit
-		_, err := m.backend.CallContract(ctx, callMsg, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
-		}
+		//_, err := m.backend.CallContract(ctx, callMsg, nil)
+		//if err != nil {
+		//	return nil, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
+		//}
 	}
 
 	var txMessage types.TxData
