@@ -364,15 +364,16 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/FaultDisputeGame.t.sol",               // Contains contracts not matching FaultDisputeGame base name
-	"test/dispute/SuperFaultDisputeGame.t.sol",          // Contains contracts not matching SuperFaultDisputeGame base name
-	"test/L1/ResourceMetering.t.sol",                    // Contains contracts not matching ResourceMetering base name
-	"test/L1/OPContractsManagerStandardValidator.t.sol", // Contains contracts not matching OPContractsManagerStandardValidator base name
-	"test/L2/CrossDomainOwnable.t.sol",                  // Contains contracts not matching CrossDomainOwnable base name
-	"test/L2/CrossDomainOwnable2.t.sol",                 // Contains contracts not matching CrossDomainOwnable2 base name
-	"test/L2/CrossDomainOwnable3.t.sol",                 // Contains contracts not matching CrossDomainOwnable3 base name
-	"test/L2/GasPriceOracle.t.sol",                      // Contains contracts not matching GasPriceOracle base name
-	"test/universal/StandardBridge.t.sol",               // Contains contracts not matching StandardBridge base name
+	"test/dispute/FaultDisputeGame.t.sol",                // Contains contracts not matching FaultDisputeGame base name
+	"test/dispute/SuperFaultDisputeGame.t.sol",           // Contains contracts not matching SuperFaultDisputeGame base name
+	"test/L1/ResourceMetering.t.sol",                     // Contains contracts not matching ResourceMetering base name
+	"test/L1/OPContractsManagerStandardValidator.t.sol",  // Contains contracts not matching OPContractsManagerStandardValidator base name
+	"test/L2/CrossDomainOwnable.t.sol",                   // Contains contracts not matching CrossDomainOwnable base name
+	"test/L2/CrossDomainOwnable2.t.sol",                  // Contains contracts not matching CrossDomainOwnable2 base name
+	"test/L2/CrossDomainOwnable3.t.sol",                  // Contains contracts not matching CrossDomainOwnable3 base name
+	"test/L2/GasPriceOracle.t.sol",                       // Contains contracts not matching GasPriceOracle base name
+	"test/universal/StandardBridge.t.sol",                // Contains contracts not matching StandardBridge base name
+	"test/L1/OPContractsManagerContractsContainer.t.sol", // Contains contracts not matching OPContractsManagerContractsContainer base name
 
 	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
 	// These paths are excluded because they don't pass the function name validation, which checks
