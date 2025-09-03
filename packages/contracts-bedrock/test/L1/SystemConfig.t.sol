@@ -828,10 +828,6 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     ///         disabled.
     function test_setFeature_alreadyDisabled_reverts() external {
         vm.prank(address(systemConfig.proxyAdmin()));
-        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
-        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-
-        vm.prank(address(systemConfig.proxyAdmin()));
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
