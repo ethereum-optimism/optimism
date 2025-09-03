@@ -148,10 +148,15 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	// middleware to initialize session
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r, err := parseSession(r)
-		if errors.Is(err, ErrInvalidSessionIDFormat) || errors.Is(err, ErrInvalidParams) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		if err != nil {
+			if errors.Is(err, ErrInvalidSessionIDFormat) || errors.Is(err, ErrInvalidParams) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		s.rpcHandler.ServeHTTP(w, r)
 	})
 	s.httpServer = httputil.NewHTTPServer(endpoint, handler)
