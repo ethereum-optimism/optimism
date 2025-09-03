@@ -750,8 +750,9 @@ jobs:
             # Set dev feature environment variables if provided
             if [ -n "<<parameters.dev_features>>" ]; then
               echo "Enabling dev features: <<parameters.dev_features>>"
-              IFS=',' read -ra FEATURES <<< "<<parameters.dev_features>>"
-              for feature in "${FEATURES[@]}"; do
+              DEV_FEATURES_STRING="<<parameters.dev_features>>"
+              IFS=','
+              for feature in $DEV_FEATURES_STRING; do
                 feature=$(echo "$feature" | xargs)  # trim whitespace
                 if [ -n "$feature" ]; then
                   env_var="DEV_FEATURE__${feature}"
@@ -759,6 +760,7 @@ jobs:
                   export "${env_var}=true"
                 fi
               done
+              unset IFS
             fi
 
             TEST_FILES=$(<<parameters.test_list>>)
