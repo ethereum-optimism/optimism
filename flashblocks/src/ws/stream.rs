@@ -230,6 +230,13 @@ mod tests {
     #[derive(Clone)]
     struct FakeConnector(FakeStream);
 
+    /// A `FakeConnectorWithSink` creates [`FakeStream`] and [`FakeSink`].
+    ///
+    /// It simulates the websocket stream instead of connecting to a real websocket. It also accepts
+    /// messages into an in-memory buffer.
+    #[derive(Clone)]
+    struct FakeConnectorWithSink(FakeStream);
+
     /// Simulates a websocket stream while using a preprogrammed set of messages instead.
     #[derive(Default)]
     struct FakeStream(Vec<Result<Message, Error>>);
@@ -293,6 +300,42 @@ mod tests {
         }
     }
 
+    /// Receives [`Message`]s and stores them. A call to `start_send` first buffers the message
+    /// to simulate flushing behavior.
+    #[derive(Clone, Default)]
+    struct FakeSink(Option<Message>, Vec<Message>);
+
+    impl Sink<Message> for FakeSink {
+        type Error = ();
+
+        fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            self.poll_flush(cx)
+        }
+
+        fn start_send(self: Pin<&mut Self>, item: Message) -> Result<(), Self::Error> {
+            self.get_mut().0.replace(item);
+            Ok(())
+        }
+
+        fn poll_flush(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            let this = self.get_mut();
+            if let Some(item) = this.0.take() {
+                this.1.push(item);
+            }
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_close(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
     impl WsConnect for FakeConnector {
         type Stream = FakeStream;
         type Sink = NoopSink;
@@ -306,6 +349,24 @@ mod tests {
     }
 
     impl<T: IntoIterator<Item = Result<Message, Error>>> From<T> for FakeConnector {
+        fn from(value: T) -> Self {
+            Self(FakeStream(value.into_iter().collect()))
+        }
+    }
+
+    impl WsConnect for FakeConnectorWithSink {
+        type Stream = FakeStream;
+        type Sink = FakeSink;
+
+        fn connect(
+            &mut self,
+            _ws_url: Url,
+        ) -> impl Future<Output = eyre::Result<(Self::Sink, Self::Stream)>> + Send + Sync {
+            future::ready(Ok((FakeSink::default(), self.0.clone())))
+        }
+    }
+
+    impl<T: IntoIterator<Item = Result<Message, Error>>> From<T> for FakeConnectorWithSink {
         fn from(value: T) -> Self {
             Self(FakeStream(value.into_iter().collect()))
         }
@@ -411,5 +472,28 @@ mod tests {
         let expected_errors: Vec<_> = iter::repeat_n(error_msg, tries).collect();
 
         assert_eq!(actual_errors, expected_errors);
+    }
+
+    #[tokio::test]
+    async fn test_stream_pongs_ping() {
+        const ECHO: [u8; 3] = [1u8, 2, 3];
+
+        let messages = [Ok(Message::Ping(Bytes::from_static(&ECHO)))];
+        let connector = FakeConnectorWithSink::from(messages);
+        let ws_url = "http://localhost".parse().unwrap();
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
+
+        let _ = stream.next().await;
+
+        let FakeSink(actual_buffered_messages, actual_sent_messages) = stream.sink.unwrap();
+
+        assert!(
+            actual_buffered_messages.is_none(),
+            "buffer not flushed: {actual_buffered_messages:#?}"
+        );
+
+        let expected_sent_messages = vec![Message::Pong(Bytes::from_static(&ECHO))];
+
+        assert_eq!(actual_sent_messages, expected_sent_messages);
     }
 }
