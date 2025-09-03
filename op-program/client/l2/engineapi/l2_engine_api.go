@@ -107,7 +107,9 @@ func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) e
 	if attrs.EIP1559Params != nil {
 		hasher.Write(attrs.EIP1559Params[:])
 	}
-	_ = binary.Write(hasher, binary.BigEndian, attrs.MinBaseFee)
+	if attrs.MinBaseFee != nil {
+		_ = binary.Write(hasher, binary.BigEndian, *attrs.MinBaseFee)
+	}
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
