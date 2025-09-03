@@ -34,6 +34,20 @@ func TestSyncTesterExtEL(gt *testing.T) {
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 32012768, 1000)
 
+	l2CLSyncStatus = sys.L2CL.SyncStatus()
+	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
+
+	unsafeL2Ref := l2CLSyncStatus.UnsafeL2
+	blk := sys.L2EL.BlockRefByNumber(unsafeL2Ref.Number)
+	require.Equal(unsafeL2Ref.Hash, blk.Hash, "L2EL should be on the same block as L2CL")
+
+	stSessions := sys.SyncTester.ListSessions()
+	require.Equal(len(stSessions), 1, "expect exactly one session")
+
+	stSession := sys.SyncTester.GetSession(stSessions[0])
+	require.Equal(stSession.CurrentState.Latest, unsafeL2Ref.Number, "SyncTester session Latest should be on the same block as L2CL")
+	require.Equal(stSession.CurrentState.Safe, unsafeL2Ref.Number, "SyncTester session Safe should be on the same block as L2CL")
+
 	t.Logger().Info("SyncTester ExtEL test completed successfully",
 		"l2cl_chain_id", l2CLChainID,
 		"l2cl_sync_status", l2CLSyncStatus)

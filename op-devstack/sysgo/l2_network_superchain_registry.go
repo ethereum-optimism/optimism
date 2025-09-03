@@ -3,7 +3,6 @@ package sysgo
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -36,21 +35,13 @@ func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkN
 			Config: paramsChainConfig,
 		}
 
-		// Create a deployment config (this will be minimal since we're using registry configs)
-		deployment := &L2Deployment{
-			systemConfigProxyAddr:   rollupCfg.L1SystemConfigAddress,
-			disputeGameFactoryProxy: common.Address{}, // Not available in registry configs
-			l1StandardBridgeProxy:   common.Address{}, // Not available in registry configs
-		}
-
 		// Create the L2 network
 		l2Net := &L2Network{
-			id:         l2NetworkID,
-			l1ChainID:  eth.ChainIDFromBig(rollupCfg.L1ChainID),
-			genesis:    genesis,
-			rollupCfg:  rollupCfg,
-			deployment: deployment,
-			keys:       orch.keys,
+			id:        l2NetworkID,
+			l1ChainID: eth.ChainIDFromBig(rollupCfg.L1ChainID),
+			genesis:   genesis,
+			rollupCfg: rollupCfg,
+			keys:      orch.keys,
 		}
 
 		require.True(orch.l2Nets.SetIfMissing(l2NetworkID.ChainID(), l2Net),

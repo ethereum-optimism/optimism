@@ -30,16 +30,16 @@ func NewDefaultMinimalExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimal
 		L1EL:       stack.NewL1ELNodeID("l1", l1ID),
 		L1CL:       stack.NewL1CLNodeID("l1", l1ID),
 		L2:         stack.L2NetworkID(l2ID),
-		L2CL:       stack.NewL2CLNodeID("sequencer", l2ID),
-		L2EL:       stack.NewL2ELNodeID("synctester", l2ID),
-		SyncTester: stack.NewSyncTesterID("s", l2ID),
+		L2CL:       stack.NewL2CLNodeID("verifier", l2ID),
+		L2EL:       stack.NewL2ELNodeID("sync-tester-el", l2ID),
+		SyncTester: stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 	return ids
 }
 
 // DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry creates a minimal external EL system
 // using a network from the superchain registry instead of the deployer
-func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcus eth.FCUState) stack.Option[*Orchestrator] {
+func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcu eth.FCUState) stack.Option[*Orchestrator] {
 	chainCfg := chaincfg.ChainByName(networkName)
 	if chainCfg == nil {
 		panic(fmt.Sprintf("network %s not found in superchain registry", networkName))
@@ -66,7 +66,7 @@ func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *Defau
 					ChainID: big.NewInt(int64(chainID)),
 				},
 			},
-			blockTime: 6,
+			blockTime: 12,
 		}
 		o.l1Nets.Set(ids.L1.ChainID(), l1Net)
 	}))
@@ -80,10 +80,10 @@ func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *Defau
 	))
 
 	// Add SyncTester service with external endpoint
-	opt.Add(WithSyncTesterWithExternalEndpoint(l2ELRPC, l2ChainID))
+	opt.Add(WithSyncTesterWithExternalEndpoint(ids.SyncTester, l2ELRPC, l2ChainID))
 
 	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
-	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL, fcus))
+	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL, fcu))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {

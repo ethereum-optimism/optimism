@@ -22,10 +22,9 @@ type MinimalExternalEL struct {
 
 	L2Chain *dsl.L2Network
 	L2CL    *dsl.L2CLNode
+	L2EL    *dsl.L2ELNode
 
 	SyncTester *dsl.SyncTester
-
-	Wallet *dsl.HDWallet
 }
 
 func (m *MinimalExternalEL) L2Networks() []*dsl.L2Network {
@@ -34,12 +33,8 @@ func (m *MinimalExternalEL) L2Networks() []*dsl.L2Network {
 	}
 }
 
-func (m *MinimalExternalEL) StandardBridge() *dsl.StandardBridge {
-	return dsl.NewStandardBridge(m.T, m.L2Chain, nil, m.L1EL)
-}
-
-func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcus eth.FCUState) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName, fcus))
+func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcu eth.FCUState) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName, fcu))
 }
 
 func NewMinimalExternalELWithExternalL1(t devtest.T) *MinimalExternalEL {
@@ -59,7 +54,7 @@ func NewMinimalExternalELWithExternalL1(t devtest.T) *MinimalExternalEL {
 		L1EL:         dsl.NewL1ELNode(system.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)),
 		L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
 		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
 		SyncTester:   dsl.NewSyncTester(syncTester),
-		Wallet:       dsl.NewRandomHDWallet(t, 30),
 	}
 }
