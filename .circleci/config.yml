@@ -1390,8 +1390,9 @@ jobs:
             - "op-program/bin/meta*"
 
   publish-cannon-prestates:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    resource_class: medium
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise
       - attach_workspace:
