@@ -1,11 +1,25 @@
-build: build-contracts copy-contract-artifacts
+# ----------------------
+# build:
+# ----------------------
+# If in CI, this only builds the go binary (i.e. assumes contracts were previously built).
+# If not in CI, it compiles contracts and copies the artifacts into the op-deployer pkg so
+# that they are embedded in the binary
+build: build-and-copy-contracts
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
-build-contracts:
-    just ../packages/contracts-bedrock/forge-build
-
-test args='./...': build-contracts
+test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
+
+build-and-copy-contracts:
+    #!/bin/bash
+    if [[ -n "${CIRCLECI:-}" ]]; then
+        echo "Skipping contract build in CI"
+    else
+        just build-contracts copy-contract-artifacts
+    fi
+
+build-contracts:
+  just ../packages/contracts-bedrock/forge-build
 
 copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
