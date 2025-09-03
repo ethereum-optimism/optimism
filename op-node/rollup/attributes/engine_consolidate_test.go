@@ -585,7 +585,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 			desc:           "err-invalid-extra",
 			attrParams:     &params,
 			blockExtraData: append(eth.BytesMax32{42}, params[:]...),
-			err:            "invalid block extraData: holocene extraData should have 0 version byte, got 42",
+			err:            "invalid block extraData: holocene extraData version byte should be 0, got 42",
 		},
 		{
 			desc:           "err-no-match",
