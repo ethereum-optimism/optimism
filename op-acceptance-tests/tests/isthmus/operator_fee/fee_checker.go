@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -14,13 +14,13 @@ import (
 )
 
 type stateGetterAdapterFactory struct {
-	t      systest.T
+	t      devtest.T
 	client *ethclient.Client
 }
 
 // stateGetterAdapter adapts the ethclient to implement the StateGetter interface
 type stateGetterAdapter struct {
-	t           systest.T
+	t           devtest.T
 	client      *ethclient.Client
 	ctx         context.Context
 	blockNumber *big.Int
@@ -30,7 +30,7 @@ func (f *stateGetterAdapterFactory) NewStateGetterAdapter(blockNumber *big.Int) 
 	return &stateGetterAdapter{
 		t:           f.t,
 		client:      f.client,
-		ctx:         f.t.Context(),
+		ctx:         f.t.Ctx(),
 		blockNumber: blockNumber,
 	}
 }
@@ -52,7 +52,7 @@ type FeeChecker struct {
 }
 
 // NewFeeChecker creates a new FeeChecker instance
-func NewFeeChecker(t systest.T, client *ethclient.Client, chainConfig *params.ChainConfig, logger log.Logger) *FeeChecker {
+func NewFeeChecker(t devtest.T, client *ethclient.Client, chainConfig *params.ChainConfig, logger log.Logger) *FeeChecker {
 	logger.Debug("Creating fee checker", "chainID", chainConfig.ChainID)
 
 	// Create state getter adapter factory

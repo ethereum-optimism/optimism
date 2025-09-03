@@ -10,14 +10,14 @@ import (
 const (
 	// Block-builder side
 	DefaultThrottleTxSizeLowerLimit    = 150
-	DefaultThrottleTxSizeUpperLimit    = 10_000
+	DefaultThrottleTxSizeUpperLimit    = 20_000
 	DefaultThrottleBlockSizeLowerLimit = 2_000
 	DefaultThrottleBlockSizeUpperLimit = 130_000
 
 	// Controller side
 	DefaultThrottleControllerType = "quadratic"
-	DefaultThrottleLowerThreshold = 1_600_000 // allows for 2x (6 blobs, 1 tx) channels at ~131KB per blob
-	DefaultThrottleUpperThreshold = DefaultThrottleLowerThreshold * 5
+	DefaultThrottleLowerThreshold = 3_200_000 // allows for 4x 6-blob-tx channels at ~131KB per blob
+	DefaultThrottleUpperThreshold = DefaultThrottleLowerThreshold * 4
 	DefaultPIDSampleTime          = 2 * time.Second
 	DefaultPIDKp                  = 0.33
 	DefaultPIDKi                  = 0.01

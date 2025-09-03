@@ -25,3 +25,19 @@ func (cl *SyncTesterClient) ChainID(ctx context.Context) (eth.ChainID, error) {
 	err := cl.client.CallContext(ctx, &result, "eth_chainId")
 	return result, err
 }
+
+func (cl *SyncTesterClient) GetSession(ctx context.Context) (eth.SyncTesterSession, error) {
+	var session eth.SyncTesterSession
+	err := cl.client.CallContext(ctx, &session, "sync_getSession")
+	return session, err
+}
+
+func (cl *SyncTesterClient) ListSessions(ctx context.Context) ([]string, error) {
+	var sessions []string
+	err := cl.client.CallContext(ctx, &sessions, "sync_listSessions")
+	return sessions, err
+}
+
+func (cl *SyncTesterClient) DeleteSession(ctx context.Context) error {
+	return cl.client.CallContext(ctx, nil, "sync_deleteSession")
+}

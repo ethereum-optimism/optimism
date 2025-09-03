@@ -17,7 +17,9 @@ import (
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
+// Caveat: id is binded by a single EL(chainID), but service can support multiple ELs
 type SyncTesterService struct {
+	id      stack.SyncTesterID
 	service *synctester.Service
 }
 
@@ -25,7 +27,7 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 
 	for syncTesterID, chainID := range n.service.SyncTesters() {
-		syncTesterRPC := n.service.SyncTesterEndpoint(chainID)
+		syncTesterRPC := n.service.SyncTesterRPC(chainID, false)
 		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
@@ -33,6 +35,7 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 		front := shim.NewSyncTester(shim.SyncTesterConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			ID:           id,
+			Addr:         syncTesterRPC,
 			Client:       rpcCl,
 		})
 		net := system.Network(chainID).(stack.ExtensibleNetwork)
@@ -40,9 +43,8 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
 
 		require := p.Require()
@@ -59,15 +61,15 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 			require.True(ok, "need L2 EL for sync tester", elID)
 
 			syncTesters[id] = &stconf.SyncTesterEntry{
-				ELRPC: endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
-				// EngineRPC: endpoint.MustRPC{Value: endpoint.URL(el.authRPC)},
-				// JwtPath:   el.jwtPath,
+				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
 				ChainID: elID.ChainID(),
 			}
 		}
 
 		cfg := &config.Config{
-			RPC: oprpc.CLIConfig{},
+			RPC: oprpc.CLIConfig{
+				ListenAddr: "127.0.0.1",
+			},
 			SyncTesters: &stconf.Config{
 				SyncTesters: syncTesters,
 			},
@@ -83,6 +85,6 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 			_ = srv.Stop(ctx)
 			logger.Info("Closed sync tester")
 		})
-		orch.syncTester = &SyncTesterService{service: srv}
+		orch.syncTester = &SyncTesterService{id: syncTesterID, service: srv}
 	})
 }

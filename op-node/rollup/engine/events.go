@@ -3,7 +3,6 @@ package engine
 import (
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -47,16 +46,6 @@ func (ev PromoteCrossUnsafeEvent) String() string {
 	return "promote-cross-unsafe"
 }
 
-// CrossUnsafeUpdateEvent signals that the given block is now considered cross-unsafe.
-type CrossUnsafeUpdateEvent struct {
-	CrossUnsafe eth.L2BlockRef
-	LocalUnsafe eth.L2BlockRef
-}
-
-func (ev CrossUnsafeUpdateEvent) String() string {
-	return "cross-unsafe-update"
-}
-
 type PendingSafeUpdateEvent struct {
 	PendingSafe eth.L2BlockRef
 	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
@@ -64,15 +53,6 @@ type PendingSafeUpdateEvent struct {
 
 func (ev PendingSafeUpdateEvent) String() string {
 	return "pending-safe-update"
-}
-
-type CrossSafeUpdateEvent struct {
-	CrossSafe eth.L2BlockRef
-	LocalSafe eth.L2BlockRef
-}
-
-func (ev CrossSafeUpdateEvent) String() string {
-	return "cross-safe-update"
 }
 
 // LocalSafeUpdateEvent signals that a block is now considered to be local-safe.
@@ -85,18 +65,8 @@ func (ev LocalSafeUpdateEvent) String() string {
 	return "local-safe-update"
 }
 
-// PromoteSafeEvent signals that a block can be promoted to cross-safe.
-type PromoteSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteSafeEvent) String() string {
-	return "promote-safe"
-}
-
 // SafeDerivedEvent signals that a block was determined to be safe, and derived from the given L1 block.
-// This is signaled upon successful processing of PromoteSafeEvent.
+// This is signaled upon procedural call of PromoteSafe method
 type SafeDerivedEvent struct {
 	Safe   eth.L2BlockRef
 	Source eth.L1BlockRef
@@ -104,13 +74,6 @@ type SafeDerivedEvent struct {
 
 func (ev SafeDerivedEvent) String() string {
 	return "safe-derived"
-}
-
-type PendingSafeRequestEvent struct {
-}
-
-func (ev PendingSafeRequestEvent) String() string {
-	return "pending-safe-request"
 }
 
 type ProcessUnsafePayloadEvent struct {
@@ -133,15 +96,6 @@ func (ev EngineResetConfirmedEvent) String() string {
 	return "engine-reset-confirmed"
 }
 
-// PromoteFinalizedEvent signals that a block can be marked as finalized.
-type PromoteFinalizedEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteFinalizedEvent) String() string {
-	return "promote-finalized"
-}
-
 // FinalizedUpdateEvent signals that a block has been marked as finalized.
 type FinalizedUpdateEvent struct {
 	Ref eth.L2BlockRef
@@ -149,16 +103,6 @@ type FinalizedUpdateEvent struct {
 
 func (ev FinalizedUpdateEvent) String() string {
 	return "finalized-update"
-}
-
-// CrossUpdateRequestEvent triggers update events to be emitted, repeating the current state.
-type CrossUpdateRequestEvent struct {
-	CrossUnsafe bool
-	CrossSafe   bool
-}
-
-func (ev CrossUpdateRequestEvent) String() string {
-	return "cross-update-request"
 }
 
 // InteropInvalidateBlockEvent is emitted when a block needs to be invalidated, and a replacement is needed.
@@ -191,21 +135,21 @@ type ResetEngineControl interface {
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
-func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
-	ec.SetUnsafeHead(x.LocalUnsafe)
+func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	ec.SetUnsafeHead(localUnsafe)
 
 	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
-	ec.SetCrossUnsafeHead(x.CrossUnsafe)
+	ec.SetCrossUnsafeHead(crossUnsafe)
 
 	// derivation continues at local-safe point
-	ec.SetLocalSafeHead(x.LocalSafe)
-	ec.SetPendingSafeL2Head(x.LocalSafe)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetPendingSafeL2Head(localSafe)
 
 	// "safe" in RPC terms is cross-safe
-	ec.SetSafeHead(x.CrossSafe)
+	ec.SetSafeHead(crossSafe)
 
 	// finalized head
-	ec.SetFinalizedHead(x.Finalized)
+	ec.SetFinalizedHead(finalized)
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 }

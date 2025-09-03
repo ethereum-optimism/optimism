@@ -258,6 +258,34 @@ func WithInteropAtGenesis() DeployerOption {
 	}
 }
 
+// WithHardforkSequentialActivation configures a deployment such that L2 chains
+// activate hardforks sequentially, starting from startFork and continuing
+// until (but not including) endFork. Each successive fork is scheduled at
+// an increasing offset.
+func WithHardforkSequentialActivation(startFork, endFork rollup.ForkName, delta *uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtGenesis(startFork)
+			activateWithOffset := false
+			deactivate := false
+			for idx, refFork := range rollup.AllForks {
+				if deactivate || refFork == endFork {
+					l2Cfg.WithForkAtOffset(refFork, nil)
+					deactivate = true
+					continue
+				}
+				if activateWithOffset {
+					offset := *delta * uint64(idx)
+					l2Cfg.WithForkAtOffset(refFork, &offset)
+				}
+				if startFork == refFork {
+					activateWithOffset = true
+				}
+			}
+		}
+	}
+}
+
 // WithSequencingWindow overrides the number of L1 blocks in a sequencing window, applied to all L2s.
 func WithSequencingWindow(n uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {

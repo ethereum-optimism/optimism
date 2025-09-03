@@ -24,3 +24,7 @@ func (m *MockEngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L
 func (m *MockEngineController) RequestForkchoiceUpdate(ctx context.Context) {
 	m.Mock.MethodCalled("RequestForkchoiceUpdate", ctx)
 }
+
+func (m *MockEngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	m.Mock.MethodCalled("RequestPendingSafeUpdate", ctx)
+}

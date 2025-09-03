@@ -52,8 +52,10 @@ const (
 	// The default value is 28 days. The worst case duration for a game is 16 days
 	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
 	// buffer to monitor games to ensure bonds are claimed.
-	DefaultGameWindow   = 28 * 24 * time.Hour
-	DefaultMaxPendingTx = 10
+	DefaultGameWindow         = 28 * 24 * time.Hour
+	DefaultMaxPendingTx       = 10
+	DefaultResponseDelay      = 0 // No delay by default
+	DefaultResponseDelayAfter = 0 // Apply delay from first response by default
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -69,6 +71,7 @@ type Config struct {
 	MaxConcurrency       uint             // Maximum number of threads to use when progressing games
 	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
+	MinUpdateInterval    time.Duration    // Minimum duration the L1 head block time must advance before scheduling a new update cycle
 
 	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
 
@@ -98,6 +101,19 @@ type Config struct {
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
+
+	ResponseDelay time.Duration /* Delay before responding to each game action to slow down game progression.
+	   Note: set with caution, since the challenger can end up using more resources if it has to wait to respond
+	   to an attacker generating many claims. Consider using the additional ResponseDelayAfter config option.
+	   Also note that the delay is only applied when:
+	   	1) delaying will not lead to a timeout of the game,
+	   	2) the challenger is not in a clock extension period and
+	   	3) delaying will not lead to the challenger having to respond inside of a clock extension period
+	       (thus ensuring that the challenger always has enough remaining time to respond to the game action). */
+	ResponseDelayAfter uint64 /* Number of responses after which to start applying the delay.
+	   Set to 0 to apply delay from the first response, 1 to skip the first response, etc.
+	   Note: the delay is only applied from the next round after which this `responseDelayAfter` value
+	   is surpassed (not from the exact response after which its surpassed, but from the next round). */
 }
 
 func NewInteropConfig(

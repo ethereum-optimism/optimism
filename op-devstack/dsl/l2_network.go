@@ -226,20 +226,23 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 
 	el := n.Escape().L2ELNode(match.FirstL2EL)
 
-	unsafeHead, err := retry.Do(t.Ctx(), 120, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() (eth.BlockRef, error) {
-		unsafeHead, err := el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
-		if err != nil {
-			return eth.BlockRef{}, err
-		}
-		if !n.inner.RollupConfig().IsActivationBlockForFork(unsafeHead.Time, forkName) {
-			return eth.BlockRef{}, fmt.Errorf("not %s activation block", forkName)
-		}
-		return unsafeHead, nil // success
-	})
+	rollupCfg := n.Escape().RollupConfig()
+	maybeActivationTime := rollupCfg.ActivationTimeFor(forkName)
+	require.NotNil(maybeActivationTime, "Required fork is not scheduled for activation")
+	activationTime := *maybeActivationTime
+	if activationTime == 0 {
+		block, err := el.EthClient().BlockRefByNumber(t.Ctx(), 0)
+		require.NoError(err, "Fork activated at genesis, but failed to get genesis block")
+		return block.ID()
+	}
+	blockNum, err := rollupCfg.TargetBlockNumber(activationTime)
 	require.NoError(err)
-	t.Logger().Info("Activation block", "block", unsafeHead.ID())
+	NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum).ID()
+	activationBlock, err := el.EthClient().BlockRefByNumber(t.Ctx(), blockNum)
+	require.NoError(err, "Failed to get activation block")
+	t.Logger().Info("Activation block", "block", activationBlock.ID())
+	return activationBlock.ID()
 
-	return unsafeHead.ID()
 }
 
 func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {

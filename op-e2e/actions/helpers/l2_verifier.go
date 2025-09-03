@@ -147,31 +147,42 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	metrics := &testutils.TestDerivationMetrics{}
 	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
+	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
+		mm.SetEngineController(ec)
+	}
+
+	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg)
+	sys.Register("engine-reset", engineResetDeriver, opts)
+	engineResetDeriver.SetEngController(ec)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc)
+		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc, ec)
 	} else {
-		finalizer = finality.NewFinalizer(ctx, log, cfg, l1)
+		finalizer = finality.NewFinalizer(ctx, log, cfg, l1, ec)
 	}
 	sys.Register("finalizer", finalizer, opts)
 
 	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
 	sys.Register("attributes-handler", attrHandler, opts)
+	ec.SetAttributesResetter(attrHandler)
 
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
-	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
+	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
+	sys.Register("pipeline", pipelineDeriver, opts)
+	ec.SetPipelineResetter(pipelineDeriver)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
 
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
+
+	// TODO(#17115): Refactor dependency cycles
+	ec.SetCrossUpdateHandler(syncStatusTracker)
 
 	stepDeriver := NewTestingStepSchedulingDeriver()
 	stepDeriver.AttachEmitter(testActionEmitter)

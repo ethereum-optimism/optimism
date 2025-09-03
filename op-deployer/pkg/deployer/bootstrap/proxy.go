@@ -114,7 +114,7 @@ func Proxy(ctx context.Context, cfg ProxyConfig) (opcm.DeployProxyOutput, error)
 	}
 
 	lgr := cfg.Logger
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cfg.CacheDir)
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dpo, fmt.Errorf("failed to download artifacts: %w", err)
 	}

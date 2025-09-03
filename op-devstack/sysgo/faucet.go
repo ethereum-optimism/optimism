@@ -94,7 +94,9 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			}
 		}
 		cfg := &config.Config{
-			RPC: oprpc.CLIConfig{},
+			RPC: oprpc.CLIConfig{
+				ListenAddr: "127.0.0.1",
+			},
 			Faucets: &fconf.Config{
 				Faucets: faucets,
 			},

@@ -50,6 +50,25 @@ type SyncDeriver interface {
 	OnELSyncStarted()
 }
 
+type AttributesForceResetter interface {
+	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
+}
+
+type PipelineForceResetter interface {
+	ResetPipeline()
+}
+
+type OriginSelectorForceResetter interface {
+	ResetOrigins()
+}
+
+// CrossUpdateHandler handles both cross-unsafe and cross-safe L2 head changes.
+// Nil check required because op-program omits this handler.
+type CrossUpdateHandler interface {
+	OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef)
+	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -102,6 +121,14 @@ type EngineController struct {
 	// EngineController is first initialized and used to initialize SyncDeriver.
 	// Embed SyncDeriver into EngineController after initializing SyncDeriver
 	SyncDeriver SyncDeriver
+
+	// Components that need to be notified during force reset
+	attributesResetter     AttributesForceResetter
+	pipelineResetter       PipelineForceResetter
+	originSelectorResetter OriginSelectorForceResetter
+
+	// Handler for cross-unsafe and cross-safe updates
+	crossUpdateHandler CrossUpdateHandler
 }
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
@@ -156,8 +183,6 @@ func (e *EngineController) BackupUnsafeL2Head() eth.L2BlockRef {
 	return e.backupUnsafeHead
 }
 
-// RequestForkchoiceUpdate implements attributes.EngineController.
-// It reads the current heads under a read lock and emits a ForkchoiceUpdateEvent.
 func (e *EngineController) RequestForkchoiceUpdate(ctx context.Context) {
 	e.mu.RLock()
 	unsafe := e.UnsafeL2Head()
@@ -222,6 +247,24 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.metrics.RecordL2Ref("l2_backup_unsafe", r)
 	e.backupUnsafeHead = r
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
+}
+
+func (e *EngineController) SetCrossUpdateHandler(handler CrossUpdateHandler) {
+	e.crossUpdateHandler = handler
+}
+
+func (e *EngineController) onUnsafeUpdate(ctx context.Context, crossUnsafe, localUnsafe eth.L2BlockRef) {
+	// Nil check required because op-program omits this handler.
+	if e.crossUpdateHandler != nil {
+		e.crossUpdateHandler.OnCrossUnsafeUpdate(ctx, crossUnsafe, localUnsafe)
+	}
+}
+
+func (e *EngineController) onSafeUpdate(ctx context.Context, crossSafe, localSafe eth.L2BlockRef) {
+	// Nil check required because op-program omits this handler.
+	if e.crossUpdateHandler != nil {
+		e.crossUpdateHandler.OnCrossSafeUpdate(ctx, crossSafe, localSafe)
+	}
 }
 
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
@@ -449,7 +492,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
-		e.emitter.Emit(ctx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		e.onSafeUpdate(ctx, ref, ref)
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -607,6 +650,7 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	defer d.mu.Unlock()
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
+	//  PromoteSafeEvent fan out is updated to procedural PromoteSafe method call
 	switch x := ev.(type) {
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.rollupCfg, x.Envelope.ExecutionPayload)
@@ -639,29 +683,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
 		}
-	case rollup.ForceResetEvent:
-		ForceEngineReset(d, x)
-
-		// Time to apply the changes to the underlying engine
-		d.TryUpdateEngine(ctx)
-
-		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.UnsafeL2Head(),
-			CrossUnsafe: d.CrossUnsafeL2Head(),
-			LocalSafe:   d.LocalSafeL2Head(),
-			CrossSafe:   d.SafeL2Head(),
-			Finalized:   d.Finalized(),
-		}
-		// We do not emit the original event values, since those might not be set (optional attributes).
-		d.emitter.Emit(ctx, v)
-		d.log.Info("Reset of Engine is completed",
-			"local_unsafe", v.LocalUnsafe,
-			"cross_unsafe", v.CrossUnsafe,
-			"local_safe", v.LocalSafe,
-			"cross_safe", v.CrossSafe,
-			"finalized", v.Finalized,
-		)
-
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
@@ -671,65 +692,11 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.TryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
 		d.SetCrossUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-			CrossUnsafe: x.Ref,
-			LocalUnsafe: d.UnsafeL2Head(),
-		})
-	case PendingSafeRequestEvent:
-		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-			PendingSafe: d.PendingSafeL2Head(),
-			Unsafe:      d.UnsafeL2Head(),
-		})
-
+		d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
 	case LocalSafeUpdateEvent:
-		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
+		// pre-interop everything that is local-safe is also immediately cross-safe.
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(ctx, PromoteSafeEvent(x))
-		}
-	case PromoteSafeEvent:
-		d.log.Debug("Updating safe", "safe", x.Ref, "unsafe", d.UnsafeL2Head())
-		d.SetSafeHead(x.Ref)
-		// Finalizer can pick up this safe cross-block now
-		d.emitter.Emit(ctx, SafeDerivedEvent{Safe: x.Ref, Source: x.Source})
-		d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-			CrossSafe: d.SafeL2Head(),
-			LocalSafe: d.LocalSafeL2Head(),
-		})
-		if x.Ref.Number > d.crossUnsafeHead.Number {
-			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.crossUnsafeHead, "cross_safe", x.Ref)
-			d.SetCrossUnsafeHead(x.Ref)
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: x.Ref,
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
-		}
-		// Try to apply the forkchoice changes
-		d.TryUpdateEngine(ctx)
-	case PromoteFinalizedEvent:
-		if x.Ref.Number < d.Finalized().Number {
-			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.Finalized())
-			return true
-		}
-		if x.Ref.Number > d.SafeL2Head().Number {
-			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.SafeL2Head())
-			return true
-		}
-		d.SetFinalizedHead(x.Ref)
-		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
-		// Try to apply the forkchoice changes
-		d.TryUpdateEngine(ctx)
-	case CrossUpdateRequestEvent:
-		if x.CrossUnsafe {
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: d.CrossUnsafeL2Head(),
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
-		}
-		if x.CrossSafe {
-			d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-				CrossSafe: d.SafeL2Head(),
-				LocalSafe: d.LocalSafeL2Head(),
-			})
+			d.PromoteSafe(ctx, x.Ref, x.Source)
 		}
 	case InteropInvalidateBlockEvent:
 		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
@@ -755,6 +722,13 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		return false
 	}
 	return true
+}
+
+func (d *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	d.emitter.Emit(ctx, PendingSafeUpdateEvent{
+		PendingSafe: d.PendingSafeL2Head(),
+		Unsafe:      d.UnsafeL2Head(),
+	})
 }
 
 // TryUpdatePendingSafe updates the pending safe head if the new reference is newer
@@ -789,4 +763,90 @@ func (e *EngineController) TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 	}
 	e.SetUnsafeHead(ref)
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+}
+
+func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef) {
+	e.log.Debug("Updating safe", "safe", ref, "unsafe", e.UnsafeL2Head())
+	e.SetSafeHead(ref)
+	// Finalizer can pick up this safe cross-block now
+	e.emitter.Emit(ctx, SafeDerivedEvent{Safe: ref, Source: source})
+	e.onSafeUpdate(ctx, e.SafeL2Head(), e.LocalSafeL2Head())
+	if ref.Number > e.crossUnsafeHead.Number {
+		e.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", e.crossUnsafeHead, "cross_safe", ref)
+		e.SetCrossUnsafeHead(ref)
+		e.onUnsafeUpdate(ctx, ref, e.UnsafeL2Head())
+	}
+	// Try to apply the forkchoice changes
+	e.TryUpdateEngine(ctx)
+}
+
+func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
+	if ref.Number < e.Finalized().Number {
+		e.log.Error("Cannot rewind finality,", "ref", ref, "finalized", e.Finalized())
+		return
+	}
+	if ref.Number > e.SafeL2Head().Number {
+		e.log.Error("Block must be safe before it can be finalized", "ref", ref, "safe", e.SafeL2Head())
+		return
+	}
+	e.SetFinalizedHead(ref)
+	e.emitter.Emit(ctx, FinalizedUpdateEvent{Ref: ref})
+	// Try to apply the forkchoice changes
+	e.TryUpdateEngine(ctx)
+}
+
+// SetAttributesResetter sets the attributes component that needs force reset notifications
+func (e *EngineController) SetAttributesResetter(resetter AttributesForceResetter) {
+	e.attributesResetter = resetter
+}
+
+// SetPipelineResetter sets the pipeline component that needs force reset notifications
+func (e *EngineController) SetPipelineResetter(resetter PipelineForceResetter) {
+	e.pipelineResetter = resetter
+}
+
+// SetOriginSelectorResetter sets the origin selector component that needs force reset notifications
+func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForceResetter) {
+	e.originSelectorResetter = resetter
+}
+
+// ForceReset performs a forced reset to the specified block references
+func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	// Reset other components before resetting the engine
+	if e.attributesResetter != nil {
+		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	}
+	if e.pipelineResetter != nil {
+		e.pipelineResetter.ResetPipeline()
+	}
+	// originSelectorResetter is only present when sequencing is enabled
+	if e.originSelectorResetter != nil {
+		e.originSelectorResetter.ResetOrigins()
+	}
+
+	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+
+	if e.pipelineResetter != nil {
+		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+	}
+
+	// Time to apply the changes to the underlying engine
+	e.TryUpdateEngine(ctx)
+
+	v := EngineResetConfirmedEvent{
+		LocalUnsafe: e.UnsafeL2Head(),
+		CrossUnsafe: e.CrossUnsafeL2Head(),
+		LocalSafe:   e.LocalSafeL2Head(),
+		CrossSafe:   e.SafeL2Head(),
+		Finalized:   e.Finalized(),
+	}
+	// We do not emit the original event values, since those might not be set (optional attributes).
+	e.emitter.Emit(ctx, v)
+	e.log.Info("Reset of Engine is completed",
+		"local_unsafe", v.LocalUnsafe,
+		"cross_unsafe", v.CrossUnsafe,
+		"local_safe", v.LocalSafe,
+		"cross_safe", v.CrossSafe,
+		"finalized", v.Finalized,
+	)
 }

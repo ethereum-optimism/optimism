@@ -144,7 +144,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	lgr := cfg.Logger
 
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cfg.CacheDir)
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}

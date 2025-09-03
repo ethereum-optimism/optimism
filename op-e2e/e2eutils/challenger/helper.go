@@ -92,6 +92,18 @@ func WithPollInterval(pollInterval time.Duration) Option {
 	}
 }
 
+func WithResponseDelay(responseDelay time.Duration) Option {
+	return func(c *config.Config) {
+		c.ResponseDelay = responseDelay
+	}
+}
+
+func WithResponseDelayAfter(responseDelayAfter uint64) Option {
+	return func(c *config.Config) {
+		c.ResponseDelayAfter = responseDelayAfter
+	}
+}
+
 func WithValidPrestateRequired() Option {
 	return func(c *config.Config) {
 		c.AllowInvalidPrestate = false

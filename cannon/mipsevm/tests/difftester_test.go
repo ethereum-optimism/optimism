@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
@@ -24,7 +25,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
@@ -90,7 +91,7 @@ func TestDiffTester_Run_WithSteps(t *testing.T) {
 	for _, oc := range outterCases {
 		t.Run(oc.name, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
@@ -152,9 +153,9 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 
 			initStateCalled := make(map[string]int)
-			initState := func(t require.TestingT, tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[tt.name] += 1
-				testutil.StoreInstruction(state.GetMemory(), pc, tt.insn)
+				storeInsnWithCache(state, goVm, pc, tt.insn)
 				state.GetMemory().SetWord(effAddr, 0xAA_BB_CC_DD_A1_B1_C1_D1)
 				state.GetRegistersRef()[rtReg] = 0x11_22_33_44_55_66_77_88
 				state.GetRegistersRef()[baseReg] = base
@@ -219,7 +220,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 				state.GetRegistersRef()[2] = syscallNum
@@ -279,7 +280,7 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 	}
 
 	initStateCalled := make(map[string]int)
-	initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		initStateCalled[testCase.name] += 1
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 	}

@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
@@ -871,7 +872,9 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
         vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        vm.mockCall(
+            address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION)
+        );
         assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true));
     }
 
@@ -1187,7 +1190,9 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     function test_validate_faultDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
         vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        vm.mockCall(
+            address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION)
+        );
         assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
     }
 

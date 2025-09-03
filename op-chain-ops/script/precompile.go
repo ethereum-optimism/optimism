@@ -188,7 +188,7 @@ func hasTrailingError(argCount int, getType func(i int) reflect.Type) bool {
 		return false
 	}
 	lastTyp := getType(argCount - 1)
-	return lastTyp.Kind() == reflect.Interface && lastTyp.Implements(typeFor[error]())
+	return lastTyp.Kind() == reflect.Interface && lastTyp.Implements(reflect.TypeFor[error]())
 }
 
 // setupMethod takes a method definition, attached to selfVal,
@@ -356,9 +356,9 @@ func goTypeToABIType(typ reflect.Type) (abi.Type, error) {
 // since big.Int interpretation defaults to uint256.
 type ABIInt256 big.Int
 
-var abiInt256Type = typeFor[ABIInt256]()
+var abiInt256Type = reflect.TypeFor[ABIInt256]()
 
-var abiUint256Type = typeFor[uint256.Int]()
+var abiUint256Type = reflect.TypeFor[uint256.Int]()
 
 // goTypeToSolidityType converts a Go type to the solidity ABI type definition.
 // The "internalType" is a quirk of the Geth ABI utils, for nested structures.
@@ -408,7 +408,7 @@ func goTypeToSolidityType(typ reflect.Type) (typeDef, internalType string, err e
 		if typ.AssignableTo(abiInt256Type) {
 			return "int256", "", nil
 		}
-		if typ.ConvertibleTo(typeFor[big.Int]()) {
+		if typ.ConvertibleTo(reflect.TypeFor[big.Int]()) {
 			return "uint256", "", nil
 		}
 		// We can parse into abi.TupleTy in the future, if necessary
@@ -642,10 +642,4 @@ func encodeRevert(outErr error) ([]byte, error) {
 	out = append(out, b32(uint64(len(outErrStr)))...) // length of string
 	out = append(out, rightPad32(outErrStr)...)       // the error message string
 	return out, vm.ErrExecutionReverted               // Geth EVM will pick this up as a revert with return-data
-}
-
-// typeFor returns the [Type] that represents the type argument T.
-// Note: not available yet in Go 1.21, but part of std-lib later.
-func typeFor[T any]() reflect.Type {
-	return reflect.TypeOf((*T)(nil)).Elem()
 }

@@ -328,6 +328,25 @@ func TestPollInterval(t *testing.T) {
 	})
 }
 
+func TestMinUpdateInterval(t *testing.T) {
+	t.Run("DefaultsToZero", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon))
+		require.Equal(t, time.Duration(0), cfg.MinUpdateInterval)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "10m"))
+		require.Equal(t, 10*time.Minute, cfg.MinUpdateInterval)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"invalid value \"abc\" for flag -min-update-interval",
+			addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "abc"))
+	})
+}
+
 func TestAsteriscOpProgramRequiredArgs(t *testing.T) {
 	traceType := types.TraceTypeAsterisc
 	t.Run(fmt.Sprintf("TestAsteriscServer-%v", traceType), func(t *testing.T) {

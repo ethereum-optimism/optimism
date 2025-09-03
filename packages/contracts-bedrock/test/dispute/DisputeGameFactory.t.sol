@@ -18,6 +18,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
@@ -84,6 +85,29 @@ contract DisputeGameFactory_TestInit is CommonTest {
         returns (IFaultDisputeGame.GameConstructorParams memory params_)
     {
         return IFaultDisputeGame.GameConstructorParams({
+            gameType: _gameType,
+            absolutePrestate: _absolutePrestate,
+            maxGameDepth: 2 ** 3,
+            splitDepth: 2 ** 2,
+            clockExtension: Duration.wrap(3 hours),
+            maxClockDuration: Duration.wrap(3.5 days),
+            vm: _vm,
+            weth: delayedWeth,
+            anchorStateRegistry: anchorStateRegistry,
+            l2ChainId: 0
+        });
+    }
+
+    function _getGameConstructorParamsV2(
+        Claim _absolutePrestate,
+        AlphabetVM _vm,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (IFaultDisputeGameV2.GameConstructorParams memory params_)
+    {
+        return IFaultDisputeGameV2.GameConstructorParams({
             gameType: _gameType,
             absolutePrestate: _absolutePrestate,
             maxGameDepth: 2 ** 3,
@@ -176,6 +200,25 @@ contract DisputeGameFactory_TestInit is CommonTest {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__, (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON))
+                )
+            )
+        });
+
+        _setGame(gameImpl_, GameTypes.CANNON);
+    }
+
+    /// @notice Sets up a fault game v2 implementation
+    function setupFaultDisputeGameV2(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "FaultDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IFaultDisputeGameV2.__constructor__,
+                    (_getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.CANNON))
                 )
             )
         });

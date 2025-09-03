@@ -425,54 +425,59 @@ func (c *Config) L1Signer() types.Signer {
 	return types.LatestSignerForChainID(c.L1ChainID)
 }
 
+func (c *Config) IsForkActive(fork ForkName, timestamp uint64) bool {
+	activationTime := c.ActivationTimeFor(fork)
+	return activationTime != nil && timestamp >= *activationTime
+}
+
 // IsRegolith returns true if the Regolith hardfork is active at or past the given timestamp.
 func (c *Config) IsRegolith(timestamp uint64) bool {
-	return c.RegolithTime != nil && timestamp >= *c.RegolithTime
+	return c.IsForkActive(Regolith, timestamp)
 }
 
 // IsCanyon returns true if the Canyon hardfork is active at or past the given timestamp.
 func (c *Config) IsCanyon(timestamp uint64) bool {
-	return c.CanyonTime != nil && timestamp >= *c.CanyonTime
+	return c.IsForkActive(Canyon, timestamp)
 }
 
 // IsDelta returns true if the Delta hardfork is active at or past the given timestamp.
 func (c *Config) IsDelta(timestamp uint64) bool {
-	return c.DeltaTime != nil && timestamp >= *c.DeltaTime
+	return c.IsForkActive(Delta, timestamp)
 }
 
 // IsEcotone returns true if the Ecotone hardfork is active at or past the given timestamp.
 func (c *Config) IsEcotone(timestamp uint64) bool {
-	return c.EcotoneTime != nil && timestamp >= *c.EcotoneTime
+	return c.IsForkActive(Ecotone, timestamp)
 }
 
 // IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
 func (c *Config) IsFjord(timestamp uint64) bool {
-	return c.FjordTime != nil && timestamp >= *c.FjordTime
+	return c.IsForkActive(Fjord, timestamp)
 }
 
 // IsGranite returns true if the Granite hardfork is active at or past the given timestamp.
 func (c *Config) IsGranite(timestamp uint64) bool {
-	return c.GraniteTime != nil && timestamp >= *c.GraniteTime
+	return c.IsForkActive(Granite, timestamp)
 }
 
 // IsHolocene returns true if the Holocene hardfork is active at or past the given timestamp.
 func (c *Config) IsHolocene(timestamp uint64) bool {
-	return c.HoloceneTime != nil && timestamp >= *c.HoloceneTime
+	return c.IsForkActive(Holocene, timestamp)
 }
 
 // IsIsthmus returns true if the Isthmus hardfork is active at or past the given timestamp.
 func (c *Config) IsIsthmus(timestamp uint64) bool {
-	return c.IsthmusTime != nil && timestamp >= *c.IsthmusTime
+	return c.IsForkActive(Isthmus, timestamp)
 }
 
 // IsJovian returns true if the Jovian hardfork is active at or past the given timestamp.
 func (c *Config) IsJovian(timestamp uint64) bool {
-	return c.JovianTime != nil && timestamp >= *c.JovianTime
+	return c.IsForkActive(Jovian, timestamp)
 }
 
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
-	return c.InteropTime != nil && timestamp >= *c.InteropTime
+	return c.IsForkActive(Interop, timestamp)
 }
 
 func (c *Config) IsRegolithActivationBlock(l2BlockTime uint64) bool {
@@ -547,10 +552,36 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
+func (c *Config) ActivationTimeFor(fork ForkName) *uint64 {
+	switch fork {
+	case Interop:
+		return c.InteropTime
+	case Jovian:
+		return c.JovianTime
+	case Isthmus:
+		return c.IsthmusTime
+	case Holocene:
+		return c.HoloceneTime
+	case Granite:
+		return c.GraniteTime
+	case Fjord:
+		return c.FjordTime
+	case Ecotone:
+		return c.EcotoneTime
+	case Delta:
+		return c.DeltaTime
+	case Canyon:
+		return c.CanyonTime
+	case Regolith:
+		return c.RegolithTime
+	default:
+		panic(fmt.Sprintf("unknown fork: %v", fork))
+	}
+}
+
 // IsActivationBlock returns the fork which activates at the block with time newTime if the previous
 // block's time is oldTime. It return an empty ForkName if no fork activation takes place between
 // those timestamps. It can be used for both, L1 and L2 blocks.
-// TODO(12490): Currently only supports Holocene. Will be modularized in a follow-up.
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
 	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
 		return Interop
