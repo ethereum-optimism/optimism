@@ -15,6 +15,9 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
+import { GameType, Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -79,6 +82,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
+        IFaultDisputeGameV2 faultDisputeGameV2Impl;
+        IPermissionedDisputeGameV2 permissionedDisputeGameV2Impl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -104,6 +109,8 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
+        deployFaultDisputeGameV2Impl(_input, output_);
+        deployPermissionedDisputeGameV2Impl(_input, output_);
 
         // Deploy the OP Contracts Manager with the new implementations set.
         deployOPContractsManager(_input, output_);
@@ -464,6 +471,48 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
+    function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameType.wrap(0); // Default game type
+        params.maxGameDepth = 73;
+        params.splitDepth = 30;
+        params.clockExtension = Duration.wrap(10800); // 3 hours
+        params.maxClockDuration = Duration.wrap(302400); // 3.5 days
+        
+        IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "FaultDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "FaultDisputeGameV2Impl");
+        _output.faultDisputeGameV2Impl = impl;
+    }
+
+    function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameType.wrap(1); // Permissioned game type
+        params.maxGameDepth = 73;
+        params.splitDepth = 30;
+        params.clockExtension = Duration.wrap(10800); // 3 hours
+        params.maxClockDuration = Duration.wrap(302400); // 3.5 days
+        
+        IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "PermissionedDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params, _input.upgradeController, _input.challenger))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "PermissionedDisputeGameV2Impl");
+        _output.permissionedDisputeGameV2Impl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
         Input memory _input,
         Output memory _output,
@@ -634,7 +683,9 @@ contract DeployImplementations is Script {
             address(_output.optimismMintableERC20FactoryImpl),
             address(_output.disputeGameFactoryImpl),
             address(_output.anchorStateRegistryImpl),
-            address(_output.ethLockboxImpl)
+            address(_output.ethLockboxImpl),
+            address(_output.faultDisputeGameV2Impl),
+            address(_output.permissionedDisputeGameV2Impl)
         );
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
