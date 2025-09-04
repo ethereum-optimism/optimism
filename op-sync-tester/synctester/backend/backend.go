@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -56,20 +55,14 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 		log: log,
 		m:   m,
 	}
-	var syncTesterIDs []sttypes.SyncTesterID
+
 	for stID, stCfg := range cfg.SyncTesters {
 		st, err := SyncTesterFromConfig(log, m, stID, stCfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to setup sync tester %q: %w", stID, err)
 		}
 		b.syncTesters.Set(stID, st)
-		syncTesterIDs = append(syncTesterIDs, stID)
 	}
-	// Infer defaults for chains that were not explicitly mentioned.
-	// Always use the lowest sync tester ID, so map-iteration doesn't affect defaults.
-	sort.Slice(syncTesterIDs, func(i, j int) bool {
-		return syncTesterIDs[i] < syncTesterIDs[j]
-	})
 	// Set up the sync tester routes
 	var syncTesterErr error
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
