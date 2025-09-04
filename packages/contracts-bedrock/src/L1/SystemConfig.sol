@@ -520,7 +520,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
     /// @notice Returns the current pause state for this network. If the network is using
     ///         ETHLockbox, the system is paused if either the global pause is active or the pause
-    ///         is active where the ETHLockbox addess is used as the identifier. If the network is
+    ///         is active where the ETHLockbox address is used as the identifier. If the network is
     ///         not using ETHLockbox, the system is paused if either the global pause is active or
     ///         the pause is active where the OptimismPortal address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.

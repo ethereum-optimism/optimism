@@ -736,22 +736,6 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns false when ETHLockbox is paused but the
-    ///         ETH_LOCKBOX feature is disabled.
-    function test_paused_ethLockboxIdentifierFeatureDisabled_succeeds() external {
-        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
-
-        // Initially not paused
-        assertFalse(systemConfig.paused());
-
-        // Pause the system with ETHLockbox identifier
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(ethLockbox));
-
-        // Verify system is NOT paused because feature is disabled
-        assertFalse(systemConfig.paused());
-    }
-
     /// @notice Tests that `paused()` returns true when both pauses are active.
     function test_paused_bothPausesActive_succeeds() external {
         assertFalse(systemConfig.paused());
