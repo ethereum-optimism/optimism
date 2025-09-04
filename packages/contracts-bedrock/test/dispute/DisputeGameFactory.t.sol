@@ -495,7 +495,20 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
     /// @notice Tests that the `setImplementation` function with args properly sets the implementation
     ///         and args for a given `GameType`.
     function test_setImplementation_withArgs_succeeds() public {
-        bytes memory args = abi.encode(uint256(123), address(0xdead), "test");
+        address fakeGame = address(1);
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        AlphabetVM vm_;
+        IPreimageOracle preimageOracle_;
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        uint256 l2ChainId = 111;
+
+        bytes memory args = abi.encodePacked(
+            absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId // 32 bytes (l2ChainId)
+        );
 
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit ImplementationSet(address(1), GameTypes.CANNON);
@@ -503,7 +516,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
         emit ImplementationArgsSet(GameTypes.CANNON, args);
 
         // Set the implementation and args for the `GameTypes.CANNON` enum value.
-        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)), args);
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(fakeGame), args);
 
         // Ensure that the implementation for the `GameTypes.CANNON` enum value is set.
         assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(1));
