@@ -5,6 +5,8 @@
 # If not in CI, it compiles contracts and copies the artifacts into the op-deployer pkg so
 # that they are embedded in the binary
 build: build-and-copy-contracts
+    #!/bin/bash
+    echo "Building op-deployer go binary"
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
 test args='./...': build-contracts copy-contract-artifacts
@@ -12,8 +14,8 @@ test args='./...': build-contracts copy-contract-artifacts
 
 build-and-copy-contracts:
     #!/bin/bash
-    if [[ -n "${CIRCLECI:-}" ]]; then
-        echo "Skipping contract build in CI"
+    if [[ "${CIRCLECI:-}" == "true" || "${SKIP_CONTRACTS_BUILD:-}" == "true" ]]; then
+        echo "Skipping contracts build"
     else
         just build-contracts copy-contract-artifacts
     fi
@@ -24,6 +26,12 @@ build-contracts:
 copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
     tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+
+# Updates pkg/deployer/forge/version.json with version and checksum of tarball for each supported OS/arch
+# - version format: e.g. "v1.3.4"
+update-forge version="":
+  #!/bin/bash
+  ./scripts/forge-checksums.sh {{version}}
 
 # ======================================
 # Deployment and Verification Utilities
