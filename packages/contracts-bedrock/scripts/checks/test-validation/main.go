@@ -323,21 +323,19 @@ var excludedPaths = []string{
 	// Resolving these naming inconsistencies is outside the script's scope, but they are
 	// documented here to avoid false validation failures while maintaining the validation rules
 	// for standard contract tests.
-	"test/invariants/",                     // Invariant testing framework - no direct src counterpart
-	"test/opcm/",                           // OP Chain Manager tests - may have different structure
-	"test/scripts/",                        // Script tests - test deployment/utility scripts, not contracts
-	"test/integration/",                    // Integration tests - test multiple contracts together
-	"test/cannon/MIPS64Memory.t.sol",       // Tests external MIPS implementation
-	"test/dispute/lib/LibClock.t.sol",      // Tests library utilities
-	"test/dispute/lib/LibGameId.t.sol",     // Tests library utilities
-	"test/setup/DeployVariations.t.sol",    // Tests deployment variations
-	"test/universal/BenchmarkTest.t.sol",   // Performance benchmarking tests
-	"test/universal/ExtendedPause.t.sol",   // Tests extended functionality
-	"test/vendor/Initializable.t.sol",      // Tests external vendor code
-	"test/vendor/InitializableOZv5.t.sol",  // Tests external vendor code
-	"test/L2/L1BlockCGT.t.sol",             // Tests L1Block with custom gas token
-	"test/L2/L2ToL1MessagePasserCGT.t.sol", // Tests L2ToL1MessagePasser with custom gas token
-	"test/L1/OptimismPortal2CGT.t.sol",     // Tests OptimismPortal2 with custom gas token
+	"test/invariants/",                    // Invariant testing framework - no direct src counterpart
+	"test/opcm/",                          // OP Chain Manager tests - may have different structure
+	"test/scripts/",                       // Script tests - test deployment/utility scripts, not contracts
+	"test/integration/",                   // Integration tests - test multiple contracts together
+	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
+	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
+	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
+	"test/setup/DeployVariations.t.sol",   // Tests deployment variations
+	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
+	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
+	"test/vendor/Initializable.t.sol",     // Tests external vendor code
+	"test/vendor/InitializableOZv5.t.sol", // Tests external vendor code
+	"test/L1/OptimismPortal2CGT.t.sol",    // Tests OptimismPortal2 with custom gas token
 
 	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
 	// These paths are excluded because they don't follow the standard naming convention where the

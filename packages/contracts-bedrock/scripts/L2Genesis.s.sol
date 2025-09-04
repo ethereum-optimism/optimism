@@ -31,6 +31,7 @@ import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.s
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -225,7 +226,7 @@ contract L2Genesis is Script {
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
         setL1Block(_input.isCustomGasToken); // 15
-        setL2ToL1MessagePasser(); // 16
+        setL2ToL1MessagePasser(_input.isCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
         setProxyAdmin(_input); // 18
         setBaseFeeVault(_input); // 19
@@ -261,8 +262,14 @@ contract L2Genesis is Script {
         vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
-    function setL2ToL1MessagePasser() internal {
-        _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+    function setL2ToL1MessagePasser(bool _isCustomGasToken) internal {
+        if (_isCustomGasToken) {
+            string memory cname = "L2ToL1MessagePasserCGT";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        } else {
+            _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        }
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -362,11 +369,18 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL1Block(bool _isCustomGasToken) internal {
-        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
         if (_isCustomGasToken) {
-            vm.startPrank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
+            // Set the implementation code for L1BlockCGT
+            string memory cname = "L1BlockCGT";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+
+            // Set the custom gas token flag
+            vm.startPrank(IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
             vm.stopPrank();
+        } else {
+            _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
         }
     }
 

@@ -6,17 +6,19 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Burn } from "src/libraries/Burn.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000016
-/// @title L2ToL1MessagePasser
-/// @notice The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from
+/// @title L2ToL1MessagePasserCGT
+/// @notice The L2ToL1MessagePasserCGT is a dedicated contract where messages that are being sent from
 ///         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
 ///         of the L2 output to reduce the cost of proving the existence of sent messages.
-contract L2ToL1MessagePasser is ISemver {
+contract L2ToL1MessagePasserCGT is ISemver {
     /// @notice The L1 gas limit set when eth is withdrawn using the receive() function.
     uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
@@ -28,6 +30,9 @@ contract L2ToL1MessagePasser is ISemver {
 
     /// @notice A unique value hashed with each withdrawal.
     uint240 internal msgNonce;
+
+    /// @notice The error thrown when a withdrawal is initiated with value and custom gas token is used.
+    error L2ToL1MessagePasserCGT_NotAllowedOnCGTMode();
 
     /// @notice Emitted any time a withdrawal is initiated.
     /// @param nonce          Unique value corresponding to each withdrawal.
@@ -51,8 +56,8 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param amount Amount of ETh that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.1.2
-    string public constant version = "1.1.2";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
     receive() external payable {
@@ -74,6 +79,10 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param _gasLimit Minimum gas limit for executing the message on L1.
     /// @param _data     Data to forward to L1 target.
     function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) public payable {
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken() && msg.value > 0) {
+            revert L2ToL1MessagePasserCGT_NotAllowedOnCGTMode();
+        }
+
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
                 nonce: messageNonce(),

@@ -60,8 +60,12 @@
     "sourceCodeHash": "0x4351fe2ac1106c8c220b8cfe7839bc107c24d8084deb21259ac954f5a362725d"
   },
   "src/L2/L1Block.sol:L1Block": {
+    "initCodeHash": "0xc35734387887a95f611888f3944546c6bcf82fd4c05dcdaa1e019779b628ad68",
+    "sourceCodeHash": "0x6e5349fd781d5f0127ff29ccea4d86a80240550cfa322364183a0f629abcb43e"
+  },
+  "src/L2/L1BlockCGT.sol:L1BlockCGT": {
     "initCodeHash": "0x90ca955a1927e9637289a98f27a40a4a2332e3633cc26ed2fce0008847669c56",
-    "sourceCodeHash": "0xae35ae9826a846a895839304c34de5fad668b20e716ccc50c771685368e1a76f"
+    "sourceCodeHash": "0x9e79c368ae5f046fd97df46a47aff60f9c37982580f0c1f8f931847d3122ef9b"
   },
   "src/L2/L1FeeVault.sol:L1FeeVault": {
     "initCodeHash": "0x9b664e3d84ad510091337b4aacaa494b142512e2f6f7fbcdb6210ed62ca9b885",
@@ -84,8 +88,12 @@
     "sourceCodeHash": "0xde724da82ecf3c96b330c2876a7285b6e2b933ac599241eaa3174c443ebbe33a"
   },
   "src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser": {
-    "initCodeHash": "0x98fbe3f1325e245b29edc3710877736165692026becb93c59a7dbcfc34af0809",
-    "sourceCodeHash": "0xf700775f5401872798bb13db5fe37ebd361acbee05b1e2c46c17178737b2ec6d"
+    "initCodeHash": "0x88f7b25f956eceeab9ad84c17e66cded6a1acbb933054ac2c8b336641f70f875",
+    "sourceCodeHash": "0x83396cbd12a0c5c02e09a4d99c4b62ab4e9d9eb762745e63283e2e818a78a39c"
+  },
+  "src/L2/L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT": {
+    "initCodeHash": "0x9a99e97e5e4aeef421226a7f30e5132cee3d1ea1afb16fe41c5aac97478b8a80",
+    "sourceCodeHash": "0x7233348d779a1679a9862d65c9208d7076bc353b25d063bc3eba8acbdedc5f21"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
     "initCodeHash": "0x975fd33a3a386310d54dbb01b56f3a6a8350f55a3b6bd7781e5ccc2166ddf2e6",
