@@ -85,6 +85,25 @@ func jovianArgs() matchArgs {
 	}
 }
 
+func jovianArgsMinBaseFeeMissingFromAttributes() matchArgs {
+	args := jovianArgs()
+	args.attrs.MinBaseFee = nil
+	return args
+}
+
+func jovianArgsMinBaseFeeMissingFromBlock() matchArgs {
+	args := jovianArgs()
+	args.envelope.ExecutionPayload.ExtraData = eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
+		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity)) // Note use of HoloceneExtraData instead of JovianExtraData
+	return args
+}
+
+func jovianArgsInconsistentMinBaseFee() matchArgs {
+	args := jovianArgs()
+	args.attrs.MinBaseFee = ptr(uint64(2e9))
+	return args
+}
+
 func holoceneArgs() matchArgs {
 	args := jovianArgs()
 	args.envelope.ExecutionPayload.ExtraData = eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
@@ -320,6 +339,24 @@ func TestAttributesMatch(t *testing.T) {
 			rollupCfg: rollupCfgPreIsthmus,
 			err:       "eip1559 parameters do not match",
 			desc:      "createMismatchedEIP1559Params",
+		},
+		{
+			args:      jovianArgsMinBaseFeeMissingFromAttributes(),
+			rollupCfg: rollupCfgPostJovian,
+			err:       "minBaseFee is nil but isJovian is true",
+			desc:      "missingMinBaseFee",
+		},
+		{
+			args:      jovianArgsMinBaseFeeMissingFromBlock(),
+			rollupCfg: rollupCfgPostJovian,
+			err:       "invalid block extraData: jovian extraData should be 17 bytes, got 9",
+			desc:      "missingMinBaseFee",
+		},
+		{
+			args:      jovianArgsInconsistentMinBaseFee(),
+			rollupCfg: rollupCfgPostJovian,
+			err:       "minBaseFee does not match",
+			desc:      "inconsistentMinBaseFee",
 		},
 	}
 
