@@ -23,6 +23,9 @@ func TestSyncTesterExtEL(gt *testing.T) {
 
 	// Test that we can get chain IDs from L2CL node
 	l2CLChainID := sys.L2CL.ID().ChainID()
+
+	// TODO 1. Currently test takes in an L1 Chain RPC and Chain ID. It should check these for validity
+	// TODO 2. Check against L2 Chain ID that is provided to the test, should not be hardcoded
 	require.Equal(eth.ChainIDFromUInt64(11155420), l2CLChainID, "L2CL should be on chain 11155420")
 
 	// Test that the network started successfully

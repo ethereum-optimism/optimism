@@ -77,22 +77,6 @@ orbs:
   github-cli: circleci/github-cli@2.7.0
 
 commands:
-  set-sync-test-env-vars:
-    description: "Set environment variables for sync testing"
-    steps:
-      - run:
-          name: Set sync test environment variables
-          command: |
-            echo 'export L2_NETWORK_NAME="op-sepolia"' >> $BASH_ENV
-            echo 'export L1_CHAIN_ID="11155111"' >> $BASH_ENV
-            echo 'export L2_EL_ENDPOINT="https://ci-sepolia-l2.optimism.io"' >> $BASH_ENV
-            echo 'export L1_CL_BEACON_ENDPOINT="https://ci-sepolia-beacon.optimism.io"' >> $BASH_ENV
-            echo 'export L1_EL_ENDPOINT="https://ci-sepolia-l1.optimism.io"' >> $BASH_ENV
-            echo 'export INITIAL_L2_BLOCK="3201274"' >> $BASH_ENV
-            echo 'export L2_EL_ENDPOINT_TAILSCALE="https://proxyd-l2-sepolia.primary.client.dev.oplabs.cloud"' >> $BASH_ENV
-            echo 'export L1_CL_BEACON_ENDPOINT_TAILSCALE="https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"' >> $BASH_ENV
-            echo 'export L1_EL_ENDPOINT_TAILSCALE="https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"' >> $BASH_ENV
-
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
@@ -2656,6 +2640,40 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+      # Base Sepolia
+      - op-acceptance-sync-tests-docker:
+          name: sync-test-base-sepolia-daily
+          gate: sync-test-op-node
+          no_output_timeout: 30m
+          l2_network_name: "base-sepolia"
+          l1_chain_id: "11155111"
+          l2_el_endpoint: "https://base-sepolia-rpc.optimism.io"
+          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
+          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
+          initial_l2_block: "30621132"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      ## Unichain Sepolia
+      - op-acceptance-sync-tests-docker:
+          name: sync-test-unichain-sepolia-daily
+          gate: sync-test-op-node
+          no_output_timeout: 30m
+          l2_network_name: "unichain-sepolia"
+          l1_chain_id: "11155111"
+          l2_el_endpoint: "https://unichain-sepolia-rpc.optimism.io"
+          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
+          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
+          initial_l2_block: "30145093"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # OP Mainnet ## TODO: Need L1 Mainnet Beacon to be exposed for CI
       # - op-acceptance-sync-tests-docker:
       #     name: sync-test-op-mainnet-daily
@@ -2673,23 +2691,7 @@ workflows:
       #     requires:
       #       - contracts-bedrock-build
       #       - cannon-prestate-quick
-      # Base Sepolia
-      - op-acceptance-sync-tests-docker:
-          name: sync-test-base-sepolia-daily
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          l2_network_name: "base-sepolia"
-          l1_chain_id: "1"
-          l2_el_endpoint: "https://base-sepolia-rpc.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
-          initial_l2_block: "30621132"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
+
 
   # Acceptance tests (post-merge to develop)
   acceptance-tests:
