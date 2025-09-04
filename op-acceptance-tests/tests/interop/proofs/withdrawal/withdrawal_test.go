@@ -29,6 +29,9 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	l1User.VerifyBalanceExact(initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost()))
 	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
 
+	// Wait for a block to ensure nonce synchronization between L1 and L2 EOA instances
+	sys.L2ChainA.WaitForBlock()
+
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
 	withdrawal.Prove(l1User)
 	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount).Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost()))

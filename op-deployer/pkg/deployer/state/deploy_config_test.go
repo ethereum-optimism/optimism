@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ func TestCombineDeployConfig(t *testing.T) {
 	chainIntent := ChainIntent{
 		Eip1559Denominator:         1,
 		Eip1559Elasticity:          2,
+		GasLimit:                   standard.GasLimit,
 		BaseFeeVaultRecipient:      common.HexToAddress("0x123"),
 		L1FeeVaultRecipient:        common.HexToAddress("0x456"),
 		SequencerFeeVaultRecipient: common.HexToAddress("0x789"),
