@@ -1,8 +1,11 @@
 # ----------------------
 # build:
 # ----------------------
-# If in CI, this only builds the go binary (i.e. assumes contracts were previously built).
-# If not in CI, it compiles contracts and copies the artifacts into the op-deployer pkg so
+# If CIRCLECI or SKIP_CONTRACTS_BUILD is true, this only builds the go binary
+# (i.e. assumes contracts were previously built + embedded).
+#
+# If CIRCLECI and SKIP_CONTRACTS_BUILD are false (i.e. this is run locally),
+# it compiles contracts and copies the artifacts into the op-deployer pkg so
 # that they are embedded in the binary
 build: build-and-copy-contracts
     #!/bin/bash

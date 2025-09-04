@@ -135,8 +135,8 @@ exit 1
 			expectUsePath: true,
 		},
 		{
-			name:          "mismatch_tag",
-			versionLine:   fmt.Sprintf("forge Version: 0.0.0-v0.0.0"),
+			name:          "non_standard_tag",
+			versionLine:   "forge Version: 0.0.0-v0.0.0",
 			expectUsePath: false,
 		},
 		{
