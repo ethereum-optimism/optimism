@@ -43,9 +43,9 @@ func (s *SessionManager) IsSessionDeleted(sessionID string) bool {
 }
 
 func (s *SessionManager) DeleteSession(sessionID string) {
-	s.mu.RLock()
+	s.mu.Lock()
 	s.deletedSessionIDs[sessionID] = struct{}{}
-	s.mu.RUnlock()
+	s.mu.Unlock()
 	s.sessions.Delete(sessionID)
 	s.log.Info("Deleted session", "sessionID", sessionID)
 }
