@@ -12,7 +12,7 @@ use std::{
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{Bytes, Error, Message},
+    tungstenite::{protocol::CloseFrame, Bytes, Error, Message},
     MaybeTlsStream, WebSocketStream,
 };
 use tracing::debug;
@@ -88,11 +88,11 @@ where
                 }
             }
 
-            while let State::Stream(pong) = &mut this.state {
-                if pong.is_some() {
+            while let State::Stream(msg) = &mut this.state {
+                if msg.is_some() {
                     let mut sink = Pin::new(this.sink.as_mut().unwrap());
                     let _ = ready!(sink.as_mut().poll_ready(cx));
-                    if let Some(pong) = pong.take() {
+                    if let Some(pong) = msg.take() {
                         let _ = sink.as_mut().start_send(pong);
                     }
                     let _ = ready!(sink.as_mut().poll_flush(cx));
@@ -115,6 +115,7 @@ where
                         return Poll::Ready(Some(FlashBlock::decode(bytes.into())))
                     }
                     Ok(Message::Ping(bytes)) => this.ping(bytes),
+                    Ok(Message::Close(frame)) => this.close(frame),
                     Ok(msg) => debug!("Received unexpected message: {:?}", msg),
                     Err(err) => return Poll::Ready(Some(Err(err.into()))),
                 }
@@ -146,6 +147,12 @@ where
     fn ping(&mut self, pong: Bytes) {
         if let State::Stream(current) = &mut self.state {
             current.replace(Message::Pong(pong));
+        }
+    }
+
+    fn close(&mut self, frame: Option<CloseFrame>) {
+        if let State::Stream(current) = &mut self.state {
+            current.replace(Message::Close(frame));
         }
     }
 }
