@@ -712,3 +712,42 @@ contract SemgrepTest__sol_safety_try_catch_eip_150 {
         }
     }
 }
+
+contract SemgrepTest__sol_style_camelCase_interface_variables {
+    // ----------- variable declarations -----------
+
+    // ok: sol-style-camelCase-interface-variables
+    string constant fooBar = "fooBar";
+
+    // ok: sol-style-camelCase-interface-variables
+    address immutable fooBar = "fooBar";
+
+    // ruleid: sol-style-camelCase-interface-variables
+    string constant public FOO_BAR = "fooBar";
+
+    // ruleid: sol-style-camelCase-interface-variables
+    string public constant FOO_BAR = "fooBar";
+
+    // ruleid: sol-style-camelCase-interface-variables
+    string constant immutable FOO_BAR = "fooBar";
+
+    // ruleid: sol-style-camelCase-interface-variables
+    string immutable constant FOO_BAR = "fooBar";
+}
+
+contract SemgrepTest__sol_style_camelCase_interface_functions {
+    // ----------- function declarations -----------
+
+    // ok: sol-style-camelCase-interface-functions
+    function fooBar() external pure returns (string memory) {
+        return FOO_BAR;
+    }
+
+    // ruleid: sol-style-camelCase-interface-functions
+    function FOO_BAR() external pure returns (string memory) {
+        return FOO_BAR;
+    }
+
+    // ruleid: sol-style-camelCase-interface-functions
+    function FOO_BAR() external pure returns (string memory);
+}

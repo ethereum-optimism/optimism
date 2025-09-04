@@ -21,7 +21,7 @@ contract L2ToL1MessagePasser is ISemver {
     uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /// @notice The current message version identifier.
-    uint16 public constant MESSAGE_VERSION = 1;
+    uint16 public constant MESSAGE_VERSION = 1; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Includes the message hashes for all withdrawals
     mapping(bytes32 => bool) public sentMessages;

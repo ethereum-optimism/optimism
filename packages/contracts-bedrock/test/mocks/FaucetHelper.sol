@@ -7,11 +7,12 @@ import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFau
 /// @notice Simple helper contract that helps with testing the Faucet contract.
 contract FaucetHelper {
     /// @notice EIP712 typehash for the Proof type.
-    bytes32 public constant PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
+    bytes32 public constant PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)"); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice EIP712 typehash for the EIP712Domain type that is included as part of the signature.
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 public constant EIP712_DOMAIN_TYPEHASH = // nosemgrep: sol-style-camelCase-interface-variables
+     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     /// @notice Keeps track of current nonce to generate new nonces for each drip.
     uint256 public currentNonce;

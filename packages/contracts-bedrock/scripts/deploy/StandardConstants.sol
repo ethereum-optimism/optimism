@@ -2,5 +2,5 @@
 pragma solidity 0.8.15;
 
 library StandardConstants {
-    uint256 public constant MIPS_VERSION = 8;
+    uint256 public constant MIPS_VERSION = 8; // nosemgrep: sol-style-camelCase-interface-variables
 }

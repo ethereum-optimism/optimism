@@ -27,7 +27,7 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 ///         - event DecimalsUpdated(uint256 decimals);
 contract GasPriceOracle is ISemver {
     /// @notice Number of decimals used in the scalar.
-    uint256 public constant DECIMALS = 6;
+    uint256 public constant DECIMALS = 6; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Semantic version.
     /// @custom:semver 1.4.0

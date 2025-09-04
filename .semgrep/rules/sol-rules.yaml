@@ -363,3 +363,21 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/scripts/libraries/Config.sol
+
+  - id: sol-style-camelCase-interface-variables
+    languages: [solidity]
+    severity: ERROR
+    message: Interface constants must be camelCase, not SNAKE_CASE
+    pattern-regex: \w+\s+(constant\s+public|public\s+constant|constant\s+immutable|immutable\s+constant)\s+([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)\s*=
+    paths:
+      exclude:
+        - packages/contracts-bedrock/interfaces
+
+  - id: sol-style-camelCase-interface-functions
+    languages: [solidity]
+    severity: ERROR
+    message: Interface function names must be camelCase, not SNAKE_CASE
+    pattern-regex: function\s+([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)\s*\([^)]*\).*\b(external|public)\b
+    paths:
+      exclude:
+        - packages/contracts-bedrock/interfaces

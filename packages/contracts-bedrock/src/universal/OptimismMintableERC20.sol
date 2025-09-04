@@ -54,6 +54,7 @@ contract OptimismMintableERC20 is ERC20Permit, ISemver {
     ///         so it will always be at the same address. It is also included as a preinstall,
     ///         so it exists in the genesis state of chains.
     /// @return Address of permit2 on this network.
+    // nosemgrep: sol-style-camelCase-interface-functions
     function PERMIT2() public pure returns (address) {
         return Preinstalls.Permit2;
     }

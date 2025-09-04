@@ -69,6 +69,7 @@ contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20F
     ///         Public getter is legacy and will be removed in the future. Use `bridge` instead.
     /// @return Address of the StandardBridge on this chain.
     /// @custom:legacy
+    // nosemgrep: sol-style-camelCase-interface-functions
     function BRIDGE() external view returns (address) {
         return bridge;
     }

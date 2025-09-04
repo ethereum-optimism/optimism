@@ -26,13 +26,15 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Version identifier, used for upgrades.
-    uint256 public constant VERSION = 0;
+    uint256 public constant VERSION = 0; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the required protocol version is stored at.
-    bytes32 public constant REQUIRED_SLOT = bytes32(uint256(keccak256("protocolversion.required")) - 1);
+    bytes32 public constant REQUIRED_SLOT = bytes32(uint256(keccak256("protocolversion.required")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the recommended protocol version is stored at.
-    bytes32 public constant RECOMMENDED_SLOT = bytes32(uint256(keccak256("protocolversion.recommended")) - 1);
+    bytes32 public constant RECOMMENDED_SLOT = bytes32(uint256(keccak256("protocolversion.recommended")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Emitted when configuration is updated.
     /// @param version    ProtocolVersion version.

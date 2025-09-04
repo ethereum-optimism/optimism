@@ -239,6 +239,7 @@ contract Setup {
     }
 
     /// @dev Sets up the L1 contracts.
+    // nosemgrep: sol-style-camelCase-interface-functions
     function L1() public {
         console.log("Setup: creating L1 deployments");
         // Set the deterministic deployer in state to ensure that it is there
@@ -294,6 +295,7 @@ contract Setup {
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
+    // nosemgrep: sol-style-camelCase-interface-functions
     function L2() public {
         // Fork tests focus on L1 contracts so there is no need to do all the work of setting up L2.
         if (isForkTest()) {

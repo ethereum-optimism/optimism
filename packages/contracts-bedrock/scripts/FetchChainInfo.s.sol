@@ -8,28 +8,28 @@ import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
 /// that have since been deprecated.
 interface IFetcher {
     function guardian() external view returns (address);
-    function GUARDIAN() external view returns (address);
+    function GUARDIAN() external view returns (address); // nosemgrep: sol-style-camelCase-interface-functions
     function systemConfig() external view returns (address);
-    function SYSTEM_CONFIG() external view returns (address);
+    function SYSTEM_CONFIG() external view returns (address); // nosemgrep: sol-style-camelCase-interface-functions
     function disputeGameFactory() external view returns (address);
     function ethLockbox() external view returns (address);
     function superchainConfig() external view returns (address);
     function messenger() external view returns (address);
     function addressManager() external view returns (address);
-    function PORTAL() external view returns (address);
+    function PORTAL() external view returns (address); // nosemgrep: sol-style-camelCase-interface-functions
     function portal() external view returns (address);
     function l1ERC721Bridge() external view returns (address);
     function optimismMintableERC20Factory() external view returns (address);
     function gameImpls(GameType _gameType) external view returns (address);
     function respectedGameType() external view returns (GameType);
     function anchorStateRegistry() external view returns (address);
-    function L2_ORACLE() external view returns (address);
+    function L2_ORACLE() external view returns (address); // nosemgrep: sol-style-camelCase-interface-functions
     function l2Oracle() external view returns (address);
     function vm() external view returns (address);
     function oracle() external view returns (address);
     function challenger() external view returns (address);
     function proposer() external view returns (address);
-    function PROPOSER() external view returns (address);
+    function PROPOSER() external view returns (address); // nosemgrep: sol-style-camelCase-interface-functions
     function batcherHash() external view returns (bytes32);
     function admin() external view returns (address);
     function owner() external view returns (address);

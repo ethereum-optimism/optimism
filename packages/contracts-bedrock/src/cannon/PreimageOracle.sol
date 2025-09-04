@@ -41,13 +41,15 @@ contract PreimageOracle is ISemver {
     /// @notice The minimum size of a preimage that can be proposed in the large preimage path.
     uint256 internal immutable MIN_LPP_SIZE_BYTES;
     /// @notice The minimum bond size for large preimage proposals.
-    uint256 public constant MIN_BOND_SIZE = 0.25 ether;
+    uint256 public constant MIN_BOND_SIZE = 0.25 ether; // nosemgrep: sol-style-camelCase-interface-variables
     /// @notice The depth of the keccak256 merkle tree. Supports up to 65,536 keccak blocks, or ~8.91MB preimages.
-    uint256 public constant KECCAK_TREE_DEPTH = 16;
+    uint256 public constant KECCAK_TREE_DEPTH = 16; // nosemgrep: sol-style-camelCase-interface-variables
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
-    uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+    uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1; // nosemgrep:
+        // sol-style-camelCase-interface-variables
     /// @notice The reserved gas for precompile call setup.
-    uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
+    uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000; // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice The semantic version of the Preimage Oracle contract.
     /// @custom:semver 1.1.4

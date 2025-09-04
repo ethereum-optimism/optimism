@@ -15,7 +15,7 @@ import { Actors } from "../helpers/Actors.t.sol";
 contract ProtocolHandler is TestBase, StdUtils, Actors {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
 
-    uint8 public constant MAX_CHAINS = 4;
+    uint8 public constant MAX_CHAINS = 4; // nosemgrep: sol-style-camelCase-interface-variables
     uint8 internal constant INITIAL_TOKENS = 1;
     uint8 internal constant INITIAL_SUPERTOKENS = 1;
     uint8 internal constant SUPERTOKEN_INITIAL_MINT = 100;

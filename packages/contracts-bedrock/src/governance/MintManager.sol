@@ -18,14 +18,14 @@ contract MintManager is Ownable {
 
     /// @notice The amount of tokens that can be minted per year.
     ///         The value is a fixed point number with 4 decimals.
-    uint256 public constant MINT_CAP = 20; // 2%
+    uint256 public constant MINT_CAP = 20; // 2% // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice The number of decimals for the MINT_CAP.
-    uint256 public constant DENOMINATOR = 1000;
+    uint256 public constant DENOMINATOR = 1000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice The amount of time that must pass before the MINT_CAP number of tokens can
     ///         be minted again.
-    uint256 public constant MINT_PERIOD = 365 days;
+    uint256 public constant MINT_PERIOD = 365 days; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Tracks the time of last mint.
     uint256 public mintPermittedAfter;

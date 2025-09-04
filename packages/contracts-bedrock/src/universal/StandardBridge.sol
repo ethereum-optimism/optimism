@@ -138,6 +138,7 @@ abstract contract StandardBridge is Initializable {
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Contract of the messenger on this domain.
     /// @custom:legacy
+    // nosemgrep: sol-style-camelCase-interface-functions
     function MESSENGER() external view returns (ICrossDomainMessenger) {
         return messenger;
     }
@@ -146,6 +147,7 @@ abstract contract StandardBridge is Initializable {
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
     /// @return Contract of the bridge on the other network.
     /// @custom:legacy
+    // nosemgrep: sol-style-camelCase-interface-functions
     function OTHER_BRIDGE() external view returns (StandardBridge) {
         return otherBridge;
     }

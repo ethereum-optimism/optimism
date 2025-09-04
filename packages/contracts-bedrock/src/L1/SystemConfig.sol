@@ -49,7 +49,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     }
 
     /// @notice Version identifier, used for upgrades.
-    uint256 public constant VERSION = 0;
+    uint256 public constant VERSION = 0; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the unsafe block signer is stored at.
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
@@ -59,30 +59,36 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         User input should not be placed in storage in this contract until this migration
     ///         happens. It is unlikely that keccak second preimage resistance will be broken,
     ///         but it is better to be safe than sorry.
-    bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
+    bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner"); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
-    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT =
-        bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
+    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = // nosemgrep: sol-style-camelCase-interface-variables
+     bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
 
     /// @notice Storage slot that the L1ERC721Bridge address is stored at.
-    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
+    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the L1StandardBridge address is stored at.
-    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
+    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the OptimismPortal address is stored at.
-    bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
+    bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
-    bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
+    bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT = // nosemgrep: sol-style-camelCase-interface-variables
+     bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
-    bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
+    bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1); // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various

@@ -85,6 +85,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     ///         Public getter is legacy and will be removed in the future. Use `portal()` instead.
     /// @return Contract of the OptimismPortal on this chain.
     /// @custom:legacy
+    // nosemgrep: sol-style-camelCase-interface-functions
     function PORTAL() external view returns (IOptimismPortal) {
         return portal;
     }

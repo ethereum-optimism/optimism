@@ -16,6 +16,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1Block is ISemver {
     /// @notice Address of the special depositor account.
+    // nosemgrep: sol-style-camelCase-interface-functions
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
     }

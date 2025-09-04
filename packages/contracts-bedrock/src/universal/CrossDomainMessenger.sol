@@ -92,42 +92,44 @@ abstract contract CrossDomainMessenger is
     CrossDomainMessengerLegacySpacer1
 {
     /// @notice Current message version identifier.
-    uint16 public constant MESSAGE_VERSION = 1;
+    uint16 public constant MESSAGE_VERSION = 1; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Constant overhead added to the base gas for a message.
-    uint64 public constant RELAY_CONSTANT_OVERHEAD = 200_000;
+    uint64 public constant RELAY_CONSTANT_OVERHEAD = 200_000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Numerator for dynamic overhead added to the base gas for a message.
-    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 64;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 64; // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Denominator for dynamic overhead added to the base gas for a message.
-    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 63;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 63; // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Extra gas added to base gas for each byte of calldata in a message.
-    uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
+    uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Gas reserved for performing the external call in `relayMessage`.
-    uint64 public constant RELAY_CALL_OVERHEAD = 40_000;
+    uint64 public constant RELAY_CALL_OVERHEAD = 40_000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Gas reserved for finalizing the execution of `relayMessage` after the safe call.
-    uint64 public constant RELAY_RESERVED_GAS = 40_000;
+    uint64 public constant RELAY_RESERVED_GAS = 40_000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Gas reserved for the execution between the `hasMinGas` check and the external
     ///         call in `relayMessage`.
-    uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
+    uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Base gas required for any transaction in the EVM.
-    uint64 public constant TX_BASE_GAS = 21_000;
+    uint64 public constant TX_BASE_GAS = 21_000; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Floor overhead per byte of non-zero calldata in a message. Calldata floor was
     ///         introduced in EIP-7623.
-    uint64 public constant FLOOR_CALLDATA_OVERHEAD = 40;
+    uint64 public constant FLOOR_CALLDATA_OVERHEAD = 40; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Overhead added to the internal message data when the full call to relayMessage is
     ///         ABI encoded. This is a constant value that is specific to the V1 message encoding
     ///         scheme. 260 is an upper bound, actual overhead can be as low as 228 bytes for an
     ///         empty message.
-    uint64 public constant ENCODING_OVERHEAD = 260;
+    uint64 public constant ENCODING_OVERHEAD = 260; // nosemgrep: sol-style-camelCase-interface-variables
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -335,6 +337,7 @@ abstract contract CrossDomainMessenger is
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return CrossDomainMessenger contract on the other chain.
     /// @custom:legacy
+    // nosemgrep: sol-style-camelCase-interface-functions
     function OTHER_MESSENGER() public view returns (CrossDomainMessenger) {
         return otherMessenger;
     }

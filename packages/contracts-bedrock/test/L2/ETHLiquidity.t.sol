@@ -21,7 +21,8 @@ contract ETHLiquidity_TestInit is CommonTest {
     event LiquidityFunded(address indexed funder, uint256 amount);
 
     /// @notice The starting balance of the ETHLiquidity contract.
-    uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint248).max;
+    uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint248).max; // nosemgrep:
+        // sol-style-camelCase-interface-variables
 
     /// @notice Test setup.
     function setUp() public virtual override {
