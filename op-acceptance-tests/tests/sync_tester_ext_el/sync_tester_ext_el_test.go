@@ -18,6 +18,7 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	}
 
 	sys := presets.NewMinimalExternalELWithExternalL1(t)
+
 	require := t.Require()
 
 	// Test that we can get chain IDs from L2CL node

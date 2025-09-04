@@ -2581,6 +2581,14 @@ workflows:
           gate: sync-test-op-node
           # CircleCI params
           no_output_timeout: 30m
+          # op-sepolia configuration environment variables
+          environment:
+            L2_NETWORK_NAME: "op-sepolia"
+            L1_CHAIN_ID: "11155111"
+            L2_EL_ENDPOINT: "https://ci-sepolia-l2.optimism.io"
+            L1_CL_BEACON_ENDPOINT: "https://ci-sepolia-beacon.optimism.io"
+            L1_EL_ENDPOINT: "https://ci-sepolia-l1.optimism.io"
+            INITIAL_L2_BLOCK: "3201274"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
