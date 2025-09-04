@@ -51,6 +51,7 @@ contract DeployImplementations is Script {
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
+        bool deployV2DisputeGames;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -109,8 +110,10 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
-        deployFaultDisputeGameV2Impl(_input, output_);
-        deployPermissionedDisputeGameV2Impl(_input, output_);
+        if (_input.deployV2DisputeGames) {
+            deployFaultDisputeGameV2Impl(_input, output_);
+            deployPermissionedDisputeGameV2Impl(_input, output_);
+        }
 
         // Deploy the OP Contracts Manager with the new implementations set.
         deployOPContractsManager(_input, output_);
@@ -478,13 +481,11 @@ contract DeployImplementations is Script {
         params.splitDepth = 30;
         params.clockExtension = Duration.wrap(10800); // 3 hours
         params.maxClockDuration = Duration.wrap(302400); // 3.5 days
-        
+
         IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
             DeployUtils.createDeterministic({
                 _name: "FaultDisputeGameV2",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))),
                 _salt: _salt
             })
         );
@@ -499,12 +500,14 @@ contract DeployImplementations is Script {
         params.splitDepth = 30;
         params.clockExtension = Duration.wrap(10800); // 3 hours
         params.maxClockDuration = Duration.wrap(302400); // 3.5 days
-        
+
         IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
             DeployUtils.createDeterministic({
                 _name: "PermissionedDisputeGameV2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params, _input.upgradeController, _input.challenger))
+                    abi.encodeCall(
+                        IPermissionedDisputeGameV2.__constructor__, (params, _input.upgradeController, _input.challenger)
+                    )
                 ),
                 _salt: _salt
             })
@@ -683,12 +686,39 @@ contract DeployImplementations is Script {
             address(_output.optimismMintableERC20FactoryImpl),
             address(_output.disputeGameFactoryImpl),
             address(_output.anchorStateRegistryImpl),
-            address(_output.ethLockboxImpl),
-            address(_output.faultDisputeGameV2Impl),
-            address(_output.permissionedDisputeGameV2Impl)
+            address(_output.ethLockboxImpl)
         );
 
+        // Only include V2 contracts in validation if they were deployed
+        if (_input.deployV2DisputeGames) {
+            address[] memory v2Addrs = Solarray.addresses(
+                address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl)
+            );
+            addrs2 = Solarray.extend(addrs2, v2Addrs);
+        }
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+
+        // Validate V2 contract deployment consistency with flag
+        if (_input.deployV2DisputeGames) {
+            require(
+                address(_output.faultDisputeGameV2Impl) != address(0),
+                "DeployImplementations: V2 flag enabled but FaultDisputeGameV2 not deployed"
+            );
+            require(
+                address(_output.permissionedDisputeGameV2Impl) != address(0),
+                "DeployImplementations: V2 flag enabled but PermissionedDisputeGameV2 not deployed"
+            );
+        } else {
+            require(
+                address(_output.faultDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but FaultDisputeGameV2 was deployed"
+            );
+            require(
+                address(_output.permissionedDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but PermissionedDisputeGameV2 was deployed"
+            );
+        }
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 

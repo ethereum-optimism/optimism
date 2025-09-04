@@ -47,8 +47,9 @@ contract DeployImplementations_Test is Test {
         DeployImplementations.Output memory output = deployImplementations.run(input);
 
         assertNotEq(address(output.systemConfigImpl), address(0));
-        assertNotEq(address(output.faultDisputeGameV2Impl), address(0));
-        assertNotEq(address(output.permissionedDisputeGameV2Impl), address(0));
+        // V2 contracts should not be deployed with default flag (false)
+        assertEq(address(output.faultDisputeGameV2Impl), address(0));
+        assertEq(address(output.permissionedDisputeGameV2Impl), address(0));
     }
 
     function test_reuseImplementation_succeeds() public {
@@ -72,8 +73,11 @@ contract DeployImplementations_Test is Test {
         assertEq(address(output1.anchorStateRegistryImpl), address(output2.anchorStateRegistryImpl), "1100");
         assertEq(address(output1.opcm), address(output2.opcm), "1200");
         assertEq(address(output1.ethLockboxImpl), address(output2.ethLockboxImpl), "1300");
+        // V2 contracts should both be address(0) since default flag is false
         assertEq(address(output1.faultDisputeGameV2Impl), address(output2.faultDisputeGameV2Impl), "1400");
         assertEq(address(output1.permissionedDisputeGameV2Impl), address(output2.permissionedDisputeGameV2Impl), "1500");
+        assertEq(address(output1.faultDisputeGameV2Impl), address(0), "V2 contracts should be null");
+        assertEq(address(output1.permissionedDisputeGameV2Impl), address(0), "V2 contracts should be null");
     }
 
     function testFuzz_run_memory_succeeds(
@@ -121,6 +125,7 @@ contract DeployImplementations_Test is Test {
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
+            false, // deployV2DisputeGames
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
@@ -143,8 +148,9 @@ contract DeployImplementations_Test is Test {
         assertNotEq(address(output.opcmContractsContainer), address(0), "900");
         assertNotEq(address(output.opcmDeployer), address(0), "1000");
         assertNotEq(address(output.opcmGameTypeAdder), address(0), "1100");
-        assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "1200");
-        assertNotEq(address(output.permissionedDisputeGameV2Impl), address(0), "1300");
+        // V2 contracts should be null since default flag is false
+        assertEq(address(output.faultDisputeGameV2Impl), address(0), "1200");
+        assertEq(address(output.permissionedDisputeGameV2Impl), address(0), "1300");
 
         // Address contents assertions
         bytes memory empty;
@@ -161,8 +167,9 @@ contract DeployImplementations_Test is Test {
         assertNotEq(address(output.opcmContractsContainer).code, empty, "2100");
         assertNotEq(address(output.opcmDeployer).code, empty, "2200");
         assertNotEq(address(output.opcmGameTypeAdder).code, empty, "2300");
-        assertNotEq(address(output.faultDisputeGameV2Impl).code, empty, "2400");
-        assertNotEq(address(output.permissionedDisputeGameV2Impl).code, empty, "2500");
+        // V2 contracts should have empty code since they're null addresses
+        assertEq(address(output.faultDisputeGameV2Impl).code, empty, "2400");
+        assertEq(address(output.permissionedDisputeGameV2Impl).code, empty, "2500");
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
@@ -245,6 +252,79 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
     }
 
+    function test_deployImplementation_withV2Enabled_succeeds() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.deployV2DisputeGames = true;
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+
+        assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should be deployed");
+        assertNotEq(
+            address(output.permissionedDisputeGameV2Impl), address(0), "PermissionedDisputeGameV2 should be deployed"
+        );
+    }
+
+    function test_deployImplementation_withV2Disabled_succeeds() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.deployV2DisputeGames = false;
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+
+        assertEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should not be deployed");
+        assertEq(
+            address(output.permissionedDisputeGameV2Impl),
+            address(0),
+            "PermissionedDisputeGameV2 should not be deployed"
+        );
+
+        // Ensure other contracts are still deployed
+        assertNotEq(address(output.systemConfigImpl), address(0), "SystemConfig should still be deployed");
+        assertNotEq(address(output.disputeGameFactoryImpl), address(0), "DisputeGameFactory should still be deployed");
+    }
+
+    function test_reuseImplementation_withV2Flags_succeeds() public {
+        DeployImplementations.Input memory inputEnabled = defaultInput();
+        inputEnabled.deployV2DisputeGames = true;
+        DeployImplementations.Output memory output1 = deployImplementations.run(inputEnabled);
+
+        DeployImplementations.Input memory inputDisabled = defaultInput();
+        inputDisabled.deployV2DisputeGames = false;
+        DeployImplementations.Output memory output2 = deployImplementations.run(inputDisabled);
+
+        // V2 contracts should be different between enabled and disabled
+        assertTrue(
+            address(output1.faultDisputeGameV2Impl) != address(output2.faultDisputeGameV2Impl),
+            "V2 addresses should differ between enabled/disabled"
+        );
+        assertTrue(
+            address(output1.permissionedDisputeGameV2Impl) != address(output2.permissionedDisputeGameV2Impl),
+            "V2 addresses should differ between enabled/disabled"
+        );
+
+        // Other contracts should remain the same
+        assertEq(
+            address(output1.systemConfigImpl),
+            address(output2.systemConfigImpl),
+            "SystemConfig addresses should be the same"
+        );
+        assertEq(
+            address(output1.disputeGameFactoryImpl),
+            address(output2.disputeGameFactoryImpl),
+            "DisputeGameFactory addresses should be the same"
+        );
+
+        // Running with same flags should produce same results
+        DeployImplementations.Output memory output3 = deployImplementations.run(inputEnabled);
+        assertEq(
+            address(output1.faultDisputeGameV2Impl),
+            address(output3.faultDisputeGameV2Impl),
+            "V2 enabled addresses should be deterministic"
+        );
+        assertEq(
+            address(output1.permissionedDisputeGameV2Impl),
+            address(output3.permissionedDisputeGameV2Impl),
+            "V2 enabled addresses should be deterministic"
+        );
+    }
+
     function defaultInput() private view returns (DeployImplementations.Input memory input_) {
         input_ = DeployImplementations.Input(
             withdrawalDelaySeconds,
@@ -254,6 +334,7 @@ contract DeployImplementations_Test is Test {
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
+            false, // deployV2DisputeGames
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
