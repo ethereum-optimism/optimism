@@ -228,7 +228,6 @@ commands:
             fi
           when: on_fail
 
-
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -272,7 +271,6 @@ commands:
       - attach_workspace:
           at: "."
       - utils/install-mise
-
 
 jobs:
   initialize:
@@ -776,7 +774,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-        - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: 2xlarge
     parameters:
       test_flags:
@@ -1285,7 +1283,7 @@ jobs:
       - checkout-from-workspace
       - unless:
           condition:
-            equal: ["",<<parameters.devnet>>]
+            equal: ["", <<parameters.devnet>>]
           steps:
             - run:
                 name: Setup Kurtosis
@@ -1765,7 +1763,6 @@ jobs:
           command: |
             goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
-
   diff-fetcher-forge-artifacts:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1791,20 +1788,19 @@ jobs:
 
             echo "✅ Checked-in forge artifacts match the ci build"
 
-
   stale-check:
-      machine:
-        image: ubuntu-2204:2024.08.1
-      steps:
-        - utils/github-stale:
-            stale-issue-message: 'This issue has been automatically marked as stale and will be closed in 5 days if no updates'
-            stale-pr-message: 'This pr has been automatically marked as stale and will be closed in 5 days if no updates'
-            close-issue-message: 'This issue was closed as stale.  Please reopen if this is a mistake'
-            close-pr-message: 'This PR was closed as stale.  Please reopen if this is a mistake'
-            days-before-issue-stale: 999
-            days-before-pr-stale: 14
-            days-before-issue-close: 5
-            days-before-pr-close: 5
+    machine:
+      image: ubuntu-2204:2024.08.1
+    steps:
+      - utils/github-stale:
+          stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
+          stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
+          close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
+          close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
+          days-before-issue-stale: 999
+          days-before-pr-stale: 14
+          days-before-issue-close: 5
+          days-before-pr-close: 5
 
   close-issue:
     machine:
@@ -1854,7 +1850,6 @@ jobs:
             # Upload to the date-partitioned folder structure
             gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/$FOLDER_NAME/metrics-$CIRCLE_SHA1.csv
 
-
   generate-flaky-report:
     machine: true
     resource_class: medium
@@ -1882,16 +1877,18 @@ jobs:
           path: ./op-acceptance-tests/reports
           destination: flaky-test-reports
 
-
 workflows:
   main:
     when:
       or:
-        - equal: ["webhook",<< pipeline.trigger_source >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-          - equal: [true, <<pipeline.parameters.main_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
-          - equal: [<< pipeline.parameters.github-event-type >>, "__not_set__"] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
+            - equal: [true, <<pipeline.parameters.main_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
+            - equal: [
+                  << pipeline.parameters.github-event-type >>,
+                  "__not_set__",
+                ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
       - initialize:
           context:
@@ -2055,16 +2052,16 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           filters:
             branches:
-              ignore: develop  # Run on all branches EXCEPT develop (PR branches only)
+              ignore: develop # Run on all branches EXCEPT develop (PR branches only)
       - go-tests:
           name: go-tests-full
-          rule: "go-tests-ci"  # Run full test suite instead of short
-          no_output_timeout: 89m  # Longer timeout for full tests
+          rule: "go-tests-ci" # Run full test suite instead of short
+          no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
           filters:
             branches:
-              only: develop  # Only runs on develop branch (post-merge)
+              only: develop # Only runs on develop branch (post-merge)
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
@@ -2365,11 +2362,15 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
-          - equal: ["webhook",<< pipeline.trigger_source >>]
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-          - equal: [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
+            - equal:
+                [
+                  true,
+                  <<pipeline.parameters.publish_contract_artifacts_dispatch>>,
+                ]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - publish-contract-artifacts:
           context:
@@ -2379,11 +2380,11 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
-          - equal: ["webhook",<< pipeline.trigger_source >>]
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-          - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
+            - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
@@ -2430,11 +2431,11 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
-          - equal: ["webhook",<< pipeline.trigger_source >>]
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-          - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
+            - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - kontrol-tests:
           context:
@@ -2549,23 +2550,27 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-
   scheduled-sync-test-op-node:
     when:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.sync_test_op_node_dispatch >>]
+        # Trigger on PRs
+        - and:
+            - not:
+                equal: ["develop", <<pipeline.git.branch>>]
+            - equal: ["webhook", << pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build:  # needed for sysgo tests
+      - contracts-bedrock-build: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - cannon-prestate-quick:  # needed for sysgo tests
+      - cannon-prestate-quick: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -2588,21 +2593,21 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
-          - equal: ["webhook",<< pipeline.trigger_source >>]
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: ["webhook", << pipeline.trigger_source >>]
         - and:
-          - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
+            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build:  # needed for sysgo tests
+      - contracts-bedrock-build: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - cannon-prestate-quick:  # needed for sysgo tests
+      - cannon-prestate-quick: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -2610,7 +2615,7 @@ workflows:
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
-          gate: ""  # Empty gate = gateless mode
+          gate: "" # Empty gate = gateless mode
           no_output_timeout: 90m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2676,12 +2681,12 @@ workflows:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build:  # needed for sysgo tests
+      - contracts-bedrock-build: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - cannon-prestate-quick:  # needed for sysgo tests
+      - cannon-prestate-quick: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -2689,7 +2694,7 @@ workflows:
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
-          gate: ""  # Empty gate = gateless mode
+          gate: "" # Empty gate = gateless mode
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2754,21 +2759,21 @@ workflows:
         - equal: [<< pipeline.parameters.github-event-action >>, "labeled"]
     jobs:
       - close-issue:
-         label_name: "auto-close-trivial-contribution"
-         message: "Thank you for your interest in contributing!
-                At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
-                Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
-                This issue will be closed now."
-         context:
-          - circleci-repo-optimism
+          label_name: "auto-close-trivial-contribution"
+          message: "Thank you for your interest in contributing!
+            At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
+            Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
+            This issue will be closed now."
+          context:
+            - circleci-repo-optimism
 
   devnet-metrics-collect:
     when:
       or:
         - equal: [<< pipeline.trigger_source >>, "webhook"]
         - and:
-          - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
-          - equal: [<< pipeline.trigger_source >>, "api"]
+            - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
+            - equal: [<< pipeline.trigger_source >>, "api"]
     jobs:
       - devnet-metrics-collect-authorship:
           context:
