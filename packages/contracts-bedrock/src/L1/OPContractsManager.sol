@@ -1283,8 +1283,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     function systemConfigInitializerData(
         OPContractsManager.DeployInput memory _input,
         ISuperchainConfig _superchainConfig,
-        IResourceMetering.ResourceConfig memory referenceResourceConfig,
-        ISystemConfig.Addresses memory opChainAddrs
+        IResourceMetering.ResourceConfig memory _referenceResourceConfig,
+        ISystemConfig.Addresses memory _opChainAddrs
     )
         internal
         view
@@ -1300,9 +1300,9 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
                 _input.gasLimit,
                 _input.roles.unsafeBlockSigner,
-                referenceResourceConfig,
+                _referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs,
+                _opChainAddrs,
                 _input.l2ChainId,
                 _superchainConfig
             )

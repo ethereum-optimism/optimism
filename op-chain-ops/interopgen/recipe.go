@@ -244,8 +244,8 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 			},
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
 				IsCustomGasToken:     false,
-				GasPayingTokenName:   "Custom Gas Token",
-				GasPayingTokenSymbol: "CGT",
+				GasPayingTokenName:   "",
+				GasPayingTokenSymbol: "",
 			},
 			OperatorDeployConfig: genesis.OperatorDeployConfig{
 				P2PSequencerAddress: sequencerP2P,

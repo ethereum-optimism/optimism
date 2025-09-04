@@ -32,7 +32,7 @@ contract L2ToL1MessagePasser is ISemver {
     uint240 internal msgNonce;
 
     /// @notice The error thrown when a withdrawal is initiated with value and custom gas token is used.
-    error NotAllowedOnCGTMode();
+    error L2ToL1MessagePasser_NotAllowedOnCGTMode();
 
     /// @notice Emitted any time a withdrawal is initiated.
     /// @param nonce          Unique value corresponding to each withdrawal.
@@ -80,7 +80,7 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param _data     Data to forward to L1 target.
     function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) public payable {
         if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken() && msg.value > 0) {
-            revert NotAllowedOnCGTMode();
+            revert L2ToL1MessagePasser_NotAllowedOnCGTMode();
         }
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(

@@ -18,11 +18,6 @@ contract L2ToL1MessagePasserCGT_TestInit is CommonTest {
     function setUp() public override {
         super.enableCustomGasToken();
         super.setUp();
-
-        // Manually activate custom gas token since we removed the constructor parameter
-        address depositor = l1Block.DEPOSITOR_ACCOUNT();
-        vm.prank(depositor);
-        l1Block.setCustomGasToken();
     }
 }
 
@@ -75,7 +70,7 @@ contract L2ToL1MessagePasserCGT_InitiateWithdrawal_Test is L2ToL1MessagePasserCG
 
         // Expect revert with NotAllowedOnCGTMode
         vm.prank(_randomAddress);
-        vm.expectRevert(IL2ToL1MessagePasser.NotAllowedOnCGTMode.selector);
+        vm.expectRevert(IL2ToL1MessagePasser.L2ToL1MessagePasser_NotAllowedOnCGTMode.selector);
         l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: address(0), _gasLimit: 1, _data: "" });
     }
 }

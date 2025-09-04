@@ -155,7 +155,7 @@
   },
   {
     "inputs": [],
-    "name": "NotAllowedOnCGTMode",
+    "name": "L2ToL1MessagePasser_NotAllowedOnCGTMode",
     "type": "error"
   }
 ]

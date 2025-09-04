@@ -22,10 +22,6 @@ contract L1BlockCGT_TestInit is CommonTest {
         super.enableCustomGasToken();
         super.setUp();
         depositor = l1Block.DEPOSITOR_ACCOUNT();
-
-        // Manually activate custom gas token since we removed the constructor parameter
-        vm.prank(depositor);
-        l1Block.setCustomGasToken();
     }
 }
 
@@ -69,9 +65,6 @@ contract L1Block_CGT_SetL1BlockValues_Test is L1Block_SetL1BlockValues_Test {
     function setUp() public override {
         super.enableCustomGasToken();
         super.setUp();
-        // Manually activate custom gas token since we removed the constructor parameter
-        vm.prank(depositor);
-        l1Block.setCustomGasToken();
     }
 }
 
@@ -84,9 +77,6 @@ contract L1Block_CGT_SetL1BlockValuesEcotone_Test is L1Block_SetL1BlockValuesEco
     function setUp() public override {
         super.enableCustomGasToken();
         super.setUp();
-        // Manually activate custom gas token since we removed the constructor parameter
-        vm.prank(depositor);
-        l1Block.setCustomGasToken();
     }
 }
 
@@ -99,9 +89,6 @@ contract L1Block_CGT_SetL1BlockValuesIsthmus_Test is L1Block_SetL1BlockValuesIst
     function setUp() public override {
         super.enableCustomGasToken();
         super.setUp();
-        // Manually activate custom gas token since we removed the constructor parameter
-        vm.prank(depositor);
-        l1Block.setCustomGasToken();
     }
 }
 

@@ -148,6 +148,14 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 		}
 	}
 
+	if thisIntent.CustomGasToken == nil {
+		thisIntent.CustomGasToken = &state.CustomGasToken{
+			Enabled: overrides.IsCustomGasToken,
+			Name:    overrides.GasPayingTokenName,
+			Symbol:  overrides.GasPayingTokenSymbol,
+		}
+	}
+
 	return overrides, schedule, nil
 }
 
@@ -163,8 +171,8 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 func defaultOverrides() l2GenesisOverrides {
 	return l2GenesisOverrides{
 		IsCustomGasToken:                         false,
-		GasPayingTokenName:                       "Custom Gas Token",
-		GasPayingTokenSymbol:                     "CGT",
+		GasPayingTokenName:                       "",
+		GasPayingTokenSymbol:                     "",
 		FundDevAccounts:                          false,
 		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
 		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
