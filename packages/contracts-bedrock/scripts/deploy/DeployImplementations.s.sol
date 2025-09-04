@@ -62,6 +62,7 @@ contract DeployImplementations is Script {
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address upgradeController;
+        address proposer;
         address challenger;
     }
 
@@ -510,9 +511,7 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "PermissionedDisputeGameV2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IPermissionedDisputeGameV2.__constructor__, (params, _input.upgradeController, _input.challenger)
-                    )
+                    abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params, _input.proposer, _input.challenger))
                 ),
                 _salt: _salt
             })
