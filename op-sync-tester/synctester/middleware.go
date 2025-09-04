@@ -71,21 +71,7 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		session := &eth.SyncTesterSession{
-			SessionID: sessionID,
-			Validated: latest,
-			CurrentState: eth.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-			Payloads: make(map[eth.PayloadID]*eth.ExecutionPayloadEnvelope),
-			InitialState: eth.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-		}
+		session := eth.NewSyncTesterSession(sessionID, latest, safe, finalized)
 		ctx := backend.WithSyncTesterSession(r.Context(), session)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")

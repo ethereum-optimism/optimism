@@ -30,7 +30,7 @@ func (s *SyncTester) ListSessions() []string {
 	return sessionIDs
 }
 
-func (s *SyncTester) GetSession(sessionID string) eth.SyncTesterSession {
+func (s *SyncTester) GetSession(sessionID string) *eth.SyncTesterSession {
 	session, err := s.inner.APIWithSession(sessionID).GetSession(s.ctx)
 	s.t.Require().NoError(err)
 	return session
