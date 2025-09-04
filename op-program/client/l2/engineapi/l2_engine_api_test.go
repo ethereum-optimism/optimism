@@ -35,7 +35,7 @@ func TestNewPayloadV4(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
 	for _, c := range cases {
-		genesis := createGenesisWithForkTime(c.isthmusTime)
+		genesis := createGenesisWithForkTimeOffset(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
 			NetworkId:   genesis.Config.ChainID.Uint64(),
 			Genesis:     genesis,
@@ -165,10 +165,10 @@ func newStubBackend(t *testing.T) *stubCachingBackend {
 }
 
 func createGenesis() *core.Genesis {
-	return createGenesisWithForkTime(0)
+	return createGenesisWithForkTimeOffset(0)
 }
 
-func createGenesisWithForkTime(forkTime uint64) *core.Genesis {
+func createGenesisWithForkTimeOffset(forkTimeOffset uint64) *core.Genesis {
 	deployConfig := &genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{
@@ -200,10 +200,10 @@ func createGenesisWithForkTime(forkTime uint64) *core.Genesis {
 	deployConfig.L2GenesisHoloceneTimeOffset = &ts
 
 	// Set fork time for latest forks
-	forkTimeOffset := hexutil.Uint64(forkTime)
-	deployConfig.L2GenesisIsthmusTimeOffset = &forkTimeOffset
-	deployConfig.L2GenesisInteropTimeOffset = &forkTimeOffset
-	deployConfig.L2GenesisJovianTimeOffset = &forkTimeOffset
+	offset := hexutil.Uint64(forkTimeOffset)
+	deployConfig.L2GenesisIsthmusTimeOffset = &offset
+	deployConfig.L2GenesisInteropTimeOffset = &offset
+	deployConfig.L2GenesisJovianTimeOffset = &offset
 
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	if err != nil {
