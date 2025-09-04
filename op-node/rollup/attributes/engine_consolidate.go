@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -75,7 +74,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, rollupCfg.IsJovian(uint64(block.Timestamp))); err != nil {
+	if err := checkEIP1559ParamsMatch(rollupCfg, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, uint64(block.Timestamp)); err != nil {
 		return err
 	}
 
@@ -97,7 +96,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee *uint64, isJovian bool) error {
+func checkEIP1559ParamsMatch(cfg *rollup.Config, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee *uint64, blockTimestamp uint64) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -112,42 +111,22 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 			return fmt.Errorf("invalid attributes EIP1559 parameters: %w", err)
 		}
 
-		// Validate block extraData based on fork
-		if isJovian {
-			if err := eip1559.ValidateJovianExtraData(blockExtraData); err != nil {
-				return fmt.Errorf("invalid block extraData: %w", err)
-			}
-		} else {
-			if err := eip1559.ValidateHoloceneExtraData(blockExtraData); err != nil {
-				// This can happen if the unsafe chain contains invalid (in particular, empty) extraData while Holocene
-				// is active. The extraData field of blocks from sequencer gossip isn't currently checked during import.
-				return fmt.Errorf("invalid block extraData: %w", err)
-			}
-		}
-
 		ad, ae := eip1559.DecodeHolocene1559Params(params)
 		var translated bool
 		// Translate 0,0 to the pre-Holocene protocol constants, like the EL does too.
 		if ad == 0 {
 			// If attrParams are non-nil, Holocene, and so Canyon, must be active.
-			ad = *opCfg.EIP1559DenominatorCanyon
-			ae = opCfg.EIP1559Elasticity
+			ad = *cfg.ChainOpConfig.EIP1559DenominatorCanyon
+			ae = cfg.ChainOpConfig.EIP1559Elasticity
 			translated = true
 		}
 
 		// Decode block parameters and check for mismatch
-		var bd, be, bm uint64
-		if isJovian {
-			if minBaseFee == nil {
-				return fmt.Errorf("minBaseFee is nil but isJovian is true")
-			}
-			bd, be, bm = eip1559.DecodeJovianExtraData(blockExtraData)
-			if bm != *minBaseFee {
-				return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", *minBaseFee, bm)
-			}
-		} else {
-			bd, be = eip1559.DecodeHoloceneExtraData(blockExtraData)
+		err := eip1559.ValidateOptimismExtraData(cfg, blockTimestamp, blockExtraData)
+		if err != nil {
+			return fmt.Errorf("invalid block extraData: %w", err)
 		}
+		bd, be, bm := eip1559.DecodeOptimismExtraData(cfg, blockTimestamp, blockExtraData)
 
 		if ad != bd || ae != be {
 			extraErr := ""
@@ -155,6 +134,9 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 				extraErr = " (translated from 0,0)"
 			}
 			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
+		}
+		if bm != minBaseFee {
+			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", minBaseFee, bm)
 		}
 	} else if len(blockExtraData) > 0 {
 		// When deriving pre-Holocene blocks, the extraData must be empty.

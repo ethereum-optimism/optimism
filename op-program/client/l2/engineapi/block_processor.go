@@ -18,11 +18,10 @@ import (
 )
 
 var (
-	ErrExceedsGasLimit    = errors.New("tx gas exceeds block gas limit")
-	ErrUsesTooMuchGas     = errors.New("action takes too much gas")
-	errInvalidGasLimit    = errors.New("invalid gas limit")
-	errInvalidTimestamp   = errors.New("invalid timestamp")
-	errMinBaseFeeRequired = errors.New("minBaseFee is required for Jovian")
+	ErrExceedsGasLimit  = errors.New("tx gas exceeds block gas limit")
+	ErrUsesTooMuchGas   = errors.New("action takes too much gas")
+	errInvalidGasLimit  = errors.New("invalid gas limit")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
 type BlockDataProvider interface {
@@ -62,13 +61,8 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 			d = provider.Config().BaseFeeChangeDenominator(header.Time)
 			e = provider.Config().ElasticityMultiplier()
 		}
-		if provider.Config().IsJovian(header.Time) {
-			if attrs.MinBaseFee == nil {
-				return nil, errMinBaseFeeRequired
-			}
-			header.Extra = eip1559.EncodeJovianExtraData(d, e, *attrs.MinBaseFee)
-		} else {
-			header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
+		if provider.Config().IsOptimismHolocene(header.Time) {
+			header.Extra = eip1559.EncodeOptimismExtraData(provider.Config(), header.Time, d, e, attrs.MinBaseFee)
 		}
 	}
 

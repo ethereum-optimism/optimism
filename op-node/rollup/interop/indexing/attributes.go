@@ -67,7 +67,7 @@ func AttributesToReplaceInvalidBlock(invalidatedBlock *eth.ExecutionPayloadEnvel
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
 		EIP1559Params:         &eip1559Params,
-		MinBaseFee:            &minBaseFee,
+		MinBaseFee:            minBaseFee,
 	}
 	return attrs
 }

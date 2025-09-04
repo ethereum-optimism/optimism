@@ -604,7 +604,15 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, nil, false)
+			pastTime := uint64(0)
+			futureTime := uint64(3)
+			cfg := &rollup.Config{
+				CanyonTime:    &pastTime,
+				HoloceneTime:  &pastTime,
+				IsthmusTime:   &pastTime,
+				JovianTime:    &futureTime,
+				ChainOpConfig: defaultOpConfig}
+			err := checkEIP1559ParamsMatch(cfg, test.attrParams, test.blockExtraData, nil, uint64(2))
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {
