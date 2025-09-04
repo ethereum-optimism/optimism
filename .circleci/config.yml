@@ -2638,22 +2638,52 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+      # Sync tests for multiple networks (runs in parallel)
+      # OP Sepolia
       - op-acceptance-sync-tests-docker:
-          # Acceptance Testing params
-          name: sync-test-op-node-daily
+          name: sync-test-op-sepolia-daily
           gate: sync-test-op-node
-          # CircleCI params
           no_output_timeout: 30m
-          # Sync test configuration parameters
           l2_network_name: "op-sepolia"
           l1_chain_id: "11155111"
           l2_el_endpoint: "https://ci-sepolia-l2.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
           l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
           initial_l2_block: "3201274"
-          l2_el_endpoint_tailscale: "https://proxyd-l2-sepolia.primary.client.dev.oplabs.cloud"
-          l1_cl_beacon_endpoint_tailscale: "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"
-          l1_el_endpoint_tailscale: "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      # OP Mainnet
+      - op-acceptance-sync-tests-docker:
+          name: sync-test-op-mainnet-daily
+          gate: sync-test-op-node
+          no_output_timeout: 30m
+          l2_network_name: "op-mainnet"
+          l1_chain_id: "1"
+          l2_el_endpoint: "https://op-mainnet-rpc.optimism.io"
+          l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
+          l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
+          initial_l2_block: "140013283"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      # Base Mainnet
+      - op-acceptance-sync-tests-docker:
+          name: sync-test-base-mainnet-daily
+          gate: sync-test-op-node
+          no_output_timeout: 30m
+          l2_network_name: "base-mainnet"
+          l1_chain_id: "1"
+          l2_el_endpoint: "https://base-mainnet-rpc.optimism.io"
+          l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
+          l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
+          initial_l2_block: "35108016"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
