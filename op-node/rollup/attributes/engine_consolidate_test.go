@@ -612,7 +612,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 				IsthmusTime:   &pastTime,
 				JovianTime:    &futureTime,
 				ChainOpConfig: defaultOpConfig}
-			err := checkEIP1559ParamsMatch(cfg, test.attrParams, test.blockExtraData, nil, uint64(2))
+			err := checkExtraDataParamsMatch(cfg, uint64(2), test.attrParams, nil, test.blockExtraData)
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {

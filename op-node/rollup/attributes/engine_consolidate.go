@@ -74,7 +74,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, uint64(block.Timestamp)); err != nil {
+	if err := checkExtraDataParamsMatch(rollupCfg, uint64(block.Timestamp), attrs.EIP1559Params, attrs.MinBaseFee, block.ExtraData); err != nil {
 		return err
 	}
 
@@ -96,7 +96,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(cfg *rollup.Config, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee *uint64, blockTimestamp uint64) error {
+func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrParams *eth.Bytes8, attrMinBaseFee *uint64, blockExtraData []byte) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -135,8 +135,8 @@ func checkEIP1559ParamsMatch(cfg *rollup.Config, attrParams *eth.Bytes8, blockEx
 			}
 			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
 		}
-		if bm != minBaseFee {
-			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", minBaseFee, bm)
+		if bm != attrMinBaseFee {
+			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", attrMinBaseFee, bm)
 		}
 	} else if len(blockExtraData) > 0 {
 		// When deriving pre-Holocene blocks, the extraData must be empty.
