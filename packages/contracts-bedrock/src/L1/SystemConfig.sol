@@ -15,7 +15,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -526,11 +525,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
         // Determine the appropriate chain identifier based on the feature flags.
-        address identifier = address(optimismPortal());
-        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
-        if (address(lockbox) != address(0) && isFeatureEnabled[Features.ETH_LOCKBOX]) {
-            identifier = address(lockbox);
-        }
+        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
+            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
+            : address(optimismPortal());
 
         // Check if either global or local pause is active.
         return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
