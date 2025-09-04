@@ -408,8 +408,21 @@ mod tests {
         }
     }
 
-    fn to_json_message(block: &FlashBlock) -> Result<Message, Error> {
-        Ok(Message::Binary(Bytes::from(serde_json::to_vec(block).unwrap())))
+    fn to_json_message<B: TryFrom<Bytes, Error: Debug>, F: Fn(B) -> Message>(
+        wrapper_f: F,
+    ) -> impl Fn(&FlashBlock) -> Result<Message, Error> + use<F, B> {
+        move |block| to_json_message_using(block, &wrapper_f)
+    }
+
+    fn to_json_binary_message(block: &FlashBlock) -> Result<Message, Error> {
+        to_json_message_using(block, Message::Binary)
+    }
+
+    fn to_json_message_using<B: TryFrom<Bytes, Error: Debug>, F: Fn(B) -> Message>(
+        block: &FlashBlock,
+        wrapper_f: F,
+    ) -> Result<Message, Error> {
+        Ok(wrapper_f(B::try_from(Bytes::from(serde_json::to_vec(block).unwrap())).unwrap()))
     }
 
     fn to_brotli_message(block: &FlashBlock) -> Result<Message, Error> {
@@ -444,7 +457,8 @@ mod tests {
         }
     }
 
-    #[test_case::test_case(to_json_message; "json")]
+    #[test_case::test_case(to_json_message(Message::Binary); "json binary")]
+    #[test_case::test_case(to_json_message(Message::Text); "json UTF-8")]
     #[test_case::test_case(to_brotli_message; "brotli")]
     #[tokio::test]
     async fn test_stream_decodes_messages_successfully(
@@ -466,7 +480,7 @@ mod tests {
     #[tokio::test]
     async fn test_stream_ignores_unexpected_message(message: Message) {
         let flashblock = flashblock();
-        let connector = FakeConnector::from([Ok(message), to_json_message(&flashblock)]);
+        let connector = FakeConnector::from([Ok(message), to_json_binary_message(&flashblock)]);
         let ws_url = "http://localhost".parse().unwrap();
         let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
 
@@ -510,7 +524,8 @@ mod tests {
         const ECHO: [u8; 3] = [1u8, 2, 3];
 
         let flashblock = flashblock();
-        let messages = [Ok(Message::Ping(Bytes::from_static(&ECHO))), to_json_message(&flashblock)];
+        let messages =
+            [Ok(Message::Ping(Bytes::from_static(&ECHO))), to_json_binary_message(&flashblock)];
         let connector = FakeConnectorWithSink::from(messages);
         let ws_url = "http://localhost".parse().unwrap();
         let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
