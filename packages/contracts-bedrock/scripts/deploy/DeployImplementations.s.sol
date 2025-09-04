@@ -52,6 +52,11 @@ contract DeployImplementations is Script {
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
         bool deployV2DisputeGames;
+        // V2 Dispute Game parameters
+        uint256 faultGameV2MaxGameDepth;
+        uint256 faultGameV2SplitDepth;
+        uint256 faultGameV2ClockExtension;
+        uint256 faultGameV2MaxClockDuration;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -477,10 +482,10 @@ contract DeployImplementations is Script {
     function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
         IFaultDisputeGameV2.GameConstructorParams memory params;
         params.gameType = GameType.wrap(0); // Default game type
-        params.maxGameDepth = 73;
-        params.splitDepth = 30;
-        params.clockExtension = Duration.wrap(10800); // 3 hours
-        params.maxClockDuration = Duration.wrap(302400); // 3.5 days
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
 
         IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
             DeployUtils.createDeterministic({
@@ -496,10 +501,10 @@ contract DeployImplementations is Script {
     function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
         IFaultDisputeGameV2.GameConstructorParams memory params;
         params.gameType = GameType.wrap(1); // Permissioned game type
-        params.maxGameDepth = 73;
-        params.splitDepth = 30;
-        params.clockExtension = Duration.wrap(10800); // 3 hours
-        params.maxClockDuration = Duration.wrap(302400); // 3.5 days
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
 
         IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
             DeployUtils.createDeterministic({

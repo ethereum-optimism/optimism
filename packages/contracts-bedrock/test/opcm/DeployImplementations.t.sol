@@ -126,6 +126,10 @@ contract DeployImplementations_Test is Test {
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
             false, // deployV2DisputeGames
+            73, // faultGameV2MaxGameDepth
+            30, // faultGameV2SplitDepth
+            10800, // faultGameV2ClockExtension
+            302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
@@ -335,6 +339,10 @@ contract DeployImplementations_Test is Test {
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
             false, // deployV2DisputeGames
+            73, // faultGameV2MaxGameDepth
+            30, // faultGameV2SplitDepth
+            10800, // faultGameV2ClockExtension
+            302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
