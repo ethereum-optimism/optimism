@@ -49,7 +49,11 @@ contract LivenessModule2 is ILivenessModule2 {
         safeConfigs[msg.sender] = _config;
 
         // Clear any existing challenge when configuring/re-configuring
-        delete challengeStartTime[msg.sender];
+        // If a challenge exists, it MUST be canceled, including emitting the appropriate events
+        if (challengeStartTime[msg.sender] != 0) {
+            delete challengeStartTime[msg.sender];
+            emit ChallengeCancelled(msg.sender);
+        }
 
         emit ModuleEnabled(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
     }

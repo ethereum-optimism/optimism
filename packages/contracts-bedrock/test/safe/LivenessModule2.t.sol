@@ -168,6 +168,34 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
         );
     }
 
+    function test_configure_cancelsExistingChallenge_succeeds() external {
+        // First configure the module
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Verify challenge exists
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
+        assertGt(challengeEndTime, 0);
+
+        // Reconfigure the module, which should cancel the challenge and emit ChallengeCancelled
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeCancelled(address(safeInstance.safe));
+        vm.expectEmit(true, true, true, true);
+        emit ModuleEnabled(address(safeInstance.safe), CHALLENGE_PERIOD * 2, fallbackOwner);
+
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configure(
+            ILivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD * 2, fallbackOwner: fallbackOwner })
+        );
+
+        // Verify challenge was cancelled
+        challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
+        assertEq(challengeEndTime, 0);
+    }
+
     function test_clear_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
