@@ -111,6 +111,9 @@ where
                     Ok(Message::Binary(bytes)) => {
                         return Poll::Ready(Some(FlashBlock::decode(bytes)))
                     }
+                    Ok(Message::Text(bytes)) => {
+                        return Poll::Ready(Some(FlashBlock::decode(bytes.into())))
+                    }
                     Ok(Message::Ping(bytes)) => this.ping(bytes),
                     Ok(msg) => debug!("Received unexpected message: {:?}", msg),
                     Err(err) => return Poll::Ready(Some(Err(err.into()))),
@@ -222,7 +225,7 @@ mod tests {
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
     use std::{future, iter};
-    use tokio_tungstenite::tungstenite::{Error, Utf8Bytes};
+    use tokio_tungstenite::tungstenite::{protocol::frame::Frame, Error};
 
     /// A `FakeConnector` creates [`FakeStream`].
     ///
@@ -438,9 +441,11 @@ mod tests {
         assert_eq!(actual_messages, expected_messages);
     }
 
+    #[test_case::test_case(Message::Pong(Bytes::from(b"test".as_slice())); "pong")]
+    #[test_case::test_case(Message::Frame(Frame::pong(b"test".as_slice())); "frame")]
     #[tokio::test]
-    async fn test_stream_ignores_non_binary_message() {
-        let messages = FakeConnector::from([Ok(Message::Text(Utf8Bytes::from("test")))]);
+    async fn test_stream_ignores_unexpected_message(message: Message) {
+        let messages = FakeConnector::from([Ok(message)]);
         let ws_url = "http://localhost".parse().unwrap();
         let mut stream = WsFlashBlockStream::with_connector(ws_url, messages);
         assert!(stream.next().await.is_none());
