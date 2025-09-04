@@ -93,7 +93,7 @@ func (s *SyncTester) fetchSession(ctx context.Context) (*eth.SyncTesterSession, 
 		return nil, fmt.Errorf("session already deleted: %s", session.SessionID)
 	}
 	if existing, ok := s.sessions[session.SessionID]; ok {
-		s.log.Info("Using existing session", "session", existing)
+		s.log.Debug("Using existing session", "session", existing)
 		return existing, nil
 	} else {
 		s.storeSession(session)

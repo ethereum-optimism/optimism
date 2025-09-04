@@ -23,6 +23,10 @@ type FaucetService struct {
 }
 
 func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
+	if n == nil || n.service == nil {
+		return
+	}
+
 	require := system.T().Require()
 
 	for faucetID, chainID := range n.service.Faucets() {

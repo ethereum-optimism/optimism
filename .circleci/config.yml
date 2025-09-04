@@ -1073,6 +1073,7 @@ jobs:
         default: "go-tests-short-ci"
     machine: true
     resource_class: <<parameters.resource_class>>
+    circleci_ip_ranges: true
     steps:
       - checkout-from-workspace
       - run:
@@ -1182,37 +1183,41 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
+      use_circleci_runner:
+        description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
+        type: boolean
+        default: false
     machine:
-      image: ubuntu-2404:current
-      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
-    resource_class: xlarge
+      image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
+      docker_layer_caching: <<parameters.use_circleci_runner>>
+    resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
     steps:
       - checkout-from-workspace
-      - run:
-          name: Setup Kurtosis (if needed)
-          command: |
-            if [[ "<<parameters.devnet>>" != "" ]]; then
-              echo "Setting up Kurtosis for external devnet testing..."
+      - unless:
+          condition:
+            equal: ["",<<parameters.devnet>>]
+          steps:
+            - run:
+                name: Setup Kurtosis
+                command: |
+                  echo "Setting up Kurtosis for external devnet testing..."
 
-              # Print Kurtosis version
-              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-              kurtosis version
+                  # Print Kurtosis version
+                  echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+                  kurtosis version
 
-              # Start Kurtosis engine
-              echo "Starting Kurtosis engine..."
-              kurtosis engine start || true
+                  # Start Kurtosis engine
+                  echo "Starting Kurtosis engine..."
+                  kurtosis engine start || true
 
-              # Clean old instances
-              echo "Cleaning old instances..."
-              kurtosis clean -a || true
+                  # Clean old instances
+                  echo "Cleaning old instances..."
+                  kurtosis clean -a || true
 
-              # Check engine status
-              kurtosis engine status || true
+                  # Check engine status
+                  kurtosis engine status || true
 
-              echo "Kurtosis setup complete"
-            else
-              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
-            fi
+                  echo "Kurtosis setup complete"
       # Notify us of a setup failure
       - when:
           condition: on_fail
@@ -1241,7 +1246,7 @@ jobs:
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
+          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
           no_output_timeout: 1h
           environment:
@@ -1249,8 +1254,12 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
-            # Run the tests
-            LOG_LEVEL=debug just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+            if [[ "<<parameters.gate>>" == "" ]]; then
+              echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+            else
+              echo "Running in gate mode (gate=<<parameters.gate>>)"
+            fi
+            LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -1390,8 +1399,9 @@ jobs:
             - "op-program/bin/meta*"
 
   publish-cannon-prestates:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    resource_class: medium
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise
       - attach_workspace:
@@ -2474,13 +2484,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      # IN-PROCESS (base)
+      # IN-MEMORY (all)
       - op-acceptance-tests:
-          # Acceptance Testing params
-          name: memory-base
-          gate: base
-          # CircleCI params
-          no_output_timeout: 10m
+          name: memory-all
+          gate: ""  # Empty gate = gateless mode
+          no_output_timeout: 90m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2493,6 +2501,7 @@ workflows:
           name: kurtosis-simple
           devnet: simple
           gate: base
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2506,6 +2515,7 @@ workflows:
           name: kurtosis-isthmus
           devnet: isthmus
           gate: isthmus
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2519,6 +2529,7 @@ workflows:
           name: kurtosis-interop
           devnet: interop
           gate: interop
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2552,13 +2563,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      # IN-PROCESS (base)
+      # IN-MEMORY (all)
       - op-acceptance-tests:
-          # Acceptance Testing params
-          name: memory-base
-          gate: base
-          # CircleCI params
-          no_output_timeout: 10m
+          name: memory-all
+          gate: ""  # Empty gate = gateless mode
+          no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2571,6 +2580,7 @@ workflows:
           name: kurtosis-simple
           devnet: simple
           gate: base
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2584,6 +2594,7 @@ workflows:
           name: kurtosis-isthmus
           devnet: isthmus
           gate: isthmus
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:
@@ -2597,6 +2608,7 @@ workflows:
           name: kurtosis-interop
           devnet: interop
           gate: interop
+          use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
           context:

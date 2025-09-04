@@ -257,6 +257,11 @@ func runOpAcceptor(ctx context.Context, tracer trace.Tracer, orchestrator string
 		args = append(args, "--devnet-env-url", devnetEnvURL)
 	}
 
+	// For sysgo, we allow skips
+	if orchestrator == "sysgo" {
+		args = append(args, "--allow-skips")
+	}
+
 	acceptorCmd := exec.CommandContext(ctx, acceptor, args...)
 	acceptorCmd.Env = env
 	acceptorCmd.Stdout = os.Stdout
