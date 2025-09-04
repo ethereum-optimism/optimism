@@ -267,7 +267,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Make sure that the SystemConfig is upgraded to the right version. It must also have the
         // right l2ChainId and must be properly initialized.
-        assertEq(ISemver(address(systemConfig)).version(), "3.6.0");
+        assertEq(ISemver(address(systemConfig)).version(), "3.7.0");
         assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
