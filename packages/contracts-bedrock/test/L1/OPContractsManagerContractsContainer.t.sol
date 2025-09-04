@@ -16,7 +16,7 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Etch into the magic testing address.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Convert to proper OPCM type for constuction.
+        // Convert to proper OPCM type for construction.
         OPContractsManager opcm2 = OPContractsManager(address(opcm));
 
         // Should not revert.
@@ -39,7 +39,7 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Make sure magic address has no code.
         vm.etch(address(0xbeefcafe), bytes(""));
 
-        // Convert to proper OPCM type for constuction.
+        // Convert to proper OPCM type for construction.
         OPContractsManager opcm2 = OPContractsManager(address(opcm));
 
         // Set the chain ID to 1.
@@ -71,7 +71,7 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Make sure magic address has code.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Convert to proper OPCM type for constuction.
+        // Convert to proper OPCM type for construction.
         OPContractsManager opcm2 = OPContractsManager(address(opcm));
 
         // Set the chain ID to 1.
