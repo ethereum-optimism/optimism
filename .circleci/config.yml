@@ -1193,6 +1193,12 @@ jobs:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
           command: go mod download
+      # Persist schedule name into env var
+      - run:
+          name: Persist schedule name into env var
+          command: |
+            echo 'export CIRCLECI_PIPELINE_SCHEDULE_NAME="<< pipeline.schedule.name >>"' >> $BASH_ENV
+            echo 'export CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH="<< pipeline.parameters.sync_test_op_node_dispatch >>"' >> $BASH_ENV
       # Run the acceptance tests
       - run:
           name: Run acceptance tests (gate=<<parameters.gate>>)
@@ -2556,7 +2562,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - op-acceptance-tests:
+      - op-acceptance-tests-docker:
           # Acceptance Testing params
           name: sync-test-op-node-daily
           gate: sync-test-op-node
@@ -2568,8 +2574,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-          environment:
-            SYNC_TEST_OP_NODE_DISPATCH: "true"
 
   # Acceptance tests (post-merge to develop)
   acceptance-tests:
@@ -2699,17 +2703,6 @@ workflows:
             - discord
           requires:
             - initialize
-      - op-acceptance-tests-docker:
-          name: memory-synctester
-          gate: sync-test-op-node
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
