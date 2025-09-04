@@ -1088,11 +1088,6 @@
   },
   {
     "inputs": [],
-    "name": "OptimismPortal_Unauthorized",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "OptimismPortal_Unproven",
     "type": "error"
   },

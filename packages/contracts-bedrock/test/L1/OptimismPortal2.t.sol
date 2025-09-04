@@ -296,6 +296,32 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
         vm.prank(_sender);
         IOptimismPortalInterop(payable(optimismPortal2)).initialize(systemConfig, anchorStateRegistry, ethLockbox);
     }
+
+    /// @notice Tests that the initialize function reverts when lockbox state is invalid.
+    function test_initialize_invalidLockboxState_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Enable ETH_LOCKBOX feature but clear the lockbox address to create invalid state.
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(address(proxyAdmin));
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Clear the lockbox address.
+        StorageSlot memory lockboxSlot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(lockboxSlot.slot), bytes32(0));
+
+        // Expect the revert with `OptimismPortal_InvalidLockboxState` selector.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidLockboxState.selector);
+
+        // Call the `initialize` function
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry);
+    }
 }
 
 /// @title OptimismPortal2_Upgrade_Test
@@ -388,6 +414,30 @@ contract OptimismPortal2_Upgrade_Test is CommonTest {
 
         // Call the `upgrade` function with the sender
         vm.prank(_sender);
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)));
+    }
+
+    /// @notice Tests that the upgrade() function reverts when lockbox state is invalid.
+    function test_upgrade_invalidLockboxState_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Disable ETH_LOCKBOX feature but set a lockbox address to create invalid state.
+        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(address(proxyAdmin));
+            systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+        }
+
+        // Set a non-zero lockbox address.
+        StorageSlot memory lockboxSlot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(lockboxSlot.slot), bytes32(uint256(uint160(address(0xdeadbeef)))));
+
+        // Call the `upgrade` function
+        vm.prank(address(optimismPortal2.proxyAdmin()));
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidLockboxState.selector);
         optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)));
     }
 }

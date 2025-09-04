@@ -809,6 +809,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidLockboxState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_InvalidMerkleProof",
     "type": "error"
   },
@@ -835,11 +840,6 @@
   {
     "inputs": [],
     "name": "OptimismPortal_ProofNotOldEnough",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OptimismPortal_Unauthorized",
     "type": "error"
   },
   {

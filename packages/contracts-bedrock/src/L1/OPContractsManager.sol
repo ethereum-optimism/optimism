@@ -781,6 +781,16 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 }
             }
 
+            // This function will work if the chain is already on U16.
+            // nosemgrep: sol-safety-trycatch-eip150
+            try optimismPortal.ethLockbox() returns (IETHLockbox) {
+                _opChainConfigs[i].systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
+            } catch {
+                // We don't care. If somehow this failed because of EIP150 and we actually did need
+                // to enable the feature, we'd get a revert from the OptimismPortal upgrade
+                // function.
+            }
+
             // Upgrade path depends on if the OptimismPortalInterop dev feature is enabled.
             if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
                 // Upgrade the OptimismPortal contract implementation.
@@ -816,15 +826,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 // Upgrade the OptimismPortal contract implementation.
                 upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
 
-                // Upgrade the OptimismPortal contract, nothing special requried.
+                // Upgrade the OptimismPortal contract, nothing special required.
                 optimismPortal.upgrade(anchorStateRegistry);
-            }
-
-            // We can now guarantee that the OptimismPortal has the ethLockbox() function. Using
-            // this function, determine if the ETHLockbox exists. If it does, enable the feature in
-            // the SystemConfig.
-            if (address(optimismPortal.ethLockbox()) != address(0)) {
-                _opChainConfigs[i].systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
             }
 
             // Separate context to avoid stack too deep.
@@ -1167,6 +1170,22 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
+        // Initialize the SystemConfig before the ETHLockbox, required because the ETHLockbox will
+        // try to get the SuperchainConfig from the SystemConfig inside of its initializer. Also
+        // need to initialize before OptimismPortal because OptimismPortal does some sanity checks
+        // based on the ETHLockbox feature flag.
+        data = encodeSystemConfigInitializer(_input, output, _superchainConfig);
+        upgradeToAndCall(
+            output.opChainProxyAdmin, address(output.systemConfigProxy), implementation.systemConfigImpl, data
+        );
+
+        // If the interop feature was requested, enable the ETHLockbox feature in the SystemConfig
+        // contract. Only other way to get the ETHLockbox feature as of u16a is to have already had
+        // the ETHLockbox in U16 and then upgrade to U16a.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            output.systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
         // Initialize the OptimismPortal.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             data = encodeOptimismPortalInteropInitializer(output);
@@ -1183,25 +1202,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             );
         }
 
-        // Initialize the SystemConfig before the ETHLockbox, required because the ETHLockbox will
-        // try to get the SuperchainConfig from the SystemConfig inside of its initializer.
-        data = encodeSystemConfigInitializer(_input, output, _superchainConfig);
-        upgradeToAndCall(
-            output.opChainProxyAdmin, address(output.systemConfigProxy), implementation.systemConfigImpl, data
-        );
-
         // Initialize the ETHLockbox.
         IOptimismPortal[] memory portals = new IOptimismPortal[](1);
         portals[0] = output.optimismPortalProxy;
         data = encodeETHLockboxInitializer(output, portals);
         upgradeToAndCall(output.opChainProxyAdmin, address(output.ethLockboxProxy), implementation.ethLockboxImpl, data);
-
-        // If the interop feature was requested, enable the ETHLockbox feature in the SystemConfig
-        // contract. Only other way to get the ETHLockbox feature as of u16a is to have already had
-        // the ETHLockbox in U16 and then upgrade to U16a.
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            output.systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
-        }
 
         data = encodeOptimismMintableERC20FactoryInitializer(output);
         upgradeToAndCall(
@@ -1568,11 +1573,10 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // Separate context to avoid stack too deep.
         {
-            // Lockbox requires standard portal interfaces, need to cast to IOptimismPortal. We can't
-            // cast the entire array so we need to do it manually.
-            IOptimismPortal[] memory castedPortals = new IOptimismPortal[](portals.length);
-            for (uint256 i = 0; i < portals.length; i++) {
-                castedPortals[i] = IOptimismPortal(payable(address(portals[i])));
+            // Lockbox requires standard portal interfaces, need to cast to IOptimismPortal.
+            IOptimismPortal[] memory castedPortals;
+            assembly ("memory-safe") {
+                castedPortals := portals
             }
 
             // Initialize the new ETHLockbox.

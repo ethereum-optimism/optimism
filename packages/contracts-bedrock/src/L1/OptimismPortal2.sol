@@ -120,7 +120,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Address of the AnchorStateRegistry contract.
     IAnchorStateRegistry public anchorStateRegistry;
 
-    /// @notice Address of the ETHLockbox contract.
+    /// @notice Address of the ETHLockbox contract. NOTE that as of v4.1.0 it is not possible to
+    ///         set this value in storage and it is only possible for this value to be set if the
+    ///         chain was first upgraded to v4.0.0. Chains that skip v4.0.0 will not have any
+    ///         ETHLockbox set here.
     IETHLockbox public ethLockbox;
 
     /// @custom:legacy
@@ -198,8 +201,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
-    /// @notice Thrown when the caller is not authorized to call the function.
-    error OptimismPortal_Unauthorized();
+    /// @notice Thrown when ETHLockbox is set/unset incorrectly depending on the feature flag.
+    error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
     /// @custom:semver 5.0.0
@@ -230,12 +233,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
 
+        // Assert that the lockbox state is valid.
+        _assertValidLockboxState();
+
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
         if (l2Sender == address(0)) {
             l2Sender = Constants.DEFAULT_L2_SENDER;
         }
 
+        // Initialize the ResourceMetering contract.
         __ResourceMetering_init();
     }
 
@@ -244,6 +251,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function upgrade(IAnchorStateRegistry _anchorStateRegistry) external reinitializer(initVersion()) {
         // Upgrade transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Assert that the lockbox state is valid.
+        _assertValidLockboxState();
 
         // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
@@ -488,7 +498,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit WithdrawalFinalized(withdrawalHash, success);
 
         // If using ETHLockbox, send ETH back to the Lockbox in the case of a failed transaction or
-        // it'll get stuck here and would need to be moved back via the migrateLiquidity function.
+        // it'll get stuck here and would need to be moved back via admin action.
         if (_isUsingLockbox()) {
             if (!success && _tx.value > 0) {
                 ethLockbox.lockETH{ value: _tx.value }();
@@ -622,6 +632,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _assertNotPaused() internal view {
         if (paused()) {
             revert OptimismPortal_CallPaused();
+        }
+    }
+
+    /// @notice Asserts that the ETHLockbox is set/unset correctly depending on the feature flag.
+    function _assertValidLockboxState() internal view {
+        if (
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) == address(0)
+                || !systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) && address(ethLockbox) != address(0)
+        ) {
+            revert OptimismPortal_InvalidLockboxState();
         }
     }
 

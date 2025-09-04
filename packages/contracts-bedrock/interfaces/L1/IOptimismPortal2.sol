@@ -12,7 +12,6 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOptimismPortal2 is IProxyAdminOwnedBase {
-    error OptimismPortal_Unauthorized();
     error ContentLengthMismatch();
     error EmptyItem();
     error InvalidDataRemainder();
@@ -33,6 +32,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_NoReentrancy();
     error OptimismPortal_ProofNotOldEnough();
     error OptimismPortal_Unproven();
+    error OptimismPortal_InvalidLockboxState();
     error OutOfGas();
     error UnexpectedList();
     error UnexpectedString();

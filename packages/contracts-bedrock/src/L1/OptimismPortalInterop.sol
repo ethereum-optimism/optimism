@@ -213,9 +213,6 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     /// @notice Thrown when a withdrawal has not been proven.
     error OptimismPortal_Unproven();
 
-    /// @notice Thrown when the caller is not authorized to call the function.
-    error OptimismPortal_Unauthorized();
-
     /// @notice Thrown when the wrong proof method is used.
     error OptimismPortal_WrongProofMethod();
 

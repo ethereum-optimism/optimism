@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/// @notice Library of constants representing development features.
+/// @notice Library of constants representing development features. We use a 32 byte bitmap because
+///         it's easier to integrate with op-deployer. Note that users should typically set a
+///         single nibble to 1 and the rest to zero, which gives us 64 potential features, like:
+///         0x0000000000000000000000000000000000000000000000000000000000000001
+///         0x0000000000000000000000000000000000000000000000000000000000000010
+///         0x0000000000000000000000000000000000000000000000000000000000000100
+///         etc.
+///         We'll expand to using all available bits if we need more than 64 concurrent features.
 library DevFeatures {
     /// @notice The feature that enables the OptimismPortalInterop contract.
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
