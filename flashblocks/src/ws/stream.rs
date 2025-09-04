@@ -72,7 +72,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        loop {
+        'start: loop {
             if this.state == State::Initial {
                 this.connect();
             }
@@ -104,7 +104,9 @@ where
                     .expect("Stream state should be unreachable without stream")
                     .poll_next_unpin(cx))
                 else {
-                    return Poll::Ready(None);
+                    this.state = State::Initial;
+
+                    continue 'start;
                 };
 
                 match msg {
@@ -251,6 +253,14 @@ mod tests {
     #[derive(Default)]
     struct FakeStream(Vec<Result<Message, Error>>);
 
+    impl FakeStream {
+        fn new(mut messages: Vec<Result<Message, Error>>) -> Self {
+            messages.reverse();
+
+            Self(messages)
+        }
+    }
+
     impl Clone for FakeStream {
         fn clone(&self) -> Self {
             Self(
@@ -360,7 +370,7 @@ mod tests {
 
     impl<T: IntoIterator<Item = Result<Message, Error>>> From<T> for FakeConnector {
         fn from(value: T) -> Self {
-            Self(FakeStream(value.into_iter().collect()))
+            Self(FakeStream::new(value.into_iter().collect()))
         }
     }
 
@@ -378,7 +388,7 @@ mod tests {
 
     impl<T: IntoIterator<Item = Result<Message, Error>>> From<T> for FakeConnectorWithSink {
         fn from(value: T) -> Self {
-            Self(FakeStream(value.into_iter().collect()))
+            Self(FakeStream::new(value.into_iter().collect()))
         }
     }
 
@@ -414,13 +424,8 @@ mod tests {
         Ok(Message::Binary(Bytes::from(compressed)))
     }
 
-    #[test_case::test_case(to_json_message; "json")]
-    #[test_case::test_case(to_brotli_message; "brotli")]
-    #[tokio::test]
-    async fn test_stream_decodes_messages_successfully(
-        to_message: impl Fn(&FlashBlock) -> Result<Message, Error>,
-    ) {
-        let flashblocks = [FlashBlock {
+    fn flashblock() -> FlashBlock {
+        FlashBlock {
             payload_id: Default::default(),
             index: 0,
             base: Some(ExecutionPayloadBaseV1 {
@@ -436,13 +441,21 @@ mod tests {
             }),
             diff: Default::default(),
             metadata: Default::default(),
-        }];
+        }
+    }
 
-        let messages = FakeConnector::from(flashblocks.iter().map(to_message));
+    #[test_case::test_case(to_json_message; "json")]
+    #[test_case::test_case(to_brotli_message; "brotli")]
+    #[tokio::test]
+    async fn test_stream_decodes_messages_successfully(
+        to_message: impl Fn(&FlashBlock) -> Result<Message, Error>,
+    ) {
+        let flashblocks = [flashblock()];
+        let connector = FakeConnector::from(flashblocks.iter().map(to_message));
         let ws_url = "http://localhost".parse().unwrap();
-        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
+        let stream = WsFlashBlockStream::with_connector(ws_url, connector);
 
-        let actual_messages: Vec<_> = stream.map(Result::unwrap).collect().await;
+        let actual_messages: Vec<_> = stream.take(1).map(Result::unwrap).collect().await;
         let expected_messages = flashblocks.to_vec();
 
         assert_eq!(actual_messages, expected_messages);
@@ -452,20 +465,26 @@ mod tests {
     #[test_case::test_case(Message::Frame(Frame::pong(b"test".as_slice())); "frame")]
     #[tokio::test]
     async fn test_stream_ignores_unexpected_message(message: Message) {
-        let messages = FakeConnector::from([Ok(message)]);
+        let flashblock = flashblock();
+        let connector = FakeConnector::from([Ok(message), to_json_message(&flashblock)]);
         let ws_url = "http://localhost".parse().unwrap();
-        let mut stream = WsFlashBlockStream::with_connector(ws_url, messages);
-        assert!(stream.next().await.is_none());
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
+
+        let expected_message = flashblock;
+        let actual_message =
+            stream.next().await.expect("Binary message should not be ignored").unwrap();
+
+        assert_eq!(actual_message, expected_message)
     }
 
     #[tokio::test]
     async fn test_stream_passes_errors_through() {
-        let messages = FakeConnector::from([Err(Error::AttackAttempt)]);
+        let connector = FakeConnector::from([Err(Error::AttackAttempt)]);
         let ws_url = "http://localhost".parse().unwrap();
-        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
+        let stream = WsFlashBlockStream::with_connector(ws_url, connector);
 
         let actual_messages: Vec<_> =
-            stream.map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
+            stream.take(1).map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
         let expected_messages = vec!["Attack attempt detected".to_owned()];
 
         assert_eq!(actual_messages, expected_messages);
@@ -475,9 +494,9 @@ mod tests {
     async fn test_connect_error_causes_retries() {
         let tries = 3;
         let error_msg = "test".to_owned();
-        let messages = FailingConnector(error_msg.clone());
+        let connector = FailingConnector(error_msg.clone());
         let ws_url = "http://localhost".parse().unwrap();
-        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
+        let stream = WsFlashBlockStream::with_connector(ws_url, connector);
 
         let actual_errors: Vec<_> =
             stream.take(tries).map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
@@ -490,7 +509,8 @@ mod tests {
     async fn test_stream_pongs_ping() {
         const ECHO: [u8; 3] = [1u8, 2, 3];
 
-        let messages = [Ok(Message::Ping(Bytes::from_static(&ECHO)))];
+        let flashblock = flashblock();
+        let messages = [Ok(Message::Ping(Bytes::from_static(&ECHO))), to_json_message(&flashblock)];
         let connector = FakeConnectorWithSink::from(messages);
         let ws_url = "http://localhost".parse().unwrap();
         let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
