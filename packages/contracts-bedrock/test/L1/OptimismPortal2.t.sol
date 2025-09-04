@@ -299,6 +299,8 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that the initialize function reverts when lockbox state is invalid.
     function test_initialize_invalidLockboxState_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
@@ -419,6 +421,8 @@ contract OptimismPortal2_Upgrade_Test is CommonTest {
 
     /// @notice Tests that the upgrade() function reverts when lockbox state is invalid.
     function test_upgrade_invalidLockboxState_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
