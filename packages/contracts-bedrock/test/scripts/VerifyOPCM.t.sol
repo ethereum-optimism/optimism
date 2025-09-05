@@ -87,6 +87,29 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.run(address(opcm), true);
     }
 
+    function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Anything but zero!
+        _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
+
+        // Mock opcm to return a non-zero dev feature bitmap.
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.devFeatureBitmap, ()), abi.encode(_devFeatureBitmap)
+        );
+
+        // Set the chain ID to 1.
+        vm.chainId(1);
+
+        // Disable testing environment.
+        vm.etch(address(0xbeefcafe), bytes(""));
+
+        // Run the script.
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_DevFeatureBitmapNotEmpty.selector);
+        harness.run(address(opcm), true);
+    }
+
     /// @notice Tests that the script succeeds when differences are introduced into the immutable
     ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
     ///         enough.

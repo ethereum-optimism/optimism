@@ -52,6 +52,9 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when there are getter functions in the ABI that are not being checked.
     error VerifyOPCM_UnaccountedGetters(string[] _unaccountedGetters);
 
+    /// @notice Thrown when the dev feature bitmap is not empty on mainnet.
+    error VerifyOPCM_DevFeatureBitmapNotEmpty();
+
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
@@ -155,6 +158,7 @@ contract VerifyOPCM is Script {
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
+        expectedGetters["isDevFeatureEnabled"] = "SKIP";
 
         // Mark as ready.
         ready = true;
@@ -200,6 +204,9 @@ contract VerifyOPCM is Script {
 
         // Validate that all ABI getters are accounted for.
         _validateAllGettersAccounted();
+
+        // Validate that the dev feature bitmap is empty on mainnet.
+        _validateDevFeatureBitmap(opcm);
 
         // Collect all the references.
         OpcmContractRef[] memory refs = _collectOpcmContractRefs(opcm);
@@ -912,6 +919,21 @@ contract VerifyOPCM is Script {
             ),
             (string[])
         );
+    }
+
+    /// @notice Validates that the dev feature bitmap is empty on mainnet.
+    /// @param _opcm The OPCM contract.
+    function _validateDevFeatureBitmap(IOPContractsManager _opcm) internal view {
+        // Get the dev feature bitmap.
+        bytes32 devFeatureBitmap = _opcm.devFeatureBitmap();
+
+        // Check if we're in a testing environment.
+        bool isTestingEnvironment = address(0xbeefcafe).code.length > 0;
+
+        // Check if any dev features are enabled.
+        if (block.chainid == 1 && !isTestingEnvironment && devFeatureBitmap != bytes32(0)) {
+            revert VerifyOPCM_DevFeatureBitmapNotEmpty();
+        }
     }
 
     /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for
