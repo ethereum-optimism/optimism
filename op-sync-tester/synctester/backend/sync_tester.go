@@ -73,15 +73,14 @@ func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTeste
 }
 
 func (s *SyncTester) GetSession(ctx context.Context) (*eth.SyncTesterSession, error) {
-	return session.WithSessionRead(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.SyncTesterSession, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.SyncTesterSession, error) {
 		return session, nil
 	})
 }
 
 func (s *SyncTester) DeleteSession(ctx context.Context) error {
-	_, err := session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (any, error) {
-		s.sessMgr.DeleteSession(session.SessionID)
-		return struct{}{}, nil
+	_, err := session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (any, error) {
+		return struct{}{}, s.sessMgr.DeleteSession(session.SessionID)
 	})
 	return err
 }
@@ -91,7 +90,7 @@ func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 }
 
 func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return session.WithSessionRead(s.sessMgr, ctx, func(session *eth.SyncTesterSession) ([]*types.Receipt, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) ([]*types.Receipt, error) {
 		number, isNumber := blockNrOrHash.Number()
 		var err error
 		var receipts []*types.Receipt
@@ -123,7 +122,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 }
 
 func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
-	return session.WithSessionRead(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (json.RawMessage, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (json.RawMessage, error) {
 		var err error
 		var raw json.RawMessage
 		if raw, err = s.elReader.GetBlockByHashJSON(ctx, hash, fullTx); err != nil {
@@ -167,7 +166,7 @@ func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *eth.SyncT
 }
 
 func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
-	return session.WithSessionRead(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (json.RawMessage, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (json.RawMessage, error) {
 		var err error
 		var target uint64
 		if target, err = s.checkBlockNumber(number, session); err != nil {
@@ -182,7 +181,7 @@ func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumbe
 }
 
 func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
-	return session.WithSessionRead(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (hexutil.Big, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (hexutil.Big, error) {
 		chainID, err := s.elReader.ChainId(ctx)
 		if err != nil {
 			return hexutil.Big{}, err
@@ -196,7 +195,7 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 
 // GetPayloadV1 only supports V1 payloads.
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
 		if !payloadID.Is(engine.PayloadV1) {
 			return nil, engine.UnsupportedFork
 		}
@@ -206,7 +205,7 @@ func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) 
 
 // GetPayloadV2 supports V1, V2 payloads.
 func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
 		if !payloadID.Is(engine.PayloadV1, engine.PayloadV2) {
 			return nil, engine.UnsupportedFork
 		}
@@ -216,7 +215,7 @@ func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) 
 
 // GetPayloadV3 must be only called when Ecotone activated.
 func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}
@@ -226,7 +225,7 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 
 // GetPayloadV4 must be only called when Isthmus activated.
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ExecutionPayloadEnvelope, error) {
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}
@@ -250,21 +249,21 @@ func (s *SyncTester) getPayload(session *eth.SyncTesterSession, payloadID eth.Pa
 
 // ForkchoiceUpdatedV1 is called for processing V1 attributes
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
 		return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV1, false, false)
 	})
 }
 
 // ForkchoiceUpdatedV2 is called for processing V2 attributes
 func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
 		return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV2, true, false)
 	})
 }
 
 // ForkchoiceUpdatedV3 must be only called with Ecotone attributes
 func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.ForkchoiceUpdatedResult, error) {
 		return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV3, true, true)
 	})
 }
@@ -502,28 +501,28 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 
 // NewPayloadV1 must be only called with Bedrock Payload
 func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
 		return s.newPayload(ctx, session, payload, nil, nil, nil, false, false)
 	})
 }
 
 // NewPayloadV2 must be only called with Bedrock, Canyon, Delta Payload
 func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
 		return s.newPayload(ctx, session, payload, nil, nil, nil, false, false)
 	})
 }
 
 // NewPayloadV3 must be only called with Ecotone Payload
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
 		return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, nil, true, false)
 	})
 }
 
 // NewPayloadV4 must be only called with Isthmus payload
 func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
-	return session.WithSessionWrite(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
+	return session.WithSession(s.sessMgr, ctx, func(session *eth.SyncTesterSession) (*eth.PayloadStatusV1, error) {
 		return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, executionRequests, true, true)
 	})
 }

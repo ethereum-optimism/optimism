@@ -12,12 +12,11 @@ import (
 )
 
 type SessionManager struct {
-	mu                sync.RWMutex
+	sync.Mutex
+	sessions          map[string]*eth.SyncTesterSession
 	deletedSessionIDs map[string]struct{}
 
 	log log.Logger
-
-	sessions sync.Map // map[string]*eth.SyncTesterSession
 }
 
 type sessionKeyType struct{}
@@ -36,39 +35,33 @@ func SyncTesterSessionFromContext(ctx context.Context) (*eth.SyncTesterSession, 
 }
 
 func NewSessionManager(logger log.Logger) *SessionManager {
-	return &SessionManager{log: logger, deletedSessionIDs: make(map[string]struct{})}
+	return &SessionManager{log: logger,
+		sessions:          make(map[string]*eth.SyncTesterSession),
+		deletedSessionIDs: make(map[string]struct{}),
+	}
 }
 
 func (s *SessionManager) SessionIDs() []string {
+	s.Lock()
+	defer s.Unlock()
 	keys := make([]string, 0)
-	s.sessions.Range(func(k, v any) bool {
-		if key, ok := k.(string); ok {
-			keys = append(keys, key)
-		}
-		return true
-	})
+	for key := range s.sessions {
+		keys = append(keys, key)
+	}
 	sort.Strings(keys)
 	return keys
 }
 
-func (s *SessionManager) isSessionDeleted(sessionID string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	_, deleted := s.deletedSessionIDs[sessionID]
-	return deleted
-}
-
-func (s *SessionManager) DeleteSession(sessionID string) {
-	s.mu.Lock()
-	s.deletedSessionIDs[sessionID] = struct{}{}
-	s.mu.Unlock()
-	if v, ok := s.sessions.Load(sessionID); ok {
-		if sess, ok := v.(*eth.SyncTesterSession); ok {
-			sess.Close()
-		}
+func (s *SessionManager) DeleteSession(sessionID string) error {
+	s.Lock()
+	defer s.Unlock()
+	if _, ok := s.sessions[sessionID]; !ok {
+		return fmt.Errorf("attempted to delete non-existent session: %s", sessionID)
 	}
-	s.sessions.Delete(sessionID)
+	s.deletedSessionIDs[sessionID] = struct{}{}
+	delete(s.sessions, sessionID)
 	s.log.Info("Deleted session", "sessionID", sessionID)
+	return nil
 }
 
 func (s *SessionManager) get(given *eth.SyncTesterSession) (*eth.SyncTesterSession, error) {
@@ -77,30 +70,25 @@ func (s *SessionManager) get(given *eth.SyncTesterSession) (*eth.SyncTesterSessi
 		return nil, fmt.Errorf("no initial session value")
 	}
 	id := given.SessionID
-	if s.isSessionDeleted(id) {
+	s.Lock()
+	defer s.Unlock()
+	if _, ok := s.deletedSessionIDs[id]; ok {
 		s.log.Warn("Attempted to use deleted session", "sessionID", id)
 		return nil, fmt.Errorf("session already deleted: %s", id)
 	}
-	actual, loaded := s.sessions.LoadOrStore(id, given)
-	if loaded {
+	var sess *eth.SyncTesterSession
+	sess, ok := s.sessions[id]
+	if ok {
 		s.log.Debug("Using existing session", "sessionID", id)
 	} else {
+		s.sessions[id] = given
+		sess = given
 		s.log.Info("Initialized new session", "sessionID", id)
-	}
-	// close the race window
-	if s.isSessionDeleted(id) {
-		s.sessions.Delete(id)
-		s.log.Warn("Session was deleted concurrently", "sessionID", id)
-		return nil, fmt.Errorf("session already deleted: %s", id)
-	}
-	sess, ok := actual.(*eth.SyncTesterSession)
-	if !ok {
-		return nil, fmt.Errorf("invalid session type for %s", id)
 	}
 	return sess, nil
 }
 
-func WithSessionWrite[T any](
+func WithSession[T any](
 	mgr *SessionManager,
 	ctx context.Context,
 	fn func(*eth.SyncTesterSession) (T, error),
@@ -117,31 +105,5 @@ func WithSessionWrite[T any](
 	// blocking
 	session.Lock()
 	defer session.Unlock()
-	if session.IsClosed() {
-		return zero, fmt.Errorf("session already deleted: %s", session.SessionID)
-	}
-	return fn(session)
-}
-
-func WithSessionRead[T any](
-	mgr *SessionManager,
-	ctx context.Context,
-	fn func(*eth.SyncTesterSession) (T, error),
-) (T, error) {
-	var zero T
-	given, ok := SyncTesterSessionFromContext(ctx)
-	if !ok || given == nil {
-		return zero, fmt.Errorf("no session found in context")
-	}
-	session, err := mgr.get(given)
-	if err != nil {
-		return zero, err
-	}
-	// blocking
-	session.RLock()
-	defer session.RUnlock()
-	if session.IsClosed() {
-		return zero, fmt.Errorf("session already deleted: %s", session.SessionID)
-	}
 	return fn(session)
 }
