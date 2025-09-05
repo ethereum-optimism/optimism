@@ -322,8 +322,11 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that the legacy `withdraw` interface on the L2StandardBridge sucessfully
     ///         initiates a withdrawal.
-    function test_withdraw_ether_succeeds() external {
-        assertTrue(alice.balance >= 100);
+    function testFuzz_withdraw_ether_succeeds(uint256 _amount, uint32 _minGasLimit) external {
+        _amount = bound(_amount, 1, 1000 ether);
+        _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
+        
+        vm.deal(alice, _amount);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
         vm.expectEmit(address(l2StandardBridge));
@@ -332,29 +335,54 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
             l2Token: Predeploys.LEGACY_ERC20_ETH,
             from: alice,
             to: alice,
-            amount: 100,
+            amount: _amount,
             data: hex""
         });
 
         vm.expectEmit(address(l2StandardBridge));
-        emit ETHBridgeInitiated({ from: alice, to: alice, amount: 100, data: hex"" });
+        emit ETHBridgeInitiated({ from: alice, to: alice, amount: _amount, data: hex"" });
 
         vm.prank(alice, alice);
-        l2StandardBridge.withdraw{ value: 100 }({
+        l2StandardBridge.withdraw{ value: _amount }({
             _l2Token: Predeploys.LEGACY_ERC20_ETH,
-            _amount: 100,
-            _minGasLimit: 1000,
+            _amount: _amount,
+            _minGasLimit: _minGasLimit,
             _extraData: hex""
         });
 
-        assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 100);
+        assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, _amount);
     }
 
     /// @notice Tests that `withdraw` burns the tokens, emits `WithdrawalInitiated`, and initiates
     ///         a withdrawal with `Withdrawer.initiateWithdrawal`.
-    function test_withdraw_withdrawingERC20_succeeds() external {
-        _preBridgeERC20({ _isLegacy: true, _l2Token: address(L2Token) });
-        l2StandardBridge.withdraw(address(L2Token), 100, 1000, hex"");
+    function testFuzz_withdraw_withdrawingERC20_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 1, 1000000);
+        
+        deal(address(L2Token), alice, _amount, true);
+        assertEq(L2Token.balanceOf(alice), _amount);
+
+        vm.expectEmit(address(l2StandardBridge));
+        emit WithdrawalInitiated({
+            l1Token: address(L1Token),
+            l2Token: address(L2Token),
+            from: alice,
+            to: alice,
+            amount: _amount,
+            data: hex""
+        });
+
+        vm.expectEmit(address(l2StandardBridge));
+        emit ERC20BridgeInitiated({
+            localToken: address(L2Token),
+            remoteToken: address(L1Token),
+            from: alice,
+            to: alice,
+            amount: _amount,
+            data: hex""
+        });
+
+        vm.prank(alice, alice);
+        l2StandardBridge.withdraw(address(L2Token), _amount, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
@@ -389,17 +417,50 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that `withdrawTo` burns the tokens, emits `WithdrawalInitiated`, and
     ///         initiates a withdrawal with `Withdrawer.initiateWithdrawal`.
-    function test_withdrawTo_withdrawingERC20_succeeds() external {
-        _preBridgeERC20To({ _isLegacy: true, _l2Token: address(L2Token) });
-        l2StandardBridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
+    function testFuzz_withdrawTo_withdrawingERC20_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 1, 1000000);
+        
+        deal(address(L2Token), alice, _amount, true);
+        assertEq(L2Token.balanceOf(alice), _amount);
+
+        vm.expectEmit(address(l2StandardBridge));
+        emit WithdrawalInitiated({
+            l1Token: address(L1Token),
+            l2Token: address(L2Token),
+            from: alice,
+            to: bob,
+            amount: _amount,
+            data: hex""
+        });
+
+        vm.expectEmit(address(l2StandardBridge));
+        emit ERC20BridgeInitiated({
+            localToken: address(L2Token),
+            remoteToken: address(L1Token),
+            from: alice,
+            to: bob,
+            amount: _amount,
+            data: hex""
+        });
+
+        vm.prank(alice, alice);
+        l2StandardBridge.withdrawTo(address(L2Token), bob, _amount, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
 }
 
+/// @title L2StandardBridge_L1TokenBridge_Test
+/// @notice Tests the `l1TokenBridge` function of the `L2StandardBridge` contract.
+contract L2StandardBridge_L1TokenBridge_Test is L2StandardBridge_TestInit {
+    /// @notice Tests that l1TokenBridge returns the correct address.
+    function test_l1TokenBridge_succeeds() external view {
+        assertEq(l2StandardBridge.l1TokenBridge(), address(l1StandardBridge));
+    }
+}
+
 /// @title L2StandardBridge_Unclassified_Test
-/// @notice General tests that are not testing any function directly of the `L2StandardBridge`
-///         contract.
+/// @notice Tests for inherited StandardBridge functions in the `L2StandardBridge` contract.
 contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
     /// @notice Ensures that the L2StandardBridge is always not paused. The pausability happens
     ///         on L1 and not L2.
