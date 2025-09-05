@@ -1,7 +1,6 @@
 package sync_tester_ext_el
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -28,33 +27,24 @@ const (
 
 var (
 	InitialL2Block = getInitialL2Block()
+
+	// Load configuration from environment variables with defaults
+	L2NetworkName = getEnvOrDefault("L2_NETWORK_NAME", DefaultL2NetworkName)
+	L1ChainID     = eth.ChainIDFromUInt64(getEnvUint64OrDefault("L1_CHAIN_ID", DefaultL1ChainID))
+
+	// Default endpoints
+	L2ELEndpoint       = getEnvOrDefault("L2_EL_ENDPOINT", DefaultL2ELEndpoint)
+	L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT", DefaultL1CLBeaconEndpoint)
+	L1ELEndpoint       = getEnvOrDefault("L1_EL_ENDPOINT", DefaultL1ELEndpoint)
 )
 
 func TestMain(m *testing.M) {
-	// Load configuration from environment variables with defaults
-	L2NetworkName := getEnvOrDefault("L2_NETWORK_NAME", DefaultL2NetworkName)
-	L1ChainID := eth.ChainIDFromUInt64(getEnvUint64OrDefault("L1_CHAIN_ID", DefaultL1ChainID))
-
-	// Default endpoints
-	L2ELEndpoint := getEnvOrDefault("L2_EL_ENDPOINT", DefaultL2ELEndpoint)
-	L1CLBeaconEndpoint := getEnvOrDefault("L1_CL_BEACON_ENDPOINT", DefaultL1CLBeaconEndpoint)
-	L1ELEndpoint := getEnvOrDefault("L1_EL_ENDPOINT", DefaultL1ELEndpoint)
-
-	// Override with Tailscale endpoints if Tailscale networking is enabled
+	// Override configuration with Tailscale endpoints if Tailscale networking is enabled
 	if os.Getenv("TAILSCALE_NETWORKING") == "true" {
 		L2ELEndpoint = getEnvOrDefault("L2_EL_ENDPOINT_TAILSCALE", DefaultL2ELEndpointTailscale)
 		L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT_TAILSCALE", DefaultL1CLBeaconEndpointTailscale)
 		L1ELEndpoint = getEnvOrDefault("L1_EL_ENDPOINT_TAILSCALE", DefaultL1ELEndpointTailscale)
 	}
-
-	// Print final configuration values
-	fmt.Printf("L2_NETWORK_NAME: %s\n", L2NetworkName)
-	fmt.Printf("L1_CHAIN_ID: %s\n", L1ChainID.String())
-	fmt.Printf("INITIAL_L2_BLOCK: %d\n", InitialL2Block)
-	fmt.Printf("L2_EL_ENDPOINT: %s\n", L2ELEndpoint)
-	fmt.Printf("L1_CL_BEACON_ENDPOINT: %s\n", L1CLBeaconEndpoint)
-	fmt.Printf("L1_EL_ENDPOINT: %s\n", L1ELEndpoint)
-	fmt.Printf("TAILSCALE_NETWORKING: %s\n", os.Getenv("TAILSCALE_NETWORKING"))
 
 	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
 		Latest:    InitialL2Block,
