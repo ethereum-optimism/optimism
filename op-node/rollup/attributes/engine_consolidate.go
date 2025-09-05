@@ -95,14 +95,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	}
 	return nil
 }
-
 func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrParams *eth.Bytes8, attrMinBaseFee *uint64, blockExtraData []byte) error {
-
-	// Decode block parameters and check for mismatch
-	err := eip1559.ValidateOptimismExtraData(cfg, blockTimestamp, blockExtraData)
-	if err != nil {
-		return fmt.Errorf("invalid block extraData: %w", err)
-	}
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -127,6 +120,11 @@ func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrPa
 			translated = true
 		}
 
+		// Decode block parameters and check for mismatch
+		err := eip1559.ValidateOptimismExtraData(cfg, blockTimestamp, blockExtraData)
+		if err != nil {
+			return fmt.Errorf("invalid block extraData: %w", err)
+		}
 		bd, be, bm := eip1559.DecodeOptimismExtraData(cfg, blockTimestamp, blockExtraData)
 
 		if ad != bd || ae != be {
