@@ -147,6 +147,41 @@ patch increment should be used.
 Where basic functionality is already supported by an existing contract in the OpenZeppelin library,
 we should default to using the Upgradeable version of that contract.
 
+### Interface Inheritance
+
+In order to reduce build times, all external dependencies (ie. a contract that is being interacted with)
+should be imported as interfaces. In order to facilitate this, implementation contracts must have an
+associated interface in the `interfaces/` directory of the contracts package. Checks in CI
+will ensure that the interface exists and is correct. These interfaces should include a
+"pseudo-constructor" function (`function __constructor__()`) which ensures that the constructor's
+encoding is exposed in the ABI.
+
+Contracts must not inherit from their own interfaces (e.g., `contract SomeContract is ISomeContract`).
+Interfaces may or may not inherit from other interfaces to compose functionality
+
+**Rationale:**
+
+- **Alignment Issues**: If a contracts inherits from a base contracts (like `Ownable`), it cannot inherit from the interface as well, as this prevents 1:1 alignment between the implementation and interface, since the interface cannot include the base contract functions (ie. `owner()`) without causing compiler errors.
+- **Constructor Complications**: Interface inheritance can cause issues with pseudo-constructors.
+
+**Example:**
+
+```solidity
+// ✅ Correct - contract inherits from base contracts, interface composes other interfaces
+contract SomeContract is SomeBaseContract, ... {
+    // Implementation
+}
+
+interface ISomeContract is ISomeBaseContract {
+    // Interface definition
+}
+
+// ❌ Incorrect - contract inheriting from its own interface
+contract SomeContract is ISomeContract, ... {
+    // This creates alignment and compilation issues
+}
+```
+
 ### Source Code
 
 The following guidelines should be followed for all contracts in the `src/` directory:
