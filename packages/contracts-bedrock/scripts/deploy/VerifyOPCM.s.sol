@@ -158,6 +158,7 @@ contract VerifyOPCM is Script {
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
+        expectedGetters["isDevFeatureEnabled"] = "SKIP";
 
         // Mark as ready.
         ready = true;
