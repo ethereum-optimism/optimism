@@ -18,21 +18,6 @@ import (
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
-type sessionKeyType struct{}
-
-var ctxKeySession = sessionKeyType{}
-
-// WithSyncTesterSession returns a new context with the given Session.
-func WithSyncTesterSession(ctx context.Context, s *eth.SyncTesterSession) context.Context {
-	return context.WithValue(ctx, ctxKeySession, s)
-}
-
-// SyncTesterSessionFromContext retrieves the Session from the context, if present.
-func SyncTesterSessionFromContext(ctx context.Context) (*eth.SyncTesterSession, bool) {
-	s, ok := ctx.Value(ctxKeySession).(*eth.SyncTesterSession)
-	return s, ok
-}
-
 type APIRouter interface {
 	AddRPC(route string) error
 	AddAPIToRPC(route string, api rpc.API) error
