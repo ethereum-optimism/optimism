@@ -2603,11 +2603,6 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.sync_test_op_node_dispatch >>]
-        # Trigger on PRs
-        - and:
-            - not:
-                equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
