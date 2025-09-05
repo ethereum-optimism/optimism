@@ -381,12 +381,12 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			return nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
 		}
 		gasLimit = gas
-	} else {
+	} else if m.name != "transactor" {
 		callMsg.Gas = gasLimit
-		//_, err := m.backend.CallContract(ctx, callMsg, nil)
-		//if err != nil {
-		//	return nil, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
-		//}
+		_, err := m.backend.CallContract(ctx, callMsg, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to call: %w", errutil.TryAddRevertReason(err))
+		}
 	}
 
 	var txMessage types.TxData
@@ -912,34 +912,7 @@ func (m *SimpleTxManager) RoundGasPrice(ctx context.Context, tx *types.Transacti
 	bumpedTip := eth.RoundWeiToGwei(tx.GasTipCap())
 	bumpedFee := eth.RoundWeiToGwei(tx.GasFeeCap())
 
-	// Re-estimate gaslimit in case things have changed or a previous gaslimit estimate was wrong
-	callMsg := ethereum.CallMsg{
-		From:      m.cfg.From,
-		To:        tx.To(),
-		GasTipCap: bumpedTip,
-		GasFeeCap: bumpedFee,
-		Data:      tx.Data(),
-		Value:     tx.Value(),
-	}
-
-	gas, err := m.backend.EstimateGas(ctx, callMsg)
-	if err != nil {
-		// If this is a transaction resubmission, we sometimes see this outcome because the
-		// original tx can get included in a block just before the above call. In this case the
-		// error is due to the tx reverting with message "block number must be equal to next
-		// expected block number"
-		m.l.Warn("failed to re-estimate gas", "err", err, "tx", tx.Hash(), "gaslimit", tx.Gas(),
-			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
-		return nil, err
-	}
-	if tx.Gas() != gas {
-		// non-determinism in gas limit estimation happens regularly due to underlying state
-		// changes across calls, and is even more common now that geth uses an in-exact estimation
-		// approach as of v1.13.6.
-		m.l.Info("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
-			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
-	}
-
+	gas := tx.Gas()
 	var newTx *types.Transaction
 	if tx.Type() == types.BlobTxType {
 		message := &types.BlobTx{

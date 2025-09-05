@@ -41,6 +41,7 @@ type ApplyConfig struct {
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
 	PreStateBuilder  pipeline.PreStateBuilder
+	HardGas          uint64
 }
 
 func (a *ApplyConfig) Check() error {
@@ -89,6 +90,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		workdir := cliCtx.String(WorkdirFlagName)
 		privateKey := cliCtx.String(PrivateKeyFlagName)
 		cacheDir := cliCtx.String(CacheDirFlagName)
+		hardGas := cliCtx.Uint64(HardGasFlagName)
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
 		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
 
@@ -111,6 +113,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			Logger:           l,
 			CacheDir:         cacheDir,
 			PreStateBuilder:  preStateBuilder,
+			HardGas:          hardGas,
 		})
 	}
 }
@@ -140,6 +143,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
 		PreStateBuilder:    cfg.PreStateBuilder,
+		HardGas:            cfg.HardGas,
 	}); err != nil {
 		return err
 	}
@@ -162,6 +166,7 @@ type ApplyPipelineOpts struct {
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
 	PreStateBuilder    pipeline.PreStateBuilder
+	HardGas            uint64
 }
 
 func ApplyPipeline(
@@ -260,6 +265,7 @@ func ApplyPipeline(
 			Client:  l1Client,
 			Signer:  signer,
 			From:    deployer,
+			HardGas: opts.HardGas,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create broadcaster: %w", err)

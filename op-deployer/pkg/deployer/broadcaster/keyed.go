@@ -27,11 +27,12 @@ const (
 )
 
 type KeyedBroadcaster struct {
-	lgr    log.Logger
-	mgr    txmgr.TxManager
-	bcasts []script.Broadcast
-	client *ethclient.Client
-	mtx    sync.Mutex
+	lgr     log.Logger
+	mgr     txmgr.TxManager
+	bcasts  []script.Broadcast
+	client  *ethclient.Client
+	mtx     sync.Mutex
+	hardGas uint64
 }
 
 type KeyedBroadcasterOpts struct {
@@ -40,6 +41,7 @@ type KeyedBroadcasterOpts struct {
 	Client  *ethclient.Client
 	Signer  opcrypto.SignerFn
 	From    common.Address
+	HardGas uint64
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
@@ -83,9 +85,10 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	}
 
 	return &KeyedBroadcaster{
-		lgr:    cfg.Logger,
-		mgr:    mgr,
-		client: cfg.Client,
+		lgr:     cfg.Logger,
+		mgr:     mgr,
+		client:  cfg.Client,
+		hardGas: cfg.HardGas,
 	}, nil
 }
 
@@ -118,8 +121,12 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 		return nil, fmt.Errorf("failed to get latest block: %w", err)
 	}
 
+	gasLimit := latestBlock.GasLimit()
+	if t.hardGas > 0 {
+		gasLimit = t.hardGas
+	}
 	for i, bcast := range bcasts {
-		futures[i], ids[i] = t.broadcast(ctx, bcast, latestBlock.GasLimit())
+		futures[i], ids[i] = t.broadcast(ctx, bcast, gasLimit, t.hardGas)
 		t.lgr.Info(
 			"transaction broadcasted",
 			"id", ids[i],
@@ -180,11 +187,14 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 	return results, txErr.ErrorOrNil()
 }
 
-func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast, blockGasLimit uint64) (<-chan txmgr.SendResponse, common.Hash) {
+func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast, blockGasLimit uint64, hardGasLimit uint64) (<-chan txmgr.SendResponse, common.Hash) {
 	ch := make(chan txmgr.SendResponse, 1)
 
 	id := bcast.ID()
 	candidate := asTxCandidate(bcast, blockGasLimit)
+	if hardGasLimit > 0 {
+		candidate.GasLimit = hardGasLimit
+	}
 	t.mgr.SendAsync(ctx, candidate, ch)
 	return ch, id
 }

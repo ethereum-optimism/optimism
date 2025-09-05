@@ -27,6 +27,7 @@ const (
 	EtherscanAPIKeyFlagName  = "etherscan-api-key"
 	InputFileFlagName        = "input-file"
 	ContractNameFlagName     = "contract-name"
+	HardGasFlagName          = "hard-gas"
 )
 
 type DeploymentTarget string
@@ -109,6 +110,11 @@ var (
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
 	}
+	HardGasFlag = &cli.StringFlag{
+		Name:    HardGasFlagName,
+		Usage:   "Hard gas limit for deployment",
+		EnvVars: PrefixEnvVar("HARD_GAS"),
+	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
 		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
@@ -165,6 +171,7 @@ var ApplyFlags = []cli.Flag{
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
 	OpProgramSvcUrlFlag,
+	HardGasFlag,
 }
 
 var UpgradeFlags = []cli.Flag{
