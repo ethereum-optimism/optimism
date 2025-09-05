@@ -904,9 +904,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     );
 
                     // Fix for stack too deep
-                    // Deploy and set a new permissionless game to update its prestate
-                    // Fix for stack too deep
                     OPContractsManager.OpChainConfig memory opChainConfig = _opChainConfigs[i];
+                    // Deploy and set a new permissionless game to update its prestate
                     deployAndSetNewGameImpl({
                         _l2ChainId: l2ChainId,
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
