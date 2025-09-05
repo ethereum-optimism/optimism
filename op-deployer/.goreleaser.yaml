@@ -48,15 +48,9 @@ dockers:
   - id: default
     goos: linux
     goarch: amd64
-    dockerfile: Dockerfile.default
+    dockerfile: Dockerfile
     image_templates:
       - "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:{{ .Tag }}"
-  - id: minimal
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.minimal
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:{{ .Tag }}-minimal"
 
 changelog:
   sort: asc
