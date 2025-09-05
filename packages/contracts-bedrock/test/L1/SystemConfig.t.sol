@@ -10,7 +10,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -686,29 +686,44 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
 /// @title SystemConfig_Paused_Test
 /// @notice Test contract for SystemConfig `paused` function.
 contract SystemConfig_Paused_Test is SystemConfig_TestInit {
-    /// @notice Tests that `paused()` returns the correct value.
-    function test_paused_succeeds() external view {
-        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+    /// @notice Tests that `paused()` returns false when no pauses are active.
+    function test_paused_noPauses_succeeds() external view {
+        assertFalse(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns the correct value after pausing.
-    function test_paused_afterPause_succeeds() external {
+    /// @notice Tests that `paused()` returns true when global pause is active.
+    function test_paused_globalPause_succeeds() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
-        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
 
-        // Pause the system
+        // Pause the system globally
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
 
         // Verify paused state
         assertTrue(systemConfig.paused());
-        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
     }
 
-    /// @notice Tests that `paused()` returns true when the ETHLockbox identifier is set.
+    /// @notice Tests that `paused()` returns true when OptimismPortal identifier is paused and
+    ///         the ETH_LOCKBOX feature is disabled.
+    function test_paused_optimismPortalIdentifier_succeeds() external {
+        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
+
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+
+        // Pause the system with OptimismPortal identifier
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(optimismPortal2));
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+    }
+
+    /// @notice Tests that `paused()` returns true when ETHLockbox identifier is paused and
+    ///         ETH_LOCKBOX feature is enabled.
     function test_paused_ethLockboxIdentifier_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
 
         // Initially not paused
         assertFalse(systemConfig.paused());
@@ -721,14 +736,33 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns false when any other address is set.
-    function test_paused_otherAddress_works() external {
+    /// @notice Tests that `paused()` returns true when both pauses are active.
+    function test_paused_bothPausesActive_succeeds() external {
+        assertFalse(systemConfig.paused());
+
+        // Pause both globally and with identifier
+        vm.startPrank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+        superchainConfig.pause(address(optimismPortal2));
+        vm.stopPrank();
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+    }
+
+    /// @notice Tests that `paused()` returns false when any other address is paused.
+    /// @param _address The address to pause.
+    function testFuzz_paused_otherAddress_succeeds(address _address) external {
+        vm.assume(_address != address(0));
+        vm.assume(_address != address(optimismPortal2));
+        vm.assume(_address != address(ethLockbox));
+
         // Initially not paused
         assertFalse(systemConfig.paused());
 
-        // Pause the system with a different address
+        // Pause the system with a different address that's not global or identifier
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(0x1234));
+        superchainConfig.pause(_address);
 
         // Verify still not paused
         assertFalse(systemConfig.paused());

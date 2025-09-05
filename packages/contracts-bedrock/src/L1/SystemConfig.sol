@@ -8,13 +8,13 @@ import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -154,9 +154,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.6.0
+    /// @custom:semver 3.7.0
     function version() public pure virtual returns (string memory) {
-        return "3.6.0";
+        return "3.7.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -517,12 +517,20 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit FeatureSet(_feature, _enabled);
     }
 
-    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
-    /// chain's ETHLockbox.
+    /// @notice Returns the current pause state for this network. If the network is using
+    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
+    ///         is active where the ETHLockbox address is used as the identifier. If the network is
+    ///         not using ETHLockbox, the system is paused if either the global pause is active or
+    ///         the pause is active where the OptimismPortal address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
-        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+        // Determine the appropriate chain identifier based on the feature flags.
+        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
+            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
+            : address(optimismPortal());
+
+        // Check if either global or local pause is active.
+        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.
