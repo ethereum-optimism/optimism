@@ -218,10 +218,11 @@ func createMismatchedEIP1559Params() matchArgs {
 }
 
 func TestAttributesMatch(t *testing.T) {
-	rollupCfgPreCanyon, rollupCfgPreIsthmus, rollupCfgPostJovian := &rollup.Config{ChainOpConfig: defaultOpConfig}, &rollup.Config{ChainOpConfig: defaultOpConfig}, &rollup.Config{ChainOpConfig: defaultOpConfig}
-	rollupCfgPreCanyon.ActivateAtGenesis(rollup.Bedrock)
-	rollupCfgPreIsthmus.ActivateAtGenesis(rollup.Holocene)
-	rollupCfgPostJovian.ActivateAtGenesis(rollup.Jovian)
+	cfg := func(fork rollup.ForkName) *rollup.Config {
+		cfg := &rollup.Config{ChainOpConfig: defaultOpConfig}
+		cfg.ActivateAtGenesis(fork)
+		return cfg
+	}
 
 	tests := []struct {
 		args      matchArgs
@@ -231,126 +232,126 @@ func TestAttributesMatch(t *testing.T) {
 	}{
 		{
 			args:      bedrockArgs(),
-			rollupCfg: rollupCfgPreCanyon,
+			rollupCfg: cfg(rollup.Bedrock),
 			desc:      "validBedrockArgs",
 		},
 		{
 			args:      bedrockArgs(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Canyon),
 			err:       ErrCanyonMustHaveWithdrawals.Error() + ": block",
 			desc:      "bedrockArgsPostCanyon",
 		},
 		{
 			args:      canyonArgs(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Canyon),
 			desc:      "validCanyonArgs",
 		},
 		{
 			args:      ecotoneArgs(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Ecotone),
 			desc:      "validEcotoneArgs",
 		},
 		{
 			args:      holoceneArgs(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			desc:      "validholoceneArgs",
 		},
 		{
 			args:      jovianArgs(),
-			rollupCfg: rollupCfgPostJovian,
+			rollupCfg: cfg(rollup.Jovian),
 			desc:      "validJovianArgs",
 		},
 		{
 			args:      mismatchedParentHashArgs(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "parent hash field does not match",
 			desc:      "mismatchedParentHashArgs",
 		},
 		{
 			args:      createMismatchedTimestamp(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "timestamp field does not match",
 			desc:      "createMismatchedTimestamp",
 		},
 		{
 			args:      createMismatchedPrevRandao(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "random field does not match",
 			desc:      "createMismatchedPrevRandao",
 		},
 		{
 			args:      createMismatchedTransactions(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "transaction count does not match",
 			desc:      "createMismatchedTransactions",
 		},
 		{
 			args:      ecotoneNoParentBeaconBlockRoot(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "expected non-nil parent beacon block root",
 			desc:      "ecotoneNoParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneUnexpectedParentBeaconBlockRoot(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "expected nil parent beacon block root but got non-nil",
 			desc:      "ecotoneUnexpectedParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneMismatchParentBeaconBlockRoot(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Ecotone),
 			err:       "parent beacon block root does not match",
 			desc:      "ecotoneMismatchParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneMismatchParentBeaconBlockRootPtr(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Ecotone),
 			desc:      "ecotoneMismatchParentBeaconBlockRootPtr",
 		},
 		{
 			args:      ecotoneNilParentBeaconBlockRoots(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Ecotone),
 			desc:      "ecotoneNilParentBeaconBlockRoots",
 		},
 		{
 			args:      createMismatchedGasLimit(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "gas limit does not match",
 			desc:      "createMismatchedGasLimit",
 		},
 		{
 			args:      createNilGasLimit(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "expected gaslimit in attributes to not be nil",
 			desc:      "createNilGasLimit",
 		},
 		{
 			args:      createMismatchedFeeRecipient(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "fee recipient data does not match",
 			desc:      "createMismatchedFeeRecipient",
 		},
 		{
 			args:      createMismatchedEIP1559Params(),
-			rollupCfg: rollupCfgPreIsthmus,
+			rollupCfg: cfg(rollup.Holocene),
 			err:       "eip1559 parameters do not match",
 			desc:      "createMismatchedEIP1559Params",
 		},
 		{
 			args:      jovianArgsMinBaseFeeMissingFromAttributes(),
-			rollupCfg: rollupCfgPostJovian,
+			rollupCfg: cfg(rollup.Jovian),
 			err:       "minBaseFee does not match",
 			desc:      "missingMinBaseFee",
 		},
 		{
 			args:      jovianArgsMinBaseFeeMissingFromBlock(),
-			rollupCfg: rollupCfgPostJovian,
+			rollupCfg: cfg(rollup.Jovian),
 			err:       "invalid block extraData: jovian extraData should be 17 bytes, got 9",
 			desc:      "missingMinBaseFee",
 		},
 		{
 			args:      jovianArgsInconsistentMinBaseFee(),
-			rollupCfg: rollupCfgPostJovian,
+			rollupCfg: cfg(rollup.Jovian),
 			err:       "minBaseFee does not match",
 			desc:      "inconsistentMinBaseFee",
 		},
