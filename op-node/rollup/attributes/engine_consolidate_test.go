@@ -39,7 +39,7 @@ type matchArgs struct {
 func jovianArgs() matchArgs {
 	var (
 		validParentHash       = common.HexToHash("0x123")
-		validTimestamp        = eth.Uint64Quantity(150)
+		validTimestamp        = eth.Uint64Quantity(50)
 		validParentBeaconRoot = common.HexToHash("0x456")
 		validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
 		validGasLimit         = eth.Uint64Quantity(1000)
@@ -60,14 +60,15 @@ func jovianArgs() matchArgs {
 		envelope: &eth.ExecutionPayloadEnvelope{
 			ParentBeaconBlockRoot: &validParentBeaconRoot,
 			ExecutionPayload: &eth.ExecutionPayload{
-				ParentHash:   validParentHash,
-				Timestamp:    validTimestamp,
-				PrevRandao:   validPrevRandao,
-				GasLimit:     validGasLimit,
-				Transactions: []eth.Data{validTxData},
-				Withdrawals:  &types.Withdrawals{},
-				FeeRecipient: validFeeRecipient,
-				ExtraData:    validJovianExtraData,
+				ParentHash:      validParentHash,
+				Timestamp:       validTimestamp,
+				PrevRandao:      validPrevRandao,
+				GasLimit:        validGasLimit,
+				Transactions:    []eth.Data{validTxData},
+				Withdrawals:     &types.Withdrawals{},
+				FeeRecipient:    validFeeRecipient,
+				ExtraData:       validJovianExtraData,
+				WithdrawalsRoot: &types.EmptyWithdrawalsHash,
 			},
 		},
 		attrs: &eth.PayloadAttributes{
@@ -110,8 +111,6 @@ func holoceneArgs() matchArgs {
 		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
 	args.attrs.EIP1559Params = new(eth.Bytes8)
 	args.attrs.MinBaseFee = nil
-	args.envelope.ExecutionPayload.Timestamp = eth.Uint64Quantity(50)
-	args.attrs.Timestamp = eth.Uint64Quantity(50)
 	return args
 }
 
@@ -219,13 +218,10 @@ func createMismatchedEIP1559Params() matchArgs {
 }
 
 func TestAttributesMatch(t *testing.T) {
-	// default valid timestamp is 50
-	pastTime := uint64(0)
-	futureTime := uint64(100)
-
-	rollupCfgPreCanyon := &rollup.Config{CanyonTime: &futureTime, ChainOpConfig: defaultOpConfig}
-	rollupCfgPreIsthmus := &rollup.Config{CanyonTime: &pastTime, IsthmusTime: &futureTime, ChainOpConfig: defaultOpConfig}
-	rollupCfgPostJovian := &rollup.Config{CanyonTime: &pastTime, JovianTime: &futureTime, ChainOpConfig: defaultOpConfig}
+	rollupCfgPreCanyon, rollupCfgPreIsthmus, rollupCfgPostJovian := &rollup.Config{ChainOpConfig: defaultOpConfig}, &rollup.Config{ChainOpConfig: defaultOpConfig}, &rollup.Config{ChainOpConfig: defaultOpConfig}
+	rollupCfgPreCanyon.ActivateAtGenesis(rollup.Bedrock)
+	rollupCfgPreIsthmus.ActivateAtGenesis(rollup.Holocene)
+	rollupCfgPostJovian.ActivateAtGenesis(rollup.Jovian)
 
 	tests := []struct {
 		args      matchArgs
@@ -343,7 +339,7 @@ func TestAttributesMatch(t *testing.T) {
 		{
 			args:      jovianArgsMinBaseFeeMissingFromAttributes(),
 			rollupCfg: rollupCfgPostJovian,
-			err:       "minBaseFee is nil but isJovian is true",
+			err:       "minBaseFee does not match",
 			desc:      "missingMinBaseFee",
 		},
 		{
