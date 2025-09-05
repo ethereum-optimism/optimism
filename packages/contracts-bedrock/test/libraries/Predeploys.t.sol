@@ -23,6 +23,12 @@ contract Predeploys_TestInit is CommonTest {
         return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_STANDARD_BRIDGE;
     }
 
+    /// @notice Returns true if the address is a predeploy that has a different code in the
+    ///         custom gas token mode.
+    function _customGasTokenCodeDiffer(address _addr) internal pure returns (bool) {
+        return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER;
+    }
+
     /// @notice Returns true if the account is not meant to be in the L2 genesis anymore.
     function _isOmitted(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.L1_MESSAGE_SENDER;
@@ -94,7 +100,7 @@ contract Predeploys_TestInit is CommonTest {
                 string.concat("Implementation mismatch for ", vm.toString(addr))
             );
             assertNotEq(implAddr.code.length, 0, "predeploy implementation account must have code");
-            if (!_usesImmutables(addr) && !_interopCodeDiffer(addr)) {
+            if (!_usesImmutables(addr) && !_interopCodeDiffer(addr) && !_customGasTokenCodeDiffer(addr)) {
                 // can't check bytecode if it's modified with immutables in genesis.
                 assertEq(implAddr.code, supposedCode, "proxy implementation contract should match contract source");
             }

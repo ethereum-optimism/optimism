@@ -11,6 +11,9 @@ import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+// Contracts
+import { LiquidityController } from "src/L2/LiquidityController.sol";
+
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
@@ -142,6 +145,7 @@ contract LiquidityController_Mint_Test is LiquidityController_TestInit {
         public
         isAuthorizedMinter(authorizedMinter)
     {
+        vm.assume(_to != address(nativeAssetLiquidity));
         _amount = bound(_amount, 1, address(nativeAssetLiquidity).balance);
 
         // Record initial balances
@@ -248,5 +252,20 @@ contract LiquidityController_Burn_Test is LiquidityController_TestInit {
         // Assert caller and NativeAssetLiquidity balances remain unchanged
         assertEq(_caller.balance, callerBalanceBefore);
         assertEq(address(nativeAssetLiquidity).balance, nativeAssetBalanceBefore);
+    }
+}
+
+/// @title LiquidityController_Initialize_Test
+/// @notice Tests the `initialize` function of the `LiquidityController` contract.
+contract LiquidityController_Initialize_Test is LiquidityController_TestInit {
+    /// @notice Tests that calling initialize on the implementation contract reverts.
+    function test_initialize_implementation_reverts() public {
+        // Deploy a new implementation contract directly (not through proxy)
+        LiquidityController implementation = new LiquidityController();
+
+        // Try to initialize the implementation contract directly
+        // This should revert because _disableInitializers() was called in the constructor
+        vm.expectRevert("Initializable: contract is already initialized");
+        implementation.initialize("Test Token", "TEST");
     }
 }

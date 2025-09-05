@@ -29,9 +29,6 @@ import {
     OptimismPortal2_Params_Test
 } from "test/L1/OptimismPortal2.t.sol";
 
-// Contracts
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
@@ -84,6 +81,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2CGT_TestInit {
     /// @dev Marked virtual to be overridden in
     ///      test/kontrol/deployment/DeploymentSummary.t.sol
     function test_initialize_succeeds() external virtual {
+        skipIfForkTest("OptimismPortal2_Initialize_Test: isCustomGasToken() not available on forked networks");
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(optimismPortal2.disputeGameFactory()), address(disputeGameFactory));
         assertEq(address(optimismPortal2.superchainConfig()), address(superchainConfig));
@@ -91,7 +89,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2CGT_TestInit {
         assertEq(optimismPortal2.paused(), false);
         assertEq(address(optimismPortal2.systemConfig()), address(systemConfig));
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
-        assertTrue(OptimismPortal2(payable(address(optimismPortal2))).isCustomGasToken());
+        assertTrue(optimismPortal2.isCustomGasToken());
 
         returnIfForkTest(
             "OptimismPortal2_Initialize_Test: Do not check guardian and respectedGameType on forked networks"
@@ -455,6 +453,8 @@ contract OptimismPortal2_CGT_FinalizeWithdrawalTransaction_Test is
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_finalizeWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
+        skipIfForkTest("OptimismPortal2_Initialize_Test: isCustomGasToken() not available on forked networks");
+
         // Set the withdrawal transaction value to a non-zero value.
         _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
 
@@ -981,6 +981,8 @@ contract OptimismPortal2_CGT_DepositTransaction_Test is OptimismPortal2_DepositT
     /// @notice Tests that `depositTransaction` reverts when the value is greater than 0 and the
     ///         custom gas token is active.
     function test_depositTransaction_withValue_reverts(bytes memory _data, uint256 _value) external {
+        skipIfForkTest("OptimismPortal2_Initialize_Test: isCustomGasToken() not available on forked networks");
+
         // Prevent overflow on an upgrade context
         _value = bound(_value, 1, type(uint256).max - address(ethLockbox).balance);
         uint64 gasLimit = optimismPortal2.minimumGasLimit(uint64(_data.length));
