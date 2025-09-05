@@ -1,50 +1,51 @@
-REPO_ROOT := `realpath ..`
+REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.0.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.1.0")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test simple base
+    @just acceptance-test "" base
 
 holocene:
-    @just acceptance-test simple holocene
+    @just acceptance-test "" holocene
 
 isthmus:
-    @just acceptance-test isthmus isthmus
+    @just acceptance-test "" isthmus
 
 interop:
-    @just acceptance-test interop interop
+    @just acceptance-test "" interop
 
 jovian:
     @just acceptance-test jovian jovian
 
 
 # Run acceptance tests with mise-managed binary
+# Usage: just acceptance-test [devnet] [gate]
+# Examples:
+#   just acceptance-test "" base         # In-process (sysgo) with specific gate
+#   just acceptance-test "" ""           # In-process gateless mode (all tests)
+#   just acceptance-test "simple" base     # External devnet with specific gate
+#   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
 acceptance-test devnet="" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
 
-     # Check if mise is installed
-    if command -v mise >/dev/null; then
-        echo "mise is installed"
+    # Determine mode and orchestrator
+    GATELESS_MODE=$([[ "{{gate}}" == "" ]] && echo "true" || echo "false")
+    ORCHESTRATOR=$([[ "{{devnet}}" == "" ]] && echo "sysgo" || echo "sysext")
+
+    # Display mode information
+    if [[ "$GATELESS_MODE" == "true" ]]; then
+        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), MODE: gateless (all tests)\n"
     else
-        echo "Mise not installed, falling back to Docker..."
-        just acceptance-test-docker {{devnet}} {{gate}}
+        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), GATE: {{gate}}\n"
     fi
 
-    if [[ "{{devnet}}" == "" ]]; then
-        echo -e "DEVNET: in-memory, GATE: {{gate}}\n"
-    else
-        echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
-    fi
-
-    # For sysgo orchestrator (in-process testing) ensure:
-    # - contracts are built
-    # - cannon dependencies are built
-    # Note: build contracts only if not in CI (CI jobs already take care of this)
-    if [[ "{{devnet}}" == "" && -z "${CIRCLECI:-}" ]]; then
+    # Build dependencies for sysgo (in-process) mode if not in CI
+    # In CI jobs already take care of this, so we skip it.
+    if [[ "$ORCHESTRATOR" == "sysgo" && -z "${CIRCLECI:-}" ]]; then
         echo "Building contracts (local build)..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
@@ -66,44 +67,66 @@ acceptance-test devnet="" gate="holocene":
         fi
     fi
 
-    # Try to install op-acceptor using mise
+    cd {{REPO_ROOT}}/op-acceptance-tests
+
+    # Check mise installation and fallback to Docker if needed
+    if ! command -v mise >/dev/null; then
+        echo "Mise not installed, falling back to Docker..."
+        just acceptance-test-docker {{devnet}} {{gate}}
+        exit 0
+    fi
+
+    # Install op-acceptor using mise
     if ! mise install op-acceptor; then
         echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
         exit 0
     fi
 
-    # Print which binary is being used
+    # Set binary path and log level
     BINARY_PATH=$(mise which op-acceptor)
     echo "Using mise-managed binary: $BINARY_PATH"
+    LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
+    echo "LOG_LEVEL: $LOG_LEVEL"
 
-    # Build the command with conditional parameters
-    CMD_ARGS=(
-        "go" "run" "cmd/main.go"
-        "--gate" "{{gate}}"
-        "--testdir" "{{REPO_ROOT}}"
-        "--validators" "./acceptance-tests.yaml"
-        "--log.level" "${LOG_LEVEL:-info}"
-        "--acceptor" "$BINARY_PATH"
-    )
+    # Deploy devnet for sysext if it's a simple name
+    if [[ "$ORCHESTRATOR" == "sysext" && ! "{{devnet}}" =~ ^(kt://|ktnative://|/) ]]; then
+        echo "Deploying devnet {{devnet}}..."
+        just {{KURTOSIS_DIR}}/{{devnet}}-devnet || true
+    fi
 
-    # Set orchestrator and devnet based on input
-    if [[ "{{devnet}}" == "" ]]; then
-        # In-process testing
-        CMD_ARGS+=("--orchestrator" "sysgo")
+    # Build command arguments based on mode
+    if [[ "$GATELESS_MODE" == "true" ]]; then
+        # Gateless mode
+        CMD_ARGS=(
+            "$BINARY_PATH"
+            "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
+            "--allow-skips"
+            "--timeout" "90m"
+            "--default-timeout" "10m"
+        )
     else
-        # External devnet testing
-        CMD_ARGS+=("--orchestrator" "sysext")
-        CMD_ARGS+=("--devnet" "{{devnet}}")
-        # Include kurtosis-dir for devnet deployment
-        CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
-        # For now, run sysext in serial mode
-        CMD_ARGS+=("--serial")
+        # Gate mode
+        CMD_ARGS=(
+            "go" "run" "cmd/main.go"
+            "--gate" "{{gate}}"
+            "--testdir" "{{REPO_ROOT}}"
+            "--validators" "./acceptance-tests.yaml"
+            "--acceptor" "$BINARY_PATH"
+        )
+    fi
+
+    # Add common arguments
+    CMD_ARGS+=("--log.level" "${LOG_LEVEL}" "--orchestrator" "$ORCHESTRATOR")
+
+    # Add sysext-specific arguments
+    if [[ "$ORCHESTRATOR" == "sysext" ]]; then
+        CMD_ARGS+=("--devnet" "{{devnet}}" "--kurtosis-dir" "{{KURTOSIS_DIR}}" "--serial")
     fi
 
     # Execute the command
-    cd {{REPO_ROOT}}/op-acceptance-tests
     "${CMD_ARGS[@]}"
+
 
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)

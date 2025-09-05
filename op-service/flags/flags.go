@@ -84,6 +84,13 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Category: category,
 		},
 		&cli.Uint64Flag{
+			Name:     JovianOverrideFlagName,
+			Usage:    "Manually specify the Jovian fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_JOVIAN"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
 			Name:     InteropOverrideFlagName,
 			Usage:    "Manually specify the Interop fork timestamp, overriding the bundled setting",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_INTEROP"),

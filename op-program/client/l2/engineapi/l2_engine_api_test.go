@@ -35,7 +35,7 @@ func TestNewPayloadV4(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
 	for _, c := range cases {
-		genesis := createGenesisWithForkTime(c.isthmusTime)
+		genesis := createGenesisWithForkTimeOffset(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
 			NetworkId:   genesis.Config.ChainID.Uint64(),
 			Genesis:     genesis,
@@ -49,6 +49,7 @@ func TestNewPayloadV4(t *testing.T) {
 		genesisHash := genesisBlock.Hash()
 		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 		minBaseFee := uint64(1e9)
+		minBaseFeePtr := &minBaseFee
 		gasLimit := eth.Uint64Quantity(4712388)
 		result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 			HeadBlockHash:      genesisHash,
@@ -63,7 +64,7 @@ func TestNewPayloadV4(t *testing.T) {
 			NoTxPool:              false,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
-			MinBaseFee:            minBaseFee,
+			MinBaseFee:            minBaseFeePtr,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
@@ -103,6 +104,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	genesisHash := genesis.Hash()
 	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 	minBaseFee := uint64(1e9)
+	minBaseFeePtr := &minBaseFee
 	gasLimit := eth.Uint64Quantity(genesis.GasLimit)
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
@@ -117,7 +119,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 		NoTxPool:              false,
 		GasLimit:              &gasLimit,
 		EIP1559Params:         &eip1559Params,
-		MinBaseFee:            minBaseFee,
+		MinBaseFee:            minBaseFeePtr,
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
@@ -163,10 +165,10 @@ func newStubBackend(t *testing.T) *stubCachingBackend {
 }
 
 func createGenesis() *core.Genesis {
-	return createGenesisWithForkTime(0)
+	return createGenesisWithForkTimeOffset(0)
 }
 
-func createGenesisWithForkTime(forkTime uint64) *core.Genesis {
+func createGenesisWithForkTimeOffset(forkTimeOffset uint64) *core.Genesis {
 	deployConfig := &genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{
@@ -198,10 +200,10 @@ func createGenesisWithForkTime(forkTime uint64) *core.Genesis {
 	deployConfig.L2GenesisHoloceneTimeOffset = &ts
 
 	// Set fork time for latest forks
-	forkTimeOffset := hexutil.Uint64(forkTime)
-	deployConfig.L2GenesisIsthmusTimeOffset = &forkTimeOffset
-	deployConfig.L2GenesisInteropTimeOffset = &forkTimeOffset
-	deployConfig.L2GenesisJovianTimeOffset = &forkTimeOffset
+	offset := hexutil.Uint64(forkTimeOffset)
+	deployConfig.L2GenesisIsthmusTimeOffset = &offset
+	deployConfig.L2GenesisInteropTimeOffset = &offset
+	deployConfig.L2GenesisJovianTimeOffset = &offset
 
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	if err != nil {

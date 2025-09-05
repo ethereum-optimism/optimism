@@ -21,6 +21,7 @@ interface IDisputeGameFactory is IProxyAdminOwnedBase, IReinitializableBase {
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
     event ImplementationSet(address indexed impl, GameType indexed gameType);
+    event ImplementationArgsSet(GameType indexed gameType, bytes args);
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
     event Initialized(uint8 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -46,6 +47,7 @@ interface IDisputeGameFactory is IProxyAdminOwnedBase, IReinitializableBase {
         view
         returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_);
     function gameCount() external view returns (uint256 gameCount_);
+    function gameArgs(GameType) external view returns (bytes memory);
     function gameImpls(GameType) external view returns (IDisputeGame);
     function games(
         GameType _gameType,
@@ -68,6 +70,7 @@ interface IDisputeGameFactory is IProxyAdminOwnedBase, IReinitializableBase {
     function owner() external view returns (address);
     function renounceOwnership() external;
     function setImplementation(GameType _gameType, IDisputeGame _impl) external;
+    function setImplementation(GameType _gameType, IDisputeGame _impl, bytes calldata _args) external;
     function setInitBond(GameType _gameType, uint256 _initBond) external;
     function transferOwnership(address newOwner) external; // nosemgrep
     function version() external view returns (string memory);

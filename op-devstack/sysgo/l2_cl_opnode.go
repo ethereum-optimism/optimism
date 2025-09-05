@@ -256,7 +256,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{
-				BeaconAddr: l1CL.beacon.BeaconAddr(),
+				BeaconAddr: l1CL.beaconHTTPAddr,
 			},
 			Driver: driver.Config{
 				SequencerEnabled:   cfg.IsSequencer,

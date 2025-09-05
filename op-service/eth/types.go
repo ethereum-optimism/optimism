@@ -520,7 +520,7 @@ type PayloadAttributes struct {
 	// EIP-1559 parameters, to be specified only post-Holocene
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 	// MinBaseFee is the minimum base fee, to be specified only post-Jovian
-	MinBaseFee uint64 `json:"minBaseFee,omitempty"`
+	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit

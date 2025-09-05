@@ -62,8 +62,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "7701807"
-export mainnetBlockNumber := "21983965"
+export sepoliaBlockNumber := "9118951"
+export mainnetBlockNumber := "23276717"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber

@@ -9,6 +9,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -135,7 +136,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             );
             vm.mockCall(
                 address(delayedWeth),
-                abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()),
+                abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
                 abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
             );
             // Use vm.store so that the .setImplementation call below works.
@@ -281,7 +282,9 @@ contract OPContractsManagerStandardValidator_GeneralOverride_Test is OPContracts
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
             .ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
         vm.mockCall(
-            address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(overrides.l1PAOMultisig)
+            address(delayedWeth),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(overrides.l1PAOMultisig)
         );
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
         vm.mockCall(
@@ -333,7 +336,9 @@ contract OPContractsManagerStandardValidator_ProxyAdmin_Test is OPContractsManag
     ///         ProxyAdmin owner is not correct.
     function test_validate_invalidProxyAdminOwner_succeeds() public {
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
-        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(address(0xbad)));
+        vm.mockCall(
+            address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad))
+        );
         assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
@@ -342,7 +347,7 @@ contract OPContractsManagerStandardValidator_ProxyAdmin_Test is OPContractsManag
     function test_validate_overridenProxyAdminOwner_succeeds() public {
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
-        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(0xbad));
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(0xbad));
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
         vm.mockCall(
             address(disputeGameFactory),
@@ -755,7 +760,12 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
     ///         ETHLockbox version is invalid.
     function test_validate_ethLockboxInvalidVersion_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        assertEq("LOCKBOX-10", _validate(true));
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq("LOCKBOX-10", _validate(true));
+        } else {
+            assertEq("", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -766,7 +776,12 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
             abi.encode(address(0xbad))
         );
-        assertEq("LOCKBOX-20", _validate(true));
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq("LOCKBOX-20", _validate(true));
+        } else {
+            assertEq("", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -775,14 +790,24 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
         vm.mockCall(
             address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
-        assertEq("LOCKBOX-30", _validate(true));
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq("LOCKBOX-30", _validate(true));
+        } else {
+            assertEq("", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         ETHLockbox systemConfig is invalid.
     function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
-        assertEq("LOCKBOX-40", _validate(true));
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq("LOCKBOX-40", _validate(true));
+        } else {
+            assertEq("", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -791,7 +816,12 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
         vm.mockCall(
             address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
         );
-        assertEq("LOCKBOX-50", _validate(true));
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq("LOCKBOX-50", _validate(true));
+        } else {
+            assertEq("", _validate(true));
+        }
     }
 }
 

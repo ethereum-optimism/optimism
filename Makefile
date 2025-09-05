@@ -206,7 +206,6 @@ TEST_PKGS := \
 	./packages/contracts-bedrock/scripts/checks/... \
 	./op-dripper/... \
 	./devnet-sdk/... \
-	./op-acceptance-tests/... \
 	./kurtosis-devnet/... \
 	./op-devstack/... \
 	./op-deployer/pkg/deployer/artifacts/... \
@@ -265,7 +264,7 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
 	@echo "Setting up test directories..."
 	mkdir -p ./tmp/test-results ./tmp/testlogs
-	@echo "Running Go tests with gotestsum..."
+	@echo 'Running Go tests (short) with gotestsum...'
 	$(DEFAULT_TEST_ENV_VARS) && \
 	$(CI_ENV_VARS) && \
 	gotestsum --format=testname \

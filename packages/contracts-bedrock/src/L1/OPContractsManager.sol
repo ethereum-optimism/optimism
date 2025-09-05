@@ -7,6 +7,9 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -25,6 +28,7 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -43,12 +47,30 @@ contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the latest implementation contracts.
     OPContractsManager.Implementations internal implementation;
 
+    /// @notice Bitmap of development features that are enabled. We keep the development feature
+    ///         bitmap here rather than in the actual OPCM because other contracts always get a
+    ///         reference to this but not to the OPCM itself.
+    bytes32 public immutable devFeatureBitmap;
+
+    /// @notice Thrown when a development feature is enabled in production.
+    error OPContractsManagerContractsContainer_DevFeatureInProd();
+
+    /// @param _blueprints The blueprint contract addresses.
+    /// @param _implementations The implementation contract addresses.
+    /// @param _devFeatureBitmap The bitmap of development features that are enabled.
     constructor(
         OPContractsManager.Blueprints memory _blueprints,
-        OPContractsManager.Implementations memory _implementations
+        OPContractsManager.Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
     ) {
         blueprint = _blueprints;
         implementation = _implementations;
+        devFeatureBitmap = _devFeatureBitmap;
+
+        // Development features MUST NOT be enabled on Mainnet.
+        if (block.chainid == 1 && !_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {
+            revert OPContractsManagerContractsContainer_DevFeatureInProd();
+        }
     }
 
     function blueprints() public view returns (OPContractsManager.Blueprints memory) {
@@ -57,6 +79,24 @@ contract OPContractsManagerContractsContainer {
 
     function implementations() public view returns (OPContractsManager.Implementations memory) {
         return implementation;
+    }
+
+    /// @notice Returns the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature);
+    }
+
+    /// @notice Returns true if the contract is running in a testing environment. Checks that the
+    ///         code for the address 0xbeefcafe is not zero, which is an address that should never
+    ///         have any code in production environments but can be made to have code in tests.
+    /// @return True if the contract is running in a testing environment, false otherwise.
+    function _isTestingEnvironment() public view returns (bool) {
+        return address(0xbeefcafe).code.length > 0;
     }
 }
 
@@ -95,6 +135,21 @@ abstract contract OPContractsManagerBase {
     /// @notice Retrieves the blueprint addresses stored in this OPCM contract
     function blueprints() public view returns (OPContractsManager.Blueprints memory) {
         return contractsContainer.blueprints();
+    }
+
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    function devFeatureBitmap() public view returns (bytes32) {
+        return contractsContainer.devFeatureBitmap();
+    }
+
+    /// @notice Retrieves the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return contractsContainer.isDevFeatureEnabled(_feature);
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
@@ -612,8 +667,16 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // If the SuperchainConfig is not already upgraded, upgrade it. NOTE that this type of
         // upgrade means that chains can ONLY be upgraded via this OPCM contract if they use the
-        // same SuperchainConfig contract. We will assert this later.
-        if (_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig)) != impls.superchainConfigImpl) {
+        // same SuperchainConfig contract. We will assert this later. NOTE that we are temporarily
+        // doing a strict version comparison instead of an implementation address comparison
+        // because the implementation address is different when running test coverage + upgrade
+        // tests. Will be replaced shortly by proper version comparison.
+        if (
+            !LibString.eq(
+                ISuperchainConfig(_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig))).version(),
+                ISuperchainConfig(impls.superchainConfigImpl).version()
+            )
+        ) {
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
@@ -659,16 +722,30 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 abi.encodeCall(ISystemConfig.upgrade, (l2ChainId, _superchainConfig))
             );
 
-            // Separate context to avoid stack too deep.
-            IAnchorStateRegistry newAnchorStateRegistryProxy;
-            {
+            // Try to grab the AnchorStateRegistry from the OptimismPortal contract. This will work
+            // for any chains that are already on U16. Any chains that are not on U16 will need to
+            // deploy a new AnchorStateRegistry contract. Note that this is safe from issues with
+            // EIP-150 because (1) the upgrade controller is trusted and controls the amount of gas
+            // that gets provided and (2) the absolute worst case scenario is that a new ASR gets
+            // deployed which invalidates withdrawals but has no other real downsides.
+            IAnchorStateRegistry anchorStateRegistry;
+
+            // nosemgrep: sol-safety-trycatch-eip150
+            try optimismPortal.anchorStateRegistry() returns (IAnchorStateRegistry anchorStateRegistry_) {
+                anchorStateRegistry = anchorStateRegistry_;
+
+                // Upgrade the ASR implementation anyway. Since the ASR code didn't change, this
+                // won't have any impact in production but is required because the address is
+                // different when deployed in a testing environment because the OPCM deployer
+                // address is different.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(anchorStateRegistry), impls.anchorStateRegistryImpl);
+            } catch {
                 // Grab the current respectedGameType from the OptimismPortal contract before the
                 // upgrade.
                 GameType respectedGameType = optimismPortal.respectedGameType();
 
                 // Deploy a new AnchorStateRegistry contract.
-                // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
-                newAnchorStateRegistryProxy = IAnchorStateRegistry(
+                anchorStateRegistry = IAnchorStateRegistry(
                     deployProxy({
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
@@ -689,7 +766,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     // Since this is a net-new contract, we need to initialize it.
                     upgradeToAndCall(
                         _opChainConfigs[i].proxyAdmin,
-                        address(newAnchorStateRegistryProxy),
+                        address(anchorStateRegistry),
                         impls.anchorStateRegistryImpl,
                         abi.encodeCall(
                             IAnchorStateRegistry.initialize,
@@ -704,24 +781,34 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 }
             }
 
-            // Upgrade the OptimismPortal contract implementation.
-            upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
+            // This function will work if the chain is already on U16.
+            // nosemgrep: sol-safety-trycatch-eip150
+            try optimismPortal.ethLockbox() returns (IETHLockbox) {
+                _opChainConfigs[i].systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
+            } catch {
+                // We don't care. If somehow this failed because of EIP150 and we actually did need
+                // to enable the feature, we'd get a revert from the OptimismPortal upgrade
+                // function.
+            }
 
-            // Separate context to avoid stack too deep.
-            {
+            // Upgrade path depends on if the OptimismPortalInterop dev feature is enabled.
+            if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+                // Upgrade the OptimismPortal contract implementation.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalInteropImpl);
+
                 // Deploy the ETHLockbox proxy.
                 IETHLockbox ethLockbox = IETHLockbox(
                     deployProxy({
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox-U16"
+                        _contractName: "ETHLockbox-U16a"
                     })
                 );
 
                 // Upgrade the OptimismPortal contract first so that the SystemConfig will have
                 // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
+                IOptimismPortalInterop(payable(optimismPortal)).upgrade(anchorStateRegistry, ethLockbox);
 
                 // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
@@ -734,7 +821,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 );
 
                 // Migrate liquidity from the OptimismPortal to the ETHLockbox.
-                optimismPortal.migrateLiquidity();
+                IOptimismPortalInterop(payable(optimismPortal)).migrateLiquidity();
+            } else {
+                // Upgrade the OptimismPortal contract implementation.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
+
+                // Upgrade the OptimismPortal contract, nothing special required.
+                optimismPortal.upgrade(anchorStateRegistry);
             }
 
             // Separate context to avoid stack too deep.
@@ -778,7 +871,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             _l2ChainId: l2ChainId,
                             _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                             _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                            _contractName: "PermissionedDelayedWETH-U16"
+                            _contractName: "PermissionedDelayedWETH-U16a"
                         })
                     )
                 );
@@ -796,7 +889,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     _l2ChainId: l2ChainId,
                     _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
                     _newDelayedWeth: permissionedDelayedWeth,
-                    _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                    _newAnchorStateRegistryProxy: anchorStateRegistry,
                     _gameType: GameTypes.PERMISSIONED_CANNON,
                     _opChainConfig: _opChainConfigs[i]
                 });
@@ -817,7 +910,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                                 _l2ChainId: l2ChainId,
                                 _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                                 _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                                _contractName: "PermissionlessDelayedWETH-U16"
+                                _contractName: "PermissionlessDelayedWETH-U16a"
                             })
                         )
                     );
@@ -835,7 +928,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
                         _newDelayedWeth: permissionlessDelayedWeth,
-                        _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                        _newAnchorStateRegistryProxy: anchorStateRegistry,
                         _gameType: GameTypes.CANNON,
                         _opChainConfig: _opChainConfigs[i]
                     });
@@ -1077,17 +1170,37 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
-        data = encodeOptimismPortalInitializer(output);
-        upgradeToAndCall(
-            output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
-        );
-
         // Initialize the SystemConfig before the ETHLockbox, required because the ETHLockbox will
-        // try to get the SuperchainConfig from the SystemConfig inside of its initializer.
+        // try to get the SuperchainConfig from the SystemConfig inside of its initializer. Also
+        // need to initialize before OptimismPortal because OptimismPortal does some sanity checks
+        // based on the ETHLockbox feature flag.
         data = encodeSystemConfigInitializer(_input, output, _superchainConfig);
         upgradeToAndCall(
             output.opChainProxyAdmin, address(output.systemConfigProxy), implementation.systemConfigImpl, data
         );
+
+        // If the interop feature was requested, enable the ETHLockbox feature in the SystemConfig
+        // contract. Only other way to get the ETHLockbox feature as of u16a is to have already had
+        // the ETHLockbox in U16 and then upgrade to U16a.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            output.systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Initialize the OptimismPortal.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            data = encodeOptimismPortalInteropInitializer(output);
+            upgradeToAndCall(
+                output.opChainProxyAdmin,
+                address(output.optimismPortalProxy),
+                implementation.optimismPortalInteropImpl,
+                data
+            );
+        } else {
+            data = encodeOptimismPortalInitializer(output);
+            upgradeToAndCall(
+                output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
+            );
+        }
 
         // Initialize the ETHLockbox.
         IOptimismPortal[] memory portals = new IOptimismPortal[](1);
@@ -1235,8 +1348,18 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
+        return abi.encodeCall(IOptimismPortal.initialize, (_output.systemConfigProxy, _output.anchorStateRegistryProxy));
+    }
+
+    /// @notice Helper method for encoding the OptimismPortalInterop initializer data.
+    function encodeOptimismPortalInteropInitializer(OPContractsManager.DeployOutput memory _output)
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
         return abi.encodeCall(
-            IOptimismPortal.initialize,
+            IOptimismPortalInterop.initialize,
             (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
         );
     }
@@ -1415,9 +1538,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         }
 
         // Grab an array of portals from the configs.
-        IOptimismPortal[] memory portals = new IOptimismPortal[](_input.opChainConfigs.length);
+        IOptimismPortalInterop[] memory portals = new IOptimismPortalInterop[](_input.opChainConfigs.length);
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
-            portals[i] = IOptimismPortal(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
+            portals[i] = IOptimismPortalInterop(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
         }
 
         // Check that the portals have the same SuperchainConfig.
@@ -1448,14 +1571,23 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             })
         );
 
-        // Initialize the new ETHLockbox.
-        // Note that this authorizes the portals to use the ETHLockbox.
-        upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
-            address(newEthLockbox),
-            getImplementations().ethLockboxImpl,
-            abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), portals))
-        );
+        // Separate context to avoid stack too deep.
+        {
+            // Lockbox requires standard portal interfaces, need to cast to IOptimismPortal.
+            IOptimismPortal[] memory castedPortals;
+            assembly ("memory-safe") {
+                castedPortals := portals
+            }
+
+            // Initialize the new ETHLockbox.
+            // Note that this authorizes the portals to use the ETHLockbox.
+            upgradeToAndCall(
+                _input.opChainConfigs[0].proxyAdmin,
+                address(newEthLockbox),
+                getImplementations().ethLockboxImpl,
+                abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), castedPortals))
+            );
+        }
 
         // Deploy the new DisputeGameFactory.
         IDisputeGameFactory newDisputeGameFactory = IDisputeGameFactory(
@@ -1719,6 +1851,7 @@ contract OPContractsManager is ISemver {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -1760,9 +1893,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1955,6 +2088,22 @@ contract OPContractsManager is ISemver {
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (Implementations memory) {
         return opcmDeployer.implementations();
+    }
+
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() public view returns (bytes32) {
+        return opcmDeployer.devFeatureBitmap();
+    }
+
+    /// @notice Returns the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return opcmDeployer.isDevFeatureEnabled(_feature);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract
