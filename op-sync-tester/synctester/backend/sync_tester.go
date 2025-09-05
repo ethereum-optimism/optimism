@@ -451,7 +451,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 	}
 	// OP Stack additions
 	if len(attr.Transactions) != len(block.Transactions()) {
-		return fmt.Errorf("tx count mismatch: attr=%d, header=%d", len(attr.Transactions), len(block.Transactions()))
+		return fmt.Errorf("tx count mismatch: attr=%d, block=%d", len(attr.Transactions), len(block.Transactions()))
 	}
 	for idx := range len(attr.Transactions) {
 		blockTx := block.Transactions()[idx]
@@ -471,6 +471,11 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		return fmt.Errorf("gaslimit mismatch: attr=%d, header=%d", *attr.GasLimit, h.GasLimit)
 	}
 	if isHolocene {
+		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#encoding
+		// Spec: At and after Holocene activation, eip1559Parameters in PayloadAttributeV3 must be exactly 8 bytes with the following format
+		if attr.EIP1559Params == nil {
+			return errors.New("holocene enabled but EIP1559Params nil")
+		}
 		if err := eip1559.ValidateHolocene1559Params((*attr.EIP1559Params)[:]); err != nil {
 			return fmt.Errorf("invalid eip1559Params: %w", err)
 		}
@@ -624,7 +629,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 		correctPayload, err := eth.BlockAsPayload(block, config)
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed convert block to payload: %w", err))
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))
 		}
 		// Sanity check parent beacon block root and block hash by recomputation
 		if !isIsthmus {
