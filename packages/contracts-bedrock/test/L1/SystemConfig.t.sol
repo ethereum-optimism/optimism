@@ -9,6 +9,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
@@ -722,6 +723,144 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
 
         // Verify still not paused
         assertFalse(systemConfig.paused());
+    }
+}
+
+/// @title SystemConfig_SetFeature_Test
+/// @notice Test contract for SystemConfig `setFeature` function.
+contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Tests that `setFeature` reverts if the caller is not ProxyAdmin or ProxyAdmin owner.
+    /// @param _sender The address to test.
+    function testFuzz_setFeature_notProxyAdminOrProxyAdminOwner_reverts(address _sender) external {
+        // Ensure sender is not ProxyAdmin or ProxyAdmin owner
+        vm.assume(_sender != address(systemConfig.proxyAdmin()) && _sender != systemConfig.proxyAdminOwner());
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        vm.prank(_sender);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+    }
+
+    /// @notice Tests that `setFeature` enables a feature successfully when called by ProxyAdmin.
+    function test_setFeature_enableFeatureByProxyAdmin_succeeds() external {
+        // Verify feature is initially disabled
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        vm.expectEmit(address(systemConfig));
+        emit FeatureSet(Features.ETH_LOCKBOX, true);
+
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+
+        // Verify feature is now enabled
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that `setFeature` disables a feature successfully when called by ProxyAdmin.
+    function test_setFeature_disableFeatureByProxyAdmin_succeeds() external {
+        // First enable the feature
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        vm.expectEmit(address(systemConfig));
+        emit FeatureSet(Features.ETH_LOCKBOX, false);
+
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+
+        // Verify feature is now disabled
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that `setFeature` enables a feature successfully when called by ProxyAdmin owner.
+    function test_setFeature_enableFeatureByProxyAdminOwner_succeeds() external {
+        // Verify feature is initially disabled
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        vm.expectEmit(address(systemConfig));
+        emit FeatureSet(Features.ETH_LOCKBOX, true);
+
+        vm.prank(systemConfig.proxyAdminOwner());
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+
+        // Verify feature is now enabled
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that `setFeature` can toggle the same feature multiple times.
+    function test_setFeature_multipleToggles_succeeds() external {
+        address proxyAdmin = address(systemConfig.proxyAdmin());
+
+        // Initially disabled
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        // Enable feature
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        // Disable feature
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        // Enable again
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that `setFeature` reverts when trying to enable a feature that is already
+    ///         enabled.
+    function test_setFeature_alreadyEnabled_reverts() external {
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        vm.prank(address(systemConfig.proxyAdmin()));
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+    }
+
+    /// @notice Tests that `setFeature` reverts when trying to disable a feature that is already
+    ///         disabled.
+    function test_setFeature_alreadyDisabled_reverts() external {
+        vm.prank(address(systemConfig.proxyAdmin()));
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+    }
+}
+
+/// @title SystemConfig_IsFeatureEnabled_Test
+/// @notice Test contract for SystemConfig `isFeatureEnabled` function.
+contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
+    /// @notice Tests that `isFeatureEnabled` returns false for unset features.
+    /// @param _feature The feature to check.
+    function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external view {
+        assertFalse(systemConfig.isFeatureEnabled(_feature));
+    }
+
+    /// @notice Tests that `isFeatureEnabled` returns correct value after feature is enabled.
+    function test_isFeatureEnabled_afterEnable_succeeds() external {
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+    }
+
+    /// @notice Tests that `isFeatureEnabled` returns correct value after feature is disabled.
+    function test_isFeatureEnabled_afterDisable_succeeds() external {
+        // First enable the feature
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+
+        // Then disable it
+        vm.prank(address(systemConfig.proxyAdmin()));
+        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
+        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
     }
 }
 
