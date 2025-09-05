@@ -96,7 +96,8 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 	}
 	d, e, _ := eip1559.DecodeOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
 	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
-	// TODO r.MinBaseFee = m
+	// TODO https://github.com/ethereum-optimism/optimism/issues/16839
+	// r.MinBaseFee = m
 
 	if rollupCfg.IsIsthmus(uint64(payload.Timestamp)) {
 		r.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
