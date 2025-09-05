@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Foundry
-import { VmSafe } from "forge-std/Vm.sol";
-
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -70,13 +67,6 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
-    }
-
-    /// @notice Skips if running in coverage mode.
-    function skipIfCoverage() public {
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            vm.skip(true);
-        }
     }
 }
 

@@ -249,6 +249,13 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 	}
 }
 
+// WithDevFeatureBitmap sets the dev feature bitmap.
+func WithDevFeatureBitmap(devFlags common.Hash) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("devFeatureBitmap", devFlags)
+	}
+}
+
 // WithInteropAtGenesis activates interop at genesis for all known L2s
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {

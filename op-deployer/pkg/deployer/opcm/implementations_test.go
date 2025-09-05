@@ -65,6 +65,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
 			MipsVersion:                     big.NewInt(mipsVersion),
+			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           proxyAddress,
 			ProtocolVersionsProxy:           protocolVersionsAddress,
 			SuperchainProxyAdmin:            proxyAdminAddress,

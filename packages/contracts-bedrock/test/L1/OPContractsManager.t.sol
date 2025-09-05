@@ -14,27 +14,21 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
-import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
-import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -43,21 +37,14 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import {
     IOPContractsManager,
-    IOPCMImplementationsWithoutLockbox,
     IOPContractsManagerGameTypeAdder,
-    IOPContractsManagerDeployer,
-    IOPContractsManagerUpgrader,
-    IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator
+    IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
-import { IOPContractsManager200 } from "interfaces/L1/IOPContractsManager200.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
-import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 // Contracts
 import {
@@ -171,213 +158,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         emit Upgraded(impl);
     }
 
-    function runUpgrade13UpgradeAndChecks(address _delegateCaller) public {
-        // The address below corresponds with the address of the v2.0.0-rc.1 OPCM on mainnet.
-        address OPCM_ADDRESS = 0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76;
-
-        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
-        IOPCMImplementationsWithoutLockbox.Implementations memory impls =
-            IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
-
-        // Always trigger U13 once with an empty opChainConfig array to ensure that the
-        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
-        {
-            ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-            address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-            vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-            DelegateCaller(superchainPAO).dcForward(
-                OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
-            );
-        }
-
-        // Cache the old L1xDM address so we can look for it in the AddressManager's event
-        address oldL1CrossDomainMessenger = addressManager.getAddress("OVM_L1CrossDomainMessenger");
-
-        // Predict the address of the new AnchorStateRegistry proxy
-        bytes32 salt = keccak256(
-            abi.encode(
-                l2ChainId,
-                string.concat(
-                    string(bytes.concat(bytes32(uint256(uint160(address(opChainConfigs[0].systemConfigProxy))))))
-                ),
-                "AnchorStateRegistry"
-            )
-        );
-        address proxyBp = IOPContractsManager200(address(deployedOPCM)).blueprints().proxy;
-        Blueprint.Preamble memory preamble = Blueprint.parseBlueprintPreamble(proxyBp.code);
-        bytes memory initCode = bytes.concat(preamble.initcode, abi.encode(proxyAdmin));
-        address newAnchorStateRegistryProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
-        vm.label(newAnchorStateRegistryProxy, "NewAnchorStateRegistryProxy");
-
-        expectEmitUpgraded(impls.systemConfigImpl, address(systemConfig));
-        vm.expectEmit(address(addressManager));
-        emit AddressSet("OVM_L1CrossDomainMessenger", impls.l1CrossDomainMessengerImpl, oldL1CrossDomainMessenger);
-        // This is where we would emit an event for the L1StandardBridge however
-        // the Chugsplash proxy does not emit such an event.
-        expectEmitUpgraded(impls.l1ERC721BridgeImpl, address(l1ERC721Bridge));
-        expectEmitUpgraded(impls.disputeGameFactoryImpl, address(disputeGameFactory));
-        expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal2));
-        expectEmitUpgraded(impls.optimismMintableERC20FactoryImpl, address(l1OptimismMintableERC20Factory));
-        vm.expectEmit(address(newAnchorStateRegistryProxy));
-        emit AdminChanged(address(0), address(proxyAdmin));
-        expectEmitUpgraded(impls.anchorStateRegistryImpl, address(newAnchorStateRegistryProxy));
-        expectEmitUpgraded(impls.delayedWETHImpl, address(delayedWETHPermissionedGameProxy));
-
-        // We don't yet know the address of the new permissionedGame which will be deployed by the
-        // OPContractsManager.upgrade() call, so ignore the first topic.
-        vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-        emit ImplementationSet(address(0), GameTypes.PERMISSIONED_CANNON);
-
-        IFaultDisputeGame oldFDG = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-        if (address(oldFDG) != address(0)) {
-            IDelayedWETH weth = oldFDG.weth();
-            expectEmitUpgraded(impls.delayedWETHImpl, address(weth));
-
-            // Ignore the first topic for the same reason as the previous comment.
-            vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-            emit ImplementationSet(address(0), GameTypes.CANNON);
-        }
-
-        vm.expectEmit(address(_delegateCaller));
-        emit Upgraded(l2ChainId, opChainConfigs[0].systemConfigProxy, address(_delegateCaller));
-
-        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
-        // then reset its code to the original code.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-        DelegateCaller(_delegateCaller).dcForward(
-            address(deployedOPCM), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
-
-        VmSafe.Gas memory gas = vm.lastCallGas();
-
-        // Less than 90% of the gas target of 20M to account for the gas used by using Safe.
-        assertLt(gas.gasTotalUsed, 0.9 * 20_000_000, "Upgrade exceeds gas target of 15M");
-
-        vm.etch(_delegateCaller, delegateCallerCode);
-
-        // Check the implementations of the core addresses
-        assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
-        assertEq(impls.l1ERC721BridgeImpl, EIP1967Helper.getImplementation(address(l1ERC721Bridge)));
-        assertEq(impls.disputeGameFactoryImpl, EIP1967Helper.getImplementation(address(disputeGameFactory)));
-        assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
-        assertEq(
-            impls.optimismMintableERC20FactoryImpl,
-            EIP1967Helper.getImplementation(address(l1OptimismMintableERC20Factory))
-        );
-        assertEq(impls.l1StandardBridgeImpl, EIP1967Helper.getImplementation(address(l1StandardBridge)));
-        assertEq(impls.l1CrossDomainMessengerImpl, addressManager.getAddress("OVM_L1CrossDomainMessenger"));
-
-        // Check the implementations of the FP contracts
-        assertEq(impls.anchorStateRegistryImpl, EIP1967Helper.getImplementation(address(newAnchorStateRegistryProxy)));
-        assertEq(impls.delayedWETHImpl, EIP1967Helper.getImplementation(address(delayedWETHPermissionedGameProxy)));
-
-        // Check that the PermissionedDisputeGame is upgraded to the expected version, references
-        // the correct anchor state and has the mipsImpl.
-        IPermissionedDisputeGame pdg =
-            IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
-        assertEq(address(pdg.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
-        assertEq(address(pdg.vm()), impls.mipsImpl);
-
-        if (address(oldFDG) != address(0)) {
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version
-            IFaultDisputeGame newFDG = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version,
-            // references the correct anchor state and has the mipsImpl.
-            assertEq(impls.delayedWETHImpl, EIP1967Helper.getImplementation(address(newFDG.weth())));
-            assertEq(ISemver(address(newFDG)).version(), "1.4.1");
-            assertEq(address(newFDG.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
-            assertEq(address(newFDG.vm()), impls.mipsImpl);
-        }
-    }
-
-    function runUpgrade14UpgradeAndChecks(address _delegateCaller) public {
-        address OPCM_ADDRESS = 0x3A1f523a4bc09cd344A2745a108Bb0398288094F;
-
-        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
-        IOPCMImplementationsWithoutLockbox.Implementations memory impls =
-            IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
-
-        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
-
-        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet
-        // PAO first.
-        if (_delegateCaller != mainnetPAO) {
-            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
-            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
-
-            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
-        }
-
-        // sanity check
-        IPermissionedDisputeGame oldPDG =
-            IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        IFaultDisputeGame oldFDG = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-
-        // Sanity check that the mips IMPL is not MIPS64
-        assertNotEq(address(oldPDG.vm()), impls.mipsImpl);
-
-        // We don't yet know the address of the new permissionedGame which will be deployed by the
-        // OPContractsManager.upgrade() call, so ignore the first topic.
-        vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-        emit ImplementationSet(address(0), GameTypes.PERMISSIONED_CANNON);
-
-        if (address(oldFDG) != address(0)) {
-            // Sanity check that the mips IMPL is not MIPS64
-            assertNotEq(address(oldFDG.vm()), impls.mipsImpl);
-            // Ignore the first topic for the same reason as the previous comment.
-            vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-            emit ImplementationSet(address(0), GameTypes.CANNON);
-        }
-        vm.expectEmit(address(_delegateCaller));
-        emit Upgraded(l2ChainId, opChainConfigs[0].systemConfigProxy, address(_delegateCaller));
-
-        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
-        // then reset its code to the original code.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-        DelegateCaller(_delegateCaller).dcForward(
-            address(deployedOPCM), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
-
-        VmSafe.Gas memory gas = vm.lastCallGas();
-
-        // Less than 90% of the gas target of 20M to account for the gas used by using Safe.
-        assertLt(gas.gasTotalUsed, 0.9 * 20_000_000, "Upgrade exceeds gas target of 15M");
-
-        vm.etch(_delegateCaller, delegateCallerCode);
-
-        // Check that the PermissionedDisputeGame is upgraded to the expected version, references
-        // the correct anchor state and has the mipsImpl.
-        IPermissionedDisputeGame pdg =
-            IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
-        assertEq(address(pdg.vm()), impls.mipsImpl);
-
-        // Check that the SystemConfig is upgraded to the expected version
-        assertEq(ISemver(address(systemConfig)).version(), "2.5.0");
-        assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
-
-        if (address(oldFDG) != address(0)) {
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version
-            IFaultDisputeGame newFDG = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version,
-            // references the correct anchor state and has the mipsImpl.
-            assertEq(ISemver(address(newFDG)).version(), "1.4.1");
-            assertEq(address(newFDG.vm()), impls.mipsImpl);
-        }
-    }
-
-    function runUpgrade15UpgradeAndChecks(address _delegateCaller) public {
+    function runUpgrade16aUpgradeAndChecks(address _delegateCaller) public {
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-        // Always trigger U15 once with an empty opChainConfig array to ensure that the
+        // Always trigger U16a once with an empty opChainConfig array to ensure that the
         // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
         {
             ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
@@ -390,8 +174,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Predict the address of the new AnchorStateRegistry proxy.
         // Subcontext to avoid stack too deep.
-        address newAsrProxy;
-        {
+        address asr;
+        try optimismPortal2.anchorStateRegistry() returns (IAnchorStateRegistry asr_) {
+            asr = address(asr_);
+        } catch {
             // Compute the salt using the system config address.
             bytes32 salt = keccak256(
                 abi.encode(
@@ -405,8 +191,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             address proxyBp = opcm.blueprints().proxy;
             Blueprint.Preamble memory preamble = Blueprint.parseBlueprintPreamble(proxyBp.code);
             bytes memory initCode = bytes.concat(preamble.initcode, abi.encode(proxyAdmin));
-            newAsrProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
-            vm.label(newAsrProxy, "NewAnchorStateRegistryProxy");
+            asr = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
+            vm.label(asr, "NewAnchorStateRegistryProxy");
         }
 
         // Grab the PermissionedDisputeGame and FaultDisputeGame implementations before upgrade.
@@ -415,9 +201,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         IPermissionedDisputeGame oldPDG = IPermissionedDisputeGame(oldPDGImpl);
         IFaultDisputeGame oldFDG = IFaultDisputeGame(oldFDGImpl);
 
-        // Expect the SystemConfig and OptimismPortal to be upgraded.
+        // Expect the SystemConfig upgraded.
         expectEmitUpgraded(impls.systemConfigImpl, address(systemConfig));
-        expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal2));
+
+        // Expect the OptimismPortal to be upgraded, impl depends on interop feature.
+        if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            expectEmitUpgraded(impls.optimismPortalInteropImpl, address(optimismPortal2));
+        } else {
+            expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal2));
+        }
 
         // We always expect the PermissionedDisputeGame to be deployed. We don't yet know the
         // address of the new permissionedGame which will be deployed by the
@@ -475,16 +267,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Make sure that the SystemConfig is upgraded to the right version. It must also have the
         // right l2ChainId and must be properly initialized.
-        assertEq(ISemver(address(systemConfig)).version(), "3.5.0");
+        assertEq(ISemver(address(systemConfig)).version(), "3.6.0");
         assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
 
-        // Make sure that the OptimismPortal is upgraded to the right version. It must also have a
-        // reference to the new AnchorStateRegistry.
-        assertEq(ISemver(address(optimismPortal2)).version(), "4.6.0");
-        assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
-        assertEq(address(optimismPortal2.anchorStateRegistry()), address(newAsrProxy));
+        // Make sure that the OptimismPortal is upgraded correctly.
+        assertEq(address(optimismPortal2.anchorStateRegistry()), address(asr));
         DeployUtils.assertInitialized({
             _contractAddress: address(optimismPortal2),
             _isProxy: true,
@@ -492,215 +281,38 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             _offset: 0
         });
 
+        if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0+interop");
+            assertEq(impls.optimismPortalInteropImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
+        } else {
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0");
+            assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
+        }
+
         // Make sure the new AnchorStateRegistry has the right version and is initialized.
-        assertEq(ISemver(address(newAsrProxy)).version(), "3.5.0");
+        assertEq(ISemver(address(asr)).version(), "3.5.0");
         vm.prank(address(proxyAdmin));
-        assertEq(IProxy(payable(newAsrProxy)).admin(), address(proxyAdmin));
-        DeployUtils.assertInitialized({ _contractAddress: address(newAsrProxy), _isProxy: true, _slot: 0, _offset: 0 });
+        assertEq(IProxy(payable(asr)).admin(), address(proxyAdmin));
+        DeployUtils.assertInitialized({ _contractAddress: address(asr), _isProxy: true, _slot: 0, _offset: 0 });
     }
 
     function runUpgradeTestAndChecks(address _delegateCaller) public {
-        // TODO(#14691): Remove this function once Upgrade 15 is deployed on Mainnet.
-        runUpgrade13UpgradeAndChecks(_delegateCaller);
-        // TODO(#14691): Remove this function once Upgrade 15 is deployed on Mainnet.
-        runUpgrade14UpgradeAndChecks(_delegateCaller);
-        runUpgrade15UpgradeAndChecks(_delegateCaller);
+        runUpgrade16aUpgradeAndChecks(_delegateCaller);
     }
 }
 
 /// @title OPContractsManager_TestInit
 /// @notice Reusable test initialization for `OPContractsManager` tests.
-contract OPContractsManager_TestInit is Test {
-    IOPContractsManager internal opcm;
+contract OPContractsManager_TestInit is CommonTest {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
-    address challenger = makeAddr("challenger");
-    ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
-    IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
-    IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
 
-    function setUp() public virtual {
-        bytes32 salt = hex"01";
-        IOPContractsManager.Blueprints memory blueprints;
-        (blueprints.addressManager,) = Blueprint.create(vm.getCode("AddressManager"), salt);
-        (blueprints.proxy,) = Blueprint.create(vm.getCode("Proxy"), salt);
-        (blueprints.proxyAdmin,) = Blueprint.create(vm.getCode("ProxyAdmin"), salt);
-        (blueprints.l1ChugSplashProxy,) = Blueprint.create(vm.getCode("L1ChugSplashProxy"), salt);
-        (blueprints.resolvedDelegateProxy,) = Blueprint.create(vm.getCode("ResolvedDelegateProxy"), salt);
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) =
-            Blueprint.create(vm.getCode("PermissionedDisputeGame"), salt);
-        (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) =
-            Blueprint.create(vm.getCode("FaultDisputeGame"), salt);
-        (blueprints.superPermissionedDisputeGame1, blueprints.superPermissionedDisputeGame2) =
-            Blueprint.create(vm.getCode("SuperPermissionedDisputeGame"), salt);
-        (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) =
-            Blueprint.create(vm.getCode("SuperFaultDisputeGame"), salt);
-
-        IPreimageOracle oracle = IPreimageOracle(
-            DeployUtils.create1({
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (126000, 86400)))
-            })
-        );
-
-        IOPContractsManager.Implementations memory impls = IOPContractsManager.Implementations({
-            superchainConfigImpl: DeployUtils.create1({
-                _name: "SuperchainConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
-            }),
-            protocolVersionsImpl: DeployUtils.create1({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
-            }),
-            l1ERC721BridgeImpl: DeployUtils.create1({
-                _name: "L1ERC721Bridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ERC721Bridge.__constructor__, ()))
-            }),
-            optimismPortalImpl: DeployUtils.create1({
-                _name: "OptimismPortal2",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal2.__constructor__, (1)))
-            }),
-            ethLockboxImpl: DeployUtils.create1({
-                _name: "ETHLockbox",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IETHLockbox.__constructor__, ()))
-            }),
-            systemConfigImpl: DeployUtils.create1({
-                _name: "SystemConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
-            }),
-            optimismMintableERC20FactoryImpl: DeployUtils.create1({
-                _name: "OptimismMintableERC20Factory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
-            }),
-            l1CrossDomainMessengerImpl: DeployUtils.create1({
-                _name: "L1CrossDomainMessenger",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
-            }),
-            l1StandardBridgeImpl: DeployUtils.create1({
-                _name: "L1StandardBridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1StandardBridge.__constructor__, ()))
-            }),
-            disputeGameFactoryImpl: DeployUtils.create1({
-                _name: "DisputeGameFactory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
-            }),
-            anchorStateRegistryImpl: DeployUtils.create1({
-                _name: "AnchorStateRegistry",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IAnchorStateRegistry.__constructor__, (1)))
-            }),
-            delayedWETHImpl: DeployUtils.create1({
-                _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (3)))
-            }),
-            mipsImpl: DeployUtils.create1({
-                _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IMIPS64.__constructor__, (oracle, StandardConstants.MIPS_VERSION))
-                )
-            })
-        });
-
-        vm.etch(address(superchainConfigProxy), hex"01");
-        vm.etch(address(protocolVersionsProxy), hex"01");
-
-        IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManagerContractsContainer",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls))
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
-
-        IOPContractsManager.Implementations memory __opcmImplementations = container.implementations();
-        IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
-        assembly {
-            opcmImplementations := __opcmImplementations
-        }
-
-        opcm = IOPContractsManager(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManager",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManager.__constructor__,
-                        (
-                            IOPContractsManagerGameTypeAdder(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerGameTypeAdder",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerDeployer(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerDeployer",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerUpgrader(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerUpgrader",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerInteropMigrator(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerInteropMigrator",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerStandardValidator(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerStandardValidator",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(
-                                            IOPContractsManagerStandardValidator.__constructor__,
-                                            (
-                                                opcmImplementations,
-                                                superchainConfigProxy,
-                                                address(superchainProxyAdmin),
-                                                challenger,
-                                                100
-                                            )
-                                        )
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            superchainConfigProxy,
-                            protocolVersionsProxy,
-                            superchainProxyAdmin,
-                            address(this)
-                        )
-                    )
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
+    function setUp() public virtual override {
+        super.setUp();
 
         chainDeployOutput1 = createChainContracts(100);
         chainDeployOutput2 = createChainContracts(101);
 
-        // Mock the SuperchainConfig.paused function to return false.
-        // Otherwise migration will fail!
-        // We use abi.encodeWithSignature because paused is overloaded.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(superchainConfigProxy), abi.encodeWithSignature("paused(address)"), abi.encode(false));
-
-        // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
     }
@@ -769,7 +381,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         OPContractsManagerContractsContainer container =
-            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls);
+            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, bytes32(0));
 
         OPContractsManager.Implementations memory __opcmImplementations = container.implementations();
         OPContractsManagerStandardValidator.Implementations memory opcmImplementations;
@@ -783,7 +395,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             _opcmUpgrader: new OPContractsManagerUpgrader(container),
             _opcmInteropMigrator: new OPContractsManagerInteropMigrator(container),
             _opcmStandardValidator: new OPContractsManagerStandardValidator(
-                opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100
+                opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100, bytes32(0)
             ),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
@@ -1392,11 +1004,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     /// @notice Tests that the absolute prestate can be overridden using the upgrade config.
     function test_upgrade_absolutePrestateOverride_succeeds() public {
-        // Run Upgrade 13 and 14 to get us to a state where we can run Upgrade 15.
-        // Can remove these two calls as Upgrade 13 and 14 are executed in prod.
-        runUpgrade13UpgradeAndChecks(upgrader);
-        runUpgrade14UpgradeAndChecks(upgrader);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1411,8 +1018,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Set the absolute prestate input to something non-zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(uint256(1)));
 
-        // Now run Upgrade 15.
-        runUpgrade15UpgradeAndChecks(upgrader);
+        // Now run Upgrade 16a.
+        runUpgrade16aUpgradeAndChecks(upgrader);
 
         // Get the absolute prestate after the upgrade
         Claim pdgPrestateAfter = IPermissionedDisputeGame(
@@ -1429,11 +1036,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that the old absolute prestate is used if the upgrade config does not set an
     ///         absolute prestate.
     function test_upgrade_absolutePrestateNotSet_succeeds() public {
-        // Run Upgrade 13 and 14 to get us to a state where we can run Upgrade 15.
-        // Can remove these two calls as Upgrade 13 and 14 are executed in prod.
-        runUpgrade13UpgradeAndChecks(upgrader);
-        runUpgrade14UpgradeAndChecks(upgrader);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1448,8 +1050,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Set the absolute prestate input to zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
 
-        // Now run Upgrade 15.
-        runUpgrade15UpgradeAndChecks(upgrader);
+        // Now run Upgrade 16a.
+        runUpgrade16aUpgradeAndChecks(upgrader);
 
         // Get the absolute prestate after the upgrade
         Claim pdgPrestateAfter = IPermissionedDisputeGame(
@@ -1464,16 +1066,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_notDelegateCalled_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-
         vm.prank(upgrader);
         vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
         opcm.upgrade(opChainConfigs);
     }
 
     function test_upgrade_notProxyAdminOwner_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-
         address delegateCaller = makeAddr("delegateCaller");
         vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
@@ -1489,8 +1087,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that upgrade reverts when absolutePrestate is zero and the existing game also
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
 
@@ -1516,6 +1112,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim absolutePrestate1 = Claim.wrap(bytes32(hex"ABBA"));
     Claim absolutePrestate2 = Claim.wrap(bytes32(hex"DEAD"));
+
+    /// @notice Function requires interop portal.
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
 
     /// @notice Helper function to create the default migration input.
     function _getDefaultInput() internal view returns (IOPContractsManagerInteropMigrator.MigrateInput memory) {

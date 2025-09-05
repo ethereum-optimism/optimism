@@ -294,6 +294,11 @@
         "internalType": "contract IAnchorStateRegistry",
         "name": "_anchorStateRegistry",
         "type": "address"
+      },
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -312,6 +317,31 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "migrateLiquidity",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_newLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_newAnchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "migrateToSuperRoots",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -510,6 +540,127 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct Types.WithdrawalTransaction",
+        "name": "_tx",
+        "type": "tuple"
+      },
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_disputeGameProxy",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_outputRootIndex",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes1",
+            "name": "version",
+            "type": "bytes1"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "root",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct Types.OutputRootWithChainId[]",
+            "name": "outputRoots",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct Types.SuperRootProof",
+        "name": "_superRootProof",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "version",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "stateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "messagePasserStorageRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "latestBlockhash",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct Types.OutputRootProof",
+        "name": "_outputRootProof",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_withdrawalProof",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "proveWithdrawalTransaction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
@@ -590,6 +741,19 @@
   },
   {
     "inputs": [],
+    "name": "superRootsActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {
@@ -620,6 +784,11 @@
         "internalType": "contract IAnchorStateRegistry",
         "name": "_anchorStateRegistry",
         "type": "address"
+      },
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
+        "type": "address"
       }
     ],
     "name": "upgrade",
@@ -644,6 +813,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "lockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "ethBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "ETHMigrated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -651,6 +839,37 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "contract IETHLockbox",
+        "name": "oldLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IETHLockbox",
+        "name": "newLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "oldAnchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "newAnchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "PortalMigrated",
     "type": "event"
   },
   {
@@ -759,6 +978,16 @@
   },
   {
     "inputs": [],
+    "name": "Encoding_EmptySuperRoot",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Encoding_InvalidSuperRootVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidDataRemainder",
     "type": "error"
   },
@@ -809,12 +1038,17 @@
   },
   {
     "inputs": [],
-    "name": "OptimismPortal_InvalidLockboxState",
+    "name": "OptimismPortal_InvalidMerkleProof",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "OptimismPortal_InvalidMerkleProof",
+    "name": "OptimismPortal_InvalidOutputRootChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_InvalidOutputRootIndex",
     "type": "error"
   },
   {
@@ -834,6 +1068,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidSuperRootProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_MigratingToSameRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NoReentrancy",
     "type": "error"
   },
@@ -845,6 +1089,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_WrongProofMethod",
     "type": "error"
   },
   {

@@ -107,6 +107,7 @@ contract VerifyOPCM is Script {
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
+        fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
@@ -151,6 +152,9 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+
+        // Getters that don't need any sort of verification
+        expectedGetters["devFeatureBitmap"] = "SKIP";
 
         // Mark as ready.
         ready = true;
