@@ -121,7 +121,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
-			MinBaseFee:            nil,
+			MinBaseFee:            attrs.MinBaseFee,
 		}
 	}
 	m.MineAt(t, head, attrs)
