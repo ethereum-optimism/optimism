@@ -319,6 +319,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/src/L1/OPContractsManager.sol
         - packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+        - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
         - packages/contracts-bedrock/src/L2/FeeVault.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
@@ -327,6 +328,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
         - packages/contracts-bedrock/src/dispute/DelayedWETH.sol
         - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/v2/FaultDisputeGameV2.sol
         - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol

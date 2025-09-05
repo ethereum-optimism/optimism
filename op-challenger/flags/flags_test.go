@@ -5,7 +5,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -91,6 +93,38 @@ func TestEnvVarFormat(t *testing.T) {
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})
 	}
+}
+
+func TestResponseDelayFlag(t *testing.T) {
+	t.Run("IncludedInOptionalFlags", func(t *testing.T) {
+		require.Contains(t, optionalFlags, ResponseDelayFlag, "ResponseDelayFlag should be in optionalFlags")
+	})
+
+	t.Run("HasCorrectEnvVar", func(t *testing.T) {
+		envVars := ResponseDelayFlag.GetEnvVars()
+		require.Len(t, envVars, 1, "ResponseDelayFlag should have exactly one env var")
+		require.Equal(t, "OP_CHALLENGER_RESPONSE_DELAY", envVars[0], "ResponseDelayFlag should have correct env var")
+	})
+
+	t.Run("DefaultValue", func(t *testing.T) {
+		require.Equal(t, time.Duration(config.DefaultResponseDelay), ResponseDelayFlag.Value, "ResponseDelayFlag should have correct default value")
+	})
+}
+
+func TestResponseDelayAfterFlag(t *testing.T) {
+	t.Run("IncludedInOptionalFlags", func(t *testing.T) {
+		require.Contains(t, optionalFlags, ResponseDelayAfterFlag, "ResponseDelayAfterFlag should be in optionalFlags")
+	})
+
+	t.Run("HasCorrectEnvVar", func(t *testing.T) {
+		envVars := ResponseDelayAfterFlag.GetEnvVars()
+		require.Len(t, envVars, 1, "ResponseDelayAfterFlag should have exactly one env var")
+		require.Equal(t, "OP_CHALLENGER_RESPONSE_DELAY_AFTER", envVars[0], "ResponseDelayAfterFlag should have correct env var")
+	})
+
+	t.Run("DefaultValue", func(t *testing.T) {
+		require.Equal(t, uint64(config.DefaultResponseDelayAfter), ResponseDelayAfterFlag.Value, "ResponseDelayAfterFlag should have correct default value")
+	})
 }
 
 func TestMultipleNetworksMustShareDisputeGameFactory(t *testing.T) {

@@ -10,6 +10,7 @@ interface IOPContractsManagerStandardValidator {
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -39,6 +40,7 @@ interface IOPContractsManagerStandardValidator {
     function challenger() external view returns (address);
     function delayedWETHImpl() external view returns (address);
     function delayedWETHVersion() external pure returns (string memory);
+    function devFeatureBitmap() external view returns (bytes32);
     function disputeGameFactoryImpl() external view returns (address);
     function disputeGameFactoryVersion() external pure returns (string memory);
     function l1CrossDomainMessengerImpl() external view returns (address);
@@ -53,6 +55,7 @@ interface IOPContractsManagerStandardValidator {
     function optimismMintableERC20FactoryImpl() external view returns (address);
     function optimismMintableERC20FactoryVersion() external pure returns (string memory);
     function optimismPortalImpl() external view returns (address);
+    function optimismPortalInteropImpl() external view returns (address);
     function optimismPortalVersion() external pure returns (string memory);
     function ethLockboxImpl() external view returns (address);
     function ethLockboxVersion() external pure returns (string memory);
@@ -78,7 +81,8 @@ interface IOPContractsManagerStandardValidator {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds
+        uint256 _withdrawalDelaySeconds,
+        bytes32 _devFeatureBitmap
     )
         external;
 }

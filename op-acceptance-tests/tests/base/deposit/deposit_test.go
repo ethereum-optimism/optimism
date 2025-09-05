@@ -48,7 +48,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 
 	args := portal.DepositTransaction(alice.Address(), depositAmount, 300_000, false, []byte{})
 
-	receipt := contract.Write(alice, args, txplan.WithValue(depositAmount.ToBig()))
+	receipt := contract.Write(alice, args, txplan.WithValue(depositAmount))
 
 	gasPrice := receipt.EffectiveGasPrice
 

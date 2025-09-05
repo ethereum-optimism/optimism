@@ -418,7 +418,7 @@ func runTestsAcrossVms[T any](t *testing.T, testNamer TestNamer[T], testCases []
 	}
 
 	variations := []VMVariations{
-		{name: "Go 1.23 VM", goTarget: testutil.Go1_23, features: mipsevm.FeatureToggles{SupportMinimalSysEventFd2: true, SupportDclzDclo: true}},
+		{name: "Go 1.23 VM", goTarget: testutil.Go1_23, features: mipsevm.FeatureToggles{}},
 		{name: "Go 1.24 VM", goTarget: testutil.Go1_24, features: allFeaturesEnabled()},
 	}
 

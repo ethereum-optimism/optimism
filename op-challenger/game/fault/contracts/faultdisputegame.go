@@ -25,6 +25,7 @@ var maxChildChecks = big.NewInt(512)
 
 var (
 	methodMaxClockDuration        = "maxClockDuration"
+	methodClockExtension          = "clockExtension"
 	methodMaxGameDepth            = "maxGameDepth"
 	methodAbsolutePrestate        = "absolutePrestate"
 	methodStatus                  = "status"
@@ -406,6 +407,15 @@ func (f *FaultDisputeGameContractLatest) GetMaxClockDuration(ctx context.Context
 	return time.Duration(result.GetUint64(0)) * time.Second, nil
 }
 
+func (f *FaultDisputeGameContractLatest) GetClockExtension(ctx context.Context) (time.Duration, error) {
+	defer f.metrics.StartContractRequest("GetClockExtension")()
+	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodClockExtension))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch clock extension: %w", err)
+	}
+	return time.Duration(result.GetUint64(0)) * time.Second, nil
+}
+
 func (f *FaultDisputeGameContractLatest) GetMaxGameDepth(ctx context.Context) (types.Depth, error) {
 	defer f.metrics.StartContractRequest("GetMaxGameDepth")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodMaxGameDepth))
@@ -647,6 +657,7 @@ type FaultDisputeGameContract interface {
 	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error)
 	GetOracle(ctx context.Context) (PreimageOracleContract, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
+	GetClockExtension(ctx context.Context) (time.Duration, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)

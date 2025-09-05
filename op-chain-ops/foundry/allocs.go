@@ -113,11 +113,10 @@ func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 	for addr, acc := range allocs {
 		acc := acc
 		d.Accounts[addr] = types.Account{
-			Code:       acc.Code,
-			Storage:    acc.Storage,
-			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
-			Nonce:      (uint64)(acc.Nonce),
-			PrivateKey: nil,
+			Code:    acc.Code,
+			Storage: acc.Storage,
+			Balance: (*uint256.Int)(&acc.Balance).ToBig(),
+			Nonce:   (uint64)(acc.Nonce),
 		}
 	}
 	return nil

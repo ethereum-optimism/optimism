@@ -113,3 +113,24 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
 	})
 }
+
+// WithExtL1Nodes initializes L1 EL and CL nodes that connect to external RPC endpoints
+func WithExtL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID, elRPCEndpoint string, clRPCEndpoint string) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
+
+		// Create L1 EL node with external RPC
+		l1ELNode := &L1ELNode{
+			id:      l1ELID,
+			userRPC: elRPCEndpoint,
+		}
+		require.True(orch.l1ELs.SetIfMissing(l1ELID, l1ELNode), "must not already exist")
+
+		// Create L1 CL node with external RPC
+		l1CLNode := &L1CLNode{
+			id:             l1CLID,
+			beaconHTTPAddr: clRPCEndpoint,
+		}
+		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
+	})
+}

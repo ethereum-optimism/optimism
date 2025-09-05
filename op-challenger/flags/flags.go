@@ -110,6 +110,11 @@ var (
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
 	}
+	MinUpdateInterval = &cli.DurationFlag{
+		Name:    "min-update-interval",
+		Usage:   "Minimum time between scheduling update cycles based on the L1 block time.",
+		EnvVars: prefixEnvVars("MIN_UPDATE_INTERVAL"),
+	}
 	AdditionalBondClaimants = &cli.StringSliceFlag{
 		Name:    "additional-bond-claimants",
 		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
@@ -243,6 +248,18 @@ var (
 		EnvVars: prefixEnvVars("UNSAFE_ALLOW_INVALID_PRESTATE"),
 		Hidden:  true, // Hidden as this is an unsafe flag added only for testing purposes
 	}
+	ResponseDelayFlag = &cli.DurationFlag{
+		Name:    "response-delay",
+		Usage:   "Delay before responding to game actions to slow down game progression.",
+		EnvVars: prefixEnvVars("RESPONSE_DELAY"),
+		Value:   config.DefaultResponseDelay,
+	}
+	ResponseDelayAfterFlag = &cli.Uint64Flag{
+		Name:    "response-delay-after",
+		Usage:   "Number of responses after which to start applying the delay (0 = from first response).",
+		EnvVars: prefixEnvVars("RESPONSE_DELAY_AFTER"),
+		Value:   config.DefaultResponseDelayAfter,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -264,6 +281,7 @@ var optionalFlags = []cli.Flag{
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
+	MinUpdateInterval,
 	AdditionalBondClaimants,
 	GameAllowlistFlag,
 	CannonL2CustomFlag,
@@ -283,6 +301,8 @@ var optionalFlags = []cli.Flag{
 	GameWindowFlag,
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
+	ResponseDelayFlag,
+	ResponseDelayAfterFlag,
 }
 
 func init() {
@@ -621,6 +641,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		L2Rpcs:                  l2Rpcs,
 		MaxPendingTx:            ctx.Uint64(MaxPendingTransactionsFlag.Name),
 		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
 		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
@@ -687,5 +708,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		PprofConfig:                         pprofConfig,
 		SelectiveClaimResolution:            ctx.Bool(SelectiveClaimResolutionFlag.Name),
 		AllowInvalidPrestate:                ctx.Bool(UnsafeAllowInvalidPrestate.Name),
+		ResponseDelay:                       ctx.Duration(ResponseDelayFlag.Name),
+		ResponseDelayAfter:                  ctx.Uint64(ResponseDelayAfterFlag.Name),
 	}, nil
 }

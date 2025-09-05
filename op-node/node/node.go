@@ -211,7 +211,7 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) error {
 		if n.cfg.Tracer != nil {
 			n.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
-		n.l2Driver.L1Tracker.OnL1Unsafe(sig)
+		n.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
 		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
@@ -463,10 +463,10 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
 		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
-	// Wire up IndexingMode to engine controller for direct force reset notifications
+	// Wire up IndexingMode to engine controller for direct procedure call
 	if n.interopSys != nil {
 		if indexingMode, ok := n.interopSys.(*indexing.IndexingMode); ok {
-			indexingMode.SetForceResetNotifier(n.l2Driver.SyncDeriver.Engine)
+			indexingMode.SetEngineController(n.l2Driver.SyncDeriver.Engine)
 		}
 	}
 
@@ -487,7 +487,7 @@ func (n *OpNode) initRPCServer(cfg *config.Config) error {
 	if cfg.ExperimentalOPStackAPI {
 		server.AddAPI(rpc.API{
 			Namespace: "opstack",
-			Service:   NewOpstackAPI(n.l2Driver.Engine, n),
+			Service:   NewOpstackAPI(n.l2Driver.SyncDeriver.Engine, n),
 		})
 		n.log.Info("Experimental OP stack API enabled")
 	}
