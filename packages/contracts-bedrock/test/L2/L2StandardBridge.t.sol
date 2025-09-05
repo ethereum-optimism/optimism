@@ -325,7 +325,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
     function testFuzz_withdraw_ether_succeeds(uint256 _amount, uint32 _minGasLimit) external {
         _amount = bound(_amount, 1, 1000 ether);
         _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
-        
+
         vm.deal(alice, _amount);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
@@ -357,7 +357,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
     ///         a withdrawal with `Withdrawer.initiateWithdrawal`.
     function testFuzz_withdraw_withdrawingERC20_succeeds(uint256 _amount) external {
         _amount = bound(_amount, 1, 1000000);
-        
+
         deal(address(L2Token), alice, _amount, true);
         assertEq(L2Token.balanceOf(alice), _amount);
 
@@ -419,7 +419,7 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
     ///         initiates a withdrawal with `Withdrawer.initiateWithdrawal`.
     function testFuzz_withdrawTo_withdrawingERC20_succeeds(uint256 _amount) external {
         _amount = bound(_amount, 1, 1000000);
-        
+
         deal(address(L2Token), alice, _amount, true);
         assertEq(L2Token.balanceOf(alice), _amount);
 
