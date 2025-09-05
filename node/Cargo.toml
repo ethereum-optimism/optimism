@@ -77,16 +77,13 @@ reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tasks.workspace = true
 reth-payload-util.workspace = true
-reth-payload-validator.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
 reth-rpc-eth-types.workspace = true
-reth-network-api.workspace = true
 
 alloy-network.workspace = true
 futures.workspace = true
 op-alloy-network.workspace = true
-tempfile.workspace = true
 
 [features]
 default = ["reth-codec"]
