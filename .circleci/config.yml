@@ -1186,8 +1186,8 @@ jobs:
       # Restore cached Go modules
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+            - go-mod-v2-{{ checksum "go.sum" }}
+            - go-mod-v2-
       # Download Go dependencies
       - run:
           name: Download Go dependencies
@@ -1239,7 +1239,7 @@ jobs:
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
       # Save the module cache for future runs
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
       # Store test results and artifacts
@@ -1292,6 +1292,10 @@ jobs:
                 command: |
                   echo "Setting up Kurtosis for external devnet testing..."
 
+                  # Activate mise environment
+                  export PATH="/home/circleci/.local/bin:$PATH"
+                  eval "$(mise activate bash)"
+
                   # Print Kurtosis version
                   echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
                   kurtosis version
@@ -1322,13 +1326,125 @@ jobs:
       # Restore cached Go modules
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
-            - go-mod-v1-
+            - go-mod-v2-{{ checksum "go.sum" }}
+            - go-mod-v2-
+      # Verify Kurtosis version compatibility
+      - run:
+          name: Verify Kurtosis version compatibility
+          working_directory: op-acceptance-tests
+          command: |
+            # Extract Go library version
+            echo "Checking Kurtosis Go library version..."
+            GO_LIB_VERSION=$(go list -m github.com/kurtosis-tech/kurtosis/api/golang | awk '{print $2}')
+            echo "Go library version: $GO_LIB_VERSION"
+
+            # Extract CLI version
+            echo "Checking Kurtosis CLI version..."
+            if command -v kurtosis >/dev/null 2>&1; then
+              # Run kurtosis version and capture both output and exit code
+              set +e  # Temporarily disable exit on error
+              KURTOSIS_OUTPUT=$(kurtosis version 2>&1)
+              KURTOSIS_EXIT_CODE=$?
+              set -e  # Re-enable exit on error
+
+              echo "Raw kurtosis version output: $KURTOSIS_OUTPUT"
+              echo "Kurtosis version command exit code: $KURTOSIS_EXIT_CODE"
+
+              # Try multiple patterns to extract version regardless of exit code
+              set +e  # Disable exit on error for parsing
+              CLI_VERSION=$(echo "$KURTOSIS_OUTPUT" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 2>/dev/null)
+              if [ -z "$CLI_VERSION" ]; then
+                # Try without 'v' prefix (e.g., "CLI Version:   1.10.3")
+                CLI_VERSION=$(echo "$KURTOSIS_OUTPUT" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 2>/dev/null)
+                if [ -n "$CLI_VERSION" ]; then
+                  CLI_VERSION="v$CLI_VERSION"  # Add v prefix for consistency
+                fi
+              fi
+              if [ -z "$CLI_VERSION" ]; then
+                CLI_VERSION="unknown"
+              fi
+              set -e  # Re-enable exit on error
+              echo "DEBUG: Version parsing completed, CLI_VERSION=$CLI_VERSION"
+            else
+              echo "kurtosis command not found in PATH"
+              CLI_VERSION="not_found"
+            fi
+            echo "Parsed CLI version: $CLI_VERSION"
+
+            # Extract major.minor.patch from both versions for comparison
+            echo "DEBUG: About to clean versions..."
+            GO_VERSION_CLEAN=$(echo "$GO_LIB_VERSION" | sed 's/^v//')
+            echo "DEBUG: GO_VERSION_CLEAN=$GO_VERSION_CLEAN"
+            CLI_VERSION_CLEAN=$(echo "$CLI_VERSION" | sed 's/^v//')
+            echo "DEBUG: CLI_VERSION_CLEAN=$CLI_VERSION_CLEAN"
+
+            echo "Comparing versions: Go lib=$GO_VERSION_CLEAN vs CLI=$CLI_VERSION_CLEAN"
+
+            # Handle CLI version detection issues
+            if [ "$CLI_VERSION" = "unknown" ] || [ "$CLI_VERSION" = "not_found" ]; then
+              # Check if this job requires Kurtosis CLI (external devnet)
+              if [ "<<parameters.devnet>>" != "" ]; then
+                echo "❌ ERROR: Kurtosis CLI is required but not available!"
+                if [ "$CLI_VERSION" = "not_found" ]; then
+                  echo "   - Kurtosis CLI is not installed or not in PATH"
+                else
+                  echo "   - Version command output format not recognized"
+                fi
+                echo "   This job uses external devnet '<<parameters.devnet>>' which requires Kurtosis CLI"
+                echo "   Please ensure Kurtosis CLI is properly installed and configured"
+                exit 1
+              else
+                echo "ℹ️  INFO: Kurtosis CLI not available, but not required for in-memory testing"
+                if [ "$CLI_VERSION" = "not_found" ]; then
+                  echo "   - Kurtosis CLI is not installed or not in PATH"
+                else
+                  echo "   - Version command output format not recognized"
+                fi
+                echo "   This job uses in-memory testing (sysgo) which doesn't require CLI"
+              fi
+            else
+              # Fail fast if versions don't match
+              if [ "$GO_VERSION_CLEAN" != "$CLI_VERSION_CLEAN" ]; then
+                echo "❌ ERROR: Kurtosis version mismatch detected!"
+                echo "   Go library version: $GO_LIB_VERSION"
+                echo "   CLI version: $CLI_VERSION"
+                echo "   This will cause API version mismatch errors."
+                echo "   Please ensure both versions are synchronized."
+                exit 1
+              fi
+
+              echo "✅ Kurtosis versions are compatible ($GO_LIB_VERSION)"
+            fi
       # Download Go dependencies
       - run:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
-          command: go mod download
+          command: |
+            echo "Ensuring fresh Go modules (clearing any stale cache)..."
+
+            # Check current go.mod content (should be in root directory)
+            echo "Current root go.mod Kurtosis version:"
+            grep "github.com/kurtosis-tech/kurtosis/api/golang" ../go.mod || echo "Not found in root go.mod"
+
+            # Check if there's a local go.mod that might be overriding
+            if [ -f "go.mod" ]; then
+              echo "Local op-acceptance-tests go.mod found:"
+              grep "github.com/kurtosis-tech/kurtosis/api/golang" go.mod || echo "Not found in local go.mod"
+            else
+              echo "No local go.mod - using root go.mod (correct)"
+            fi
+
+            # Clean module cache for Kurtosis specifically to ensure fresh download
+            go clean -modcache -cache
+
+            # Ensure we're working with the root go.mod by running from root directory
+            echo "Downloading Go modules from root directory..."
+            cd ..
+            go mod download
+            cd op-acceptance-tests
+
+            echo "Verifying Kurtosis module version after download:"
+            go list -m github.com/kurtosis-tech/kurtosis/api/golang
       # Prepare the test environment
       - run:
           name: Prepare test environment (compile tests and cache build results)
@@ -1344,6 +1460,10 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
+            # Activate mise environment
+            export PATH="/home/circleci/.local/bin:$PATH"
+            eval "$(mise activate bash)"
+
             if [[ "<<parameters.gate>>" == "" ]]; then
               echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
             else
@@ -1378,7 +1498,7 @@ jobs:
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
       # Save the module cache for future runs
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v2-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
       # Store test results and artifacts
