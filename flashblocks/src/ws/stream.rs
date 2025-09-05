@@ -234,7 +234,10 @@ mod tests {
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
     use std::{future, iter};
-    use tokio_tungstenite::tungstenite::{protocol::frame::Frame, Error};
+    use tokio_tungstenite::tungstenite::{
+        protocol::frame::{coding::CloseCode, Frame},
+        Error,
+    };
 
     /// A `FakeConnector` creates [`FakeStream`].
     ///
@@ -519,28 +522,30 @@ mod tests {
         assert_eq!(actual_errors, expected_errors);
     }
 
+    #[test_case::test_case(
+        Message::Close(Some(CloseFrame { code: CloseCode::Normal, reason: "test".into() })),
+        Message::Close(Some(CloseFrame { code: CloseCode::Normal, reason: "test".into() }));
+        "close"
+    )]
+    #[test_case::test_case(
+        Message::Ping(Bytes::from_static(&[1u8, 2, 3])),
+        Message::Pong(Bytes::from_static(&[1u8, 2, 3]));
+        "ping"
+    )]
     #[tokio::test]
-    async fn test_stream_pongs_ping() {
-        const ECHO: [u8; 3] = [1u8, 2, 3];
-
+    async fn test_stream_responds_to_messages(msg: Message, expected_response: Message) {
         let flashblock = flashblock();
-        let messages =
-            [Ok(Message::Ping(Bytes::from_static(&ECHO))), to_json_binary_message(&flashblock)];
+        let messages = [Ok(msg), to_json_binary_message(&flashblock)];
         let connector = FakeConnectorWithSink::from(messages);
         let ws_url = "http://localhost".parse().unwrap();
         let mut stream = WsFlashBlockStream::with_connector(ws_url, connector);
 
         let _ = stream.next().await;
 
-        let FakeSink(actual_buffered_messages, actual_sent_messages) = stream.sink.unwrap();
+        let expected_response = vec![expected_response];
+        let FakeSink(actual_buffer, actual_response) = stream.sink.unwrap();
 
-        assert!(
-            actual_buffered_messages.is_none(),
-            "buffer not flushed: {actual_buffered_messages:#?}"
-        );
-
-        let expected_sent_messages = vec![Message::Pong(Bytes::from_static(&ECHO))];
-
-        assert_eq!(actual_sent_messages, expected_sent_messages);
+        assert!(actual_buffer.is_none(), "buffer not flushed: {actual_buffer:#?}");
+        assert_eq!(actual_response, expected_response);
     }
 }
