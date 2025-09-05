@@ -364,10 +364,8 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV3 called pre-cancun"))
 	}
 
-	if cfg.IsOptimism() {
-		if err := eip1559.ValidateOptimismExtraData(cfg, uint64(params.Timestamp), params.ExtraData); err != nil {
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(err)
-		}
+	if err := eip1559.ValidateOptimismExtraData(cfg, uint64(params.Timestamp), params.ExtraData); err != nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(err)
 	}
 
 	// Payload must have WithdrawalsRoot after Isthmus
