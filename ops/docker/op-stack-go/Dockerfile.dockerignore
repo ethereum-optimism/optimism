@@ -18,6 +18,8 @@
 !/op-proposer
 !/op-service
 !/op-supervisor
+!/op-supervisor-v2
+!/op-e2e
 !/op-test-sequencer
 !/op-wheel
 !/op-alt-da

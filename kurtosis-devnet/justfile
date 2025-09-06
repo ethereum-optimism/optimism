@@ -45,6 +45,7 @@ op-supervisor-image TAG='op-supervisor:devnet': (_docker_build_stack TAG "op-sup
 op-wheel-image TAG='op-wheel:devnet': (_docker_build_stack TAG "op-wheel-target")
 op-faucet-image TAG='op-faucet:devnet': (_docker_build_stack TAG "op-faucet-target")
 op-interop-mon-image TAG='op-interop-mon:devnet': (_docker_build_stack TAG "op-interop-mon-target")
+op-supervisor-v2-image TAG='op-supervisor-v2:devnet': (_docker_build_stack TAG "op-supervisor-v2-target")
 
 op-program-builder-image TAG='op-program-builder:devnet': _prerequisites
     just op-program-svc/op-program-svc {{TAG}}

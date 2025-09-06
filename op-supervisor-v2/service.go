@@ -27,6 +27,7 @@ type Config struct {
 	HTTPPort    int
 	ProxyOpNode bool
 	DataDir     string
+	DisableP2P  bool
 
 	// Multi-chain config file path. When set, overrides single-chain flags.
 	ConfigPath string
@@ -53,6 +54,7 @@ func NewConfig(ctx *cli.Context, logger log.Logger) (*Config, error) {
 		HTTPPort:     ctx.Int("http.port"),
 		ProxyOpNode:  ctx.Bool("proxy.opnode"),
 		DataDir:      ctx.String("sv2.data-dir"),
+		DisableP2P:   ctx.Bool("disable.p2p"),
 		ConfigPath:   ctx.String("sv2.config"),
 		L1RPC:        ctx.String("l1.rpc"),
 		BeaconAddr:   ctx.String("beacon.addr"),
@@ -183,6 +185,7 @@ func New(_ context.Context, cfg *Config, logger log.Logger, version string, _ an
 				Bootnodes:         c.Bootnodes,
 				PeerstorePath:     c.PeerstorePath,
 				DiscoveryPath:     c.DiscoveryPath,
+				DisableP2P:        cfg.DisableP2P,
 			}
 			if _, err := sup.AddChain(vCfg); err != nil {
 				return nil, fmt.Errorf("chains[%d]: add chain: %w", i, err)
@@ -229,6 +232,7 @@ func New(_ context.Context, cfg *Config, logger log.Logger, version string, _ an
 			Interval:     cfg.PollInterval,
 			ConfirmDepth: cfg.ConfirmDepth,
 			DataDir:      cfg.DataDir,
+			DisableP2P:   cfg.DisableP2P,
 			// No static/bootnodes in single-chain flags mode unless we later add flags
 		}
 		if _, err := sup.AddChain(vCfg); err != nil {
