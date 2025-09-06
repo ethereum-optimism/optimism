@@ -363,12 +363,23 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch",
+    "name": "OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerUpgrader_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade",
     "type": "error"
   },
   {

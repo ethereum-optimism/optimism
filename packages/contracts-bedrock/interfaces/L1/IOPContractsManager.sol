@@ -86,7 +86,9 @@ interface IOPContractsManagerDeployer {
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
-    error OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
+    error OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade(uint256 index);
+
+    error OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate();
 
     function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 

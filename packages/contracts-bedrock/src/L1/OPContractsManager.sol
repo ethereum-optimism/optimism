@@ -648,9 +648,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Thrown when the SuperchainConfig contract does not match the unified config.
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
-    /// @notice Thrown when the current version of the SuperchainConfig contract does not match the expected previous
-    ///         version.
-    error OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
+    /// @notice Thrown when upgrade is called with a chain whose superchainConfig is not upgraded.
+    error OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade(uint256 index);
+
+    /// @notice Thrown when upgradeSuperchainConfig is called with a superchainConfig that is already up to date.
+    error OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate();
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
@@ -676,7 +678,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // If the SuperchainConfig is not already upgraded, revert.
             if (SemverComp.lt(superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {
-                revert OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
+                revert OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade(i);
             }
 
             // Use the SystemConfig to grab the DisputeGameFactory address.
@@ -931,11 +933,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         // Only upgrade the superchainConfig if the current version is less than the target version.
         if (
-            !SemverComp.lt(
+            SemverComp.gte(
                 _superchainConfig.version(), ISuperchainConfig(getImplementations().superchainConfigImpl).version()
             )
         ) {
-            revert OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
+            revert OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate();
         }
 
         // Grab the implementations.
