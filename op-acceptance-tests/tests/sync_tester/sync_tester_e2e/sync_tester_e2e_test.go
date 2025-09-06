@@ -14,7 +14,7 @@ func TestSyncTesterE2E(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// This test uses DefaultSimpleSystemWithSyncTester which includes:
 	// - Minimal setup with L1EL, L1CL, L2EL, L2CL (sequencer)
-	// - Additional L2CL2 (verifier) that connects to SyncTester instead of L2EL
+	// - Additional SyncTester that connects to L2EL, and L2CL2 (verifier) that connects to SyncTester instead of L2EL
 	sys := presets.NewSimpleWithSyncTester(t)
 	require := t.Require()
 	logger := t.Logger()
