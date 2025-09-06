@@ -118,7 +118,7 @@ mod tests {
         ];
 
         for case in cases {
-            let receipts = vec![
+            let receipts = [
                 // 0xb0d6ee650637911394396d81172bd1c637d568ed1fbddab0daddfca399c58b53
                 OpReceipt::Deposit(OpDepositReceipt {
                         inner: Receipt {
