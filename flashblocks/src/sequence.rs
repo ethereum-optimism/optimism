@@ -34,7 +34,7 @@ where
             return Ok(())
         }
 
-        // only insert if we we previously received the same block, assume we received index 0
+        // only insert if we previously received the same block, assume we received index 0
         if self.block_number() == Some(flashblock.metadata.block_number) {
             trace!(number=%flashblock.block_number(), index = %flashblock.index, block_count = self.inner.len()  ,"Received followup flashblock");
             self.inner.insert(flashblock.index, PreparedFlashBlock::new(flashblock)?);
