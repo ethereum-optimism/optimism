@@ -199,13 +199,18 @@ func (s *ChainProcessor) index() {
 
 // nextActiveClient advances the client index and sets the active client.
 func (s *ChainProcessor) nextActiveClient() {
-	s.clientLock.Lock()
-	defer s.clientLock.Unlock()
-	if len(s.clients) == 0 {
-		return
-	}
-	s.clientIndex = (s.clientIndex + 1) % len(s.clients)
-	s.activeClient = s.clients[s.clientIndex]
+    s.clientLock.Lock()
+    defer s.clientLock.Unlock()
+    if len(s.clients) == 0 {
+        return
+    }
+    if len(s.clients) == 1 {
+        s.clientIndex = 0
+        s.activeClient = s.clients[0]
+    } else {
+        s.clientIndex = (s.clientIndex + 1) % len(s.clients)
+        s.activeClient = s.clients[s.clientIndex]
+    }
 	// track that we have advanced the client index
 	s.clientsTried++
 }
