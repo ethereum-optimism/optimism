@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/util"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
 	"golang.org/x/mod/modfile"
@@ -40,14 +41,14 @@ func (p *OPProgramPrestate) FindVersions(log log.Logger, prestateVersion string)
 	elVersion := p.findOpGethVersion(log, modFile)
 	elCommitInfo = types.NewCommitInfo("ethereum-optimism", "op-geth", elVersion, "optimism", "")
 
-	registryCommitBytes, err := Fetch(fmt.Sprintf(superchainRegistryCommitAtRef, elVersion))
+	registryCommitBytes, err := util.Fetch(fmt.Sprintf(superchainRegistryCommitAtRef, elVersion))
 	if err != nil {
 		log.Crit("Failed to fetch superchain registry commit info", "err", err)
 	}
 	superChainRegistryCommit = strings.TrimSpace(string(registryCommitBytes))
 	log.Info("Found superchain registry commit info", "commit", superChainRegistryCommit)
 
-	prestateConfigData, err := Fetch(fmt.Sprintf(superchainConfigsZipAtTag, elVersion))
+	prestateConfigData, err := util.Fetch(fmt.Sprintf(superchainConfigsZipAtTag, elVersion))
 	if err != nil {
 		log.Crit("Failed to fetch prestate's superchain registry config zip", "err", err)
 	}
@@ -76,7 +77,7 @@ func (p *OPProgramPrestate) findOpGethVersion(log log.Logger, modFile *modfile.F
 
 func fetchMonorepoGoMod(opProgramTag string) (*modfile.File, error) {
 	goModUrl := fmt.Sprintf(monorepoGoModAtTag, opProgramTag)
-	goMod, err := Fetch(goModUrl)
+	goMod, err := util.Fetch(goModUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch go.mod: %w", err)
 	}
