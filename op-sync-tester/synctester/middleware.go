@@ -8,14 +8,23 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	"github.com/google/uuid"
 )
 
 var ErrInvalidSessionIDFormat = errors.New("invalid UUID")
 var ErrInvalidParams = errors.New("invalid param")
+
+func IsValidSessionID(sessionID string) error {
+	u, err := uuid.Parse(sessionID)
+	if err != nil {
+		return fmt.Errorf("invalid session id format: %w", err)
+	}
+	if u.Version() == 4 {
+		return nil
+	}
+	return errors.New("session format must satisfy uuid4 format")
+}
 
 // parseSession inspects the incoming request to determine if it targets a session-specific route.
 // If the request path matches the pattern `/chain/{chain_id}/synctest/{uuid}`, it attempts to parse
@@ -31,18 +40,17 @@ var ErrInvalidParams = errors.New("invalid param")
 //	/chain/{chain_id}/synctest/{session_uuid}
 //
 // Returns an error if the session UUID is invalid or any query parameter is malformed.
-func parseSession(r *http.Request, log log.Logger) (*http.Request, error) {
+func parseSession(r *http.Request) (*http.Request, error) {
 	segments := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(segments) == 4 && segments[0] == "chain" && segments[2] == "synctest" {
 		sessionID := segments[3]
-		if _, err := uuid.Parse(sessionID); err != nil {
-			return r, ErrInvalidSessionIDFormat
+		if err := IsValidSessionID(sessionID); err != nil {
+			return r, errors.Join(ErrInvalidSessionIDFormat, err)
 		}
 		query := r.URL.Query()
 		parseParam := func(name string) (uint64, error) {
 			raw := query.Get(name)
 			if raw == "" {
-				log.Warn("Parameter not provided. Defaulting to 0", "param", name)
 				return 0, nil
 			}
 			val, err := strconv.ParseUint(raw, 10, 64)
@@ -63,22 +71,8 @@ func parseSession(r *http.Request, log log.Logger) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		session := &backend.Session{
-			SessionID: sessionID,
-			Validated: latest,
-			CurrentState: sttypes.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-			Payloads: make(map[eth.PayloadID]*eth.ExecutionPayloadEnvelope),
-			InitialState: sttypes.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-		}
-		ctx := backend.WithSession(r.Context(), session)
+		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized)
+		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")
 		r = r.WithContext(ctx)

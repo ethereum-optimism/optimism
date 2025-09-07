@@ -211,7 +211,7 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) error {
 		if n.cfg.Tracer != nil {
 			n.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
-		n.l2Driver.L1Tracker.OnL1Unsafe(sig)
+		n.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
 		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
@@ -487,7 +487,7 @@ func (n *OpNode) initRPCServer(cfg *config.Config) error {
 	if cfg.ExperimentalOPStackAPI {
 		server.AddAPI(rpc.API{
 			Namespace: "opstack",
-			Service:   NewOpstackAPI(n.l2Driver.Engine, n),
+			Service:   NewOpstackAPI(n.l2Driver.SyncDeriver.Engine, n),
 		})
 		n.log.Info("Experimental OP stack API enabled")
 	}

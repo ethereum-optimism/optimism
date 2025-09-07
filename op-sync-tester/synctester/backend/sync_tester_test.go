@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -96,35 +96,35 @@ func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumber
 	return receipts, nil
 }
 
-func initTestSyncTester(t *testing.T, cfg config.EntryCfg, elReader ReadOnlyELBackend) *SyncTester {
-	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), cfg, elReader)
+func initTestSyncTester(t *testing.T, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
+	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), chainID, elReader)
 	return syncTester
 }
 
 func TestSyncTester_ChainId(t *testing.T) {
-	dummySession := &Session{SessionID: uuid.New().String()}
+	dummySession := &eth.SyncTesterSession{SessionID: uuid.New().String()}
 	tests := []struct {
 		name            string
-		cfgID           config.EntryCfg
+		cfgID           eth.ChainID
 		elID            eth.ChainID
-		session         *Session
+		session         *eth.SyncTesterSession
 		wantErrContains string
 	}{
 		{
 			name:            "no session",
-			cfgID:           config.EntryCfg{ChainID: eth.ChainIDFromUInt64(1)},
+			cfgID:           eth.ChainIDFromUInt64(1),
 			elID:            eth.ChainIDFromUInt64(1),
 			wantErrContains: "no session",
 		},
 		{
 			name:    "happy path",
-			cfgID:   config.EntryCfg{ChainID: eth.ChainIDFromUInt64(11155111)},
+			cfgID:   eth.ChainIDFromUInt64(11155111),
 			elID:    eth.ChainIDFromUInt64(11155111),
 			session: dummySession,
 		},
 		{
 			name:            "mismatch",
-			cfgID:           config.EntryCfg{ChainID: eth.ChainIDFromUInt64(1)},
+			cfgID:           eth.ChainIDFromUInt64(1),
 			elID:            eth.ChainIDFromUInt64(11155111),
 			session:         dummySession,
 			wantErrContains: "chainID mismatch",
@@ -137,7 +137,7 @@ func TestSyncTester_ChainId(t *testing.T) {
 			st := initTestSyncTester(t, tc.cfgID, mock)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			got, err := st.ChainId(ctx)
 			if tc.wantErrContains != "" {
@@ -146,7 +146,7 @@ func TestSyncTester_ChainId(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, hexutil.Big(*tc.cfgID.ChainID.ToBig()), got)
+			require.Equal(t, hexutil.Big(*tc.cfgID.ToBig()), got)
 		})
 	}
 }
@@ -162,7 +162,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 		name            string
 		sessionLatest   uint64
 		rawNumber       uint64 // block.number returned by EL
-		session         *Session
+		session         *eth.SyncTesterSession
 		wantErrContains string
 	}{
 		{
@@ -176,14 +176,14 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			name:            "block number greater than latest",
 			sessionLatest:   100,
 			rawNumber:       101, // greater than Latest
-			session:         &Session{SessionID: uuid.New().String(), CurrentState: sttypes.FCUState{Latest: 100}},
+			session:         &eth.SyncTesterSession{SessionID: uuid.New().String(), CurrentState: eth.FCUState{Latest: 100}},
 			wantErrContains: "not found",
 		},
 		{
 			name:          "happy path",
 			sessionLatest: 100,
 			rawNumber:     99,
-			session:       &Session{SessionID: uuid.New().String(), CurrentState: sttypes.FCUState{Latest: 100}},
+			session:       &eth.SyncTesterSession{SessionID: uuid.New().String(), CurrentState: eth.FCUState{Latest: 100}},
 		},
 	}
 
@@ -192,10 +192,10 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			el := NewMockELReader(eth.ChainIDFromUInt64(1))
 			block := makeBlockRaw(tc.rawNumber)
 			el.BlocksByHash[hash] = block
-			st := initTestSyncTester(t, config.EntryCfg{ChainID: eth.ChainIDFromUInt64(1)}, el)
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			raw, err := st.GetBlockByHash(ctx, hash, false)
 			if tc.wantErrContains != "" {
@@ -216,7 +216,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 func TestSyncTester_GetBlockByNumber(t *testing.T) {
 	type testCase struct {
 		name            string
-		session         *Session
+		session         *eth.SyncTesterSession
 		inNumber        rpc.BlockNumber
 		wantNum         uint64
 		wantErrContains string
@@ -230,9 +230,9 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 		},
 		{
 			name: "happy path: numeric less than latest",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -243,9 +243,9 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 		},
 		{
 			name: "happy path: label latest returns latest",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -256,9 +256,9 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 		},
 		{
 			name: "happy path: label safe returns safe",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      97,
 					Finalized: 90,
@@ -269,9 +269,9 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 		},
 		{
 			name: "happy path: label finalized returns finalized",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      97,
 					Finalized: 92,
@@ -282,27 +282,27 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 		},
 		{
 			name: "pending returns not found",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.PendingBlockNumber,
 			wantErrContains: "not found",
 		},
 		{
 			name: "earliest label returns not found",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.EarliestBlockNumber,
 			wantErrContains: "not found",
 		},
 		{
 			name: "numeric greater than latest returns not found",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.BlockNumber(101),
 			wantErrContains: "not found",
@@ -318,10 +318,10 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 				el.BlocksByNumber[rpc.BlockNumber(tc.session.CurrentState.Finalized)] = makeBlockRaw(tc.session.CurrentState.Finalized)
 			}
 			el.BlocksByNumber[tc.inNumber] = makeBlockRaw(uint64(tc.inNumber.Int64()))
-			st := initTestSyncTester(t, config.EntryCfg{ChainID: eth.ChainIDFromUInt64(1)}, el)
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			raw, err := st.GetBlockByNumber(ctx, tc.inNumber, false)
 			if tc.wantErrContains != "" {
@@ -346,9 +346,9 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 	}
 	type testCase struct {
 		name            string
-		session         *Session
+		session         *eth.SyncTesterSession
 		arg             rpc.BlockNumberOrHash
-		seedFn          func(el *MockELReader, s *Session)
+		seedFn          func(el *MockELReader, s *eth.SyncTesterSession)
 		wantFirstBN     uint64
 		wantErrContains string
 	}
@@ -363,32 +363,32 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 		},
 		{
 			name: "happy: via hash, blockNumber less than latest",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
 				},
 			},
 			arg: rpc.BlockNumberOrHashWithHash(hashGood, false),
-			seedFn: func(el *MockELReader, s *Session) {
+			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				el.ReceiptsByHash[hashGood] = makeReceipts(s.CurrentState.Latest - 1)
 			},
 			wantFirstBN: 99,
 		},
 		{
 			name: "bad: via hash, blockNumber >= latest returns not found",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID: uuid.New().String(),
-				CurrentState: sttypes.FCUState{
+				CurrentState: eth.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
 				},
 			},
 			arg: rpc.BlockNumberOrHashWithHash(hashTooNew, false),
-			seedFn: func(el *MockELReader, s *Session) {
+			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				// strictly greater than Latest so the post-check triggers NotFound
 				el.ReceiptsByHash[hashTooNew] = makeReceipts(s.CurrentState.Latest + 1)
 			},
@@ -396,57 +396,57 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 		},
 		{
 			name: "happy: label latest returns latest",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 95, Finalized: 90},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 95, Finalized: 90},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber),
-			seedFn: func(el *MockELReader, s *Session) {
+			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Latest)] = makeReceipts(s.CurrentState.Latest)
 			},
 			wantFirstBN: 100,
 		},
 		{
 			name: "happy: label safe returns safe",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 90},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 90},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.SafeBlockNumber),
-			seedFn: func(el *MockELReader, s *Session) {
+			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Safe)] = makeReceipts(s.CurrentState.Safe)
 			},
 			wantFirstBN: 97,
 		},
 		{
 			name: "happy: label finalized returns finalized",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.FinalizedBlockNumber),
-			seedFn: func(el *MockELReader, s *Session) {
+			seedFn: func(el *MockELReader, s *eth.SyncTesterSession) {
 				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Finalized)] = makeReceipts(s.CurrentState.Finalized)
 			},
 			wantFirstBN: 92,
 		},
 		{
 			name: "happy: numeric less than latest",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(99)),
-			seedFn: func(el *MockELReader, _ *Session) {
+			seedFn: func(el *MockELReader, _ *eth.SyncTesterSession) {
 				el.ReceiptsByNumber[rpc.BlockNumber(99)] = makeReceipts(99)
 			},
 			wantFirstBN: 99,
 		},
 		{
 			name: "bad: numeric greater than latest returns not found",
-			session: &Session{
+			session: &eth.SyncTesterSession{
 				SessionID:    uuid.New().String(),
-				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: eth.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg:             rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(101)),
 			wantErrContains: "not found",
@@ -460,10 +460,10 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			if tc.seedFn != nil && tc.session != nil {
 				tc.seedFn(el, tc.session)
 			}
-			st := initTestSyncTester(t, config.EntryCfg{ChainID: eth.ChainIDFromUInt64(1)}, el)
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			recs, err := st.GetBlockReceipts(ctx, tc.arg)
 			if tc.wantErrContains != "" {

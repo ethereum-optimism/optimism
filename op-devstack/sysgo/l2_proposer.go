@@ -120,7 +120,7 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		require.NotNil(supervisorID, "need supervisor to connect to in interop")
 		supervisorNode, ok := orch.supervisors.Get(*supervisorID)
 		require.True(ok)
-		proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.userRPC}
+		proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.UserRPC()}
 	} else {
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 		l2CL, ok := orch.l2CLs.Get(*l2CLID)

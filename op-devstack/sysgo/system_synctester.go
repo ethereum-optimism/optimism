@@ -4,14 +4,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type DefaultSimpleSystemWithSyncTesterIDs struct {
 	DefaultMinimalSystemIDs
 
-	L2CL2      stack.L2CLNodeID
-	SyncTester stack.SyncTesterID
+	L2CL2          stack.L2CLNodeID
+	SyncTesterL2EL stack.L2ELNodeID
+	SyncTester     stack.SyncTesterID
 }
 
 func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimpleSystemWithSyncTesterIDs {
@@ -19,11 +19,12 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	return DefaultSimpleSystemWithSyncTesterIDs{
 		DefaultMinimalSystemIDs: minimal,
 		L2CL2:                   stack.NewL2CLNodeID("verifier", l2ID),
-		SyncTester:              stack.NewSyncTesterID("s", l2ID),
+		SyncTesterL2EL:          stack.NewL2ELNodeID("sync-tester-el", l2ID),
+		SyncTester:              stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 }
 
-func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
+func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, fcu eth.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID)
@@ -59,8 +60,11 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 		ids.L2EL,
 	}))
 
-	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}, fcus))
-	opt.Add(WithL2CLNodeWithSyncTester(ids.L2CL2, ids.L1CL, ids.L1EL))
+	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
+
+	// Create a SyncTesterEL with the same chain ID as the EL node
+	opt.Add(WithSyncTesterL2ELNode(ids.SyncTesterL2EL, ids.L2EL, fcu))
+	opt.Add(WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, ids.SyncTesterL2EL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

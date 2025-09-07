@@ -51,5 +51,5 @@ func (c *FlashblocksBuilderNode) Conductor() *Conductor {
 }
 
 func (c *FlashblocksBuilderNode) ListenFor(logger log.Logger, duration time.Duration, output chan<- []byte, done chan<- struct{}) error {
-	return websocketListenFor(logger, c.inner.FlashblocksWsUrl(), duration, output, done)
+	return websocketListenFor(logger, c.inner.FlashblocksWsUrl(), c.inner.FlashblocksWsHeaders(), duration, output, done)
 }

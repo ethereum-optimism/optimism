@@ -7,17 +7,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type SimpleWithSyncTester struct {
 	Minimal
 
-	SyncTester *dsl.SyncTester
-	L2CL2      *dsl.L2CLNode
+	SyncTester     *dsl.SyncTester
+	SyncTesterL2EL *dsl.L2ELNode
+	L2CL2          *dsl.L2CLNode
 }
 
-func WithSimpleWithSyncTester(fcus sttypes.FCUState) stack.CommonOption {
+func WithSimpleWithSyncTester(fcus eth.FCUState) stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}, fcus))
 }
 
@@ -26,20 +28,22 @@ func NewSimpleWithSyncTester(t devtest.T) *SimpleWithSyncTester {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	syncTester := l2.SyncTester(match.Assume(t, match.FirstSyncTester))
-	// Get the second L2CL node (verifier) - we need to find it by name
-	l2CLs := l2.L2CLNodes()
-	var l2CL2 stack.L2CLNode
-	for _, cl := range l2CLs {
-		if cl.ID().Key() == "verifier" {
-			l2CL2 = cl
-			break
-		}
-	}
+	l2 := system.L2Network(match.L2ChainA)
+	syncTester := l2.SyncTester(match.FirstSyncTester)
+
+	// L2CL connected to L2EL initialized by sync tester
+	l2CL2 := l2.L2CLNode(match.SecondL2CL)
+	// L2EL initialized by sync tester
+	syncTesterL2EL := l2.L2ELNode(match.SecondL2EL)
+
 	return &SimpleWithSyncTester{
-		Minimal:    *minimal,
-		SyncTester: dsl.NewSyncTester(syncTester),
-		L2CL2:      dsl.NewL2CLNode(l2CL2, orch.ControlPlane()),
+		Minimal:        *minimal,
+		SyncTester:     dsl.NewSyncTester(syncTester),
+		SyncTesterL2EL: dsl.NewL2ELNode(syncTesterL2EL, orch.ControlPlane()),
+		L2CL2:          dsl.NewL2CLNode(l2CL2, orch.ControlPlane()),
 	}
+}
+
+func WithHardforkSequentialActivation(startFork, endFork rollup.ForkName, delta uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithHardforkSequentialActivation(startFork, endFork, &delta)))
 }
