@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	// TODO: Point back to optimism instead of fixed commit from my branch
-	syncSuperchainScript = "https://raw.githubusercontent.com/ethereum-optimism/op-geth/19413ee41768ec2203873410645edf428e500c49/sync-superchain.sh"
+	syncSuperchainScript = "https://raw.githubusercontent.com/ethereum-optimism/op-geth/optimism/sync-superchain.sh"
 )
 
 // LatestSuperchainConfigs loads the latest config from the superchain-registry main branch using the
