@@ -61,7 +61,7 @@ func openTempFile(dir string, nameTemplate string) (*os.File, error) {
 	f, err := os.CreateTemp(dir, nameTemplate)
 	// Directory has been deleted out from underneath us. Recreate it.
 	if errors.Is(err, os.ErrNotExist) {
-		if mkdirErr := os.MkdirAll(dir, 0777); mkdirErr != nil {
+		if mkdirErr := os.MkdirAll(dir, 0700); mkdirErr != nil {
 			return nil, errors.Join(fmt.Errorf("failed to create directory %v: %w", dir, mkdirErr), err)
 		}
 		f, err = os.CreateTemp(dir, nameTemplate)
