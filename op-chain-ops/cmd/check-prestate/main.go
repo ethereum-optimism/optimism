@@ -31,7 +31,7 @@ type FPProgramType interface {
 		elCommitInfo types.CommitInfo,
 		fppCommitInfo types.CommitInfo,
 		superChainRegistryCommit string,
-		prestateConfigs *superchain.ChainConfigLoader)
+		prestateConfigs types.ChainConfigs)
 }
 
 func main() {
@@ -125,7 +125,7 @@ func main() {
 			continue
 		}
 		knownChains[name] = true
-		diff, err := checkConfig(name, prestateConfigs, latestConfigs)
+		diff, err := checkConfig(name, prestateConfigs, types.NewChainConfigLoaderAdapter(latestConfigs))
 		if err != nil {
 			log.Crit("Failed to check config", "chain", name, "err", err)
 		}
@@ -172,15 +172,16 @@ func main() {
 	}
 }
 
-func checkConfig(network string, actual *superchain.ChainConfigLoader, expected *superchain.ChainConfigLoader) (*types.Diff, error) {
-	actualChainID, err := actual.ChainIDByName(network)
+func checkConfig(network string, actual types.ChainConfigs, expected types.ChainConfigs) (*types.Diff, error) {
+	actualChainID, actualConfig, actualGenesis, err := actual.ChainConfig(network)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get actual chain ID for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get actual chain config for %s: %w", network, err)
 	}
-	expectedChainID, err := expected.ChainIDByName(network)
+	expectedChainID, expectedConfig, expectedGenesis, err := expected.ChainConfig(network)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get expected chain ID for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get expected chain config for %s: %w", network, err)
 	}
+
 	if actualChainID != expectedChainID {
 		return &types.Diff{
 			Msg:      "Chain ID mismatch",
@@ -188,36 +189,12 @@ func checkConfig(network string, actual *superchain.ChainConfigLoader, expected 
 			Latest:   expectedChainID,
 		}, nil
 	}
-	actualChain, err := actual.GetChain(actualChainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get actual chain for %v: %w", network, err)
-	}
-	expectedChain, err := expected.GetChain(expectedChainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get expected chain for %v: %w", network, err)
-	}
-	actualConfig, err := actualChain.Config()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config for actual chain %v: %w", network, err)
-	}
-	expectedConfig, err := expectedChain.Config()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config for expected chain %v: %w", network, err)
-	}
 	configDiff, err := checkChainConfig(actualConfig, expectedConfig)
 	if err != nil {
 		return nil, err
 	}
 	if configDiff != nil {
 		return configDiff, nil
-	}
-	actualGenesis, err := actualChain.GenesisData()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get genesis for actual chain %v: %w", network, err)
-	}
-	expectedGenesis, err := expectedChain.GenesisData()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get genesis for expected chain %v: %w", network, err)
 	}
 	if !bytes.Equal(actualGenesis, expectedGenesis) {
 		return &types.Diff{
