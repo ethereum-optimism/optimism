@@ -34,7 +34,9 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 		log.Crit("Failed to fetch superchain registry commit", "err", err)
 	}
 
-	// TODO: Load elCommit info. Unclear what that means for kona.
+	// Kona doesn't directly depend on op-reth but uses various crates from it.
+	// Skip attempting to report a specific op-reth version for now.
+	elCommitInfo = types.CommitInfo{}
 
 	// kona has its own build process to convert superchain-registry config into a custom JSON format it uses
 	// Rather than re-implement that custom JSON format and work out how to convert it to the go format
