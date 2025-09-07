@@ -148,8 +148,8 @@
     "sourceCodeHash": "0x0ff7c1f0264d784fac5d69b792c6bc9d064d4a09701c1bafa808388685c8c4f1"
   },
   "src/L2/WETH.sol:WETH": {
-    "initCodeHash": "0x0d3777864ed564365ec6aee93ab11816424f2e435bf51a58fcbcc99ac5975361",
-    "sourceCodeHash": "0xb7bccbe1cb0ac6ac7c4a82eeb5e3175d46617cd579e8506e037d42f97502155d"
+    "initCodeHash": "0xbc2cd025153720943e51b79822c2dc374d270a78b92cf47d49548c468e218e46",
+    "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
   },
   "src/cannon/MIPS64.sol:MIPS64": {
     "initCodeHash": "0x6a649986370d18e5fddcd89df73e520063fb373f7dba2f731a2b7e79a1c132a5",
