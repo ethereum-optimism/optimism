@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 type KonaPrestate struct {
@@ -22,7 +23,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	elCommitInfo types.CommitInfo,
 	fppCommitInfo types.CommitInfo,
 	superChainRegistryCommit string,
-	prestateConfigs types.ChainConfigs) {
+	prestateConfigs *superchain.ChainConfigLoader) {
 
 	prestateTag := fmt.Sprintf("kona-client/v%s", prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
@@ -44,7 +45,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	if err != nil {
 		log.Crit("Failed to fetch chain configs for prestate", "err", err)
 	}
-	prestateConfigs = types.NewChainConfigLoaderAdapter(configs)
+	prestateConfigs = configs
 	return
 }
 

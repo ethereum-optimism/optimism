@@ -28,7 +28,7 @@ func (p *OPProgramPrestate) FindVersions(log log.Logger, prestateVersion string)
 	elCommitInfo types.CommitInfo,
 	fppCommitInfo types.CommitInfo,
 	superChainRegistryCommit string,
-	prestateConfigs types.ChainConfigs,
+	prestateConfigs *superchain.ChainConfigLoader,
 ) {
 	prestateTag := fmt.Sprintf("op-program/v%s", prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
@@ -56,7 +56,7 @@ func (p *OPProgramPrestate) FindVersions(log log.Logger, prestateVersion string)
 	if err != nil {
 		log.Crit("Failed to parse prestate's superchain registry config zip", "err", err)
 	}
-	prestateConfigs = types.NewChainConfigLoaderAdapter(configLoader)
+	prestateConfigs = configLoader
 	return
 }
 
