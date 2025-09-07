@@ -141,7 +141,7 @@ func TestOpSupervisor(t *testing.T) {
 
 func TestTraceType(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		expectedDefault := []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsteriscKona}
+		expectedDefault := []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsteriscKona, types.TraceTypeCannonKona}
 		cfg := configForArgs(t, addRequiredArgsForMultipleTracesExcept(expectedDefault, "--trace-type"))
 		require.Equal(t, expectedDefault, cfg.TraceTypes)
 	})
