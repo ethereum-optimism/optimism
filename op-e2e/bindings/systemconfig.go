@@ -757,37 +757,6 @@ func (_SystemConfig *SystemConfigCallerSession) GetAddresses() (SystemConfigAddr
 	return _SystemConfig.Contract.GetAddresses(&_SystemConfig.CallOpts)
 }
 
-// Guardian is a free data retrieval call binding the contract method 0x452a9320.
-//
-// Solidity: function guardian() view returns(address)
-func (_SystemConfig *SystemConfigCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _SystemConfig.contract.Call(opts, &out, "guardian")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// Guardian is a free data retrieval call binding the contract method 0x452a9320.
-//
-// Solidity: function guardian() view returns(address)
-func (_SystemConfig *SystemConfigSession) Guardian() (common.Address, error) {
-	return _SystemConfig.Contract.Guardian(&_SystemConfig.CallOpts)
-}
-
-// Guardian is a free data retrieval call binding the contract method 0x452a9320.
-//
-// Solidity: function guardian() view returns(address)
-func (_SystemConfig *SystemConfigCallerSession) Guardian() (common.Address, error) {
-	return _SystemConfig.Contract.Guardian(&_SystemConfig.CallOpts)
-}
-
 // InitVersion is a free data retrieval call binding the contract method 0x38d38c97.
 //
 // Solidity: function initVersion() view returns(uint8)
@@ -941,37 +910,6 @@ func (_SystemConfig *SystemConfigSession) L1StandardBridge() (common.Address, er
 // Solidity: function l1StandardBridge() view returns(address addr_)
 func (_SystemConfig *SystemConfigCallerSession) L1StandardBridge() (common.Address, error) {
 	return _SystemConfig.Contract.L1StandardBridge(&_SystemConfig.CallOpts)
-}
-
-// L2ChainId is a free data retrieval call binding the contract method 0xd6ae3cd5.
-//
-// Solidity: function l2ChainId() view returns(uint256)
-func (_SystemConfig *SystemConfigCaller) L2ChainId(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _SystemConfig.contract.Call(opts, &out, "l2ChainId")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// L2ChainId is a free data retrieval call binding the contract method 0xd6ae3cd5.
-//
-// Solidity: function l2ChainId() view returns(uint256)
-func (_SystemConfig *SystemConfigSession) L2ChainId() (*big.Int, error) {
-	return _SystemConfig.Contract.L2ChainId(&_SystemConfig.CallOpts)
-}
-
-// L2ChainId is a free data retrieval call binding the contract method 0xd6ae3cd5.
-//
-// Solidity: function l2ChainId() view returns(uint256)
-func (_SystemConfig *SystemConfigCallerSession) L2ChainId() (*big.Int, error) {
-	return _SystemConfig.Contract.L2ChainId(&_SystemConfig.CallOpts)
 }
 
 // MaximumGasLimit is a free data retrieval call binding the contract method 0x0ae14b1b.
@@ -1282,68 +1220,6 @@ func (_SystemConfig *SystemConfigSession) Paused() (bool, error) {
 // Solidity: function paused() view returns(bool)
 func (_SystemConfig *SystemConfigCallerSession) Paused() (bool, error) {
 	return _SystemConfig.Contract.Paused(&_SystemConfig.CallOpts)
-}
-
-// ProxyAdmin is a free data retrieval call binding the contract method 0x3e47158c.
-//
-// Solidity: function proxyAdmin() view returns(address)
-func (_SystemConfig *SystemConfigCaller) ProxyAdmin(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _SystemConfig.contract.Call(opts, &out, "proxyAdmin")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// ProxyAdmin is a free data retrieval call binding the contract method 0x3e47158c.
-//
-// Solidity: function proxyAdmin() view returns(address)
-func (_SystemConfig *SystemConfigSession) ProxyAdmin() (common.Address, error) {
-	return _SystemConfig.Contract.ProxyAdmin(&_SystemConfig.CallOpts)
-}
-
-// ProxyAdmin is a free data retrieval call binding the contract method 0x3e47158c.
-//
-// Solidity: function proxyAdmin() view returns(address)
-func (_SystemConfig *SystemConfigCallerSession) ProxyAdmin() (common.Address, error) {
-	return _SystemConfig.Contract.ProxyAdmin(&_SystemConfig.CallOpts)
-}
-
-// ProxyAdminOwner is a free data retrieval call binding the contract method 0xdad544e0.
-//
-// Solidity: function proxyAdminOwner() view returns(address)
-func (_SystemConfig *SystemConfigCaller) ProxyAdminOwner(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _SystemConfig.contract.Call(opts, &out, "proxyAdminOwner")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// ProxyAdminOwner is a free data retrieval call binding the contract method 0xdad544e0.
-//
-// Solidity: function proxyAdminOwner() view returns(address)
-func (_SystemConfig *SystemConfigSession) ProxyAdminOwner() (common.Address, error) {
-	return _SystemConfig.Contract.ProxyAdminOwner(&_SystemConfig.CallOpts)
-}
-
-// ProxyAdminOwner is a free data retrieval call binding the contract method 0xdad544e0.
-//
-// Solidity: function proxyAdminOwner() view returns(address)
-func (_SystemConfig *SystemConfigCallerSession) ProxyAdminOwner() (common.Address, error) {
-	return _SystemConfig.Contract.ProxyAdminOwner(&_SystemConfig.CallOpts)
 }
 
 // ResourceConfig is a free data retrieval call binding the contract method 0xcc731b02.
