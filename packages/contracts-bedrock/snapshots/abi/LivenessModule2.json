@@ -265,6 +265,11 @@
   },
   {
     "inputs": [],
+    "name": "LivenessModule2_OwnershipTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LivenessModule2_ResponsePeriodActive",
     "type": "error"
   },

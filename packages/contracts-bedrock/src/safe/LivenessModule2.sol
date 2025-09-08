@@ -63,6 +63,9 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for when trying to clear configuration while module is enabled
     error LivenessModule2_ModuleStillEnabled();
 
+    /// @notice Error for when ownership transfer verification fails
+    error LivenessModule2_OwnershipTransferFailed();
+
     /// @notice Emitted when a Safe enables the module
     event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
 
@@ -254,6 +257,12 @@ contract LivenessModule2 is ISemver {
             operation: Enum.Operation.Call,
             data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], safeConfigs[_safe].fallbackOwner))
         });
+
+        // Sanity check: verify the fallback owner is now the only owner
+        address[] memory finalOwners = targetSafe.getOwners();
+        if (finalOwners.length != 1 || finalOwners[0] != safeConfigs[_safe].fallbackOwner) {
+            revert LivenessModule2_OwnershipTransferFailed();
+        }
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
