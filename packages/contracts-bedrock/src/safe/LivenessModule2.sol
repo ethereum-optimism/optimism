@@ -112,10 +112,7 @@ contract LivenessModule2 is ISemver {
 
         // Clear any existing challenge when configuring/re-configuring
         // If a challenge exists, it MUST be canceled, including emitting the appropriate events
-        if (challengeStartTime[msg.sender] != 0) {
-            delete challengeStartTime[msg.sender];
-            emit ChallengeCancelled(msg.sender);
-        }
+        _cancelChallenge(msg.sender);
 
         emit ModuleEnabled(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
     }
@@ -137,7 +134,7 @@ contract LivenessModule2 is ISemver {
         // Erase the configuration data for this safe
         delete safeConfigs[msg.sender];
         // Also clear any active challenge
-        delete challengeStartTime[msg.sender];
+        _cancelChallenge(msg.sender);
         emit ModuleDisabled(msg.sender);
     }
 
@@ -187,8 +184,7 @@ contract LivenessModule2 is ISemver {
             revert LivenessModule2_ResponsePeriodEnded();
         }
 
-        delete challengeStartTime[msg.sender];
-        emit ChallengeCancelled(msg.sender);
+        _cancelChallenge(msg.sender);
     }
 
     /// @notice With a successful challenge, removes all current owners from an enabled safe, appoints fallback as its
@@ -258,6 +254,15 @@ contract LivenessModule2 is ISemver {
         Safe safe = Safe(payable(_safe));
         if (!safe.isModuleEnabled(address(this))) {
             revert LivenessModule2_ModuleNotEnabled();
+        }
+    }
+
+    /// @notice Internal function to cancel a challenge and emit the appropriate event
+    /// @param _safe The Safe address for which to cancel the challenge
+    function _cancelChallenge(address _safe) internal {
+        if (challengeStartTime[_safe] != 0) {
+            delete challengeStartTime[_safe];
+            emit ChallengeCancelled(_safe);
         }
     }
 }
