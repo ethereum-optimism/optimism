@@ -161,9 +161,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.7.0
+    /// @custom:semver 3.8.0
     function version() public pure virtual returns (string memory) {
-        return "3.7.0";
+        return "3.8.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
