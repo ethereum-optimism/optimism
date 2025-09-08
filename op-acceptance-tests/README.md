@@ -156,12 +156,12 @@ LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervis
 
 To add new acceptance tests:
 
-1. Create your test in the appropriate Go package (as a regular Go test)
+1. Create your test in the appropriate Go package under `tests` (as a regular Go test)
 2. Register the test in `acceptance-tests.yaml` under the appropriate gate
 3. Follow the existing pattern for test registration:
    ```yaml
    - name: YourTestName
-     package: github.com/ethereum-optimism/optimism/your/package/path
+     package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/your/package/path
    ```
 
 ### Quick Development
