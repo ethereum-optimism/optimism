@@ -86,9 +86,15 @@ interface IOPContractsManagerDeployer {
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
+    error OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade(uint256 index);
+
+    error OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate();
+
     function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
+
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -328,6 +334,11 @@ interface IOPContractsManager {
     /// @notice Upgrades the implementation of all proxies in the specified chains
     /// @param _opChainConfigs The chains to upgrade
     function upgrade(OpChainConfig[] memory _opChainConfigs) external;
+
+    /// @notice Upgrades the SuperchainConfig contract.
+    /// @param _superchainConfig The SuperchainConfig contract to upgrade.
+    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.

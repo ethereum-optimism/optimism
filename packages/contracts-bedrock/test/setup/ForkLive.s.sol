@@ -24,7 +24,6 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -210,18 +209,11 @@ contract ForkLive is Deployer {
         bytes memory upgraderCode = address(upgrader).code;
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // The 4.1.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts have
-        // been upgraded before it will upgrade other contracts. These contracts can only be
-        // upgraded by the Superchain ProxyAdmin owner. For simplicity, we always just call U16a
-        // once without any chain configs to trigger this upgrade.
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
-        );
+        // The 4.1.0 OPCM requires that the SuperchainConfig contracts have been upgraded before it will upgrade other
+        // contracts. For this v4.1.0, OP Mainnet's superchainConfig is already at the expected version. So we do not
+        // need to upgrade it.
 
-        // Then do the final upgrade.
+        // Upgrade the chain.
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
 
         // Reset the upgrader to the original code.

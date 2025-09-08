@@ -255,16 +255,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "_superchainProxyAdmin",
-        "type": "address"
-      },
-      {
         "components": [
           {
             "internalType": "contract ISystemConfig",
@@ -288,6 +278,24 @@
       }
     ],
     "name": "upgrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_superchainProxyAdmin",
+        "type": "address"
+      }
+    ],
+    "name": "upgradeSuperchainConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -355,7 +363,23 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerUpgrader_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade",
     "type": "error"
   },
   {
@@ -371,6 +395,11 @@
   {
     "inputs": [],
     "name": "ReservedBitsSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   },
   {

@@ -38,7 +38,8 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
-    IOPContractsManagerInteropMigrator
+    IOPContractsManagerInteropMigrator,
+    IOPContractsManagerUpgrader
 } from "interfaces/L1/IOPContractsManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -151,6 +152,18 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
+
+        // Since this superchainConfig is already at the expected reinitializer version...
+        // We do this to pass the reinitializer check when trying to upgrade the superchainConfig contract.
+
+        // Get the value of the 0th storage slot of the superchainConfig contract.
+        bytes32 slot0 = vm.load(address(superchainConfig), bytes32(0));
+        // Remove the value of initialized slot.
+        slot0 = slot0 & bytes32(~uint256(0xff));
+        // Store 1 there.
+        slot0 = bytes32(uint256(slot0) + 1);
+        // Store the new value.
+        vm.store(address(superchainConfig), bytes32(0), slot0);
     }
 
     function expectEmitUpgraded(address impl, address proxy) public {
@@ -161,15 +174,21 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     function runUpgrade16aUpgradeAndChecks(address _delegateCaller) public {
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-        // Always trigger U16a once with an empty opChainConfig array to ensure that the
-        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
+        // Always trigger U16a firstly by calling upgradeSuperchainConfig to ensure that the
+        // SuperchainConfig contract is upgraded.
         {
             ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            expectEmitUpgraded(impls.superchainConfigImpl, address(superchainConfig));
+
             address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
             vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.2.0"));
             DelegateCaller(superchainPAO).dcForward(
-                address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+                address(opcm),
+                abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
             );
+            vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
         }
 
         // Predict the address of the new AnchorStateRegistry proxy.
@@ -983,7 +1002,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);
 
-        // Run the verification script without etherscan verificatin. Hard to run with etherscan
+        // Run the verification script without etherscan verification. Hard to run with etherscan
         // verification in these tests, can do it but means we add even more dependencies to the
         // test environment.
         VerifyOPCM verify = new VerifyOPCM();
@@ -1072,6 +1091,11 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_notProxyAdminOwner_reverts() public {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
+        // already upgraded.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
+
         address delegateCaller = makeAddr("delegateCaller");
         vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
@@ -1087,6 +1111,11 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that upgrade reverts when absolutePrestate is zero and the existing game also
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
+        // already upgraded.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
+
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
 
@@ -1104,6 +1133,96 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Expect the upgrade to revert with PrestateNotSet.
         vm.expectRevert(IOPContractsManager.PrestateNotSet.selector);
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+    }
+
+    /// @notice Tests that the upgrade function reverts when the superchainConfig is not at the expected target version.
+    function test_upgrade_superchainConfigNeedsUpgrade_reverts() public {
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.2.0"));
+
+        // Try upgrading an OPChain without upgrading its superchainConfig.
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, 0
+            )
+        );
+        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+    }
+}
+
+contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_Upgrade_Harness {
+    function setUp() public override {
+        super.setUp();
+
+        // The superchainConfig is already at the expected version so we mock this call here to bypass that check and
+        // get our expected error.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.2.0"));
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function succeeds when the superchainConfig is at the expected
+    ///         version and the delegate caller is the superchainProxyAdmin owner.
+    function test_upgradeSuperchainConfig_succeeds() public {
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        expectEmitUpgraded(impls.superchainConfigImpl, address(superchainConfig));
+
+        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        DelegateCaller(superchainPAO).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when it is not called via delegatecall.
+    function test_upgradeSuperchainConfig_notDelegateCalled_reverts() public {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
+        opcm.upgradeSuperchainConfig(superchainConfig, superchainProxyAdmin);
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
+    ///         superchainProxyAdmin owner.
+    function test_upgradeSuperchainConfig_notProxyAdminOwner_reverts() public {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        address delegateCaller = makeAddr("delegateCaller");
+        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
+        assertNotEq(proxyAdmin.owner(), delegateCaller);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        DelegateCaller(delegateCaller).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
+    ///         newer than the target version.
+    function test_upgradeSuperchainConfig_superchainConfigAlreadyUpToDate_reverts() public {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        // Set the version of the superchain config to a version that is the target version.
+        vm.clearMockedCalls();
+
+        vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+
+        // Set the version of the superchain config to a version that is higher than the target version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("3.0.0"));
+
+        vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
     }
 }
 
