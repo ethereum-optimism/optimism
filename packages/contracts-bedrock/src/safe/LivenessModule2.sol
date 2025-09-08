@@ -10,13 +10,13 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title LivenessModule2
-/// @notice This module allows for challenge-based ownership transfer to a fallback owner
+/// @notice This module allows challenge-based ownership transfer to a fallback owner
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
-///      2. The Safe must then configure the module by calling configure() with parameters
+///      2. The Safe must then configure the module by calling configure() with params
 contract LivenessModule2 is ISemver {
     /// @notice Configuration for a Safe's liveness module
     struct ModuleConfig {
@@ -45,10 +45,10 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for when no challenge exists
     error LivenessModule2_ChallengeDoesNotExist();
 
-    /// @notice Error for when trying to cancel a challenge after the response period has ended
+    /// @notice Error for when trying to cancel a challenge after response period has ended
     error LivenessModule2_ResponsePeriodEnded();
 
-    /// @notice Error for when trying to execute ownership transfer while the response period is still active
+    /// @notice Error for when trying to execute ownership transfer while response period is active
     error LivenessModule2_ResponsePeriodActive();
 
     /// @notice Error for when caller is not authorized
@@ -57,7 +57,7 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for invalid parameters
     error LivenessModule2_InvalidParameters();
 
-    /// @notice Error for when trying to clear configuration while module is still enabled
+    /// @notice Error for when trying to clear configuration while module is enabled
     error LivenessModule2_ModuleStillEnabled();
 
     /// @notice Emitted when a Safe enables the module
@@ -79,7 +79,7 @@ contract LivenessModule2 is ISemver {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
-    /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge for the given safe, or
+    /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     /// 0 if not
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
@@ -97,11 +97,17 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST only be callable by a Safe that has enabled this module
     /// @param _config The configuration parameters for the module
     function configure(ModuleConfig memory _config) external {
+        // Validate configuration parameters to ensure module can function properly.
+        // livenessResponsePeriod must be > 0 to allow time for Safe owners to respond.
+        // fallbackOwner must not be zero address to have a valid ownership recipient.
         if (_config.livenessResponsePeriod == 0 || _config.fallbackOwner == address(0)) {
             revert LivenessModule2_InvalidParameters();
         }
 
-        // Check that this module is enabled on the calling Safe
+        // Check that this module is enabled on the calling Safe.
+        // This prevents Safes from configuring themselves for a module they haven't enabled,
+        // which would create orphaned configuration data. The Safe must first call
+        // enableModule() before configure() to ensure proper two-step initialization.
         Safe safe = Safe(payable(msg.sender));
         if (!safe.isModuleEnabled(address(this))) {
             revert LivenessModule2_ModuleNotEnabled();
@@ -110,8 +116,11 @@ contract LivenessModule2 is ISemver {
         // Store the configuration for this safe
         safeConfigs[msg.sender] = _config;
 
-        // Clear any existing challenge when configuring/re-configuring
-        // If a challenge exists, it MUST be canceled, including emitting the appropriate events
+        // Clear any existing challenge when configuring/re-configuring.
+        // This is necessary because changing the configuration (especially livenessResponsePeriod)
+        // would invalidate any ongoing challenge timing, creating inconsistent state.
+        // For example, if a challenge was started with a 7-day period and we reconfigure to 
+        // 1 day, the challenge timing becomes ambiguous. Canceling ensures clean state.
         _cancelChallenge(msg.sender);
 
         emit ModuleEnabled(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
@@ -119,7 +128,7 @@ contract LivenessModule2 is ISemver {
 
     /// @notice Clears the module configuration for a Safe
     /// @dev MUST only be executable by a Safe that has DISABLED this module first
-    /// @dev MUST erase the existing liveness_response_period and fallback_owner data related to the calling safe
+    /// @dev MUST erase existing liveness_response_period and fallback_owner data
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges
     function clear() external {
         // Check if the calling safe has configuration set
@@ -165,7 +174,7 @@ contract LivenessModule2 is ISemver {
     /// @notice Responds to a challenge for an enabled safe, canceling it
     /// @dev MUST only be executable by an enabled safe
     /// @dev MUST revert if there isn't a challenge for the calling safe
-    /// @dev MUST revert if there is a challenge for the calling safe but the response period has expired
+    /// @dev MUST revert if challenge exists but response period has expired
     /// @dev MUST emit the ChallengeCancelled event
     function respond() external {
         // Check that this module is enabled on the calling Safe
@@ -187,7 +196,7 @@ contract LivenessModule2 is ISemver {
         _cancelChallenge(msg.sender);
     }
 
-    /// @notice With a successful challenge, removes all current owners from an enabled safe, appoints fallback as its
+    /// @notice With successful challenge, removes all current owners from enabled safe,
     /// sole owner, and sets its quorum to 1
     /// @dev MUST be executable by anyone
     /// @dev MUST revert if the given safe hasn't enabled the module
@@ -196,17 +205,20 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST emit the ChallengeSucceeded event
     /// @param _safe The Safe to transfer ownership of
     function changeOwnershipToFallback(address _safe) external {
+        // Ensure Safe is configured with this module to prevent unauthorized execution
         _assertModuleConfigured(_safe);
 
-        // Check that the module is still enabled on the target Safe
+        // Verify module is still enabled to ensure Safe hasn't disabled it mid-challenge
         _assertModuleEnabled(_safe);
 
+        // Verify active challenge exists - without challenge, ownership transfer not allowed
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
-        // Check if response period has expired
+        // Ensure response period has fully expired before allowing ownership transfer.
+        // This gives Safe owners full configured time to demonstrate liveness.
         if (block.timestamp < getChallengePeriodEnd(_safe)) {
             revert LivenessModule2_ResponsePeriodActive();
         }
@@ -218,7 +230,7 @@ contract LivenessModule2 is ISemver {
 
         // Remove all owners after the first one
         while (owners.length > 1) {
-            // removeOwner automatically updates the threshold, so we don't need to do it manually
+            // removeOwner automatically updates threshold, no manual update needed
             targetSafe.execTransactionFromModule({
                 to: _safe,
                 value: 0,
