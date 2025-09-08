@@ -163,12 +163,12 @@
       },
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "fallbackOwner",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "challengeStartTime",
+        "type": "uint256"
       }
     ],
-    "name": "ChallengeExecuted",
+    "name": "ChallengeStarted",
     "type": "event"
   },
   {
@@ -182,12 +182,12 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "challengeStartTime",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
       }
     ],
-    "name": "ChallengeStarted",
+    "name": "ChallengeSucceeded",
     "type": "event"
   },
   {
@@ -240,7 +240,12 @@
   },
   {
     "inputs": [],
-    "name": "LivenessModule2_InvalidParameters",
+    "name": "LivenessModule2_InvalidFallbackOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_InvalidResponsePeriod",
     "type": "error"
   },
   {

@@ -54,8 +54,11 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for when caller is not authorized
     error LivenessModule2_UnauthorizedCaller();
 
-    /// @notice Error for invalid parameters
-    error LivenessModule2_InvalidParameters();
+    /// @notice Error for invalid response period
+    error LivenessModule2_InvalidResponsePeriod();
+
+    /// @notice Error for invalid fallback owner
+    error LivenessModule2_InvalidFallbackOwner();
 
     /// @notice Error for when trying to clear configuration while module is enabled
     error LivenessModule2_ModuleStillEnabled();
@@ -99,9 +102,12 @@ contract LivenessModule2 is ISemver {
     function configure(ModuleConfig memory _config) external {
         // Validate configuration parameters to ensure module can function properly.
         // livenessResponsePeriod must be > 0 to allow time for Safe owners to respond.
+        if (_config.livenessResponsePeriod == 0) {
+            revert LivenessModule2_InvalidResponsePeriod();
+        }
         // fallbackOwner must not be zero address to have a valid ownership recipient.
-        if (_config.livenessResponsePeriod == 0 || _config.fallbackOwner == address(0)) {
-            revert LivenessModule2_InvalidParameters();
+        if (_config.fallbackOwner == address(0)) {
+            revert LivenessModule2_InvalidFallbackOwner();
         }
 
         // Check that this module is enabled on the calling Safe.
@@ -119,7 +125,7 @@ contract LivenessModule2 is ISemver {
         // Clear any existing challenge when configuring/re-configuring.
         // This is necessary because changing the configuration (especially livenessResponsePeriod)
         // would invalidate any ongoing challenge timing, creating inconsistent state.
-        // For example, if a challenge was started with a 7-day period and we reconfigure to 
+        // For example, if a challenge was started with a 7-day period and we reconfigure to
         // 1 day, the challenge timing becomes ambiguous. Canceling ensures clean state.
         _cancelChallenge(msg.sender);
 

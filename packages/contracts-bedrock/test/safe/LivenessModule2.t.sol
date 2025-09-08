@@ -151,16 +151,18 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
         );
     }
 
-    function test_configure_invalidParameters_reverts() external {
+    function test_configure_invalidResponsePeriod_reverts() external {
         // Test with zero period
-        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidParameters.selector);
+        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidResponsePeriod.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.configure(
             LivenessModule2.ModuleConfig({ livenessResponsePeriod: 0, fallbackOwner: fallbackOwner })
         );
+    }
 
+    function test_configure_invalidFallbackOwner_reverts() external {
         // Test with zero address
-        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidParameters.selector);
+        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidFallbackOwner.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.configure(
             LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: address(0) })
