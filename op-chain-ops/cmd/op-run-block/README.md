@@ -21,8 +21,8 @@ Where `badblock.json` looks like:
 [
   {
     "block": {
-      "timestamp": ...
-      "number": ...
+      "timestamp": ...,
+      "number": ...,
       "transactions": [ ... ],
       ...
     }
