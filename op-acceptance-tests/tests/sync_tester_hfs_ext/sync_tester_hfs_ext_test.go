@@ -215,6 +215,9 @@ func testSyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(
 	blocksToSync := uint64(10)
 	targetBlock := blk + blocksToSync
 	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 500)
+	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
+	sys.L2CL.Reached(types.LocalSafe, targetBlock, 500)
+	l.Info("L2CL safe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 
 	l2CLSyncStatus := sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
