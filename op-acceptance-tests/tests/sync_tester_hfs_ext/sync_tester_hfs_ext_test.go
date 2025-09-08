@@ -168,7 +168,7 @@ func TestSyncTesterHFS_Isthmus(gt *testing.T) {
 }
 
 func testSyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net *dsl.L2Network) *uint64) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade
