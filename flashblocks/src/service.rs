@@ -1,5 +1,5 @@
 use crate::{
-    sequence::FlashBlockSequence,
+    sequence::FlashBlockPendingSequence,
     worker::{BuildArgs, FlashBlockBuilder},
     ExecutionPayloadBaseV1, FlashBlock,
 };
@@ -34,7 +34,7 @@ pub struct FlashBlockService<
 > {
     rx: S,
     current: Option<PendingBlock<N>>,
-    blocks: FlashBlockSequence<N::SignedTx>,
+    blocks: FlashBlockPendingSequence<N::SignedTx>,
     rebuild: bool,
     builder: FlashBlockBuilder<EvmConfig, Provider>,
     canon_receiver: CanonStateNotifications<N>,
@@ -70,7 +70,7 @@ where
         Self {
             rx,
             current: None,
-            blocks: FlashBlockSequence::new(),
+            blocks: FlashBlockPendingSequence::new(),
             canon_receiver: provider.subscribe_to_canonical_state(),
             builder: FlashBlockBuilder::new(evm_config, provider),
             rebuild: false,

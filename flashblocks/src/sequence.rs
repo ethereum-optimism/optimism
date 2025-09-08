@@ -1,12 +1,13 @@
 use crate::{ExecutionPayloadBaseV1, FlashBlock};
 use alloy_eips::eip2718::WithEncoded;
+use eyre::{bail, OptionExt};
 use reth_primitives_traits::{Recovered, SignedTransaction};
 use std::collections::BTreeMap;
 use tracing::trace;
 
 /// An ordered B-tree keeping the track of a sequence of [`FlashBlock`]s by their indices.
 #[derive(Debug)]
-pub(crate) struct FlashBlockSequence<T> {
+pub(crate) struct FlashBlockPendingSequence<T> {
     /// tracks the individual flashblocks in order
     ///
     /// With a blocktime of 2s and flashblock tick-rate of 200ms plus one extra flashblock per new
@@ -14,7 +15,7 @@ pub(crate) struct FlashBlockSequence<T> {
     inner: BTreeMap<u64, PreparedFlashBlock<T>>,
 }
 
-impl<T> FlashBlockSequence<T>
+impl<T> FlashBlockPendingSequence<T>
 where
     T: SignedTransaction,
 {
@@ -45,16 +46,6 @@ where
         Ok(())
     }
 
-    /// Returns the first block number
-    pub(crate) fn block_number(&self) -> Option<u64> {
-        Some(self.inner.values().next()?.block().metadata.block_number)
-    }
-
-    /// Returns the payload base of the first tracked flashblock.
-    pub(crate) fn payload_base(&self) -> Option<ExecutionPayloadBaseV1> {
-        self.inner.values().next()?.block().base.clone()
-    }
-
     /// Iterator over sequence of executable transactions.
     ///
     /// A flashblocks is not ready if there's missing previous flashblocks, i.e. there's a gap in
@@ -74,13 +65,77 @@ where
             .flat_map(|(_, block)| block.txs.clone())
     }
 
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    /// Returns the first block number
+    pub(crate) fn block_number(&self) -> Option<u64> {
+        Some(self.inner.values().next()?.block().metadata.block_number)
+    }
+
+    /// Returns the payload base of the first tracked flashblock.
+    pub(crate) fn payload_base(&self) -> Option<ExecutionPayloadBaseV1> {
+        self.inner.values().next()?.block().base.clone()
+    }
+
     /// Returns the number of tracked flashblocks.
     pub(crate) fn count(&self) -> usize {
         self.inner.len()
     }
+}
 
-    fn clear(&mut self) {
-        self.inner.clear();
+/// A complete sequence of flashblocks, often corresponding to a full block.
+/// Ensure invariants of a complete flashblocks sequence.
+#[derive(Debug)]
+pub struct FlashBlockCompleteSequence(Vec<FlashBlock>);
+
+impl FlashBlockCompleteSequence {
+    /// Create a complete sequence from a vector of flashblocks.
+    /// Ensure that:
+    /// * vector is not empty
+    /// * first flashblock have the base payload
+    /// * sequence of flashblocks is sound (successive index from 0, same payload id, ...)
+    pub fn new(blocks: Vec<FlashBlock>) -> eyre::Result<Self> {
+        let first_block = blocks.first().ok_or_eyre("No flashblocks in sequence")?;
+
+        // Ensure that first flashblock have base
+        first_block.base.as_ref().ok_or_eyre("Flashblock at index 0 has no base")?;
+
+        // Ensure that index are successive from 0, have same block number and payload id
+        if !blocks.iter().enumerate().all(|(idx, block)| {
+            idx == block.index as usize &&
+                block.payload_id == first_block.payload_id &&
+                block.metadata.block_number == first_block.metadata.block_number
+        }) {
+            bail!("Flashblock inconsistencies detected in sequence");
+        }
+
+        Ok(Self(blocks))
+    }
+
+    /// Returns the block number
+    pub fn block_number(&self) -> u64 {
+        self.0.first().unwrap().metadata.block_number
+    }
+
+    /// Returns the payload base of the first flashblock.
+    pub fn payload_base(&self) -> &ExecutionPayloadBaseV1 {
+        self.0.first().unwrap().base.as_ref().unwrap()
+    }
+
+    /// Returns the number of flashblocks in the sequence.
+    pub const fn count(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<T> TryFrom<FlashBlockPendingSequence<T>> for FlashBlockCompleteSequence {
+    type Error = eyre::Error;
+    fn try_from(sequence: FlashBlockPendingSequence<T>) -> Result<Self, Self::Error> {
+        Self::new(
+            sequence.inner.into_values().map(|block| block.block().clone()).collect::<Vec<_>>(),
+        )
     }
 }
 
@@ -130,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_sequence_stops_before_gap() {
-        let mut sequence = FlashBlockSequence::new();
+        let mut sequence = FlashBlockPendingSequence::new();
         let tx = EthereumTxEnvelope::new_unhashed(
             EthereumTypedTransaction::<TxEip1559>::Eip1559(TxEip1559 {
                 chain_id: 4,
