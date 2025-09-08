@@ -151,10 +151,7 @@ contract LivenessModule2 is ISemver {
         _assertModuleConfigured(_safe);
 
         // Check that the module is still enabled on the target Safe
-        Safe safe = Safe(payable(_safe));
-        if (!safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleNotEnabled();
-        }
+        _assertModuleEnabled(_safe);
 
         if (msg.sender != safeConfigs[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
@@ -205,16 +202,13 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST revert if the given safe hasn't enabled the module
     /// @dev MUST revert if there isn't a successful challenge for the given safe
     /// @dev MUST enable the module to start a new challenge
-    /// @dev MUST emit the ChallengeExecuted event
+    /// @dev MUST emit the ChallengeSucceeded event
     /// @param _safe The Safe to transfer ownership of
     function changeOwnershipToFallback(address _safe) external {
         _assertModuleConfigured(_safe);
 
         // Check that the module is still enabled on the target Safe
-        Safe safe = Safe(payable(_safe));
-        if (!safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleNotEnabled();
-        }
+        _assertModuleEnabled(_safe);
 
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
@@ -262,6 +256,13 @@ contract LivenessModule2 is ISemver {
         ModuleConfig storage config = safeConfigs[_safe];
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotConfigured();
+        }
+    }
+
+    function _assertModuleEnabled(address _safe) internal view {
+        Safe safe = Safe(payable(_safe));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
         }
     }
 }
