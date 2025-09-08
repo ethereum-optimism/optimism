@@ -418,6 +418,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     }
 
     /// @notice Updates the minimum base fee. Can only be called by the owner.
+    ///         Setting this value to 0 is equivalent to disabling the min base fee feature
     /// @param _minBaseFee New minimum base fee.
     function setMinBaseFee(uint64 _minBaseFee) external onlyOwner {
         _setMinBaseFee(_minBaseFee);
