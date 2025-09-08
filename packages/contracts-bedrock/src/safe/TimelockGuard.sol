@@ -68,14 +68,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that this guard is enabled on the calling Safe
-        Safe safe = Safe(payable(msg.sender));
-        // The Safe contract does not expose a getGuard function, so we need to provide the
-        // the storage slot to the getStorageAt function.
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(safe.getStorageAt({offset: uint256(guardSlot), length: 1}), (address));
-
-        if (guard != address(this)) {
+        if (_getGuard(msg.sender) != address(this)) {
             revert TimelockGuard_GuardNotEnabled();
         }
 
@@ -96,12 +89,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that this guard is NOT enabled on the calling Safe
-        Safe safe = Safe(payable(msg.sender));
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(safe.getStorageAt({offset: uint256(guardSlot), length: 1}), (address));
-
-        if (guard == address(this)) {
+        if (_getGuard(msg.sender) == address(this)) {
             revert TimelockGuard_GuardStillEnabled();
         }
 
@@ -109,6 +97,16 @@ contract TimelockGuard is IGuard, ISemver {
         delete safeConfigs[msg.sender];
 
         emit GuardCleared(msg.sender);
+    }
+
+    /// @notice Internal helper to get the guard address from a Safe
+    /// @param _safe The Safe address
+    /// @return The current guard address
+    function _getGuard(address _safe) internal view returns (address) {
+        // keccak256("guard_manager.guard.address") from GuardManager
+        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+        Safe safe = Safe(payable(_safe));
+        return abi.decode(safe.getStorageAt({offset: uint256(guardSlot), length: 1}), (address));
     }
 
     /// @notice Called by the Safe before executing a transaction
