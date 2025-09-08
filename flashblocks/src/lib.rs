@@ -10,6 +10,7 @@ pub use ws::{WsConnect, WsFlashBlockStream};
 mod payload;
 mod sequence;
 mod service;
+mod worker;
 mod ws;
 
 /// Receiver of the most recent [`PendingBlock`] built out of [`FlashBlock`]s.

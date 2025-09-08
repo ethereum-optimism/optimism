@@ -22,6 +22,7 @@ reth-revm.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-errors.workspace = true
 reth-storage-api.workspace = true
+reth-tasks.workspace = true
 
 # alloy
 alloy-eips = { workspace = true, features = ["serde"] }
