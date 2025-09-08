@@ -36,6 +36,7 @@ const (
 	OPSuccinctGameType        GameType = 6
 	SuperAsteriscKonaGameType GameType = 7
 	CannonKonaGameType        GameType = 8
+	SuperCannonKonaGameType   GameType = 9
 	FastGameType              GameType = 254
 	AlphabetGameType          GameType = 255
 	KailuaGameType            GameType = 1337
@@ -66,6 +67,8 @@ func (t GameType) String() string {
 		return "super-asterisc-kona"
 	case CannonKonaGameType:
 		return "cannon-kona"
+	case SuperCannonKonaGameType:
+		return "super-cannon-kona"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
