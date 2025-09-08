@@ -1,18 +1,5 @@
 [
   {
-    "inputs": [],
-    "name": "SENTINEL_OWNER",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -79,7 +66,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct ILivenessModule2.ModuleConfig",
+        "internalType": "struct LivenessModule2.ModuleConfig",
         "name": "_config",
         "type": "tuple"
       }

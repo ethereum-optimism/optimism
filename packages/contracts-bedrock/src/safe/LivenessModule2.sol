@@ -7,7 +7,7 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 
 // Interfaces
-import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows for challenge-based ownership transfer to a fallback owner
@@ -17,15 +17,63 @@ import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling enableModule() with parameters
-contract LivenessModule2 is ILivenessModule2 {
-    /// @notice Reserved address used as the previous owner to the first owner in a Safe
-    address public constant SENTINEL_OWNER = address(0x1);
+contract LivenessModule2 is ISemver {
+    /// @notice Configuration for a Safe's liveness module
+    struct ModuleConfig {
+        uint256 livenessResponsePeriod;
+        address fallbackOwner;
+    }
 
     /// @notice Mapping from Safe address to its configuration
     mapping(address => ModuleConfig) public safeConfigs;
 
     /// @notice Mapping from Safe address to active challenge start time (0 if no challenge)
     mapping(address => uint256) public challengeStartTime;
+
+    /// @notice Reserved address used as the previous owner to the first owner in a Safe
+    address internal constant SENTINEL_OWNER = address(0x1);
+
+    /// @notice Error for when module is not enabled for the Safe
+    error LivenessModule2_ModuleNotEnabled();
+
+    /// @notice Error for when Safe is not configured for this module
+    error LivenessModule2_ModuleNotConfigured();
+
+    /// @notice Error for when a challenge already exists
+    error LivenessModule2_ChallengeAlreadyExists();
+
+    /// @notice Error for when no challenge exists
+    error LivenessModule2_ChallengeDoesNotExist();
+
+    /// @notice Error for when trying to cancel a challenge after the response period has ended
+    error LivenessModule2_ResponsePeriodEnded();
+
+    /// @notice Error for when trying to execute ownership transfer while the response period is still active
+    error LivenessModule2_ResponsePeriodActive();
+
+    /// @notice Error for when caller is not authorized
+    error LivenessModule2_UnauthorizedCaller();
+
+    /// @notice Error for invalid parameters
+    error LivenessModule2_InvalidParameters();
+
+    /// @notice Error for when trying to clear configuration while module is still enabled
+    error LivenessModule2_ModuleStillEnabled();
+
+    /// @notice Emitted when a Safe enables the module
+    event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
+
+    /// @notice Emitted when a Safe disables the module
+    event ModuleDisabled(address indexed safe);
+
+    /// @notice Emitted when a challenge is started
+    event ChallengeStarted(address indexed safe, uint256 challengeStartTime);
+
+    /// @notice Emitted when a challenge is cancelled
+    event ChallengeCancelled(address indexed safe);
+
+    /// @notice Emitted when ownership is transferred to the fallback owner
+    event ChallengeExecuted(address indexed safe, address fallbackOwner);
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
