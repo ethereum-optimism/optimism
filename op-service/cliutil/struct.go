@@ -102,6 +102,17 @@ func handleSpecialTypes(fieldValue reflect.Value, fieldType reflect.Type, ctx *c
 		return nil
 	}
 
+	// Handle common.Hash
+	if fieldType == reflect.TypeOf(common.Hash{}) {
+		if !ctx.IsSet(flag) {
+			return nil
+		}
+		hashStr := ctx.String(flag)
+		hash := common.HexToHash(hashStr)
+		fieldValue.Set(reflect.ValueOf(hash))
+		return nil
+	}
+
 	// If type implements TextUnmarshaler
 	if unmarshaler, ok := fieldValue.Interface().(encoding.TextUnmarshaler); ok {
 		return unmarshaler.UnmarshalText([]byte(ctx.String(flag)))

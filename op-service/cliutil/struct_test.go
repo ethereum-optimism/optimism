@@ -26,6 +26,7 @@ func TestPopulateStruct(t *testing.T) {
 		Int64           int64                 `cli:"int64"`
 		Uint64          uint64                `cli:"uint64"`
 		Address         common.Address        `cli:"address"`
+		Hash            common.Hash           `cli:"hash"`
 		TextUnmarshaler *textUnmarshalerThing `cli:"text-unmarshaler"`
 		NotTagged       string
 	}
@@ -45,6 +46,7 @@ func TestPopulateStruct(t *testing.T) {
 				"--int64=2",
 				"--uint64=3",
 				fmt.Sprintf("--address=%s", common.HexToAddress("0x42")),
+				fmt.Sprintf("--hash=%s", common.HexToHash("43")),
 				"--text-unmarshaler=hello",
 			},
 			exp: testStruct{
@@ -54,6 +56,7 @@ func TestPopulateStruct(t *testing.T) {
 				Int64:   2,
 				Uint64:  3,
 				Address: common.HexToAddress("0x42"),
+				Hash:    common.HexToHash("0x43"),
 				TextUnmarshaler: &textUnmarshalerThing{
 					text: "hello",
 				},
@@ -94,6 +97,9 @@ func TestPopulateStruct(t *testing.T) {
 					},
 					&cli.StringFlag{
 						Name: "address",
+					},
+					&cli.StringFlag{
+						Name: "hash",
 					},
 					&cli.StringFlag{
 						Name: "text-unmarshaler",
