@@ -17,7 +17,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     event ModuleDisabled(address indexed safe);
     event ChallengeStarted(address indexed safe, uint256 challengeStartTime);
     event ChallengeCancelled(address indexed safe);
-    event ChallengeExecuted(address indexed safe, address fallbackOwner);
+    event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant CHALLENGE_PERIOD = 7 days;
@@ -403,7 +403,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
 
         // Execute ownership transfer
         vm.expectEmit(true, true, true, true);
-        emit ChallengeExecuted(address(safeInstance.safe), fallbackOwner);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
 
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
 

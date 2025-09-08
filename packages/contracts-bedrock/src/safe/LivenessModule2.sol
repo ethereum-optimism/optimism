@@ -73,7 +73,7 @@ contract LivenessModule2 is ISemver {
     event ChallengeCancelled(address indexed safe);
 
     /// @notice Emitted when ownership is transferred to the fallback owner
-    event ChallengeExecuted(address indexed safe, address fallbackOwner);
+    event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -269,6 +269,6 @@ contract LivenessModule2 is ISemver {
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
 
-        emit ChallengeExecuted(_safe, config.fallbackOwner);
+        emit ChallengeSucceeded(_safe, config.fallbackOwner);
     }
 }
