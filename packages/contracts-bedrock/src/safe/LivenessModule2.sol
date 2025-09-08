@@ -136,7 +136,7 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
-    function getChallengePeriodEnd(address _safe) external view returns (uint256) {
+    function getChallengePeriodEnd(address _safe) public view returns (uint256) {
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
             return 0;
@@ -201,7 +201,7 @@ contract LivenessModule2 is ISemver {
         }
 
         // Check if response period has expired
-        if (block.timestamp >= startTime + config.livenessResponsePeriod) {
+        if (block.timestamp >= getChallengePeriodEnd(msg.sender)) {
             revert LivenessModule2_ResponsePeriodEnded();
         }
 
@@ -236,7 +236,7 @@ contract LivenessModule2 is ISemver {
         }
 
         // Check if response period has expired
-        if (block.timestamp < startTime + config.livenessResponsePeriod) {
+        if (block.timestamp < getChallengePeriodEnd(_safe)) {
             revert LivenessModule2_ResponsePeriodActive();
         }
 
