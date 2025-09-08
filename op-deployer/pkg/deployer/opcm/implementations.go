@@ -15,11 +15,19 @@ type DeployImplementationsInput struct {
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
 	DevFeatureBitmap                common.Hash
-	SuperchainConfigProxy           common.Address
-	ProtocolVersionsProxy           common.Address
-	SuperchainProxyAdmin            common.Address
-	UpgradeController               common.Address
-	Challenger                      common.Address
+	DeployV2DisputeGames            bool
+	// V2 Dispute Game parameters
+	FaultGameV2MaxGameDepth     *big.Int
+	FaultGameV2SplitDepth       *big.Int
+	FaultGameV2ClockExtension   *big.Int
+	FaultGameV2MaxClockDuration *big.Int
+	// Outputs from DeploySuperchain.s.sol
+	SuperchainConfigProxy common.Address
+	ProtocolVersionsProxy common.Address
+	SuperchainProxyAdmin  common.Address
+	UpgradeController     common.Address
+	Proposer              common.Address
+	Challenger            common.Address
 }
 
 type DeployImplementationsOutput struct {
@@ -45,6 +53,8 @@ type DeployImplementationsOutput struct {
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
+	FaultDisputeGameV2Impl           common.Address `json:"faultDisputeGameV2ImplAddress"`
+	PermissionedDisputeGameV2Impl    common.Address `json:"permissionedDisputeGameV2ImplAddress"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

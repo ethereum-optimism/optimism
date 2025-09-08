@@ -205,11 +205,19 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
-			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
-			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-			UpgradeController:               cfg.UpgradeController,
-			Challenger:                      cfg.Challenger,
+			DeployV2DisputeGames:            false, // Default to false for backward compatibility
+			// V2 Dispute Game parameters (using default values)
+			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
+			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
+			FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
+			FaultGameV2MaxClockDuration: big.NewInt(302400), // 3.5 days in seconds
+			// Outputs from DeploySuperchain.s.sol
+			SuperchainConfigProxy: cfg.SuperchainConfigProxy,
+			ProtocolVersionsProxy: cfg.ProtocolVersionsProxy,
+			SuperchainProxyAdmin:  cfg.SuperchainProxyAdmin,
+			UpgradeController:     cfg.UpgradeController,
+			Proposer:              cfg.Challenger, // Using Challenger as default Proposer
+			Challenger:            cfg.Challenger,
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)
