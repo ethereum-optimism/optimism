@@ -74,6 +74,29 @@ func TestPopulateStruct(t *testing.T) {
 			},
 			expErr: "invalid address",
 		},
+		{
+			name: "invalid hash flag (invalid length)",
+			args: []string{
+				"--hash=12345678901234567890123456789012345678901234567890123456789012345",
+			},
+			expErr: "invalid hash: length must be 64 characters",
+		},
+		{
+			name: "invalid hash flag (invalid characters)",
+			args: []string{
+				"--hash=123456789012345678901234567890123456789012345678901234567890123g",
+			},
+			expErr: "invalid hash: non-hex characters in hash",
+		},
+		{
+			name: "allow zero hash",
+			args: []string{
+				fmt.Sprintf("--hash=%s", common.HexToHash("0")),
+			},
+			exp: testStruct{
+				Hash: common.HexToHash("0x0"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
