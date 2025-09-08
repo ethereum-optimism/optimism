@@ -26,11 +26,20 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
 
+    /// @notice Error for when Safe is not configured for this guard
+    error TimelockGuard_GuardNotConfigured();
+
+    /// @notice Error for when attempt to clear guard while it is still enabled for the Safe
+    error TimelockGuard_GuardStillEnabled();
+
     /// @notice Error for invalid timelock delay
     error TimelockGuard_InvalidTimelockDelay();
 
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
+
+    /// @notice Emitted when a Safe clears the guard configuration
+    event GuardCleared(address indexed safe);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -74,6 +83,32 @@ contract TimelockGuard is IGuard, ISemver {
         safeConfigs[msg.sender].timelockDelay = _timelockDelay;
 
         emit GuardConfigured(msg.sender, _timelockDelay);
+    }
+
+    /// @notice Remove the timelock guard configuration by a previously enabled Safe
+    /// @dev The contract MUST NOT be enabled as a guard for the Safe
+    /// @dev MUST erase the existing timelock_delay data related to the calling Safe
+    /// @dev MUST emit a GuardCleared event
+    function clearTimelockGuard() external {
+        // Check if the calling safe has configuration set
+        if (safeConfigs[msg.sender].timelockDelay == 0) {
+            revert TimelockGuard_GuardNotConfigured();
+        }
+
+        // Check that this guard is NOT enabled on the calling Safe
+        Safe safe = Safe(payable(msg.sender));
+        // keccak256("guard_manager.guard.address") from GuardManager
+        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+        address guard = abi.decode(safe.getStorageAt({offset: uint256(guardSlot), length: 1}), (address));
+
+        if (guard == address(this)) {
+            revert TimelockGuard_GuardStillEnabled();
+        }
+
+        // Erase the configuration data for this safe
+        delete safeConfigs[msg.sender];
+
+        emit GuardCleared(msg.sender);
     }
 
     /// @notice Called by the Safe before executing a transaction
