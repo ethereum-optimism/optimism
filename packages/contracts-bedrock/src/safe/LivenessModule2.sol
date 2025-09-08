@@ -16,7 +16,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         to the fallback owner.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
-///      2. The Safe must then configure the module by calling enableModule() with parameters
+///      2. The Safe must then configure the module by calling configure() with parameters
 contract LivenessModule2 is ISemver {
     /// @notice Configuration for a Safe's liveness module
     struct ModuleConfig {
