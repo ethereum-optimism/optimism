@@ -27,10 +27,10 @@ contract LivenessModule2 is ISemver {
     /// @notice Mapping from Safe address to its configuration
     mapping(address => ModuleConfig) public safeConfigs;
 
-    /// @notice Mapping from Safe address to active challenge start time (0 if no challenge)
+    /// @notice Mapping from Safe address to active challenge start time (0 if none)
     mapping(address => uint256) public challengeStartTime;
 
-    /// @notice Reserved address used as the previous owner to the first owner in a Safe
+    /// @notice Reserved address used as previous owner to the first owner in a Safe
     address internal constant SENTINEL_OWNER = address(0x1);
 
     /// @notice Error for when module is not enabled for the Safe
