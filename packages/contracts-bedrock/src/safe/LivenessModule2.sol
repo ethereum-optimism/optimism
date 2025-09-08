@@ -79,6 +79,20 @@ contract LivenessModule2 is ISemver {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
+    /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge for the given safe, or
+    /// 0 if not
+    /// @dev MUST never revert
+    /// @param _safe The Safe address to query
+    /// @return The challenge end timestamp, or 0 if no challenge
+    function getChallengePeriodEnd(address _safe) public view returns (uint256) {
+        uint256 startTime = challengeStartTime[_safe];
+        if (startTime == 0) {
+            return 0;
+        }
+        ModuleConfig storage config = safeConfigs[_safe];
+        return startTime + config.livenessResponsePeriod;
+    }
+
     /// @notice Configures the module for a Safe that has already enabled it
     /// @dev MUST only be callable by a Safe that has enabled this module
     /// @param _config The configuration parameters for the module
@@ -129,20 +143,6 @@ contract LivenessModule2 is ISemver {
         // Also clear any active challenge
         delete challengeStartTime[msg.sender];
         emit ModuleDisabled(msg.sender);
-    }
-
-    /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge for the given safe, or
-    /// 0 if not
-    /// @dev MUST never revert
-    /// @param _safe The Safe address to query
-    /// @return The challenge end timestamp, or 0 if no challenge
-    function getChallengePeriodEnd(address _safe) public view returns (uint256) {
-        uint256 startTime = challengeStartTime[_safe];
-        if (startTime == 0) {
-            return 0;
-        }
-        ModuleConfig storage config = safeConfigs[_safe];
-        return startTime + config.livenessResponsePeriod;
     }
 
     /// @notice Challenges an enabled safe
