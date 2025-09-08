@@ -79,7 +79,7 @@ func (s *SessionManager) get(given *eth.SyncTesterSession) (*eth.SyncTesterSessi
 	var sess *eth.SyncTesterSession
 	sess, ok := s.sessions[id]
 	if ok {
-		s.log.Debug("Using existing session", "sessionID", id)
+		s.log.Trace("Using existing session", "sessionID", id)
 	} else {
 		s.sessions[id] = given
 		sess = given
@@ -91,7 +91,8 @@ func (s *SessionManager) get(given *eth.SyncTesterSession) (*eth.SyncTesterSessi
 func WithSession[T any](
 	mgr *SessionManager,
 	ctx context.Context,
-	fn func(*eth.SyncTesterSession) (T, error),
+	logger log.Logger,
+	fn func(*eth.SyncTesterSession, log.Logger) (T, error),
 ) (T, error) {
 	var zero T
 	given, ok := SyncTesterSessionFromContext(ctx)
@@ -105,5 +106,7 @@ func WithSession[T any](
 	// blocking
 	session.Lock()
 	defer session.Unlock()
-	return fn(session)
+	// Bind session ID and starting fcu state
+	logger = logger.With("id", session.SessionID, "start_fcu", session.CurrentState)
+	return fn(session, logger)
 }
