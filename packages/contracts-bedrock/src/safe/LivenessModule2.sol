@@ -172,12 +172,7 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST emit the ChallengeCancelled event
     function respond() external {
         // Check that this module is enabled on the calling Safe
-        Safe safe = Safe(payable(msg.sender));
-        if (!safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleNotEnabled();
-        }
-
-        ModuleConfig storage config = safeConfigs[msg.sender];
+        _assertModuleEnabled(msg.sender);
 
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
