@@ -63,22 +63,38 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ## Directory Structure
 
 <pre>
+├── <a href="./cannon">cannon</a>: Onchain MIPS instruction emulator for fault proofs
+├── <a href="./devnet-sdk">devnet-sdk</a>: Comprehensive toolkit for standardized devnet interactions
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 ├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
+├── <a href="./op-acceptance-tests">op-acceptance-tests</a>: Acceptance tests and configuration for OP Stack
+├── <a href="./op-alt-da">op-alt-da</a>: Alternative Data Availability mode (beta)
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-conductor">op-conductor</a>: High-availability sequencer service
+├── <a href="./op-deployer">op-deployer</a>: CLI tool for deploying and upgrading OP Stack smart contracts
+├── <a href="./op-devstack">op-devstack</a>: Flexible test frontend for integration and acceptance testing
+├── <a href="./op-dispute-mon">op-dispute-mon</a>: Off-chain service to monitor dispute games
+├── <a href="./op-dripper">op-dripper</a>: Controlled token distribution service
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-node">op-node</a>: rollup consensus-layer client
+├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
+├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
+├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
+├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
+├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
+├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
+├── <a href="./op-up">op-up</a>: Deployment and management utilities
+├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-├── <a href="./.semgrep">semgrep</a>: Semgrep rules and tests
 </pre>
 
 ## Development and Release Process
