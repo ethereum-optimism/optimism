@@ -278,7 +278,8 @@ contract Deploy is Deployer {
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: superchainProxyAdmin.owner(),
-                challenger: cfg.l2OutputOracleChallenger()
+                challenger: cfg.l2OutputOracleChallenger(),
+                devFeatureBitmap: cfg.devFeatureBitmap()
             })
         );
 

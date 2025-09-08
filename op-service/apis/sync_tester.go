@@ -19,7 +19,7 @@ type SyncTester interface {
 }
 
 type SyncAPI interface {
-	GetSession(ctx context.Context) (eth.SyncTesterSession, error)
+	GetSession(ctx context.Context) (*eth.SyncTesterSession, error)
 	DeleteSession(ctx context.Context) error
 	ListSessions(ctx context.Context) ([]string, error)
 }

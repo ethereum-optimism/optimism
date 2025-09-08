@@ -43,65 +43,79 @@
   },
   {
     "bytes": "20",
-    "label": "ethLockboxImpl",
+    "label": "optimismPortalInteropImpl",
     "offset": 0,
     "slot": "6",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "systemConfigImpl",
+    "label": "ethLockboxImpl",
     "offset": 0,
     "slot": "7",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "optimismMintableERC20FactoryImpl",
+    "label": "systemConfigImpl",
     "offset": 0,
     "slot": "8",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "l1CrossDomainMessengerImpl",
+    "label": "optimismMintableERC20FactoryImpl",
     "offset": 0,
     "slot": "9",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "l1StandardBridgeImpl",
+    "label": "l1CrossDomainMessengerImpl",
     "offset": 0,
     "slot": "10",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "disputeGameFactoryImpl",
+    "label": "l1StandardBridgeImpl",
     "offset": 0,
     "slot": "11",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "anchorStateRegistryImpl",
+    "label": "disputeGameFactoryImpl",
     "offset": 0,
     "slot": "12",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "delayedWETHImpl",
+    "label": "anchorStateRegistryImpl",
     "offset": 0,
     "slot": "13",
     "type": "address"
   },
   {
     "bytes": "20",
-    "label": "mipsImpl",
+    "label": "delayedWETHImpl",
     "offset": 0,
     "slot": "14",
     "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "mipsImpl",
+    "offset": 0,
+    "slot": "15",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "devFeatureBitmap",
+    "offset": 0,
+    "slot": "16",
+    "type": "bytes32"
   }
 ]

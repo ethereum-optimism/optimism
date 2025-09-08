@@ -26,14 +26,19 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 interface IOPContractsManagerContractsContainer {
+    error OPContractsManagerContractsContainer_DevFeatureInProd();
+
     function __constructor__(
         IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
+        IOPContractsManager.Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
     )
         external;
 
     function blueprints() external view returns (IOPContractsManager.Blueprints memory);
     function implementations() external view returns (IOPContractsManager.Implementations memory);
+    function devFeatureBitmap() external view returns (bytes32);
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
 }
 
 interface IOPContractsManagerGameTypeAdder {
@@ -195,6 +200,7 @@ interface IOPContractsManager {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -355,32 +361,17 @@ interface IOPContractsManager {
 
     function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
 
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() external view returns (bytes32);
+
+    /// @notice Returns the status of a development feature.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
+
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
 
     function upgradeController() external view returns (address);
-}
-
-/// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox
-///         on it, since the OPCM contracts already deployed on mainnet don't have it.
-/// @dev    Only used for testing.
-interface IOPCMImplementationsWithoutLockbox {
-    /// @notice The implementation contracts for the OP Stack, without the newly added ETHLockbox.
-    struct Implementations {
-        address superchainConfigImpl;
-        address protocolVersionsImpl;
-        address l1ERC721BridgeImpl;
-        address optimismPortalImpl;
-        address systemConfigImpl;
-        address optimismMintableERC20FactoryImpl;
-        address l1CrossDomainMessengerImpl;
-        address l1StandardBridgeImpl;
-        address disputeGameFactoryImpl;
-        address anchorStateRegistryImpl;
-        address delayedWETHImpl;
-        address mipsImpl;
-    }
-
-    /// @notice Returns the implementation contracts without the ETHLockbox.
-    function implementations() external view returns (Implementations memory);
 }

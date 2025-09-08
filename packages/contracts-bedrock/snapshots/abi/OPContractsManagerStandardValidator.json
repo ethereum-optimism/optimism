@@ -15,6 +15,11 @@
           },
           {
             "internalType": "address",
+            "name": "optimismPortalInteropImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },
@@ -82,6 +87,11 @@
         "internalType": "uint256",
         "name": "_withdrawalDelaySeconds",
         "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_devFeatureBitmap",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -150,6 +160,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -350,6 +373,19 @@
   {
     "inputs": [],
     "name": "optimismPortalImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "optimismPortalInteropImpl",
     "outputs": [
       {
         "internalType": "address",

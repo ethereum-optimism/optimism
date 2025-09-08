@@ -33,14 +33,14 @@ contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBas
     address private spacer_50_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.7.0
-    string public constant version = "2.7.0";
+    /// @custom:semver 2.8.0
+    string public constant version = "2.8.0";
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    constructor() ERC721Bridge() ReinitializableBase(2) {
+    constructor() ERC721Bridge() ReinitializableBase(3) {
         _disableInitializers();
     }
 

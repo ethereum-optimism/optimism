@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	"github.com/google/uuid"
 )
 
@@ -71,22 +71,8 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		session := &eth.SyncTesterSession{
-			SessionID: sessionID,
-			Validated: latest,
-			CurrentState: eth.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-			Payloads: make(map[eth.PayloadID]*eth.ExecutionPayloadEnvelope),
-			InitialState: eth.FCUState{
-				Latest:    latest,
-				Safe:      safe,
-				Finalized: finalized,
-			},
-		}
-		ctx := backend.WithSyncTesterSession(r.Context(), session)
+		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized)
+		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")
 		r = r.WithContext(ctx)

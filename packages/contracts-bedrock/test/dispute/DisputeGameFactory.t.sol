@@ -51,6 +51,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
     event ImplementationSet(address indexed impl, GameType indexed gameType);
+    event ImplementationArgsSet(GameType indexed gameType, bytes args);
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
     function setUp() public virtual override {
@@ -98,26 +99,17 @@ contract DisputeGameFactory_TestInit is CommonTest {
         });
     }
 
-    function _getGameConstructorParamsV2(
-        Claim _absolutePrestate,
-        AlphabetVM _vm,
-        GameType _gameType
-    )
+    function _getGameConstructorParamsV2(GameType _gameType)
         internal
-        view
+        pure
         returns (IFaultDisputeGameV2.GameConstructorParams memory params_)
     {
         return IFaultDisputeGameV2.GameConstructorParams({
             gameType: _gameType,
-            absolutePrestate: _absolutePrestate,
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            vm: _vm,
-            weth: delayedWeth,
-            anchorStateRegistry: anchorStateRegistry,
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
     }
 
@@ -134,9 +126,13 @@ contract DisputeGameFactory_TestInit is CommonTest {
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
-    function _setGame(address _gameImpl, GameType _gameType) internal {
+    function _setGame(address _gameImpl, GameType _gameType, bytes memory _implArgs) internal {
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
+        if (_implArgs.length > 0) {
+            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), _implArgs);
+        } else {
+            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
+        }
         disputeGameFactory.setInitBond(_gameType, 0.08 ether);
         vm.stopPrank();
     }
@@ -158,7 +154,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, "");
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -186,7 +182,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, "");
     }
 
     /// @notice Sets up a fault game implementation
@@ -204,7 +200,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON);
+        _setGame(gameImpl_, GameTypes.CANNON, "");
     }
 
     /// @notice Sets up a fault game v2 implementation
@@ -216,14 +212,20 @@ contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.CANNON))
-                )
+                abi.encodeCall(IFaultDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.CANNON)))
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON);
+        // Encode the implementation args for CWIA (tightly packed)
+        bytes memory implArgs = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(111) // 32 bytes (l2ChainId)
+        );
+
+        _setGame(gameImpl_, GameTypes.CANNON, implArgs);
     }
 
     function setupPermissionedDisputeGame(
@@ -249,7 +251,13 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, "");
+    }
+
+    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+        assembly {
+            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
+        }
     }
 }
 
@@ -418,10 +426,45 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         disputeGameFactory.create{ value: bondAmount }(gt, rootClaim, extraData);
     }
 
-    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
-        assembly {
-            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
-        }
+    function test_create_implArgs_succeeds() public {
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        (, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+
+        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
+        // extraData should contain the l2BlockNumber as first 32 bytes
+        bytes memory extraData = bytes.concat(bytes32(uint256(type(uint32).max)));
+
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
+        vm.deal(address(this), bondAmount);
+
+        // Create the game
+        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON, rootClaim, extraData);
+
+        // Verify the game was created and stored
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON, rootClaim, extraData);
+
+        assertEq(address(game), address(proxy));
+        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
+
+        // Verify the game has the correct parameters via CWIA
+        IFaultDisputeGameV2 gameV2 = IFaultDisputeGameV2(address(proxy));
+
+        // Test CWIA getters
+        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(gameV2.extraData(), extraData);
+        assertEq(gameV2.l2ChainId(), 111);
+        assertEq(address(gameV2.gameCreator()), address(this));
+        assertEq(gameV2.l2BlockNumber(), uint256(type(uint32).max));
+        assertEq(address(gameV2.vm()), address(vm_));
+        assertEq(address(gameV2.weth()), address(delayedWeth));
+        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
+        // Test Constructor args
+        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
+        assertEq(gameV2.maxGameDepth(), 2 ** 3);
+        assertEq(gameV2.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(gameV2.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
+        assertEq(Duration.unwrap(gameV2.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
     }
 }
 
@@ -447,6 +490,48 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
         disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
+    }
+
+    /// @notice Tests that the `setImplementation` function with args properly sets the implementation
+    ///         and args for a given `GameType`.
+    function test_setImplementation_withArgs_succeeds() public {
+        address fakeGame = address(1);
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        AlphabetVM vm_;
+        IPreimageOracle preimageOracle_;
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        uint256 l2ChainId = 111;
+
+        bytes memory args = abi.encodePacked(
+            absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId // 32 bytes (l2ChainId)
+        );
+
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationSet(address(1), GameTypes.CANNON);
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationArgsSet(GameTypes.CANNON, args);
+
+        // Set the implementation and args for the `GameTypes.CANNON` enum value.
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(fakeGame), args);
+
+        // Ensure that the implementation for the `GameTypes.CANNON` enum value is set.
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(1));
+        // Ensure that the args for the `GameTypes.CANNON` enum value are set.
+        assertEq(disputeGameFactory.gameArgs(GameTypes.CANNON), args);
+    }
+
+    /// @notice Tests that the `setImplementation` function with args reverts when called by a non-owner.
+    function test_setImplementationArgs_notOwner_reverts() public {
+        bytes memory args = abi.encode(uint256(123), address(0xdead));
+
+        // Ensure that the `setImplementation` function reverts when called by a non-owner.
+        vm.prank(address(0));
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)), args);
     }
 }
 

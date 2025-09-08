@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestParseSession_Valid(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
+	session, ok := session.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
@@ -52,7 +52,7 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
+	session, ok := session.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
@@ -70,7 +70,7 @@ func TestParseSession_NoSessionInitialized(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, req, newReq)
 
-	_, ok := backend.SyncTesterSessionFromContext(newReq.Context())
+	_, ok := session.SyncTesterSessionFromContext(newReq.Context())
 	require.False(t, ok)
 }
 
