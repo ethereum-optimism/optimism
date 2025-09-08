@@ -38,8 +38,8 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 1.12.0
-    string public constant version = "1.12.0";
+    /// @custom:semver 1.13.0
+    string public constant version = "1.13.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -186,56 +186,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         return challenger;
     }
 
-    /// @notice Returns the expected SystemConfig version.
-    function systemConfigVersion() public pure returns (string memory) {
-        return "3.7.0";
-    }
-
-    /// @notice Returns the expected OptimismPortal version.
-    function optimismPortalVersion() public pure returns (string memory) {
-        return "5.0.0";
-    }
-
-    /// @notice Returns the expected L1CrossDomainMessenger version.
-    function l1CrossDomainMessengerVersion() public pure returns (string memory) {
-        return "2.10.0";
-    }
-
-    /// @notice Returns the expected L1ERC721Bridge version.
-    function l1ERC721BridgeVersion() public pure returns (string memory) {
-        return "2.8.0";
-    }
-
-    /// @notice Returns the expected L1StandardBridge version.
-    function l1StandardBridgeVersion() public pure returns (string memory) {
-        return "2.7.0";
-    }
-
-    /// @notice Returns the expected MIPS version.
-    function mipsVersion() public pure returns (string memory) {
-        return "1.9.0";
-    }
-
-    /// @notice Returns the expected OptimismMintableERC20Factory version.
-    function optimismMintableERC20FactoryVersion() public pure returns (string memory) {
-        return "1.10.1";
-    }
-
-    /// @notice Returns the expected DisputeGameFactory version.
-    function disputeGameFactoryVersion() public pure returns (string memory) {
-        return "1.3.0";
-    }
-
-    /// @notice Returns the expected AnchorStateRegistry version.
-    function anchorStateRegistryVersion() public pure returns (string memory) {
-        return "3.5.0";
-    }
-
-    /// @notice Returns the expected DelayedWETH version.
-    function delayedWETHVersion() public pure returns (string memory) {
-        return "1.5.0";
-    }
-
     /// @notice Returns the expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public pure returns (string memory) {
         return "1.8.0";
@@ -244,11 +194,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Returns the expected PreimageOracle version.
     function preimageOracleVersion() public pure returns (string memory) {
         return "1.1.4";
-    }
-
-    /// @notice Returns the expected ETHLockbox version.
-    function ethLockboxVersion() public pure returns (string memory) {
-        return "1.2.0";
     }
 
     /// @notice Internal function to get version from any contract implementing ISemver.
@@ -298,8 +243,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         virtual
         returns (string memory)
     {
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_sysCfg)), systemConfigVersion()), "SYSCON-10", _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_sysCfg)), getVersion(systemConfigImpl)), "SYSCON-10", _errors
+        );
         _errors = internalRequire(_sysCfg.gasLimit() <= uint64(500_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
         _errors =
@@ -331,7 +277,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IL1CrossDomainMessenger _messenger = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_messenger)), l1CrossDomainMessengerVersion()), "L1xDM-10", _errors
+            LibString.eq(getVersion(address(_messenger)), getVersion(l1CrossDomainMessengerImpl)), "L1xDM-10", _errors
         );
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_messenger)) == l1CrossDomainMessengerImpl, "L1xDM-20", _errors
@@ -363,8 +309,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_bridge)), l1StandardBridgeVersion()), "L1SB-10", _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_bridge)), getVersion(l1StandardBridgeImpl)), "L1SB-10", _errors
+        );
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_bridge)) == l1StandardBridgeImpl, "L1SB-20", _errors
         );
@@ -392,7 +339,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         IOptimismMintableERC20Factory _factory = IOptimismMintableERC20Factory(_sysCfg.optimismMintableERC20Factory());
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_factory)), optimismMintableERC20FactoryVersion()), "MERC20F-10", _errors
+            LibString.eq(getVersion(address(_factory)), getVersion(optimismMintableERC20FactoryImpl)),
+            "MERC20F-10",
+            _errors
         );
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
@@ -415,8 +364,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IL1ERC721Bridge _bridge = IL1ERC721Bridge(_sysCfg.l1ERC721Bridge());
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_bridge)), l1ERC721BridgeVersion()), "L721B-10", _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_bridge)), getVersion(l1ERC721BridgeImpl)), "L721B-10", _errors
+        );
         _errors =
             internalRequire(getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
 
@@ -444,7 +394,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             _errors = internalRequire(
-                LibString.eq(getVersion(address(_portal)), string.concat(optimismPortalVersion(), "+interop")),
+                LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalImpl), "+interop")),
                 "PORTAL-10",
                 _errors
             );
@@ -453,7 +403,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             );
         } else {
             _errors = internalRequire(
-                LibString.eq(getVersion(address(_portal)), optimismPortalVersion()), "PORTAL-10", _errors
+                LibString.eq(getVersion(address(_portal)), getVersion(optimismPortalImpl)), "PORTAL-10", _errors
             );
             _errors = internalRequire(
                 getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
@@ -486,8 +436,9 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _errors;
         }
 
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_lockbox)), ethLockboxVersion()), "LOCKBOX-10", _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_lockbox)), getVersion(ethLockboxImpl)), "LOCKBOX-10", _errors
+        );
         _errors =
             internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
         _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
@@ -509,8 +460,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_factory)), disputeGameFactoryVersion()), "DF-10", _errors);
+        _errors = internalRequire(
+            LibString.eq(getVersion(address(_factory)), getVersion(disputeGameFactoryImpl)), "DF-10", _errors
+        );
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
         );
@@ -674,7 +626,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-DWETH");
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_weth)), delayedWETHVersion()), string.concat(_errorPrefix, "-10"), _errors
+            LibString.eq(getVersion(address(_weth)), getVersion(delayedWETHImpl)),
+            string.concat(_errorPrefix, "-10"),
+            _errors
         );
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_weth)) == delayedWETHImpl,
@@ -706,7 +660,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_asr)), anchorStateRegistryVersion()),
+            LibString.eq(getVersion(address(_asr)), getVersion(anchorStateRegistryImpl)),
             string.concat(_errorPrefix, "-10"),
             _errors
         );
@@ -737,7 +691,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errorPrefix = string.concat(_errorPrefix, "-VM");
         _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_mips)), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
+            LibString.eq(getVersion(address(_mips)), getVersion(mipsImpl)), string.concat(_errorPrefix, "-20"), _errors
         );
         _errors = internalRequire(_mips.stateVersion() == 8, string.concat(_errorPrefix, "-30"), _errors);
         return _errors;

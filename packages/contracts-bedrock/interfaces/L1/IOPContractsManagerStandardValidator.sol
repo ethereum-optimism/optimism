@@ -36,34 +36,23 @@ interface IOPContractsManagerStandardValidator {
 
     function version() external view returns (string memory);
     function anchorStateRegistryImpl() external view returns (address);
-    function anchorStateRegistryVersion() external pure returns (string memory);
     function challenger() external view returns (address);
     function delayedWETHImpl() external view returns (address);
-    function delayedWETHVersion() external pure returns (string memory);
     function devFeatureBitmap() external view returns (bytes32);
     function disputeGameFactoryImpl() external view returns (address);
-    function disputeGameFactoryVersion() external pure returns (string memory);
     function l1CrossDomainMessengerImpl() external view returns (address);
-    function l1CrossDomainMessengerVersion() external pure returns (string memory);
     function l1ERC721BridgeImpl() external view returns (address);
-    function l1ERC721BridgeVersion() external pure returns (string memory);
     function l1PAOMultisig() external view returns (address);
     function l1StandardBridgeImpl() external view returns (address);
-    function l1StandardBridgeVersion() external pure returns (string memory);
     function mipsImpl() external view returns (address);
-    function mipsVersion() external pure returns (string memory);
     function optimismMintableERC20FactoryImpl() external view returns (address);
-    function optimismMintableERC20FactoryVersion() external pure returns (string memory);
     function optimismPortalImpl() external view returns (address);
     function optimismPortalInteropImpl() external view returns (address);
-    function optimismPortalVersion() external pure returns (string memory);
     function ethLockboxImpl() external view returns (address);
-    function ethLockboxVersion() external pure returns (string memory);
     function permissionedDisputeGameVersion() external pure returns (string memory);
     function preimageOracleVersion() external pure returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfigImpl() external view returns (address);
-    function systemConfigVersion() external pure returns (string memory);
     function withdrawalDelaySeconds() external view returns (uint256);
 
     function validateWithOverrides(

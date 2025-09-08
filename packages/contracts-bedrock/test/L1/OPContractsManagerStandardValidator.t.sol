@@ -1351,34 +1351,43 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
     /// @notice Tests that the version getter functions on `OPContractsManagerStandardValidator` return non-empty
     ///         strings.
     function test_versions_succeeds() public view {
-        assertTrue(bytes(opcm.opcmStandardValidator().systemConfigVersion()).length > 0, "systemConfigVersion empty");
         assertTrue(
-            bytes(opcm.opcmStandardValidator().optimismPortalVersion()).length > 0, "optimismPortalVersion empty"
+            bytes(ISemver(opcm.opcmStandardValidator().systemConfigImpl()).version()).length > 0,
+            "systemConfigVersion empty"
         );
         assertTrue(
-            bytes(opcm.opcmStandardValidator().l1CrossDomainMessengerVersion()).length > 0,
+            bytes(ISemver(opcm.opcmStandardValidator().optimismPortalImpl()).version()).length > 0,
+            "optimismPortalVersion empty"
+        );
+        assertTrue(
+            bytes(ISemver(opcm.opcmStandardValidator().l1CrossDomainMessengerImpl()).version()).length > 0,
             "l1CrossDomainMessengerVersion empty"
         );
         assertTrue(
-            bytes(opcm.opcmStandardValidator().l1ERC721BridgeVersion()).length > 0, "l1ERC721BridgeVersion empty"
+            bytes(ISemver(opcm.opcmStandardValidator().l1ERC721BridgeImpl()).version()).length > 0,
+            "l1ERC721BridgeVersion empty"
         );
         assertTrue(
-            bytes(opcm.opcmStandardValidator().l1StandardBridgeVersion()).length > 0, "l1StandardBridgeVersion empty"
+            bytes(ISemver(opcm.opcmStandardValidator().l1StandardBridgeImpl()).version()).length > 0,
+            "l1StandardBridgeVersion empty"
         );
-        assertTrue(bytes(opcm.opcmStandardValidator().mipsVersion()).length > 0, "mipsVersion empty");
+        assertTrue(bytes(ISemver(opcm.opcmStandardValidator().mipsImpl()).version()).length > 0, "mipsVersion empty");
         assertTrue(
-            bytes(opcm.opcmStandardValidator().optimismMintableERC20FactoryVersion()).length > 0,
+            bytes(ISemver(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl()).version()).length > 0,
             "optimismMintableERC20FactoryVersion empty"
         );
         assertTrue(
-            bytes(opcm.opcmStandardValidator().disputeGameFactoryVersion()).length > 0,
+            bytes(ISemver(opcm.opcmStandardValidator().disputeGameFactoryImpl()).version()).length > 0,
             "disputeGameFactoryVersion empty"
         );
         assertTrue(
-            bytes(opcm.opcmStandardValidator().anchorStateRegistryVersion()).length > 0,
+            bytes(ISemver(opcm.opcmStandardValidator().anchorStateRegistryImpl()).version()).length > 0,
             "anchorStateRegistryVersion empty"
         );
-        assertTrue(bytes(opcm.opcmStandardValidator().delayedWETHVersion()).length > 0, "delayedWETHVersion empty");
+        assertTrue(
+            bytes(ISemver(opcm.opcmStandardValidator().delayedWETHImpl()).version()).length > 0,
+            "delayedWETHVersion empty"
+        );
         assertTrue(
             bytes(opcm.opcmStandardValidator().permissionedDisputeGameVersion()).length > 0,
             "permissionedDisputeGameVersion empty"
@@ -1386,6 +1395,9 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
         assertTrue(
             bytes(opcm.opcmStandardValidator().preimageOracleVersion()).length > 0, "preimageOracleVersion empty"
         );
-        assertTrue(bytes(opcm.opcmStandardValidator().ethLockboxVersion()).length > 0, "ethLockboxVersion empty");
+        assertTrue(
+            bytes(ISemver(opcm.opcmStandardValidator().ethLockboxImpl()).version()).length > 0,
+            "ethLockboxVersion empty"
+        );
     }
 }
