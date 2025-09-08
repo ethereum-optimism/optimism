@@ -76,6 +76,9 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm with Kona.
     GameType internal constant CANNON_KONA = GameType.wrap(8);
 
+    /// @notice A dispute game type that uses the cannon vm with Kona (Super Roots).
+    GameType internal constant SUPER_CANNON_KONA = GameType.wrap(9);
+
     /// @notice A dispute game type with short game duration for testing withdrawals.
     ///         Not intended for production use.
     GameType internal constant FAST = GameType.wrap(254);
