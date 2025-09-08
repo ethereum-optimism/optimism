@@ -126,11 +126,7 @@ contract LivenessModule2 is ISemver {
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges
     function clear() external {
         // Check if the calling safe has configuration set
-        ModuleConfig storage config = safeConfigs[msg.sender];
-        if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotConfigured();
-        }
-
+        _assertModuleConfigured(msg.sender);
         // Check that this module is NOT enabled on the calling Safe
         // This prevents clearing configuration while module is still enabled
         Safe safe = Safe(payable(msg.sender));
@@ -152,11 +148,7 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST emit the ChallengeStarted event
     /// @param _safe The Safe to challenge
     function challenge(address _safe) external {
-        ModuleConfig storage config = safeConfigs[_safe];
-
-        if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotConfigured();
-        }
+        _assertModuleConfigured(_safe);
 
         // Check that the module is still enabled on the target Safe
         Safe safe = Safe(payable(_safe));
@@ -164,7 +156,7 @@ contract LivenessModule2 is ISemver {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
-        if (msg.sender != config.fallbackOwner) {
+        if (msg.sender != safeConfigs[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -191,9 +183,7 @@ contract LivenessModule2 is ISemver {
         ModuleConfig storage config = safeConfigs[msg.sender];
 
         // Check if the calling safe has configuration set
-        if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotConfigured();
-        }
+        _assertModuleConfigured(msg.sender);
 
         uint256 startTime = challengeStartTime[msg.sender];
         if (startTime == 0) {
@@ -218,11 +208,7 @@ contract LivenessModule2 is ISemver {
     /// @dev MUST emit the ChallengeExecuted event
     /// @param _safe The Safe to transfer ownership of
     function changeOwnershipToFallback(address _safe) external {
-        ModuleConfig storage config = safeConfigs[_safe];
-
-        if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotConfigured();
-        }
+        _assertModuleConfigured(_safe);
 
         // Check that the module is still enabled on the target Safe
         Safe safe = Safe(payable(_safe));
@@ -263,12 +249,19 @@ contract LivenessModule2 is ISemver {
             to: _safe,
             value: 0,
             operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], config.fallbackOwner))
+            data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], safeConfigs[_safe].fallbackOwner))
         });
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
 
-        emit ChallengeSucceeded(_safe, config.fallbackOwner);
+        emit ChallengeSucceeded(_safe, safeConfigs[_safe].fallbackOwner);
+    }
+
+    function _assertModuleConfigured(address _safe) internal view {
+        ModuleConfig storage config = safeConfigs[_safe];
+        if (config.fallbackOwner == address(0)) {
+            revert LivenessModule2_ModuleNotConfigured();
+        }
     }
 }
