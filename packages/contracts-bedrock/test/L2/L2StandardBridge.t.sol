@@ -355,8 +355,9 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that `withdraw` burns the tokens, emits `WithdrawalInitiated`, and initiates
     ///         a withdrawal with `Withdrawer.initiateWithdrawal`.
-    function testFuzz_withdraw_withdrawingERC20_succeeds(uint256 _amount) external {
+    function testFuzz_withdraw_withdrawingERC20_succeeds(uint256 _amount, uint32 _minGasLimit) external {
         _amount = bound(_amount, 1, 1000000);
+        _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
 
         deal(address(L2Token), alice, _amount, true);
         assertEq(L2Token.balanceOf(alice), _amount);
@@ -382,7 +383,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
         });
 
         vm.prank(alice, alice);
-        l2StandardBridge.withdraw(address(L2Token), _amount, 1000, hex"");
+        l2StandardBridge.withdraw(address(L2Token), _amount, _minGasLimit, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
@@ -417,8 +418,9 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that `withdrawTo` burns the tokens, emits `WithdrawalInitiated`, and
     ///         initiates a withdrawal with `Withdrawer.initiateWithdrawal`.
-    function testFuzz_withdrawTo_withdrawingERC20_succeeds(uint256 _amount) external {
+    function testFuzz_withdrawTo_withdrawingERC20_succeeds(uint256 _amount, uint32 _minGasLimit) external {
         _amount = bound(_amount, 1, 1000000);
+        _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
 
         deal(address(L2Token), alice, _amount, true);
         assertEq(L2Token.balanceOf(alice), _amount);
@@ -444,7 +446,7 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
         });
 
         vm.prank(alice, alice);
-        l2StandardBridge.withdrawTo(address(L2Token), bob, _amount, 1000, hex"");
+        l2StandardBridge.withdrawTo(address(L2Token), bob, _amount, _minGasLimit, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
