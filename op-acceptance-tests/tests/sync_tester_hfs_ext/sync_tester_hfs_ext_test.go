@@ -107,9 +107,9 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	l.Info("Runtime configuration values for TestSyncTesterExtEL")
 	l.Info("L2_NETWORK_NAME", "value", L2NetworkName)
 	l.Info("L1_CHAIN_ID", "value", L1ChainID)
-	l.Info("L2_EL_ENDPOINT", "value", L2ELEndpoint)
-	l.Info("L1_CL_BEACON_ENDPOINT", "value", L1CLBeaconEndpoint)
-	l.Info("L1_EL_ENDPOINT", "value", L1ELEndpoint)
+	l.Info("L2_EL_ENDPOINT", "value", l2ELEndpoint)
+	l.Info("L1_CL_BEACON_ENDPOINT", "value", l1CLBeaconEndpoint)
+	l.Info("L1_EL_ENDPOINT", "value", l1ELEndpoint)
 	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
 
 	// Create orchestrator with the same configuration that was in TestMain
