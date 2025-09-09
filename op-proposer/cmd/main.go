@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -33,7 +32,11 @@ func main() {
 	app.Name = "op-proposer"
 	app.Usage = "L2 Output Submitter"
 	app.Description = "Service for generating and proposing L2 Outputs"
-	app.Action = cliapp.LifecycleCmd(proposer.Main(Version))
+
+	app.Action = cliapp.LifecycleCmd(func(c *cli.Context) error {
+		return proposer.Main(Version)(c.Context)
+	})
+
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
@@ -44,6 +47,6 @@ func main() {
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
 	err := app.RunContext(ctx, os.Args)
 	if err != nil {
-		log.Crit("Application failed", "message", err)
+		oplog.Crit("Application failed", "message", err)
 	}
 }
