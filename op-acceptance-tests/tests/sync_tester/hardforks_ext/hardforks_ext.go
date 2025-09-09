@@ -179,8 +179,8 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
 	require.Equal(len(stSessions), 1, "expect exactly one session")
 
 	stSession := sys.SyncTester.GetSession(stSessions[0])
-	require.GreaterOrEqual(stSession.CurrentState.Latest, stSession.InitialState.Latest+blocksToSync, "SyncTester session Latest should be on the same block as L2CL")
-	require.GreaterOrEqual(stSession.CurrentState.Safe, stSession.InitialState.Safe+blocksToSync, "SyncTester session Safe should be on the same block as L2CL")
+	require.GreaterOrEqualf(stSession.CurrentState.Latest, stSession.InitialState.Latest+blocksToSync, "SyncTester session CurrentState.Latest only advanced %d", stSession.CurrentState.Latest-stSession.InitialState.Latest)
+	require.GreaterOrEqualf(stSession.CurrentState.Safe, stSession.InitialState.Safe+blocksToSync, "SyncTester session CurrentState.Safe only advanced %d", stSession.CurrentState.Safe-stSession.InitialState.Safe)
 
 	l.Info("SyncTester HFS Ext test completed successfully", "l2cl_chain_id", sys.L2CL.ID().ChainID(), "l2cl_sync_status", l2CLSyncStatus, "upgrade_name", upgradeName)
 }
