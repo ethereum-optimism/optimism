@@ -139,6 +139,7 @@ event OwnerChanged(address previousOwner, address newOwner);
 
 // ❌ Incorrect - event params prefixed with underscore
 event OwnerChanged(address _previousOwner, address _newOwner);
+
 // ❌ Incorrect - event params are not camelCase or are unnamed
 event OwnerChanged(address, address NEW_OWNER);
 
@@ -160,6 +161,12 @@ Example:
 
 ```solidity
 contract ExampleWithImmutable {
+    // ❌ Incorrect - immutable is not SCREAMING_SNAKE_CASE
+    address internal immutable ownerAddress;
+
+    // ❌ Incorrect - immutable is public
+    address public immutable ownerAddress;
+
     // ✅ Correct - immutable is internal and SCREAMING_SNAKE_CASE
     address internal immutable OWNER_ADDRESS;
 
