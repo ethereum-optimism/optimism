@@ -119,6 +119,20 @@ function setOwner(address newOwner) external {
 
 - Arguments returned by functions should be suffixed with an underscore.
 
+Example:
+
+```solidity
+// ✅ Correct - return variable is suffixed with underscore
+function balanceOf(address _account) public view returns (uint256 balance_) {
+    balance_ = balances[_account];
+}
+
+// ❌ Incorrect - return variable without underscore suffix
+function balanceOf(address _account) public view returns (uint256 balance) {
+    balance = balances[_account];
+}
+```
+
 #### Event Parameters
 
 - Event parameters should NOT be prefixed with an underscore.
