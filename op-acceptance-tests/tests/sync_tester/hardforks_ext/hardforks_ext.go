@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -38,14 +39,14 @@ const (
 
 var (
 	// Network upgrade block numbers for op-sepolia
-	networkUpgradeBlocks = map[string]uint64{
-		"Canyon":   4089330,
-		"Delta":    5700330,
-		"Ecotone":  8366130,
-		"Fjord":    12597930,
-		"Granite":  15837930,
-		"Holocene": 20415330,
-		"Isthmus":  26551530,
+	networkUpgradeBlocks = map[rollup.ForkName]uint64{
+		rollup.Canyon:   4089330,
+		rollup.Delta:    5700330,
+		rollup.Ecotone:  8366130,
+		rollup.Fjord:    12597930,
+		rollup.Granite:  15837930,
+		rollup.Holocene: 20415330,
+		rollup.Isthmus:  26551530,
 	}
 
 	// Load configuration from environment variables with defaults
@@ -128,7 +129,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	return orch
 }
 
-func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net *dsl.L2Network) *uint64) {
+func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
 	t := devtest.SerialT(gt)
 	l := t.Logger()
 
@@ -140,9 +141,9 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net 
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2 := system.L2Network(match.L2ChainA)
 	verifierCL := l2.L2CLNode(match.FirstL2CL)
-	syncTester := l2.SyncTester(match.Assume(t, match.FirstSyncTester))
+	syncTester := l2.SyncTester(match.FirstSyncTester)
 
 	sys := &struct {
 		L2CL       *dsl.L2CLNode
@@ -157,7 +158,7 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net 
 	}
 	require := t.Require()
 
-	ft := forkTimestamp(sys.L2)
+	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	require.NotNil(ft, "fork timestamp should be set")
 
 	var l2CLSyncStatus *eth.SyncStatus
