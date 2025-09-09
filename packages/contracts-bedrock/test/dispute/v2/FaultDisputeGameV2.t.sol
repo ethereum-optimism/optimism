@@ -229,14 +229,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
     /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the
     ///         `MAX_GAME_DEPTH` parameter is greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
     function testFuzz_constructor_maxDepthTooLarge_reverts(uint256 _maxGameDepth) public {
-        IPreimageOracle oracle = IPreimageOracle(
-            DeployUtils.create1({
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-            })
-        );
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, oracle);
-
         _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
         vm.expectRevert(MaxDepthTooLarge.selector);
         DeployUtils.create1({
@@ -261,16 +253,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
     /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///         parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(
-            absolutePrestate,
-            IPreimageOracle(
-                DeployUtils.create1({
-                    _name: "PreimageOracle",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-                })
-            )
-        );
-
         uint256 maxGameDepth = 2 ** 3;
         _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
         vm.expectRevert(InvalidSplitDepth.selector);
@@ -296,16 +278,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
     /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///         parameter is less than the minimum split depth (currently 2).
     function testFuzz_constructor_lowSplitDepth_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(
-            absolutePrestate,
-            IPreimageOracle(
-                DeployUtils.create1({
-                    _name: "PreimageOracle",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-                })
-            )
-        );
-
         uint256 minSplitDepth = 2;
         _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
         vm.expectRevert(InvalidSplitDepth.selector);
@@ -336,16 +308,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
     )
         public
     {
-        AlphabetVM alphabetVM = new AlphabetVM(
-            absolutePrestate,
-            IPreimageOracle(
-                DeployUtils.create1({
-                    _name: "PreimageOracle",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-                })
-            )
-        );
-
         // Force the clock extension * 2 to be greater than the max clock duration, but keep things
         // within bounds of the uint64 type.
         _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max / 2 - 1));
@@ -374,16 +336,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
     /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the `_gameType`
     ///         parameter is set to the reserved `type(uint32).max` game type.
     function test_constructor_reservedGameType_reverts() public {
-        AlphabetVM alphabetVM = new AlphabetVM(
-            absolutePrestate,
-            IPreimageOracle(
-                DeployUtils.create1({
-                    _name: "PreimageOracle",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-                })
-            )
-        );
-
         vm.expectRevert(ReservedGameType.selector);
         DeployUtils.create1({
             _name: "FaultDisputeGameV2",
