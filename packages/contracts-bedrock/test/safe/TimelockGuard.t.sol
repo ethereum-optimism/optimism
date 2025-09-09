@@ -83,7 +83,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 /// @title TimelockGuard_ViewTimelockGuardConfiguration_Test
 /// @notice Tests for viewTimelockGuardConfiguration function
 contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_TestInit {
-    function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe() external view {
+    function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
         uint256 delay = timelockGuard.viewTimelockGuardConfiguration(address(safeInstance.safe));
         assertEq(delay, 0);
     }
@@ -102,7 +102,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         assertEq(storedDelay, TIMELOCK_DELAY);
     }
 
-    function test_configureTimelockGuard_revertsIfGuardNotEnabled() external {
+    function test_configureTimelockGuard_revertsIfGuardNotEnabled_reverts() external {
         // Create a safe without enabling the guard
         // Reduce the threshold just to prevent a CREATE2 collision when deploying this safe.
         SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
@@ -112,7 +112,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
 
-    function test_configureTimelockGuard_revertsIfDelayTooLong() external {
+    function test_configureTimelockGuard_revertsIfDelayTooLong_reverts() external {
         uint256 tooLongDelay = ONE_YEAR + 1;
 
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
@@ -120,13 +120,13 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(tooLongDelay);
     }
 
-    function test_configureTimelockGuard_revertsIfDelayZero() external {
+    function test_configureTimelockGuard_revertsIfDelayZero_reverts() external {
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
         vm.prank(address(safeInstance.safe));
         timelockGuard.configureTimelockGuard(0);
     }
 
-    function test_configureTimelockGuard_acceptsMaxValidDelay() external {
+    function test_configureTimelockGuard_acceptsMaxValidDelay_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit GuardConfigured(address(safeInstance.safe), ONE_YEAR);
 
@@ -136,7 +136,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         assertEq(storedDelay, ONE_YEAR);
     }
 
-    function test_configureTimelockGuard_allowsReconfiguration() external {
+    function test_configureTimelockGuard_allowsReconfiguration_succeeds() external {
         // Initial configuration
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         assertEq(timelockGuard.viewTimelockGuardConfiguration(address(safeInstance.safe)), TIMELOCK_DELAY);
@@ -176,7 +176,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         // TODO: Check that any active challenge is cancelled
     }
 
-    function test_clearTimelockGuard_revertsIfGuardStillEnabled() external {
+    function test_clearTimelockGuard_revertsIfGuardStillEnabled_reverts() external {
         // First configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
@@ -186,7 +186,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.clearTimelockGuard();
     }
 
-    function test_clearTimelockGuard_revertsIfNotConfigured() external {
+    function test_clearTimelockGuard_revertsIfNotConfigured_reverts() external {
         // Try to clear - should revert because not configured
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
         vm.prank(address(safeInstance.safe));
@@ -197,7 +197,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_CancellationThreshold_Test
 /// @notice Tests for cancellationThreshold function
 contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
-    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled() external {
+    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external {
         // Safe without guard enabled should return 0
         SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
 
@@ -205,13 +205,13 @@ contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
         assertEq(threshold, 0);
     }
 
-    function test_cancellationThreshold_returnsZeroIfGuardNotConfigured() external {
+    function test_cancellationThreshold_returnsZeroIfGuardNotConfigured_succeeds() external {
         // Safe with guard enabled but not configured should return 0
         uint256 threshold = timelockGuard.cancellationThreshold(address(safeInstance.safe));
         assertEq(threshold, 0);
     }
 
-    function test_cancellationThreshold_returnsOneAfterConfiguration() external {
+    function test_cancellationThreshold_returnsOneAfterConfiguration_succeeds() external {
         // Configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
