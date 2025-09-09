@@ -84,11 +84,6 @@ contract SystemConfig {
     }
 }
 
-// ✅ Acceptable - trivial boolean assertion using require
-function deposit(uint256 _amount) external {
-    require(_amount > 0, "amount > 0");
-    // ...
-}
 
 // ❌ Incorrect - string-based reverts and contract-prefixed strings
 function bad(uint256 _amount) external {
