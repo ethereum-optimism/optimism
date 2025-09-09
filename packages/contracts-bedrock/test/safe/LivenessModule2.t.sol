@@ -7,6 +7,14 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
+/// @title ConcreteLivenessModule2
+/// @notice Concrete implementation of LivenessModule2 for testing
+contract ConcreteLivenessModule2 is LivenessModule2 {
+    /// @notice Semantic version.
+    /// @custom:semver 2.0.0-test
+    string public constant version = "2.0.0-test";
+}
+
 /// @title LivenessModule2_TestInit
 /// @notice Reusable test initialization for `LivenessModule2` tests.
 contract LivenessModule2_TestInit is Test, SafeTestTools {
@@ -24,7 +32,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     uint256 constant NUM_OWNERS = 5;
     uint256 constant THRESHOLD = 3;
 
-    LivenessModule2 livenessModule2;
+    ConcreteLivenessModule2 livenessModule2;
     SafeInstance safeInstance;
     address fallbackOwner;
     address[] owners;
@@ -34,7 +42,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
         vm.warp(INIT_TIME);
 
         // Deploy the singleton LivenessModule2
-        livenessModule2 = new LivenessModule2();
+        livenessModule2 = new ConcreteLivenessModule2();
 
         // Create Safe owners
         (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);

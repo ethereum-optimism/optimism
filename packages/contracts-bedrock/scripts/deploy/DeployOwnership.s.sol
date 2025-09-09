@@ -11,6 +11,7 @@ import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
+import { SafeExtensions } from "src/safe/SafeExtensions.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
@@ -242,7 +243,7 @@ contract DeployOwnership is Deploy {
     ///         Note this function does not have the broadcast modifier.
     function deployLivenessModule() public returns (address addr_) {
         // Deploy the singleton LivenessModule2 (no parameters needed)
-        addr_ = address(new LivenessModule2());
+        addr_ = address(new SafeExtensions());
 
         artifacts.save("LivenessModule2", address(addr_));
         console.log("New LivenessModule2 deployed at %s", address(addr_));
@@ -324,7 +325,7 @@ contract DeployOwnership is Deploy {
 
         // Verify the module was configured correctly
         (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).safeConfigs(address(safe));
+            SafeExtensions(livenessModule).safeConfigs(address(safe));
         require(
             configuredPeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
             "DeployOwnership: configured liveness interval must match expected value"

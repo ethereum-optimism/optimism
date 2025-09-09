@@ -9,6 +9,14 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
+/// @title ConcreteTimelockGuard
+/// @notice Concrete implementation of TimelockGuard for testing
+contract ConcreteTimelockGuard is TimelockGuard {
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0-test
+    string public constant version = "1.0.0-test";
+}
+
 /// @title TimelockGuard_TestInit
 /// @notice Reusable test initialization for `TimelockGuard` tests.
 contract TimelockGuard_TestInit is Test, SafeTestTools {
@@ -24,7 +32,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     uint256 constant THRESHOLD = 3;
     uint256 constant ONE_YEAR = 365 days;
 
-    TimelockGuard timelockGuard;
+    ConcreteTimelockGuard timelockGuard;
     SafeInstance safeInstance;
     SafeInstance safeInstance2;
     address[] owners;
@@ -34,7 +42,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         vm.warp(INIT_TIME);
 
         // Deploy the singleton TimelockGuard
-        timelockGuard = new TimelockGuard();
+        timelockGuard = new ConcreteTimelockGuard();
 
         // Create Safe owners
         (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);

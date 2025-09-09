@@ -11,17 +11,18 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
-/// @dev This is a singleton contract. To use it:
+/// @dev This is an abstract contract. Concrete implementations must provide version info.
+///      To use it:
 ///      1. The Safe must first enable this guard using GuardManager.setGuard()
 ///      2. The Safe must then configure the guard by calling configureTimelockGuard()
-contract TimelockGuard is IGuard, ISemver {
+abstract contract TimelockGuard is IGuard, ISemver {
     /// @notice Configuration for a Safe's timelock guard
     struct GuardConfig {
         uint256 timelockDelay;
     }
 
     /// @notice Mapping from Safe address to its guard configuration
-    mapping(address => GuardConfig) public safeConfigs;
+    mapping(address => GuardConfig) public guardConfigs;
 
     /// @notice Mapping from Safe address to its current cancellation threshold
     mapping(address => uint256) public safeCancellationThreshold;
@@ -44,17 +45,13 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Emitted when a Safe clears the guard configuration
     event GuardCleared(address indexed safe);
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
 
     /// @notice Returns the timelock delay for a given Safe
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
     function viewTimelockGuardConfiguration(address _safe) public view returns (uint256) {
-        // Q: What should this return if the guard is not enabled?
-        return safeConfigs[_safe].timelockDelay;
+        return guardConfigs[_safe].timelockDelay;
     }
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
@@ -77,7 +74,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Store the configuration for this safe
-        safeConfigs[msg.sender].timelockDelay = _timelockDelay;
+        guardConfigs[msg.sender].timelockDelay = _timelockDelay;
 
         // Initialize cancellation threshold to 1
         safeCancellationThreshold[msg.sender] = 1;
@@ -91,7 +88,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST emit a GuardCleared event
     function clearTimelockGuard() external {
         // Check if the calling safe has configuration set
-        if (safeConfigs[msg.sender].timelockDelay == 0) {
+        if (guardConfigs[msg.sender].timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -101,7 +98,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Erase the configuration data for this safe
-        delete safeConfigs[msg.sender];
+        delete guardConfigs[msg.sender];
         delete safeCancellationThreshold[msg.sender];
 
         emit GuardCleared(msg.sender);
@@ -119,7 +116,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Return 0 if not configured
-        if (safeConfigs[_safe].timelockDelay == 0) {
+        if (guardConfigs[_safe].timelockDelay == 0) {
             return 0;
         }
 

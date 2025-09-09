@@ -14,10 +14,11 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
-/// @dev This is a singleton contract. To use it:
+/// @dev This is an abstract contract. Concrete implementations must provide version info.
+///      To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
-contract LivenessModule2 is ISemver {
+abstract contract LivenessModule2 is ISemver {
     /// @notice Configuration for a Safe's liveness module
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
@@ -81,9 +82,6 @@ contract LivenessModule2 is ISemver {
     /// @notice Emitted when ownership is transferred to the fallback owner
     event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
-    /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
 
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     /// 0 if not
