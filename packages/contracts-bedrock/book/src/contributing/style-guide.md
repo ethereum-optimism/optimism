@@ -137,6 +137,16 @@ function balanceOf(address _account) public view returns (uint256 balance) {
 
 - Event parameters should NOT be prefixed with an underscore.
 
+Example:
+
+```solidity
+// ✅ Correct - event params are not prefixed with underscore
+event OwnerChanged(address previousOwner, address newOwner);
+
+// ❌ Incorrect - event params prefixed with underscore
+event OwnerChanged(address _previousOwner, address _newOwner);
+```
+
 #### Immutable variables
 
 Immutable variables:
