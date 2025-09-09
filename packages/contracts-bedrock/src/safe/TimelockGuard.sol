@@ -159,7 +159,7 @@ contract TimelockGuard is IGuard, ISemver {
         external
         pure
     {
-        revert("Not implemented yet");
+        // TODO: Implement
     }
 
     /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
@@ -172,45 +172,45 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Signal rejection of a scheduled transaction by a Safe owner
     /// @dev NOT IMPLEMENTED YET
     function rejectTransaction(address /* safe */, bytes32 /* txHash */) external pure {
-        revert("Not implemented yet");
+        // TODO: Implement
     }
 
     /// @notice Signal rejection of a scheduled transaction using signatures
     /// @dev NOT IMPLEMENTED YET
     function rejectTransactionWithSignature(address /* safe */, bytes32 /* txHash */, bytes memory /* signatures */) external pure {
-        revert("Not implemented yet");
+        // TODO: Implement
     }
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev NOT IMPLEMENTED YET
     function cancelTransaction(address /* safe */, bytes32 /* txHash */) external pure {
-        revert("Not implemented yet");
+        // TODO: Implement
     }
 
     /// @notice Called by the Safe before executing a transaction
     /// @dev Implementation of IGuard interface
     function checkTransaction(
-        address to,
-        uint256 value,
-        bytes memory data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address payable refundReceiver,
-        bytes memory signatures,
-        address msgSender
+        address /* _to */,
+        uint256 _value,
+        bytes memory /* _data */,
+        Enum.Operation /* _operation */,
+        uint256 /* _safeTxGas */,
+        uint256 /* _baseGas */,
+        uint256 /* _gasPrice */,
+        address /* _gasToken */,
+        address payable /* _refundReceiver */,
+        bytes memory /* _signatures */,
+        address /* _msgSender */
     )
         external
         override
     {
-        // Empty implementation for now
+        // TODO: Implement
     }
 
     /// @notice Called by the Safe after executing a transaction
     /// @dev Implementation of IGuard interface
-    function checkAfterExecution(bytes32 txHash, bool success) external override {
-        // Empty implementation for now
+    function checkAfterExecution(bytes32 /* _txHash */, bool /* _success */) external override {
+        // TODO: Implement
     }
 }
