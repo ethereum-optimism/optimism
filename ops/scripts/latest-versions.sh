@@ -67,7 +67,8 @@ find_latest_version() {
   done
 
   # Sort all versions lexicographically and get the highest one
-  local latest_sortable=$(printf '%s\n' "${sortable_versions[@]}" | sort -V | tail -n1)
+  local latest_sortable
+  latest_sortable=$(printf '%s\n' "${sortable_versions[@]}" | sort -V | tail -n1)
   echo "${latest_sortable##*|}"
 }
 
