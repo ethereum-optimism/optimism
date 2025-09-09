@@ -2,9 +2,11 @@ package hardforks_ext
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -126,7 +129,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 }
 
 func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net *dsl.L2Network) *uint64) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade
@@ -157,18 +160,18 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net 
 	ft := forkTimestamp(sys.L2)
 	require.NotNil(ft, "fork timestamp should be set")
 
-	// var l2CLSyncStatus *eth.SyncStatus
-	// err := retry.Do0(t.Ctx(), 10, retry.Fixed(2*time.Second), func() error {
-	// 	l2CLSyncStatus = sys.L2CL.SyncStatus()
-	// 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
-	// 	if l2CLSyncStatus.UnsafeL2.Time == 0 {
-	// 		return fmt.Errorf("L2CL unsafe time is still zero")
-	// 	}
-	// 	return nil
-	// })
-	// require.NoError(err, "L2CL unsafe time should be set within retry limit")
-	// require.NotZero(l2CLSyncStatus.UnsafeL2.Time, "L2CL unsafe time should not be zero")
-	// require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
+	var l2CLSyncStatus *eth.SyncStatus
+	err := retry.Do0(t.Ctx(), 10, retry.Fixed(2*time.Second), func() error {
+		l2CLSyncStatus = sys.L2CL.SyncStatus()
+		require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
+		if l2CLSyncStatus.UnsafeL2.Time == 0 {
+			return fmt.Errorf("L2CL unsafe time is still zero")
+		}
+		return nil
+	})
+	require.NoError(err, "L2CL unsafe time should be set within retry limit")
+	require.NotZero(l2CLSyncStatus.UnsafeL2.Time, "L2CL unsafe time should not be zero")
+	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 
 	blocksToSync := uint64(10)
 	targetBlock := blk + blocksToSync
@@ -177,7 +180,7 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net 
 	sys.L2CL.Reached(types.LocalSafe, targetBlock, 1000)
 	l.Info("L2CL safe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 
-	l2CLSyncStatus := sys.L2CL.SyncStatus()
+	l2CLSyncStatus = sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
 	require.Greater(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be greater than fork timestamp after upgrade")
 
