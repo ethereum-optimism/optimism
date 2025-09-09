@@ -37,7 +37,6 @@ type Runner struct {
 	network      string
 	chainCfg     *params.ChainConfig
 	l1ChainCfg   *params.ChainConfig
-	l2Client     *sources.L2Client
 	logCfg       oplog.CLIConfig
 	setupLog     log.Logger
 	rollupCfg    *rollup.Config
@@ -50,11 +49,6 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 	logCfg.Level = log.LevelDebug
 
 	setupLog := oplog.NewLogger(os.Stderr, logCfg)
-
-	l2RawRpc, err := dial.DialRPCClientWithTimeout(ctx, setupLog, l2RpcUrl)
-	if err != nil {
-		return nil, fmt.Errorf("dial L2 client: %w", err)
-	}
 
 	rollupCfg, err := chainconfig.RollupConfigByChainID(chainID)
 	if err != nil {
@@ -71,13 +65,6 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		return nil, fmt.Errorf("failed to load l1 chain config: %w", err)
 	}
 
-	l2ClientCfg := sources.L2ClientDefaultConfig(rollupCfg, false)
-	l2RPC := client.NewBaseRPCClient(l2RawRpc)
-	l2Client, err := sources.NewL2Client(l2RPC, setupLog, nil, l2ClientCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2 client: %w", err)
-	}
-
 	return &Runner{
 		l1RpcUrl:     l1RpcUrl,
 		l1RpcKind:    l1RpcKind,
@@ -88,7 +75,6 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		chainCfg:     chainCfg,
 		logCfg:       logCfg,
 		setupLog:     setupLog,
-		l2Client:     l2Client,
 		rollupCfg:    rollupCfg,
 		l1ChainCfg:   l1ChainCfg,
 		runInProcess: runInProcess,
@@ -137,6 +123,7 @@ func (r *Runner) RunToFinalized(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to dial L1 client: %w", err)
 	}
+	defer l1Client.Close()
 
 	l2Client, err := r.createL2Client(ctx)
 	if err != nil {
@@ -276,7 +263,7 @@ func runFaultProofProgram(ctx context.Context, args []string) error {
 func outputAtBlockNum(ctx context.Context, l2Client *sources.L2Client, blockNum uint64) (eth.BlockInfo, common.Hash, error) {
 	startBlockInfo, err := l2Client.InfoByNumber(ctx, blockNum)
 	if err != nil {
-		return nil, common.Hash{}, fmt.Errorf("failed to retrieve info for block %v: %w", startBlockInfo, err)
+		return nil, common.Hash{}, fmt.Errorf("failed to retrieve info for block number %d: %w", blockNum, err)
 	}
 
 	output, err := retryOp(ctx, func() (*eth.OutputV0, error) {
