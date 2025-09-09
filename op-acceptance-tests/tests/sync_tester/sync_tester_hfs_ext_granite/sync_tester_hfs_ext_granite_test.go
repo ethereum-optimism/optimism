@@ -9,7 +9,7 @@ import (
 
 func TestSyncTesterHFS_Granite(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().GraniteTime
+		return net.Escape().RollupConfig().GraniteTime
 	}
 	hardforks_ext.SyncTesterHFSExt(gt, "Granite", forkTimestamp)
 }

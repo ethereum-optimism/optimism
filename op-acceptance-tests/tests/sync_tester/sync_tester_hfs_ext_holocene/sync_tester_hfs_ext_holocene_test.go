@@ -9,7 +9,7 @@ import (
 
 func TestSyncTesterHFS_Holocene(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().HoloceneTime
+		return net.Escape().RollupConfig().HoloceneTime
 	}
 	hardforks_ext.SyncTesterHFSExt(gt, "Holocene", forkTimestamp)
 }

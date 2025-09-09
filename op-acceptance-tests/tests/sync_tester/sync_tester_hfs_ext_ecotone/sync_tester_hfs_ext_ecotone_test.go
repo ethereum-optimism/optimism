@@ -9,7 +9,7 @@ import (
 
 func TestSyncTesterHFS_Ecotone(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().EcotoneTime
+		return net.Escape().RollupConfig().EcotoneTime
 	}
 	hardforks_ext.SyncTesterHFSExt(gt, "Ecotone", forkTimestamp)
 }

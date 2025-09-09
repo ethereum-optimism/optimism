@@ -9,7 +9,7 @@ import (
 
 func TestSyncTesterHFS_Isthmus(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().IsthmusTime
+		return net.Escape().RollupConfig().IsthmusTime
 	}
 	hardforks_ext.SyncTesterHFSExt(gt, "Isthmus", forkTimestamp)
 }

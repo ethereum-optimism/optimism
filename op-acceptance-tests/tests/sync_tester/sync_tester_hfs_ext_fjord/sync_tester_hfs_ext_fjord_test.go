@@ -9,7 +9,7 @@ import (
 
 func TestSyncTesterHFS_Fjord(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().FjordTime
+		return net.Escape().RollupConfig().FjordTime
 	}
 	hardforks_ext.SyncTesterHFSExt(gt, "Fjord", forkTimestamp)
 }

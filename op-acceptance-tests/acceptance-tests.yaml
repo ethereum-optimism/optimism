@@ -82,40 +82,5 @@ gates:
   - id: sync-test-op-node
     description: "Sync tests for op-node with external networks via the op-sync-tester - tests run daily."
     tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_ext_el
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-canyon
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Canyon"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_canyon
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-ecotone
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Ecotone"
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_ecotone
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-fjord
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Fjord"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_fjord
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-granite
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Granite"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_granite
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-holocene
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Holocene"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_holocene
-        timeout: 30m
-
-  - id: sync-test-op-node-hfs-ext-isthmus
-    description: "Upgrade scenarios with op-node with external networks via the op-sync-tester - Isthmus"
-    tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_hfs_ext_isthmus
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
         timeout: 30m

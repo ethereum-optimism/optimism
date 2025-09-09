@@ -1,4 +1,4 @@
-package sync_tester_hfs_ext_canyon
+package sync_tester_hfs_ext_delta
 
 import (
 	"testing"
@@ -7,9 +7,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 )
 
-func TestSyncTesterHFS_Canyon(gt *testing.T) {
+func TestSyncTesterHFS_Delta(gt *testing.T) {
 	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().RollupConfig().CanyonTime
+		return net.Escape().RollupConfig().DeltaTime
 	}
-	hardforks_ext.SyncTesterHFSExt(gt, "Canyon", forkTimestamp)
+	hardforks_ext.SyncTesterHFSExt(gt, "Delta", forkTimestamp)
 }
