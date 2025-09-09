@@ -128,6 +128,7 @@ function balanceOf(address _account) public view returns (uint256 balance) {
 
 #### Event Parameters
 
+- Event parameters should be named using camelCase.
 - Event parameters should NOT be prefixed with an underscore.
 
 Example:
@@ -138,6 +139,9 @@ event OwnerChanged(address previousOwner, address newOwner);
 
 // ❌ Incorrect - event params prefixed with underscore
 event OwnerChanged(address _previousOwner, address _newOwner);
+// ❌ Incorrect - event params are not camelCase or are unnamed
+event OwnerChanged(address, address NEW_OWNER);
+
 ```
 
 #### Immutable variables
