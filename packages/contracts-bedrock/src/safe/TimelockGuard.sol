@@ -142,63 +142,48 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay
-    /// @dev Called by anyone using signatures from Safe owners
-    /// @param safe The Safe address
-    /// @param to Transaction target address
-    /// @param value Transaction value
-    /// @param data Transaction data
-    /// @param operation Transaction operation type
-    /// @param safeTxGas Safe transaction gas
-    /// @param baseGas Base gas for transaction
-    /// @param gasPrice Gas price
-    /// @param gasToken Gas token address
-    /// @param refundReceiver Refund receiver address
-    /// @param signatures Transaction signatures
+    /// @dev Called by anyone using signatures from Safe owners - NOT IMPLEMENTED YET
     function scheduleTransaction(
-        address safe,
-        address to,
-        uint256 value,
-        bytes memory data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address payable refundReceiver,
-        bytes memory signatures
+        address, /* safe */
+        address, /* to */
+        uint256, /* value */
+        bytes memory, /* data */
+        Enum.Operation, /* operation */
+        uint256, /* safeTxGas */
+        uint256, /* baseGas */
+        uint256, /* gasPrice */
+        address, /* gasToken */
+        address payable, /* refundReceiver */
+        bytes memory /* signatures */
     )
         external
+        pure
     {
         revert("Not implemented yet");
     }
 
     /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
-    /// @dev MUST NOT revert
-    /// @param _safe The Safe address to query
+    /// @dev MUST NOT revert - NOT IMPLEMENTED YET
     /// @return List of pending transaction hashes
-    function checkPendingTransactions(address _safe) external view returns (bytes32[] memory) {
+    function checkPendingTransactions(address /* _safe */) external pure returns (bytes32[] memory) {
         return new bytes32[](0);
     }
 
     /// @notice Signal rejection of a scheduled transaction by a Safe owner
-    /// @param safe The Safe address that scheduled the transaction
-    /// @param txHash The transaction hash to reject
-    function rejectTransaction(address safe, bytes32 txHash) external {
+    /// @dev NOT IMPLEMENTED YET
+    function rejectTransaction(address /* safe */, bytes32 /* txHash */) external pure {
         revert("Not implemented yet");
     }
 
     /// @notice Signal rejection of a scheduled transaction using signatures
-    /// @param safe The Safe address that scheduled the transaction
-    /// @param txHash The transaction hash to reject
-    /// @param signatures Owner signatures rejecting the transaction
-    function rejectTransactionWithSignature(address safe, bytes32 txHash, bytes memory signatures) external {
+    /// @dev NOT IMPLEMENTED YET
+    function rejectTransactionWithSignature(address /* safe */, bytes32 /* txHash */, bytes memory /* signatures */) external pure {
         revert("Not implemented yet");
     }
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
-    /// @param safe The Safe address that scheduled the transaction
-    /// @param txHash The transaction hash to cancel
-    function cancelTransaction(address safe, bytes32 txHash) external {
+    /// @dev NOT IMPLEMENTED YET
+    function cancelTransaction(address /* safe */, bytes32 /* txHash */) external pure {
         revert("Not implemented yet");
     }
 
