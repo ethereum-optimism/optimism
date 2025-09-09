@@ -24,7 +24,11 @@ pub mod primitives {
 #[cfg(feature = "cli")]
 pub mod cli {
     #[doc(inline)]
-    pub use reth_cli_util::*;
+    pub use reth_cli_util::{
+        allocator, get_secret_key, hash_or_num_value_parser, load_secret_key,
+        parse_duration_from_secs, parse_duration_from_secs_or_ms, parse_ether_value,
+        parse_socket_address, sigsegv_handler,
+    };
     #[doc(inline)]
     pub use reth_optimism_cli::*;
 }

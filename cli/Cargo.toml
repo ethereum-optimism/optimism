@@ -12,8 +12,10 @@ workspace = true
 
 [dependencies]
 reth-static-file-types = { workspace = true, features = ["clap"] }
+reth-cli.workspace = true
 reth-cli-commands.workspace = true
 reth-consensus.workspace = true
+reth-rpc-server-types.workspace = true
 reth-primitives-traits.workspace = true
 reth-db = { workspace = true, features = ["mdbx", "op"] }
 reth-db-api.workspace = true
@@ -39,7 +41,6 @@ reth-optimism-consensus.workspace = true
 reth-chainspec.workspace = true
 reth-node-events.workspace = true
 reth-optimism-evm.workspace = true
-reth-cli.workspace = true
 reth-cli-runner.workspace = true
 reth-node-builder = { workspace = true, features = ["op"] }
 reth-tracing.workspace = true
