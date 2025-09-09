@@ -2687,23 +2687,23 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      # OP Mainnet ## TODO: Need L1 Mainnet Beacon to be exposed for CI
-      # - op-acceptance-sync-tests-docker:
-      #     name: sync-test-op-mainnet-daily
-      #     gate: sync-test-op-node
-      #     no_output_timeout: 30m
-      #     l2_network_name: "op-mainnet"
-      #     l1_chain_id: "1"
-      #     l2_el_endpoint: "https://op-mainnet-rpc.optimism.io"
-      #     l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
-      #     l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
-      #     initial_l2_block: "140013283"
-      #     context:
-      #       - circleci-repo-readonly-authenticated-github-token
-      #       - discord
-      #     requires:
-      #       - contracts-bedrock-build
-      #       - cannon-prestate-quick
+      ## OP Mainnet
+      - op-acceptance-sync-tests-docker:
+          name: sync-test-op-mainnet-daily
+          gate: sync-test-op-node
+          no_output_timeout: 30m
+          l2_network_name: "op-mainnet"
+          l1_chain_id: "1"
+          l2_el_endpoint: "https://op-mainnet-rpc.optimism.io"
+          l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
+          l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
+          initial_l2_block: "140013283"
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
 
 
   # Acceptance tests (post-merge to develop)
