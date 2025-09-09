@@ -64,17 +64,16 @@ We also have the following custom tags:
 - Prefer custom Solidity errors for all new errors.
 - Name custom errors using `ContractName_ErrorDescription`.
 - Use `revert ContractName_ErrorDescription()` to revert.
-- Only use `require` for trivial checks where a boolean condition is clearer than a named error.
-- Avoid `revert(string)` and stringly-typed error messages in new code.
+- Avoid `revert(string)` and string-typed error messages in new code.
 
 Example:
 
 ```solidity
 // ✅ Correct - Custom errors with contract-prefixed names
-error SystemConfig_InvalidFeatureState();
-error SystemConfig_UnauthorizedCaller(address caller);
-
 contract SystemConfig {
+    error SystemConfig_InvalidFeatureState();
+    error SystemConfig_UnauthorizedCaller(address caller);
+
     address internal owner;
 
     function setFeature(bool _enabled) external {
@@ -83,7 +82,6 @@ contract SystemConfig {
         // ...
     }
 }
-
 
 // ❌ Incorrect - string-based reverts and contract-prefixed strings
 function bad(uint256 _amount) external {
