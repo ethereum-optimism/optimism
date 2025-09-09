@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "safeConfigs",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => struct TimelockGuard.GuardConfig)"
+  },
+  {
+    "bytes": "32",
+    "label": "safeCancellationThreshold",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => uint256)"
+  }
+]
