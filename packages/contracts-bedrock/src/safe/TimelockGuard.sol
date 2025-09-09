@@ -143,17 +143,17 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Schedule a transaction for execution after the timelock delay
     /// @dev Called by anyone using signatures from Safe owners - NOT IMPLEMENTED YET
     function scheduleTransaction(
-        address, /* safe */
-        address, /* to */
-        uint256, /* value */
-        bytes memory, /* data */
-        Enum.Operation, /* operation */
-        uint256, /* safeTxGas */
-        uint256, /* baseGas */
-        uint256, /* gasPrice */
-        address, /* gasToken */
-        address payable, /* refundReceiver */
-        bytes memory /* signatures */
+        address,
+        address,
+        uint256,
+        bytes memory,
+        Enum.Operation,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        address payable,
+        bytes memory
     )
         external
         pure
@@ -164,42 +164,42 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
     /// @dev MUST NOT revert - NOT IMPLEMENTED YET
     /// @return List of pending transaction hashes
-    function checkPendingTransactions(address /* _safe */) external pure returns (bytes32[] memory) {
+    function checkPendingTransactions(address) external pure returns (bytes32[] memory) {
         return new bytes32[](0);
     }
 
     /// @notice Signal rejection of a scheduled transaction by a Safe owner
     /// @dev NOT IMPLEMENTED YET
-    function rejectTransaction(address /* safe */, bytes32 /* txHash */) external pure {
+    function rejectTransaction(address, bytes32) external pure {
         // TODO: Implement
     }
 
     /// @notice Signal rejection of a scheduled transaction using signatures
     /// @dev NOT IMPLEMENTED YET
-    function rejectTransactionWithSignature(address /* safe */, bytes32 /* txHash */, bytes memory /* signatures */) external pure {
+    function rejectTransactionWithSignature(address, bytes32, bytes memory) external pure {
         // TODO: Implement
     }
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev NOT IMPLEMENTED YET
-    function cancelTransaction(address /* safe */, bytes32 /* txHash */) external pure {
+    function cancelTransaction(address, bytes32) external pure {
         // TODO: Implement
     }
 
     /// @notice Called by the Safe before executing a transaction
     /// @dev Implementation of IGuard interface
     function checkTransaction(
-        address /* _to */,
+        address,
         uint256 _value,
-        bytes memory /* _data */,
-        Enum.Operation /* _operation */,
-        uint256 /* _safeTxGas */,
-        uint256 /* _baseGas */,
-        uint256 /* _gasPrice */,
-        address /* _gasToken */,
-        address payable /* _refundReceiver */,
-        bytes memory /* _signatures */,
-        address /* _msgSender */
+        bytes memory,
+        Enum.Operation,
+        uint256,
+        uint256,
+        uint256,
+        address,
+        address payable,
+        bytes memory,
+        address
     )
         external
         override
@@ -209,7 +209,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Called by the Safe after executing a transaction
     /// @dev Implementation of IGuard interface
-    function checkAfterExecution(bytes32 /* _txHash */, bool /* _success */) external override {
+    function checkAfterExecution(bytes32, bool) external override {
         // TODO: Implement
     }
 }
