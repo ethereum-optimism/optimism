@@ -101,6 +101,20 @@ function bad(uint256 _amount) external {
 
 - Function parameters should be prefixed with an underscore.
 
+Example:
+
+```solidity
+// ✅ Correct - parameters are prefixed with underscore
+function setOwner(address _newOwner) external {
+    // ...
+}
+
+// ❌ Incorrect - parameters without underscore prefix
+function setOwner(address newOwner) external {
+    // ...
+}
+```
+
 #### Function Return Arguments
 
 - Arguments returned by functions should be suffixed with an underscore.
