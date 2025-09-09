@@ -22,13 +22,12 @@ VERSIONS_FILE="${STATES_DIR}/versions.json"
 
 mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 
-
 cd "${REPO_DIR}"
 
 VERSIONS_JSON="[]"
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
-for VERSION in ${VERSIONS}
+for VERSION in "${VERSIONS[@]}"
 do
     SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"

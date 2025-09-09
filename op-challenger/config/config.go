@@ -17,17 +17,20 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("no supported trace types specified")
-	ErrMissingDatadir                = errors.New("missing datadir")
-	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
-	ErrMissingL2Rpc                  = errors.New("missing L2 rpc url")
-	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
-	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
-	ErrMissingL1Beacon               = errors.New("missing l1 beacon url")
-	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
-	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
-	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
-	ErrMissingDepsetConfig           = errors.New("missing network or depset config path")
+	ErrMissingTraceType                  = errors.New("no supported trace types specified")
+	ErrMissingDatadir                    = errors.New("missing datadir")
+	ErrMaxConcurrencyZero                = errors.New("max concurrency must not be 0")
+	ErrMissingL2Rpc                      = errors.New("missing L2 rpc url")
+	ErrMissingCannonAbsolutePreState     = errors.New("missing cannon absolute pre-state")
+	ErrMissingL1EthRPC                   = errors.New("missing l1 eth rpc url")
+	ErrMissingL1Beacon                   = errors.New("missing l1 beacon url")
+	ErrMissingGameFactoryAddress         = errors.New("missing game factory address")
+	ErrMissingCannonSnapshotFreq         = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonInfoFreq             = errors.New("missing cannon info freq")
+	ErrMissingCannonKonaAbsolutePreState = errors.New("missing cannon kona absolute pre-state")
+	ErrMissingCannonKonaSnapshotFreq     = errors.New("missing cannon kona snapshot freq")
+	ErrMissingCannonKonaInfoFreq         = errors.New("missing cannon kona info freq")
+	ErrMissingDepsetConfig               = errors.New("missing network or depset config path")
 
 	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
 	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
@@ -84,9 +87,12 @@ type Config struct {
 	L2Rpcs        []string // L2 RPC Url
 
 	// Specific to the cannon trace provider
-	Cannon                        vm.Config
-	CannonAbsolutePreState        string   // File to load the absolute pre-state for Cannon traces from
-	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	Cannon                            vm.Config
+	CannonAbsolutePreState            string   // File to load the absolute pre-state for Cannon traces from
+	CannonAbsolutePreStateBaseURL     *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
+	CannonKona                        vm.Config
+	CannonKonaAbsolutePreState        string   // File to load the absolute pre-state for CannonKona traces from
+	CannonKonaAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for CannonKona traces from
 
 	// Specific to the asterisc trace provider
 	Asterisc                            vm.Config
@@ -154,6 +160,16 @@ func NewInteropConfig(
 			DebugInfo:       true,
 			BinarySnapshots: true,
 		},
+		CannonKona: vm.Config{
+			VmType:          types.TraceTypeCannonKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
 		Asterisc: vm.Config{
 			VmType:          types.TraceTypeAsterisc,
 			L1:              l1EthRpc,
@@ -206,6 +222,16 @@ func NewConfig(
 
 		Cannon: vm.Config{
 			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		CannonKona: vm.Config{
+			VmType:          types.TraceTypeCannonKona,
 			L1:              l1EthRpc,
 			L1Beacon:        l1BeaconApi,
 			L2s:             []string{l2EthRpc},
@@ -282,6 +308,14 @@ func (c Config) Check() error {
 			return err
 		}
 	}
+	if c.TraceTypeEnabled(types.TraceTypeCannonKona) {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+		if err := c.validateBaseCannonKonaOptions(); err != nil {
+			return err
+		}
+	}
 	if c.TraceTypeEnabled(types.TraceTypeAsterisc) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
@@ -348,6 +382,22 @@ func (c Config) validateBaseCannonOptions() error {
 	}
 	if c.Cannon.InfoFreq == 0 {
 		return ErrMissingCannonInfoFreq
+	}
+	return nil
+}
+
+func (c Config) validateBaseCannonKonaOptions() error {
+	if err := c.CannonKona.Check(); err != nil {
+		return fmt.Errorf("cannon kona: %w", err)
+	}
+	if c.CannonKonaAbsolutePreState == "" && c.CannonKonaAbsolutePreStateBaseURL == nil {
+		return ErrMissingCannonKonaAbsolutePreState
+	}
+	if c.CannonKona.SnapshotFreq == 0 {
+		return ErrMissingCannonKonaSnapshotFreq
+	}
+	if c.CannonKona.InfoFreq == 0 {
+		return ErrMissingCannonKonaInfoFreq
 	}
 	return nil
 }

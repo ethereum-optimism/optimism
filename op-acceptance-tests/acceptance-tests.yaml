@@ -82,5 +82,5 @@ gates:
   - id: sync-test-op-node
     description: "Sync tests for op-node with external networks via the op-sync-tester - tests run daily."
     tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester_ext_el
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
         timeout: 30m
