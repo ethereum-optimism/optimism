@@ -266,7 +266,7 @@ will ensure that the interface exists and is correct. These interfaces should in
 encoding is exposed in the ABI.
 
 Contracts must not inherit from their own interfaces (e.g., `contract SomeContract is ISomeContract`).
-Interfaces may or may not inherit from other interfaces to compose functionality
+Interfaces may or may not inherit from other interfaces to compose functionality.
 
 **Rationale:**
 
