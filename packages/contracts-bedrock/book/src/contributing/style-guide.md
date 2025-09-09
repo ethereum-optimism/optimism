@@ -159,6 +159,24 @@ This approach clearly indicates to the developer that the value is immutable, wi
 the non-standard casing to the interface. It also ensures that we don’t need to break the ABIs if
 we switch between values being in storage and immutable.
 
+Example:
+
+```solidity
+contract ExampleWithImmutable {
+    // ✅ Correct - immutable is internal and SCREAMING_SNAKE_CASE
+    address internal immutable OWNER_ADDRESS;
+
+    constructor(address _owner) {
+        OWNER_ADDRESS = _owner;
+    }
+
+    // ✅ Handwritten getter
+    function ownerAddress() public view returns (address) {
+        return OWNER_ADDRESS;
+    }
+}
+```
+
 #### Spacers
 
 We use spacer variables to account for old storage slots that are no longer being used.
