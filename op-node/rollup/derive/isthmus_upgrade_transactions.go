@@ -45,6 +45,11 @@ var (
 func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns := make([]hexutil.Bytes, 0, 8)
 
+	// Calculate gas required for L1 Block contract deployment
+	// Base gas cost for contract creation + bytecode size * gas per byte
+	// 21,000 (base) + 200 (per byte) * bytecode length
+	l1BlockGas := 21000 + 200*uint64(len(l1BlockIsthmusDeploymentBytecode))
+
 	// Deploy L1 Block transaction
 	deployL1BlockTransaction, err := types.NewTx(&types.DepositTx{
 		SourceHash:          deployIsthmusL1BlockSource.SourceHash(),
@@ -52,7 +57,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 		To:                  nil,
 		Mint:                big.NewInt(0),
 		Value:               big.NewInt(0),
-		Gas:                 425_000,
+		Gas:                 l1BlockGas,
 		IsSystemTransaction: false,
 		Data:                l1BlockIsthmusDeploymentBytecode,
 	}).MarshalBinary()

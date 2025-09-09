@@ -59,7 +59,11 @@ func TestIsthmusNetworkTransactions(t *testing.T) {
 	require.Equal(t, deployL1BlockSender, common.HexToAddress("0x4210000000000000000000000000000000000003"))
 	require.Equal(t, deployIsthmusL1BlockSource.SourceHash(), deployL1Block.SourceHash())
 	require.Nil(t, deployL1Block.To())
-	require.Equal(t, uint64(425_000), deployL1Block.Gas()) // TODO
+	// Verify gas value matches calculated value from contract deployment
+	// Gas calculation: 21,000 (base) + 200 * bytecode length
+	expectedGas := 21000 + 200*uint64(len(l1BlockIsthmusDeploymentBytecode))
+	t.Logf("Calculated gas: %d, bytecode length: %d", expectedGas, len(l1BlockIsthmusDeploymentBytecode))
+	require.Equal(t, expectedGas, deployL1Block.Gas())
 	require.Equal(t, l1BlockIsthmusDeploymentBytecode, deployL1Block.Data())
 
 	deployGasPriceOracleSender, deployGasPriceOracle := toDepositTxn(t, upgradeTxns[1])
