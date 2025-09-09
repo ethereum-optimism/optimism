@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Helper for deposit event version topic handling in tests
+const depositVersionTopicIndex = 3
+
+func isValidDepositVersionTopic(v common.Hash) bool {
+	return v == DepositEventVersion0
+}
+
 // fuzzReceipts is similar to makeReceipts except it uses the fuzzer to populate DepositTx fields.
 func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContractAddr common.Address) (receipts []*types.Receipt, expectedDeposits []*types.DepositTx) {
 	// Determine how many receipts to generate (capped)
@@ -174,9 +181,7 @@ func FuzzDeriveDepositsBadVersion(f *testing.F) {
 		// Loop through all receipt logs and let the fuzzer determine which (if any) to patch.
 		hasBadDepositVersion := false
 		for _, receipt := range receipts {
-
-			// TODO: Using a hardcoded index (Topics[3]) here is not ideal. The MarshalDepositLogEvent method should
-			//  be spliced apart to be more configurable for these tests.
+			// Avoid hardcoded topic index and version checks in tests.
 
 			// Loop for each log in this receipt and check if it has a deposit event from our contract
 			for _, log := range receipt.Logs {
@@ -186,15 +191,13 @@ func FuzzDeriveDepositsBadVersion(f *testing.F) {
 					typeProvider.Fuzz(&patchBadDeposit)
 					if patchBadDeposit {
 						// Generate any topic but the deposit event versions we support.
-						// TODO: As opposed to keeping this hardcoded, a method such as IsValidVersion(v) should be
-						//  used here.
 						badTopic := DepositEventVersion0
-						for badTopic == DepositEventVersion0 {
+						for isValidDepositVersionTopic(badTopic) {
 							typeProvider.Fuzz(&badTopic)
 						}
 
 						// Set our bad topic and update our state
-						log.Topics[3] = badTopic
+						log.Topics[depositVersionTopicIndex] = badTopic
 						hasBadDepositVersion = true
 					}
 				}

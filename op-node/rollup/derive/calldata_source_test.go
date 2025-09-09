@@ -105,7 +105,13 @@ func TestDataFromEVMTransactions(t *testing.T) {
 				{to: &altInbox, dataLen: 2020, value: 12, author: batcherPriv, good: false},
 			},
 		},
-		// TODO: test with different batcher key, i.e. when it's changed from initial config value by L1 contract
+		{
+			name: "updated batcher key via L1 config",
+			txs: []testTx{
+				{to: &cfg.BatchInboxAddress, dataLen: 1111, author: batcherPriv, good: false}, // old key should not match
+				{to: &cfg.BatchInboxAddress, dataLen: 2222, author: altAuthor, good: true},    // new key matches
+			},
+		},
 	}
 
 	for i, tc := range testCases {
@@ -121,7 +127,12 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, batcherAddr, txs, testlog.Logger(t, log.LevelCrit))
+		// For the special case, simulate that L1 config updated the batcher key to altAuthor
+		selectedBatcher := batcherAddr
+		if tc.name == "updated batcher key via L1 config" {
+			selectedBatcher = crypto.PubkeyToAddress(altAuthor.PublicKey)
+		}
+		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, selectedBatcher, txs, testlog.Logger(t, log.LevelCrit))
 		require.ElementsMatch(t, expectedData, out)
 	}
 
