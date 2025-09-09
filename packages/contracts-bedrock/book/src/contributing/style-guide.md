@@ -185,6 +185,21 @@ The name of a spacer variable MUST be in the format `spacer_<slot>_<offset>_<len
 within the storage slot, and `<length>` is the original size of the variable.
 Spacers MUST be `private`.
 
+Example:
+
+```solidity
+contract ExampleStorageV2 {
+    // ✅ Correct - spacer preserves old storage layout
+    bytes32 private spacer_5_0_32;
+    uint256 public value;
+}
+
+// ❌ Incorrect - wrong visibility and/or naming
+contract BadStorageLayout {
+    bytes32 internal spacer5;
+}
+```
+
 ### Proxy by Default
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
