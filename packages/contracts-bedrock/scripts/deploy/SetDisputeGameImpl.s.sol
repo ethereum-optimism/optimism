@@ -3,11 +3,11 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
-import { GameType } from "src/dispute/lib/Types.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { GameType } from "src/L1/dispute/lib/Types.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
 
 contract SetDisputeGameImplInput is BaseDeployIO {
     IDisputeGameFactory internal _factory;

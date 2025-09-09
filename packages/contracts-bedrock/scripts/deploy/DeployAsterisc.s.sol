@@ -8,7 +8,7 @@ import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 import { IRISCV } from "interfaces/vendor/asterisc/IRISCV.sol";
 
 /// @title DeployAsterisc

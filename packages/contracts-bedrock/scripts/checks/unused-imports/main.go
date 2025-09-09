@@ -16,7 +16,7 @@ var asPattern = regexp.MustCompile(`(\S+)\s+as\s+(\S+)`)
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"src/**/*.sol", "scripts/**/*.sol", "test/**/*.sol", "interfaces/**/*.sol"},
-		[]string{"src/dispute/lib/Types.sol"},
+		[]string{"src/L1/dispute/lib/Types.sol"},
 		processFile,
 	); err != nil {
 		fmt.Printf("error: %v\n", err)

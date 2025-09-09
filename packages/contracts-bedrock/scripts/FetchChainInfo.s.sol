@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
-import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
+import { GameTypes, GameType } from "src/L1/dispute/lib/Types.sol";
 
 /// @notice Contains getters for arbitrary methods from all L1 contracts, including legacy getters
 /// that have since been deprecated.

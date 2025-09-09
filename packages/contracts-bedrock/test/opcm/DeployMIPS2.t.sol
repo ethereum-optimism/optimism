@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 // Interfaces
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 
 import { DeployMIPS2 } from "scripts/deploy/DeployMIPS2.s.sol";
-import { MIPS64 } from "src/cannon/MIPS64.sol";
+import { MIPS64 } from "src/L1/cannon/MIPS64.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 contract DeployMIPS2_Test is Test {

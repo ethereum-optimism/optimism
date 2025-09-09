@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { BaseSuperFaultDisputeGame_TestInit } from "test/dispute/SuperFaultDisputeGame.t.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { BaseSuperFaultDisputeGame_TestInit } from "test/L1/dispute/SuperFaultDisputeGame.t.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
 import { RandomClaimActor } from "test/invariants/FaultDisputeGame.t.sol";
 
 // Libraries
-import "src/dispute/lib/Types.sol";
-import "src/dispute/lib/Errors.sol";
+import "src/L1/dispute/lib/Types.sol";
+import "src/L1/dispute/lib/Errors.sol";
 
 contract SuperFaultDisputeGame_Solvency_Invariant is BaseSuperFaultDisputeGame_TestInit {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));

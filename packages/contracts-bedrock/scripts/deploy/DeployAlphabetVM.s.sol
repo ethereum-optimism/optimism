@@ -3,9 +3,9 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import { Claim } from "src/dispute/lib/Types.sol";
+import { Claim } from "src/L1/dispute/lib/Types.sol";
 
 contract DeployAlphabetVM is Script {
     struct Input {

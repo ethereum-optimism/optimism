@@ -8,7 +8,7 @@ import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfa
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { Claim } from "src/dispute/lib/Types.sol";
+import { Claim } from "src/L1/dispute/lib/Types.sol";
 
 contract InteropMigrationInput_Test is Test {
     InteropMigrationInput input;

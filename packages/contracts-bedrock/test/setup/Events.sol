@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
-import "src/dispute/lib/Types.sol";
+import "src/L1/dispute/lib/Types.sol";
 
 // Interfaces
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to

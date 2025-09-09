@@ -5,9 +5,9 @@ pragma solidity ^0.8.15;
 import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { Timestamp, GameType, Claim } from "src/dispute/lib/Types.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
+import { Timestamp, GameType, Claim } from "src/L1/dispute/lib/Types.sol";
 
 /// @title DisputeMonitorHelper
 /// @notice Peripheral contract that can help to monitor dispute games. Supplements offchain tools

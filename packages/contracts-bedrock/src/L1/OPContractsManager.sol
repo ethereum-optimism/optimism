@@ -8,7 +8,7 @@ import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerSt
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/L1/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -17,17 +17,17 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
-import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/L1/dispute/IPermissionedDisputeGame.sol";
+import { ISuperFaultDisputeGame } from "interfaces/L1/dispute/ISuperFaultDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/L1/dispute/ISuperPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -1899,9 +1899,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.2.0
+    /// @custom:semver 3.2.1
     function version() public pure virtual returns (string memory) {
-        return "3.2.0";
+        return "3.2.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

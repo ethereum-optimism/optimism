@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 
 /// @title IRISCV
 /// @notice Interface for the RISCV contract.

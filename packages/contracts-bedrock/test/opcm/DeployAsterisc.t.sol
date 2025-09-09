@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 
 import { DeployAsterisc } from "scripts/deploy/DeployAsterisc.s.sol";
 

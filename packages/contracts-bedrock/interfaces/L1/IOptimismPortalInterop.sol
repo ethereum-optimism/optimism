@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import { Types } from "src/libraries/Types.sol";
-import { GameType } from "src/dispute/lib/LibUDT.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { GameType } from "src/L1/dispute/lib/LibUDT.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 

@@ -9,8 +9,8 @@ import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
+import { IMIPS64 } from "interfaces/L1/cannon/IMIPS64.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 /// @title DeployMIPSInput

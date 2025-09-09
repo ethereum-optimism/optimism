@@ -6,7 +6,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
-import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { IMIPS64 } from "interfaces/L1/cannon/IMIPS64.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";

@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { FetchChainInfo, FetchChainInfoInput, FetchChainInfoOutput } from "scripts/FetchChainInfo.s.sol";
-import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
-import { LibGameType } from "src/dispute/lib/LibUDT.sol";
+import { GameTypes, GameType } from "src/L1/dispute/lib/Types.sol";
+import { LibGameType } from "src/L1/dispute/lib/LibUDT.sol";
 
 address constant TEST_GUARDIAN = address(0xBEEF);
 address constant TEST_PROPOSER = address(0xCAFE);

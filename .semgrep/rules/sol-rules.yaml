@@ -133,7 +133,7 @@ rules:
     pattern-regex: returns\s*(\w+\s*)?\(\s*([^)]*?\b\w+\s+(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+(?<!_)\s*(?=,|\)))
     paths:
       exclude:
-        - packages/contracts-bedrock/interfaces/dispute/IDelayedWETH.sol
+        - packages/contracts-bedrock/interfaces/L1/dispute/IDelayedWETH.sol
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
         - packages/contracts-bedrock/interfaces
         - packages/contracts-bedrock/test/safe-tools
@@ -231,10 +231,10 @@ rules:
         - packages/contracts-bedrock/src/libraries/TransientContext.sol
         - packages/contracts-bedrock/src/libraries/L1BlockErrors.sol
         - packages/contracts-bedrock/src/libraries/Blueprint.sol
-        - packages/contracts-bedrock/src/dispute/lib/Errors.sol
-        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
-        - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
-        - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
+        - packages/contracts-bedrock/src/L1/dispute/lib/Errors.sol
+        - packages/contracts-bedrock/src/L1/dispute/SuperFaultDisputeGame.sol
+        - packages/contracts-bedrock/src/L1/cannon/libraries/MIPS64Instructions.sol
+        - packages/contracts-bedrock/src/L1/cannon/libraries/CannonErrors.sol
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
         - packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
         - packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
@@ -323,16 +323,16 @@ rules:
         - packages/contracts-bedrock/src/L2/FeeVault.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
-        - packages/contracts-bedrock/src/cannon/MIPS64.sol
-        - packages/contracts-bedrock/src/cannon/PreimageOracle.sol
-        - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
-        - packages/contracts-bedrock/src/dispute/DelayedWETH.sol
-        - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/v2/FaultDisputeGameV2.sol
-        - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/v2/PermissionedDisputeGameV2.sol
-        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
-        - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
+        - packages/contracts-bedrock/src/L1/cannon/MIPS64.sol
+        - packages/contracts-bedrock/src/L1/cannon/PreimageOracle.sol
+        - packages/contracts-bedrock/src/L1/dispute/AnchorStateRegistry.sol
+        - packages/contracts-bedrock/src/L1/dispute/DelayedWETH.sol
+        - packages/contracts-bedrock/src/L1/dispute/FaultDisputeGame.sol
+        - packages/contracts-bedrock/src/L1/dispute/v2/FaultDisputeGameV2.sol
+        - packages/contracts-bedrock/src/L1/dispute/PermissionedDisputeGame.sol
+        - packages/contracts-bedrock/src/L1/dispute/v2/PermissionedDisputeGameV2.sol
+        - packages/contracts-bedrock/src/L1/dispute/SuperFaultDisputeGame.sol
+        - packages/contracts-bedrock/src/L1/dispute/SuperPermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/governance/MintManager.sol
         - packages/contracts-bedrock/src/periphery/TransferOnion.sol
         - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol

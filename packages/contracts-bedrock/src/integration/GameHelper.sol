@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
-import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
+import { IDisputeGameFactory } from "../../interfaces/L1/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "../../interfaces/L1/dispute/IFaultDisputeGame.sol";
 
 // Libraries
-import { Claim, Position, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, Position, GameType } from "src/L1/dispute/lib/Types.sol";
 
 /// @title GameHelper
 /// @notice GameHelper is a util contract for testing to perform multiple moves in a dispute game in a single

@@ -22,10 +22,10 @@ additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 5000 },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 }
@@ -138,10 +138,10 @@ additional_compiler_profiles = [
   { name = "dispute", optimizer_runs = 0 },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
-  { paths = "src/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/L1/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
+  { paths = "src/L1/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/L1/dispute/v2/PermissionedDisputeGameV2.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },

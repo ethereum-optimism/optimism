@@ -8,15 +8,15 @@ import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
-import { GameType, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, Duration } from "src/L1/dispute/lib/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/L1/dispute/IPermissionedDisputeGame.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
 
 /// @title DeployDisputeGame
 contract DeployDisputeGame2 is Script {

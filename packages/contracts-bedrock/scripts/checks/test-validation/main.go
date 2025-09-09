@@ -341,9 +341,9 @@ var excludedPaths = []string{
 	"test/opcm/",                          // OP Chain Manager tests - may have different structure
 	"test/scripts/",                       // Script tests - test deployment/utility scripts, not contracts
 	"test/integration/",                   // Integration tests - test multiple contracts together
-	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
-	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
-	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
+	"test/L1/cannon/MIPS64Memory.t.sol",   // Tests external MIPS implementation
+	"test/L1/dispute/lib/LibClock.t.sol",  // Tests library utilities
+	"test/L1/dispute/lib/LibGameId.t.sol", // Tests library utilities
 	"test/setup/DeployVariations.t.sol",   // Tests deployment variations
 	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
 	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
@@ -364,9 +364,9 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/FaultDisputeGame.t.sol",                // Contains contracts not matching FaultDisputeGame base name
-	"test/dispute/v2/FaultDisputeGameV2.t.sol",           // Contains contracts not matching FaultDisputeGameV2 base name
-	"test/dispute/SuperFaultDisputeGame.t.sol",           // Contains contracts not matching SuperFaultDisputeGame base name
+	"test/L1/dispute/FaultDisputeGame.t.sol",             // Contains contracts not matching FaultDisputeGame base name
+	"test/L1/dispute/v2/FaultDisputeGameV2.t.sol",        // Contains contracts not matching FaultDisputeGameV2 base name
+	"test/L1/dispute/SuperFaultDisputeGame.t.sol",        // Contains contracts not matching SuperFaultDisputeGame base name
 	"test/L1/ResourceMetering.t.sol",                     // Contains contracts not matching ResourceMetering base name
 	"test/L1/OPContractsManagerStandardValidator.t.sol",  // Contains contracts not matching OPContractsManagerStandardValidator base name
 	"test/L2/CrossDomainOwnable.t.sol",                   // Contains contracts not matching CrossDomainOwnable base name
@@ -393,11 +393,11 @@ var excludedPaths = []string{
 	// - Enhancing the validation system to support libraries and complex structures
 	// - Fixing misspelled function names in test contracts
 	// - Restructuring tests to match actual function signatures
-	"test/libraries",                     // Libraries have different artifact structure, unsupported
-	"test/dispute/lib/LibPosition.t.sol", // Library testing - artifact structure issues
-	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
-	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
-	"test/safe/SafeSigners.t.sol",        // Function name validation issues
+	"test/libraries",                        // Libraries have different artifact structure, unsupported
+	"test/L1/dispute/lib/LibPosition.t.sol", // Library testing - artifact structure issues
+	"test/L1/ProxyAdminOwnedBase.t.sol",     // Tests internal functions not in ABI
+	"test/L1/SystemConfig.t.sol",            // Tests internal functions not in ABI
+	"test/safe/SafeSigners.t.sol",           // Function name validation issues
 }
 
 var excludedTests = []string{

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
 
 /// @title RISCV
 /// @notice The RISCV contract emulates a single RISCV hart cycle statelessly, using memory proofs to verify the
@@ -807,7 +807,7 @@ contract RISCV is IBigStepper {
                 revertWithCode(0xbadf00d0)
             }
 
-            // Original implementation is at src/cannon/PreimageKeyLib.sol
+            // Original implementation is at src/L1/cannon/PreimageKeyLib.sol
             // but it cannot be used because this is inside assembly block
             function localize(preImageKey, localContext_) -> localizedKey {
                 // Grab the current free memory pointer to restore later.

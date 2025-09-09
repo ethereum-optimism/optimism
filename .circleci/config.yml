@@ -336,7 +336,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+          patterns: cannon,packages/contracts-bedrock/src/L1/cannon,op-preimage,go.mod
       - run:
           name: prep Cannon results dir
           command: |
@@ -2091,7 +2091,7 @@ workflows:
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
-          on_changes: cannon,packages/contracts-bedrock/src/cannon
+          on_changes: cannon,packages/contracts-bedrock/src/L1/cannon
           uses_artifacts: true
           context:
             - circleci-repo-readonly-authenticated-github-token

@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
-import { _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
+import { DisputeGameFactory_TestInit } from "test/L1/dispute/DisputeGameFactory.t.sol";
+import { _changeClaimStatus } from "test/L1/dispute/FaultDisputeGame.t.sol";
 
 // Contracts
 import { DisputeMonitorHelper } from "src/periphery/monitoring/DisputeMonitorHelper.sol";
-import { GameTypes, Claim, VMStatuses } from "src/dispute/lib/Types.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { GameTypes, Claim, VMStatuses } from "src/L1/dispute/lib/Types.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
 
 /// @title DisputeMonitorHelper_TestInit
 /// @notice Reusable test initialization for `DisputeMonitorHelper` tests.

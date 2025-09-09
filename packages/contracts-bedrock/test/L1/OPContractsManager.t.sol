@@ -18,22 +18,22 @@ import { Config } from "scripts/libraries/Config.sol";
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
-import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, Duration, Hash, Claim } from "src/L1/dispute/lib/LibUDT.sol";
+import { Proposal, GameTypes } from "src/L1/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/L1/dispute/IPermissionedDisputeGame.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import {
     IOPContractsManager,
@@ -43,9 +43,9 @@ import {
 } from "interfaces/L1/IOPContractsManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
-import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
+import { ISuperFaultDisputeGame } from "interfaces/L1/dispute/ISuperFaultDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/L1/dispute/ISuperPermissionedDisputeGame.sol";
 
 // Contracts
 import {
@@ -273,20 +273,20 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.8.0");
+        assertEq(ISemver(address(pdg)).version(), "1.8.1");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.8.0");
+            assertEq(ISemver(address(fdg)).version(), "1.8.1");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }
 
         // Make sure that the SystemConfig is upgraded to the right version. It must also have the
         // right l2ChainId and must be properly initialized.
-        assertEq(ISemver(address(systemConfig)).version(), "3.7.0");
+        assertEq(ISemver(address(systemConfig)).version(), "3.7.1");
         assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
@@ -301,15 +301,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         });
 
         if (opcm.isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0+interop");
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.1+interop");
             assertEq(impls.optimismPortalInteropImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
         } else {
-            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.0");
+            assertEq(ISemver(address(optimismPortal2)).version(), "5.0.1");
             assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
         }
 
         // Make sure the new AnchorStateRegistry has the right version and is initialized.
-        assertEq(ISemver(address(asr)).version(), "3.5.0");
+        assertEq(ISemver(address(asr)).version(), "3.5.1");
         vm.prank(address(proxyAdmin));
         assertEq(IProxy(payable(asr)).admin(), address(proxyAdmin));
         DeployUtils.assertInitialized({ _contractAddress: address(asr), _isProxy: true, _slot: 0, _offset: 0 });

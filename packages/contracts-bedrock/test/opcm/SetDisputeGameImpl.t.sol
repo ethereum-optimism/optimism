@@ -2,17 +2,17 @@
 pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { GameType, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { IDisputeGame } from "interfaces/L1/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
+import { GameType, Proposal, Hash } from "src/L1/dispute/lib/Types.sol";
 import { SetDisputeGameImpl, SetDisputeGameImplInput } from "scripts/deploy/SetDisputeGameImpl.s.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DisputeGameFactory } from "src/L1/dispute/DisputeGameFactory.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { AnchorStateRegistry } from "src/L1/dispute/AnchorStateRegistry.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 

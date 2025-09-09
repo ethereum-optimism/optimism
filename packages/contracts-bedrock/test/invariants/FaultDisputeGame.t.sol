@@ -4,14 +4,14 @@ pragma solidity 0.8.15;
 // Testing
 import { Vm } from "forge-std/Vm.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
-import { BaseFaultDisputeGame_TestInit } from "test/dispute/FaultDisputeGame.t.sol";
+import { BaseFaultDisputeGame_TestInit } from "test/L1/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import "src/dispute/lib/Types.sol";
-import "src/dispute/lib/Errors.sol";
+import "src/L1/dispute/lib/Types.sol";
+import "src/L1/dispute/lib/Errors.sol";
 
 // Interfaces
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
 
 contract FaultDisputeGame_Solvency_Invariant is BaseFaultDisputeGame_TestInit {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));

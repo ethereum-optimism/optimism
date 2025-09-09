@@ -10,7 +10,7 @@ import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { GameType, Hash, Proposal } from "src/L1/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
@@ -18,7 +18,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
 import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
@@ -388,12 +388,12 @@ contract Initializer_Test is CommonTest {
         // SuperPermissionedDisputeGame
         //       contracts and instead simply deploys them anonymously. Means that functions like "getInitializedSlot"
         //       don't work properly. Remove these exclusions once the deployment script is fixed.
-        excludes[j++] = "src/dispute/FaultDisputeGame.sol";
-        excludes[j++] = "src/dispute/v2/FaultDisputeGameV2.sol";
-        excludes[j++] = "src/dispute/v2/PermissionedDisputeGameV2.sol";
-        excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
-        excludes[j++] = "src/dispute/PermissionedDisputeGame.sol";
-        excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
+        excludes[j++] = "src/L1/dispute/FaultDisputeGame.sol";
+        excludes[j++] = "src/L1/dispute/v2/FaultDisputeGameV2.sol";
+        excludes[j++] = "src/L1/dispute/v2/PermissionedDisputeGameV2.sol";
+        excludes[j++] = "src/L1/dispute/SuperFaultDisputeGame.sol";
+        excludes[j++] = "src/L1/dispute/PermissionedDisputeGame.sol";
+        excludes[j++] = "src/L1/dispute/SuperPermissionedDisputeGame.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
         excludes[j++] = "src/L1/OPContractsManager.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.

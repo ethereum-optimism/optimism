@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { Proposal, Hash } from "src/L1/dispute/lib/Types.sol";
 
 /// @title Constants
 /// @notice Constants is a library for storing constants. Simple! Don't put everything in here, just

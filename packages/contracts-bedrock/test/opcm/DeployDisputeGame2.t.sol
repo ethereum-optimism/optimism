@@ -4,16 +4,16 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 // Interfaces
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 
 // Libraries
-import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { LibPosition } from "src/L1/dispute/lib/LibPosition.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { PreimageOracle } from "src/L1/cannon/PreimageOracle.sol";
 import { DeployDisputeGame2 } from "scripts/deploy/DeployDisputeGame2.s.sol";
 
 contract DeployDisputeGame2_Test is Test {

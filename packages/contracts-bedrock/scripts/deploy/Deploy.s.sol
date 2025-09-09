@@ -22,19 +22,19 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
-import { Duration } from "src/dispute/lib/LibUDT.sol";
-import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { Duration } from "src/L1/dispute/lib/LibUDT.sol";
+import { GameType, Claim, GameTypes, Proposal, Hash } from "src/L1/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IDisputeGameFactory } from "interfaces/L1/dispute/IDisputeGameFactory.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IAnchorStateRegistry } from "interfaces/L1/dispute/IAnchorStateRegistry.sol";
+import { IMIPS64 } from "interfaces/L1/cannon/IMIPS64.sol";
+import { IPreimageOracle } from "interfaces/L1/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";

@@ -5,10 +5,10 @@ pragma solidity ^0.8.15;
 import { CommonBase } from "forge-std/Base.sol";
 
 // Libraries
-import "src/dispute/lib/Types.sol";
+import "src/L1/dispute/lib/Types.sol";
 
 // Interfaces
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
 
 /// @title GameSolver
 /// @notice The `GameSolver` contract is a contract that can produce an array of available

@@ -2,11 +2,11 @@
 pragma solidity ^0.8.15;
 
 // Libraries
-import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
-import "src/dispute/lib/Types.sol";
+import { PreimageKeyLib } from "src/L1/cannon/PreimageKeyLib.sol";
+import "src/L1/dispute/lib/Types.sol";
 
 // Interfaces
-import { IBigStepper, IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
+import { IBigStepper, IPreimageOracle } from "interfaces/L1/dispute/IBigStepper.sol";
 
 /// @title AlphabetVM
 /// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works

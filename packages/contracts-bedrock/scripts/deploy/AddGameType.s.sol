@@ -11,10 +11,10 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { GameType, Duration, Claim } from "src/dispute/lib/Types.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IDelayedWETH } from "interfaces/L1/dispute/IDelayedWETH.sol";
+import { IBigStepper } from "interfaces/L1/dispute/IBigStepper.sol";
+import { GameType, Duration, Claim } from "src/L1/dispute/lib/Types.sol";
+import { IFaultDisputeGame } from "interfaces/L1/dispute/IFaultDisputeGame.sol";
 
 /// @title AddGameType
 contract AddGameType is Script {
