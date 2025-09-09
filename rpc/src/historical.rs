@@ -386,12 +386,12 @@ mod tests {
     #[test]
     fn parses_transaction_hash_from_params() {
         let hash = "0xdbdfa0f88b2cf815fdc1621bd20c2bd2b0eed4f0c56c9be2602957b5a60ec702";
-        let params_str = format!(r#"["{}"]"#, hash);
+        let params_str = format!(r#"["{hash}"]"#);
         let params = Params::new(Some(&params_str));
         let result = parse_transaction_hash_from_params(&params);
         assert!(result.is_ok());
         let parsed_hash = result.unwrap();
-        assert_eq!(format!("{:?}", parsed_hash), hash);
+        assert_eq!(format!("{parsed_hash:?}"), hash);
     }
 
     /// Tests that invalid transaction hash returns error.
