@@ -1,4 +1,4 @@
-package sync_tester_hfs_ext
+package hardforks_ext
 
 import (
 	"context"
@@ -33,18 +33,18 @@ const (
 	DefaultL1ELEndpointTailscale       = "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
 )
 
-// Network upgrade block numbers for op-sepolia
-var networkUpgradeBlocks = map[string]uint64{
-	"Canyon":   4089330,
-	"Delta":    5700330,
-	"Ecotone":  8366130,
-	"Fjord":    12597930,
-	"Granite":  15837930,
-	"Holocene": 20415330,
-	"Isthmus":  26551530,
-}
-
 var (
+	// Network upgrade block numbers for op-sepolia
+	networkUpgradeBlocks = map[string]uint64{
+		"Canyon":   4089330,
+		"Delta":    5700330,
+		"Ecotone":  8366130,
+		"Fjord":    12597930,
+		"Granite":  15837930,
+		"Holocene": 20415330,
+		"Isthmus":  26551530,
+	}
+
 	// Load configuration from environment variables with defaults
 	L2NetworkName = getEnvOrDefault("L2_NETWORK_NAME", DefaultL2NetworkName)
 	L1ChainID     = eth.ChainIDFromUInt64(getEnvUint64OrDefault("L1_CHAIN_ID", DefaultL1ChainID))
@@ -125,49 +125,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	return orch
 }
 
-func TestSyncTesterHFS_Canyon(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().CanyonTime
-	}
-	testSyncTesterHFSExt(gt, "Canyon", forkTimestamp)
-}
-
-func TestSyncTesterHFS_Ecotone(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().EcotoneTime
-	}
-	testSyncTesterHFSExt(gt, "Ecotone", forkTimestamp)
-}
-
-func TestSyncTesterHFS_Fjord(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().FjordTime
-	}
-	testSyncTesterHFSExt(gt, "Fjord", forkTimestamp)
-}
-
-func TestSyncTesterHFS_Granite(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().GraniteTime
-	}
-	testSyncTesterHFSExt(gt, "Granite", forkTimestamp)
-}
-
-func TestSyncTesterHFS_Holocene(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().HoloceneTime
-	}
-	testSyncTesterHFSExt(gt, "Holocene", forkTimestamp)
-}
-
-func TestSyncTesterHFS_Isthmus(gt *testing.T) {
-	forkTimestamp := func(net *dsl.L2Network) *uint64 {
-		return net.Escape().ChainConfig().IsthmusTime
-	}
-	testSyncTesterHFSExt(gt, "Isthmus", forkTimestamp)
-}
-
-func testSyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net *dsl.L2Network) *uint64) {
+func SyncTesterHFSExt(gt *testing.T, upgradeName string, forkTimestamp func(net *dsl.L2Network) *uint64) {
 	t := devtest.ParallelT(gt)
 	l := t.Logger()
 
