@@ -30,7 +30,6 @@ func TestOperatorFee(gt *testing.T) {
 	operatorFee.CheckCompatibility()
 	systemOwner := operatorFee.GetSystemOwner()
 	sys.FunderL1.FundAtLeast(systemOwner, fundAmount)
-	systemOwner.WaitForBalance(fundAmount)
 
 	// First, ensure L2 is synced with current L1 state before starting tests
 	t.Log("Ensuring L2 is synced with current L1 state...")
