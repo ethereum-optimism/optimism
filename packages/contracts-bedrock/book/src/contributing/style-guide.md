@@ -29,9 +29,13 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-This document provides guidance on how we organize and write our smart contracts. For cases where
-this document does not provide guidance, please refer to existing contracts for guidance,
-with priority on the `L2OutputOracle` and `OptimismPortal`.
+This document provides guidance on how we organize and write our smart contracts.
+
+Notes:
+1. There are many cases where the code is not up to date with this guide, when in doubt, this guide
+   should take precedence.
+2. For cases where this document does not provide guidance, please refer to existing contracts,
+   with priority on the `SystemConfig` and `OptimismPortal`.
 
 ## Standards and Conventions
 
