@@ -726,14 +726,3 @@ contract SemgrepTest__sol_style_event_param_fmt {
     // ruleid: sol-style-event-param-fmt
     event OwnerChanged(address NEW_OWNER);
 }
-
-contract SemgrepTest__sol_style_immutable_variables {
-    // ruleid: sol-safety-no-immutable-variables
-    address internal immutable ownerAddress;
-
-    // ruleid: sol-safety-no-immutable-variables
-    address public immutable ownerAddress;
-
-    // ok: sol-safety-no-immutable-variables
-    address internal immutable OWNER_ADDRESS;
-}
