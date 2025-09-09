@@ -39,7 +39,7 @@ func (ec *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, a
 		SafeBlockHash:      ec.safeHead.Hash,
 		FinalizedBlockHash: ec.finalizedHead.Hash,
 	}
-	id, errTyp, err := startPayload(ctx, ec.engine, fc, attrs)
+	id, errTyp, err := StartPayload(ctx, ec.engine, fc, attrs)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:

@@ -698,20 +698,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
 			d.PromoteSafe(ctx, x.Ref, x.Source)
 		}
-	case InteropInvalidateBlockEvent:
-		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
-	case BuildStartEvent:
-		d.onBuildStart(ctx, x)
-	case BuildStartedEvent:
-		d.onBuildStarted(ctx, x)
-	case BuildSealEvent:
-		d.onBuildSeal(ctx, x)
-	case BuildSealedEvent:
-		d.onBuildSealed(ctx, x)
-	case BuildInvalidEvent:
-		d.onBuildInvalid(ctx, x)
-	case BuildCancelEvent:
-		d.onBuildCancel(ctx, x)
 	case PayloadProcessEvent:
 		d.onPayloadProcess(ctx, x)
 	case PayloadSuccessEvent:

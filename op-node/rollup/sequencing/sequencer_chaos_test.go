@@ -73,7 +73,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 		p := c.rng.Float32()
 		switch {
 		case p < 0.05: // 5%
-			c.emitter.Emit(ctx, engine.BuildInvalidEvent{
+			c.emitter.Emit(ctx, BuildInvalidEvent{
 				Attributes: x.Attributes,
 				Err:        errors.New("mock start invalid error"),
 			})
@@ -87,7 +87,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 		default:
 			c.currentAttributes = x.Attributes
-			c.emitter.Emit(ctx, engine.BuildStartedEvent{
+			c.emitter.Emit(ctx, BuildStartedEvent{
 				Info:         c.currentPayloadInfo,
 				BuildStarted: c.clock.Now(),
 				Parent:       x.Attributes.Parent,
@@ -113,14 +113,14 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 			CrossSafe:   c.safe,
 			Finalized:   c.finalized,
 		})
-	case engine.BuildInvalidEvent:
+	case BuildInvalidEvent:
 		// Engine translates the internal BuildInvalidEvent event
 		// to the external sequencer-handled InvalidPayloadAttributesEvent.
 		c.clockRandomIncrement(0, time.Millisecond*50)
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
 		c.emitter.Emit(ctx, engine.InvalidPayloadAttributesEvent(x))
-	case engine.BuildSealEvent:
+	case BuildSealEvent:
 		// Move forward time, to simulate time consumption on sealing
 		c.clockRandomIncrement(0, time.Millisecond*300)
 
@@ -179,7 +179,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 				L1Origin:       l1Origin,
 				SequenceNumber: 0, // ignored
 			}
-			c.emitter.Emit(ctx, engine.BuildSealedEvent{
+			c.emitter.Emit(ctx, BuildSealedEvent{
 				Info:        x.Info,
 				Envelope:    payloadEnvelope,
 				Ref:         payloadRef,
@@ -189,7 +189,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 		}
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-	case engine.BuildCancelEvent:
+	case BuildCancelEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
 	case engine.PayloadProcessEvent:

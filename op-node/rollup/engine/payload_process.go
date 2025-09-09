@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -22,6 +23,15 @@ type PayloadProcessEvent struct {
 
 func (ev PayloadProcessEvent) String() string {
 	return "payload-process"
+}
+
+func (eq *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
+	eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
+	// request deposits-only version
+	eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
+		Parent:      parent,
+		DerivedFrom: derivedFrom,
+	})
 }
 
 func (eq *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {

@@ -114,6 +114,10 @@ func NewDriver(
 	sys.Register("sync", syncDeriver)
 	sys.Register("engine", ec)
 
+	// Register a verifierBuilder builder to handle L1-derivation originated BuildStartEvent and attributes originated BuildStartEvent.
+	verifierBuilder := sequencing.NewVerifierBuilder(driverCtx, log, cfg, ec, l2)
+	sys.Register("verifier-builder", verifierBuilder)
+
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
@@ -126,7 +130,7 @@ func NewDriver(
 		ec.SetOriginSelectorResetter(findL1Origin)
 
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
+			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec, l2)
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}

@@ -173,6 +173,62 @@ func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Block
 
 func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
 
+func (fakeEngController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool) {}
+
+func (fakeEngController) BackupUnsafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (fakeEngController) SetPendingSafeL2Head(r eth.L2BlockRef) {}
+
+func (fakeEngController) SetFinalizedHead(r eth.L2BlockRef) {}
+
+func (fakeEngController) Finalized() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (fakeEngController) PendingSafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (fakeEngController) SafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+type fakeEngine struct{}
+
+func (fakeEngine) BuildSeal(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	return nil
+}
+
+func (fakeEngine) BuildCancel(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	return nil
+}
+
+func (fakeEngine) BuildInvalid(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	return nil
+}
+
+func (fakeEngine) ForkchoiceUpdate(ctx context.Context, forkchoiceState *eth.ForkchoiceState, payloadAttributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	return nil, nil
+}
+
+func (fakeEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (fakeEngine) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
+func (fakeEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	return nil, nil
+}
+
+func (fakeEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
@@ -206,7 +262,7 @@ func TestSequencer_StartStop(t *testing.T) {
 		Envelope: envelope,
 		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
 	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
+	seq.OnEvent(context.Background(), BuildSealedEvent{
 		Envelope: envelope,
 		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
 	})
@@ -331,7 +387,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
+	seq.OnEvent(context.Background(), BuildStartedEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Parent:       head,
@@ -342,7 +398,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.True(t, ok, "must be ready to seal the block now")
 
-	emitter.ExpectOnce(engine.BuildSealEvent{
+	emitter.ExpectOnce(BuildSealEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Concluding:   false,
@@ -381,7 +437,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		Ref:         payloadRef,
 	})
 	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
+	seq.OnEvent(context.Background(), BuildSealedEvent{
 		Concluding:  false,
 		DerivedFrom: eth.L1BlockRef{},
 		Info:        payloadInfo,
@@ -408,7 +464,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		Envelope: payloadEnvelope,
 		Ref:      head,
 	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
+	seq.OnEvent(context.Background(), BuildSealedEvent{
 		Info:     payloadInfo,
 		Envelope: payloadEnvelope,
 		Ref:      head,
@@ -538,7 +594,7 @@ func TestSequencerBuild(t *testing.T) {
 		ID:        eth.PayloadID{0x42},
 		Timestamp: head.Time + deps.cfg.BlockTime,
 	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
+	seq.OnEvent(context.Background(), BuildStartedEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Parent:       head,
@@ -553,7 +609,7 @@ func TestSequencerBuild(t *testing.T) {
 	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-sealingDuration, buildDuration)
 
 	// Now trigger the sequencer to start sealing
-	emitter.ExpectOnce(engine.BuildSealEvent{
+	emitter.ExpectOnce(BuildSealEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Concluding:   false,
@@ -591,7 +647,7 @@ func TestSequencerBuild(t *testing.T) {
 		Ref:         payloadRef,
 	})
 	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
+	seq.OnEvent(context.Background(), BuildSealedEvent{
 		Concluding:  false,
 		DerivedFrom: eth.L1BlockRef{},
 		Info:        payloadInfo,
@@ -733,7 +789,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	}
 	seq := NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
+		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{}, fakeEngine{})
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
 	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
 		return eth.L2BlockRef{

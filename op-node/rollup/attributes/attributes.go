@@ -27,6 +27,12 @@ type EngineController interface {
 	// RequestForkchoiceUpdate requests a forkchoice update
 	RequestForkchoiceUpdate(ctx context.Context)
 	RequestPendingSafeUpdate(ctx context.Context)
+	PendingSafeL2Head() eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
+	Finalized() eth.L2BlockRef
+	SetPendingSafeL2Head(r eth.L2BlockRef)
+	BackupUnsafeL2Head() eth.L2BlockRef
+	SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool)
 }
 
 type L2 interface {

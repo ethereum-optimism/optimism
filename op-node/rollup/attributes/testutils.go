@@ -28,3 +28,31 @@ func (m *MockEngineController) RequestForkchoiceUpdate(ctx context.Context) {
 func (m *MockEngineController) RequestPendingSafeUpdate(ctx context.Context) {
 	m.Mock.MethodCalled("RequestPendingSafeUpdate", ctx)
 }
+
+func (m *MockEngineController) PendingSafeL2Head() eth.L2BlockRef {
+	m.Mock.MethodCalled("PendingSafeL2Head")
+	return eth.L2BlockRef{}
+}
+
+func (m *MockEngineController) SafeL2Head() eth.L2BlockRef {
+	m.Mock.MethodCalled("SafeL2Head")
+	return eth.L2BlockRef{}
+}
+
+func (m *MockEngineController) Finalized() eth.L2BlockRef {
+	m.Mock.MethodCalled("Finalized")
+	return eth.L2BlockRef{}
+}
+
+func (m *MockEngineController) SetPendingSafeL2Head(r eth.L2BlockRef) {
+	m.Mock.MethodCalled("SetPendingSafeL2Head", r)
+}
+
+func (m *MockEngineController) BackupUnsafeL2Head() eth.L2BlockRef {
+	m.Mock.MethodCalled("BackupUnsafeL2Head")
+	return eth.L2BlockRef{}
+}
+
+func (m *MockEngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool) {
+	m.Mock.MethodCalled("SetBackupUnsafeL2Head", r, triggerReorg)
+}

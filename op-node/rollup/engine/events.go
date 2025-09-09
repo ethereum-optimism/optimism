@@ -153,3 +153,50 @@ func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 }
+
+// InvalidPayloadAttributesEvent is a signal to external derivers that the attributes were invalid.
+type InvalidPayloadAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+	Err        error
+}
+
+func (ev InvalidPayloadAttributesEvent) String() string {
+	return "invalid-payload-attributes"
+}
+
+// PayloadSealExpiredErrorEvent identifies a form of failed payload-sealing that is not coupled
+// to the attributes themselves, but rather the build-job process.
+// The user should re-attempt by starting a new build process. The payload-sealing job should not be re-attempted,
+// as it most likely expired, timed out, or referenced an otherwise invalidated block-building job identifier.
+type PayloadSealExpiredErrorEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	Concluding  bool
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev PayloadSealExpiredErrorEvent) String() string {
+	return "payload-seal-expired-error"
+}
+
+// PayloadSealInvalidEvent identifies a permanent in-consensus problem with the payload sealing.
+type PayloadSealInvalidEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	Concluding  bool
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev PayloadSealInvalidEvent) String() string {
+	return "payload-seal-invalid"
+}
+
+type BuildStartEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev BuildStartEvent) String() string {
+	return "build-start"
+}

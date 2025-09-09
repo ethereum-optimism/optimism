@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -31,6 +32,30 @@ func (f *fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Bl
 }
 func (f *fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {
 }
+
+func (f *fakeEngController) BackupUnsafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (f *fakeEngController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool) {
+}
+
+func (f *fakeEngController) SetPendingSafeL2Head(r eth.L2BlockRef) {
+}
+
+func (f *fakeEngController) Finalized() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (f *fakeEngController) PendingSafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+func (f *fakeEngController) SafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{}
+}
+
+var _ attributes.EngineController = (*fakeEngController)(nil)
 
 func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
 	logger := testlog.Logger(t, 0)
