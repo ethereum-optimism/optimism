@@ -194,7 +194,7 @@ func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
+	if err := cfg.Rollup.ValidateL1Config(ctx, n.log, n.l1Source); err != nil {
 		return fmt.Errorf("failed to validate the L1 config: %w", err)
 	}
 
