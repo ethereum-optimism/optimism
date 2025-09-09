@@ -59,7 +59,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
     /// @dev MUST allow an arbitrary number of Safe contracts to use the contract as a guard
-    /// @dev The contract MUST be enabled as a guard for the Safe
+    /// @dev MUST revert if the contract is not enabled as a guard for the Safe
     /// @dev MUST revert if timelock_delay is longer than 1 year
     /// @dev MUST set the caller as a Safe
     /// @dev MUST take timelock_delay as a parameter and store it as related to the Safe
@@ -86,7 +86,7 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Remove the timelock guard configuration by a previously enabled Safe
-    /// @dev The contract MUST NOT be enabled as a guard for the Safe
+    /// @dev MUST revert if the contract is not enabled as a guard for the Safe
     /// @dev MUST erase the existing timelock_delay data related to the calling Safe
     /// @dev MUST emit a GuardCleared event
     function clearTimelockGuard() external {
@@ -125,8 +125,6 @@ contract TimelockGuard is IGuard, ISemver {
 
         uint256 threshold = safeCancellationThreshold[_safe];
         if (threshold == 0) {
-            // NOTE: not sure if this is the right thing to do.
-            //    defaulting to one is good to prevent us from forgetting to set it to one elsewhere.
             // Default to 1 if not set
             return 1;
         }
@@ -140,7 +138,7 @@ contract TimelockGuard is IGuard, ISemver {
         // keccak256("guard_manager.guard.address") from GuardManager
         bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
         Safe safe = Safe(payable(_safe));
-        return abi.decode(safe.getStorageAt({ offset: uint256(guardSlot), length: 1 }), (address));
+        return abi.decode(safe.getStorageAt(uint256(guardSlot), 1), (address));
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay
