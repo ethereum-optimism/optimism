@@ -23,6 +23,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Mapping from Safe address to its guard configuration
     mapping(address => GuardConfig) public safeConfigs;
 
+    /// @notice Mapping from Safe address to its current cancellation threshold
+    mapping(address => uint256) public safeCancellationThreshold;
+
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
 
@@ -75,6 +78,9 @@ contract TimelockGuard is IGuard, ISemver {
         // Store the configuration for this safe
         safeConfigs[msg.sender].timelockDelay = _timelockDelay;
 
+        // Initialize cancellation threshold to 1
+        safeCancellationThreshold[msg.sender] = 1;
+
         emit GuardConfigured(msg.sender, _timelockDelay);
     }
 
@@ -95,8 +101,35 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Erase the configuration data for this safe
         delete safeConfigs[msg.sender];
+        delete safeCancellationThreshold[msg.sender];
 
         emit GuardCleared(msg.sender);
+    }
+
+    /// @notice Returns the cancellation threshold for a given safe
+    /// @dev MUST NOT revert
+    /// @dev MUST return 0 if the contract is not enabled as a guard for the safe
+    /// @param _safe The Safe address to query
+    /// @return The current cancellation threshold
+    function cancellationThreshold(address _safe) public view returns (uint256) {
+        // Return 0 if guard is not enabled
+        if (_getGuard(_safe) != address(this)) {
+            return 0;
+        }
+
+        // Return 0 if not configured
+        if (safeConfigs[_safe].timelockDelay == 0) {
+            return 0;
+        }
+
+        uint256 threshold = safeCancellationThreshold[_safe];
+        if (threshold == 0) {
+            // NOTE: not sure if this is the right thing to do.
+            //    defaulting to one is good to prevent us from forgetting to set it to one elsewhere.
+            // Default to 1 if not set
+            return 1;
+        }
+        return threshold;
     }
 
     /// @notice Internal helper to get the guard address from a Safe
@@ -106,7 +139,7 @@ contract TimelockGuard is IGuard, ISemver {
         // keccak256("guard_manager.guard.address") from GuardManager
         bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
         Safe safe = Safe(payable(_safe));
-        return abi.decode(safe.getStorageAt({offset: uint256(guardSlot), length: 1}), (address));
+        return abi.decode(safe.getStorageAt({ offset: uint256(guardSlot), length: 1 }), (address));
     }
 
     /// @notice Called by the Safe before executing a transaction
@@ -123,7 +156,10 @@ contract TimelockGuard is IGuard, ISemver {
         address payable refundReceiver,
         bytes memory signatures,
         address msgSender
-    ) external override {
+    )
+        external
+        override
+    {
         // Empty implementation for now - will be filled in when implementing checkTransaction
     }
 

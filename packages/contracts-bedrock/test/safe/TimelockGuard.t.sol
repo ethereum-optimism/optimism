@@ -68,22 +68,14 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     /// @notice Helper to disable guard on a Safe
     function _disableGuard(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe,
-            address(_safe.safe),
-            0,
-            abi.encodeCall(GuardManager.setGuard, (address(0))),
-            Enum.Operation.Call
+            _safe, address(_safe.safe), 0, abi.encodeCall(GuardManager.setGuard, (address(0))), Enum.Operation.Call
         );
     }
 
     /// @notice Helper to clear the TimelockGuard configuration for a Safe
     function _clearGuard(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe,
-            address(timelockGuard),
-            0,
-            abi.encodeCall(TimelockGuard.clearTimelockGuard, ()),
-            Enum.Operation.Call
+            _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.clearTimelockGuard, ()), Enum.Operation.Call
         );
     }
 }
@@ -113,7 +105,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     function test_configureTimelockGuard_revertsIfGuardNotEnabled() external {
         // Create a safe without enabling the guard
         // Reduce the threshold just to prevent a CREATE2 collision when deploying this safe.
-        SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD-1);
+        SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
         vm.prank(address(unguardedSafe.safe));
@@ -178,6 +170,9 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
 
         // Configuration should be cleared
         assertEq(timelockGuard.viewTimelockGuardConfiguration(address(safeInstance.safe)), 0);
+        // Ensure cancellation threshold is reset to 0
+        assertEq(timelockGuard.cancellationThreshold(address(safeInstance.safe)), 0);
+
         // TODO: Check that any active challenge is cancelled
     }
 
@@ -197,4 +192,34 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         vm.prank(address(safeInstance.safe));
         timelockGuard.clearTimelockGuard();
     }
+}
+
+/// @title TimelockGuard_CancellationThreshold_Test
+/// @notice Tests for cancellationThreshold function
+contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
+    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled() external {
+        // Safe without guard enabled should return 0
+        SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
+
+        uint256 threshold = timelockGuard.cancellationThreshold(address(unguardedSafe.safe));
+        assertEq(threshold, 0);
+    }
+
+    function test_cancellationThreshold_returnsZeroIfGuardNotConfigured() external {
+        // Safe with guard enabled but not configured should return 0
+        uint256 threshold = timelockGuard.cancellationThreshold(address(safeInstance.safe));
+        assertEq(threshold, 0);
+    }
+
+    function test_cancellationThreshold_returnsOneAfterConfiguration() external {
+        // Configure the guard
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+
+        // Should default to 1 after configuration
+        uint256 threshold = timelockGuard.cancellationThreshold(address(safeInstance.safe));
+        assertEq(threshold, 1);
+    }
+
+    // Note: Testing increment/decrement behavior will require scheduleTransaction,
+    // cancelTransaction and execution functions to be implemented first
 }
