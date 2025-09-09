@@ -2,11 +2,9 @@ package hardforks_ext
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -18,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -158,20 +155,9 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
 	}
 	require := t.Require()
 
-	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
-	require.NotNil(ft, "fork timestamp should be set")
+	l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 
-	var l2CLSyncStatus *eth.SyncStatus
-	err := retry.Do0(t.Ctx(), 10, retry.Fixed(2*time.Second), func() error {
-		l2CLSyncStatus = sys.L2CL.SyncStatus()
-		require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
-		if l2CLSyncStatus.UnsafeL2.Time == 0 {
-			return fmt.Errorf("L2CL unsafe time is still zero")
-		}
-		return nil
-	})
-	require.NoError(err, "L2CL unsafe time should be set within retry limit")
-	require.NotZero(l2CLSyncStatus.UnsafeL2.Time, "L2CL unsafe time should not be zero")
+	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 
 	blocksToSync := uint64(10)

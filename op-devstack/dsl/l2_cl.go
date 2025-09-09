@@ -334,3 +334,21 @@ func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args 
 	sourceOfTruth.AwaitMinL1Processed(l1Block)
 	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth, opts.minRequiredL2Block)
 }
+
+func (cl *L2CLNode) WaitForNonZeroUnsafeTime(ctx context.Context) *eth.SyncStatus {
+	require := cl.require
+
+	var ss *eth.SyncStatus
+	err := retry.Do0(ctx, 10, retry.Fixed(2*time.Second), func() error {
+		ss = cl.SyncStatus()
+		require.NotNil(ss, "L2CL should have sync status")
+		if ss.UnsafeL2.Time == 0 {
+			return fmt.Errorf("L2CL unsafe time is still zero")
+		}
+		return nil
+	})
+	require.NoError(err, "L2CL unsafe time should be set within retry limit")
+	require.NotZero(ss.UnsafeL2.Time, "L2CL unsafe time should not be zero")
+
+	return ss
+}
