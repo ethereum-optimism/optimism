@@ -52,14 +52,14 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 	return cr.prev.Origin()
 }
 
-// TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
 	if f, err := BatchReader(bytes.NewBuffer(data), cr.spec.MaxRLPBytesPerChannel(cr.prev.Origin().Time), cr.cfg.IsFjord(cr.prev.Origin().Time)); err == nil {
 		cr.nextBatchFn = f
 		cr.metrics.RecordChannelInputBytes(len(data))
+		cr.log.Debug("Successfully created batch reader from channel data", "channel_size", len(data), "origin", cr.Origin())
 		return nil
 	} else {
-		cr.log.Error("Error creating batch reader from channel data", "err", err)
+		cr.log.Error("Error creating batch reader from channel data", "err", err, "channel_size", len(data), "origin", cr.Origin())
 		return err
 	}
 }
@@ -86,14 +86,16 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		}
 	}
 
-	// TODO: can batch be non nil while err == io.EOF
-	// This depends on the behavior of rlp.Stream
+	// RLP stream behavior: when there's no more data to decode, rlp.Stream.Decode()
+	// returns io.EOF. The batchData may be non-nil if it was partially decoded
+	// before encountering EOF, but we should treat this as end-of-channel.
 	batchData, err := cr.nextBatchFn()
 	if err == io.EOF {
+		cr.log.Debug("reached end of channel data", "origin", cr.Origin())
 		cr.NextChannel()
 		return nil, NotEnoughData
 	} else if err != nil {
-		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
+		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err, "origin", cr.Origin())
 		cr.NextChannel()
 		return nil, NotEnoughData
 	}
