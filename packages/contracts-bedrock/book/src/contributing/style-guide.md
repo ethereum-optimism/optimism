@@ -61,11 +61,41 @@ We also have the following custom tags:
 
 #### Errors
 
-- Use `require` statements when making simple assertions.
-- Use `revert(string)` if throwing an error where an assertion is not being made (no custom errors).
-  See [here](https://github.com/ethereum-optimism/optimism/blob/861ae315a6db698a8c0adb1f8eab8311fd96be4c/packages/contracts-bedrock/contracts/L2/OVM_ETH.sol#L31)
-  for an example of this in practice.
-- Error strings MUST have the format `"{ContractName}: {message}"` where `message` is a lower case string.
+- Prefer custom Solidity errors for all new errors.
+- Name custom errors using `ContractName_ErrorDescription`.
+- Use `revert ContractName_ErrorDescription()` to revert.
+- Only use `require` for trivial checks where a boolean condition is clearer than a named error.
+- Avoid `revert(string)` and stringly-typed error messages in new code.
+
+Example:
+
+```solidity
+// ✅ Correct - Custom errors with contract-prefixed names
+error SystemConfig_InvalidFeatureState();
+error SystemConfig_UnauthorizedCaller(address caller);
+
+contract SystemConfig {
+    address internal owner;
+
+    function setFeature(bool _enabled) external {
+        if (msg.sender != owner) revert SystemConfig_UnauthorizedCaller(msg.sender);
+        if (!_enabled) revert SystemConfig_InvalidFeatureState();
+        // ...
+    }
+}
+
+// ✅ Acceptable - trivial boolean assertion using require
+function deposit(uint256 _amount) external {
+    require(_amount > 0, "amount > 0");
+    // ...
+}
+
+// ❌ Incorrect - string-based reverts and contract-prefixed strings
+function bad(uint256 _amount) external {
+    require(_amount > 0, "MyContract: amount must be > 0"); // Prefer custom error
+    revert("MyContract: unsupported"); // Avoid string reverts
+}
+```
 
 #### Function Parameters
 
