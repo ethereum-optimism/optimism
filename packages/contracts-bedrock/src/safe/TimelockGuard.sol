@@ -143,6 +143,67 @@ contract TimelockGuard is IGuard, ISemver {
         return abi.decode(safe.getStorageAt({ offset: uint256(guardSlot), length: 1 }), (address));
     }
 
+    /// @notice Schedule a transaction for execution after the timelock delay
+    /// @dev Called by anyone using signatures from Safe owners
+    /// @param safe The Safe address
+    /// @param to Transaction target address
+    /// @param value Transaction value
+    /// @param data Transaction data
+    /// @param operation Transaction operation type
+    /// @param safeTxGas Safe transaction gas
+    /// @param baseGas Base gas for transaction
+    /// @param gasPrice Gas price
+    /// @param gasToken Gas token address
+    /// @param refundReceiver Refund receiver address
+    /// @param signatures Transaction signatures
+    function scheduleTransaction(
+        address safe,
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures
+    )
+        external
+    {
+        revert("Not implemented yet");
+    }
+
+    /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
+    /// @dev MUST NOT revert
+    /// @param _safe The Safe address to query
+    /// @return List of pending transaction hashes
+    function checkPendingTransactions(address _safe) external view returns (bytes32[] memory) {
+        return new bytes32[](0);
+    }
+
+    /// @notice Signal rejection of a scheduled transaction by a Safe owner
+    /// @param safe The Safe address that scheduled the transaction
+    /// @param txHash The transaction hash to reject
+    function rejectTransaction(address safe, bytes32 txHash) external {
+        revert("Not implemented yet");
+    }
+
+    /// @notice Signal rejection of a scheduled transaction using signatures
+    /// @param safe The Safe address that scheduled the transaction
+    /// @param txHash The transaction hash to reject
+    /// @param signatures Owner signatures rejecting the transaction
+    function rejectTransactionWithSignature(address safe, bytes32 txHash, bytes memory signatures) external {
+        revert("Not implemented yet");
+    }
+
+    /// @notice Cancel a scheduled transaction if cancellation threshold is met
+    /// @param safe The Safe address that scheduled the transaction
+    /// @param txHash The transaction hash to cancel
+    function cancelTransaction(address safe, bytes32 txHash) external {
+        revert("Not implemented yet");
+    }
+
     /// @notice Called by the Safe before executing a transaction
     /// @dev Implementation of IGuard interface
     function checkTransaction(
@@ -161,7 +222,7 @@ contract TimelockGuard is IGuard, ISemver {
         external
         override
     {
-        // Empty implementation for now - will be filled in when implementing checkTransaction
+        // Empty implementation for now
     }
 
     /// @notice Called by the Safe after executing a transaction
