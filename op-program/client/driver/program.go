@@ -32,6 +32,14 @@ type ProgramDeriver struct {
 	result         eth.L2BlockRef
 	resultError    error
 	targetBlockNum uint64
+	// If true, close the program when derivation goes idle (trace-extension case).
+	closeOnIdle bool
+}
+
+// AttachEmitter implements event.AttachEmitter to receive the emitter when
+// registered with the event System.
+func (d *ProgramDeriver) AttachEmitter(em event.Emitter) {
+	d.Emitter = em
 }
 
 func (d *ProgramDeriver) Closing() bool {
@@ -87,9 +95,12 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			d.closing = true
 		}
 	case derive.DeriverIdleEvent:
-		// We don't close the deriver yet, as the engine may still be processing events to reach
-		// the target. A ForkchoiceUpdateEvent will close the deriver when the target is reached.
-		d.logger.Info("Derivation complete: no further L1 data to process")
+		if d.closeOnIdle {
+			d.logger.Info("Derivation complete: no further L1 data to process")
+			d.closing = true
+		} else {
+			d.logger.Info("Derivation idle: no further L1 data to process")
+		}
 	case rollup.ResetEvent:
 		d.closing = true
 		d.resultError = fmt.Errorf("unexpected reset error: %w", x.Err)

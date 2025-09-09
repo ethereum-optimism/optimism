@@ -55,6 +55,9 @@ type System interface {
 	RemoveTracer(t Tracer)
 	// Stop shuts down the System by un-registering all derivers/emitters.
 	Stop()
+	// Drive runs the executor drain loop until ctx is done.
+	// Returns ctx.Err() on normal shutdown, or an executor error if one occurs.
+	Drive(ctx context.Context) error
 }
 
 type AttachEmitter interface {
@@ -173,7 +176,10 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 	prev := r.currentEvent
 	start := time.Now()
 	r.currentEvent = r.sys.recordDerivStart(r.name, ev, start)
-	effect := r.deriv.OnEvent(ev.Ctx, ev.Event)
+	// attach system and mark as executor-managed so Await() can yield appropriately inside handlers
+	ctxWithSys := WithSystem(ev.Ctx, r.sys)
+	ctxWithSys = withExecutorManaged(ctxWithSys)
+	effect := r.deriv.OnEvent(ctxWithSys, ev.Event)
 	elapsed := time.Since(start)
 	r.sys.recordDerivEnd(r.name, ev, r.currentEvent, start, elapsed, effect)
 	r.currentEvent = prev
@@ -286,6 +292,53 @@ func (s *Sys) Stop() {
 	for _, r := range s.regs {
 		s.unregister(r.name)
 	}
+}
+
+// Drive runs the underlying executor until ctx is done.
+func (s *Sys) Drive(ctx context.Context) error {
+	// Try CooperativeExec
+	if ex, ok := s.executor.(*CooperativeExec); ok {
+		for ctx.Err() == nil {
+			if err := ex.Drain(); err != nil && err != ctx.Err() {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ex.Await():
+			}
+		}
+		return ctx.Err()
+	}
+	// Try GlobalSyncExec
+	if ex, ok := s.executor.(*GlobalSyncExec); ok {
+		for ctx.Err() == nil {
+			if err := ex.Drain(); err != nil && err != ctx.Err() {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ex.Await():
+			}
+		}
+		return ctx.Err()
+	}
+	// Try SingleThreadCooperativeExec
+	if ex, ok := s.executor.(*SingleThreadCooperativeExec); ok {
+		for ctx.Err() == nil {
+			if err := ex.Drain(); err != nil && err != ctx.Err() {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ex.Await():
+			}
+		}
+		return ctx.Err()
+	}
+	return ErrExecutorNotDrivable
 }
 
 func (s *Sys) AddTracer(t Tracer) {

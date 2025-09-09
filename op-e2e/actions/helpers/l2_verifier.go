@@ -118,7 +118,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	executor := event.NewGlobalSynchronous(ctx)
+	executor := event.NewCooperative(ctx)
 	sys := event.NewSystem(log, executor)
 	t.Cleanup(sys.Stop)
 	opts := event.WithEmitLimiter(

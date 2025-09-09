@@ -2,7 +2,6 @@ package driver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,8 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
-var errTooManyEvents = errors.New("way too many events queued up, something is wrong")
-
 type EndCondition interface {
 	Closing() bool
 	Result() (eth.L2BlockRef, error)
@@ -27,76 +24,80 @@ type EndCondition interface {
 type Driver struct {
 	logger log.Logger
 
-	events []event.Event
+	// Event system components
+	sys          event.System
+	exec         *event.SingleThreadCooperativeExec
+	driverEmiter event.Emitter
 
-	end     EndCondition
-	deriver event.Deriver
+	end EndCondition
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySet, l1Source derive.L1Fetcher,
 	l1BlobsSource derive.L1BlobsFetcher, l2Source engine.Engine, targetBlockNum uint64) *Driver {
 
-	d := &Driver{
-		logger: logger,
-	}
+	exec := event.NewSingleThreadCooperative(context.Background())
+	sys := event.NewSystem(logger, exec)
 
+	// Create derivation pipeline and register as deriver (emitter auto-attached)
 	pipeline := derive.NewDerivationPipeline(logger, cfg, depSet, l1Source, l1BlobsSource, altda.Disabled, l2Source, metrics.NoopMetrics, false)
 	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
-	pipelineDeriver.AttachEmitter(d)
+	sys.Register("pipeline", pipelineDeriver)
 
-	ec := engine.NewEngineController(context.Background(), l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
-	syncCfg := &sync.Config{SyncMode: sync.CLSync}
+	// Engine controller needs an emitter at construction time
+	ecEmitter := sys.Register("engine-controller", nil)
+	ec := engine.NewEngineController(context.Background(), l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, ecEmitter)
+	// And also needs to be registered as a deriver to consume events
+	sys.Register("engine", ec)
 
+	// Attributes handler only used as a resetter in this client path
 	attrHandler := attributes.NewAttributesHandler(logger, cfg, context.Background(), l2Source, ec)
 	ec.SetAttributesResetter(attrHandler)
 	ec.SetPipelineResetter(pipelineDeriver)
 
+	// Register engine reset deriver
+	syncCfg := &sync.Config{SyncMode: sync.CLSync}
 	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
-	engResetDeriv.AttachEmitter(d)
+	sys.Register("engine-reset", engResetDeriv)
 	engResetDeriv.SetEngController(ec)
 
+	// Program deriver coordinates high-level flow
 	prog := &ProgramDeriver{
 		logger:           logger,
-		Emitter:          d,
 		engineController: ec,
 		closing:          false,
 		result:           eth.L2BlockRef{},
 		targetBlockNum:   targetBlockNum,
+		// In the op-program trace-extension path there is no external sequencer
+		// injecting more events after the pipeline idles; close on idle.
+		closeOnIdle: true,
 	}
+	sys.Register("program", prog)
 
-	d.deriver = &event.DeriverMux{
-		prog,
-		ec,
-		pipelineDeriver,
-		engResetDeriv,
+	d := &Driver{
+		logger:       logger,
+		sys:          sys,
+		exec:         exec,
+		driverEmiter: sys.Register("driver", nil),
+		end:          prog,
 	}
-	d.end = prog
-
 	return d
-}
-
-func (d *Driver) Emit(ctx context.Context, ev event.Event) {
-	if d.end.Closing() {
-		return
-	}
-	d.events = append(d.events, ev)
 }
 
 func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 	// Initial reset
-	d.Emit(context.Background(), engine.ResetEngineRequestEvent{})
+	ctx := event.WithSystem(context.Background(), d.sys)
+	d.driverEmiter.Emit(ctx, engine.ResetEngineRequestEvent{})
 
+	// Drive the single-thread executor inline until completion.
+	// We avoid a separate Drive goroutine to ensure run-to-completion without await races.
 	for !d.end.Closing() {
-		if len(d.events) == 0 {
-			d.logger.Info("Derivation complete: no further data to process")
-			return d.end.Result()
+		// Drain any queued events synchronously
+		_ = d.exec.Drain()
+		if d.end.Closing() {
+			break
 		}
-		if len(d.events) > 10000 { // sanity check, in case of bugs. Better than going OOM.
-			return eth.L2BlockRef{}, errTooManyEvents
-		}
-		ev := d.events[0]
-		d.events = d.events[1:]
-		d.deriver.OnEvent(context.Background(), ev)
+		// Await for more events to avoid busy spinning
+		<-d.exec.Await()
 	}
 	return d.end.Result()
 }

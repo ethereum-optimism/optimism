@@ -3,6 +3,15 @@ package event
 // Is as helper function is syntax-sugar to do an Event type check as a boolean function
 func Is[T Event](ev Event) bool {
 	_, ok := ev.(T)
+	if ok {
+		return true
+	}
+
+	aev, ok := ev.(asyncInvokeEvent)
+	if !ok {
+		return false
+	}
+	_, ok = aev.legacyEvent.(T)
 	return ok
 }
 

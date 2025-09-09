@@ -33,14 +33,20 @@ func TestDriver(t *testing.T) {
 	newTestDriver := func(t *testing.T, onEvent func(d *Driver, end *fakeEnd, ev event.Event)) *Driver {
 		logger := testlog.Logger(t, log.LevelInfo)
 		end := &fakeEnd{}
+
+		exec := event.NewSingleThreadCooperative(context.Background())
+		sys := event.NewSystem(logger, exec)
 		d := &Driver{
-			logger: logger,
-			end:    end,
+			logger:       logger,
+			sys:          sys,
+			exec:         exec,
+			driverEmiter: sys.Register("driver", nil),
+			end:          end,
 		}
-		d.deriver = event.DeriverFunc(func(ctx context.Context, ev event.Event) bool {
+		sys.Register("test-deriver", event.DeriverFunc(func(ctx context.Context, ev event.Event) bool {
 			onEvent(d, end, ev)
 			return true
-		})
+		}))
 		return d
 	}
 
@@ -69,7 +75,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(context.Background(), TestEvent{})
+			d.driverEmiter.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.NoError(t, err)
@@ -84,7 +90,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(context.Background(), TestEvent{})
+			d.driverEmiter.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.ErrorIs(t, mockErr, err)
@@ -93,8 +99,10 @@ func TestDriver(t *testing.T) {
 	t.Run("exhaust events", func(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
-			if count < 3 { // stop generating events after a while, without changing end condition
-				d.Emit(context.Background(), TestEvent{})
+			if count < 3 { // generate a few events, then stop and close
+				d.driverEmiter.Emit(context.Background(), TestEvent{})
+			} else {
+				end.closing = true
 			}
 			count += 1
 		})
@@ -107,8 +115,10 @@ func TestDriver(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 {
-				d.Emit(context.Background(), TestEvent{})
-				d.Emit(context.Background(), TestEvent{})
+				d.driverEmiter.Emit(context.Background(), TestEvent{})
+				d.driverEmiter.Emit(context.Background(), TestEvent{})
+			} else {
+				end.closing = true
 			}
 			count += 1
 		})
