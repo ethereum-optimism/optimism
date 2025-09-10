@@ -17,7 +17,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 		expectedError       string
 	}{
 		{
-			name: "With one external upgrade function",
+			name: "With one _doChainUpgrade function",
 			opcmArtifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -26,7 +26,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 							Nodes: []solc.AstNode{
 								{
 									NodeType:   "FunctionDefinition",
-									Name:       "upgrade",
+									Name:       "_doChainUpgrade",
 									Visibility: "external",
 									Nodes: []solc.AstNode{
 										{
@@ -40,10 +40,10 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			upgradeFunctionName: "upgrade",
+			upgradeFunctionName: "_doChainUpgrade",
 			expectedAst: &solc.AstNode{
 				NodeType:   "FunctionDefinition",
-				Name:       "upgrade",
+				Name:       "_doChainUpgrade",
 				Visibility: "external",
 				Nodes: []solc.AstNode{
 					{
@@ -54,7 +54,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name: "With an upgrade function but public visibility",
+			name: "With a _doChainUpgrade function but public visibility",
 			opcmArtifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -63,7 +63,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 							Nodes: []solc.AstNode{
 								{
 									NodeType:   "FunctionDefinition",
-									Name:       "upgrade",
+									Name:       "_doChainUpgrade",
 									Visibility: "public",
 								},
 							},
@@ -72,12 +72,16 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			upgradeFunctionName: "upgrade",
-			expectedAst:         nil,
-			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
+			upgradeFunctionName: "_doChainUpgrade",
+			expectedAst: &solc.AstNode{
+				NodeType:   "FunctionDefinition",
+				Name:       "_doChainUpgrade",
+				Visibility: "public",
+			},
+			expectedError: "",
 		},
 		{
-			name: "With an upgrade function and irrelevant function selector",
+			name: "With a _doChainUpgrade function and irrelevant function selector",
 			opcmArtifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -86,7 +90,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 							Nodes: []solc.AstNode{
 								{
 									NodeType:         "FunctionDefinition",
-									Name:             "upgrade",
+									Name:             "_doChainUpgrade",
 									Visibility:       "external",
 									FunctionSelector: "aabbccdd",
 									Nodes: []solc.AstNode{
@@ -101,10 +105,10 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			upgradeFunctionName: "upgrade",
+			upgradeFunctionName: "_doChainUpgrade",
 			expectedAst: &solc.AstNode{
 				NodeType:         "FunctionDefinition",
-				Name:             "upgrade",
+				Name:             "_doChainUpgrade",
 				Visibility:       "external",
 				FunctionSelector: "aabbccdd",
 				Nodes: []solc.AstNode{
@@ -116,7 +120,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name: "With multiple external upgrade functions",
+			name: "With multiple _doChainUpgrade functions",
 			opcmArtifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -125,12 +129,12 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 							Nodes: []solc.AstNode{
 								{
 									NodeType:   "FunctionDefinition",
-									Name:       "upgrade",
+									Name:       "_doChainUpgrade",
 									Visibility: "external",
 								},
 								{
 									NodeType:   "FunctionDefinition",
-									Name:       "upgrade",
+									Name:       "_doChainUpgrade",
 									Visibility: "external",
 								},
 							},
@@ -139,12 +143,12 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			upgradeFunctionName: "upgrade",
+			upgradeFunctionName: "_doChainUpgrade",
 			expectedAst:         nil,
-			expectedError:       "multiple external upgrade functions found in OPContractsManagerUpgrader, expected 1",
+			expectedError:       "multiple external _doChainUpgrade functions found in OPContractsManagerUpgrader, expected 1",
 		},
 		{
-			name: "With no upgrade function",
+			name: "With no _doChainUpgrade function",
 			opcmArtifact: &solc.ForgeArtifact{
 				Ast: solc.Ast{
 					Nodes: []solc.AstNode{
@@ -167,9 +171,9 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			upgradeFunctionName: "upgrade",
+			upgradeFunctionName: "_doChainUpgrade",
 			expectedAst:         nil,
-			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
+			expectedError:       "no external _doChainUpgrade function found in OPContractsManagerUpgrader",
 		},
 		{
 			name: "With no contract definition",
@@ -178,9 +182,9 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					Nodes: []solc.AstNode{},
 				},
 			},
-			upgradeFunctionName: "upgrade",
+			upgradeFunctionName: "_doChainUpgrade",
 			expectedAst:         nil,
-			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
+			expectedError:       "no external _doChainUpgrade function found in OPContractsManagerUpgrader",
 		},
 	}
 
