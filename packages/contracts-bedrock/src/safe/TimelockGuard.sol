@@ -66,7 +66,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param _timelockDelay The timelock delay in seconds
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Validate timelock delay - must be non-zero and not longer than 1 year
-        if (_timelockDelay > 365 days) {
+        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 

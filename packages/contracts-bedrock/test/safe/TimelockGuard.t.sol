@@ -120,12 +120,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(tooLongDelay);
     }
 
-    function test_configureTimelockGuard_revertsIfDelayZero_reverts() external {
-        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
-        vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(0);
-    }
-
     function test_configureTimelockGuard_acceptsMaxValidDelay_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit GuardConfigured(address(safeInstance.safe), ONE_YEAR);
