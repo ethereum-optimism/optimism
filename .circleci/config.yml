@@ -1008,7 +1008,7 @@ jobs:
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
       - run-contracts-check:
-          command: forge-build-dev --deny-warnings
+          command: forge-build --deny-warnings
 
   todo-issues:
     parameters:
