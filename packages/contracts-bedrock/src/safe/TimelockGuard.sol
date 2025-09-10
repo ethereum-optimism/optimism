@@ -117,17 +117,7 @@ contract TimelockGuard is IGuard, ISemver {
             return 0;
         }
 
-        // Return 0 if not configured
-        if (safeConfigs[_safe].timelockDelay == 0) {
-            return 0;
-        }
-
-        uint256 threshold = safeCancellationThreshold[_safe];
-        if (threshold == 0) {
-            // Default to 1 if not set
-            return 1;
-        }
-        return threshold;
+        return safeCancellationThreshold[_safe];
     }
 
     /// @notice Internal helper to get the guard address from a Safe
