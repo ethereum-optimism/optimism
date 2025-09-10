@@ -2,21 +2,21 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { CommonTest } from "test/setup/CommonTest.sol";
-import { Reverter, GasBurner } from "test/mocks/Callers.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { stdError } from "forge-std/StdError.sol";
+import {CommonTest} from "test/setup/CommonTest.sol";
+import {Reverter, GasBurner} from "test/mocks/Callers.sol";
+import {EIP1967Helper} from "test/mocks/EIP1967Helper.sol";
+import {stdError} from "forge-std/StdError.sol";
 
 // Libraries
-import { Hashing } from "src/libraries/Hashing.sol";
-import { Encoding } from "src/libraries/Encoding.sol";
-import { Types } from "src/libraries/Types.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import {Hashing} from "src/libraries/Hashing.sol";
+import {Encoding} from "src/libraries/Encoding.sol";
+import {Types} from "src/libraries/Types.sol";
+import {AddressAliasHelper} from "src/vendor/AddressAliasHelper.sol";
+import {ForgeArtifacts, StorageSlot} from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
-import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
-import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import {IL2CrossDomainMessenger} from "interfaces/L2/IL2CrossDomainMessenger.sol";
+import {IL2ToL1MessagePasser} from "interfaces/L2/IL2ToL1MessagePasser.sol";
 
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
@@ -57,8 +57,8 @@ contract L2CrossDomainMessenger_Initialize_Test is L2CrossDomainMessenger_TestIn
 /// @title L2CrossDomainMessenger_SendMessage_Test
 /// @notice Tests the `sendMessage` function of the `L2CrossDomainMessenger` contract.
 contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestInit {
-    /// @notice Tests that `sendMessage` executes successfully with various parameters.
-    function testFuzz_sendMessage_validParams_succeeds(address _target, uint32 _minGasLimit) external {
+    /// @notice Tests that `sendMessage` executes successfully with various target addresses and gas limits.
+    function testFuzz_sendMessage_withValidTargetAndGasLimit_succeeds(address _target, uint32 _minGasLimit) external {
         vm.assume(_target != address(0));
         _minGasLimit = uint32(bound(_minGasLimit, 21000, 5_000_000));
 
@@ -196,8 +196,8 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.deal(caller, 10 ether);
         vm.prank(caller);
         vm.expectRevert(stdError.assertionError);
-        l2CrossDomainMessenger.relayMessage{ value: 10 ether }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 9 ether, 0, message
+        l2CrossDomainMessenger.relayMessage{value: 10 ether}(
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}), sender, target, 9 ether, 0, message
         );
     }
 
@@ -214,14 +214,14 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.etch(target, hex"fe");
         vm.prank(caller);
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}), sender, target, 0, 0, message
         );
 
         // cannot replay messages when the caller is the other messenger
         vm.prank(caller);
         vm.expectRevert(stdError.assertionError);
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}), sender, target, 0, 0, message
         );
     }
 
@@ -236,7 +236,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.prank(caller);
         vm.expectRevert("CrossDomainMessenger: cannot send message to blocked system address");
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}),
             sender,
             address(l2CrossDomainMessenger),
             0,
@@ -257,12 +257,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.prank(caller);
         vm.expectRevert("CrossDomainMessenger: cannot send message to blocked system address");
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            address(l2ToL1MessagePasser),
-            0,
-            0,
-            message
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}), sender, address(l2ToL1MessagePasser), 0, 0, message
         );
     }
 
@@ -278,7 +273,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.prank(bob);
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         l2CrossDomainMessenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
+            Encoding.encodeVersionedNonce({_nonce: 0, _version: 1}), sender, target, 0, 0, message
         );
     }
 
@@ -289,9 +284,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         uint24 _messageLength,
         uint32 _minGasLimit,
         uint32 _gasToUse
-    )
-        external
-    {
+    ) external {
         // TODO(#14609): Update this test to use default.isolate = true once a new stable Foundry
         // release is available that includes #9904. That will allow us to use this test to check
         // for changes to the EVM itself that might cause our gas formula to be incorrect.
@@ -362,7 +355,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
 
         // Trigger the L1CrossDomainMessenger.
         // Should NOT fail.
-        (bool success,) = address(l1CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
+        (bool success,) = address(l1CrossDomainMessenger).call{gas: gasSupplied}(encoded);
         assertTrue(success, "L1CrossDomainMessenger call should not fail");
 
         // Message should either be in the failed or successful messages mapping.
@@ -401,7 +394,7 @@ contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_Test
         vm.etch(target, address(new Reverter()).code);
         vm.deal(address(caller), value);
         vm.prank(caller);
-        l2CrossDomainMessenger.relayMessage{ value: value }(
+        l2CrossDomainMessenger.relayMessage{value: value}(
             Encoding.encodeVersionedNonce(0, 1), // nonce
             sender,
             target,
