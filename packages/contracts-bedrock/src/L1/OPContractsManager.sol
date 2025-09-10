@@ -810,7 +810,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _l2ChainId: _l2ChainId,
                 _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
                 _newDelayedWeth: permissionlessDisputeGame.weth(),
-                _newAnchorStateRegistryProxy: permissionedDisputeGame.anchorStateRegistry(),
+                _newAnchorStateRegistryProxy: permissionlessDisputeGame.anchorStateRegistry(),
                 _gameType: GameTypes.CANNON,
                 _opChainConfig: _opChainConfig
             });

@@ -21,7 +21,7 @@
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
     "initCodeHash": "0x38dfaa504d646a48b85da1d2cf853263241070ac25a93d16f12468d948aa5f96",
-    "sourceCodeHash": "0xb40b3314a6203e6e9df70bbc2c74171eeb1f273f9254adac60f1d3cdef15bd3b"
+    "sourceCodeHash": "0xb5cb0e204bde0e5ab59c3be61e234c2c6b0efa60f9e550c25f64b8d5eeffae4e"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x17a40747da8a9978f7294f071ea371b8c021504b898919431e6acf62623e8adc",
