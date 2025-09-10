@@ -35,7 +35,7 @@ contract L2CrossDomainMessenger_Constructor_Test is L2CrossDomainMessenger_TestI
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
-        assert(bytes(impl.version()).length > 0);
+        assertGt(bytes(impl.version()).length, 0);
         assertEq(impl.MESSAGE_VERSION(), 1);
     }
 }
@@ -48,7 +48,7 @@ contract L2CrossDomainMessenger_Initialize_Test is L2CrossDomainMessenger_TestIn
         assertEq(address(l2CrossDomainMessenger.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.otherMessenger()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
-        assert(bytes(l2CrossDomainMessenger.version()).length > 0);
+        assertGt(bytes(l2CrossDomainMessenger.version()).length, 0);
         assertEq(l2CrossDomainMessenger.MESSAGE_VERSION(), 1);
         assertGt(l2CrossDomainMessenger.messageNonce(), 0);
     }
