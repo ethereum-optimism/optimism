@@ -1168,8 +1168,8 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Set the version of the superchain config to a version that is the target version.
         vm.clearMockedCalls();
 
-        // Do the current upgrade.
-        runCurrentUpgrade(upgrader);
+        // Mock the SuperchainConfig to return a very large version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("99.99.99"));
 
         // Try to upgrade the SuperchainConfig contract again, should fail.
         vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
