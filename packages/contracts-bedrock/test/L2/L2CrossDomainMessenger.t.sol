@@ -60,7 +60,7 @@ contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestI
     /// @notice Tests that `sendMessage` executes successfully with various target addresses and gas limits.
     function testFuzz_sendMessage_withValidTargetAndGasLimit_succeeds(address _target, uint32 _minGasLimit) external {
         vm.assume(_target != address(0));
-        _minGasLimit = uint32(bound(_minGasLimit, 21000, 5_000_000));
+        _minGasLimit = uint32(bound(_minGasLimit, 21000, 30_000_000));
 
         uint256 initialNonce = l2CrossDomainMessenger.messageNonce();
 
