@@ -38,8 +38,8 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 1.15.0
-    string public constant version = "1.15.0";
+    /// @custom:semver 1.16.0
+    string public constant version = "1.16.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -394,7 +394,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             _errors = internalRequire(
-                LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalImpl), "+interop")),
+                LibString.eq(getVersion(address(_portal)), string.concat(getVersion(optimismPortalInteropImpl))),
                 "PORTAL-10",
                 _errors
             );
