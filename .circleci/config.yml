@@ -1337,7 +1337,7 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       - notify-failures-on-develop:
-          mentions: "@changwan @Anton Evangelatov"
+          mentions: "@changwan <@U08L5U8070U>" # @changwan @Anton Evangelatov
 
   op-acceptance-tests:
     parameters:
