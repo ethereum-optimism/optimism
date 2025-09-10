@@ -77,7 +77,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ProtocolVersionsProxy: protocolVersionsAddress,
 			SuperchainProxyAdmin:  proxyAdminAddress,
 			UpgradeController:     common.BigToAddress(big.NewInt(13)),
-			Proposer:              common.BigToAddress(big.NewInt(15)), // Added Proposer field
+			Proposer:              common.BigToAddress(big.NewInt(15)),
 			Challenger:            common.BigToAddress(big.NewInt(14)),
 		})
 
