@@ -2777,7 +2777,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         IProxy(payable(address(optimismPortal2))).upgradeToAndCall(
-            address(nextImpl), abi.encodeCall(NextImpl.initialize, (4))
+            address(nextImpl), abi.encodeCall(NextImpl.initialize, (optimismPortal2.initVersion() + 1))
         );
         assertEq(IProxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
 
