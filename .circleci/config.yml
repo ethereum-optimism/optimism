@@ -1007,6 +1007,8 @@ jobs:
           command: validate-spacers-no-build
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
+      - run-contracts-check:
+          command: forge-build --deny-warnings
 
   todo-issues:
     parameters:
@@ -1983,7 +1985,7 @@ workflows:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -2466,7 +2468,7 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -2520,7 +2522,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
-          build_args: --deny-warnings --skip test
+          build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
