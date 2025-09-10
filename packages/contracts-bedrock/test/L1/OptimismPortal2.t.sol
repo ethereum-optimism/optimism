@@ -364,7 +364,7 @@ contract OptimismPortal2_UpgradeInterop_Test is CommonTest {
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(3)));
+        assertEq(initializedSlotAfter, bytes32(uint256(optimismPortal2.initVersion())));
 
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
@@ -410,9 +410,9 @@ contract OptimismPortal2_UpgradeInterop_Test is CommonTest {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
-        // Slot value should be set to 3 (already initialized).
+        // Slot value should be set to already initialized.
         bytes32 initializedSlotBefore = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(3)));
+        assertEq(initializedSlotBefore, bytes32(uint256(optimismPortal2.initVersion())));
 
         // AnchorStateRegistry address should be non-zero.
         assertNotEq(address(optimismPortal2.anchorStateRegistry()), address(0));

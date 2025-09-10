@@ -234,6 +234,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // this test if you add more.
         assertEq(opChainConfigs.length, 1);
 
+        // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
+        // the standard validator in the coverage case, if the validator is failing in coverage
+        // then it will also fail in other CI tests (unless it's the expected issues, in which case
+        // we can safely skip).
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            return;
+        }
+
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
