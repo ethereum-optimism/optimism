@@ -154,9 +154,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.7.0
+    /// @custom:semver 3.8.0
     function version() public pure virtual returns (string memory) {
-        return "3.7.0";
+        return "3.8.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -223,27 +223,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         l2ChainId = _l2ChainId;
         superchainConfig = _superchainConfig;
-    }
-
-    /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
-    /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
-    /// @param _superchainConfig The SuperchainConfig contract address.
-    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        // Set the L2 chain ID.
-        l2ChainId = _l2ChainId;
-
-        // Set the SuperchainConfig contract.
-        superchainConfig = _superchainConfig;
-
-        // Clear out the old dispute game factory address, it's derived now. We get rid of this
-        // storage slot because it doesn't use structured storage and we can't use a spacer
-        // variable to block it off.
-        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        Storage.setBytes32(disputeGameFactorySlot, bytes32(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to

@@ -18,6 +18,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "solady/src/utils/LibString.sol";
 
 // Interfaces
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -29,6 +30,7 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -187,15 +189,12 @@ contract ForkLive is Deployer {
         deploy.deployImplementations({ _isInterop: false });
     }
 
-    /// @notice Upgrades the contracts using the OPCM.
-    function _upgrade() internal {
-        IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
-
+    /// @notice Performs a single OPCM upgrade.
+    /// @param _opcm The OPCM contract to upgrade.
+    /// @param _upgrader The address of the upgrader to use for the upgrade.
+    function _doUpgrade(IOPContractsManager _opcm, address _upgrader) internal {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
-
-        address upgrader = proxyAdmin.owner();
-        vm.label(upgrader, "ProxyAdmin Owner");
 
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
@@ -206,20 +205,60 @@ contract ForkLive is Deployer {
 
         // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
         // then reset its code to the original code.
-        bytes memory upgraderCode = address(upgrader).code;
-        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+        bytes memory upgraderCode = address(_upgrader).code;
+        vm.etch(_upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // The 4.1.0 OPCM requires that the SuperchainConfig contracts have been upgraded before it will upgrade other
-        // contracts. For this v4.1.0, OP Mainnet's superchainConfig is already at the expected version. So we do not
-        // need to upgrade it.
+        // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
+        // SuperchainConfig contract.
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+        bytes memory superchainPAOCode = address(superchainPAO).code;
+        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
+        try DelegateCaller(superchainPAO).dcForward(
+            address(_opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        ) {
+            // Great, the upgrade succeeded.
+        } catch (bytes memory reason) {
+            // Only acceptable revert reason is the SuperchainConfig already being up to date.
+            assert(
+                bytes4(reason)
+                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector
+            );
+        }
+
+        // Reset the superchainPAO to the original code.
+        vm.etch(superchainPAO, superchainPAOCode);
 
         // Upgrade the chain.
-        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
+        DelegateCaller(_upgrader).dcForward(address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
 
         // Reset the upgrader to the original code.
-        vm.etch(upgrader, upgraderCode);
+        vm.etch(_upgrader, upgraderCode);
+    }
+
+    /// @notice Upgrades the contracts using the OPCM.
+    function _upgrade() internal {
+        IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
+
+        address upgrader = proxyAdmin.owner();
+        vm.label(upgrader, "ProxyAdmin Owner");
+
+        // U16a.
+        _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+
+        // Current upgrade.
+        _doUpgrade(opcm, upgrader);
 
         console.log("ForkLive: Saving newly deployed contracts");
+
         // A new ASR and new dispute games were deployed, so we need to update them
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));

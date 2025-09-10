@@ -9,9 +9,6 @@ import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
-// Libraries
-import { Storage } from "src/libraries/Storage.sol";
-
 /// @custom:proxied true
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
@@ -59,8 +56,8 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0
-    string public constant version = "2.3.0";
+    /// @custom:semver 2.4.0
+    string public constant version = "2.4.0";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() ReinitializableBase(2) {
@@ -75,28 +72,6 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
 
         // Now perform initialization logic.
         _setGuardian(_guardian);
-    }
-
-    /// @notice Upgrades the SuperchainConfig contract.
-    function upgrade() external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        // Transfer the guardian into the new variable and clear the old storage slot.
-        // We generally do not clear out old storage slots but in the case of the SuperchainConfig
-        // these are the only spacer slots, they aren't cleanly represented by spacer variables,
-        // and we can get rid of them now and never think about them again later.
-        bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
-        _setGuardian(Storage.getAddress(guardianSlot));
-        Storage.setBytes32(guardianSlot, bytes32(0));
-
-        // Clear the old paused slot.
-        // Note that if the pause was active while the upgrade was happening, the system will no
-        // longer be paused after the upgrade. Upgrades should generally not ever be executed while
-        // the system is paused, but it's worth noting that this is the case.
-        bytes32 pausedSlot = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
-        Storage.setBytes32(pausedSlot, bytes32(0));
     }
 
     /// @notice Returns the duration after which a pause expires.

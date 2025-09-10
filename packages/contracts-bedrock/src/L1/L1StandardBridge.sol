@@ -77,8 +77,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.7.0
-    string public constant version = "2.7.0";
+    /// @custom:semver 2.8.0
+    string public constant version = "2.8.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -117,16 +117,6 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
             _messenger: _messenger,
             _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
         });
-    }
-
-    /// @notice Upgrades the contract to have a reference to the SystemConfig.
-    /// @param _systemConfig SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        systemConfig = _systemConfig;
     }
 
     /// @inheritdoc StandardBridge

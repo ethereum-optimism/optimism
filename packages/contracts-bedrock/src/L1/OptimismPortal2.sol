@@ -205,9 +205,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.0.0
+    /// @custom:semver 5.1.0
     function version() public pure virtual returns (string memory) {
-        return "5.0.0";
+        return "5.1.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -244,19 +244,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Initialize the ResourceMetering contract.
         __ResourceMetering_init();
-    }
-
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
-    /// @param _anchorStateRegistry AnchorStateRegistry contract.
-    function upgrade(IAnchorStateRegistry _anchorStateRegistry) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Assert that the lockbox state is valid.
-        _assertValidLockboxState();
-
-        // Now perform upgrade logic.
-        anchorStateRegistry = _anchorStateRegistry;
     }
 
     /// @notice Getter for the current paused status.

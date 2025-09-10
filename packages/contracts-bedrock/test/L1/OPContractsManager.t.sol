@@ -169,7 +169,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     ///         over the result.
     /// @param _opcm The OPCM contract to upgrade with.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function _runOpcmUpgradeAndChecks(IOPContractsManager _opcm, address _delegateCaller) internal {
+    /// @param _revertBytes The bytes of the revert to expect.
+    function _runOpcmUpgradeAndChecks(
+        IOPContractsManager _opcm,
+        address _delegateCaller,
+        bytes memory _revertBytes
+    )
+        internal
+    {
         // Always start by upgrading the SuperchainConfig contract.
         // Temporarily replace the superchainPAO with a DelegateCaller.
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
@@ -201,10 +208,20 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         bytes memory delegateCallerCode = address(_delegateCaller).code;
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
+        // Expect the revert if one is specified.
+        if (_revertBytes.length > 0) {
+            vm.expectRevert(_revertBytes);
+        }
+
         // Execute the chain upgrade.
         DelegateCaller(_delegateCaller).dcForward(
             address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
         );
+
+        // Return early if a revert was expected. Otherwise we'll get errors below.
+        if (_revertBytes.length > 0) {
+            return;
+        }
 
         // Less than 90% of the gas target of 20M to account for the gas used by using Safe.
         VmSafe.Gas memory gas = vm.lastCallGas();
@@ -217,8 +234,21 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // this test if you add more.
         assertEq(opChainConfigs.length, 1);
 
+        // Grab the validator before we do the error assertion because otherwise the assertion will
+        // try to apply to this function call instead.
+        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
+
+        // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
+        // standard validator. This happens because an absolute prestate of zero means that the
+        // user is requesting to use the existing prestate. We could avoid the error by grabbing
+        // the prestate from the actual contracts, but that doesn't actually give us any valuable
+        // checks. Easier to just expect the error in this case.
+        if (opChainConfigs[0].absolutePrestate.raw() == bytes32(0)) {
+            vm.expectRevert("OPContractsManagerStandardValidator: PDDG-40,PLDG-40");
+        }
+
         // Run the StandardValidator checks.
-        _opcm.opcmStandardValidator().validate(
+        validator.validate(
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: opChainConfigs[0].proxyAdmin,
                 sysCfg: opChainConfigs[0].systemConfigProxy,
@@ -237,13 +267,22 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runPastUpgrades(address _delegateCaller) internal {
         // U16a
-        _runOpcmUpgradeAndChecks(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller);
+        _runOpcmUpgradeAndChecks(
+            IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
+        );
     }
 
     /// @notice Executes the current upgrade and checks the results.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runCurrentUpgrade(address _delegateCaller) public {
-        _runOpcmUpgradeAndChecks(opcm, _delegateCaller);
+        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, bytes(""));
+    }
+
+    /// @notice Executes the current upgrade and expects reverts.
+    /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
+    /// @param _revertBytes The bytes of the revert to expect.
+    function runCurrentUpgrade(address _delegateCaller, bytes memory _revertBytes) public {
+        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, _revertBytes);
     }
 }
 
@@ -1022,9 +1061,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     function test_upgrade_notProxyAdminOwner_reverts() public {
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
-        // already upgraded.
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
 
         address delegateCaller = makeAddr("delegateCaller");
         vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
@@ -1032,19 +1068,13 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
-        vm.expectRevert("Ownable: caller is not the owner");
-        DelegateCaller(delegateCaller).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
+        runCurrentUpgrade(delegateCaller, bytes("Ownable: caller is not the owner"));
     }
 
     /// @notice Tests that upgrade reverts when absolutePrestate is zero and the existing game also
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
-        // already upgraded.
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
 
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
@@ -1061,21 +1091,21 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         );
 
         // Expect the upgrade to revert with PrestateNotSet.
-        vm.expectRevert(IOPContractsManager.PrestateNotSet.selector);
-        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+        runCurrentUpgrade(upgrader, abi.encodeWithSelector(IOPContractsManager.PrestateNotSet.selector));
     }
 
     /// @notice Tests that the upgrade function reverts when the superchainConfig is not at the expected target version.
     function test_upgrade_superchainConfigNeedsUpgrade_reverts() public {
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.2.0"));
+        // Force the SuperchainConfig to return an obviously outdated version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
-        vm.expectRevert(
+        runCurrentUpgrade(
+            upgrader,
             abi.encodeWithSelector(
-                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, 0
+                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, (0)
             )
         );
-        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
 }
 

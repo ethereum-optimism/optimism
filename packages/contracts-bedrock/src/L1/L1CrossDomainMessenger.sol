@@ -36,8 +36,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.10.0
-    string public constant version = "2.10.0";
+    /// @custom:semver 2.11.0
+    string public constant version = "2.11.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
@@ -58,16 +58,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
         systemConfig = _systemConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
-    }
-
-    /// @notice Upgrades the contract to have a reference to the SystemConfig.
-    /// @param _systemConfig The new SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        systemConfig = _systemConfig;
     }
 
     /// @inheritdoc CrossDomainMessenger

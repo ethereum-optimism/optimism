@@ -615,19 +615,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract IAnchorStateRegistry",
-        "name": "_anchorStateRegistry",
-        "type": "address"
-      }
-    ],
-    "name": "upgrade",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "version",
     "outputs": [

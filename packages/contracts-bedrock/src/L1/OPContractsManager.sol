@@ -700,11 +700,89 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     )
         internal
     {
+        // Upgrade the SystemConfig first.
+        upgradeTo(_opChainConfig.proxyAdmin, address(_opChainConfig.systemConfigProxy), _impls.systemConfigImpl);
+
+        // Grab the OptimismPortal contract.
+        IOptimismPortal optimismPortal = IOptimismPortal(payable(_opChainConfig.systemConfigProxy.optimismPortal()));
+
+        // Upgrade the OptimismPortal contract.
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            // This does NOT run in production.
+            // Upgrade the OptimismPortal contract implementation.
+            upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalInteropImpl);
+
+            // If we don't already have an ETHLockbox, deploy and initialize it.
+            IETHLockbox ethLockbox = optimismPortal.ethLockbox();
+            if (address(ethLockbox) == address(0)) {
+                // Deploy the ETHLockbox proxy.
+                ethLockbox = IETHLockbox(
+                    deployProxy({
+                        _l2ChainId: _l2ChainId,
+                        _proxyAdmin: _opChainConfig.proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_opChainConfig),
+                        _contractName: "ETHLockbox-U16a"
+                    })
+                );
+
+                // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
+                IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+                portals[0] = optimismPortal;
+                upgradeToAndCall(
+                    _opChainConfig.proxyAdmin,
+                    address(ethLockbox),
+                    _impls.ethLockboxImpl,
+                    abi.encodeCall(IETHLockbox.initialize, (_opChainConfig.systemConfigProxy, portals))
+                );
+
+                // Migrate liquidity from the OptimismPortal to the ETHLockbox.
+                IOptimismPortalInterop(payable(optimismPortal)).migrateLiquidity();
+            }
+
+            // Use the existing AnchorStateRegistry reference.
+            IAnchorStateRegistry anchorStateRegistry = optimismPortal.anchorStateRegistry();
+
+            // Upgrade the OptimismPortal contract first so that the SystemConfig will have
+            // the SuperchainConfig reference required in the ETHLockbox.
+            IOptimismPortalInterop(payable(optimismPortal)).upgrade(anchorStateRegistry, ethLockbox);
+        } else {
+            // This runs in production.
+            upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
+        }
+
         // Use the SystemConfig to grab the DisputeGameFactory address.
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
         // Need to upgrade the DisputeGameFactory implementation, no internal upgrade call.
         upgradeTo(_opChainConfig.proxyAdmin, address(dgf), _impls.disputeGameFactoryImpl);
+
+        // Separate context to avoid stack too deep.
+        {
+            // Grab chain addresses here. We need to do this after the SystemConfig upgrade or
+            // the addresses will be incorrect.
+            ISystemConfig.Addresses memory opChainAddrs = _opChainConfig.systemConfigProxy.getAddresses();
+
+            // Upgrade the L1CrossDomainMessenger contract.
+            upgradeTo(
+                _opChainConfig.proxyAdmin,
+                address(IL1CrossDomainMessenger(opChainAddrs.l1CrossDomainMessenger)),
+                _impls.l1CrossDomainMessengerImpl
+            );
+
+            // Upgrade the L1StandardBridge contract.
+            upgradeTo(
+                _opChainConfig.proxyAdmin,
+                address(IL1StandardBridge(payable(opChainAddrs.l1StandardBridge))),
+                _impls.l1StandardBridgeImpl
+            );
+
+            // Upgrade the L1ERC721Bridge contract.
+            upgradeTo(
+                _opChainConfig.proxyAdmin,
+                address(IL1ERC721Bridge(opChainAddrs.l1ERC721Bridge)),
+                _impls.l1ERC721BridgeImpl
+            );
+        }
 
         // All chains have the PermissionedDisputeGame, grab that.
         IPermissionedDisputeGame permissionedDisputeGame =
@@ -758,12 +836,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         OPContractsManager.Implementations memory impls = getImplementations();
 
         // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
-        upgradeToAndCall(
-            _superchainProxyAdmin,
-            address(_superchainConfig),
-            impls.superchainConfigImpl,
-            abi.encodeCall(ISuperchainConfig.upgrade, ())
-        );
+        upgradeTo(_superchainProxyAdmin, address(_superchainConfig), impls.superchainConfigImpl);
     }
 
     /// @notice Updates the implementation of a proxy without calling the initializer.

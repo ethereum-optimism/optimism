@@ -100,7 +100,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
     function systemConfig() external view returns (ISystemConfig);
-    function upgrade(IAnchorStateRegistry _anchorStateRegistry) external;
     function version() external pure returns (string memory);
 
     function __constructor__(uint256 _proofMaturityDelaySeconds) external;
