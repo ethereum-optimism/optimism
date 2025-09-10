@@ -125,7 +125,7 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		})
 	} else {
 		// Get the AST of OPCM's upgrade function.
-		opcmUpgradeAst, err := getOpcmUpgradeFunctionAst(opcmAst, "upgrade")
+		opcmUpgradeAst, err := getOpcmUpgradeFunctionAst(opcmAst, "_doChainUpgrade")
 		if err != nil {
 			return nil, []error{err}
 		}
@@ -314,8 +314,7 @@ func getOpcmUpgradeFunctionAst(opcmArtifact *solc.ForgeArtifact, upgradeFunction
 		if astNode.NodeType == "ContractDefinition" && astNode.Name == "OPContractsManagerUpgrader" {
 			for _, node := range astNode.Nodes {
 				if node.NodeType == "FunctionDefinition" &&
-					node.Name == upgradeFunctionName &&
-					node.Visibility == "external" {
+					node.Name == upgradeFunctionName {
 					opcmUpgradeFunctions = append(opcmUpgradeFunctions, node)
 				}
 			}
