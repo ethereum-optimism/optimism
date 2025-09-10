@@ -66,12 +66,12 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param _timelockDelay The timelock delay in seconds
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Validate timelock delay - must be non-zero and not longer than 1 year
-        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
+        if (_timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
         // Check that this guard is enabled on the calling Safe
-        if (_getGuard(msg.sender) != address(this)) {
+        if (!_isGuardEnabled(msg.sender)) {
             revert TimelockGuard_GuardNotEnabled();
         }
 
@@ -95,7 +95,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that this guard is NOT enabled on the calling Safe
-        if (_getGuard(msg.sender) == address(this)) {
+        if (_isGuardEnabled(msg.sender)) {
             revert TimelockGuard_GuardStillEnabled();
         }
 
@@ -113,7 +113,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @return The current cancellation threshold
     function cancellationThreshold(address _safe) public view returns (uint256) {
         // Return 0 if guard is not enabled
-        if (_getGuard(_safe) != address(this)) {
+        if (!_isGuardEnabled(_safe)) {
             return 0;
         }
 
@@ -123,11 +123,12 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Internal helper to get the guard address from a Safe
     /// @param _safe The Safe address
     /// @return The current guard address
-    function _getGuard(address _safe) internal view returns (address) {
+    function _isGuardEnabled(address _safe) internal view returns (bool) {
         // keccak256("guard_manager.guard.address") from GuardManager
         bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
         Safe safe = Safe(payable(_safe));
-        return abi.decode(safe.getStorageAt(uint256(guardSlot), 1), (address));
+        address guard = abi.decode(safe.getStorageAt(uint256(guardSlot), 1), (address));
+        return guard == address(this);
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay
