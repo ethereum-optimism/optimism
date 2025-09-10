@@ -78,6 +78,17 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         setupEnvVars();
     }
 
+    /// @notice Helper function to check if a contract name corresponds to a V2 implementation.
+    /// @param _contractName The contract name to check.
+    /// @return True if this is a V2 implementation, false otherwise.
+    function _isV2Implementation(string memory _contractName) internal pure returns (bool) {
+        // V2 implementations are specifically the FaultDisputeGameV2 and PermissionedDisputeGameV2 contracts
+        return (
+            keccak256(bytes(_contractName)) == keccak256(bytes("FaultDisputeGameV2"))
+                || keccak256(bytes(_contractName)) == keccak256(bytes("PermissionedDisputeGameV2"))
+        );
+    }
+
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
@@ -125,6 +136,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
+
+            // Skip V2 implementations (not yet deployed)
+            if (_isV2Implementation(ref.name)) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
@@ -185,6 +201,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
+
+            // Skip V2 implementations (not yet deployed)
+            if (_isV2Implementation(ref.name)) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
