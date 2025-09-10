@@ -1091,7 +1091,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         );
 
         // Expect the upgrade to revert with PrestateNotSet.
-        runCurrentUpgrade(upgrader, abi.encodeWithSelector(IOPContractsManager.PrestateNotSet.selector));
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgrade(upgrader, abi.encodeCall(IOPContractsManager.PrestateNotSet.selector));
     }
 
     /// @notice Tests that the upgrade function reverts when the superchainConfig is not at the expected target version.
@@ -1100,6 +1101,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
+        // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgrade(
             upgrader,
             abi.encodeWithSelector(
