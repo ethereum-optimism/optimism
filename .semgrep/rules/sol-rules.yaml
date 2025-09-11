@@ -372,15 +372,13 @@ rules:
     message: Event parameters must be named using camelCase and must not be prefixed with underscore
     pattern-either:
       # Match parameters with underscore prefix
-      - pattern-regex: event\s+\w+\s*\([^)]*(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?_\w+
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?_\w+
       # Match unnamed parameters (type with optional indexed but no parameter name before comma or closing paren)
-      - pattern-regex: event\s+\w+\s*\([^)]*(?:address|uint\d*|int\d*|bytes\d*|bool|string)(?:\s+indexed)?\s*[,)]
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\b(?:\s+indexed)?\s*[,)]
       # Match parameters that are all uppercase (like NEW_OWNER)
-      - pattern-regex: event\s+\w+\s*\([^)]*(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?[A-Z][A-Z0-9_]*\s*[,)]
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?[A-Z][A-Z0-9_]*\s*[,)]
     paths:
       exclude:
-        - packages/contracts-bedrock/test/setup/Events.sol
-        - packages/contracts-bedrock/test/safe/DeputyPauseModule.t.sol
-        - packages/contracts-bedrock/test/L2/GasPriceOracle.t.sol
+        # LegacyMintableERC20 and the corresponding interface use legacy naming conventions.
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
         - packages/contracts-bedrock/interfaces/legacy/ILegacyMintableERC20Full.sol

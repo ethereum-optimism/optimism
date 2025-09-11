@@ -9,10 +9,6 @@ import { Fork } from "scripts/libraries/Config.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 
 contract GasPriceOracle_Test is CommonTest {
-    event OverheadUpdated(uint256);
-    event ScalarUpdated(uint256);
-    event DecimalsUpdated(uint256);
-
     address depositor;
 
     // The initial L1 context values

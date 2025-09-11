@@ -725,4 +725,10 @@ contract SemgrepTest__sol_style_event_param_fmt {
 
     // ruleid: sol-style-event-param-fmt
     event OwnerChanged(address NEW_OWNER);
+
+    // ok: sol-style-event-param-fmt
+    event SomethingWithMint(uint256 mint);
+
+    // ruleid: sol-style-event-param-fmt
+    event SomethingWithMint(uint256 _mint);
 }
