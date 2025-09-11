@@ -34,7 +34,15 @@ func main() {
 
 	results, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{},
+		[]string{
+			// Skip OPCM sub-contracts: these are internal components without public interfaces
+			"forge-artifacts/**/OPContractsManagerContractsContainer*.json",
+			"forge-artifacts/**/OPContractsManagerGameTypeAdder*.json",
+			"forge-artifacts/**/OPContractsManagerUpgrader*.json",
+			"forge-artifacts/**/OPContractsManagerDeployer*.json",
+			"forge-artifacts/**/OPContractsManagerInteropMigrator*.json",
+			"forge-artifacts/**/OPContractsManagerStandardValidator*.json",
+		},
 		processFile,
 	)
 	if err != nil {
