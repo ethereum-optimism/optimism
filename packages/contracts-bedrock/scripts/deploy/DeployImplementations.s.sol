@@ -9,7 +9,6 @@ import { Types } from "scripts/libraries/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
@@ -78,7 +77,6 @@ contract DeployImplementations is Script {
         IDisputeGameFactory disputeGameFactoryImpl;
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
-        IProtocolVersions protocolVersionsImpl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -90,7 +88,6 @@ contract DeployImplementations is Script {
 
         // Deploy the implementations.
         deploySuperchainConfigImpl(output_);
-        deployProtocolVersionsImpl(output_);
         deploySystemConfigImpl(output_);
         deployL1CrossDomainMessengerImpl(output_);
         deployL1ERC721BridgeImpl(output_);
@@ -184,7 +181,6 @@ contract DeployImplementations is Script {
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
-                    _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
                     _input.upgradeController
                 )
@@ -235,18 +231,6 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "SuperchainConfigImpl");
         _output.superchainConfigImpl = impl;
-    }
-
-    function deployProtocolVersionsImpl(Output memory _output) private {
-        IProtocolVersions impl = IProtocolVersions(
-            DeployUtils.createDeterministic({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ())),
-                _salt: _salt
-            })
-        );
-        vm.label(address(impl), "ProtocolVersionsImpl");
-        _output.protocolVersionsImpl = impl;
     }
 
     function deploySystemConfigImpl(Output memory _output) private {

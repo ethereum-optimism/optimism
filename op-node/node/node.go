@@ -286,7 +286,6 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 			return l1Head, err
 		}
 
-		err = n.handleProtocolVersionsUpdate(ctx)
 		return l1Head, err
 	}
 

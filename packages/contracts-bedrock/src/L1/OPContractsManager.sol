@@ -29,7 +29,6 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -1917,9 +1916,6 @@ contract OPContractsManager is ISemver {
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     ISuperchainConfig public immutable superchainConfig;
 
-    /// @notice Address of the ProtocolVersions contract shared by all chains.
-    IProtocolVersions public immutable protocolVersions;
-
     /// @notice Address of the SuperchainProxyAdmin contract shared by all chains.
     IProxyAdmin public immutable superchainProxyAdmin;
 
@@ -1980,12 +1976,10 @@ contract OPContractsManager is ISemver {
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         address _upgradeController
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
-        _opcmDeployer.assertValidContractAddress(address(_protocolVersions));
         _opcmDeployer.assertValidContractAddress(address(_opcmGameTypeAdder));
         _opcmDeployer.assertValidContractAddress(address(_opcmDeployer));
         _opcmDeployer.assertValidContractAddress(address(_opcmUpgrader));
@@ -1997,7 +1991,6 @@ contract OPContractsManager is ISemver {
         opcmInteropMigrator = _opcmInteropMigrator;
         opcmStandardValidator = _opcmStandardValidator;
         superchainConfig = _superchainConfig;
-        protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
         thisOPCM = this;
         upgradeController = _upgradeController;

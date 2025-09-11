@@ -115,7 +115,6 @@ contract Deploy is Deployer {
             ETHLockbox: artifacts.getAddress("ETHLockboxProxy"),
             SystemConfig: artifacts.getAddress("SystemConfigProxy"),
             L1ERC721Bridge: artifacts.getAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: artifacts.getAddress("ProtocolVersionsProxy"),
             SuperchainConfig: artifacts.getAddress("SuperchainConfigProxy")
         });
     }
