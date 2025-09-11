@@ -19,7 +19,6 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 
@@ -232,26 +231,6 @@ contract Initializer_Test is CommonTest {
                         0,
                         ISuperchainConfig(address(0))
                     )
-                )
-            })
-        );
-        // ProtocolVersionsImpl
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsImpl",
-                target: EIP1967Helper.getImplementation(address(protocolVersions)),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
-                )
-            })
-        );
-        // ProtocolVersionsProxy
-        contracts.push(
-            InitializeableContract({
-                name: "ProtocolVersionsProxy",
-                target: address(protocolVersions),
-                initCalldata: abi.encodeCall(
-                    protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                 )
             })
         );

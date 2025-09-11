@@ -28,7 +28,6 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -69,7 +68,6 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         address _upgradeController
     )
@@ -80,7 +78,6 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmInteropMigrator,
             _opcmStandardValidator,
             _superchainConfig,
-            _protocolVersions,
             _superchainProxyAdmin,
             _upgradeController
         )
@@ -339,7 +336,6 @@ contract OPContractsManager_TestInit is CommonTest {
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
@@ -391,13 +387,11 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
 
     function setUp() public {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
-        IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         address upgradeController = makeAddr("upgradeController");
         OPContractsManager.Blueprints memory emptyBlueprints;
         OPContractsManager.Implementations memory emptyImpls;
         vm.etch(address(superchainConfigProxy), hex"01");
-        vm.etch(address(protocolVersionsProxy), hex"01");
 
         OPContractsManagerContractsContainer container =
             new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, bytes32(0));
@@ -417,7 +411,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
                 opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100, bytes32(0)
             ),
             _superchainConfig: superchainConfigProxy,
-            _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
             _upgradeController: upgradeController
         });
@@ -995,7 +988,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
         // Set up environment variables with the actual OPCM addresses for tests that need themqq
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
 

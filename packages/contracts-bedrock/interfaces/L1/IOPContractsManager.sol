@@ -202,7 +202,6 @@ interface IOPContractsManager {
     /// @notice The latest implementation contracts for the OP Stack.
     struct Implementations {
         address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address optimismPortalInteropImpl;

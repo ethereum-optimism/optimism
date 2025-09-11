@@ -32,11 +32,6 @@
         "type": "address"
       },
       {
-        "internalType": "contract IProtocolVersions",
-        "name": "_protocolVersions",
-        "type": "address"
-      },
-      {
         "internalType": "contract IProxyAdmin",
         "name": "_superchainProxyAdmin",
         "type": "address"
@@ -468,11 +463,6 @@
           },
           {
             "internalType": "address",
-            "name": "protocolVersionsImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "l1ERC721BridgeImpl",
             "type": "address"
           },
@@ -718,19 +708,6 @@
     "outputs": [
       {
         "internalType": "contract OPContractsManagerUpgrader",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolVersions",
-    "outputs": [
-      {
-        "internalType": "contract IProtocolVersions",
         "name": "",
         "type": "address"
       }

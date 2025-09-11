@@ -19,7 +19,6 @@ import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
 
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
@@ -294,15 +293,11 @@ contract DeployOPChain_TestBase is Test {
 
     // Define default inputs for DeploySuperchain.
     address superchainProxyAdminOwner = makeAddr("defaultSuperchainProxyAdminOwner");
-    address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address guardian = makeAddr("defaultGuardian");
     bool paused = false;
-    ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(1);
-    ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(2);
 
     // Define default inputs for DeployImplementations.
-    // `superchainConfigProxy` and `protocolVersionsProxy` are set during `setUp` since they are
-    // outputs of the previous step.
+    // `superchainConfigProxy` is set during `setUp` since it is an output of the previous step.
     uint256 withdrawalDelaySeconds = 100;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
@@ -310,7 +305,6 @@ contract DeployOPChain_TestBase is Test {
     uint256 disputeGameFinalityDelaySeconds = 500;
     string release = "dev-release"; // this means implementation contracts will be deployed
     ISuperchainConfig superchainConfigProxy;
-    IProtocolVersions protocolVersionsProxy;
     IProxyAdmin superchainProxyAdmin;
     address upgradeController;
     // Define default inputs for DeployOPChain.
@@ -343,17 +337,13 @@ contract DeployOPChain_TestBase is Test {
         DeploySuperchain.Output memory dso = deploySuperchain.run(
             DeploySuperchain.Input({
                 superchainProxyAdminOwner: superchainProxyAdminOwner,
-                protocolVersionsOwner: protocolVersionsOwner,
                 guardian: guardian,
-                paused: paused,
-                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(requiredProtocolVersion)),
-                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(recommendedProtocolVersion))
+                paused: paused
             })
         );
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy;
-        protocolVersionsProxy = dso.protocolVersionsProxy;
         superchainProxyAdmin = dso.superchainProxyAdmin;
         upgradeController = superchainProxyAdmin.owner();
 
@@ -369,7 +359,6 @@ contract DeployOPChain_TestBase is Test {
                 disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 superchainConfigProxy: superchainConfigProxy,
-                protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: upgradeController,
                 challenger: challenger,

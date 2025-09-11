@@ -472,7 +472,6 @@ contract DeployOPChain is Script {
             ETHLockbox: address(_doo.ethLockboxProxy()),
             SystemConfig: address(_doo.systemConfigProxy()),
             L1ERC721Bridge: address(_doo.l1ERC721BridgeProxy()),
-            ProtocolVersions: address(0),
             SuperchainConfig: address(0)
         });
 

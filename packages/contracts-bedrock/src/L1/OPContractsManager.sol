@@ -1853,7 +1853,6 @@ contract OPContractsManager is ISemver {
     /// @notice The latest implementation contracts for the OP Stack.
     struct Implementations {
         address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address optimismPortalInteropImpl;
@@ -1898,9 +1897,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.2.0
+    /// @custom:semver 4.0.0
     function version() public pure virtual returns (string memory) {
-        return "3.2.0";
+        return "4.0.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

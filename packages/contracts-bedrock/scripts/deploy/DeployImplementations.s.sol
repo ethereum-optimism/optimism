@@ -49,7 +49,6 @@ contract DeployImplementations is Script {
         bytes32 devFeatureBitmap;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
-        IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address upgradeController;
         address challenger;
@@ -122,7 +121,6 @@ contract DeployImplementations is Script {
     {
         IOPContractsManager.Implementations memory implementations = IOPContractsManager.Implementations({
             superchainConfigImpl: address(_output.superchainConfigImpl),
-            protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
             optimismPortalImpl: address(_output.optimismPortalImpl),
             optimismPortalInteropImpl: address(_output.optimismPortalInteropImpl),
@@ -589,9 +587,6 @@ contract DeployImplementations is Script {
             address(_input.superchainConfigProxy) != address(0), "DeployImplementations: superchainConfigProxy not set"
         );
         require(
-            address(_input.protocolVersionsProxy) != address(0), "DeployImplementations: protocolVersionsProxy not set"
-        );
-        require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
@@ -606,8 +601,7 @@ contract DeployImplementations is Script {
             address(_output.delayedWETHImpl),
             address(_output.preimageOracleSingleton),
             address(_output.mipsSingleton),
-            address(_output.superchainConfigImpl),
-            address(_output.protocolVersionsImpl)
+            address(_output.superchainConfigImpl)
         );
 
         address[] memory addrs2 = Solarray.addresses(
@@ -640,7 +634,6 @@ contract DeployImplementations is Script {
 
         Types.ContractSet memory proxies;
         proxies.SuperchainConfig = address(_input.superchainConfigProxy);
-        proxies.ProtocolVersions = address(_input.protocolVersionsProxy);
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: proxies,

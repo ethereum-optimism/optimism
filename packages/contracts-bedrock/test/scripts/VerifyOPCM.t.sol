@@ -428,7 +428,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
-        _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
         _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
         _assertOnOpcmGetter(IOPContractsManager.upgradeController.selector);
 
