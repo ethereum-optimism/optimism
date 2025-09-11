@@ -34,15 +34,7 @@ func main() {
 
 	results, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{
-			// Skip OPCM sub-contracts: these are internal components without public interfaces
-			"forge-artifacts/**/OPContractsManagerContractsContainer*.json",
-			"forge-artifacts/**/OPContractsManagerGameTypeAdder*.json",
-			"forge-artifacts/**/OPContractsManagerUpgrader*.json",
-			"forge-artifacts/**/OPContractsManagerDeployer*.json",
-			"forge-artifacts/**/OPContractsManagerInteropMigrator*.json",
-			"forge-artifacts/**/OPContractsManagerStandardValidator*.json",
-		},
+		[]string{},
 		processFile,
 	)
 	if err != nil {
@@ -78,6 +70,12 @@ func processFile(file string) (*SnapshotResult, []error) {
 	contractName, err := parseArtifactName(file)
 	if err != nil {
 		return nil, []error{fmt.Errorf("failed to parse artifact name %q: %w", file, err)}
+	}
+
+	// Skip OPCM sub-contracts as they are internal and not meant to have a public interface.
+	// Keep the main OPContractsManager.
+	if strings.HasPrefix(contractName, "OPContractsManager") && contractName != "OPContractsManager" {
+		return nil, nil
 	}
 
 	// Skip anything that isn't in the src directory, with the exception of
