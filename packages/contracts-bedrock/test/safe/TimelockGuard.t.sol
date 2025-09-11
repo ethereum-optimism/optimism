@@ -2,10 +2,14 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { StorageAccessible } from "safe-contracts/common/StorageAccessible.sol";
+import { ExecTransactionParams } from "src/safe/Types.sol";
 import "test/safe-tools/SafeTestTools.sol";
+
+import { console2 as console } from "forge-std/console2.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
@@ -17,6 +21,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     // Events
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event GuardCleared(address indexed safe);
+    event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -26,9 +31,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 
     TimelockGuard timelockGuard;
     SafeInstance safeInstance;
-    SafeInstance safeInstance2;
-    address[] owners;
-    uint256[] ownerPKs;
+    SafeInstance unguardedSafe;
 
     function setUp() public virtual {
         vm.warp(INIT_TIME);
@@ -37,12 +40,14 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         timelockGuard = new TimelockGuard();
 
         // Create Safe owners
-        (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);
-        owners = _owners;
-        ownerPKs = _keys;
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);
 
         // Set up Safe with owners
-        safeInstance = _setupSafe(ownerPKs, THRESHOLD);
+        safeInstance = _setupSafe(keys, THRESHOLD);
+
+        // Safe without guard enabled
+        // Reduce the threshold just to prevent a CREATE2 collision when deploying this safe.
+        unguardedSafe = _setupSafe(keys, THRESHOLD - 1);
 
         // Enable the guard on the Safe
         SafeTestLib.execTransaction(
@@ -52,6 +57,53 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
             abi.encodeCall(GuardManager.setGuard, (address(timelockGuard))),
             Enum.Operation.Call
         );
+    }
+
+    /// @notice Helper to create a dummy transaction with signatures and a tx hash
+    function _getDummyTx() internal view returns (ExecTransactionParams memory, bytes32) {
+        // Get the nonce of the safe to sign
+        uint256 nonce = safeInstance.safe.nonce();
+
+        // Declare the dummy transaction params with an empty signature
+        ExecTransactionParams memory dummyTxParams = ExecTransactionParams({
+            to: address(0xabba),
+            value: 0,
+            data: hex"acdc",
+            operation: Enum.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: new bytes(0)
+        });
+
+        // Get the tx hash
+        bytes32 txHash;
+            {
+                txHash = safeInstance.safe.getTransactionHash({
+                    to: dummyTxParams.to,
+                    value: dummyTxParams.value,
+                    data: dummyTxParams.data,
+                    operation: dummyTxParams.operation,
+                    safeTxGas: dummyTxParams.safeTxGas,
+                    baseGas: dummyTxParams.baseGas,
+                    gasPrice: dummyTxParams.gasPrice,
+                    gasToken: dummyTxParams.gasToken,
+                    refundReceiver: dummyTxParams.refundReceiver,
+                    _nonce: nonce
+                });
+            }
+
+        // Sign the tx hash with the owners' private keys
+        for (uint256 i; i < THRESHOLD; ++i) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(safeInstance.ownerPKs[i], txHash);
+
+            // The signature format is a compact form of: {bytes32 r}{bytes32 s}{uint8 v}
+            dummyTxParams.signatures = bytes.concat(dummyTxParams.signatures, abi.encodePacked(r, s, v));
+        }
+
+        return (dummyTxParams, txHash);
     }
 
     /// @notice Helper to configure the TimelockGuard for a Safe
@@ -103,10 +155,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     }
 
     function test_configureTimelockGuard_revertsIfGuardNotEnabled_reverts() external {
-        // Create a safe without enabling the guard
-        // Reduce the threshold just to prevent a CREATE2 collision when deploying this safe.
-        SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
-
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
         vm.prank(address(unguardedSafe.safe));
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
@@ -192,14 +240,11 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
 /// @notice Tests for cancellationThreshold function
 contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
     function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external {
-        // Safe without guard enabled should return 0
-        SafeInstance memory unguardedSafe = _setupSafe(ownerPKs, THRESHOLD - 1);
-
         uint256 threshold = timelockGuard.cancellationThreshold(address(unguardedSafe.safe));
         assertEq(threshold, 0);
     }
 
-    function test_cancellationThreshold_returnsZeroIfGuardNotConfigured_succeeds() external {
+    function test_cancellationThreshold_returnsZeroIfGuardNotConfigured_succeeds() external view {
         // Safe with guard enabled but not configured should return 0
         uint256 threshold = timelockGuard.cancellationThreshold(address(safeInstance.safe));
         assertEq(threshold, 0);
@@ -216,4 +261,37 @@ contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
 
     // Note: Testing increment/decrement behavior will require scheduleTransaction,
     // cancelTransaction and execution functions to be implemented first
+}
+
+/// @title TimelockGuard_ScheduleTransaction_Test
+/// @notice Tests for scheduleTransaction function
+contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    function test_scheduleTransaction_succeeds() public {
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+
+        vm.expectEmit(true, true, true, true);
+        emit TransactionScheduled(safeInstance.safe, txHash, INIT_TIME + TIMELOCK_DELAY);
+        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams);
+    }
+
+    function test_scheduleTransaction_reschedulingIdenticalTransaction_reverts() external {
+        (ExecTransactionParams memory dummyTxParams,) = _getDummyTx();
+        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams);
+
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
+        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams);
+    }
+
+    function test_scheduleTransaction_identicalPreviouslyCancelled_reverts() external { }
+
+    function test_scheduleTransaction_guardNotEnabled_reverts() external { }
+
+    function test_scheduleTransaction_guardNotConfigured_reverts() external { }
+
+    function test_scheduleTransaction_canScheduleIdenticalWithSalt_succeeds() external { }
 }

@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { GuardManager, Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { ExecTransactionParams } from "src/safe/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -20,11 +21,20 @@ contract TimelockGuard is IGuard, ISemver {
         uint256 timelockDelay;
     }
 
+    /// @notice Scheduled transaction
+    struct ScheduledTransaction {
+        uint256 executionTime;
+        bool cancelled;
+    }
+
     /// @notice Mapping from Safe address to its guard configuration
     mapping(address => GuardConfig) public safeConfigs;
 
     /// @notice Mapping from Safe address to its current cancellation threshold
     mapping(address => uint256) public safeCancellationThreshold;
+
+    /// @notice Mapping from Safe and tx id to scheduled transaction.
+    mapping(Safe => mapping(bytes32 => ScheduledTransaction)) public scheduledTransactions;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -38,11 +48,20 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for invalid timelock delay
     error TimelockGuard_InvalidTimelockDelay();
 
+    /// @notice Error for when a transaction is already scheduled
+    error TimelockGuard_TransactionAlreadyScheduled();
+
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
 
     /// @notice Emitted when a Safe clears the guard configuration
     event GuardCleared(address indexed safe);
+
+    /// @notice Emitted when a transaction is scheduled for a Safe.
+    /// @param safe The Safe whose transaction is scheduled.
+    /// @param txId The identifier of the scheduled transaction (nonce-independent).
+    /// @param when The timestamp when execution becomes valid.
+    event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -131,25 +150,65 @@ contract TimelockGuard is IGuard, ISemver {
         return guard == address(this);
     }
 
-    /// @notice Schedule a transaction for execution after the timelock delay
-    /// @dev Called by anyone using signatures from Safe owners - NOT IMPLEMENTED YET
-    function scheduleTransaction(
-        address,
-        address,
-        uint256,
-        bytes memory,
-        Enum.Operation,
-        uint256,
-        uint256,
-        uint256,
-        address,
-        address payable,
-        bytes memory
-    )
-        external
-        pure
-    {
-        // TODO: Implement
+    /// @notice Schedule a transaction for execution after the timelock delay.
+    /// @dev Minimal implementation: checks enabled+configured, uniqueness, cancellation, stores execution time and
+    /// emits.
+    /// @dev The txId is computed independent of Safe nonce using all exec params (with keccak(data)).
+    function scheduleTransaction(Safe _safe, uint256 _nonce, ExecTransactionParams memory _params) external {
+        // Check that this guard is enabled on the calling Safe
+        if (!_isGuardEnabled(address(_safe))) {
+            revert TimelockGuard_GuardNotEnabled();
+        }
+
+        // Get the encoded transaction data as defined in the Safe
+        // The format of the string returned is: "0x1901{domainSeparator}{safeTxHash}"
+        bytes memory txHashData = _safe.encodeTransactionData(
+            _params.to,
+            _params.value,
+            _params.data,
+            _params.operation,
+            _params.safeTxGas,
+            _params.baseGas,
+            _params.gasPrice,
+            _params.gasToken,
+            _params.refundReceiver,
+            _nonce
+        );
+
+        // Get the transaction hash and data as defined in the Safe
+        // This value is identical to keccak256(txHashData), but we prefer to use the Safe's own
+        // internal logic as it is more future-proof in case future versions of the Safe change
+        // the transaction hash derivation.
+        bytes32 txHash = _safe.getTransactionHash(
+            _params.to,
+            _params.value,
+            _params.data,
+            _params.operation,
+            _params.safeTxGas,
+            _params.baseGas,
+            _params.gasPrice,
+            _params.gasToken,
+            _params.refundReceiver,
+            _nonce
+        );
+
+        // Verify signatures using the Safe's signature checking logic
+        // This function call reverts if the signatures are invalid.
+        _safe.checkSignatures(txHash, txHashData, _params.signatures);
+
+        // Check if the transaction exists
+        // A transaction can only be scheduled once, regardless of whether it has been cancelled or not.
+        if (scheduledTransactions[_safe][txHash].executionTime != 0) {
+            revert TimelockGuard_TransactionAlreadyScheduled();
+        }
+
+        // Calculate the execution time
+        uint256 executionTime = block.timestamp + safeConfigs[address(_safe)].timelockDelay;
+
+        // Schedule the transaction
+        scheduledTransactions[_safe][txHash] = ScheduledTransaction({ executionTime: executionTime, cancelled: false });
+
+        emit TransactionScheduled(_safe, txHash, executionTime);
     }
 
     /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
