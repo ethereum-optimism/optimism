@@ -2065,11 +2065,13 @@ workflows:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
           context:
+            - slack
             - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
           context:
+            - slack
             - circleci-repo-readonly-authenticated-github-token
       - go-lint:
           context:
