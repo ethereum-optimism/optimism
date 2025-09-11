@@ -60,6 +60,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Helper to create a dummy transaction with signatures and a tx hash
+    // TODO: separate into two functions: one for the params+hash, one for the signatures
     function _getDummyTx() internal view returns (ExecTransactionParams memory, bytes32) {
         // Get the nonce of the safe to sign
         uint256 nonce = safeInstance.safe.nonce();
