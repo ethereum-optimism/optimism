@@ -274,7 +274,7 @@ contract Deploy is Deployer {
                 proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
                 disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
-                deployV2DisputeGames: false,
+                devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
                 faultGameV2SplitDepth: cfg.faultGameV2SplitDepth(),
                 faultGameV2ClockExtension: cfg.faultGameV2ClockExtension(),
@@ -284,8 +284,7 @@ contract Deploy is Deployer {
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: superchainProxyAdmin.owner(),
                 proposer: cfg.l2OutputOracleProposer(),
-                challenger: cfg.l2OutputOracleChallenger(),
-                devFeatureBitmap: cfg.devFeatureBitmap()
+                challenger: cfg.l2OutputOracleChallenger()
             })
         );
 

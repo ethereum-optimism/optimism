@@ -15,7 +15,6 @@ type DeployImplementationsInput struct {
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
 	DevFeatureBitmap                common.Hash
-	DeployV2DisputeGames            bool
 	// V2 Dispute Game parameters
 	FaultGameV2MaxGameDepth     *big.Int
 	FaultGameV2SplitDepth       *big.Int

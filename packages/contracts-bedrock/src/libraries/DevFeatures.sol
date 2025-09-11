@@ -16,6 +16,10 @@ library DevFeatures {
 
     bytes32 public constant CANNON_KONA = bytes32(0x0000000000000000000000000000000000000000000000000000000000000010);
 
+    /// @notice The feature that enables deployment of V2 dispute game contracts.
+    bytes32 public constant DEPLOY_V2_DISPUTE_GAMES =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
+
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check

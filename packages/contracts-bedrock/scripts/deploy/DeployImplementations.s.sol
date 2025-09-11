@@ -41,6 +41,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -51,7 +52,6 @@ contract DeployImplementations is Script {
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
-        bool deployV2DisputeGames;
         // V2 Dispute Game parameters
         uint256 faultGameV2MaxGameDepth;
         uint256 faultGameV2SplitDepth;
@@ -116,7 +116,7 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
-        if (_input.deployV2DisputeGames) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             deployFaultDisputeGameV2Impl(_input, output_);
             deployPermissionedDisputeGameV2Impl(_input, output_);
         }
@@ -694,7 +694,7 @@ contract DeployImplementations is Script {
         );
 
         // Only include V2 contracts in validation if they were deployed
-        if (_input.deployV2DisputeGames) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             address[] memory v2Addrs = Solarray.addresses(
                 address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl)
             );
@@ -704,7 +704,7 @@ contract DeployImplementations is Script {
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         // Validate V2 contract deployment consistency with flag
-        if (_input.deployV2DisputeGames) {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             require(
                 address(_output.faultDisputeGameV2Impl) != address(0),
                 "DeployImplementations: V2 flag enabled but FaultDisputeGameV2 not deployed"

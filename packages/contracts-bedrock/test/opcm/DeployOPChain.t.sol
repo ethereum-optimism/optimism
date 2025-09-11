@@ -368,7 +368,6 @@ contract DeployOPChain_TestBase is Test {
                 proofMaturityDelaySeconds: proofMaturityDelaySeconds,
                 disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
                 mipsVersion: StandardConstants.MIPS_VERSION,
-                deployV2DisputeGames: false,
                 faultGameV2MaxGameDepth: 73,
                 faultGameV2SplitDepth: 30,
                 faultGameV2ClockExtension: 10800,

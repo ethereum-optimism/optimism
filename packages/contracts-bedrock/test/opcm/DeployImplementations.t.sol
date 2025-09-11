@@ -8,6 +8,7 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -126,7 +127,6 @@ contract DeployImplementations_Test is Test {
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
-            false, // deployV2DisputeGames
             73, // faultGameV2MaxGameDepth
             30, // faultGameV2SplitDepth
             10800, // faultGameV2ClockExtension
@@ -260,7 +260,7 @@ contract DeployImplementations_Test is Test {
 
     function test_deployImplementation_withV2Enabled_succeeds() public {
         DeployImplementations.Input memory input = defaultInput();
-        input.deployV2DisputeGames = true;
+        input.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
         DeployImplementations.Output memory output = deployImplementations.run(input);
 
         assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should be deployed");
@@ -271,7 +271,7 @@ contract DeployImplementations_Test is Test {
 
     function test_deployImplementation_withV2Disabled_succeeds() public {
         DeployImplementations.Input memory input = defaultInput();
-        input.deployV2DisputeGames = false;
+        input.devFeatureBitmap = bytes32(0);
         DeployImplementations.Output memory output = deployImplementations.run(input);
 
         assertEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should not be deployed");
@@ -288,11 +288,11 @@ contract DeployImplementations_Test is Test {
 
     function test_reuseImplementation_withV2Flags_succeeds() public {
         DeployImplementations.Input memory inputEnabled = defaultInput();
-        inputEnabled.deployV2DisputeGames = true;
+        inputEnabled.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
         DeployImplementations.Output memory output1 = deployImplementations.run(inputEnabled);
 
         DeployImplementations.Input memory inputDisabled = defaultInput();
-        inputDisabled.deployV2DisputeGames = false;
+        inputDisabled.devFeatureBitmap = bytes32(0);
         DeployImplementations.Output memory output2 = deployImplementations.run(inputDisabled);
 
         // V2 contracts should be different between enabled and disabled
@@ -340,7 +340,6 @@ contract DeployImplementations_Test is Test {
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
-            false, // deployV2DisputeGames
             73, // faultGameV2MaxGameDepth
             30, // faultGameV2SplitDepth
             10800, // faultGameV2ClockExtension
