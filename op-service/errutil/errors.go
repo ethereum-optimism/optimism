@@ -3,9 +3,6 @@ package errutil
 import (
 	"errors"
 	"fmt"
-	"strings"
-
-	"github.com/ethereum/go-ethereum"
 )
 
 type errWithData interface {
