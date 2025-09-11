@@ -80,7 +80,7 @@ func TestIsthmusCostOracleOPCost(t *testing.T) {
 		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{
 			Gas: 2_000_000,
 		}))
-		require.Equal(t, big.NewInt(10), got, "3 * 2_000_00 / 1_000_000 + 4 = 10")
+		require.Equal(t, big.NewInt(10), got, "3 * 2_000_00 * 100 + 4 = 600_000_004")
 	})
 
 	t.Run("account for l1 cost", func(t *testing.T) {

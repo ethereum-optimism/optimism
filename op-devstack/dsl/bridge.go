@@ -573,7 +573,7 @@ func gasCost(rcpt *types.Receipt) eth.ETH {
 		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-operatorCost
 		operatorCost := new(big.Int).SetUint64(rcpt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeScalar))
-		operatorCost = operatorCost.Div(operatorCost, big.NewInt(1_000_000))
+		operatorCost = operatorCost.Mul(operatorCost, big.NewInt(100))
 		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeConstant))
 		cost = cost.Add(eth.WeiBig(operatorCost))
 	}

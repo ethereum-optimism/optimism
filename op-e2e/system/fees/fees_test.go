@@ -278,12 +278,12 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	}
 
 	expectedOperatorFee := new(big.Int).Add(
-		new(big.Int).Div(
+		new(big.Int).Mul(
 			new(big.Int).Mul(
 				gasUsed,
 				new(big.Int).SetUint64(uint64(cfg.DeployConfig.GasPriceOracleOperatorFeeScalar)),
 			),
-			new(big.Int).SetUint64(uint64(1e6)),
+			new(big.Int).SetUint64(uint64(100)),
 		),
 		new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOperatorFeeConstant),
 	)

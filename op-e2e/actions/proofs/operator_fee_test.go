@@ -299,12 +299,12 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			// Check that the operator fee sent to the vault is correct
 			require.Equal(t,
 				new(big.Int).Add(
-					new(big.Int).Div(
+					new(big.Int).Mul(
 						new(big.Int).Mul(
 							new(big.Int).SetUint64(receipt.GasUsed),
 							new(big.Int).SetUint64(uint64(testOperatorFeeScalar)),
 						),
-						new(big.Int).SetUint64(1e6),
+						new(big.Int).SetUint64(100),
 					),
 					new(big.Int).SetUint64(testOperatorFeeConstant),
 				),

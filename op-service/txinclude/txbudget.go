@@ -99,7 +99,7 @@ func (b *TxBudget) AfterIncluded(budgetedCost eth.ETH, tx *IncludedTx) {
 		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-operatorCost
 		operatorCost := new(big.Int).SetUint64(receipt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeScalar))
-		operatorCost = operatorCost.Div(operatorCost, oneMillion)
+		operatorCost = operatorCost.Mul(operatorCost, big.NewInt(100))
 		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeConstant))
 		actualCost.Add(actualCost, operatorCost)
 	}

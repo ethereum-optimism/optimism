@@ -384,7 +384,7 @@ contract GasPriceOracleIsthmus_Test is GasPriceOracle_Test {
 
     /// @dev Tests that `operatorFee` is set correctly.
     function test_getOperatorFee_succeeds() external view {
-        assertEq(gasPriceOracle.getOperatorFee(10), 10 * operatorFeeScalar / 1e6 + operatorFeeConstant);
+        assertEq(gasPriceOracle.getOperatorFee(10), 10 * operatorFeeScalar * 100 + operatorFeeConstant);
     }
 
     /// @dev Tests that `setIsthmus` is only callable by the depositor.

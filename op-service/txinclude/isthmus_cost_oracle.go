@@ -17,8 +17,6 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-var oneMillion = new(big.Int).SetUint64(1_000_000)
-
 // IsthmusCostOracle implements OPCostOracle only for the Isthmus hard fork.
 type IsthmusCostOracle struct {
 	client     RPCClient
@@ -91,7 +89,7 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 
 	operatorCost := new(big.Int).SetUint64(tx.Gas())
 	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
-	operatorCost.Div(operatorCost, oneMillion)
+	operatorCost.Mul(operatorCost, big.NewInt(100))
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
 
 	return l1Cost.Add(l1Cost, operatorCost)
