@@ -28,6 +28,7 @@ import (
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -139,12 +140,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	deltaOffset := hexutil.Uint64(6)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, &deltaOffset)
 	// Applies to HF that goes into Delta. Otherwise we end up with more upgrade txs and things during this case.
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
-	dp.DeployConfig.L2GenesisJovianTimeOffset = nil
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Delta, uint64(deltaOffset))
 
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
