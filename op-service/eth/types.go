@@ -613,6 +613,8 @@ type SystemConfig struct {
 	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
+	// DAFootprintGasScalar identifies the DA footprint gas scalar.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
 	// More fields can be added for future SystemConfig versions.
 
 	// MarshalPreHolocene indicates whether or not this struct should be

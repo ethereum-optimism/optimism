@@ -43,6 +43,8 @@ type DeployOPChainInput struct {
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64
+
+	DAFootprintGasScalar uint16
 }
 
 func (input *DeployOPChainInput) InputSet() bool {

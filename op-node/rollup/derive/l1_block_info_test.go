@@ -192,6 +192,45 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
 	})
+	t.Run("jovian", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
+		rollupCfg.ActivateAtGenesis(rollup.Jovian)
+		// run 1 block after interop transition
+		timestamp := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, timestamp)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data), "the length is same in interop")
+	})
+	t.Run("activation-block jovian", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
+		rollupCfg.ActivateAtGenesis(rollup.Jovian)
+		interopTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate interop just after genesis
+		rollupCfg.InteropTime = &interopTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, interopTime)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		// Interop activates, but isthmus L1 info is still used at this upgrade block
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
+		require.Equal(t, L1InfoFuncJovianBytes4, depTx.Data[:4])
+	})
+	t.Run("genesis-block jovian", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
+		rollupCfg.ActivateAtGenesis(rollup.Jovian)
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, rollupCfg.Genesis.L2Time)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
+	})
 	t.Run("interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
@@ -203,22 +242,21 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data), "the length is same in interop")
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data), "the length is same in interop")
 	})
 	t.Run("activation-block interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
-		rollupCfg.ActivateAtGenesis(rollup.Isthmus)
+		rollupCfg.ActivateAtGenesis(rollup.Interop)
 		interopTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate interop just after genesis
 		rollupCfg.InteropTime = &interopTime
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, interopTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		// Interop activates, but isthmus L1 info is still used at this upgrade block
-		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
-		require.Equal(t, L1InfoFuncIsthmusBytes4, depTx.Data[:4])
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
+		require.Equal(t, L1InfoFuncJovianBytes4, depTx.Data[:4])
 	})
 	t.Run("genesis-block interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -229,6 +267,6 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
+		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
 	})
 }

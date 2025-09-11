@@ -718,6 +718,7 @@ type L2InitializationConfig struct {
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
 	AltDADeployConfig
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1105,11 +1106,12 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 // Overhead value is considered a noop.
 func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 	return eth.SystemConfig{
-		BatcherAddr:       d.BatchSenderAddress,
-		Overhead:          eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-		Scalar:            d.FeeScalar(),
-		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
-		OperatorFeeParams: d.OperatorFeeParams(),
+		BatcherAddr:          d.BatchSenderAddress,
+		Overhead:             eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+		Scalar:               d.FeeScalar(),
+		GasLimit:             uint64(d.L2GenesisBlockGasLimit),
+		OperatorFeeParams:    d.OperatorFeeParams(),
+		DAFootprintGasScalar: d.DAFootprintGasScalar,
 	}
 }
 

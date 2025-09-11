@@ -18,6 +18,7 @@ var (
 	// ABI encoding helpers
 	dynBytes, _ = abi.NewType("bytes", "", nil)
 	address, _  = abi.NewType("address", "", nil)
+	uint16T, _  = abi.NewType("uint16", "", nil)
 	uint256T, _ = abi.NewType("uint256", "", nil)
 	addressArgs = abi.Arguments{
 		{Type: address},
@@ -28,6 +29,9 @@ var (
 	twoUint256 = abi.Arguments{
 		{Type: uint256T},
 		{Type: uint256T},
+	}
+	oneUint16 = abi.Arguments{
+		{Type: uint16T},
 	}
 	oneUint256 = abi.Arguments{
 		{Type: uint256T},
@@ -228,6 +232,28 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			},
 			config: eth.SystemConfig{
 				OperatorFeeParams: eth.Bytes32(operatorFeeParams),
+			},
+			err: false,
+		},
+		{
+			name: "SystemConfigUpdateDAFootprintGasScalar",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateDAFootprintGasScalar,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				numberData, err := oneUint16.Pack(uint16(100))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				DAFootprintGasScalar: 100,
 			},
 			err: false,
 		},
