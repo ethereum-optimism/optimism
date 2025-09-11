@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -234,12 +235,7 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// activating Delta only, not Ecotone and further:
 	// the GPO change assertions here all apply only for the Delta transition.
 	// Separate tests cover Ecotone GPO changes.
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
-	dp.DeployConfig.L2GenesisJovianTimeOffset = nil
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Delta, uint64(*deltaTimeOffset))
 
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
