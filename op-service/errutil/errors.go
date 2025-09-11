@@ -23,11 +23,3 @@ func TryAddRevertReason(err error) error {
 		return err
 	}
 }
-
-// IsEthereumNotFound determines if an error is likely to be ethereum.NotFound even if it has been serialized and
-// recreated through an RPC server (thus losing the specific typing). Since this depends on string matching, it may
-// return false positives.
-func IsEthereumNotFound(err error) bool {
-	// The RPC server will convert the returned error to a string so we can't match on an error type here
-	return err != nil && (errors.Is(err, ethereum.NotFound) || strings.Contains(err.Error(), ethereum.NotFound.Error()))
-}

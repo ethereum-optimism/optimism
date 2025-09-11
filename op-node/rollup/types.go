@@ -10,8 +10,8 @@ import (
 	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -237,7 +237,7 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, logger log.Logger, client L1Client) error {
 	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
 	if err != nil {
-		if errutil.IsEthereumNotFound(err) {
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
 			// Genesis block isn't available to check, so just accept it and hope for the best
 			logger.Warn("L1 genesis block not found, skipping validity check")
 			return nil
