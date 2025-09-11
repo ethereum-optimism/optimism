@@ -201,6 +201,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	if ba.rollupCfg.IsJovian(nextL2Time) {
 		zero := uint64(0)
 		r.MinBaseFee = &zero // TODO: replace with sysConfig.MinBaseFee
+		r.DAFootprintGasScalar = &sysConfig.DAFootprintGasScalar
 	}
 	return r, nil
 }

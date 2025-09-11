@@ -34,6 +34,7 @@ const (
 	Eip1559DenominatorCanyon        uint64 = 250
 	Eip1559Denominator              uint64 = 50
 	Eip1559Elasticity               uint64 = 6
+	DAFootprintGasScalar            uint16 = 400
 
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"

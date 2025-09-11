@@ -158,6 +158,9 @@ func (c *Intent) validateStandardValues() error {
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
+		if chain.DAFootprintGasScalar != standard.DAFootprintGasScalar {
+			return fmt.Errorf("%w: chainId=%s invalid daFootprintGasScalar: got %d, want %d", ErrNonStandardValue, chain.ID, chain.DAFootprintGasScalar, standard.DAFootprintGasScalar)
+		}
 	}
 
 	challenger, _ := standard.ChallengerAddressFor(c.L1ChainID)
@@ -343,6 +346,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L1ProxyAdminOwner: l1ProxyAdminOwner,
 				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
+			DAFootprintGasScalar: standard.DAFootprintGasScalar,
 		})
 	}
 	return intent, nil
