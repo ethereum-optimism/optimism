@@ -474,7 +474,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     /// @notice Tests that we can add a FaultDisputeGame implementation with addGameType.
-    function test_addGameType_cannon_kona_succeeds() public {
+    function test_addGameType_cannonKona_succeeds() public {
         // Create the input for the Permissionless game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
 
