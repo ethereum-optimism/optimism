@@ -461,7 +461,10 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 OPContractsManager.Blueprints memory bps = getBlueprints();
 
                 // Determine the contract name and blueprints for the game type.
-                if (gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()) {
+                if (
+                    gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
+                        || gameConfig.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()
+                ) {
                     gameContractName = "FaultDisputeGame";
                     blueprint1 = bps.permissionlessDisputeGame1;
                     blueprint2 = bps.permissionlessDisputeGame2;
@@ -471,7 +474,10 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     blueprint1 = bps.permissionedDisputeGame1;
                     blueprint2 = bps.permissionedDisputeGame2;
                     gameL2ChainId = l2ChainId;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()) {
+                } else if (
+                    gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()
+                        || gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+                ) {
                     gameContractName = "SuperFaultDisputeGame";
                     blueprint1 = bps.superPermissionlessDisputeGame1;
                     blueprint2 = bps.superPermissionlessDisputeGame2;
@@ -1540,11 +1546,13 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             existingLockbox.migrateLiquidity(newEthLockbox);
 
             // Before migrating the portal, clear out any implementations that might exist in the
-            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
+            // old DisputeGameFactory proxy. We clear out all potential game types to be safe.
             IDisputeGameFactory oldDisputeGameFactory =
                 IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
             oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)));
             oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)));
             oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
             oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
 
