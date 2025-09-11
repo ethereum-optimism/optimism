@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.1.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.2.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -94,27 +94,29 @@ acceptance-test devnet="" gate="holocene":
 
     # Build command arguments based on mode
     if [[ "$GATELESS_MODE" == "true" ]]; then
-        # Gateless mode
+        # Gateless mode - use binary directly
         CMD_ARGS=(
             "$BINARY_PATH"
             "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
             "--allow-skips"
             "--timeout" "90m"
             "--default-timeout" "10m"
+            "--orchestrator" "$ORCHESTRATOR"
+            "--show-progress"
         )
     else
-        # Gate mode
+        # Gate mode - use go run with acceptor binary
         CMD_ARGS=(
             "go" "run" "cmd/main.go"
             "--gate" "{{gate}}"
             "--testdir" "{{REPO_ROOT}}"
             "--validators" "./acceptance-tests.yaml"
             "--acceptor" "$BINARY_PATH"
+            "--log.level" "${LOG_LEVEL}"
+            "--orchestrator" "$ORCHESTRATOR"
+            "--show-progress"
         )
     fi
-
-    # Add common arguments
-    CMD_ARGS+=("--log.level" "${LOG_LEVEL}" "--orchestrator" "$ORCHESTRATOR")
 
     # Add sysext-specific arguments
     if [[ "$ORCHESTRATOR" == "sysext" ]]; then
