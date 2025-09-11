@@ -68,7 +68,7 @@ where
         let _ = install_prometheus_recorder();
 
         let components = |spec: Arc<OpChainSpec>| {
-            (OpExecutorProvider::optimism(spec.clone()), OpBeaconConsensus::new(spec))
+            (OpExecutorProvider::optimism(spec.clone()), Arc::new(OpBeaconConsensus::new(spec)))
         };
 
         match self.cli.command {
