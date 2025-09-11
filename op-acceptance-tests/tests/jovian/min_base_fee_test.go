@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// TestConfigurableMinBaseFee verifies configurable minimum base fee using devstack presets.
-func TestConfigurableMinBaseFee(gt *testing.T) {
+// TestMinBaseFee verifies configurable minimum base fee using devstack presets.
+func TestMinBaseFee(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	require := t.Require()
@@ -33,13 +33,13 @@ func TestConfigurableMinBaseFee(gt *testing.T) {
 	}{
 		{"MinBaseFeeOff", 0, false},
 		{"MinBaseFeeOn", 1_000_000_000, true},
+		{"MinBaseFeeBackToOff", 0, false},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t devtest.T) {
 			minBaseFee.SetMinBaseFee(tc.minBaseFee)
-			minBaseFee.WaitForL2Sync(tc.minBaseFee)
-			minBaseFee.VerifyL2Config(tc.minBaseFee)
+			minBaseFee.WaitForMinBaseFee(tc.minBaseFee)
 
 			if tc.shouldClamp {
 				minBaseFee.VerifyMinBaseFeeClamp(big.NewInt(int64(tc.minBaseFee)))

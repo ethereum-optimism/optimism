@@ -48,7 +48,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 			require.Equal(t, expectedJovianExtraData, b.Extra(), "subsequent blocks should have Jovian extraData")
 			// assert that the block's base fee is greater than the minimum
-			require.GreaterOrEqual(t, b.BaseFee().Uint64(), uint64(0), "base fee should be >= minimum")
+			require.Greater(t, b.BaseFee().Uint64(), uint64(0), "base fee should be > minimum")
 			env.Sequencer.ActL2EmptyBlock(t)
 		}
 
