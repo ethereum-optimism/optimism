@@ -1007,6 +1007,9 @@ jobs:
           command: validate-spacers-no-build
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
+      - run:
+          name: Print forge config
+          command: forge config
       - run-contracts-check:
           command: forge-build --deny-warnings
 
