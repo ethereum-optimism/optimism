@@ -346,7 +346,7 @@ func TestAttributesMatch(t *testing.T) {
 		{
 			args:      jovianArgsMinBaseFeeMissingFromBlock(),
 			rollupCfg: cfg(rollup.Jovian),
-			err:       "invalid block extraData: jovian extraData should be 17 bytes, got 9",
+			err:       "invalid block extraData: MinBaseFee extraData should be 17 bytes, got 9",
 			desc:      "missingMinBaseFee",
 		},
 		{
