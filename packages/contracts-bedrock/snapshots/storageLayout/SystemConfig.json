@@ -126,6 +126,13 @@
     "type": "contract ISuperchainConfig"
   },
   {
+    "bytes": "8",
+    "label": "minBaseFee",
+    "offset": 20,
+    "slot": "108",
+    "type": "uint64"
+  },
+  {
     "bytes": "32",
     "label": "isFeatureEnabled",
     "offset": 0,

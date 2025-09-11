@@ -12,7 +12,8 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
-        OPERATOR_FEE_PARAMS
+        OPERATOR_FEE_PARAMS,
+        MIN_BASE_FEE
     }
 
     struct Addresses {
@@ -72,6 +73,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function minimumGasLimit() external view returns (uint64);
     function operatorFeeConstant() external view returns (uint64);
     function operatorFeeScalar() external view returns (uint32);
+    function minBaseFee() external view returns (uint64);
     function optimismMintableERC20Factory() external view returns (address addr_);
     function optimismPortal() external view returns (address addr_);
     function overhead() external view returns (uint256);
@@ -86,6 +88,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external;
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external;
     function setEIP1559Params(uint32 _denominator, uint32 _elasticity) external;
+    function setMinBaseFee(uint64 _minBaseFee) external;
     function startBlock() external view returns (uint256 startBlock_);
     function transferOwnership(address newOwner) external; // nosemgrep
     function unsafeBlockSigner() external view returns (address addr_);
