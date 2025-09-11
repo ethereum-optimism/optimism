@@ -66,7 +66,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
 			MipsVersion:                     big.NewInt(mipsVersion),
 			DevFeatureBitmap:                common.Hash{},
-				// V2 Dispute Game parameters (using default values)
+			// V2 Dispute Game parameters (using default values)
 			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
 			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
 			FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
