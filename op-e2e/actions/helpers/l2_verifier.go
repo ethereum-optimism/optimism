@@ -133,10 +133,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	)
 
 	var interopSys interop.SubSystem
-	// Only enable supervisor management for multi-chain setups
-	// For single-chain tests with interop/jovian, we provide the depSet but don't use supervisor management
-	enableSupervisorManagement := cfg.InteropTime != nil && depSet != nil && len(depSet.Chains()) > 1
-	if enableSupervisorManagement {
+	if cfg.InteropTime != nil {
 		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
 		mm.TestDisableEventDeduplication()
 		interopSys = mm
