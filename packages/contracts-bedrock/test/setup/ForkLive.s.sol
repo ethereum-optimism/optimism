@@ -117,7 +117,6 @@ contract ForkLive is Deployer {
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
-        saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
         artifacts.save(
             "OPContractsManager", vm.parseTomlAddress(standardVersionsToml, "$.RELEASE.op_contracts_manager.address")
         );

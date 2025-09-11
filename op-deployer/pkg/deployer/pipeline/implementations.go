@@ -49,7 +49,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
 			DevFeatureBitmap:                proofParams.DevFeatureBitmap,
 			SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
 			Challenger:                      st.SuperchainRoles.Challenger,

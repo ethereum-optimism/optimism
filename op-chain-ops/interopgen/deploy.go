@@ -178,7 +178,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 
 	superDeployment, err := opcmScripts.DeploySuperchain.Run(opcm.DeploySuperchainInput{
 		SuperchainProxyAdminOwner:  superCfg.ProxyAdminOwner,
-		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
 		Guardian:                   superCfg.SuperchainConfigGuardian,
 		Paused:                     superCfg.Paused,
 		RequiredProtocolVersion:    superCfg.RequiredProtocolVersion,
@@ -198,7 +197,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
-		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
 		UpgradeController:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
 	})
@@ -211,8 +209,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 	return &SuperchainDeployment{
 		Implementations:       Implementations(implementationsDeployment),
 		ProxyAdmin:            superDeployment.SuperchainProxyAdmin,
-		ProtocolVersions:      superDeployment.ProtocolVersionsImpl,
-		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
 		SuperchainConfig:      superDeployment.SuperchainConfigImpl,
 		SuperchainConfigProxy: superDeployment.SuperchainConfigProxy,
 	}, nil

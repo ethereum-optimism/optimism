@@ -142,13 +142,10 @@ func PopulateSuperchainState(host *script.Host, opcmAddr common.Address) (*addre
 		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
 		SuperchainConfigProxy:    out.SuperchainConfigProxy,
 		SuperchainConfigImpl:     out.SuperchainConfigImpl,
-		ProtocolVersionsProxy:    out.ProtocolVersionsProxy,
-		ProtocolVersionsImpl:     out.ProtocolVersionsImpl,
 	}
 	roles := &addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
 		SuperchainGuardian:        out.Guardian,
-		ProtocolVersionsOwner:     out.ProtocolVersionsOwner,
 	}
 	return deployment, roles, nil
 }

@@ -40,7 +40,6 @@ type ImplementationsConfig struct {
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
-	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
@@ -91,9 +90,6 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
-	}
-	if c.ProtocolVersionsProxy == (common.Address{}) {
-		return errors.New("protocol versions proxy must be specified")
 	}
 	if c.UpgradeController == (common.Address{}) {
 		return errors.New("upgrade controller must be specified")
@@ -206,7 +202,6 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 			UpgradeController:               cfg.UpgradeController,
 			Challenger:                      cfg.Challenger,

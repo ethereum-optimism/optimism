@@ -19,7 +19,6 @@ const (
 	DevFeatureBitmapFlagName                = "dev-feature-bitmap"
 	ProxyOwnerFlagName                      = "proxy-owner"
 	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
-	ProtocolVersionsOwnerFlagName           = "protocol-versions-owner"
 	GuardianFlagName                        = "guardian"
 	PausedFlagName                          = "paused"
 	RequiredProtocolVersionFlagName         = "required-protocol-version"
@@ -87,12 +86,6 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN_OWNER"),
 		Value:   common.Address{}.Hex(),
 	}
-	ProtocolVersionsOwnerFlag = &cli.StringFlag{
-		Name:    ProtocolVersionsOwnerFlagName,
-		Usage:   "Owner address for protocol versions",
-		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_OWNER"),
-		Value:   common.Address{}.Hex(),
-	}
 	GuardianFlag = &cli.StringFlag{
 		Name:    GuardianFlagName,
 		Usage:   "Guardian address",
@@ -118,11 +111,6 @@ var (
 		Name:    "superchain-config-proxy",
 		Usage:   "Superchain config proxy.",
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_CONFIG_PROXY"),
-	}
-	ProtocolVersionsProxyFlag = &cli.StringFlag{
-		Name:    "protocol-versions-proxy",
-		Usage:   "Protocol versions proxy.",
-		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_PROXY"),
 	}
 	UpgradeControllerFlag = &cli.StringFlag{
 		Name:    "upgrade-controller",
@@ -159,7 +147,6 @@ var ImplementationsFlags = []cli.Flag{
 	ProofMaturityDelaySecondsFlag,
 	DisputeGameFinalityDelaySecondsFlag,
 	SuperchainConfigProxyFlag,
-	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
 	SuperchainProxyAdminFlag,
 	ChallengerFlag,
@@ -179,7 +166,6 @@ var SuperchainFlags = []cli.Flag{
 	OutfileFlag,
 	deployer.ArtifactsLocatorFlag,
 	SuperchainProxyAdminOwnerFlag,
-	ProtocolVersionsOwnerFlag,
 	GuardianFlag,
 	PausedFlag,
 	RequiredProtocolVersionFlag,

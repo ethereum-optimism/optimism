@@ -88,17 +88,14 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
-			L1RPCUrl:                   l1RPC,
-			PrivateKey:                 pkHex,
-			Logger:                     lgr,
-			ArtifactsLocator:           loc,
-			CacheDir:                   testCacheDir,
-			SuperchainProxyAdminOwner:  superchainPAO,
-			ProtocolVersionsOwner:      common.Address{'P', 'V', 'O'},
-			Guardian:                   common.Address{'G'},
-			Paused:                     false,
-			RecommendedProtocolVersion: params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
-			RequiredProtocolVersion:    params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
+			L1RPCUrl:                  l1RPC,
+			PrivateKey:                pkHex,
+			Logger:                    lgr,
+			ArtifactsLocator:          loc,
+			CacheDir:                  testCacheDir,
+			SuperchainProxyAdminOwner: superchainPAO,
+			Guardian:                  common.Address{'G'},
+			Paused:                    false,
 		})
 		require.NoError(t, err)
 
@@ -114,7 +111,6 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
-			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
 			UpgradeController:               superchainPAO,
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
@@ -675,7 +671,6 @@ func newIntent(
 		L1ChainID:  l1ChainID.Uint64(),
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
-			ProtocolVersionsOwner:     addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			SuperchainGuardian:        addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 			Challenger:                addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
 		},

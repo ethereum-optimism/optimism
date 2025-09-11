@@ -108,7 +108,6 @@ type OPContractsManagerDeployOutput struct {
 // OPContractsManagerImplementations is an auto generated low-level Go binding around an user-defined struct.
 type OPContractsManagerImplementations struct {
 	SuperchainConfigImpl             common.Address
-	ProtocolVersionsImpl             common.Address
 	L1ERC721BridgeImpl               common.Address
 	OptimismPortalImpl               common.Address
 	OptimismPortalInteropImpl        common.Address

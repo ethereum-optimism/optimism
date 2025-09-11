@@ -41,9 +41,8 @@ type OPCMImplementationsConfig struct {
 type SuperchainConfig struct {
 	Deployer common.Address
 
-	ProxyAdminOwner       common.Address
-	ProtocolVersionsOwner common.Address
-	Challenger            common.Address
+	ProxyAdminOwner common.Address
+	Challenger      common.Address
 
 	Paused bool
 

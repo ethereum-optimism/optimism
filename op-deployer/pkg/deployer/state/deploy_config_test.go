@@ -35,7 +35,7 @@ func TestCombineDeployConfig(t *testing.T) {
 		},
 	}
 	state := State{
-		SuperchainDeployment: &addresses.SuperchainContracts{ProtocolVersionsProxy: common.HexToAddress("0x123")},
+		SuperchainDeployment: &addresses.SuperchainContracts{},
 	}
 
 	// apply hard fork overrides

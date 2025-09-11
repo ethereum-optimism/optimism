@@ -81,7 +81,6 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			MIPSVersion:                     int(standard.MIPSVersion),
 			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
 			Challenger:                      common.Address{'C'},

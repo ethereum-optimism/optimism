@@ -28,7 +28,7 @@ those contracts will be inserted into the state during this step.
 ### Superchain/Implementations Deployment
 
 Next, the base contracts for the chain are deployed. This includes Superchain-wide contracts like the
-`SuperchainConfig` and `ProtocolVersions`, as well as implementation contracts that will be used for the OP Chain
+`SuperchainConfig`, as well as implementation contracts that will be used for the OP Chain
 deployment in the future like the OP Contracts Manager (OPCM).
 
 Most chains will be configured to use existing implementations. In this case, these steps will be skipped.

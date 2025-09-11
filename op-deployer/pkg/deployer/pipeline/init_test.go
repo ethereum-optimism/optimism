@@ -117,8 +117,6 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 
 			expDeployment := &addresses.SuperchainContracts{
 				SuperchainProxyAdminImpl: proxyAdmin,
-				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
-				ProtocolVersionsImpl:     common.HexToAddress("0x37E15e4d6DFFa9e5E320Ee1eC036922E563CB76C"),
 				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
 				SuperchainConfigImpl:     common.HexToAddress("0xCe28685EB204186b557133766eCA00334EB441E4"),
 			}
@@ -242,12 +240,9 @@ func TestPopulateSuperchainState(t *testing.T) {
 		SuperchainProxyAdminImpl: common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 		SuperchainConfigProxy:    superchain.SuperchainConfigAddr,
 		SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
-		ProtocolVersionsProxy:    superchain.ProtocolVersionsAddr,
-		ProtocolVersionsImpl:     common.HexToAddress("0x37E15e4d6DFFa9e5E320Ee1eC036922E563CB76C"),
 	}, *dep)
 	require.Equal(t, addresses.SuperchainRoles{
 		SuperchainProxyAdminOwner: common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-		ProtocolVersionsOwner:     common.HexToAddress("0xfd1D2e729aE8eEe2E146c033bf4400fE75284301"),
 		SuperchainGuardian:        common.HexToAddress("0x7a50f00e8D05b95F98fE38d8BeE366a7324dCf7E"),
 	}, *roles)
 }

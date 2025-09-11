@@ -7,17 +7,12 @@ import (
 )
 
 type DeploySuperchainInput struct {
-	Guardian                   common.Address         `toml:"guardian"`
-	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
-	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
-	Paused                     bool                   `toml:"paused"`
-	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
-	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
+	Guardian                  common.Address `toml:"guardian"`
+	SuperchainProxyAdminOwner common.Address `toml:"superchainProxyAdminOwner"`
+	Paused                    bool           `toml:"paused"`
 }
 
 type DeploySuperchainOutput struct {
-	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
 	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
 	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
 	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`

@@ -63,10 +63,8 @@ const (
 	SuperchainProxyAdminOwner SuperchainOperatorRole = 1
 	// SuperchainConfigGuardianKey is the Guardian of the SuperchainConfig.
 	SuperchainConfigGuardianKey SuperchainOperatorRole = 2
-	// SuperchainProtocolVersionsOwner is the key that can make ProtocolVersions changes.
-	SuperchainProtocolVersionsOwner SuperchainOperatorRole = 3
 	// DependencySetManagerKey is the key used to manage the dependency set of a superchain.
-	DependencySetManagerKey SuperchainOperatorRole = 4
+	DependencySetManagerKey SuperchainOperatorRole = 3
 )
 
 func (role SuperchainOperatorRole) String() string {
@@ -77,8 +75,6 @@ func (role SuperchainOperatorRole) String() string {
 		return "superchain-proxy-admin-owner"
 	case SuperchainConfigGuardianKey:
 		return "superchain-config-guardian"
-	case SuperchainProtocolVersionsOwner:
-		return "superchain-protocol-versions-owner"
 	case DependencySetManagerKey:
 		return "dependency-set-manager"
 	default:

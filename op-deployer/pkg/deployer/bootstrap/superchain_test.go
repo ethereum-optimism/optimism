@@ -58,7 +58,6 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 		Logger:           lgr,
 
 		SuperchainProxyAdminOwner:  common.Address{'S'},
-		ProtocolVersionsOwner:      common.Address{'P'},
 		Guardian:                   common.Address{'G'},
 		Paused:                     false,
 		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
@@ -74,8 +73,6 @@ func testSuperchain(t *testing.T, forkRPCURL string) {
 		out.SuperchainConfigProxy,
 		out.SuperchainConfigImpl,
 		out.SuperchainProxyAdmin,
-		out.ProtocolVersionsImpl,
-		out.ProtocolVersionsProxy,
 	}
 	for _, addr := range addresses {
 		require.NotEmpty(t, addr)

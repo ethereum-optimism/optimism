@@ -31,7 +31,6 @@ func TestBuilder(t *testing.T) {
 	superchainConfig.WithSuperchainConfigProxy(superchainConfigProxyAddr)
 	superchainConfig.WithProxyAdminOwner(common.HexToAddress("0xaaaa"))
 	superchainConfig.WithGuardian(common.HexToAddress("0xbbbb"))
-	superchainConfig.WithProtocolVersionsOwner(common.HexToAddress("0xcccc"))
 	superchainConfig.WithChallenger(common.HexToAddress("0xdddd"))
 
 	// Configure L1
@@ -124,7 +123,6 @@ func TestBuilder(t *testing.T) {
 		SuperchainRoles: &addresses.SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0xaaaa"),
 			SuperchainGuardian:        common.HexToAddress("0xbbbb"),
-			ProtocolVersionsOwner:     common.HexToAddress("0xcccc"),
 			Challenger:                common.HexToAddress("0xdddd"),
 		},
 		L1DevGenesisParams: &l1Params,

@@ -47,10 +47,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
-		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
-		rollupConfig.ProtocolVersionsAddress = common.Address{}
-	}
 
 	configPersistence := NewConfigPersistence(ctx)
 

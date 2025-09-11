@@ -16,7 +16,6 @@ type DeployImplementationsInput struct {
 	MipsVersion                     *big.Int
 	DevFeatureBitmap                common.Hash
 	SuperchainConfigProxy           common.Address
-	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address
 	UpgradeController               common.Address
 	Challenger                      common.Address
@@ -44,7 +43,6 @@ type DeployImplementationsOutput struct {
 	DisputeGameFactoryImpl           common.Address `json:"disputeGameFactoryImplAddress"`
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
-	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

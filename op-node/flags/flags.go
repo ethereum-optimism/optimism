@@ -293,12 +293,6 @@ var (
 		EnvVars:  prefixEnvVars("ROLLUP_HALT"),
 		Category: RollupCategory,
 	}
-	RollupLoadProtocolVersions = &cli.BoolFlag{
-		Name:     "rollup.load-protocol-versions",
-		Usage:    "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
-		EnvVars:  prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
-		Category: RollupCategory,
-	}
 	SafeDBPath = &cli.StringFlag{
 		Name:     "safedb.path",
 		Usage:    "File path used to persist safe head update data. Disabled if not set.",
@@ -451,7 +445,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
 	RollupHalt,
-	RollupLoadProtocolVersions,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,

@@ -71,7 +71,6 @@ type Metricer interface {
 	RecordIPUnban()
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
-	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -146,8 +145,6 @@ type Metrics struct {
 	// Protocol version reporting
 	// Delta = params.ProtocolVersionComparison
 	ProtocolVersionDelta *prometheus.GaugeVec
-	// ProtocolVersions is pseudo-metric to report the exact protocol version info
-	ProtocolVersions *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 	factory  metrics.Factory
@@ -380,16 +377,6 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Difference between local and global protocol version, and execution-engine, per type of version",
 		}, []string{
 			"type",
-		}),
-		ProtocolVersions: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "protocol_versions",
-			Help:      "Pseudo-metric tracking recommended and required protocol version info",
-		}, []string{
-			"local",
-			"engine",
-			"recommended",
-			"required",
 		}),
 
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
@@ -628,7 +615,6 @@ func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required pa
 	m.ProtocolVersionDelta.WithLabelValues("local_required").Set(float64(local.Compare(required)))
 	m.ProtocolVersionDelta.WithLabelValues("engine_recommended").Set(float64(engine.Compare(recommended)))
 	m.ProtocolVersionDelta.WithLabelValues("engine_required").Set(float64(engine.Compare(required)))
-	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
 }
 
 type noopMetricer struct {

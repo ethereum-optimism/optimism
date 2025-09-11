@@ -141,8 +141,6 @@ type Config struct {
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
 
-	// L1 address that declares the protocol versions, optional (Beta feature)
-	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
 	// ChainOpConfig is the OptimismConfig of the execution layer ChainConfig.
 	// It is used during safe chain consolidation to translate zero SystemConfig EIP1559

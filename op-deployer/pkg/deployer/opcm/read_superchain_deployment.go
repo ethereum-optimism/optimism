@@ -10,17 +10,12 @@ type ReadSuperchainDeploymentInput struct {
 }
 
 type ReadSuperchainDeploymentOutput struct {
-	ProtocolVersionsImpl  common.Address
-	ProtocolVersionsProxy common.Address
 	SuperchainConfigImpl  common.Address
 	SuperchainConfigProxy common.Address
 	SuperchainProxyAdmin  common.Address
 
-	Guardian                   common.Address
-	ProtocolVersionsOwner      common.Address
-	SuperchainProxyAdminOwner  common.Address
-	RecommendedProtocolVersion [32]byte
-	RequiredProtocolVersion    [32]byte
+	Guardian                  common.Address
+	SuperchainProxyAdminOwner common.Address
 }
 
 type ReadSuperchainDeploymentScript script.DeployScriptWithOutput[ReadSuperchainDeploymentInput, ReadSuperchainDeploymentOutput]

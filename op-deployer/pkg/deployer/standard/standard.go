@@ -150,16 +150,6 @@ func L2ProxyAdminOwner(chainID uint64) (common.Address, error) {
 	}
 }
 
-func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
-	switch chainID {
-	case 1:
-		return common.Address(validation.StandardConfigRolesMainnet.ProtocolVersionsOwner), nil
-	case 11155111:
-		return common.Address(validation.StandardConfigRolesSepolia.ProtocolVersionsOwner), nil
-	default:
-		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
-	}
-}
 
 // DefaultHardforkScheduleForTag is used to determine which hardforks should be activated by default given a
 // contract tag. For example, passing in v1.6.0 will return all hardforks up to and including Granite. This allows

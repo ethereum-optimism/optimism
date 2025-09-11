@@ -24,9 +24,6 @@ func (c *Contract) SuperchainConfig(ctx context.Context) (common.Address, error)
 	return c.getAddress(ctx, "superchainConfig")
 }
 
-func (c *Contract) ProtocolVersions(ctx context.Context) (common.Address, error) {
-	return c.getAddress(ctx, "protocolVersions")
-}
 
 func (c *Contract) getAddress(ctx context.Context, name string) (common.Address, error) {
 	return c.callContractMethod(ctx, name, abi.Arguments{})

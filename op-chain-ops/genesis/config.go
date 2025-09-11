@@ -887,7 +887,6 @@ type L1DependenciesConfig struct {
 	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
 
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxy"`
 }
 
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
@@ -1095,7 +1094,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
 		JovianTime:              d.JovianTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
-		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,
 		ChainOpConfig:           chainOpConfig,
 	}, nil
@@ -1163,8 +1161,6 @@ type L1Deployments struct {
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
-	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
-	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
@@ -1191,8 +1187,6 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
 		SystemConfig:                      contracts.SystemConfigImpl,
 		SystemConfigProxy:                 contracts.SystemConfigProxy,
-		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
-		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
 		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
 		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
 	}

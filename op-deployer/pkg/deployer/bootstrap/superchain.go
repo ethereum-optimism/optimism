@@ -35,7 +35,6 @@ type SuperchainConfig struct {
 	privateKeyECDSA *ecdsa.PrivateKey
 
 	SuperchainProxyAdminOwner  common.Address
-	ProtocolVersionsOwner      common.Address
 	Guardian                   common.Address
 	Paused                     bool
 	RequiredProtocolVersion    params.ProtocolVersion
@@ -69,9 +68,6 @@ func (c *SuperchainConfig) Check() error {
 		return fmt.Errorf("superchain proxy admin owner must be specified")
 	}
 
-	if c.ProtocolVersionsOwner == (common.Address{}) {
-		return fmt.Errorf("protocol versions owner must be specified")
-	}
 
 	if c.Guardian == (common.Address{}) {
 		return fmt.Errorf("guardian must be specified")
@@ -94,7 +90,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	}
 
 	superchainProxyAdminOwner := common.HexToAddress(cliCtx.String(SuperchainProxyAdminOwnerFlagName))
-	protocolVersionsOwner := common.HexToAddress(cliCtx.String(ProtocolVersionsOwnerFlagName))
 	guardian := common.HexToAddress(cliCtx.String(GuardianFlagName))
 	paused := cliCtx.Bool(PausedFlagName)
 	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
@@ -108,12 +103,11 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		ArtifactsLocator:          artifactsLocator,
 		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
-		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
 	}
 
-	// Default to op-geth params.OPStackSupport if not specified for required and recommended protocolversions
+	// Default to op-geth params.OPStackSupport if not specified for required and recommended protocol versions
 	if requiredVersionStr != "" {
 		if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
 			return fmt.Errorf("failed to parse required protocol version: %w", err)
@@ -205,7 +199,6 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	dso, err = opcmScripts.DeploySuperchain.Run(
 		opcm.DeploySuperchainInput{
 			SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
-			ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
 			Guardian:                   cfg.Guardian,
 			Paused:                     cfg.Paused,
 			RequiredProtocolVersion:    cfg.RequiredProtocolVersion,

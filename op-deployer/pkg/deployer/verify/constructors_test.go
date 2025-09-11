@@ -17,11 +17,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 				"internalType": "contract ISuperchainConfig"
 			},
 			{
-				"name": "_protocolVersions",
-				"type": "address",
-				"internalType": "contract IProtocolVersions"
-			},
-			{
 				"name": "_superchainProxyAdmin",
 				"type": "address",
 				"internalType": "contract IProxyAdmin"
@@ -85,11 +80,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 				"components": [
 					{
 						"name": "superchainConfigImpl",
-						"type": "address",
-						"internalType": "address"
-					},
-					{
-						"name": "protocolVersionsImpl",
 						"type": "address",
 						"internalType": "address"
 					},
@@ -161,6 +151,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 			totalSlots += calculateTypeSlots(arg.Type)
 		}
 
-		require.Equal(t, 25, totalSlots)
+		require.Equal(t, 23, totalSlots)
 	})
 }

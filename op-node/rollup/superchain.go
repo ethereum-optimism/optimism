@@ -87,7 +87,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
-	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
 	return cfg, nil
 }
 
