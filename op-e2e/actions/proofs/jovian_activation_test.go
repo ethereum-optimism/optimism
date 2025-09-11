@@ -20,15 +20,12 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 
 		// Define override to activate Jovian 14 seconds after genesis
 		var setJovianTime = func(dc *genesis.DeployConfig) {
-			// Set all predecessor forks at genesis (0 offset)
+			// Activate Isthmus at genesis
 			zero := hexutil.Uint64(0)
-			dc.L2GenesisHoloceneTimeOffset = &zero
-			// Set Isthmus at 10s (required predecessor fork for Jovian)
+			dc.L2GenesisIsthmusTimeOffset = &zero
+			// Then set Jovian at 10s
 			ten := hexutil.Uint64(10)
-			dc.L2GenesisIsthmusTimeOffset = &ten
-			// Then set Jovian at 14s
-			fourteen := hexutil.Uint64(14)
-			dc.L2GenesisJovianTimeOffset = &fourteen
+			dc.L2GenesisJovianTimeOffset = &ten
 		}
 
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), setJovianTime)
@@ -41,13 +38,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 			// Since Holocene is active at genesis, extra data is already 9 bytes
 			require.Len(t, b.Extra(), 9, "extra data should be 9 bytes (Holocene active)")
-			env.Sequencer.ActL2StartBlock(t)
-			// Send an L2 tx
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-			env.Alice.L2.ActMakeTx(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2EmptyBlock(t)
 			t.Log("Unsafe block with timestamp %d", b.Time)
 		}
 		b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
@@ -57,7 +48,6 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 
 		l2SafeHead := env.Sequencer.L2Safe()
 		t.Logf("Safe head block number: %d, timestamp: %d", l2SafeHead.Number, l2SafeHead.Time)
-		// For Jovian, we expect the safe head to progress (different from Holocene behavior)
 		require.True(t, l2SafeHead.Number >= uint64(0), "safe head should progress")
 
 		// Verify Jovian fork activation occurred by checking for the activation log
@@ -76,14 +66,14 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim-JovianActivation",
 		nil,
-		helpers.NewForkMatrix(helpers.Granite),
+		helpers.NewForkMatrix(helpers.Isthmus),
 		runJovianDerivationTest,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim-JovianActivation",
 		nil,
-		helpers.NewForkMatrix(helpers.Granite),
+		helpers.NewForkMatrix(helpers.Isthmus),
 		runJovianDerivationTest,
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
