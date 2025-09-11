@@ -39,7 +39,7 @@ type matchArgs struct {
 func jovianArgs() matchArgs {
 	var (
 		validParentHash       = common.HexToHash("0x123")
-		validTimestamp        = eth.Uint64Quantity(150)
+		validTimestamp        = eth.Uint64Quantity(50)
 		validParentBeaconRoot = common.HexToHash("0x456")
 		validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
 		validGasLimit         = eth.Uint64Quantity(1000)
@@ -83,7 +83,11 @@ func jovianArgs() matchArgs {
 			MinBaseFee:            &minBaseFee,
 		},
 		parentHash: validParentHash,
+	}
 }
+
+func jovianArgsMinBaseFeeMissingFromAttributes() matchArgs {
+	args := jovianArgs()
 	args.attrs.MinBaseFee = nil
 	return args
 }

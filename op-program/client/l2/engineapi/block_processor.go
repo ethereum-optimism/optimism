@@ -61,11 +61,6 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 			d = provider.Config().BaseFeeChangeDenominator(header.Time)
 			e = provider.Config().ElasticityMultiplier()
 		}
-		if provider.Config().IsConfigurableMinBaseFee(header.Time) {
-			header.Extra = eip1559.EncodeMinBaseFeeExtraData(d, e, attrs.MinBaseFee)
-		} else {
-			header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
-		}
 		if provider.Config().IsOptimismHolocene(header.Time) {
 			header.Extra = eip1559.EncodeOptimismExtraData(provider.Config(), header.Time, d, e, attrs.MinBaseFee)
 		}

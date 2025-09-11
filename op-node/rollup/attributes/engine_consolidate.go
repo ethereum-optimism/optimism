@@ -110,19 +110,6 @@ func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrPa
 			return fmt.Errorf("invalid attributes EIP1559 parameters: %w", err)
 		}
 
-		// Validate block extraData based on fork
-		if isConfigurableMinBaseFee {
-			if err := eip1559.ValidateMinBaseFeeExtraData(blockExtraData); err != nil {
-				return fmt.Errorf("invalid block extraData: %w", err)
-			}
-		} else {
-			if err := eip1559.ValidateHoloceneExtraData(blockExtraData); err != nil {
-				// This can happen if the unsafe chain contains invalid (in particular, empty) extraData while Holocene
-				// is active. The extraData field of blocks from sequencer gossip isn't currently checked during import.
-				return fmt.Errorf("invalid block extraData: %w", err)
-			}
-		}
-
 		ad, ae := eip1559.DecodeHolocene1559Params(params)
 		var translated bool
 		// Translate 0,0 to the pre-Holocene protocol constants, like the EL does too.
