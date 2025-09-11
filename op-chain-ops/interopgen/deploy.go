@@ -196,7 +196,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
 		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
-		DeployV2DisputeGames:            false, // Default to false for backward compatibility
 		// V2 Dispute Game parameters (using default values)
 		FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
 		FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth

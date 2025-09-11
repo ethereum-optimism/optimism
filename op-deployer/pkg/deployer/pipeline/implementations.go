@@ -48,7 +48,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
 			DevFeatureBitmap:                proofParams.DevFeatureBitmap,
-			DeployV2DisputeGames:            false, // Default to false for backward compatibility
 			// V2 Dispute Game parameters (using default values)
 			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
 			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth

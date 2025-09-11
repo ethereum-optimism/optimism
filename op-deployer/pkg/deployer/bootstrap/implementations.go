@@ -205,7 +205,6 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
-			DeployV2DisputeGames:            false, // Default to false for backward compatibility
 			// V2 Dispute Game parameters (using default values)
 			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
 			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
