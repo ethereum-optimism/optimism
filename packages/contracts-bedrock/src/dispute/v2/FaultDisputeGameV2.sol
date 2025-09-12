@@ -263,8 +263,12 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
-        // Check calldata is formatted as expected
-        validateCallData();
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        if (msg.data.length != expectedCallDataLength()) revert BadExtraData();
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
@@ -323,13 +327,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
     }
 
-    function validateCallData() internal virtual {
-        // Revert if the calldata size is not the expected length.
-        //
-        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
-        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
-        //
+    function expectedCallDataLength() internal virtual {
         // Expected length: 246 bytes
         // - 4 bytes: selector
         // - 2 bytes: CWIA length prefix
@@ -342,7 +340,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId
-        if (msg.data.length != 246) revert BadExtraData();
+        return 246;
     }
 
     ////////////////////////////////////////////////////////////////
