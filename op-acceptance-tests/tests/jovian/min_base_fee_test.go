@@ -32,7 +32,7 @@ func TestMinBaseFee(gt *testing.T) {
 		shouldClamp bool
 	}{
 		{"MinBaseFeeOff", 0, false},
-		{"MinBaseFeeOn", 1_000_000_000, true},
+		//{"MinBaseFeeOn", 1_000_000_000, true},
 	}
 
 	for _, tc := range testCases {

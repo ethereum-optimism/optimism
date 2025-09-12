@@ -23,7 +23,7 @@ var (
 	SystemConfigUpdateUnsafeBlockSigner = common.Hash{31: 3}
 	SystemConfigUpdateEIP1559Params     = common.Hash{31: 4}
 	SystemConfigUpdateOperatorFeeParams = common.Hash{31: 5}
-	SystemConfigUpdateMinBaseFee = common.Hash{31: 6}
+	SystemConfigUpdateMinBaseFee        = common.Hash{31: 6}
 )
 
 var (
