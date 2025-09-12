@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
+import { StorageSetter } from "src/universal/StorageSetter.sol";
 
 // Libraries
 import { Blueprint } from "src/libraries/Blueprint.sol";
@@ -931,10 +932,12 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     /// @param deployOutput ABI-encoded output of the deployment.
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
+    error OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade();
+
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
     struct SystemRoles {
-        address opChainProxyAdminOwner;
+        address proxyAdminOwner;
         address systemConfigOwner;
         address batcher;
         address unsafeBlockSigner;
@@ -944,7 +947,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 
     struct DisputeGameConfig {
         GameType disputeGameType;
-        string contractName;
         Claim disputeAbsolutePrestate;
         uint256 disputeMaxGameDepth;
         uint256 disputeSplitDepth;
@@ -957,10 +959,12 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         uint32 blobBasefeeScalar;
         uint64 gasLimit;
         uint256 l2ChainId;
+        IResourceMetering.ResourceConfig resourceConfig;
     }
 
     struct ExtraDeployConfig {
         bytes startingAnchorRoot;
+        GameType startingRespectedGameType;
         string saltMixer;
     }
 
@@ -1028,14 +1032,14 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         inp.cts.proxyAdmin = IProxyAdmin(
             Blueprint.deployFrom(
                 bps.proxyAdmin,
-                computeSalt(_input.l2SystemConfig.l2ChainId, _input.extraDeployConfig.saltMixer, "ProxyAdmin"),
+                computeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.extraDeployConfig.saltMixer, "ProxyAdmin"),
                 abi.encode(address(this))
             )
         );
         inp.cts.addressManager = IAddressManager(
             Blueprint.deployFrom(
                 bps.addressManager,
-                computeSalt(_input.l2SystemConfig.l2ChainId, _input.extraDeployConfig.saltMixer, "AddressManager"),
+                computeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.extraDeployConfig.saltMixer, "AddressManager"),
                 abi.encode()
             )
         );
@@ -1046,7 +1050,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             Blueprint.deployFrom(
                 bps.resolvedDelegateProxy,
                 computeSalt(
-                    _input.l2SystemConfig.l2ChainId, _input.extraDeployConfig.saltMixer, "L1CrossDomainMessenger"
+                    inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.extraDeployConfig.saltMixer, "L1CrossDomainMessenger"
                 ),
                 abi.encode(inp.cts.addressManager, l1XdmName)
             )
@@ -1061,7 +1065,9 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             payable(
                 Blueprint.deployFrom(
                     bps.l1ChugSplashProxy,
-                    computeSalt(_input.l2SystemConfig.l2ChainId, _input.extraDeployConfig.saltMixer, "L1StandardBridge"),
+                    computeSalt(
+                        inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.extraDeployConfig.saltMixer, "L1StandardBridge"
+                    ),
                     abi.encode(inp.cts.proxyAdmin)
                 )
             )
@@ -1073,47 +1079,71 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         // Everything else is deployed as a proxy.
         // Set up the deploy args once, keeps the code cleaner.
         ProxyDeployArgs memory proxyDeployArgs = ProxyDeployArgs({
-            l2ChainId: _input.l2SystemConfig.l2ChainId,
+            l2ChainId: inp.cfg.l2SystemConfig.l2ChainId,
             proxyAdmin: inp.cts.proxyAdmin,
-            saltMixer: _input.extraDeployConfig.saltMixer
+            saltMixer: inp.cfg.extraDeployConfig.saltMixer
         });
 
         // Deploy all of system proxies.
         inp.cts.systemConfig = ISystemConfig(_makeProxy(proxyDeployArgs, "SystemConfig"));
         inp.cts.l1ERC721Bridge = IL1ERC721Bridge(_makeProxy(proxyDeployArgs, "L1ERC721Bridge"));
-        inp.cts.optimismPortal = IOptimismPortal(_makeProxy(proxyDeployArgs, "OptimismPortal"));
+        inp.cts.optimismPortal = IOptimismPortal(payable(_makeProxy(proxyDeployArgs, "OptimismPortal")));
         inp.cts.ethLockbox = IETHLockbox(_makeProxy(proxyDeployArgs, "ETHLockbox"));
         inp.cts.disputeGameFactory = IDisputeGameFactory(_makeProxy(proxyDeployArgs, "DisputeGameFactory"));
         inp.cts.anchorStateRegistry = IAnchorStateRegistry(_makeProxy(proxyDeployArgs, "AnchorStateRegistry"));
         inp.cts.optimismMintableERC20Factory =
             IOptimismMintableERC20Factory(_makeProxy(proxyDeployArgs, "OptimismMintableERC20Factory"));
 
-        // Deploy the PermissionedDisputeGame. Note that we do NOT deploy the FaultDisputeGame as
-        // part of the current deployment flow. You can only get the FaultDisputeGame by using the
-        // addGameType function.
-        inp.cts.permissionedDisputeGame = IPermissionedDisputeGame(
-            Blueprint.deployFrom(
-                bps.permissionedDisputeGame1,
-                bps.permissionedDisputeGame2,
-                computeSalt(_input.l2SystemConfig.l2ChainId, _input.extraDeployConfig.saltMixer, "PermissionedDisputeGame"),
-                encodePermissionedFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        absolutePrestate: _input.disputeAbsolutePrestate,
-                        maxGameDepth: _input.disputeMaxGameDepth,
-                        splitDepth: _input.disputeSplitDepth,
-                        clockExtension: _input.disputeClockExtension,
-                        maxClockDuration: _input.disputeMaxClockDuration,
-                        vm: IBigStepper(impls.mipsImpl),
-                        weth: IDelayedWETH(payable(address(cts.delayedWETH))),
-                        anchorStateRegistry: IAnchorStateRegistry(address(cts.anchorStateRegistry)),
-                        l2ChainId: _input.l2ChainId
-                    }),
-                    _input.roles.proposer,
-                    _input.roles.challenger
+        // Deploy a DelayedWETH + dispute game for each of the DisputeGame inputs.
+        inp.cts.disputeGameContracts = new DisputeGameContracts[](_input.disputeGameConfigs.length);
+        for (uint256 i = 0; i < _input.disputeGameConfigs.length; i++) {
+            // TODO: Should we block unknown game types?
+            // Get the blueprint(s) for the game type.
+            (address blueprint1, address blueprint2) = _getGameBlueprint(inp.cfg.disputeGameConfigs[i].disputeGameType);
+
+            // Create the DelayedWETH proxy.
+            inp.cts.disputeGameContracts[i].delayedWETH = IDelayedWETH(
+                payable(
+                    _makeProxy(
+                        proxyDeployArgs,
+                        string.concat(
+                            "DelayedWETH-", Strings.toString(inp.cfg.disputeGameConfigs[i].disputeGameType.raw())
+                        )
+                    )
                 )
-            )
-        );
+            );
+
+            // Create the DisputeGame proxy.
+            inp.cts.disputeGameContracts[i].disputeGame = IDisputeGame(
+                Blueprint.deployFrom(
+                    blueprint1,
+                    blueprint2,
+                    computeSalt(
+                        inp.cfg.l2SystemConfig.l2ChainId,
+                        inp.cfg.extraDeployConfig.saltMixer,
+                        string.concat(
+                            "DisputeGame-", Strings.toString(inp.cfg.disputeGameConfigs[i].disputeGameType.raw())
+                        )
+                    ),
+                    encodePermissionedFDGConstructor(
+                        IFaultDisputeGame.GameConstructorParams({
+                            gameType: inp.cfg.disputeGameConfigs[i].disputeGameType,
+                            absolutePrestate: inp.cfg.disputeGameConfigs[i].disputeAbsolutePrestate,
+                            maxGameDepth: inp.cfg.disputeGameConfigs[i].disputeMaxGameDepth,
+                            splitDepth: inp.cfg.disputeGameConfigs[i].disputeSplitDepth,
+                            clockExtension: inp.cfg.disputeGameConfigs[i].disputeClockExtension,
+                            maxClockDuration: inp.cfg.disputeGameConfigs[i].disputeMaxClockDuration,
+                            vm: IBigStepper(impls.mipsImpl),
+                            weth: inp.cts.disputeGameContracts[i].delayedWETH,
+                            anchorStateRegistry: IAnchorStateRegistry(address(inp.cts.anchorStateRegistry)),
+                            l2ChainId: inp.cfg.l2SystemConfig.l2ChainId
+                        }),
+                        inp.cfg.roles.proposer,
+                        inp.cfg.roles.challenger
+                    )
+                )
+            );
+        }
 
         // Execute the deployment.
         return execute(inp);
@@ -1125,26 +1155,64 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         // Grab all of the easy contracts.
         inp.cts.systemConfig = _input.systemConfigProxy;
         inp.cts.proxyAdmin = inp.cts.systemConfig.proxyAdmin();
-        inp.cts.addressManager = address(0); // TODO
+        inp.cts.addressManager = IAddressManager(address(0)); // TODO
         inp.cts.superchainConfig = inp.cts.systemConfig.superchainConfig();
-        inp.cts.l1CrossDomainMessenger = inp.cts.systemConfig.l1CrossDomainMessenger();
-        inp.cts.l1ERC721Bridge = inp.cts.systemConfig.l1ERC721Bridge();
-        inp.cts.l1StandardBridge = inp.cts.systemConfig.l1StandardBridge();
-        inp.cts.optimismPortal = inp.cts.systemConfig.optimismPortal();
+        inp.cts.l1CrossDomainMessenger = IL1CrossDomainMessenger(inp.cts.systemConfig.l1CrossDomainMessenger());
+        inp.cts.l1ERC721Bridge = IL1ERC721Bridge(inp.cts.systemConfig.l1ERC721Bridge());
+        inp.cts.l1StandardBridge = IL1StandardBridge(payable(inp.cts.systemConfig.l1StandardBridge()));
+        inp.cts.optimismPortal = IOptimismPortal(payable(inp.cts.systemConfig.optimismPortal()));
         inp.cts.ethLockbox = inp.cts.optimismPortal.ethLockbox();
-        inp.cts.optimismMintableERC20Factory = inp.cts.systemConfig.optimismMintableERC20Factory();
         inp.cts.disputeGameFactory = inp.cts.optimismPortal.disputeGameFactory();
         inp.cts.anchorStateRegistry = inp.cts.optimismPortal.anchorStateRegistry();
+        inp.cts.optimismMintableERC20Factory =
+            IOptimismMintableERC20Factory(inp.cts.systemConfig.optimismMintableERC20Factory());
+
+        // Create an array of known game types.
+        GameType[] memory knownGameTypes = new GameType[](4);
+        knownGameTypes[0] = GameTypes.PERMISSIONED_CANNON;
+        knownGameTypes[1] = GameTypes.CANNON;
+        knownGameTypes[2] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        knownGameTypes[3] = GameTypes.SUPER_CANNON;
 
         // Pull the DisputeGame implementations.
-        inp.cts.permissionedDisputeGame = inp.cts.disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON);
-        inp.cts.faultDisputeGame = inp.cts.disputeGameFactory.gameImpls(GameTypes.FAULT_CANNON);
+        for (uint256 i = 0; i < knownGameTypes.length; i++) {
+            inp.cts.disputeGameContracts[i].disputeGame = inp.cts.disputeGameFactory.gameImpls(knownGameTypes[i]);
+            inp.cts.disputeGameContracts[i].delayedWETH =
+                IFaultDisputeGame(address(inp.cts.disputeGameContracts[i].disputeGame)).weth();
+        }
+
+        // Extract system roles.
+        inp.cfg.roles.proxyAdminOwner = inp.cts.optimismPortal.proxyAdminOwner();
+        inp.cfg.roles.systemConfigOwner = inp.cts.systemConfig.owner();
+        inp.cfg.roles.batcher = inp.cts.systemConfig.batcherHash();
+        inp.cfg.roles.unsafeBlockSigner = inp.cts.systemConfig.unsafeBlockSigner();
+        inp.cfg.roles.proposer = inp.cts.optimismPortal.proposer();
+        inp.cfg.roles.challenger = ;
+
+        inp.cfg.l2SystemConfig.baseFeeScalar = ;
+        inp.cfg.l2SystemConfig.blobBasefeeScalar = ;
+        inp.cfg.l2SystemConfig.gasLimit = ;
+        inp.cfg.l2SystemConfig.l2ChainId = ;
+        inp.cfg.l2SystemConfig.resourceConfig = ;
+
+        inp.cfg.extraDeployConfig.startingAnchorRoot = ;
+        inp.cfg.extraDeployConfig.startingRespectedGameType = ;
+        inp.cfg.extraDeployConfig.saltMixer = ;
+
+        for (uint256 i = 0; i < inp.cfg.disputeGameConfigs.length; i++) {
+            inp.cfg.disputeGameConfigs[i].disputeGameType = knownGameTypes[i];
+            inp.cfg.disputeGameConfigs[i].disputeAbsolutePrestate = inp.cts.disputeGameContracts[i].disputeGame.absolutePrestate();
+            inp.cfg.disputeGameConfigs[i].disputeMaxGameDepth = inp.cts.disputeGameContracts[i].disputeGame.maxGameDepth();
+            inp.cfg.disputeGameConfigs[i].disputeSplitDepth = inp.cts.disputeGameContracts[i].disputeGame.splitDepth();
+            inp.cfg.disputeGameConfigs[i].disputeClockExtension = inp.cts.disputeGameContracts[i].disputeGame.clockExtension();
+            inp.cfg.disputeGameConfigs[i].disputeMaxClockDuration = inp.cts.disputeGameContracts[i].disputeGame.maxClockDuration();
+        }
 
         // Execute the upgrade.
         return execute(inp);
     }
 
-    function execute(ExecutionInput memory _input) external returns (ExecutionOutput memory output_) {
+    function execute(ExecutionInput memory _input) public returns (ExecutionOutput memory output_) {
         OPContractsManager.Implementations memory impls = getImplementations();
 
         // Make sure the provided SuperchainConfig is up to date.
@@ -1164,14 +1232,14 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             abi.encodeCall(
                 ISystemConfig.initialize,
                 (
-                    _input.cfg.systemConfigOwner,
-                    _input.cfg.basefeeScalar,
-                    _input.cfg.blobBasefeeScalar,
-                    _input.cfg.batcherHash,
-                    _input.cfg.gasLimit,
-                    _input.cfg.unsafeBlockSigner,
-                    _input.cfg.resourceConfig,
-                    chainIdToBatchInboxAddress(_input.cfg.l2ChainId),
+                    _input.cfg.roles.systemConfigOwner,
+                    _input.cfg.l2SystemConfig.basefeeScalar,
+                    _input.cfg.l2SystemConfig.blobBasefeeScalar,
+                    bytes32(0), // TODO: Batcher Hash
+                    _input.cfg.l2SystemConfig.gasLimit,
+                    _input.cfg.roles.unsafeBlockSigner,
+                    _input.cfg.l2SystemConfig.resourceConfig,
+                    chainIdToBatchInboxAddress(_input.cfg.l2SystemConfig.l2ChainId),
                     ISystemConfig.Addresses({
                         l1CrossDomainMessenger: address(_input.cts.l1CrossDomainMessenger),
                         l1ERC721Bridge: address(_input.cts.l1ERC721Bridge),
@@ -1179,7 +1247,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                         optimismPortal: address(_input.cts.optimismPortal),
                         optimismMintableERC20Factory: address(_input.cts.optimismMintableERC20Factory)
                     }),
-                    _input.cfg.l2ChainId,
+                    _input.cfg.l2SystemConfig.l2ChainId,
                     _input.cts.superchainConfig
                 )
             )
@@ -1228,7 +1296,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             _input.cts.proxyAdmin,
             address(_input.cts.l1StandardBridge),
             impls.l1StandardBridgeImpl,
-            abi.encodeCall(IL1StandardBridge.initialize, (_input.cts.systemConfig))
+            abi.encodeCall(IL1StandardBridge.initialize, (_input.cts.l1CrossDomainMessenger, _input.cts.systemConfig))
         );
 
         // Update the L1ERC721Bridge.
@@ -1244,7 +1312,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             _input.cts.proxyAdmin,
             address(_input.cts.optimismMintableERC20Factory),
             impls.optimismMintableERC20FactoryImpl,
-            abi.encodeCall(IOptimismMintableERC20Factory.initialize, (_input.cts.systemConfig))
+            abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_input.cts.l1StandardBridge)))
         );
 
         // Update the DisputeGameFactory.
@@ -1255,23 +1323,16 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
         );
 
-        // TODO: Predict the addresses for the current DisputeGame implementations and deploy them
-        // if they differ from the current implementations. If we don't currently have a
-        // FaultDisputeGame, don't bother deploying it.
+        // Update the DisputeGame implementations.
+        for (uint256 i = 0; i < _input.cts.disputeGameContracts.length; i++) {
+            // TODO: Predict the addresses for the current DisputeGame implementations and deploy them
+            // if they differ from the current implementations. If we don't currently have a
+            // FaultDisputeGame, don't bother deploying it.
 
-        // We always have a PermissionedDisputeGame, update the implementation.
-        setDGFImplementation(
-            _input.cts.disputeGameFactoryProxy,
-            GameTypes.PERMISSIONED_CANNON,
-            IDisputeGame(address(_input.cts.permissionedDisputeGame))
-        );
-
-        // We might have a FaultDisputeGame, update if so.
-        if (address(_input.cts.faultDisputeGame) != address(0)) {
             setDGFImplementation(
-                _input.cts.disputeGameFactoryProxy,
-                GameTypes.FAULT_CANNON,
-                IDisputeGame(address(_input.cts.faultDisputeGame))
+                _input.cts.disputeGameFactory,
+                _input.cts.disputeGameContracts[i].disputeGame.gameType(),
+                _input.cts.disputeGameContracts[i].disputeGame
             );
         }
 
@@ -1285,17 +1346,17 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 (
                     _input.cts.systemConfig,
                     _input.cts.disputeGameFactory,
-                    _input.cts.startingAnchorRoot,
-                    _input.cts.startingRespectedGameType
+                    abi.decode(_input.cfg.extraDeployConfig.startingAnchorRoot, (Proposal)),
+                    _input.cfg.extraDeployConfig.startingRespectedGameType
                 )
             )
         );
 
         // Transfer ownership of the DisputeGameFactory to the proxyAdminOwner.
-        _input.cts.disputeGameFactoryProxy.transferOwnership(address(_input.cfg.proxyAdminOwner));
+        _input.cts.disputeGameFactory.transferOwnership(address(_input.cfg.roles.proxyAdminOwner));
 
         // Transfer ownership of the ProxyAdmin to the proxyAdminOwner.
-        _input.cts.proxyAdmin.transferOwnership(_input.cfg.proxyAdminOwner);
+        _input.cts.proxyAdmin.transferOwnership(_input.cfg.roles.proxyAdminOwner);
     }
 
     /// @notice Helper function for deploying a proxy with nicer arguments than deployProxy.
@@ -1319,9 +1380,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     )
         internal
     {
+        // TODO: Don't upgrade if implementation doesn't change.
+
         // Upgrade to StorageSetter.
         // TODO: Use a universal storage setter.
-        _proxyAdmin.upgrade(payable(_target), new StorageSetter());
+        _proxyAdmin.upgrade(payable(_target), address(new StorageSetter()));
 
         // Reset the initialized slot.
         // TODO: Support other than slot 0.
@@ -1329,6 +1392,22 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+    }
+
+    /// @notice Returns the blueprint(s) for a given game type.
+    /// @param _gameType The game type to get the blueprint for.
+    /// @return The blueprint(s) for the game type.
+    function _getGameBlueprint(GameType _gameType) internal returns (address, address) {
+        OPContractsManager.Blueprints memory bps = blueprints();
+        if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+            return (bps.permissionedDisputeGame1, bps.permissionedDisputeGame2);
+        } else if (_gameType.raw() == GameTypes.CANNON.raw()) {
+            return (bps.permissionlessDisputeGame1, bps.permissionlessDisputeGame2);
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return (bps.superPermissionedDisputeGame1, bps.superPermissionedDisputeGame2);
+        } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
+            return (bps.superPermissionlessDisputeGame1, bps.superPermissionlessDisputeGame2);
+        }
     }
 }
 
