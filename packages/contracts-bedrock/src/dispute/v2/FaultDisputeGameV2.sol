@@ -151,9 +151,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.1.0
     function version() public pure virtual returns (string memory) {
-        return "2.0.0";
+        return "2.1.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -263,25 +263,8 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
-        // Revert if the calldata size is not the expected length.
-        //
-        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
-        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
-        //
-        // Expected length: 246 bytes
-        // - 4 bytes: selector
-        // - 2 bytes: CWIA length prefix
-        // - 20 bytes: creator address
-        // - 32 bytes: root claim
-        // - 32 bytes: l1 head
-        // - 32 bytes: extraData
-        // - 32 bytes: absolutePrestate
-        // - 20 bytes: vm address
-        // - 20 bytes: anchorStateRegistry address
-        // - 20 bytes: weth address
-        // - 32 bytes: l2ChainId
-        if (msg.data.length != 246) revert BadExtraData();
+        // Check calldata is formatted as expected
+        validateCallData();
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
@@ -338,6 +321,28 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // Set whether the game type was respected when the game was created.
         wasRespectedGameTypeWhenCreated =
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
+    }
+
+    function validateCallData() internal virtual {
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 246 bytes
+        // - 4 bytes: selector
+        // - 2 bytes: CWIA length prefix
+        // - 20 bytes: creator address
+        // - 32 bytes: root claim
+        // - 32 bytes: l1 head
+        // - 32 bytes: extraData
+        // - 32 bytes: absolutePrestate
+        // - 20 bytes: vm address
+        // - 20 bytes: anchorStateRegistry address
+        // - 20 bytes: weth address
+        // - 32 bytes: l2ChainId
+        if (msg.data.length != 246) revert BadExtraData();
     }
 
     ////////////////////////////////////////////////////////////////
