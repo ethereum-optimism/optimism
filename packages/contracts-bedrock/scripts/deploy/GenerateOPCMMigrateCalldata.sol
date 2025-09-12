@@ -20,7 +20,8 @@ import { stdJson } from "forge-std/StdJson.sol";
 /// directory located at foundry root.
 /// Config example:
 ///  {
-///      "absolutePrestate": "0x1234567890abcdef1234567890abcdef12345678",
+///      "cannonPrestate": "0x1234567890abcdef1234567890abcdef12345678",
+///      "cannonKonaPrestate": "0x9999997890abcdef1234567890abcdef12349999",
 ///      "usePermissionlessGame": true,
 ///      "startingAnchorRoot": {
 ///          "root": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -45,7 +46,8 @@ import { stdJson } from "forge-std/StdJson.sol";
 ///      ]
 ///  }
 contract GenerateOPCMMigrateCalldata is Script {
-    bytes32 absolutePrestate;
+    bytes32 cannonPrestate;
+    bytes32 cannonKonaPrestate;
     bool usePermissionlessGame;
     Proposal startingAnchorRoot;
     address proposer;
@@ -72,8 +74,11 @@ contract GenerateOPCMMigrateCalldata is Script {
             require(false, "GenerateOPCMMigrateCalldata: Failed to read config file");
         }
 
-        absolutePrestate = stdJson.readBytes32(json, "$.absolutePrestate");
-        require(absolutePrestate != bytes32(0), "GenerateOPCMMigrateCalldata: absolutePrestate cannot be 0");
+        cannonPrestate = stdJson.readBytes32(json, "$.cannonPrestate");
+        require(cannonPrestate != bytes32(0), "GenerateOPCMMigrateCalldata: cannonPrestate cannot be 0");
+
+        // Cannon Kona prestate is optional
+        cannonKonaPrestate = stdJson.readBytes32(json, "$.cannonKonaPrestate");
 
         usePermissionlessGame = stdJson.readBool(json, "$.usePermissionlessGame");
         startingAnchorRoot = Proposal({
@@ -122,7 +127,8 @@ contract GenerateOPCMMigrateCalldata is Script {
             opChainConfigs[i] = IOPContractsManager.OpChainConfig({
                 systemConfigProxy: ISystemConfig(j[i].systemConfigProxy),
                 proxyAdmin: IProxyAdmin(j[i].proxyAdmin),
-                absolutePrestate: Claim.wrap(absolutePrestate)
+                cannonPrestate: Claim.wrap(cannonPrestate),
+                cannonKonaPrestate: Claim.wrap(cannonKonaPrestate)
             });
             require(
                 opChainConfigs[i].systemConfigProxy != ISystemConfig(address(0)),

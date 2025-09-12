@@ -114,7 +114,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
-    Claim absolutePrestate;
+    Claim cannonPrestate;
+    Claim cannonKonaPrestate;
     string public opChain = Config.forkOpChain();
 
     function setUp() public virtual override {
@@ -129,7 +130,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             "OPContractsManager_Upgrade_Harness: cannot test upgrade on superchain ops repo upgrade tests"
         );
 
-        absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+        cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
+        cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
@@ -140,7 +142,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             IOPContractsManager.OpChainConfig({
                 systemConfigProxy: systemConfig,
                 proxyAdmin: proxyAdmin,
-                absolutePrestate: absolutePrestate
+                cannonPrestate: cannonPrestate,
+                cannonKonaPrestate: cannonKonaPrestate
             })
         );
 
@@ -756,10 +759,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @notice Tests that we can update the prestate when only the PermissionedDisputeGame exists.
     function test_updatePrestate_pdgOnlyWithValidInput_succeeds() public {
         // Create the input for the function call.
-        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
         inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate,
+            cannonKonaPrestate
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -781,7 +788,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         );
 
         // Check the prestate value.
-        assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
+        assertEq(pdg.absolutePrestate().raw(), cannonPrestate.raw(), "pdg prestate mismatch");
 
         // Ensure that the WETH contract is not reverting.
         pdg.weth().balanceOf(address(0));
@@ -796,10 +803,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         addGameType(input);
 
         // Create the input for the function call.
-        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
         inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate,
+            cannonKonaPrestate
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -830,8 +841,8 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         );
 
         // Check the prestate values.
-        assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
-        assertEq(fdg.absolutePrestate().raw(), prestate.raw(), "fdg prestate mismatch");
+        assertEq(pdg.absolutePrestate().raw(), cannonPrestate.raw(), "pdg prestate mismatch");
+        assertEq(fdg.absolutePrestate().raw(), cannonPrestate.raw(), "fdg prestate mismatch");
 
         // Ensure that the WETH contracts are not reverting
         pdg.weth().balanceOf(address(0));
@@ -877,10 +888,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         );
 
         // Create the input for the function call.
-        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
         inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate,
+            cannonKonaPrestate
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -911,8 +926,8 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         );
 
         // Check the prestate values.
-        assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
-        assertEq(fdg.absolutePrestate().raw(), prestate.raw(), "fdg prestate mismatch");
+        assertEq(pdg.absolutePrestate().raw(), cannonPrestate.raw(), "pdg prestate mismatch");
+        assertEq(fdg.absolutePrestate().raw(), cannonPrestate.raw(), "fdg prestate mismatch");
 
         // Ensure that the WETH contracts are not reverting
         pdg.weth().balanceOf(address(0));
@@ -926,10 +941,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         addGameType(input);
 
         // Create the input for the function call.
-        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
         inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate,
+            cannonKonaPrestate
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -951,7 +970,8 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         inputs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
             proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
-            absolutePrestate: Claim.wrap(bytes32(0))
+            cannonPrestate: Claim.wrap(bytes32(0)),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -1061,7 +1081,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
 
         // Set the absolute prestate input to something non-zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(uint256(1)));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(uint256(1)));
 
         // Run the upgrade.
         runCurrentUpgrade(upgrader);
@@ -1093,7 +1113,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
 
         // Set the absolute prestate input to zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(0));
 
         // Run the upgrade.
         runCurrentUpgrade(upgrader);
@@ -1130,7 +1151,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
         // Set the config to try to update the absolutePrestate to zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
 
         // Get the address of the PermissionedDisputeGame.
         IPermissionedDisputeGame pdg =
@@ -1240,8 +1261,10 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 /// @title OPContractsManager_Migrate_Test
 /// @notice Tests the `migrate` function of the `OPContractsManager` contract.
 contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
-    Claim absolutePrestate1 = Claim.wrap(bytes32(hex"ABBA"));
-    Claim absolutePrestate2 = Claim.wrap(bytes32(hex"DEAD"));
+    Claim cannonPrestate1 = Claim.wrap(bytes32(hex"ABBA"));
+    Claim cannonPrestate2 = Claim.wrap(bytes32(hex"DEAD"));
+    Claim cannonKonaPrestate1 = Claim.wrap(bytes32(hex"ADDA"));
+    Claim cannonKonaPrestate2 = Claim.wrap(bytes32(hex"DDDD"));
 
     /// @notice Function requires interop portal.
     function setUp() public override {
@@ -1264,10 +1287,16 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](2);
         opChainConfigs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, absolutePrestate1
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate1,
+            cannonKonaPrestate1
         );
         opChainConfigs[1] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput2.systemConfigProxy, chainDeployOutput2.opChainProxyAdmin, absolutePrestate1
+            chainDeployOutput2.systemConfigProxy,
+            chainDeployOutput2.opChainProxyAdmin,
+            cannonPrestate1,
+            cannonKonaPrestate1
         );
 
         return IOPContractsManagerInteropMigrator.MigrateInput({
@@ -1425,7 +1454,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superFdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        assertEq(superFdg.absolutePrestate().raw(), absolutePrestate1.raw());
+        assertEq(superFdg.absolutePrestate().raw(), cannonPrestate1.raw());
 
         // Check that the Super Permissioned Cannon game has the correct parameters.
         IDisputeGame superPdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
@@ -1436,7 +1465,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superPdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superPdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superPdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        assertEq(superPdg.absolutePrestate().raw(), absolutePrestate1.raw());
+        assertEq(superPdg.absolutePrestate().raw(), cannonPrestate1.raw());
     }
 
     /// @notice Tests that the migration function succeeds when requesting to not use the
@@ -1546,7 +1575,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superPdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superPdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superPdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        assertEq(superPdg.absolutePrestate().raw(), absolutePrestate1.raw());
+        assertEq(superPdg.absolutePrestate().raw(), cannonPrestate1.raw());
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are
@@ -1574,12 +1603,27 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that the migration function reverts when the absolute prestates are
     ///         mismatched.
-    function test_migrate_mismatchedAbsolutePrestates_reverts() public {
+    function test_migrate_mismatchedCannonPrestates_reverts() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Set the prestates to be different.
-        input.opChainConfigs[0].absolutePrestate = absolutePrestate1;
-        input.opChainConfigs[0].absolutePrestate = absolutePrestate2;
+        input.opChainConfigs[0].cannonPrestate = cannonPrestate1;
+        input.opChainConfigs[1].cannonPrestate = cannonPrestate2;
+
+        // Execute the migration.
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
+        );
+    }
+
+    /// @notice Tests that the migration function reverts when the absolute prestates are
+    ///         mismatched.
+    function test_migrate_mismatchedCannonKonaPrestates_reverts() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Set the prestates to be different.
+        input.opChainConfigs[0].cannonKonaPrestate = cannonKonaPrestate1;
+        input.opChainConfigs[1].cannonKonaPrestate = cannonKonaPrestate2;
 
         // Execute the migration.
         _doMigration(

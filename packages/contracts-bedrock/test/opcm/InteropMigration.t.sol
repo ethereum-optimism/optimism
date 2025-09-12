@@ -82,7 +82,8 @@ contract InteropMigrationInput_Test is Test {
         configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
             proxyAdmin: IProxyAdmin(proxyAdmin1),
-            absolutePrestate: Claim.wrap(bytes32(uint256(1)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
         // Setup mock addresses and contracts for second config
@@ -94,7 +95,8 @@ contract InteropMigrationInput_Test is Test {
         configs[1] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
             proxyAdmin: IProxyAdmin(proxyAdmin2),
-            absolutePrestate: Claim.wrap(bytes32(uint256(2)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(3))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(4)))
         });
 
         input.set(input.opChainConfigs.selector, configs);
@@ -105,8 +107,10 @@ contract InteropMigrationInput_Test is Test {
         // Additional verification of stored claims if needed
         IOPContractsManager.OpChainConfig[] memory decodedConfigs =
             abi.decode(storedConfigs, (IOPContractsManager.OpChainConfig[]));
-        assertEq(Claim.unwrap(decodedConfigs[0].absolutePrestate), bytes32(uint256(1)));
-        assertEq(Claim.unwrap(decodedConfigs[1].absolutePrestate), bytes32(uint256(2)));
+        assertEq(Claim.unwrap(decodedConfigs[0].cannonPrestate), bytes32(uint256(1)));
+        assertEq(Claim.unwrap(decodedConfigs[0].cannonKonaPrestate), bytes32(uint256(2)));
+        assertEq(Claim.unwrap(decodedConfigs[1].cannonPrestate), bytes32(uint256(3)));
+        assertEq(Claim.unwrap(decodedConfigs[1].cannonKonaPrestate), bytes32(uint256(4)));
     }
 
     function test_setAddress_withZeroAddress_reverts() public {
@@ -144,7 +148,8 @@ contract InteropMigrationInput_Test is Test {
         configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
             proxyAdmin: IProxyAdmin(mockProxyAdmin),
-            absolutePrestate: Claim.wrap(bytes32(uint256(1)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
         vm.expectRevert("InteropMigrationInput: unknown selector");
@@ -153,13 +158,16 @@ contract InteropMigrationInput_Test is Test {
 }
 
 contract MockOPCM {
-    event MigrateCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event MigrateCalled(
+        address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 cannonPrestate, bytes32 cannonKonaPrestate
+    );
 
     function migrate(IOPContractsManagerInteropMigrator.MigrateInput memory _input) public {
         emit MigrateCalled(
             address(_input.opChainConfigs[0].systemConfigProxy),
             address(_input.opChainConfigs[0].proxyAdmin),
-            Claim.unwrap(_input.opChainConfigs[0].absolutePrestate)
+            Claim.unwrap(_input.opChainConfigs[0].cannonPrestate),
+            Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate)
         );
     }
 }
@@ -171,7 +179,9 @@ contract InteropMigration_Test is Test {
     InteropMigration migration;
     address prank;
 
-    event MigrateCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event MigrateCalled(
+        address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 cannonPrestate, bytes32 cannonKonaPrestate
+    );
 
     function setUp() public {
         mockOPCM = new MockOPCM();
@@ -180,7 +190,8 @@ contract InteropMigration_Test is Test {
         config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
             proxyAdmin: IProxyAdmin(makeAddr("proxyAdmin")),
-            absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
+            cannonPrestate: Claim.wrap(keccak256("cannonPrestate")),
+            cannonKonaPrestate: Claim.wrap(keccak256("cannonKonaPrestate"))
         });
         IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         configs[0] = config;
@@ -206,7 +217,10 @@ contract InteropMigration_Test is Test {
         // MigrateCalled should be emitted by the prank since it's a delegatecall.
         vm.expectEmit(address(prank));
         emit MigrateCalled(
-            address(config.systemConfigProxy), address(config.proxyAdmin), Claim.unwrap(config.absolutePrestate)
+            address(config.systemConfigProxy),
+            address(config.proxyAdmin),
+            Claim.unwrap(config.cannonPrestate),
+            Claim.unwrap(config.cannonKonaPrestate)
         );
 
         // mocks for post-migration checks

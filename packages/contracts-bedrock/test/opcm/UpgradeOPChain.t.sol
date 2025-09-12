@@ -81,7 +81,9 @@ contract UpgradeOPChainInput_Test is Test {
         OPContractsManager.OpChainConfig[] memory decodedConfigs =
             abi.decode(storedConfigs, (OPContractsManager.OpChainConfig[]));
         assertEq(Claim.unwrap(decodedConfigs[0].cannonPrestate), bytes32(uint256(1)));
-        assertEq(Claim.unwrap(decodedConfigs[1].cannonPrestate), bytes32(uint256(2)));
+        assertEq(Claim.unwrap(decodedConfigs[0].cannonKonaPrestate), bytes32(uint256(2)));
+        assertEq(Claim.unwrap(decodedConfigs[1].cannonPrestate), bytes32(uint256(3)));
+        assertEq(Claim.unwrap(decodedConfigs[1].cannonKonaPrestate), bytes32(uint256(4)));
     }
 
     function test_setAddress_withZeroAddress_reverts() public {
