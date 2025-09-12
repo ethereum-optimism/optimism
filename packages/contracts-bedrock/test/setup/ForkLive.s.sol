@@ -191,8 +191,8 @@ contract ForkLive is Deployer {
 
     /// @notice Performs a single OPCM upgrade.
     /// @param _opcm The OPCM contract to upgrade.
-    /// @param _upgrader The address of the upgrader to use for the upgrade.
-    function _doUpgrade(IOPContractsManager _opcm, address _upgrader) internal {
+    /// @param _delegateCaller The address of the upgrader to use for the upgrade.
+    function _doUpgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
 
@@ -202,11 +202,6 @@ contract ForkLive is Deployer {
             proxyAdmin: proxyAdmin,
             absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
         });
-
-        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
-        // then reset its code to the original code.
-        bytes memory upgraderCode = address(_upgrader).code;
-        vm.etch(_upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
         // SuperchainConfig contract.
@@ -225,20 +220,28 @@ contract ForkLive is Deployer {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
             // Only acceptable revert reason is the SuperchainConfig already being up to date.
-            assert(
+            assertTrue(
                 bytes4(reason)
-                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector
+                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector,
+                "Revert reason other than SuperchainConfigAlreadyUpToDate"
             );
         }
 
         // Reset the superchainPAO to the original code.
         vm.etch(superchainPAO, superchainPAOCode);
 
+        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
+        // then reset its code to the original code.
+        bytes memory upgraderCode = address(_delegateCaller).code;
+        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
         // Upgrade the chain.
-        DelegateCaller(_upgrader).dcForward(address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
+        DelegateCaller(_delegateCaller).dcForward(
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
+        );
 
         // Reset the upgrader to the original code.
-        vm.etch(_upgrader, upgraderCode);
+        vm.etch(_delegateCaller, upgraderCode);
     }
 
     /// @notice Upgrades the contracts using the OPCM.
@@ -251,8 +254,14 @@ contract ForkLive is Deployer {
         address upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
-        // U16a.
-        _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+        // Run past upgrades depending on network.
+        if (block.chainid == 1) {
+            // Mainnet
+            // U16a.
+            _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+        } else if (block.chainid == 11155111) {
+            // Sepolia
+        }
 
         // Current upgrade.
         _doUpgrade(opcm, upgrader);

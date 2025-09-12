@@ -223,9 +223,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             return;
         }
 
-        // Less than 90% of the gas target of 20M to account for the gas used by using Safe.
+        // Less than 90% of the gas target of 2**24 (EIP-7825) to account for the gas used by
+        // using Safe.
         VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(gas.gasTotalUsed, 0.9 * 20_000_000, "Upgrade exceeds gas target of 15M");
+        assertLt(gas.gasTotalUsed, 0.9 * (2 ** 24), "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
 
         // Reset the upgrader to the original code.
         vm.etch(_delegateCaller, delegateCallerCode);
@@ -274,10 +275,16 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runPastUpgrades(address _delegateCaller) internal {
-        // U16a
-        _runOpcmUpgradeAndChecks(
-            IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
-        );
+        // Run past upgrades depending on network.
+        if (block.chainid == 1) {
+            // Mainnet
+            // U16a
+            _runOpcmUpgradeAndChecks(
+                IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
+            );
+        } else if (block.chainid == 11155111) {
+            // Sepolia
+        }
     }
 
     /// @notice Executes the current upgrade and checks the results.
