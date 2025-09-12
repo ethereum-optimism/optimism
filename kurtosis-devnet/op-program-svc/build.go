@@ -103,6 +103,8 @@ func (b *Builder) ExecuteBuild() ([]byte, error) {
 	// Buffer to store complete output for error reporting
 	var output bytes.Buffer
 	output.WriteString("Build output:\n")
+	// Protect concurrent writes to the shared buffer from stdout and stderr goroutines
+	var outputMu sync.Mutex
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
@@ -120,7 +122,9 @@ func (b *Builder) ExecuteBuild() ([]byte, error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Printf("[build] %s", line)
+			outputMu.Lock()
 			output.WriteString(line + "\n")
+			outputMu.Unlock()
 		}
 	}()
 
@@ -131,7 +135,9 @@ func (b *Builder) ExecuteBuild() ([]byte, error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Printf("[build][stderr] %s", line)
+			outputMu.Lock()
 			output.WriteString(line + "\n")
+			outputMu.Unlock()
 		}
 	}()
 
