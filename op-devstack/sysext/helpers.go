@@ -85,8 +85,19 @@ func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, 
 func (orch *Orchestrator) findProtocolService(service *descriptors.Service, protocol string) (string, http.Header, error) {
 	for proto, endpoint := range service.Endpoints {
 		if proto == protocol {
-			if orch.env.Env.ReverseProxyURL != "" && len(endpoint.ReverseProxyHeader) > 0 && !orch.useDirectCnx {
-				return orch.env.Env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
+			// TODO(#17194): Fix websockets support by upgrading to traefik v3
+			// Force direct connect for websocket protocols
+			if protocol != WebsocketFlashblocksProtocol {
+				if orch.env.Env.ReverseProxyURL != "" && len(endpoint.ReverseProxyHeader) > 0 && !orch.useDirectCnx {
+					// For WebSocket protocols, convert HTTP URL to WebSocket URL
+					if protocol == WebsocketFlashblocksProtocol {
+						wsURL := strings.NewReplacer("http://", "ws://", "https://", "wss://").Replace(orch.env.Env.ReverseProxyURL)
+						wsURL += "/ws"
+
+						return wsURL, endpoint.ReverseProxyHeader, nil
+					}
+					return orch.env.Env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
+				}
 			}
 
 			port := endpoint.Port

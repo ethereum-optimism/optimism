@@ -235,4 +235,9 @@ library Config {
     function forkTest() internal view returns (bool) {
         return vm.envOr("FORK_TEST", false);
     }
+
+    /// @notice Returns true if the development feature interop is enabled.
+    function devFeatureInterop() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
+    }
 }

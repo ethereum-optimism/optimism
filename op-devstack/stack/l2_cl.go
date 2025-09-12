@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -72,9 +73,11 @@ type L2CLNode interface {
 	Common
 	ID() L2CLNodeID
 
+	ClientRPC() client.RPC
 	RollupAPI() apis.RollupClient
 	P2PAPI() apis.P2PClient
 	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
+	UserRPC() string
 
 	// ELs returns the engine(s) that this L2CLNode is connected to.
 	// This may be empty, if the L2CL is not connected to any.

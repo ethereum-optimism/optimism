@@ -8,13 +8,13 @@ import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -135,22 +135,34 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
+    /// @notice Bytes32 feature flag name to boolean enabled value.
+    mapping(bytes32 => bool) public isFeatureEnabled;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Emitted when a feature is set.
+    /// @param feature Feature that was set.
+    /// @param enabled Whether the feature is enabled.
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
+    ///         respectively.
+    error SystemConfig_InvalidFeatureState();
+
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.7.0
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.7.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton.
-    constructor() ReinitializableBase(2) {
+    constructor() ReinitializableBase(3) {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         _disableInitializers();
     }
@@ -484,12 +496,41 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _resourceConfig = _config;
     }
 
-    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
-    /// chain's ETHLockbox.
+    /// @notice Sets a feature flag enabled or disabled. Can only be called by the ProxyAdmin or
+    ///         its owner.
+    /// @param _feature Feature to set.
+    /// @param _enabled Whether the feature should be enabled or disabled.
+    function setFeature(bytes32 _feature, bool _enabled) external {
+        // Features can only be set by the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // As a sanity check, prevent users from enabling the feature if already enabled or
+        // disabling the feature if already disabled. This helps to prevent accidental misuse.
+        if ((_enabled && isFeatureEnabled[_feature]) || (!_enabled && !isFeatureEnabled[_feature])) {
+            revert SystemConfig_InvalidFeatureState();
+        }
+
+        // Set the feature.
+        isFeatureEnabled[_feature] = _enabled;
+
+        // Emit an event.
+        emit FeatureSet(_feature, _enabled);
+    }
+
+    /// @notice Returns the current pause state for this network. If the network is using
+    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
+    ///         is active where the ETHLockbox address is used as the identifier. If the network is
+    ///         not using ETHLockbox, the system is paused if either the global pause is active or
+    ///         the pause is active where the OptimismPortal address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
-        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+        // Determine the appropriate chain identifier based on the feature flags.
+        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
+            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
+            : address(optimismPortal());
+
+        // Check if either global or local pause is active.
+        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.

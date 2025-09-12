@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -187,102 +186,42 @@ func TestBalanceSnapshot_Sub(t *testing.T) {
 	})
 }
 
-// mockTB is a minimal testing.TB implementation for checking assertion failures
-// without failing the actual test.
-type mockTB struct {
-	testing.TB // Embed standard testing.TB for most methods (like Logf)
-	failed     bool
-}
-
-func (m *mockTB) Helper()                         { m.TB.Helper() }
-func (m *mockTB) Errorf(string, ...any)           { m.failed = true }                        // Just record failure
-func (m *mockTB) Fatalf(string, ...any)           { m.failed = true; panic("mock Fatalf") }  // Record failure and panic
-func (m *mockTB) FailNow()                        { m.failed = true; panic("mock FailNow") } // Record failure and panic
-func (m *mockTB) Fail()                           { m.failed = true }                        // Just record failure
-func (m *mockTB) Name() string                    { return m.TB.Name() }
-func (m *mockTB) Logf(format string, args ...any) { m.TB.Logf(format, args...) }
-
-// Add other testing.TB methods if needed by systest.NewT or AssertSnapshotsEqual
-func (m *mockTB) Cleanup(f func())                 { m.TB.Cleanup(f) }
-func (m *mockTB) Error(args ...any)                { m.failed = true }
-func (m *mockTB) Failed() bool                     { return m.failed } // Reflect our recorded state
-func (m *mockTB) Fatal(args ...any)                { m.failed = true; panic("mock Fatal") }
-func (m *mockTB) Log(args ...any)                  { m.TB.Log(args...) }
-func (m *mockTB) Setenv(key, value string)         { m.TB.Setenv(key, value) }
-func (m *mockTB) Skip(args ...any)                 { m.TB.Skip(args...) }
-func (m *mockTB) SkipNow()                         { m.TB.SkipNow() }
-func (m *mockTB) Skipf(format string, args ...any) { m.TB.Skipf(format, args...) }
-func (m *mockTB) Skipped() bool                    { return m.TB.Skipped() }
-func (m *mockTB) TempDir() string                  { return m.TB.TempDir() }
-
-func TestAssertSnapshotsEqual(t *testing.T) {
+func TestSnapshotsEqual(t *testing.T) {
 	snap1 := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(20), big.NewInt(30), big.NewInt(40), big.NewInt(50))
 	snap2 := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(20), big.NewInt(30), big.NewInt(40), big.NewInt(50))
 
 	t.Run("EqualSnapshots", func(t *testing.T) {
-		mockT := &mockTB{TB: t} // Use the mock TB
-		systestT := systest.NewT(mockT)
-		AssertSnapshotsEqual(systestT, snap1, snap2)
-		assert.False(t, mockT.failed, "AssertSnapshotsEqual should not fail for equal snapshots")
+		assert.True(t, SnapshotsEqual(snap1, snap2), "Equal snapshots should return true")
 	})
 
 	t.Run("DifferentBaseFee", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
 		diffSnap := newTestSnapshot(big.NewInt(1), big.NewInt(99), big.NewInt(20), big.NewInt(30), big.NewInt(40), big.NewInt(50))
-		AssertSnapshotsEqual(systestT, snap1, diffSnap)
-		assert.True(t, mockT.failed, "AssertSnapshotsEqual should fail for different BaseFeeVaultBalance")
+		assert.False(t, SnapshotsEqual(snap1, diffSnap), "Different BaseFeeVaultBalance should return false")
 	})
 
 	t.Run("DifferentL1Fee", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
 		diffSnap := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(99), big.NewInt(30), big.NewInt(40), big.NewInt(50))
-		AssertSnapshotsEqual(systestT, snap1, diffSnap)
-		assert.True(t, mockT.failed, "AssertSnapshotsEqual should fail for different L1FeeVaultBalance")
+		assert.False(t, SnapshotsEqual(snap1, diffSnap), "Different L1FeeVaultBalance should return false")
 	})
 
 	t.Run("DifferentSequencerFee", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
 		diffSnap := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(20), big.NewInt(99), big.NewInt(40), big.NewInt(50))
-		AssertSnapshotsEqual(systestT, snap1, diffSnap)
-		assert.True(t, mockT.failed, "AssertSnapshotsEqual should fail for different SequencerFeeVault")
+		assert.False(t, SnapshotsEqual(snap1, diffSnap), "Different SequencerFeeVault should return false")
 	})
 
 	t.Run("DifferentOperatorFee", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
 		diffSnap := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(20), big.NewInt(30), big.NewInt(99), big.NewInt(50))
-		AssertSnapshotsEqual(systestT, snap1, diffSnap)
-		assert.True(t, mockT.failed, "AssertSnapshotsEqual should fail for different OperatorFeeVault")
+		assert.False(t, SnapshotsEqual(snap1, diffSnap), "Different OperatorFeeVault should return false")
 	})
 
 	t.Run("DifferentFromBalance", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
 		diffSnap := newTestSnapshot(big.NewInt(1), big.NewInt(10), big.NewInt(20), big.NewInt(30), big.NewInt(40), big.NewInt(99))
-		AssertSnapshotsEqual(systestT, snap1, diffSnap)
-		assert.True(t, mockT.failed, "AssertSnapshotsEqual should fail for different FromBalance")
+		assert.False(t, SnapshotsEqual(snap1, diffSnap), "Different FromBalance should return false")
 	})
 
-	// Test require.NotNil checks within AssertSnapshotsEqual (which call FailNow)
-	t.Run("NilExpected", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
-		// Use assert.Panics because require.NotNil calls t.FailNow() which our mock makes panic
-		assert.Panics(t, func() {
-			AssertSnapshotsEqual(systestT, nil, snap2)
-		}, "AssertSnapshotsEqual should panic via FailNow when expected is nil")
-		assert.True(t, mockT.failed) // Check if FailNow was triggered
-	})
-
-	t.Run("NilActual", func(t *testing.T) {
-		mockT := &mockTB{TB: t}
-		systestT := systest.NewT(mockT)
-		assert.Panics(t, func() {
-			AssertSnapshotsEqual(systestT, snap1, nil)
-		}, "AssertSnapshotsEqual should panic via FailNow when actual is nil")
-		assert.True(t, mockT.failed) // Check if FailNow was triggered
+	t.Run("NilSnapshots", func(t *testing.T) {
+		assert.True(t, SnapshotsEqual(nil, nil), "Both nil should return true")
+		assert.False(t, SnapshotsEqual(snap1, nil), "One nil should return false")
+		assert.False(t, SnapshotsEqual(nil, snap1), "One nil should return false")
 	})
 }

@@ -23,6 +23,10 @@ type FaucetService struct {
 }
 
 func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
+	if n == nil || n.service == nil {
+		return
+	}
+
 	require := system.T().Require()
 
 	for faucetID, chainID := range n.service.Faucets() {
@@ -94,7 +98,9 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			}
 		}
 		cfg := &config.Config{
-			RPC: oprpc.CLIConfig{},
+			RPC: oprpc.CLIConfig{
+				ListenAddr: "127.0.0.1",
+			},
 			Faucets: &fconf.Config{
 				Faucets: faucets,
 			},

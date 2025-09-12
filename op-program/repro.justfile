@@ -32,27 +32,13 @@ op-program-client-mips:
         GITDATE={{GIT_DATE}} \
         VERSION={{OP_PROGRAM_VERSION}}
 
-# Run the op-program-client elf binary directly through cannon's load-elf subcommand.
-client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
-    #!/bin/bash
-    echo "Checking program version | $(go version /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf)"
-    /app/cannon/bin/cannon load-elf \
-        --type {{TYPE}} \
-        --path /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf \
-        --out /app/op-program/bin/prestate{{PRESTATE_SUFFIX}}.bin.gz \
-        --meta "/app/op-program/bin/meta{{PRESTATE_SUFFIX}}.json"
-
 # Generate the prestate proof containing the absolute pre-state hash.
-prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: (client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX)
+prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
     #!/bin/bash
-    /app/cannon/bin/cannon run \
-        --proof-at '=0' \
-        --stop-at '=1' \
-        --input /app/op-program/bin/prestate{{PRESTATE_SUFFIX}}.bin.gz \
-        --meta "" \
-        --proof-fmt '/app/op-program/bin/%d{{PRESTATE_SUFFIX}}.json' \
-        --output ""
-    mv /app/op-program/bin/0{{PRESTATE_SUFFIX}}.json /app/op-program/bin/prestate-proof{{PRESTATE_SUFFIX}}.json
+    go run /app/op-program/builder/main.go build-prestate \
+        --program-elf /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf \
+        --version {{TYPE}}\
+        --suffix {{PRESTATE_SUFFIX}}
 
 build-mt64: (prestate "multithreaded64-4" "64" "-mt64")
 build-mt64Next: (prestate "multithreaded64-5" "64" "-mt64Next")

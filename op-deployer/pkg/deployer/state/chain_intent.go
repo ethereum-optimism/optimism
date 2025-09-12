@@ -64,6 +64,7 @@ type ChainIntent struct {
 	Eip1559DenominatorCanyon   uint64                    `json:"eip1559DenominatorCanyon" toml:"eip1559DenominatorCanyon"`
 	Eip1559Denominator         uint64                    `json:"eip1559Denominator" toml:"eip1559Denominator"`
 	Eip1559Elasticity          uint64                    `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
+	GasLimit                   uint64                    `json:"gasLimit" toml:"gasLimit"`
 	Roles                      ChainRoles                `json:"roles" toml:"roles"`
 	DeployOverrides            map[string]any            `json:"deployOverrides" toml:"deployOverrides"`
 	DangerousAltDAConfig       genesis.AltDADeployConfig `json:"dangerousAltDAConfig,omitempty" toml:"dangerousAltDAConfig,omitempty"`
@@ -71,6 +72,7 @@ type ChainIntent struct {
 	OperatorFeeScalar          uint32                    `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
 	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
 	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
+	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -87,6 +89,7 @@ type ChainRoles struct {
 }
 
 var ErrFeeVaultZeroAddress = fmt.Errorf("chain has a fee vault set to zero address")
+var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
@@ -105,6 +108,11 @@ func (c *ChainIntent) Check() error {
 		c.Eip1559Elasticity == 0 {
 		return fmt.Errorf("%w: chainId=%s", ErrEip1559ZeroValue, c.ID)
 	}
+
+	if c.GasLimit == 0 {
+		return fmt.Errorf("%w: chainId=%s", ErrGasLimitZeroValue, c.ID)
+	}
+
 	if c.BaseFeeVaultRecipient == emptyAddress ||
 		c.L1FeeVaultRecipient == emptyAddress ||
 		c.SequencerFeeVaultRecipient == emptyAddress {

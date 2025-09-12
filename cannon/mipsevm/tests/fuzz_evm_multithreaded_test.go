@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
@@ -20,7 +21,7 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 		stackPtr     Word
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		// Update existing threads to avoid collision with nextThreadId
 		if mtutil.FindThread(state, c.nextThreadId) != nil {
 			for i, t := range mtutil.GetAllThreads(state) {

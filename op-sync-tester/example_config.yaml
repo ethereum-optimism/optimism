@@ -1,7 +1,10 @@
 synctesters:
   local:
     chain_id: 2151908
-    el_rpc: http://localhost:32988/
+    el_rpc: http://localhost:62654/
   sepolia:
     chain_id: 11155420
-    el_rpc:  https://sepolia.optimism.io
+    el_rpc: https://sepolia.optimism.io
+  mainnet:
+    chain_id: 10
+    el_rpc: https://mainnet.optimism.io

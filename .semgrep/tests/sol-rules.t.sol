@@ -712,3 +712,17 @@ contract SemgrepTest__sol_safety_try_catch_eip_150 {
         }
     }
 }
+
+contract SemgrepTest__sol_style_event_param_fmt {
+    // ok: sol-style-event-param-fmt
+    event OwnerChanged(address previousOwner, address newOwner);
+
+    // ruleid: sol-style-event-param-fmt
+    event OwnerChanged(address _previousOwner, address _newOwner);
+
+    // ruleid: sol-style-event-param-fmt
+    event OwnerChanged(address);
+
+    // ruleid: sol-style-event-param-fmt
+    event OwnerChanged(address NEW_OWNER);
+}

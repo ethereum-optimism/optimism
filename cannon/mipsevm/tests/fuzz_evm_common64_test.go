@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
@@ -68,9 +69,9 @@ func mulOpCheck(f *testing.F, multiplier multiplierFn, opcode uint32, expectRdRe
 	if expectRdReg {
 		rdReg = 19
 	}
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		insn := opcode<<26 | rsReg<<21 | rtReg<<16 | rdReg<<11 | funct
-		testutil.StoreInstruction(state.GetMemory(), 0, insn)
+		storeInsnWithCache(state, goVm, 0, insn)
 		state.GetRegistersRef()[rsReg] = c.rs
 		state.GetRegistersRef()[rtReg] = c.rt
 	}

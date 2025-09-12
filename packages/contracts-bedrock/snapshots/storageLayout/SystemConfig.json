@@ -124,5 +124,12 @@
     "offset": 0,
     "slot": "108",
     "type": "contract ISuperchainConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "isFeatureEnabled",
+    "offset": 0,
+    "slot": "109",
+    "type": "mapping(bytes32 => bool)"
   }
 ]

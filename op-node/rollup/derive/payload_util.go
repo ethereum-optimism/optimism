@@ -90,13 +90,14 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		Scalar:      info.L1FeeScalar,
 		GasLimit:    uint64(payload.GasLimit),
 	}
-	if rollupCfg.IsHolocene(uint64(payload.Timestamp)) {
-		if err := eip1559.ValidateHoloceneExtraData(payload.ExtraData); err != nil {
-			return eth.SystemConfig{}, err
-		}
-		d, e := eip1559.DecodeHoloceneExtraData(payload.ExtraData)
-		copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
+	err = eip1559.ValidateOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
+	if err != nil {
+		return eth.SystemConfig{}, err
 	}
+	d, e, _ := eip1559.DecodeOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
+	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
+	// TODO https://github.com/ethereum-optimism/optimism/issues/16839
+	// r.MinBaseFee = m
 
 	if rollupCfg.IsIsthmus(uint64(payload.Timestamp)) {
 		r.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{

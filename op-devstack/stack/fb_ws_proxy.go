@@ -2,6 +2,7 @@ package stack
 
 import (
 	"log/slog"
+	"net/http"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -11,6 +12,7 @@ type FlashblocksWebsocketProxy interface {
 	ChainID() eth.ChainID
 	ID() FlashblocksWebsocketProxyID
 	WsUrl() string
+	WsHeaders() http.Header
 }
 
 type FlashblocksWebsocketProxyID idWithChain

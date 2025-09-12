@@ -77,6 +77,7 @@ contract DeployConfig is Script {
 
     bool public useInterop;
     bool public useUpgradedFork;
+    bytes32 public devFeatureBitmap;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -149,6 +150,7 @@ contract DeployConfig is Script {
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
 
         useInterop = _readOr(_json, "$.useInterop", false);
+        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
     }
 
@@ -204,6 +206,11 @@ contract DeployConfig is Script {
     /// @notice Allow the `fundDevAccounts` config to be overridden.
     function setFundDevAccounts(bool _fundDevAccounts) public {
         fundDevAccounts = _fundDevAccounts;
+    }
+
+    /// @notice Allow the `devFeatureBitmap` config to be overridden in testing environments
+    function setDevFeatureBitmap(bytes32 _devFeatureBitmap) public {
+        devFeatureBitmap = _devFeatureBitmap;
     }
 
     /// @notice Allow the `useUpgradedFork` config to be overridden in testing environments

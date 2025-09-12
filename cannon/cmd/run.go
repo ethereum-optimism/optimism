@@ -99,7 +99,7 @@ var (
 	RunInfoAtFlag = &cli.GenericFlag{
 		Name:     "info-at",
 		Usage:    "step pattern to print info at: " + patternHelp,
-		Value:    MustStepMatcherFlag("%100000"),
+		Value:    MustStepMatcherFlag("%1000000000"),
 		Required: false,
 	}
 	RunPProfCPU = &cli.BoolFlag{
@@ -395,7 +395,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	state, err := versions.LoadStateFromFile(ctx.Path(RunInputFlag.Name))
+	state, err := versions.LoadStateFromFileWithLargeICache(ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return fmt.Errorf("failed to load state: %w", err)
 	}

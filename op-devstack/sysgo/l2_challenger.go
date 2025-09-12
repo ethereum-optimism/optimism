@@ -118,7 +118,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		cluster, ok := orch.clusters.Get(*clusterID)
 		require.True(ok)
 		prestateVariant := shared.InteropVariant
-		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, supervisorNode.userRPC, l2ELRPCs,
+		cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, supervisorNode.UserRPC(), l2ELRPCs,
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),

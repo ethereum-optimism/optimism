@@ -66,6 +66,10 @@ type FinalizerL1Interface interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 
+type EngineController interface {
+	PromoteFinalized(context.Context, eth.L2BlockRef)
+}
+
 type Finalizer struct {
 	mu sync.Mutex
 
@@ -76,6 +80,8 @@ type Finalizer struct {
 	cfg *rollup.Config
 
 	emitter event.Emitter
+
+	engineController EngineController
 
 	// finalizedL1 is the currently perceived finalized L1 block.
 	// This may be ahead of the current traversed origin when syncing.
@@ -96,13 +102,14 @@ type Finalizer struct {
 	l1Fetcher FinalizerL1Interface
 }
 
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface) *Finalizer {
+func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface, ec EngineController) *Finalizer {
 	lookback := calcFinalityLookback(cfg)
 	return &Finalizer{
 		ctx:              ctx,
 		cfg:              cfg,
 		log:              log,
 		finalizedL1:      eth.L1BlockRef{},
+		engineController: ec,
 		triedFinalizeAt:  0,
 		finalityData:     make([]FinalityData, 0, lookback),
 		finalityLookback: lookback,
@@ -247,7 +254,7 @@ func (fi *Finalizer) tryFinalize() {
 			})
 			return
 		}
-		fi.emitter.Emit(fi.ctx, engine.PromoteFinalizedEvent{Ref: finalizedL2})
+		fi.engineController.PromoteFinalized(ctx, finalizedL2)
 	}
 }
 

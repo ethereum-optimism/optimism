@@ -59,6 +59,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
+	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
 	st.ImplementationsDeployment.EthLockboxImpl = impls.ETHLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
 	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
@@ -101,7 +102,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		L2ChainId:                    chainID.Big(),
 		Opcm:                         st.ImplementationsDeployment.OpcmImpl,
 		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                     standard.GasLimit,
+		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          proofParams.DisputeMaxGameDepth,

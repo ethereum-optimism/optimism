@@ -257,24 +257,30 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 	}
 
 	payload := &eth.ExecutionPayload{
-		ParentHash:      block.ParentHash,
-		FeeRecipient:    block.Coinbase,
-		StateRoot:       eth.Bytes32(block.Root),
-		ReceiptsRoot:    eth.Bytes32(block.ReceiptHash),
-		LogsBloom:       block.Bloom,
-		PrevRandao:      eth.Bytes32(block.MixDigest), // mix-digest field is used for prevRandao post-merge
-		BlockNumber:     block.Number,
-		GasLimit:        block.GasLimit,
-		GasUsed:         block.GasUsed,
-		Timestamp:       block.Time,
-		ExtraData:       eth.BytesMax32(block.Extra),
-		BaseFeePerGas:   eth.Uint256Quantity(baseFee),
-		BlockHash:       block.Hash,
-		Transactions:    opaqueTxs,
-		Withdrawals:     block.Withdrawals,
-		BlobGasUsed:     block.BlobGasUsed,
-		ExcessBlobGas:   block.ExcessBlobGas,
-		WithdrawalsRoot: block.WithdrawalsRoot,
+		ParentHash:    block.ParentHash,
+		FeeRecipient:  block.Coinbase,
+		StateRoot:     eth.Bytes32(block.Root),
+		ReceiptsRoot:  eth.Bytes32(block.ReceiptHash),
+		LogsBloom:     block.Bloom,
+		PrevRandao:    eth.Bytes32(block.MixDigest), // mix-digest field is used for prevRandao post-merge
+		BlockNumber:   block.Number,
+		GasLimit:      block.GasLimit,
+		GasUsed:       block.GasUsed,
+		Timestamp:     block.Time,
+		ExtraData:     eth.BytesMax32(block.Extra),
+		BaseFeePerGas: eth.Uint256Quantity(baseFee),
+		BlockHash:     block.Hash,
+		Transactions:  opaqueTxs,
+		Withdrawals:   block.Withdrawals,
+		BlobGasUsed:   block.BlobGasUsed,
+		ExcessBlobGas: block.ExcessBlobGas,
+	}
+
+	// Only Isthmus execution payloads must set the withdrawals root.
+	// They are guaranteed to not be the empty withdrawals hash, which is set pre-Isthmus (post-Canyon).
+	if wr := block.WithdrawalsRoot; wr != nil && *wr != types.EmptyWithdrawalsHash {
+		wr := *wr
+		payload.WithdrawalsRoot = &wr
 	}
 
 	return &eth.ExecutionPayloadEnvelope{

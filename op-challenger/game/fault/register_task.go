@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
@@ -87,6 +88,25 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 }
 
 func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
+}
+
+func NewCannonKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+}
+
+func newCannonVMRegisterTaskWithConfig(
+	gameType faultTypes.GameType,
+	cfg *config.Config,
+	m caching.Metrics,
+	serverExecutor vm.OracleServerExecutor,
+	l2Client utils.L2HeaderSource,
+	rollupClient outputs.OutputRollupClient,
+	syncValidator SyncValidator,
+	vmCfg vm.Config,
+	preStateBaseURL *url.URL,
+	preState string,
+) *RegisterTask {
 	stateConverter := cannon.NewStateConverter(cfg.Cannon)
 	return &RegisterTask{
 		gameType:      gameType,
@@ -102,9 +122,9 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			gameType,
 			stateConverter,
 			m,
-			cfg.CannonAbsolutePreStateBaseURL,
-			cfg.CannonAbsolutePreState,
-			filepath.Join(cfg.Datadir, "cannon-prestates"),
+			preStateBaseURL,
+			preState,
+			filepath.Join(cfg.Datadir, vmCfg.VmType.String()+"-prestates"),
 			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
 			}),
@@ -119,7 +139,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			prestateBlock uint64,
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
-			return outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return outputs.NewOutputCannonTraceAccessor(logger, m, vmCfg, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }
@@ -287,7 +307,9 @@ func (e *RegisterTask) Register(
 	caller *batching.MultiCaller,
 	l1HeaderSource L1HeaderSource,
 	selective bool,
-	claimants []common.Address) error {
+	claimants []common.Address,
+	responseDelay time.Duration,
+	responseDelayAfter uint64) error {
 
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
@@ -337,7 +359,7 @@ func (e *RegisterTask) Register(
 			validators = append(validators, NewPrestateValidator(e.gameType.String(), contract.GetAbsolutePrestateHash, vmPrestateProvider))
 			validators = append(validators, NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider))
 		}
-		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants)
+		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants, responseDelay, responseDelayAfter)
 	}
 	err := registerOracle(ctx, logger, m, oracles, gameFactory, caller, e.gameType)
 	if err != nil {

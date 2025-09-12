@@ -70,6 +70,8 @@ type State struct {
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	LastHint hexutil.Bytes
+
+	UseLargeICache bool
 }
 
 var _ mipsevm.FPVMState = (*State)(nil)
@@ -333,7 +335,11 @@ func (s *State) Serialize(out io.Writer) error {
 
 func (s *State) Deserialize(in io.Reader) error {
 	bin := serialize.NewBinaryReader(in)
-	s.Memory = memory.NewMemory()
+	if s.UseLargeICache {
+		s.Memory = memory.NewMemoryWithLargeRegions()
+	} else {
+		s.Memory = memory.NewMemory()
+	}
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err
 	}

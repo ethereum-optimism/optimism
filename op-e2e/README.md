@@ -58,6 +58,10 @@ E.g. P2P, CLI usage, and dynamic block building are not covered.
 
 ### `system`-tests
 
+> [!IMPORTANT]
+> System tests are deprecated. While existing tests should continue to be maintained,
+> any net-new tests should be added in [op-acceptance-tests](../op-acceptance-tests/) instead.
+
 System tests are more complete than `action` tests, but also require a live system.
 This trade-off enables coverage of most of each Go service,
 at the cost of making navigation to cover the known edge-cases less reliable and reproducible.
