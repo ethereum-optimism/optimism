@@ -92,9 +92,21 @@ type ThrottleParams struct {
 	UpperThreshold      uint64
 	TxSizeLowerLimit    uint64
 	TxSizeUpperLimit    uint64
+	TxSizeAlwaysLimit   uint64
 	BlockSizeLowerLimit uint64
 	BlockSizeUpperLimit uint64
 	PIDConfig           *PIDConfig
 	ControllerType      ThrottleControllerType
 	Endpoints           []string
+	StepAlignment       StepThresholdAlignment
 }
+
+// StepThresholdAlignment controls where the step controller threshold is aligned
+// relative to the linear/quadratic controller range.
+type StepThresholdAlignment string
+
+const (
+	StepAlignStart  StepThresholdAlignment = "start"
+	StepAlignMiddle StepThresholdAlignment = "middle"
+	StepAlignEnd    StepThresholdAlignment = "end"
+)

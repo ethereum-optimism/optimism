@@ -150,9 +150,13 @@ The batcher includes sophisticated throttling mechanisms to manage data availabi
 
 **Quick Start:**
 ```bash
-# Configure basic throttling
---throttle-threshold=1000000
---throttle-controller-type=quadratic
+# Configure basic throttling (pending DA bytes)
+--throttle.unsafe-da-bytes-lower-threshold=2000000
+--throttle.unsafe-da-bytes-upper-threshold=40000000  # ~20x lower threshold
+--throttle.controller-type=quadratic
+
+# Optional: always-on tx-size limit even when not throttling
+--throttle.tx-size-always-limit=0
 
 # Runtime controller switching
 curl -X POST -H "Content-Type: application/json" \

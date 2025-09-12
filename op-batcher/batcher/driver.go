@@ -423,6 +423,12 @@ func (l *BatchSubmitter) unsafeDABytes() int64 {
 	return l.channelMgr.UnsafeDABytes()
 }
 
+func (l *BatchSubmitter) pendingDABytes() int64 {
+	l.channelMgrMutex.Lock()
+	defer l.channelMgrMutex.Unlock()
+	return l.channelMgr.PendingDABytes()
+}
+
 // sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
@@ -690,21 +696,27 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 	}
 
-	for unsafeBytes := range unsafeBytesUpdated {
-		l.Metr.RecordUnsafeDABytes(unsafeBytes)
-		newParams := l.throttleController.Update(uint64(unsafeBytes))
+	for range unsafeBytesUpdated {
+		// Record current unsafe bytes for visibility
+		currentUnsafe := l.unsafeDABytes()
+		l.Metr.RecordUnsafeDABytes(currentUnsafe)
+
+		// Compute throttle based on pending DA bytes (more immediately actionable backlog)
+		pendingBytes := l.pendingDABytes()
+		newParams := l.throttleController.Update(uint64(pendingBytes))
 		controllerType := l.throttleController.GetType()
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
 		if l.Config.ThrottleParams.LowerThreshold > 0 {
-			l.Metr.RecordUnsafeBytesVsThreshold(uint64(unsafeBytes), l.Config.ThrottleParams.LowerThreshold, controllerType)
+			l.Metr.RecordUnsafeBytesVsThreshold(uint64(pendingBytes), l.Config.ThrottleParams.LowerThreshold, controllerType)
 		}
 
 		// Update throttling state
 		if newParams.IsThrottling() {
-			l.Log.Warn("Throttling loop: unsafe bytes above threshold, scaling endpoint throttling based on intensity",
-				"unsafe_bytes", unsafeBytes,
+			l.Log.Warn("Throttling loop: pending bytes above threshold, scaling endpoint throttling based on intensity",
+				"pending_bytes", pendingBytes,
+				"unsafe_bytes", currentUnsafe,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
 				"max_block_size", newParams.MaxBlockSize,

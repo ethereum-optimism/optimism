@@ -29,12 +29,14 @@ type ThrottleConfig struct {
 
 	TxSizeLowerLimit    uint64
 	TxSizeUpperLimit    uint64
+	TxSizeAlwaysLimit   uint64
 	BlockSizeLowerLimit uint64
 	BlockSizeUpperLimit uint64
 
 	ControllerType config.ThrottleControllerType
 	LowerThreshold uint64
 	UpperThreshold uint64
+	StepAlignment  config.StepThresholdAlignment
 
 	// PID Controller specific parameters
 	PidKp          float64
@@ -219,7 +221,7 @@ func (c *CLIConfig) Check() error {
 
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context) *CLIConfig {
-	return &CLIConfig{
+	cfg := &CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
 		L2EthRpc:        ctx.StringSlice(flags.L2EthRpcFlag.Name),
@@ -252,11 +254,13 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 			AdditionalEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
 			TxSizeLowerLimit:    ctx.Uint64(flags.ThrottleTxSizeLowerLimitFlag.Name),
 			TxSizeUpperLimit:    ctx.Uint64(flags.ThrottleTxSizeUpperLimitFlag.Name),
+			TxSizeAlwaysLimit:   ctx.Uint64(flags.ThrottleTxSizeAlwaysLimitFlag.Name),
 			BlockSizeLowerLimit: ctx.Uint64(flags.ThrottleBlockSizeLowerLimitFlag.Name),
 			BlockSizeUpperLimit: ctx.Uint64(flags.ThrottleBlockSizeUpperLimitFlag.Name),
 			ControllerType:      config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
 			LowerThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesLowerThresholdFlag.Name),
 			UpperThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesUpperThresholdFlag.Name),
+			StepAlignment:       config.StepThresholdAlignment(ctx.String(flags.ThrottleStepAlignmentFlag.Name)),
 			PidKp:               ctx.Float64(flags.ThrottlePidKpFlag.Name),
 			PidKi:               ctx.Float64(flags.ThrottlePidKiFlag.Name),
 			PidKd:               ctx.Float64(flags.ThrottlePidKdFlag.Name),
@@ -265,4 +269,15 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 			PidSampleTime:       ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
 		},
 	}
+
+	// Backwards-compat for deprecated multiplier flag: only apply if explicit upper threshold not set
+	if !ctx.IsSet(flags.ThrottleUsafeDABytesUpperThresholdFlag.Name) {
+		mult := ctx.Float64(flags.ThrottleThresholdMultiplierFlag.Name)
+		if mult > 0 {
+			lt := cfg.ThrottleConfig.LowerThreshold
+			cfg.ThrottleConfig.UpperThreshold = uint64(float64(lt) * mult)
+		}
+	}
+
+	return cfg
 }

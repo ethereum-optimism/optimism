@@ -37,6 +37,7 @@ type ThrottleStrategy interface {
 type ThrottleConfig struct {
 	TxSizeLowerLimit    uint64
 	TxSizeUpperLimit    uint64
+	TxSizeAlwaysLimit   uint64
 	BlockSizeLowerLimit uint64
 	BlockSizeUpperLimit uint64
 }

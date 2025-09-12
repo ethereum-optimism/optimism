@@ -111,10 +111,12 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
 		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
 		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		TxSizeAlwaysLimit:   cfg.ThrottleConfig.TxSizeAlwaysLimit,
 		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
 		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
 		ControllerType:      cfg.ThrottleConfig.ControllerType,
 		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
+		StepAlignment:       cfg.ThrottleConfig.StepAlignment,
 	}
 
 	if bs.ThrottleParams.ControllerType == config.PIDControllerType {

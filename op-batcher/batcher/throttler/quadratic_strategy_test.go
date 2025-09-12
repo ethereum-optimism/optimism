@@ -14,8 +14,8 @@ const (
 	TestQuadraticTxSize       = 3_500                                                             // 3.5KB transaction size limit
 	TestQuadraticBlockSize    = 16_000                                                            // 16KB block size limit
 	TestQuadraticAlwaysSize   = 110_000                                                           // 110KB always block size
-	TestQuadraticMultiplier   = 2.0                                                               // 3x threshold multiplier
-	TestQuadraticMaxThreshold = uint64(float64(TestQuadraticThreshold) * TestQuadraticMultiplier) // 1.8MB max threshold
+	TestQuadraticMultiplier   = 2.0                                                               // 2x threshold multiplier
+	TestQuadraticMaxThreshold = uint64(float64(TestQuadraticThreshold) * TestQuadraticMultiplier) // 1.2MB max threshold
 )
 
 func TestQuadraticStrategy_NewQuadraticStrategy(t *testing.T) {

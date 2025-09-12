@@ -115,12 +115,17 @@ func (tc *ThrottleController) intensityToBlockSize(intensity float64, cfg Thrott
 
 // intensityToTxSize converts intensity in [0,1] to tx size
 func (tc *ThrottleController) intensityToTxSize(intensity float64, cfg ThrottleConfig) uint64 {
+	// If no throttling lower limit is set, return always-on limit if configured
 	if cfg.TxSizeLowerLimit == 0 {
-		return 0
+		return cfg.TxSizeAlwaysLimit
 	}
 
 	if intensity == 0 {
-		return 0 // Transactions are not throttled at 0 intensity
+		// Apply always-on limit if configured; otherwise no tx throttling at zero intensity
+		if cfg.TxSizeAlwaysLimit > 0 {
+			return cfg.TxSizeAlwaysLimit
+		}
+		return 0
 	} else {
 		switch tc.strategy.GetType() {
 		case config.StepControllerType:
@@ -212,6 +217,7 @@ func (f *ThrottleControllerFactory) CreateController(
 	throttleConfig := ThrottleConfig{
 		TxSizeLowerLimit:    throttleParams.TxSizeLowerLimit,
 		TxSizeUpperLimit:    throttleParams.TxSizeUpperLimit,
+		TxSizeAlwaysLimit:   throttleParams.TxSizeAlwaysLimit,
 		BlockSizeLowerLimit: throttleParams.BlockSizeLowerLimit,
 		BlockSizeUpperLimit: throttleParams.BlockSizeUpperLimit,
 	}
@@ -223,7 +229,23 @@ func (f *ThrottleControllerFactory) CreateController(
 
 	switch controllerType {
 	case config.StepControllerType:
-		strategy = NewStepStrategy(throttleParams.LowerThreshold)
+		// Align the step threshold within the [lower, upper] range based on configuration
+		stepThreshold := throttleParams.LowerThreshold
+		switch throttleParams.StepAlignment {
+		case config.StepAlignStart:
+			stepThreshold = throttleParams.LowerThreshold
+		case config.StepAlignEnd:
+			if throttleParams.UpperThreshold > throttleParams.LowerThreshold {
+				stepThreshold = throttleParams.UpperThreshold
+			}
+		case config.StepAlignMiddle:
+			fallthrough
+		default:
+			if throttleParams.UpperThreshold > throttleParams.LowerThreshold {
+				stepThreshold = throttleParams.LowerThreshold + (throttleParams.UpperThreshold-throttleParams.LowerThreshold)/2
+			}
+		}
+		strategy = NewStepStrategy(stepThreshold)
 	case config.LinearControllerType:
 		strategy = NewLinearStrategy(throttleParams.LowerThreshold, throttleParams.UpperThreshold, f.log)
 	case config.QuadraticControllerType:

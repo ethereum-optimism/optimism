@@ -16,8 +16,10 @@ const (
 
 	// Controller side
 	DefaultThrottleControllerType = "quadratic"
-	DefaultThrottleLowerThreshold = 3_200_000 // allows for 4x 6-blob-tx channels at ~131KB per blob
-	DefaultThrottleUpperThreshold = DefaultThrottleLowerThreshold * 4
+	// Default thresholds tuned for unsafe_da_bytes metric: allow ~2 channels worth before throttling
+	DefaultThrottleLowerThreshold = 2_000_000
+	// Upper threshold defaults to 20x the lower threshold for smoothness
+	DefaultThrottleUpperThreshold = DefaultThrottleLowerThreshold * 20
 	DefaultPIDSampleTime          = 2 * time.Second
 	DefaultPIDKp                  = 0.33
 	DefaultPIDKi                  = 0.01
@@ -40,6 +42,13 @@ var (
 		Usage:   "The limit on the DA size of transactions when we are at maximum throttle intensity. 0 means no limits will ever be applied, so consider 1 the smallest effective limit.",
 		Value:   DefaultThrottleTxSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_LOWER_LIMIT"),
+	}
+	// Always-on Tx-size limit (applies even when intensity == 0)
+	ThrottleTxSizeAlwaysLimitFlag = &cli.Uint64Flag{
+		Name:    "throttle.tx-size-always-limit",
+		Usage:   "Optional always-on limit on the DA size of transactions, applied even when throttling is inactive (intensity == 0). 0 disables this always-on limit.",
+		Value:   0,
+		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_ALWAYS_LIMIT"),
 	}
 	ThrottleTxSizeUpperLimitFlag = &cli.Uint64Flag{
 		Name:    "throttle.tx-size-upper-limit",
@@ -78,6 +87,21 @@ var (
 			return fmt.Errorf("throttle.controller-type must be one of %v, got %s", validTypes, value)
 		},
 	}
+	// Step controller threshold alignment within [lower, upper] range
+	ThrottleStepAlignmentFlag = &cli.StringFlag{
+		Name:    "throttle.step-threshold-alignment",
+		Usage:   "Alignment for the step controller threshold within [lower, upper] range: 'start' | 'middle' | 'end'. Only relevant for 'step' controller.",
+		Value:   "middle",
+		EnvVars: prefixEnvVars("THROTTLE_STEP_THRESHOLD_ALIGNMENT"),
+		Action: func(_ *cli.Context, value string) error {
+			switch value {
+			case "start", "middle", "end":
+				return nil
+			default:
+				return fmt.Errorf("invalid throttle.step-threshold-alignment: %s (must be 'start' | 'middle' | 'end')", value)
+			}
+		},
+	}
 	ThrottleUsafeDABytesLowerThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle.unsafe-da-bytes-lower-threshold",
 		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
@@ -89,6 +113,20 @@ var (
 		Usage:   "Threshold on unsafe_da_bytes at which throttling has the maximum intensity (linear and quadratic controllers only)",
 		Value:   DefaultThrottleUpperThreshold,
 		EnvVars: prefixEnvVars("THROTTLE_UNSAFE_DA_BYTES_UPPER_THRESHOLD"),
+	}
+	// Deprecated: multiplier for upper threshold. Prefer explicit upper threshold flag above.
+	ThrottleThresholdMultiplierFlag = &cli.Float64Flag{
+		Name:    "throttle.threshold-multiplier",
+		Usage:   "DEPRECATED: Multiplier applied to lower-threshold to derive upper-threshold. Use throttle.unsafe-da-bytes-upper-threshold instead.",
+		Value:   0,
+		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD_MULTIPLIER"),
+		Hidden:  true,
+		Action: func(_ *cli.Context, value float64) error {
+			if value < 0 {
+				return fmt.Errorf("throttle.threshold-multiplier must be >= 0, got %f", value)
+			}
+			return nil
+		},
 	}
 
 	// Controller side (EXPERIMENTAL PID Controller only)
@@ -163,12 +201,15 @@ var (
 var ThrottleFlags = []cli.Flag{
 	AdditionalThrottlingEndpointsFlag,
 	ThrottleTxSizeLowerLimitFlag,
+	ThrottleTxSizeAlwaysLimitFlag,
 	ThrottleTxSizeUpperLimitFlag,
 	ThrottleBlockSizeLowerLimitFlag,
 	ThrottleBlockSizeUpperLimitFlag,
 	ThrottleControllerTypeFlag,
+	ThrottleStepAlignmentFlag,
 	ThrottleUsafeDABytesLowerThresholdFlag,
 	ThrottleUsafeDABytesUpperThresholdFlag,
+	ThrottleThresholdMultiplierFlag,
 	// PID controller flags (only used when controller type is 'pid')
 	ThrottlePidKpFlag,
 	ThrottlePidKiFlag,
