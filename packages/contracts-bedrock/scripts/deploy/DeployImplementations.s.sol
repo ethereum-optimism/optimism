@@ -15,15 +15,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import {
-    IOPContractsManager,
-    IOPContractsManagerGameTypeAdder,
-    IOPContractsManagerDeployer,
-    IOPContractsManagerUpgrader,
-    IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator
-} from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -58,11 +50,6 @@ contract DeployImplementations is Script {
 
     struct Output {
         IOPContractsManager opcm;
-        IOPContractsManagerContractsContainer opcmContractsContainer;
-        IOPContractsManagerGameTypeAdder opcmGameTypeAdder;
-        IOPContractsManagerDeployer opcmDeployer;
-        IOPContractsManagerUpgrader opcmUpgrader;
-        IOPContractsManagerInteropMigrator opcmInteropMigrator;
         IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
@@ -140,19 +127,14 @@ contract DeployImplementations is Script {
             mipsImpl: address(_output.mipsSingleton)
         });
 
-        deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
-        deployOPCMGameTypeAdder(_output);
-        deployOPCMDeployer(_input, _output);
-        deployOPCMUpgrader(_output);
-        deployOPCMInteropMigrator(_output);
         deployOPCMStandardValidator(_input, _output, implementations);
 
-        // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
-            // nosemgrep: sol-safety-deployutils-args
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
-                _args: encodeOPCMConstructor(_input, _output),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManager.__constructor__, (_blueprints, _implementations))
+                ),
                 _salt: _salt
             })
         );
