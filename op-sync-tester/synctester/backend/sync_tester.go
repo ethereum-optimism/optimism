@@ -88,6 +88,15 @@ func (s *SyncTester) DeleteSession(ctx context.Context) error {
 	return err
 }
 
+func (s *SyncTester) ResetSession(ctx context.Context) error {
+	_, err := session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (any, error) {
+		logger.Debug("ResetSession")
+		session.ResetSession()
+		return struct{}{}, nil
+	})
+	return err
+}
+
 func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 	ids := s.sessMgr.SessionIDs()
 	s.log.Debug("ListSessions", "count", len(ids))

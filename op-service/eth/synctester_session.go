@@ -32,6 +32,12 @@ func (s *SyncTesterSession) UpdateFCUState(latest, safe, finalized uint64) {
 	s.CurrentState.Finalized = finalized
 }
 
+func (s *SyncTesterSession) ResetSession() {
+	s.CurrentState = s.InitialState
+	s.Validated = s.InitialState.Latest
+	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
+}
+
 func NewSyncTesterSession(sessionID string, latest, safe, finalized uint64) *SyncTesterSession {
 	return &SyncTesterSession{
 		SessionID: sessionID,
