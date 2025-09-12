@@ -78,7 +78,7 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
         timeout: 5m
-  
+
   - id: flashblocks-with-isthmus
     inherits:
       - isthmus
@@ -92,3 +92,11 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_ext_el
         timeout: 30m
+
+  - id: jovian
+    inherits:
+      - base
+    description: "Jovian network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian
+        timeout: 10m

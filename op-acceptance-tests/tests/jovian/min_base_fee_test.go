@@ -38,8 +38,8 @@ type minBaseFee struct {
 }
 
 type minBaseFeeSystemConfig struct {
-	setMinBaseFee func(minBaseFee uint64) bindings.TypedCall[any] `sol:"setMinBaseFee"`
-	minBaseFee    func() bindings.TypedCall[uint64]               `sol:"minBaseFee"`
+	SetMinBaseFee func(minBaseFee uint64) bindings.TypedCall[any] `sol:"setMinBaseFee"`
+	MinBaseFee    func() bindings.TypedCall[uint64]               `sol:"minBaseFee"`
 }
 
 func newMinBaseFee(t devtest.T, l2Network *dsl.L2Network, l1EL *dsl.L1ELNode, l2EL *dsl.L2ELNode) *minBaseFee {
@@ -48,7 +48,7 @@ func newMinBaseFee(t devtest.T, l2Network *dsl.L2Network, l1EL *dsl.L1ELNode, l2
 		bindings.WithTo(l2Network.Escape().Deployment().SystemConfigProxyAddr()),
 		bindings.WithTest(t))
 
-	originalMinBaseFee, err := contractio.Read(systemConfig.minBaseFee(), t.Ctx())
+	originalMinBaseFee, err := contractio.Read(systemConfig.MinBaseFee(), t.Ctx())
 	t.Require().NoError(err, "reading original minBaseFee")
 
 	return &minBaseFee{
@@ -65,7 +65,7 @@ func newMinBaseFee(t devtest.T, l2Network *dsl.L2Network, l1EL *dsl.L1ELNode, l2
 }
 
 func (mbf *minBaseFee) checkCompatibility() bool {
-	_, err := contractio.Read(mbf.systemConfig.minBaseFee(), mbf.ctx)
+	_, err := contractio.Read(mbf.systemConfig.MinBaseFee(), mbf.ctx)
 	if err != nil {
 		mbf.t.Fail()
 		return false
@@ -81,23 +81,27 @@ func (mbf *minBaseFee) getSystemOwner() *dsl.EOA {
 func (mbf *minBaseFee) setMinBaseFee(minBaseFee uint64) {
 	owner := mbf.getSystemOwner()
 
-	_, err := contractio.Write(mbf.systemConfig.setMinBaseFee(minBaseFee), mbf.ctx, owner.Plan())
+	_, err := contractio.Write(mbf.systemConfig.SetMinBaseFee(minBaseFee), mbf.ctx, owner.Plan())
 	mbf.require.NoError(err, "setMinBaseFee transaction failed")
 
 	mbf.t.Logf("Set min base fee on L1: minBaseFee=%d", minBaseFee)
 }
 
 func (mbf *minBaseFee) checkBaseFeeCanDecrease() {
+	var prevBlockNum uint64
 	// Ensure we are past genesis and collect a small sample across advancing blocks
 	_ = mbf.l2EL.WaitForBlock()
 	el := mbf.l2EL.Escape().EthClient()
 	bases := make([]*big.Int, 0, 6)
 	info, err := el.InfoByLabel(mbf.ctx, "latest")
+	prevBlockNum = info.NumberU64()
 	mbf.require.NoError(err)
 	bases = append(bases, info.BaseFee())
 	for range 5 {
 		_ = mbf.l2EL.WaitForBlock()
 		next, err := el.InfoByLabel(mbf.ctx, "latest")
+		mbf.require.Greater(next.NumberU64(), prevBlockNum, "expected block number to increase")
+		prevBlockNum = next.NumberU64()
 		mbf.require.NoError(err)
 		bases = append(bases, next.BaseFee())
 	}
@@ -147,7 +151,11 @@ func (mbf *minBaseFee) waitForMinBaseFee(expected uint64) {
 		}
 
 		// Assert payload has Jovian extraData format (17 bytes)
-		actualExtraData := payload.ExecutionPayload.ExtraData
+		actualExtraData, err := payload.ExecutionPayload.ExtraData.MarshalText()
+		if err != nil {
+			mbf.t.Logf("Failed to get extra data: %v", err)
+			return false
+		}
 		if len(actualExtraData) != 17 {
 			mbf.t.Logf("ExtraData length is %d, expected 17 bytes for Jovian format", len(actualExtraData))
 			return false
