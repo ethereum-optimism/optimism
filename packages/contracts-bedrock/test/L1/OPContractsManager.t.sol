@@ -1554,13 +1554,13 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         // Check that the DisputeGameFactory has implementations for both games.
         assertEq(
             disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA).gameType().raw(),
-            GameTypes.SUPER_CANNON.raw(),
+            GameTypes.SUPER_CANNON_KONA.raw(),
             "Super Cannon game type not set properly"
         );
         assertEq(
             disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON).gameType().raw(),
             GameTypes.SUPER_PERMISSIONED_CANNON.raw(),
-            "Super Permissioned Cannon game type not set properly"
+            "Super Permissioned Cannon-Kona game type not set properly"
         );
         assertEq(
             disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA),
