@@ -614,6 +614,7 @@ type SystemConfig struct {
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
 	// More fields can be added for future SystemConfig versions.
+	MinBaseFee uint64 `json:"minBaseFee"`
 
 	// MarshalPreHolocene indicates whether or not this struct should be
 	// marshaled in the pre-Holocene format. The pre-Holocene format does
