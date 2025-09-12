@@ -84,7 +84,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     uint256 l2ChainId;
 
     /// @notice The absolute prestate, either from config or dummy value if fork test.
-    Claim absolutePrestate;
+    Claim cannonPrestate;
 
     /// @notice The PermissionedDisputeGame instance.
     IPermissionedDisputeGame pdg;
@@ -117,7 +117,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         // address in fork tests but it's fine.
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
-            absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
 
             vm.mockCall(
                 address(proxyAdmin),
@@ -148,7 +148,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             );
         } else {
             l2ChainId = deployInput.l2ChainId;
-            absolutePrestate = deployInput.disputeAbsolutePrestate;
+            cannonPrestate = deployInput.disputeAbsolutePrestate;
         }
 
         // Deploy the BadDisputeGameFactoryReturner once.
@@ -170,7 +170,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                             (
                                 IFaultDisputeGame.GameConstructorParams({
                                     gameType: GameTypes.CANNON,
-                                    absolutePrestate: absolutePrestate,
+                                    absolutePrestate: cannonPrestate,
                                     maxGameDepth: 73,
                                     splitDepth: 30,
                                     clockExtension: Duration.wrap(10800),
@@ -200,7 +200,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: absolutePrestate.raw(),
+                absolutePrestate: cannonPrestate.raw(),
                 l2ChainID: l2ChainId
             }),
             _allowFailure
@@ -222,7 +222,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: absolutePrestate.raw(),
+                absolutePrestate: cannonPrestate.raw(),
                 l2ChainID: l2ChainId
             }),
             _allowFailure,
