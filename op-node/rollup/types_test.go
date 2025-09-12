@@ -148,7 +148,7 @@ func TestCheckL1BlockRefByNumber(t *testing.T) {
 	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.Error(t, err)
 
-	mockClient.err = errors.New("not found")
+	mockClient.err = errors.New("block not found")
 	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.NoError(t, err)
 }
