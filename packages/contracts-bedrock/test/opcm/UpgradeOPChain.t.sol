@@ -55,7 +55,8 @@ contract UpgradeOPChainInput_Test is Test {
         configs[0] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
             proxyAdmin: IProxyAdmin(proxyAdmin1),
-            absolutePrestate: Claim.wrap(bytes32(uint256(1)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
         // Setup mock addresses and contracts for second config
@@ -67,7 +68,8 @@ contract UpgradeOPChainInput_Test is Test {
         configs[1] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
             proxyAdmin: IProxyAdmin(proxyAdmin2),
-            absolutePrestate: Claim.wrap(bytes32(uint256(2)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(3))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(4)))
         });
 
         input.set(input.opChainConfigs.selector, configs);
@@ -78,8 +80,8 @@ contract UpgradeOPChainInput_Test is Test {
         // Additional verification of stored claims if needed
         OPContractsManager.OpChainConfig[] memory decodedConfigs =
             abi.decode(storedConfigs, (OPContractsManager.OpChainConfig[]));
-        assertEq(Claim.unwrap(decodedConfigs[0].absolutePrestate), bytes32(uint256(1)));
-        assertEq(Claim.unwrap(decodedConfigs[1].absolutePrestate), bytes32(uint256(2)));
+        assertEq(Claim.unwrap(decodedConfigs[0].cannonPrestate), bytes32(uint256(1)));
+        assertEq(Claim.unwrap(decodedConfigs[1].cannonPrestate), bytes32(uint256(2)));
     }
 
     function test_setAddress_withZeroAddress_reverts() public {
@@ -111,7 +113,8 @@ contract UpgradeOPChainInput_Test is Test {
         configs[0] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
             proxyAdmin: IProxyAdmin(mockProxyAdmin),
-            absolutePrestate: Claim.wrap(bytes32(uint256(1)))
+            cannonPrestate: Claim.wrap(bytes32(uint256(1))),
+            cannonKonaPrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
         vm.expectRevert("UpgradeOPCMInput: unknown selector");
@@ -120,13 +123,16 @@ contract UpgradeOPChainInput_Test is Test {
 }
 
 contract MockOPCM {
-    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event UpgradeCalled(
+        address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 cannonPrestate, bytes32 cannonKonaPrestate
+    );
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
         emit UpgradeCalled(
             address(_opChainConfigs[0].systemConfigProxy),
             address(_opChainConfigs[0].proxyAdmin),
-            Claim.unwrap(_opChainConfigs[0].absolutePrestate)
+            Claim.unwrap(_opChainConfigs[0].cannonPrestate),
+            Claim.unwrap(_opChainConfigs[0].cannonKonaPrestate)
         );
     }
 }
@@ -138,7 +144,9 @@ contract UpgradeOPChain_Test is Test {
     UpgradeOPChain upgradeOPChain;
     address prank;
 
-    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event UpgradeCalled(
+        address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 cannonPrestate, bytes32 cannonKonaPrestate
+    );
 
     function setUp() public virtual {
         mockOPCM = new MockOPCM();
@@ -147,7 +155,8 @@ contract UpgradeOPChain_Test is Test {
         config = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
             proxyAdmin: IProxyAdmin(makeAddr("proxyAdmin")),
-            absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
+            cannonPrestate: Claim.wrap(keccak256("cannonPrestate")),
+            cannonKonaPrestate: Claim.wrap(keccak256("cannonKonaPrestate"))
         });
         OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
         configs[0] = config;
@@ -161,7 +170,10 @@ contract UpgradeOPChain_Test is Test {
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
         emit UpgradeCalled(
-            address(config.systemConfigProxy), address(config.proxyAdmin), Claim.unwrap(config.absolutePrestate)
+            address(config.systemConfigProxy),
+            address(config.proxyAdmin),
+            Claim.unwrap(config.cannonPrestate),
+            Claim.unwrap(config.cannonKonaPrestate)
         );
         upgradeOPChain.run(uoci);
     }

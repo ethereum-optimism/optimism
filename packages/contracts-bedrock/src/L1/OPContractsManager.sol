@@ -566,11 +566,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
     function updatePrestate(OPContractsManager.OpChainConfig[] memory _prestateUpdateInputs) public {
         // Loop through each chain and prestate hash
         for (uint256 i = 0; i < _prestateUpdateInputs.length; i++) {
-            // Ensure that the prestate is not the zero hash.
-            if (Claim.unwrap(_prestateUpdateInputs[i].absolutePrestate) == bytes32(0)) {
-                revert OPContractsManager.PrestateRequired();
-            }
-
             // Grab the DisputeGameFactory.
             IDisputeGameFactory dgf =
                 IDisputeGameFactory(_prestateUpdateInputs[i].systemConfigProxy.disputeGameFactory());
@@ -600,6 +595,16 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     continue;
                 }
 
+                Claim prestate = gameType.raw() == GameTypes.CANNON_KONA.raw()
+                    || gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+                    ? _prestateUpdateInputs[i].cannonKonaPrestate
+                    : _prestateUpdateInputs[i].cannonPrestate;
+
+                // Ensure that the prestate is not the zero hash.
+                if (Claim.unwrap(prestate) == bytes32(0)) {
+                    revert OPContractsManager.PrestateRequired();
+                }
+
                 // Track the game types that we've seen so far.
                 if (
                     gameType.raw() == GameTypes.SUPER_CANNON.raw()
@@ -620,7 +625,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
                 // Create a new game input with the updated prestate.
                 OPContractsManager.AddGameInput memory input = OPContractsManager.AddGameInput({
-                    disputeAbsolutePrestate: _prestateUpdateInputs[i].absolutePrestate,
+                    disputeAbsolutePrestate: prestate,
                     saltMixer: reusableSaltMixer(_prestateUpdateInputs[i]),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
                     proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
@@ -890,8 +895,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
         // that already exists on the current dispute game.
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
-            params.absolutePrestate = _opChainConfig.absolutePrestate;
+        if (
+            (_gameType.raw() == GameTypes.CANNON_KONA.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw())
+                && Claim.unwrap(_opChainConfig.cannonKonaPrestate) != bytes32(0)
+        ) {
+            params.absolutePrestate = _opChainConfig.cannonKonaPrestate;
+        } else if (Claim.unwrap(_opChainConfig.cannonPrestate) != bytes32(0)) {
+            params.absolutePrestate = _opChainConfig.cannonPrestate;
         }
 
         // As a sanity check, if the prestate is zero here, revert.
@@ -1431,7 +1441,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
                 revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
             }
-            if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
+            if (_input.opChainConfigs[i].cannonPrestate.raw() != _input.opChainConfigs[0].cannonPrestate.raw()) {
+                revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+            }
+            if (_input.opChainConfigs[i].cannonKonaPrestate.raw() != _input.opChainConfigs[0].cannonKonaPrestate.raw())
+            {
                 revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
             }
         }
@@ -1597,7 +1611,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
+                            absolutePrestate: _input.opChainConfigs[0].cannonPrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
@@ -1620,8 +1634,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
 
-        // If the permissionless game is being used, set that up too.
-        if (_input.usePermissionlessGame) {
+        // If the cannon game is being used, set that up too.
+        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonPrestate) != bytes32(0)) {
             // Deploy a new DelayedWETH proxy for the permissionless game.
             IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
                 payable(
@@ -1629,7 +1643,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                         _l2ChainId: block.timestamp,
                         _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                        _contractName: "DelayedWETH-Interop-Permissionless"
+                        _contractName: "DelayedWETH-Interop-Cannon"
                     })
                 )
             );
@@ -1651,7 +1665,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
+                            absolutePrestate: _input.opChainConfigs[0].cannonPrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
@@ -1668,6 +1682,56 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Register the new SuperFaultDisputeGame.
             newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
+        }
+
+        // If the cannon-kona game is being used, set that up too.
+        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) != (bytes32(0))) {
+            // Deploy a new DelayedWETH proxy for the permissionless game.
+            IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
+                payable(
+                    deployProxy({
+                        _l2ChainId: block.timestamp,
+                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                        _contractName: "DelayedWETH-Interop-CannonKona"
+                    })
+                )
+            );
+
+            // Initialize the new DelayedWETH proxy.
+            upgradeToAndCall(
+                _input.opChainConfigs[0].proxyAdmin,
+                address(newPermissionlessDelayedWETHProxy),
+                getImplementations().delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
+            );
+
+            // Deploy the new SuperFaultDisputeGame.
+            ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
+                Blueprint.deployFrom(
+                    blueprints().superPermissionlessDisputeGame1,
+                    blueprints().superPermissionlessDisputeGame2,
+                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
+                    encodePermissionlessSuperFDGConstructor(
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.SUPER_CANNON_KONA,
+                            absolutePrestate: _input.opChainConfigs[0].cannonKonaPrestate,
+                            maxGameDepth: _input.gameParameters.maxGameDepth,
+                            splitDepth: _input.gameParameters.splitDepth,
+                            clockExtension: _input.gameParameters.clockExtension,
+                            maxClockDuration: _input.gameParameters.maxClockDuration,
+                            vm: IBigStepper(getImplementations().mipsImpl),
+                            weth: newPermissionlessDelayedWETHProxy,
+                            anchorStateRegistry: newAnchorStateRegistry,
+                            l2ChainId: 0
+                        })
+                    )
+                )
+            );
+
+            // Register the new SuperFaultDisputeGame.
+            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(newSuperFDG)));
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON_KONA, _input.gameParameters.initBond);
         }
     }
 }
@@ -1768,7 +1832,8 @@ contract OPContractsManager is ISemver {
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     struct AddGameInput {
