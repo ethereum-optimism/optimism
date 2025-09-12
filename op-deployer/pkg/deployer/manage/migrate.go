@@ -53,9 +53,10 @@ func (u *InteropMigrationInput) OpChainConfigs() ([]byte, error) {
 }
 
 type OPChainConfig struct {
-	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	ProxyAdmin        common.Address `json:"proxyAdmin"`
-	AbsolutePrestate  common.Hash    `json:"absolutePrestate"`
+	SystemConfigProxy  common.Address `json:"systemConfigProxy"`
+	ProxyAdmin         common.Address `json:"proxyAdmin"`
+	CannonPrestate     common.Hash    `json:"cannonPrestate"`
+	CannonKonaPrestate common.Hash    `json:"cannonKonaPrestate"`
 }
 
 type InteropMigrationOutput struct {
@@ -66,7 +67,7 @@ func (output *InteropMigrationOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,address proxyAdmin,bytes32 absolutePrestate)[])", "")
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,address proxyAdmin,bytes32 cannonPrestate,bytes32 cannonKonaPrestate)[])", "")
 
 type InteropMigration struct {
 	Run func(input common.Address)
@@ -113,7 +114,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 			{
 				SystemConfigProxy: common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
 				ProxyAdmin:        common.HexToAddress(cliCtx.String(OPChainProxyAdminFlag.Name)),
-				AbsolutePrestate:  common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
+				CannonPrestate:    common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
 			},
 		},
 	}
