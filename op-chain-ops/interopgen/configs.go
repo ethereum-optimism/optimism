@@ -43,6 +43,7 @@ type SuperchainConfig struct {
 
 	ProxyAdminOwner       common.Address
 	ProtocolVersionsOwner common.Address
+	Proposer              common.Address
 	Challenger            common.Address
 
 	Paused bool
@@ -58,6 +59,12 @@ func (c *SuperchainConfig) Check(log log.Logger) error {
 	}
 	if c.ProxyAdminOwner == (common.Address{}) {
 		return errors.New("missing superchain ProxyAdminOwner address")
+	}
+	if c.Proposer == (common.Address{}) {
+		return errors.New("missing superchain Proposer address")
+	}
+	if c.Challenger == (common.Address{}) {
+		return errors.New("missing superchain Challenger address")
 	}
 	if err := c.SuperchainL1DeployConfig.Check(log); err != nil {
 		return err

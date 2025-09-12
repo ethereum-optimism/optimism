@@ -206,7 +206,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		SuperchainConfigProxy: superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
 		UpgradeController:     superCfg.ProxyAdminOwner,
-		Proposer:              superCfg.Challenger, // Using Challenger as default Proposer
+		Proposer:              superCfg.Proposer,
 		Challenger:            superCfg.Challenger,
 	})
 	if err != nil {

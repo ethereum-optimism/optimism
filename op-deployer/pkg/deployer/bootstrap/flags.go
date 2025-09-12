@@ -139,6 +139,11 @@ var (
 		Usage:   "Path to a JSON file",
 		EnvVars: deployer.PrefixEnvVar("CONFIG"),
 	}
+	ProposerFlag = &cli.StringFlag{
+		Name:    "proposer",
+		Usage:   "Proposer.",
+		EnvVars: deployer.PrefixEnvVar("PROPOSER"),
+	}
 	ChallengerFlag = &cli.StringFlag{
 		Name:    "challenger",
 		Usage:   "Challenger.",
@@ -162,6 +167,7 @@ var ImplementationsFlags = []cli.Flag{
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
 	SuperchainProxyAdminFlag,
+	ProposerFlag,
 	ChallengerFlag,
 }
 

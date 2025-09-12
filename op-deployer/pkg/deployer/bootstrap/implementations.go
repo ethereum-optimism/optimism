@@ -43,6 +43,7 @@ type ImplementationsConfig struct {
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
+	Proposer                        common.Address     `cli:"proposer"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
 
@@ -100,6 +101,9 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.SuperchainProxyAdmin == (common.Address{}) {
 		return errors.New("superchain proxy admin must be specified")
+	}
+	if c.Proposer == (common.Address{}) {
+		return errors.New("proposer must be specified")
 	}
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
@@ -215,7 +219,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			ProtocolVersionsProxy: cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:  cfg.SuperchainProxyAdmin,
 			UpgradeController:     cfg.UpgradeController,
-			Proposer:              cfg.Challenger, // Using Challenger as default Proposer
+			Proposer:              cfg.Proposer,
 			Challenger:            cfg.Challenger,
 		},
 	); err != nil {
