@@ -66,6 +66,8 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 	opt.Add(WithSyncTesterL2ELNode(ids.SyncTesterL2EL, ids.L2EL, fcu))
 	opt.Add(WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, ids.SyncTesterL2EL))
 
+	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CL2))
+
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
