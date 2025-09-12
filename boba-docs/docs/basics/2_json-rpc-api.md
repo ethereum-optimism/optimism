@@ -21,8 +21,8 @@ Returns the account and storage values of the specified account including the Me
 **Parameters**
 
 1. `DATA` - address of the account.
-2. `ARRAY` - array of storage-keys which should be proofed and included. See [eth\_getStorageAt (opens new window)](https://eth.wiki/json-rpc/API#eth\_getStorageAt).
-3. `QUANTITY|TAG` - integer of the ending block number for the range, or the string `"earliest"`, `"latest"` or `"pending"`, as in the [default block parameter (opens new window)](https://eth.wiki/json-rpc/API#the-default-block-parameter).
+2. `ARRAY` - array of storage-keys which should be proofed and included. See [eth\_getStorageAt (opens new window)](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getstorageat).
+3. `QUANTITY|TAG` - integer of the ending block number for the range, or the string `"earliest"`, `"latest"` or `"pending"`, as in the [default block parameter (opens new window)](https://ethereum.org/en/developers/docs/apis/json-rpc/#block-parameter).
 
 **Returns**
 
