@@ -1352,8 +1352,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that the migration function succeeds when requesting to use the
     ///         permissionless game.
-    function test_migrate_withPermissionlessGame_succeeds() public {
+    function test_migrate_withCannonGame_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+        input.opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(0));
+        input.opChainConfigs[1].cannonKonaPrestate = Claim.wrap(bytes32(0));
 
         // Separate context to avoid stack too deep errors.
         {
@@ -1449,6 +1451,134 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Check that the Super Cannon game has the correct parameters.
         IDisputeGame superFdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON);
+        ISuperFaultDisputeGame superFdg = ISuperFaultDisputeGame(address(superFdgImpl));
+        assertEq(superFdg.maxGameDepth(), input.gameParameters.maxGameDepth);
+        assertEq(superFdg.splitDepth(), input.gameParameters.splitDepth);
+        assertEq(superFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
+        assertEq(superFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
+        assertEq(superFdg.absolutePrestate().raw(), cannonPrestate1.raw());
+
+        // Check super cannon kona game was not deployed
+        IDisputeGame superCannonKonaImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA);
+        assertEq(address(superCannonKonaImpl), address(0));
+
+        // Check that the Super Permissioned Cannon game has the correct parameters.
+        IDisputeGame superPdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
+        ISuperPermissionedDisputeGame superPdg = ISuperPermissionedDisputeGame(address(superPdgImpl));
+        assertEq(superPdg.proposer(), input.gameParameters.proposer);
+        assertEq(superPdg.challenger(), input.gameParameters.challenger);
+        assertEq(superPdg.maxGameDepth(), input.gameParameters.maxGameDepth);
+        assertEq(superPdg.splitDepth(), input.gameParameters.splitDepth);
+        assertEq(superPdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
+        assertEq(superPdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
+        assertEq(superPdg.absolutePrestate().raw(), cannonPrestate1.raw());
+    }
+
+    /// @notice Tests that the migration function succeeds when requesting to use the
+    ///         permissionless game.
+    function test_migrate_withCannonKannonGame_succeeds() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+        input.opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
+        input.opChainConfigs[1].cannonPrestate = Claim.wrap(bytes32(0));
+
+        // Separate context to avoid stack too deep errors.
+        {
+            // Grab the existing DisputeGameFactory for each chain.
+            IDisputeGameFactory oldDisputeGameFactory1 =
+                IDisputeGameFactory(payable(chainDeployOutput1.systemConfigProxy.disputeGameFactory()));
+            IDisputeGameFactory oldDisputeGameFactory2 =
+                IDisputeGameFactory(payable(chainDeployOutput2.systemConfigProxy.disputeGameFactory()));
+
+            // Execute the migration.
+            _doMigration(input);
+
+            // Assert that the old game implementations are now zeroed out.
+            _assertOldGamesZeroed(oldDisputeGameFactory1);
+            _assertOldGamesZeroed(oldDisputeGameFactory2);
+        }
+
+        // Grab the two OptimismPortal addresses.
+        IOptimismPortal2 optimismPortal1 =
+            IOptimismPortal2(payable(chainDeployOutput1.systemConfigProxy.optimismPortal()));
+        IOptimismPortal2 optimismPortal2 =
+            IOptimismPortal2(payable(chainDeployOutput2.systemConfigProxy.optimismPortal()));
+
+        // Grab the AnchorStateRegistry from the OptimismPortal for both chains, confirm same.
+        assertEq(
+            address(optimismPortal1.anchorStateRegistry()),
+            address(optimismPortal2.anchorStateRegistry()),
+            "AnchorStateRegistry mismatch"
+        );
+
+        // Extract the AnchorStateRegistry now that we know it's the same on both chains.
+        IAnchorStateRegistry anchorStateRegistry = optimismPortal1.anchorStateRegistry();
+
+        // Grab the DisputeGameFactory from the SystemConfig for both chains, confirm same.
+        assertEq(
+            chainDeployOutput1.systemConfigProxy.disputeGameFactory(),
+            chainDeployOutput2.systemConfigProxy.disputeGameFactory(),
+            "DisputeGameFactory mismatch"
+        );
+
+        // Extract the DisputeGameFactory now that we know it's the same on both chains.
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
+
+        // Grab the ETHLockbox from the OptimismPortal for both chains, confirm same.
+        assertEq(address(optimismPortal1.ethLockbox()), address(optimismPortal2.ethLockbox()), "ETHLockbox mismatch");
+
+        // Extract the ETHLockbox now that we know it's the same on both chains.
+        IETHLockbox ethLockbox = optimismPortal1.ethLockbox();
+
+        // Check that the ETHLockbox was migrated correctly.
+        assertGt(address(ethLockbox).balance, 0, "ETHLockbox balance is zero");
+        assertTrue(ethLockbox.authorizedPortals(optimismPortal1), "ETHLockbox does not have portal 1 authorized");
+        assertTrue(ethLockbox.authorizedPortals(optimismPortal2), "ETHLockbox does not have portal 2 authorized");
+
+        // Check that the respected game type is the Super Cannon game type.
+        assertEq(
+            anchorStateRegistry.respectedGameType().raw(),
+            GameTypes.SUPER_CANNON.raw(),
+            "Super Cannon game type mismatch"
+        );
+
+        // Check that the starting anchor root is the same as the input.
+        (Hash root, uint256 l2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(root.raw(), input.startingAnchorRoot.root.raw(), "Starting anchor root mismatch");
+        assertEq(
+            l2SequenceNumber,
+            input.startingAnchorRoot.l2SequenceNumber,
+            "Starting anchor root L2 sequence number mismatch"
+        );
+
+        // Check that the DisputeGameFactory has implementations for both games.
+        assertEq(
+            disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON).gameType().raw(),
+            GameTypes.SUPER_CANNON.raw(),
+            "Super Cannon game type not set properly"
+        );
+        assertEq(
+            disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON).gameType().raw(),
+            GameTypes.SUPER_PERMISSIONED_CANNON.raw(),
+            "Super Permissioned Cannon game type not set properly"
+        );
+        assertEq(
+            disputeGameFactory.initBonds(GameTypes.SUPER_CANNON),
+            input.gameParameters.initBond,
+            "Super Cannon init bond mismatch"
+        );
+        assertEq(
+            disputeGameFactory.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
+            input.gameParameters.initBond,
+            "Super Permissioned Cannon init bond mismatch"
+        );
+
+        // Check super cannon game was not deployed
+        IDisputeGame superCannonImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON);
+        assertEq(address(superCannonImpl), address(0));
+
+        // Check that the Super Cannon game has the correct parameters.
+        IDisputeGame superFdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA);
         ISuperFaultDisputeGame superFdg = ISuperFaultDisputeGame(address(superFdgImpl));
         assertEq(superFdg.maxGameDepth(), input.gameParameters.maxGameDepth);
         assertEq(superFdg.splitDepth(), input.gameParameters.splitDepth);

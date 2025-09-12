@@ -26,14 +26,16 @@ func TestUpgradeOPChainInput_OpChainConfigs(t *testing.T) {
 		Opcm:  common.Address{0xbb},
 		EncodedChainConfigs: []OPChainConfig{
 			{
-				SystemConfigProxy: common.Address{0x01},
-				ProxyAdmin:        common.Address{0x02},
-				AbsolutePrestate:  common.Hash{0x03},
+				SystemConfigProxy:  common.Address{0x01},
+				ProxyAdmin:         common.Address{0x02},
+				CannonPrestate:     common.Hash{0x03},
+				CannonKonaPrestate: common.Hash{0x04},
 			},
 			{
-				SystemConfigProxy: common.Address{0x04},
-				ProxyAdmin:        common.Address{0x05},
-				AbsolutePrestate:  common.Hash{0x06},
+				SystemConfigProxy:  common.Address{0x04},
+				ProxyAdmin:         common.Address{0x05},
+				CannonPrestate:     common.Hash{0x06},
+				CannonKonaPrestate: common.Hash{0x07},
 			},
 		},
 	}
