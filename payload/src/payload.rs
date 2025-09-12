@@ -91,14 +91,7 @@ impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAtt
             .unwrap_or_default()
             .into_iter()
             .map(|data| {
-                let mut buf = data.as_ref();
-                let tx = Decodable2718::decode_2718(&mut buf).map_err(alloy_rlp::Error::from)?;
-
-                if !buf.is_empty() {
-                    return Err(alloy_rlp::Error::UnexpectedLength);
-                }
-
-                Ok(WithEncoded::new(data, tx))
+                Decodable2718::decode_2718_exact(data.as_ref()).map(|tx| WithEncoded::new(data, tx))
             })
             .collect::<Result<_, _>>()?;
 
