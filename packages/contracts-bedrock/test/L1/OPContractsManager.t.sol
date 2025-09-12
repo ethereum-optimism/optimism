@@ -108,6 +108,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     // The ImplementationSet event emitted by the DisputeGameFactory contract.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
+    /// @notice Thrown when testing with an unsupported chain ID.
+    error UnsupportedChainId();
+
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
@@ -195,9 +198,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             // try/catch is better than checking the version via the implementations struct because
             // the implementations struct interface can change between OPCM versions which would
             // cause the test to break and be a pain to resolve.
-            assertEq(
-                bytes4(reason),
-                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector
+            assertTrue(
+                bytes4(reason)
+                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector,
+                "Revert reason other than SuperchainConfigAlreadyUpToDate"
             );
         }
 
@@ -225,8 +229,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Less than 90% of the gas target of 2**24 (EIP-7825) to account for the gas used by
         // using Safe.
+        uint256 fusakaLimit = 2 ** 24;
         VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(gas.gasTotalUsed, 0.9 * (2 ** 24), "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
+        assertLt(gas.gasTotalUsed, fusakaLimit * 9 / 10, "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
 
         // Reset the upgrader to the original code.
         vm.etch(_delegateCaller, delegateCallerCode);
@@ -282,8 +287,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             _runOpcmUpgradeAndChecks(
                 IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
             );
-        } else if (block.chainid == 11155111) {
-            // Sepolia
+        } else {
+            revert UnsupportedChainId();
         }
     }
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
+import { StdAssertions } from "forge-std/StdAssertions.sol";
 
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
@@ -42,11 +43,14 @@ import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.s
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer {
+contract ForkLive is Deployer, StdAssertions {
     using stdToml for string;
     using LibString for string;
 
     bool public useOpsRepo;
+
+    /// @notice Thrown when testing with an unsupported chain ID.
+    error UnsupportedChainId();
 
     /// @notice Returns the base chain name to use for forking
     /// @return The base chain name as a string
@@ -259,8 +263,8 @@ contract ForkLive is Deployer {
             // Mainnet
             // U16a.
             _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
-        } else if (block.chainid == 11155111) {
-            // Sepolia
+        } else {
+            revert UnsupportedChainId();
         }
 
         // Current upgrade.
