@@ -297,8 +297,11 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
 
 			// Check that the operator fee sent to the vault is correct
-			require.Equal(t,
-				new(big.Int).Add(
+			// Determine which formula to use based on whether Jovian is active
+			var expectedOperatorFee *big.Int
+			if env.Sd.RollupCfg.IsJovian(l2UnsafeHead.Time) {
+				// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
+				expectedOperatorFee = new(big.Int).Add(
 					new(big.Int).Mul(
 						new(big.Int).Mul(
 							new(big.Int).SetUint64(receipt.GasUsed),
@@ -307,7 +310,23 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 						new(big.Int).SetUint64(100),
 					),
 					new(big.Int).SetUint64(testOperatorFeeConstant),
-				),
+				)
+			} else {
+				// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
+				expectedOperatorFee = new(big.Int).Add(
+					new(big.Int).Div(
+						new(big.Int).Mul(
+							new(big.Int).SetUint64(receipt.GasUsed),
+							new(big.Int).SetUint64(uint64(testOperatorFeeScalar)),
+						),
+						new(big.Int).SetUint64(1e6),
+					),
+					new(big.Int).SetUint64(testOperatorFeeConstant),
+				)
+			}
+			
+			require.Equal(t,
+				expectedOperatorFee,
 				new(big.Int).Sub(operatorFeeVaultFinalBalance, operatorFeeVaultInitialBalance),
 			)
 		}

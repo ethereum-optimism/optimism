@@ -62,7 +62,7 @@ func TestIsthmusCostOracleSetParams(t *testing.T) {
 }
 
 func TestIsthmusCostOracleOPCost(t *testing.T) {
-	t.Run("account for operator cost", func(t *testing.T) {
+	t.Run("account for operator cost - Isthmus formula", func(t *testing.T) {
 		mock := &mockRPCClient{
 			Results: [6]hexutil.Bytes{
 				// L1 costs are zero.
@@ -71,8 +71,8 @@ func TestIsthmusCostOracleOPCost(t *testing.T) {
 				hexutil.Bytes{},
 				hexutil.Bytes{},
 				// Operator cost is non-zero.
-				big.NewInt(3).Bytes(),
-				big.NewInt(4).Bytes(),
+				big.NewInt(3_000_000).Bytes(), // operatorFeeScalar = 3_000_000
+				big.NewInt(400).Bytes(),       // operatorFeeConstant = 400
 			},
 		}
 		oracle := txinclude.NewIsthmusCostOracle(mock, time.Millisecond)
@@ -80,7 +80,30 @@ func TestIsthmusCostOracleOPCost(t *testing.T) {
 		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{
 			Gas: 2_000_000,
 		}))
-		require.Equal(t, big.NewInt(10), got, "3 * 2_000_00 * 100 + 4 = 600_000_004")
+		// Isthmus formula: (2_000_000 * 3_000_000) / 1e6 + 400 = 6_000_000 + 400 = 6_000_400
+		require.Equal(t, big.NewInt(6_000_400), got)
+	})
+
+	t.Run("account for operator cost - Jovian formula", func(t *testing.T) {
+		mock := &mockRPCClient{
+			Results: [6]hexutil.Bytes{
+				// L1 costs are zero.
+				hexutil.Bytes{},
+				hexutil.Bytes{},
+				hexutil.Bytes{},
+				hexutil.Bytes{},
+				// Operator cost is non-zero.
+				big.NewInt(3).Bytes(),   // operatorFeeScalar = 3
+				big.NewInt(400).Bytes(), // operatorFeeConstant = 400
+			},
+		}
+		oracle := txinclude.NewJovianCostOracle(mock, time.Millisecond)
+		require.NoError(t, oracle.SetParams(context.Background()))
+		got := oracle.OPCost(types.NewTx(&types.DynamicFeeTx{
+			Gas: 2_000_000,
+		}))
+		// Jovian formula: (2_000_000 * 3) * 100 + 400 = 600_000_000 + 400 = 600_000_400
+		require.Equal(t, big.NewInt(600_000_400), got)
 	})
 
 	t.Run("account for l1 cost", func(t *testing.T) {

@@ -17,11 +17,12 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-// IsthmusCostOracle implements OPCostOracle only for the Isthmus hard fork.
+// IsthmusCostOracle implements OPCostOracle for the Isthmus and Jovian hard forks.
 type IsthmusCostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
+	isJovian   bool // Indicates whether to use the Jovian formula (multiply by 100) instead of Isthmus formula (divide by 1e6)
 }
 
 type costParams struct {
@@ -39,6 +40,15 @@ func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCos
 	return &IsthmusCostOracle{
 		client:    client,
 		blockTime: blockTime,
+		isJovian:  false, // Default to Isthmus formula
+	}
+}
+
+func NewJovianCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCostOracle {
+	return &IsthmusCostOracle{
+		client:    client,
+		blockTime: blockTime,
+		isJovian:  true, // Use Jovian formula
 	}
 }
 
@@ -89,7 +99,15 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 
 	operatorCost := new(big.Int).SetUint64(tx.Gas())
 	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
-	operatorCost.Mul(operatorCost, big.NewInt(100))
+	
+	if i.isJovian {
+		// Jovian formula: multiply by 100
+		operatorCost.Mul(operatorCost, big.NewInt(100))
+	} else {
+		// Isthmus formula: divide by 1e6
+		operatorCost.Div(operatorCost, big.NewInt(1e6))
+	}
+	
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
 
 	return l1Cost.Add(l1Cost, operatorCost)
