@@ -22,6 +22,9 @@ func TestFees(gt *testing.T) {
 	err := dsl.RequiresL2Fork(ctx, sys, 0, rollup.Fjord)
 	require.NoError(err)
 	operatorFee := dsl.NewOperatorFee(t, sys.L2Chain, sys.L1EL)
+	// TODO: This scalar value (100000000) is extremely high and appears to compensate for the old Isthmus formula.
+	// With Jovian (multiply by 100), this would cause astronomical fees (100,000,000x increase).
+	// Consider using a more reasonable value like 1000 for Jovian testing.
 	operatorFee.SetOperatorFee(100000000, 500)
 	operatorFee.WaitForL2SyncWithCurrentL1State()
 

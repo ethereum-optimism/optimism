@@ -221,21 +221,15 @@ contract GasPriceOracle is ISemver {
             return 0;
         }
 
-        uint256 scalar = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar();
-        uint256 constant_ = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant();
+        uint256 operatorScalar = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar();
+        uint256 operatorConstant = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant();
 
         if (isJovian) {
             // New formula (post-Jovian): multiply by 100
-            return Arithmetic.saturatingAdd(
-                Arithmetic.saturatingMul(_gasUsed, scalar) * 100,
-                constant_
-            );
+            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) * 100, operatorConstant);
         } else {
             // Original Isthmus formula: divide by 1e6
-            return Arithmetic.saturatingAdd(
-                Arithmetic.saturatingMul(_gasUsed, scalar) / 1e6,
-                constant_
-            );
+            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) / 1e6, operatorConstant);
         }
     }
 

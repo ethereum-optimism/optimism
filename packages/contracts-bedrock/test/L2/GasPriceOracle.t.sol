@@ -396,11 +396,11 @@ contract GasPriceOracleIsthmus_Test is GasPriceOracle_Test {
     /// @dev Tests that Jovian cannot be activated yet (since it's not activated by default).
     function test_setJovian_notActivated_succeeds() external {
         assertEq(gasPriceOracle.isJovian(), false);
-        
+
         // Activate Jovian
         vm.prank(depositor);
         gasPriceOracle.setJovian();
-        
+
         assertEq(gasPriceOracle.isJovian(), true);
     }
 }
@@ -410,7 +410,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
     function setUp() public virtual override {
         l2Fork = Fork.ISTHMUS;
         super.setUp();
-        
+
         // First setup Isthmus
         bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
             baseFeeScalar,
@@ -429,11 +429,11 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
         require(success, "GasPriceOracleJovian_Test: L1Block setup failed");
-        
+
         // Now activate Jovian
         vm.prank(depositor);
         gasPriceOracle.setJovian();
-        
+
         assertEq(gasPriceOracle.isJovian(), true);
     }
 
@@ -447,7 +447,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         // Deploy a fresh instance that's not Jovian yet
         GasPriceOracle_Test freshTest = new GasPriceOracle_Test();
         freshTest.setUp();
-        
+
         vm.expectRevert("GasPriceOracle: only the depositor account can set isJovian flag");
         gasPriceOracle.setJovian();
     }
@@ -457,7 +457,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         // Create a new test instance without Isthmus activated
         l2Fork = Fork.DELTA;
         setUp();
-        
+
         vm.prank(depositor);
         vm.expectRevert("GasPriceOracle: Jovian can only be activated after Isthmus");
         gasPriceOracle.setJovian();
@@ -475,7 +475,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         // Deploy fresh with Isthmus only
         l2Fork = Fork.ISTHMUS;
         setUp();
-        
+
         bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
             baseFeeScalar,
             blobBaseFeeScalar,
@@ -497,15 +497,15 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         // Check Isthmus formula (divide by 1e6)
         uint256 isthmusFee = gasPriceOracle.getOperatorFee(10);
         assertEq(isthmusFee, 10 * operatorFeeScalar / 1e6 + operatorFeeConstant);
-        
+
         // Activate Jovian
         vm.prank(depositor);
         gasPriceOracle.setJovian();
-        
+
         // Check Jovian formula (multiply by 100)
         uint256 jovianFee = gasPriceOracle.getOperatorFee(10);
         assertEq(jovianFee, 10 * operatorFeeScalar * 100 + operatorFeeConstant);
-        
+
         // Verify the fee increased significantly
         assertGt(jovianFee, isthmusFee);
     }

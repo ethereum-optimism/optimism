@@ -97,9 +97,11 @@ func (b *TxBudget) AfterIncluded(budgetedCost eth.ETH, tx *IncludedTx) {
 	if receipt.OperatorFeeScalar != nil {
 		// https://github.com/ethereum-optimism/op-geth/blob/6005dd53e1b50fe5a3f59764e3e2056a639eff2f/core/types/rollup_cost.go#L244-L247
 		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-operatorCost
+		// TODO: This currently uses the Isthmus formula (divide by 1e6). Need to update to handle both
+		// Isthmus and Jovian formulas based on fork activation. Jovian formula multiplies by 100 instead.
 		operatorCost := new(big.Int).SetUint64(receipt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeScalar))
-		operatorCost = operatorCost.Mul(operatorCost, big.NewInt(100))
+		operatorCost = operatorCost.Div(operatorCost, big.NewInt(1e6))
 		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeConstant))
 		actualCost.Add(actualCost, operatorCost)
 	}

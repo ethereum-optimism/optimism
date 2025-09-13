@@ -31,6 +31,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 		StateRefund
 		NotEnoughFundsInBatchMissingOpFee
 		IsthmusTransitionBlock
+		JovianTransitionBlock
 	)
 
 	testStorageUpdateContractAddress := common.HexToAddress("0xffffffff")
@@ -69,6 +70,15 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			deployConfigOverrides = func(dp *genesis.DeployConfig) {
 				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 				dp.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(13))
+			}
+		}
+		
+		if testCfg.Custom == JovianTransitionBlock {
+			deployConfigOverrides = func(dp *genesis.DeployConfig) {
+				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+				dp.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(0))
+				// Jovian activates after Isthmus
+				dp.L2GenesisJovianTimeOffset = ptr(hexutil.Uint64(13))
 			}
 		}
 
@@ -136,7 +146,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 		var receipt *types.Receipt
 
 		switch testCfg.Custom {
-		case NormalTx, IsthmusTransitionBlock:
+		case NormalTx, IsthmusTransitionBlock, JovianTransitionBlock:
 			aliceInitialBalance, l1FeeVaultInitialBalance, baseFeeVaultInitialBalance, sequencerFeeVaultInitialBalance, operatorFeeVaultInitialBalance = getCurrentBalances()
 
 			require.Equal(t, operatorFeeVaultInitialBalance.Sign(), 0)
@@ -152,6 +162,8 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 
 			if testCfg.Custom == IsthmusTransitionBlock {
 				require.True(t, env.Sd.RollupCfg.IsIsthmusActivationBlock(env.Sequencer.L2Unsafe().Time))
+			} else if testCfg.Custom == JovianTransitionBlock {
+				require.True(t, env.Sd.RollupCfg.IsJovian(env.Sequencer.L2Unsafe().Time))
 			}
 
 		case StateRefund:
@@ -285,7 +297,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			receipt = env.Alice.L2.LastTxReceipt(t)
 		}
 
-		if testCfg.Custom == DepositTx || testCfg.Custom == IsthmusTransitionBlock {
+		if testCfg.Custom == DepositTx || testCfg.Custom == IsthmusTransitionBlock || testCfg.Custom == JovianTransitionBlock {
 			require.Nil(t, receipt.OperatorFeeScalar)
 			require.Nil(t, receipt.OperatorFeeConstant)
 
@@ -397,6 +409,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 	matrix.AddDefaultTestCasesWithName("StateRefund", StateRefund, helpers.NewForkMatrix(helpers.Isthmus), runIsthmusDerivationTest)
 	matrix.AddDefaultTestCasesWithName("NotEnoughFundsInBatchMissingOpFee", NotEnoughFundsInBatchMissingOpFee, helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus), runIsthmusDerivationTest)
 	matrix.AddDefaultTestCasesWithName("IsthmusTransitionBlock", IsthmusTransitionBlock, helpers.NewForkMatrix(helpers.Holocene), runIsthmusDerivationTest)
+	matrix.AddDefaultTestCasesWithName("JovianTransitionBlock", JovianTransitionBlock, helpers.NewForkMatrix(helpers.Isthmus), runIsthmusDerivationTest)
 	matrix.Run(gt)
 }
 

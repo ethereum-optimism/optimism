@@ -17,10 +17,11 @@ import (
 type OperatorFee struct {
 	commonImpl
 
-	l1Client     *L1ELNode
-	l2Network    *L2Network
-	systemConfig bindings.SystemConfig
-	l1Block      bindings.L1Block
+	l1Client       *L1ELNode
+	l2Network      *L2Network
+	systemConfig   bindings.SystemConfig
+	l1Block        bindings.L1Block
+	gasPriceOracle bindings.GasPriceOracle
 
 	originalScalar   uint32
 	originalConstant uint64
@@ -44,6 +45,11 @@ func NewOperatorFee(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Operator
 		bindings.WithTo(predeploys.L1BlockAddr),
 		bindings.WithTest(t))
 
+	gasPriceOracle := bindings.NewBindings[bindings.GasPriceOracle](
+		bindings.WithClient(l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()),
+		bindings.WithTo(predeploys.GasPriceOracleAddr),
+		bindings.WithTest(t))
+
 	originalScalar, err := contractio.Read(systemConfig.OperatorFeeScalar(), t.Ctx())
 	t.Require().NoError(err)
 	originalConstant, err := contractio.Read(systemConfig.OperatorFeeConstant(), t.Ctx())
@@ -55,6 +61,7 @@ func NewOperatorFee(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Operator
 		l2Network:        l2Network,
 		systemConfig:     systemConfig,
 		l1Block:          l1Block,
+		gasPriceOracle:   gasPriceOracle,
 		originalScalar:   originalScalar,
 		originalConstant: originalConstant,
 	}
@@ -140,8 +147,18 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	if expectedScalar == 0 && expectedConstant == 0 {
 		expectedOperatorFee = big.NewInt(0)
 	} else {
+		// Check if Jovian is active to determine which formula to use
+		isJovian, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
+		of.require.NoError(err)
+		
 		operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))
-		operatorFee.Div(operatorFee, big.NewInt(1000000))
+		if isJovian {
+			// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
+			operatorFee.Mul(operatorFee, big.NewInt(100))
+		} else {
+			// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
+			operatorFee.Div(operatorFee, big.NewInt(1000000))
+		}
 		operatorFee.Add(operatorFee, big.NewInt(int64(expectedConstant)))
 		expectedOperatorFee = operatorFee
 	}
