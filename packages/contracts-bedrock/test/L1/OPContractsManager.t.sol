@@ -1571,8 +1571,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         );
 
         // Check super cannon game has the correct parameters.
-        IDisputeGame superCannonImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON);
-        ISuperFaultDisputeGame superCannonFdg = ISuperFaultDisputeGame(address(superCannonImpl));
+        ISuperFaultDisputeGame superCannonFdg =
+            ISuperFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)));
         assertEq(superCannonFdg.maxGameDepth(), input.gameParameters.maxGameDepth);
         assertEq(superCannonFdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superCannonFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
@@ -1580,8 +1580,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superCannonFdg.absolutePrestate().raw(), cannonPrestate1.raw());
 
         // Check that the Super Cannon game has the correct parameters.
-        IDisputeGame superCannonKonaImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA);
-        ISuperFaultDisputeGame superCannonKonaFdg = ISuperFaultDisputeGame(address(superCannonKonaImpl));
+        ISuperFaultDisputeGame superCannonKonaFdg =
+            ISuperFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)));
         assertEq(superCannonKonaFdg.maxGameDepth(), input.gameParameters.maxGameDepth);
         assertEq(superCannonKonaFdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superCannonKonaFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
