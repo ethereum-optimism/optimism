@@ -17,6 +17,9 @@ import (
 	"github.com/lmittmann/w3"
 )
 
+var oneHundred = new(big.Int).SetUint64(100)
+var oneMillion = new(big.Int).SetUint64(1_000_000)
+
 // IsthmusCostOracle implements OPCostOracle for the Isthmus and Jovian hard forks.
 type IsthmusCostOracle struct {
 	client     RPCClient
@@ -102,10 +105,10 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 
 	if i.isJovian {
 		// Jovian formula: multiply by 100
-		operatorCost.Mul(operatorCost, big.NewInt(100))
+		operatorCost.Mul(operatorCost, oneHundred)
 	} else {
 		// Isthmus formula: divide by 1e6
-		operatorCost.Div(operatorCost, big.NewInt(1e6))
+		operatorCost.Div(operatorCost, oneMillion)
 	}
 
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)

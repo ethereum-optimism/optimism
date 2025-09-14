@@ -101,7 +101,7 @@ func (b *TxBudget) AfterIncluded(budgetedCost eth.ETH, tx *IncludedTx) {
 		// Isthmus and Jovian formulas based on fork activation. Jovian formula multiplies by 100 instead.
 		operatorCost := new(big.Int).SetUint64(receipt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeScalar))
-		operatorCost = operatorCost.Div(operatorCost, big.NewInt(1e6))
+		operatorCost = operatorCost.Div(operatorCost, oneMillion)
 		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*receipt.OperatorFeeConstant))
 		actualCost.Add(actualCost, operatorCost)
 	}

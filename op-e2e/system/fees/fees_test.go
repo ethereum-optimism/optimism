@@ -300,10 +300,10 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 		scaledOperatorFee := new(big.Int)
 		if sys.RollupConfig.IsJovian(header.Time) {
 			// For Jovian, multiply by 100.
-			scaledOperatorFee.Mul(baseOperatorFee, big.NewInt(100))
+			scaledOperatorFee.Mul(baseOperatorFee, new(big.Int).SetUint64(uint64(100)))
 		} else {
-			// For Isthmus, divide by 1,000,000.
-			scaledOperatorFee.Div(baseOperatorFee, big.NewInt(1000000))
+			// For Isthmus, divide by 1e6.
+			scaledOperatorFee.Div(baseOperatorFee, new(big.Int).SetUint64(uint64(1e6)))
 		}
 
 		expectedOperatorFee := new(big.Int).Add(
