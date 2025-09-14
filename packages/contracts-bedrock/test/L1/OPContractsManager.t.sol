@@ -260,7 +260,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // user is requesting to use the existing prestate. We could avoid the error by grabbing
         // the prestate from the actual contracts, but that doesn't actually give us any valuable
         // checks. Easier to just expect the error in this case.
-        if (opChainConfigs[0].absolutePrestate.raw() == bytes32(0)) {
+        if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
             vm.expectRevert("OPContractsManagerStandardValidator: PDDG-40,PLDG-40");
         }
 
@@ -269,7 +269,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: opChainConfigs[0].proxyAdmin,
                 sysCfg: opChainConfigs[0].systemConfigProxy,
-                absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
+                cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
+                cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId
             }),
             false

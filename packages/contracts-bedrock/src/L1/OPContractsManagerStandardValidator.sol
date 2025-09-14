@@ -114,7 +114,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
-        bytes32 absolutePrestate;
+        bytes32 cannonPrestate;
+        bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
     }
 
@@ -519,6 +520,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidPermissionlessDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
+        GameType _gameType,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
         IProxyAdmin _admin,
@@ -529,7 +531,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(GameTypes.CANNON)));
+        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
 
         if (address(_game) == address(0)) {
             _errors = internalRequire(false, "PLDG-10", _errors);
@@ -770,10 +772,25 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin, _overrides);
         _errors = assertValidPermissionedDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _input.proxyAdmin,
+            _overrides
+        );
+        _errors = assertValidPermissionlessDisputeGame(
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON_KONA,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _input.proxyAdmin,
+            _overrides
         );
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 

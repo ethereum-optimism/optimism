@@ -83,8 +83,11 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     /// @notice The l2ChainId, either from config or from registry if fork test.
     uint256 l2ChainId;
 
-    /// @notice The absolute prestate, either from config or dummy value if fork test.
+    /// @notice The absolute prestate for cannon games, either from config or dummy value if fork test.
     Claim cannonPrestate;
+
+    /// @notice The absolute prestate for cannon kona games, either from config or dummy value if fork test.
+    Claim cannonKonaPrestate;
 
     /// @notice The PermissionedDisputeGame instance.
     IPermissionedDisputeGame pdg;
@@ -160,7 +163,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             // Load the FaultDisputeGame once, we'll need it later.
             fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
         } else {
-            // Deploy the FaultDisputeGame.
+            // Deploy the cannon FaultDisputeGame.
             fdg = IFaultDisputeGame(
                 DeployUtils.create1({
                     _name: "FaultDisputeGame",
@@ -171,6 +174,31 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                                 IFaultDisputeGame.GameConstructorParams({
                                     gameType: GameTypes.CANNON,
                                     absolutePrestate: cannonPrestate,
+                                    maxGameDepth: 73,
+                                    splitDepth: 30,
+                                    clockExtension: Duration.wrap(10800),
+                                    maxClockDuration: Duration.wrap(302400),
+                                    vm: mips,
+                                    weth: delayedWeth,
+                                    anchorStateRegistry: anchorStateRegistry,
+                                    l2ChainId: l2ChainId
+                                })
+                            )
+                        )
+                    )
+                })
+            );
+            // Deploy the cannon kona FaultDisputeGame.
+            fdg = IFaultDisputeGame(
+                DeployUtils.create1({
+                    _name: "FaultDisputeGame",
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(
+                            IFaultDisputeGame.__constructor__,
+                            (
+                                IFaultDisputeGame.GameConstructorParams({
+                                    gameType: GameTypes.CANNON_KONA,
+                                    absolutePrestate: cannonKonaPrestate,
                                     maxGameDepth: 73,
                                     splitDepth: 30,
                                     clockExtension: Duration.wrap(10800),
@@ -200,7 +228,8 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: cannonPrestate.raw(),
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId
             }),
             _allowFailure
@@ -222,7 +251,8 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: cannonPrestate.raw(),
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId
             }),
             _allowFailure,

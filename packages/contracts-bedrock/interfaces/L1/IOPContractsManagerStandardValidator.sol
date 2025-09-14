@@ -25,7 +25,8 @@ interface IOPContractsManagerStandardValidator {
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
-        bytes32 absolutePrestate;
+        bytes32 cannonPrestate;
+        bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
     }
 
