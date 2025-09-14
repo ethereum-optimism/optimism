@@ -1585,7 +1585,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superFdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        assertEq(superFdg.absolutePrestate().raw(), cannonPrestate1.raw());
+        assertEq(superFdg.absolutePrestate().raw(), cannonKonaPrestate1.raw());
 
         // Check that the Super Permissioned Cannon game has the correct parameters.
         IDisputeGame superPdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
