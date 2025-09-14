@@ -9,8 +9,7 @@ use reth_rpc_eth_api::{
     FromEvmError, RpcConvert, RpcNodeCore,
 };
 use reth_rpc_eth_types::{
-    builder::config::PendingBlockKind, pending_block::PendingBlockAndReceipts, EthApiError,
-    PendingBlock,
+    block::BlockAndReceipts, builder::config::PendingBlockKind, EthApiError, PendingBlock,
 };
 use reth_storage_api::{BlockReader, BlockReaderIdExt, ReceiptProvider};
 
@@ -38,7 +37,7 @@ where
     /// Returns the locally built pending block
     async fn local_pending_block(
         &self,
-    ) -> Result<Option<PendingBlockAndReceipts<Self::Primitives>>, Self::Error> {
+    ) -> Result<Option<BlockAndReceipts<Self::Primitives>>, Self::Error> {
         if let Ok(Some(pending)) = self.pending_flashblock() {
             return Ok(Some(pending));
         }
@@ -59,6 +58,6 @@ where
             .receipts_by_block(block_id)?
             .ok_or(EthApiError::ReceiptsNotFound(block_id.into()))?;
 
-        Ok(Some(PendingBlockAndReceipts { block: Arc::new(block), receipts: Arc::new(receipts) }))
+        Ok(Some(BlockAndReceipts { block: Arc::new(block), receipts: Arc::new(receipts) }))
     }
 }

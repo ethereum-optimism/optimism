@@ -35,8 +35,7 @@ use reth_rpc_eth_api::{
     RpcNodeCoreExt, RpcTypes, SignableTxRequest,
 };
 use reth_rpc_eth_types::{
-    pending_block::PendingBlockAndReceipts, EthStateCache, FeeHistoryCache, GasPriceOracle,
-    PendingBlockEnvOrigin,
+    block::BlockAndReceipts, EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlockEnvOrigin,
 };
 use reth_storage_api::{ProviderHeader, ProviderTx};
 use reth_tasks::{
@@ -114,10 +113,10 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         OpEthApiBuilder::new()
     }
 
-    /// Returns a [`PendingBlockAndReceipts`] that is built out of flashblocks.
+    /// Returns a [`BlockAndReceipts`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
-    pub fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlockAndReceipts<N::Primitives>>>
+    pub fn pending_flashblock(&self) -> eyre::Result<Option<BlockAndReceipts<N::Primitives>>>
     where
         Self: LoadPendingBlock,
     {
