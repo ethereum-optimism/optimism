@@ -25,16 +25,21 @@ contract TimelockGuard is IGuard, ISemver {
     struct ScheduledTransaction {
         uint256 executionTime;
         bool cancelled;
+        bool executed;
     }
 
     /// @notice Mapping from Safe address to its guard configuration
     mapping(address => GuardConfig) public safeConfigs;
 
-    /// @notice Mapping from Safe address to its current cancellation threshold
-    mapping(address => uint256) public safeCancellationThreshold;
-
     /// @notice Mapping from Safe and tx id to scheduled transaction.
     mapping(Safe => mapping(bytes32 => ScheduledTransaction)) public scheduledTransactions;
+
+    /// @notice Mapping from Safe and tx id to Safe and owner for rejected transactions.
+    /// @dev Transactions are identifed by executing Safe and txHash, owners by Safe and address
+    mapping(Safe => mapping(bytes32 => mapping(Safe => mapping(address => bool)))) public rejectedTransactions;
+
+    /// @notice Mapping from Safe to cancellation threshold.
+    mapping(Safe => uint256) internal safeCancellationThreshold;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -120,7 +125,6 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Erase the configuration data for this safe
         delete safeConfigs[msg.sender];
-        delete safeCancellationThreshold[msg.sender];
 
         emit GuardCleared(msg.sender);
     }
@@ -137,6 +141,15 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         return safeCancellationThreshold[_safe];
+    }
+
+    /// @notice Returns the blocking threshold threshold for a given safe
+    /// @dev MUST NOT revert
+    /// @param _safe The Safe address to query
+    /// @return The current blocking threshold
+    function blockingThreshold(address _safe) public view returns (uint256) {
+        return 0;
+        // return min(quorum, total_owners - quorum + 1) for _safe;
     }
 
     /// @notice Internal helper to get the guard address from a Safe
@@ -220,20 +233,55 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Signal rejection of a scheduled transaction by a Safe owner
     /// @dev NOT IMPLEMENTED YET
-    function rejectTransaction(address, bytes32) external pure {
+    /// @param safePath An array of Safes starting by the safe that is scheduled to execute txHash, and going through child safes until the safe that msg.sender is owner of
+    function rejectTransaction(address[] safePath, bytes32 txHash) external pure {
         // TODO: Implement
+        // require(rejectingSafe.isOwner(msg.sender)); // Check if the caller is an owner in the rejectingSafe
+        // require(rejectingSafe.isChild(executingSafe)); // Check if the rejectingSafe is a child safe, maybe several levels below
+        // rejectedTransactions[executingSafe][txHash][rejectingSafe][msg.sender] = true;
     }
 
     /// @notice Signal rejection of a scheduled transaction using signatures
     /// @dev NOT IMPLEMENTED YET
-    function rejectTransactionWithSignature(address, bytes32, bytes memory) external pure {
+    function rejectTransactionWithSignature(address[], bytes32, bytes memory) external pure {
         // TODO: Implement
     }
 
-    /// @notice Cancel a scheduled transaction if cancellation threshold is met
+    /// @notice Cancel a scheduled transaction if cancellation threshold is met, needs to be called for each child safe, until we can call with executingSafe == rejectingSafe
     /// @dev NOT IMPLEMENTED YET
-    function cancelTransaction(address, bytes32) external pure {
+    /// @param safePath An array of Safes starting by the safe that is scheduled to execute txHash, and going through child safes until the safe that rejectingOwners are owners of
+    function cancelTransaction(address[] safePath, bytes32 txHash, address[] rejectingOwners) external pure {
         // TODO: Implement
+        // require not cancelled
+        // require not executed
+        // require unique owners in rejectingOwners
+        // require(rejectingSafe.isChild(executingSafe)); // Check if the rejectingSafe is a child safe, maybe several levels below
+        // We would need as an argument a path from executingSafe to rejectingSafe if we want to required that rejectingSafe is a child safe of executingSafe
+        // rejectingOwners = 0
+        // for owner in rejectingOwners
+        //   require rejectingSafe.isOwner(owner)
+        //   if rejectedTransactions[executingSafe][txHash][rejectingSafe][owner]
+        //     rejectingOwners++
+        // if rejectingOwners >= cancellationThreshold(safe)
+        //   rejectingSafes[executingSafe][txHash].push(rejectingSafe)
+        //   rejectedTransactions[executingSafe][txHash][parentOfRejectingSafe][rejectingSafe] = true // parentOfRejectingSafe can be found as index -1 or -2 depending on length of safePath
+        //   if executingSafe == rejectingSafe // if cancelling at the executing safe, we are finally cancelling the transaction. Now we increase cancellation thresholds
+        //     increaseCancellationThresholds(_safe, txHash)
+    }
+
+    /// @notice For all safes that rejected a txHash, increase the cancellation threshold
+    /// @dev This function must be caled only once and only when calling cancel at the executing safe level
+    function increaseCancellationThresholds(address _safe, bytes32 txHash) external pure {
+        // for safe in rejectingSafes[_safe][txHash]
+        //   if safeCancellationThreshold[_safe] < blockingThreshold(_safe)
+        //     safeCancellationThreshold[_safe]++
+    }
+
+    /// @notice For all safes that rejected a txHash, increase the cancellation threshold
+    /// @dev This function must be caled only once and only when calling checkAfterExecution
+    function resetCancellationThresholds(address _safe, bytes32 txHash) external pure {
+        // for safe in executingSafes[_safe][txHash] // TODO: I DON'T KNOW HOW TO RECORD THESE
+        //   safeCancellationThreshold[_safe] = 1
     }
 
     /// @notice Called by the Safe before executing a transaction
@@ -261,5 +309,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev Implementation of IGuard interface
     function checkAfterExecution(bytes32, bool) external override {
         // TODO: Implement
+        // extract txHash
+        // resetCancellationThresholds(_safe, txHash)
+        // scheduledTransactions[_safe][txHash].executed = true
     }
 }
