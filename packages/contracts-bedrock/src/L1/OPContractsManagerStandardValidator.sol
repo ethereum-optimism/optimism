@@ -541,16 +541,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         _errors = assertValidDisputeGame(
-            _errors,
-            _sysCfg,
-            _game,
-            _factory,
-            _absolutePrestate,
-            _l2ChainID,
-            _admin,
-            _gameType,
-            _overrides,
-            "PLDG"
+            _errors, _sysCfg, _game, _factory, _absolutePrestate, _l2ChainID, _admin, _gameType, _overrides, "PLDG"
         );
 
         return _errors;
@@ -784,15 +775,15 @@ contract OPContractsManagerStandardValidator is ISemver {
             _overrides
         );
         // TODO: Assert the kona game is present
-//        _errors = assertValidPermissionlessDisputeGame(
-//            _errors,
-//            _input.sysCfg,
-//            GameTypes.CANNON_KONA,
-//            _input.cannonPrestate,
-//            _input.l2ChainID,
-//            _input.proxyAdmin,
-//            _overrides
-//        );
+        //        _errors = assertValidPermissionlessDisputeGame(
+        //            _errors,
+        //            _input.sysCfg,
+        //            GameTypes.CANNON_KONA,
+        //            _input.cannonPrestate,
+        //            _input.l2ChainID,
+        //            _input.proxyAdmin,
+        //            _overrides
+        //        );
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
