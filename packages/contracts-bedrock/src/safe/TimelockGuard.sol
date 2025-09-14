@@ -16,6 +16,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      1. The Safe must first enable this guard using GuardManager.setGuard()
 ///      2. The Safe must then configure the guard by calling configureTimelockGuard()
 contract TimelockGuard is IGuard, ISemver {
+    enum THRESHOLD_OP {CANCEL, RESET}
+
     /// @notice Configuration for a Safe's timelock guard
     struct GuardConfig {
         uint256 timelockDelay;
@@ -25,6 +27,7 @@ contract TimelockGuard is IGuard, ISemver {
     struct ScheduledTransaction {
         uint256 executionTime;
         bool cancelled;
+        bool executed;
     }
 
     /// @notice Mapping from Safe address to its guard configuration
@@ -35,6 +38,10 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Mapping from Safe and tx id to scheduled transaction.
     mapping(Safe => mapping(bytes32 => ScheduledTransaction)) public scheduledTransactions;
+
+    /// @notice Mapping from Safe and tx id to Safe and owner for rejected transactions.
+    /// @dev Transactions are identifed by executing Safe and txHash, owners by Safe and address
+    mapping(Safe => mapping(bytes32 => mapping(Safe => mapping(address => bool)))) public rejectedTransactions;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -220,8 +227,11 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Signal rejection of a scheduled transaction by a Safe owner
     /// @dev NOT IMPLEMENTED YET
-    function rejectTransaction(address, bytes32) external pure {
+    function rejectTransaction(address executingSafe, bytes32 txHash, address rejectingSafe) external pure {
         // TODO: Implement
+        // require(rejectingSafe.isOwner(msg.sender)); // Check if the caller is an owner in the rejectingSafe
+        // require(executingSafe.isOwnerRecursive(rejectingSafe)); // Check if the rejectingSafe is a child safe, maybe several levels below
+        // rejectedTransactions[executingSafe][txHash][rejectingSafe][msg.sender] = true;
     }
 
     /// @notice Signal rejection of a scheduled transaction using signatures
@@ -230,10 +240,50 @@ contract TimelockGuard is IGuard, ISemver {
         // TODO: Implement
     }
 
+    /// @notice Recursively query if a transaction is rejected and update thresholds accordingly
+    /// @dev NOT IMPLEMENTED YET
+    /// @param thresholdOp If called from cancel, increase thresholds, if called from checkAfterExecution, reset them to 1
+    function _isRejectedAndUpdateThreshold(address executingSafe, bytes32 txHash, THRESHOLD_OP thresholdOp) internal pure returns (bool) {
+        // require !scheduledTransactions[_safe][txHash].cancelled
+        // require !scheduledTransactions[_safe][txHash].executed
+        // return _isRejectedAndUpdateThreshold(executingSafe, txHash, executingSafe, thresholdOp)
+    }
+
+    /// @notice Recursively query if a transaction is rejected
+    /// @dev NOT IMPLEMENTED YET
+    function _isRejectedAndUpdateThreshold(address executingSafe, bytes32 txHash, address currentSafe, THRESHOLD_OP thresholdOp) internal pure returns (bool) {
+        // totalRejected = 0
+        // for owner in executingSafe.owners()
+        //   if !isSafe(owner) // For EOAs, we check if they rejected directly
+        //     if rejectedTransactions[executingSafe][txHash][currentSafe][owner]
+        //       totalRejected++
+        //   else // For child safes, we check if their owners rejected above the child safe cancellation threshold
+        //     if _isRejectedAndUpdateThreshold(executingSafe, txHash, owner)
+        //       totalRejected++
+        //
+        // if totalRejected >= cancellation_threshold[currentSafe]
+        //   if thresholdOp == THRESHOLD_OP.CANCEL
+        //     cancellation_threshold[currentSafe]++ // note that the cancellation threshold increases for child safes even if they are overruled by other owners and the transaction is executed.
+        //   else // resetting
+        //     cancellation_threshold[currentSafe] = 1
+        //   return true
+        //
+        // return false
+    }
+
+    /// @notice Recursively query if a transaction is rejected
+    /// @dev NOT IMPLEMENTED YET
+    function isRejectedQuery(address, bytes32) external pure returns (bool) {
+        // TODO: Implement as view, same as _isRejectedAndUpdateThreshold, but don't update the cancellation threshold
+    }
+
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev NOT IMPLEMENTED YET
-    function cancelTransaction(address, bytes32) external pure {
+    function cancelTransaction(address executingSafe, bytes32 txHash) external pure {
         // TODO: Implement
+        // if _isRejectedAndUpdateThreshold(executingSafe, txHash, THRESHOLD_OP.CANCEL)
+        //   scheduledTransactions[_safe][txHash].cancelled = true
+        // else revert // We don't want to increase cancellation thresholds unless we actually cancel
     }
 
     /// @notice Called by the Safe before executing a transaction
@@ -261,5 +311,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev Implementation of IGuard interface
     function checkAfterExecution(bytes32, bool) external override {
         // TODO: Implement
+        // extract txHash
+        // _isRejectedAndUpdateThreshold(address(this), txHash, THRESHOLD_OP.RESET) // This should never be called outside this function
+        // scheduledTransactions[_safe][txHash].executed = true
     }
 }
