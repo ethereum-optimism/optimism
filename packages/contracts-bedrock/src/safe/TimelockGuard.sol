@@ -146,6 +146,15 @@ contract TimelockGuard is IGuard, ISemver {
         return safeCancellationThreshold[_safe];
     }
 
+    /// @notice Returns the blocking threshold threshold for a given safe
+    /// @dev MUST NOT revert
+    /// @param _safe The Safe address to query
+    /// @return The current blocking threshold
+    function blockingThreshold(address _safe) public view returns (uint256) {
+        return 0;
+        // return min(quorum, total_owners - quorum + 1) for _safe;
+    }
+
     /// @notice Internal helper to get the guard address from a Safe
     /// @param _safe The Safe address
     /// @return The current guard address
@@ -261,11 +270,12 @@ contract TimelockGuard is IGuard, ISemver {
         //     if _isRejectedAndUpdateThreshold(executingSafe, txHash, owner)
         //       totalRejected++
         //
-        // if totalRejected >= cancellation_threshold[currentSafe]
+        // if totalRejected >= cancellationThreshold[currentSafe]
         //   if thresholdOp == THRESHOLD_OP.CANCEL
-        //     cancellation_threshold[currentSafe]++ // note that the cancellation threshold increases for child safes even if they are overruled by other owners and the transaction is executed.
+        //     if cancellationThreshold[currentSafe] < blockingThreshold(current_safe)
+        //       cancellationThreshold[currentSafe]++ // note that the cancellation threshold increases for child safes even if they are overruled by other owners and the transaction is executed.
         //   else // resetting
-        //     cancellation_threshold[currentSafe] = 1
+        //     cancellationThreshold[currentSafe] = 1
         //   return true
         //
         // return false
