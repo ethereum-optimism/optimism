@@ -39,7 +39,8 @@ func DetectGameType(ctx context.Context, addr common.Address, caller *batching.M
 		faultTypes.SuperCannonGameType,
 		faultTypes.SuperPermissionedGameType,
 		faultTypes.SuperCannonKonaGameType,
-		faultTypes.SuperAsteriscKonaGameType:
+		faultTypes.SuperAsteriscKonaGameType,
+		faultTypes.OPSuccinctGameType:
 		return gameType, nil
 	default:
 		return faultTypes.UnknownGameType, fmt.Errorf("unsupported game type: %d", gameType)

@@ -72,6 +72,10 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 			game: types.GameMetadata{GameType: uint32(faultTypes.SuperAsteriscKonaGameType), Proxy: fdgAddr},
 		},
 		{
+			name: "validOPSuccinctGameType",
+			game: types.GameMetadata{GameType: uint32(faultTypes.OPSuccinctGameType), Proxy: fdgAddr},
+		},
+		{
 			name:        "InvalidGameType",
 			game:        types.GameMetadata{GameType: 6, Proxy: fdgAddr},
 			expectedErr: fmt.Errorf("unsupported game type: 6"),
