@@ -1479,8 +1479,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     ///         permissionless game.
     function test_migrate_withCannonKonaGame_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
-        input.opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
-        input.opChainConfigs[1].cannonPrestate = Claim.wrap(bytes32(0));
 
         // Separate context to avoid stack too deep errors.
         {

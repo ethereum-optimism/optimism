@@ -1637,7 +1637,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         }
 
         // If the cannon game is being used, set that up too.
-        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonPrestate) != bytes32(0)) {
+        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) == bytes32(0)) {
             // Deploy a new DelayedWETH proxy for the permissionless game.
             IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
                 payable(
