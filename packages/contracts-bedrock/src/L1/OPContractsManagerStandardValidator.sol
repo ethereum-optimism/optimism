@@ -548,7 +548,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             _absolutePrestate,
             _l2ChainID,
             _admin,
-            GameTypes.CANNON,
+            _gameType,
             _overrides,
             "PLDG"
         );

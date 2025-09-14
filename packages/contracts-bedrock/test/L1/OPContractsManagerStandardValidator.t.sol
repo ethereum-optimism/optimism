@@ -188,31 +188,6 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                     )
                 })
             );
-            // Deploy the cannon kona FaultDisputeGame.
-            fdg = IFaultDisputeGame(
-                DeployUtils.create1({
-                    _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IFaultDisputeGame.__constructor__,
-                            (
-                                IFaultDisputeGame.GameConstructorParams({
-                                    gameType: GameTypes.CANNON_KONA,
-                                    absolutePrestate: cannonKonaPrestate,
-                                    maxGameDepth: 73,
-                                    splitDepth: 30,
-                                    clockExtension: Duration.wrap(10800),
-                                    maxClockDuration: Duration.wrap(302400),
-                                    vm: mips,
-                                    weth: delayedWeth,
-                                    anchorStateRegistry: anchorStateRegistry,
-                                    l2ChainId: l2ChainId
-                                })
-                            )
-                        )
-                    )
-                })
-            );
         }
 
         // Add the FaultDisputeGame to the DisputeGameFactory.
