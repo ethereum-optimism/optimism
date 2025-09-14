@@ -1538,8 +1538,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         // Check that the respected game type is the Super Cannon game type.
         assertEq(
             anchorStateRegistry.respectedGameType().raw(),
-            GameTypes.SUPER_CANNON.raw(),
-            "Super Cannon game type mismatch"
+            GameTypes.SUPER_CANNON_KONA.raw(),
+            "Super Cannon Kona game type mismatch"
         );
 
         // Check that the starting anchor root is the same as the input.
