@@ -1532,10 +1532,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // Select the correct game type based on the input.
         GameType newGameType;
-        if (_input.usePermissionlessGame && _input.opChainConfigs[0].cannonPrestate.raw() != bytes32(0)) {
+        if (_input.usePermissionlessGame) {
             newGameType = GameTypes.SUPER_CANNON;
-        } else if (_input.usePermissionlessGame && _input.opChainConfigs[0].cannonKonaPrestate.raw() != bytes32(0)) {
-            newGameType = GameTypes.SUPER_CANNON_KONA;
         } else {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
@@ -1637,7 +1635,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         }
 
         // If the cannon game is being used, set that up too.
-        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) == bytes32(0)) {
+        if (_input.usePermissionlessGame) {
             // Deploy a new DelayedWETH proxy for the permissionless game.
             IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
                 payable(
