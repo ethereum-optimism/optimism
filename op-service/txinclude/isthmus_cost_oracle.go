@@ -99,7 +99,7 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 
 	operatorCost := new(big.Int).SetUint64(tx.Gas())
 	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
-	
+
 	if i.isJovian {
 		// Jovian formula: multiply by 100
 		operatorCost.Mul(operatorCost, big.NewInt(100))
@@ -107,7 +107,7 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 		// Isthmus formula: divide by 1e6
 		operatorCost.Div(operatorCost, big.NewInt(1e6))
 	}
-	
+
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
 
 	return l1Cost.Add(l1Cost, operatorCost)
