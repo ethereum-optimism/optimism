@@ -26,15 +26,15 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		if jovianAtGenesis {
 			// Verify Jovian is active at genesis
 			require.True(t, env.Sequencer.RollupCfg.IsJovian(env.Sequencer.RollupCfg.Genesis.L2Time), "Jovian should be active at genesis")
-		}
-
-		// If Jovian is not activated at genesis, build some blocks up to the activation block
-		// and verify that the extra data is Holocene
-		for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.JovianTime {
-			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-			expectedHoloceneExtraData := eip1559.EncodeHoloceneExtraData(250, 6)
-			require.Equal(t, expectedHoloceneExtraData, b.Extra(), "extra data should match Holocene format")
-			env.Sequencer.ActL2EmptyBlock(t)
+		} else {
+			// If Jovian is not activated at genesis, build some blocks up to the activation block
+			// and verify that the extra data is Holocene
+			for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.JovianTime {
+				b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+				expectedHoloceneExtraData := eip1559.EncodeHoloceneExtraData(250, 6)
+				require.Equal(t, expectedHoloceneExtraData, b.Extra(), "extra data should match Holocene format")
+				env.Sequencer.ActL2EmptyBlock(t)
+			}
 		}
 
 		// Build the activation block
