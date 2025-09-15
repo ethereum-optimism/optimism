@@ -141,12 +141,12 @@ contract PermissionedDisputeGameV2_Version_Test is PermissionedDisputeGameV2_Tes
 /// @notice Tests the `step` function of the `PermissionedDisputeGame` contract.
 contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestInit {
     /// @notice Tests that step works properly for the challenger.
-    function test_step_from_challenger_succeeds() public {
+    function test_step_fromChallenger_succeeds() public {
         step_with_actor(CHALLENGER);
     }
 
     /// @notice Tests that step works properly for the proposer.
-    function test_step_from_proposer_succeeds() public {
+    function test_step_fromProposer_succeeds() public {
         step_with_actor(PROPOSER);
     }
 
