@@ -173,7 +173,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev Minimal implementation: checks enabled+configured, uniqueness, cancellation, stores execution time and
     /// emits.
     /// @dev The txId is computed independent of Safe nonce using all exec params (with keccak(data)).
-    function scheduleTransaction(Safe _safe, uint256 _nonce, ExecTransactionParams memory _params) external {
+    function scheduleTransaction(Safe _safe, uint256 _nonce, ExecTransactionParams memory _params, bytes memory _signatures) external {
         // Check that this guard is enabled on the calling Safe
         if (!_isGuardEnabled(address(_safe))) {
             revert TimelockGuard_GuardNotEnabled();
@@ -213,7 +213,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
-        _safe.checkSignatures(txHash, txHashData, _params.signatures);
+        _safe.checkSignatures(txHash, txHashData, _signatures);
 
         // Check if the transaction exists
         // A transaction can only be scheduled once, regardless of whether it has been cancelled or not.
@@ -247,7 +247,7 @@ contract TimelockGuard is IGuard, ISemver {
     ///      Thus in order for an owners to sign their cancellation transaction, they must first sign
     ///      an empty transaction at the same nonce, or call approveHash on the Safe for that
     ///      transaction hash.
-    function cancelTransaction(Safe _safe, ExecTransactionParams memory _params, uint256 _nonce) external {
+    function cancelTransaction(Safe _safe, ExecTransactionParams memory _params, uint256 _nonce, bytes memory _signatures) external {
         // Calculate the transaction hash
         bytes32 txHash = _safe.getTransactionHash(
             _params.to,
@@ -273,7 +273,7 @@ contract TimelockGuard is IGuard, ISemver {
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
         _safe.checkNSignatures(
-            cancellationTxHash, cancellationTxData, _params.signatures, safeCancellationThreshold[address(_safe)]
+            cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[address(_safe)]
         );
 
         scheduledTransactions[_safe][txHash].cancelled = true;
