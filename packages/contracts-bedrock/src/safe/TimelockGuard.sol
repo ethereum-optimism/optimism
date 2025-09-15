@@ -247,14 +247,12 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev NOT IMPLEMENTED YET
-    function cancelTransaction(address safe, bytes32 txHash, address[] memory rejectingOwners) external pure {
+    function cancelTransaction(address safe, bytes32 txHash) external pure {
         // TODO: Implement
         // require not cancelled
         // require not executed
-        // require unique owners in rejectingOwners
         // rejectingOwners = 0
-        // for owner in rejectingOwners
-        //   require safe.isOwner(owner)
+        // for owner in safe.owners
         //   if rejectedTransactions[safe][txHash][owner]
         //     rejectingOwners++
         // if rejectingOwners >= cancellationThreshold(safe)
