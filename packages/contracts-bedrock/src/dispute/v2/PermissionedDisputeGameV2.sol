@@ -32,7 +32,7 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.
-    constructor(GameConstructorParams memory _params) FaultDisputeGameV2(_params) {}
+    constructor(GameConstructorParams memory _params) FaultDisputeGameV2(_params) { }
 
     /// @inheritdoc FaultDisputeGameV2
     function step(
@@ -87,7 +87,8 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
     //                     IMMUTABLE GETTERS                      //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the dispute game.
+    /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the
+    /// dispute game.
     function proposer() public pure returns (address proposer_) {
         proposer_ = _getArgAddress(super.getImmutableArgsByteCount());
     }

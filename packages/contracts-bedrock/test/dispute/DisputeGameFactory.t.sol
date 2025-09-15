@@ -276,8 +276,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             _name: "PermissionedDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IPermissionedDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON))
+                    IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON))
                 )
             )
         });

@@ -337,7 +337,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     }
 
     // @notice Returns the byte count of the immutable args for this contract.
-    function getImmutableArgsByteCount() internal virtual pure returns (uint256) {
+    function getImmutableArgsByteCount() internal pure virtual returns (uint256) {
         // Expected length: 240 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
