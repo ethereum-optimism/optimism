@@ -29,13 +29,13 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Mapping from Safe address to its guard configuration
-    mapping(address => GuardConfig) public safeConfigs;
+    mapping(Safe => GuardConfig) public safeConfigs;
 
     /// @notice Mapping from Safe and tx id to scheduled transaction.
     mapping(Safe => mapping(bytes32 => ScheduledTransaction)) internal scheduledTransactions;
 
     /// @notice Mapping from Safe to cancellation threshold.
-    mapping(address => uint256) internal safeCancellationThreshold;
+    mapping(Safe => uint256) internal safeCancellationThreshold;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -59,10 +59,10 @@ contract TimelockGuard is IGuard, ISemver {
     error TimelockGuard_TransactionNotScheduled();
 
     /// @notice Emitted when a Safe configures the guard
-    event GuardConfigured(address indexed safe, uint256 timelockDelay);
+    event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
 
     /// @notice Emitted when a Safe clears the guard configuration
-    event GuardCleared(address indexed safe);
+    event GuardCleared(Safe indexed safe);
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
@@ -78,7 +78,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function viewTimelockGuardConfiguration(address _safe) public view returns (uint256) {
+    function viewTimelockGuardConfiguration(Safe _safe) public view returns (uint256) {
         return safeConfigs[_safe].timelockDelay;
     }
 
@@ -98,23 +98,24 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST emit a GuardConfigured event with at least timelock_delay as a parameter
     /// @param _timelockDelay The timelock delay in seconds
     function configureTimelockGuard(uint256 _timelockDelay) external {
+        Safe callingSafe = Safe(payable(msg.sender));
         // Validate timelock delay - must be non-zero and not longer than 1 year
         if (_timelockDelay == 0 || _timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
         // Check that this guard is enabled on the calling Safe
-        if (!_isGuardEnabled(msg.sender)) {
+        if (!_isGuardEnabled(callingSafe)) {
             revert TimelockGuard_GuardNotEnabled();
         }
 
         // Store the configuration for this safe
-        safeConfigs[msg.sender].timelockDelay = _timelockDelay;
+        safeConfigs[callingSafe].timelockDelay = _timelockDelay;
 
         // Initialize cancellation threshold to 1
-        safeCancellationThreshold[msg.sender] = 1;
+        safeCancellationThreshold[callingSafe] = 1;
 
-        emit GuardConfigured(msg.sender, _timelockDelay);
+        emit GuardConfigured(callingSafe, _timelockDelay);
     }
 
     /// @notice Remove the timelock guard configuration by a previously enabled Safe
@@ -122,20 +123,21 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST erase the existing timelock_delay data related to the calling Safe
     /// @dev MUST emit a GuardCleared event
     function clearTimelockGuard() external {
+        Safe callingSafe = Safe(payable(msg.sender));
         // Check if the calling safe has configuration set
-        if (safeConfigs[msg.sender].timelockDelay == 0) {
+        if (safeConfigs[callingSafe].timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
         // Check that this guard is NOT enabled on the calling Safe
-        if (_isGuardEnabled(msg.sender)) {
+        if (_isGuardEnabled(callingSafe)) {
             revert TimelockGuard_GuardStillEnabled();
         }
 
         // Erase the configuration data for this safe
-        delete safeConfigs[msg.sender];
+        delete safeConfigs[callingSafe];
 
-        emit GuardCleared(msg.sender);
+        emit GuardCleared(callingSafe);
     }
 
     /// @notice Returns the cancellation threshold for a given safe
@@ -143,7 +145,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST return 0 if the contract is not enabled as a guard for the safe
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
-    function cancellationThreshold(address _safe) public view returns (uint256) {
+    function cancellationThreshold(Safe _safe) public view returns (uint256) {
         // Return 0 if guard is not enabled
         if (!_isGuardEnabled(_safe)) {
             return 0;
@@ -155,7 +157,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the blocking threshold threshold for a given safe
     /// @dev MUST NOT revert
     /// @return The current blocking threshold
-    function blockingThreshold(address /* _safe */) public pure returns (uint256) {
+    function blockingThreshold(address /* _safe */ ) public pure returns (uint256) {
         return 0;
         // return min(quorum, total_owners - quorum + 1) for _safe;
     }
@@ -163,11 +165,10 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Internal helper to get the guard address from a Safe
     /// @param _safe The Safe address
     /// @return The current guard address
-    function _isGuardEnabled(address _safe) internal view returns (bool) {
+    function _isGuardEnabled(Safe _safe) internal view returns (bool) {
         // keccak256("guard_manager.guard.address") from GuardManager
         bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        Safe safe = Safe(payable(_safe));
-        address guard = abi.decode(safe.getStorageAt(uint256(guardSlot), 1), (address));
+        address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
         return guard == address(this);
     }
 
@@ -175,9 +176,16 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev Minimal implementation: checks enabled+configured, uniqueness, cancellation, stores execution time and
     /// emits.
     /// @dev The txId is computed independent of Safe nonce using all exec params (with keccak(data)).
-    function scheduleTransaction(Safe _safe, uint256 _nonce, ExecTransactionParams memory _params, bytes memory _signatures) external {
+    function scheduleTransaction(
+        Safe _safe,
+        uint256 _nonce,
+        ExecTransactionParams memory _params,
+        bytes memory _signatures
+    )
+        external
+    {
         // Check that this guard is enabled on the calling Safe
-        if (!_isGuardEnabled(address(_safe))) {
+        if (!_isGuardEnabled(_safe)) {
             revert TimelockGuard_GuardNotEnabled();
         }
 
@@ -224,7 +232,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Calculate the execution time
-        uint256 executionTime = block.timestamp + safeConfigs[address(_safe)].timelockDelay;
+        uint256 executionTime = block.timestamp + safeConfigs[_safe].timelockDelay;
 
         // Schedule the transaction
         scheduledTransactions[_safe][txHash] =
@@ -249,7 +257,14 @@ contract TimelockGuard is IGuard, ISemver {
     ///      Thus in order for an owners to sign their cancellation transaction, they must first sign
     ///      an empty transaction at the same nonce, or call approveHash on the Safe for that
     ///      transaction hash.
-    function cancelTransaction(Safe _safe, ExecTransactionParams memory _params, uint256 _nonce, bytes memory _signatures) external {
+    function cancelTransaction(
+        Safe _safe,
+        ExecTransactionParams memory _params,
+        uint256 _nonce,
+        bytes memory _signatures
+    )
+        external
+    {
         // Calculate the transaction hash
         bytes32 txHash = _safe.getTransactionHash(
             _params.to,
@@ -277,23 +292,21 @@ contract TimelockGuard is IGuard, ISemver {
             _safe.getTransactionHash(address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
-        _safe.checkNSignatures(
-            cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[address(_safe)]
-        );
+        _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[_safe]);
 
         scheduledTransactions[_safe][txHash].cancelled = true;
     }
 
     /// @notice Increase the cancellation threshold for a safe
     /// @dev This function must be caled only once and only when calling cancel
-    function increaseCancellationThresholds(address _safe, bytes32 txHash) internal pure {
+    function increaseCancellationThresholds(Safe _safe, bytes32 txHash) internal pure {
         // if safeCancellationThreshold[_safe] < blockingThreshold(_safe)
         //   safeCancellationThreshold[_safe]++
     }
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
-    function resetCancellationThreshold(address _safe, bytes32 txHash) external pure {
+    function resetCancellationThreshold(Safe _safe, bytes32 txHash) external pure {
         // safeCancellationThreshold[_safe] = 1
     }
 
