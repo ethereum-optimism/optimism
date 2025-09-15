@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type minBaseFeeEnv struct {
@@ -87,27 +89,62 @@ func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *
 // waitForMinBaseFeeConfigChangeOnL2 waits until the L2 latest payload extra-data encodes the expected min base fee.
 func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expected uint64) {
 	client := mbf.l2EL.Escape().L2EthClient()
-	ext, ok := client.(apis.L2EthExtendedClient)
-	t.Require().True(ok, "L2 client does not support extended payload API")
-
 	expectedExtraData := eth.BytesMax32(eip1559.EncodeJovianExtraData(250, 6, expected))
 
-	var actualPayload eth.BytesMax32
+	// Try extended API check if supported (optional)
+	if ext, ok := client.(apis.L2EthExtendedClient); ok {
+		t.Logf("L2 client supports extended payload API, performing extended check")
+
+		var actualPayload eth.BytesMax32
+		t.Require().Eventually(func() bool {
+			payload, err := ext.PayloadByLabel(t.Ctx(), "latest")
+			if err != nil {
+				return false
+			}
+			if len(payload.ExecutionPayload.ExtraData) != 17 {
+				return false
+			}
+
+			got := binary.BigEndian.Uint64(payload.ExecutionPayload.ExtraData[9:])
+			actualPayload = payload.ExecutionPayload.ExtraData
+			return got == expected
+		}, 2*time.Minute, 5*time.Second, "L2 min base fee did not sync within timeout")
+
+		t.Require().Equal(expectedExtraData, actualPayload, "extradata doesnt match")
+	} else {
+		t.Logf("L2 client does not support extended payload API, skipping extended check")
+	}
+
+	// Check extradata in block header (for all clients)
+	t.Logf("Checking extradata in block header for all clients")
+	var actualBlockExtraData []byte
 	t.Require().Eventually(func() bool {
-		payload, err := ext.PayloadByLabel(t.Ctx(), "latest")
+		info, err := client.InfoByLabel(t.Ctx(), "latest")
 		if err != nil {
 			return false
 		}
-		if len(payload.ExecutionPayload.ExtraData) != 17 {
+
+		// Get header RLP and decode to access Extra field
+		headerRLP, err := info.HeaderRLP()
+		if err != nil {
 			return false
 		}
 
-		got := binary.BigEndian.Uint64(payload.ExecutionPayload.ExtraData[9:])
-		actualPayload = payload.ExecutionPayload.ExtraData
-		return got == expected
-	}, 2*time.Minute, 5*time.Second, "L2 min base fee did not sync within timeout")
+		var header types.Header
+		if err := rlp.DecodeBytes(headerRLP, &header); err != nil {
+			return false
+		}
 
-	t.Require().Equal(expectedExtraData, actualPayload, "extradata doesnt match")
+		if len(header.Extra) != 17 {
+			return false
+		}
+
+		got := binary.BigEndian.Uint64(header.Extra[9:])
+		actualBlockExtraData = header.Extra
+		return got == expected
+	}, 2*time.Minute, 5*time.Second, "L2 min base fee in block header did not sync within timeout")
+
+	t.Require().Equal(expectedExtraData, eth.BytesMax32(actualBlockExtraData), "block header extradata doesnt match")
 }
 
 // TestMinBaseFee verifies configurable minimum base fee using devstack presets.
