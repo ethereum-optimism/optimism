@@ -40,8 +40,9 @@ func TestSyncTesterELSync(gt *testing.T) {
 	sys.L2CL2.Start()
 
 	// Wait until P2P is connected
+	sys.L2CL2.IsP2PConnected(sys.L2CL)
 
-	// TODO TODO: make sure P2P is back but not connected
+	// Check not advancing
 	sys.L2CL2.NotAdvanced(types.LocalUnsafe, 10)
 
 }
