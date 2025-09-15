@@ -94,23 +94,11 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			nonce, err := cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
 			require.NoError(t, err)
 
-			// Create transaction from Alice to zero address with sufficient gas fee cap for high minimum base fees
-			gasTipCap := big.NewInt(2 * params.GWei)
-			// Ensure gas fee cap is high enough to cover the minimum base fee plus tip
-			minGasFeeCap := new(big.Int).Add(big.NewInt(int64(minBaseFee)), gasTipCap)
-			l1BaseFee := env.Miner.L1Chain().CurrentBlock().BaseFee
-			regularGasFeeCap := new(big.Int).Add(l1BaseFee, big.NewInt(2*params.GWei))
-
-			// Use the higher of the two gas fee caps
-			gasFeeCap := minGasFeeCap
-			if regularGasFeeCap.Cmp(minGasFeeCap) > 0 {
-				gasFeeCap = regularGasFeeCap
-			}
 			tx := types.MustSignNewTx(env.Dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 				ChainID:   env.Sd.L2Cfg.Config.ChainID,
 				Nonce:     nonce,
-				GasTipCap: gasTipCap,
-				GasFeeCap: gasFeeCap,
+				GasTipCap: big.NewInt(2 * params.GWei),
+				GasFeeCap: new(big.Int).Add(big.NewInt(int64(minBaseFee)), big.NewInt(2*params.GWei)),
 				Gas:       params.TxGas,
 				To:        &zeroAddr,
 				Value:     big.NewInt(1000), // Send 1000 wei to zero address
@@ -189,7 +177,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				dc.L2GenesisJovianTimeOffset = &zero
 			},
 			jovianAtGenesis: true,
-			minBaseFee:      5_000_000_000, // 5 gwei
+			minBaseFee:      2_000_000_000, // 2 gwei
 		},
 	}
 

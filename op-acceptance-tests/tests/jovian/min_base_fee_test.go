@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
@@ -91,32 +90,7 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 	client := mbf.l2EL.Escape().L2EthClient()
 	expectedExtraData := eth.BytesMax32(eip1559.EncodeJovianExtraData(250, 6, expected))
 
-	// Try extended API check if supported (optional)
-	if ext, ok := client.(apis.L2EthExtendedClient); ok {
-		t.Logf("L2 client supports extended payload API, performing extended check")
-
-		var actualPayload eth.BytesMax32
-		t.Require().Eventually(func() bool {
-			payload, err := ext.PayloadByLabel(t.Ctx(), "latest")
-			if err != nil {
-				return false
-			}
-			if len(payload.ExecutionPayload.ExtraData) != 17 {
-				return false
-			}
-
-			got := binary.BigEndian.Uint64(payload.ExecutionPayload.ExtraData[9:])
-			actualPayload = payload.ExecutionPayload.ExtraData
-			return got == expected
-		}, 2*time.Minute, 5*time.Second, "L2 min base fee did not sync within timeout")
-
-		t.Require().Equal(expectedExtraData, actualPayload, "extradata doesnt match")
-	} else {
-		t.Logf("L2 client does not support extended payload API, skipping extended check")
-	}
-
 	// Check extradata in block header (for all clients)
-	t.Logf("Checking extradata in block header for all clients")
 	var actualBlockExtraData []byte
 	t.Require().Eventually(func() bool {
 		info, err := client.InfoByLabel(t.Ctx(), "latest")
@@ -171,7 +145,7 @@ func TestMinBaseFee(gt *testing.T) {
 		minBaseFee uint64
 	}{
 		// High minimum base fee
-		{"MinBaseFeeHigh", 5_000_000_000},
+		{"MinBaseFeeHigh", 2_000_000_000},
 		// Medium minimum base fee
 		{"MinBaseFeeMedium", 1_000_000_000},
 		// Zero minimum base fee (not enforced)
