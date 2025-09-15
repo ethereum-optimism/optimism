@@ -59,13 +59,9 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         );
     }
 
-    /// @notice Helper to create a dummy transaction with signatures and a tx hash
-    function _getDummyTx() internal view returns (ExecTransactionParams memory, bytes memory, bytes32) {
-        // Get the nonce of the safe to sign
-        uint256 nonce = safeInstance.safe.nonce();
-
-        // Declare the dummy transaction params
-        ExecTransactionParams memory dummyTxParams = ExecTransactionParams({
+    /// @notice Helper to generate a dummy transaction
+    function _getDummyTxParams() internal pure returns (ExecTransactionParams memory) {
+        return ExecTransactionParams({
             to: address(0xabba),
             value: 0,
             data: hex"acdc",
@@ -76,34 +72,46 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
             gasToken: address(0),
             refundReceiver: payable(address(0))
         });
+    }
 
-        // Get the tx hash
-        bytes32 txHash;
-        {
-            txHash = safeInstance.safe.getTransactionHash({
-                to: dummyTxParams.to,
-                value: dummyTxParams.value,
-                data: dummyTxParams.data,
-                operation: dummyTxParams.operation,
-                safeTxGas: dummyTxParams.safeTxGas,
-                baseGas: dummyTxParams.baseGas,
-                gasPrice: dummyTxParams.gasPrice,
-                gasToken: dummyTxParams.gasToken,
-                refundReceiver: dummyTxParams.refundReceiver,
-                _nonce: nonce
-            });
-        }
-
-        // Sign the tx hash with the owners' private keys
+    /// @notice Helper to generate signatures for an arbitrary transaction
+    /// @param _txHash The transaction hash to sign
+    /// @param _numSignatures The number of signatures to generate
+    /// @return signatures The packed signatures for the transaction
+    function _getSignaturesForTx(bytes32 _txHash, uint256 _numSignatures) internal view returns (bytes memory) {
         bytes memory signatures = new bytes(0);
-        for (uint256 i; i < THRESHOLD; ++i) {
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(safeInstance.ownerPKs[i], txHash);
+        for (uint256 i; i < _numSignatures; ++i) {
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(safeInstance.ownerPKs[i], _txHash);
 
             // The signature format is a compact form of: {bytes32 r}{bytes32 s}{uint8 v}
             signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
         }
+        return signatures;
+    }
 
-        return (dummyTxParams, signatures, txHash);
+    /// @notice Helper to create a dummy transaction with signatures and a tx hash
+    function _getDummyTx() internal view returns (ExecTransactionParams memory, bytes32) {
+        // Get the nonce of the safe to sign
+        uint256 nonce = safeInstance.safe.nonce();
+
+        // Get the dummy transaction params
+        ExecTransactionParams memory dummyTxParams = _getDummyTxParams();
+
+        // Get the tx hash
+        bytes32 txHash = safeInstance.safe.getTransactionHash({
+            to: dummyTxParams.to,
+            value: dummyTxParams.value,
+            data: dummyTxParams.data,
+            operation: dummyTxParams.operation,
+            safeTxGas: dummyTxParams.safeTxGas,
+            baseGas: dummyTxParams.baseGas,
+            gasPrice: dummyTxParams.gasPrice,
+            gasToken: dummyTxParams.gasToken,
+            refundReceiver: dummyTxParams.refundReceiver,
+            _nonce: nonce
+        });
+
+        return (dummyTxParams, txHash);
     }
 
     /// @notice Helper to configure the TimelockGuard for a Safe
@@ -239,7 +247,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_CancellationThreshold_Test
 /// @notice Tests for cancellationThreshold function
 contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
-    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external {
+    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external view {
         uint256 threshold = timelockGuard.cancellationThreshold(address(unguardedSafe.safe));
         assertEq(threshold, 0);
     }
@@ -272,7 +280,8 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 
     function test_scheduleTransaction_succeeds() public {
-        (ExecTransactionParams memory dummyTxParams, bytes memory signatures, bytes32 txHash) = _getDummyTx();
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        bytes memory signatures = _getSignaturesForTx(txHash, THRESHOLD);
 
         vm.expectEmit(true, true, true, true);
         emit TransactionScheduled(safeInstance.safe, txHash, INIT_TIME + TIMELOCK_DELAY);
@@ -280,11 +289,14 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 
     function test_scheduleTransaction_reschedulingIdenticalTransaction_reverts() external {
-        (ExecTransactionParams memory dummyTxParams, bytes memory signatures,) = _getDummyTx();
-        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams, signatures);
+        uint256 nonce = safeInstance.safe.nonce();
+
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        bytes memory signatures = _getSignaturesForTx(txHash, THRESHOLD);
+        timelockGuard.scheduleTransaction(safeInstance.safe, nonce, dummyTxParams, signatures);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
-        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams, signatures);
+        timelockGuard.scheduleTransaction(safeInstance.safe, nonce, dummyTxParams, signatures);
     }
 
     function test_scheduleTransaction_identicalPreviouslyCancelled_reverts() external { }
@@ -305,9 +317,14 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         // Configure the guard and schedule a transaction
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         (ExecTransactionParams memory dummyTxParams, bytes memory signatures, bytes32 txHash) = _getDummyTx();
+
+    function _scheduleTransaction() internal {
+        // Schedule a transaction
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        bytes memory signatures = _getSignaturesForTx(txHash, THRESHOLD);
         timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams, signatures);
 
-        // verify that the transaction is scheduled
+        // Confirm that the transaction is scheduled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
             timelockGuard.getScheduledTransaction(safeInstance.safe, txHash);
         assertEq(scheduledTransaction.executionTime, block.timestamp + TIMELOCK_DELAY);
@@ -315,5 +332,24 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         assertEq(scheduledTransaction.executed, false);
     }
 
-    function test_cancelTransaction_succeeds() external { }
+    function test_cancelTransaction_succeeds() external {
+        _scheduleTransaction();
+
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        uint256 numSignatures = timelockGuard.cancellationThreshold(address(safeInstance.safe));
+        bytes memory signatures = _getSignaturesForTx(txHash, numSignatures);
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, safeInstance.safe.nonce(), signatures);
+
+        // Confirm that the transaction is cancelled
+        TimelockGuard.ScheduledTransaction memory scheduledTransaction =
+            timelockGuard.getScheduledTransaction(safeInstance.safe, txHash);
+        assertEq(scheduledTransaction.cancelled, true);
+    }
+
+    function test_cancelTransaction_revertsIfTransactionNotScheduled_reverts() external {
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        uint256 nonce = safeInstance.safe.nonce();
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionNotScheduled.selector);
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, nonce, new bytes(0));
+    }
 }
