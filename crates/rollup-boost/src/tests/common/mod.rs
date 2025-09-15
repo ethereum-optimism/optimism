@@ -231,6 +231,9 @@ pub struct RollupBoostTestHarnessBuilder {
     proxy_handler: Option<Arc<dyn BuilderProxyHandler>>,
     isthmus_block: Option<u64>,
     block_time: u64,
+    external_state_root: bool,
+    ignore_unhealthy_builders: Option<bool>,
+    max_unsafe_interval: Option<u64>,
 }
 
 impl RollupBoostTestHarnessBuilder {
@@ -240,6 +243,9 @@ impl RollupBoostTestHarnessBuilder {
             proxy_handler: None,
             isthmus_block: None,
             block_time: 1,
+            external_state_root: false,
+            ignore_unhealthy_builders: None,
+            max_unsafe_interval: None,
         }
     }
 
@@ -287,6 +293,21 @@ impl RollupBoostTestHarnessBuilder {
 
     pub fn proxy_handler(mut self, proxy_handler: Arc<dyn BuilderProxyHandler>) -> Self {
         self.proxy_handler = Some(proxy_handler);
+        self
+    }
+
+    pub fn with_l2_state_root_computation(mut self, enabled: bool) -> Self {
+        self.external_state_root = enabled;
+        self
+    }
+
+    pub fn with_ignore_unhealthy_builders(mut self, enabled: bool) -> Self {
+        self.ignore_unhealthy_builders = Some(enabled);
+        self
+    }
+
+    pub fn with_max_unsafe_interval(mut self, interval_secs: u64) -> Self {
+        self.max_unsafe_interval = Some(interval_secs);
         self
     }
 
@@ -363,6 +384,13 @@ impl RollupBoostTestHarnessBuilder {
         rollup_boost.args.l2_client.l2_url = l2.auth_rpc().await?;
         rollup_boost.args.builder.builder_url = builder_url.try_into().unwrap();
         rollup_boost.args.log_file = Some(rollup_boost_log_file_path);
+        rollup_boost.args.external_state_root = self.external_state_root;
+        if let Some(allow_traffic) = self.ignore_unhealthy_builders {
+            rollup_boost.args.ignore_unhealthy_builders = allow_traffic;
+        }
+        if let Some(interval) = self.max_unsafe_interval {
+            rollup_boost.args.max_unsafe_interval = interval;
+        }
         let rollup_boost = rollup_boost.start().await;
         println!("rollup-boost authrpc: {}", rollup_boost.rpc_endpoint());
         println!("rollup-boost metrics: {}", rollup_boost.metrics_endpoint());

@@ -93,6 +93,15 @@ pub struct RollupBoostArgs {
     #[arg(long, env)]
     pub block_selection_policy: Option<BlockSelectionPolicy>,
 
+    /// Should we use the l2 client for computing state root
+    #[arg(long, env, default_value = "false")]
+    pub external_state_root: bool,
+
+    /// Allow all engine API calls to builder even when marked as unhealthy
+    /// This is default true assuming no builder CL set up
+    #[arg(long, env, default_value = "false")]
+    pub ignore_unhealthy_builders: bool,
+
     #[clap(flatten)]
     pub flashblocks: FlashblocksArgs,
 }
@@ -160,6 +169,8 @@ impl RollupBoostArgs {
                 execution_mode.clone(),
                 self.block_selection_policy,
                 probes.clone(),
+                self.external_state_root,
+                self.ignore_unhealthy_builders,
             );
 
             let health_handle = rollup_boost
@@ -175,6 +186,8 @@ impl RollupBoostArgs {
                 execution_mode.clone(),
                 self.block_selection_policy,
                 probes.clone(),
+                self.external_state_root,
+                self.ignore_unhealthy_builders,
             );
 
             let health_handle = rollup_boost

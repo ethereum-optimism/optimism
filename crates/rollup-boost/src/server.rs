@@ -16,6 +16,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
+use dashmap::DashMap;
 use http_body_util::{BodyExt, Full};
 use jsonrpsee::RpcModule;
 use jsonrpsee::core::BoxError;
@@ -36,7 +37,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
-use tracing::{error, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 pub type Request = HttpRequest;
 pub type Response = HttpResponse;
@@ -49,8 +50,11 @@ pub struct RollupBoostServer<T: EngineApiExt> {
     pub builder_client: Arc<T>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     block_selection_policy: Option<BlockSelectionPolicy>,
+    external_state_root: bool,
+    ignore_unhealthy_builders: bool,
     execution_mode: Arc<Mutex<ExecutionMode>>,
     probes: Arc<Probes>,
+    payload_to_fcu_request: DashMap<PayloadId, (ForkchoiceState, Option<OpPayloadAttributes>)>,
 }
 
 impl<T> RollupBoostServer<T>
@@ -63,6 +67,8 @@ where
         initial_execution_mode: Arc<Mutex<ExecutionMode>>,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
+        external_state_root: bool,
+        ignore_unhealthy_builders: bool,
     ) -> Self {
         Self {
             l2_client: Arc::new(l2_client),
@@ -71,6 +77,9 @@ where
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
             execution_mode: initial_execution_mode,
             probes,
+            external_state_root,
+            ignore_unhealthy_builders,
+            payload_to_fcu_request: DashMap::new(),
         }
     }
 
@@ -121,7 +130,7 @@ where
             .await;
 
         // async call to builder to sync the builder node
-        if !self.execution_mode().is_disabled() {
+        if !self.execution_mode().is_disabled() && !self.should_skip_unhealthy_builder() {
             let builder = self.builder_client.clone();
             let new_payload_clone = new_payload.clone();
             tokio::spawn(async move { builder.new_payload(new_payload_clone).await });
@@ -187,12 +196,19 @@ where
             info!(message = "builder has payload, calling get_payload on builder");
 
             let payload = self.builder_client.get_payload(payload_id, version).await?;
-            let _ = self
-                .l2_client
-                .new_payload(NewPayload::from(payload.clone()))
-                .await?;
 
-            Ok(Some(payload))
+            if !self.external_state_root {
+                let _ = self
+                    .l2_client
+                    .new_payload(NewPayload::from(payload.clone()))
+                    .await?;
+
+                return Ok(Some(payload));
+            }
+
+            return self
+                .calculate_external_state_root(payload, payload_id, version)
+                .await;
         };
 
         let (l2_payload, builder_payload) = tokio::join!(l2_fut, builder_fut);
@@ -252,6 +268,7 @@ where
         let inner_payload = ExecutionPayload::from(payload.clone());
         let block_hash = inner_payload.block_hash();
         let block_number = inner_payload.block_number();
+        let state_root = inner_payload.as_v1().state_root;
 
         // Note: This log message is used by integration tests to track payload context.
         // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
@@ -260,10 +277,72 @@ where
             message = "returning block",
             "hash" = %block_hash,
             "number" = %block_number,
+            "state_root" = %state_root,
             %context,
             %payload_id,
         );
         Ok(payload)
+    }
+
+    fn should_skip_unhealthy_builder(&self) -> bool {
+        self.ignore_unhealthy_builders && !matches!(self.probes.health(), Health::Healthy)
+    }
+
+    async fn calculate_external_state_root(
+        &self,
+        builder_payload: OpExecutionPayloadEnvelope,
+        payload_id: PayloadId,
+        version: PayloadVersion,
+    ) -> RpcResult<Option<OpExecutionPayloadEnvelope>> {
+        let fcu_info = self.payload_to_fcu_request.remove(&payload_id).unwrap().1;
+
+        let new_payload_attrs = match fcu_info.1.as_ref() {
+            Some(attrs) => OpPayloadAttributes {
+                payload_attributes: attrs.payload_attributes.clone(),
+                transactions: Some(builder_payload.transactions()),
+                no_tx_pool: Some(true),
+                gas_limit: attrs.gas_limit,
+                eip_1559_params: attrs.eip_1559_params,
+            },
+            None => OpPayloadAttributes {
+                payload_attributes: builder_payload.payload_attributes(),
+                transactions: Some(builder_payload.transactions()),
+                no_tx_pool: Some(true),
+                gas_limit: None,
+                eip_1559_params: None,
+            },
+        };
+
+        let l2_result = self
+            .l2_client
+            .fork_choice_updated_v3(fcu_info.0, Some(new_payload_attrs))
+            .await?;
+
+        if let Some(new_payload_id) = l2_result.payload_id {
+            debug!(
+                message = "sent FCU to l2 to calculate new state root",
+                "returned_payload_id" = %new_payload_id,
+                "old_payload_id" = %payload_id,
+            );
+            let l2_payload = self.l2_client.get_payload(new_payload_id, version).await;
+
+            match l2_payload {
+                Ok(new_payload) => {
+                    debug!(
+                        message = "received new state root payload from l2",
+                        payload = ?new_payload,
+                    );
+                    return Ok(Some(new_payload));
+                }
+
+                Err(e) => {
+                    error!(message = "error getting new state root payload from l2", error = %e);
+                    return Err(e.into());
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -357,6 +436,12 @@ where
             return Ok(l2_fut.await?);
         }
 
+        // If traffic to the unhealthy builder is not allowed and the builder is unhealthy,
+        if self.should_skip_unhealthy_builder() {
+            info!(message = "builder is unhealthy, skipping FCU to builder");
+            return Ok(l2_fut.await?);
+        }
+
         let span = tracing::Span::current();
         // If the fcu contains payload attributes and the tx pool is disabled,
         // only forward the FCU to the default l2 client
@@ -387,7 +472,7 @@ where
                 // to both the builder and the default l2 client
                 let builder_fut = self
                     .builder_client
-                    .fork_choice_updated_v3(fork_choice_state, payload_attributes);
+                    .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone());
 
                 let (l2_result, builder_result) = tokio::join!(l2_fut, builder_fut);
                 let l2_response = l2_result?;
@@ -407,6 +492,11 @@ where
                             span.id(),
                         )
                         .await;
+
+                    if self.external_state_root {
+                        self.payload_to_fcu_request
+                            .insert(payload_id, (fork_choice_state, payload_attributes));
+                    }
                 }
 
                 return Ok(l2_response);
@@ -416,15 +506,25 @@ where
             // forward the fcu to the builder to keep it synced and immediately return the l2
             // response without awaiting the builder
             let builder_client = self.builder_client.clone();
+            let attrs_clone = payload_attributes.clone();
             tokio::spawn(async move {
                 // It is not critical to wait for the builder response here
                 // During moments of high load, Op-node can send hundreds of FCU requests
                 // and we want to ensure that we don't block the main thread in those scenarios
                 builder_client
-                    .fork_choice_updated_v3(fork_choice_state, payload_attributes)
+                    .fork_choice_updated_v3(fork_choice_state, attrs_clone)
                     .await
             });
-            return Ok(l2_fut.await?);
+            let l2_response = l2_fut.await?;
+            #[allow(clippy::collapsible_if)]
+            if let Some(payload_id) = l2_response.payload_id {
+                if self.external_state_root {
+                    self.payload_to_fcu_request
+                        .insert(payload_id, (fork_choice_state, payload_attributes));
+                }
+            }
+
+            return Ok(l2_response);
         }
     }
 
@@ -669,12 +769,17 @@ pub mod tests {
             let (probe_layer, probes) = ProbeLayer::new();
             let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
+            // For tests, set initial health to Healthy since we don't run health checks
+            probes.set_health(Health::Healthy);
+
             let rollup_boost = RollupBoostServer::new(
                 l2_client,
                 builder_client,
                 execution_mode.clone(),
                 None,
                 probes.clone(),
+                false,
+                true,
             );
 
             let module: RpcModule<()> = rollup_boost.try_into().unwrap();

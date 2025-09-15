@@ -12,6 +12,7 @@ use jsonrpsee::{
 };
 use parking_lot::Mutex;
 use tower::{Layer, Service};
+use tracing::info;
 
 use crate::{Request, Response};
 
@@ -45,6 +46,7 @@ pub struct Probes {
 
 impl Probes {
     pub fn set_health(&self, value: Health) {
+        info!(target: "rollup_boost::probe", "Updating health probe to to {:?}", value);
         *self.health.lock() = value;
     }
 

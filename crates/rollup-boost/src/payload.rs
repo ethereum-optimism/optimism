@@ -2,7 +2,7 @@ use alloy_primitives::{B256, Bytes};
 use futures::{StreamExt as _, stream};
 use moka::future::Cache;
 
-use alloy_rpc_types_engine::{ExecutionPayload, ExecutionPayloadV3, PayloadId};
+use alloy_rpc_types_engine::{ExecutionPayload, ExecutionPayloadV3, PayloadAttributes, PayloadId};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
 };
@@ -59,6 +59,67 @@ impl OpExecutionPayloadEnvelope {
                 .payload_inner
                 .transactions
                 .len(),
+        }
+    }
+
+    pub fn transactions(&self) -> Vec<Bytes> {
+        match self {
+            OpExecutionPayloadEnvelope::V3(payload) => payload
+                .execution_payload
+                .payload_inner
+                .payload_inner
+                .transactions
+                .clone(),
+            OpExecutionPayloadEnvelope::V4(payload) => payload
+                .execution_payload
+                .payload_inner
+                .payload_inner
+                .payload_inner
+                .transactions
+                .clone(),
+        }
+    }
+
+    pub fn payload_attributes(&self) -> PayloadAttributes {
+        match self {
+            OpExecutionPayloadEnvelope::V3(payload) => PayloadAttributes {
+                timestamp: payload.execution_payload.payload_inner.timestamp(),
+                prev_randao: payload
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .prev_randao,
+                suggested_fee_recipient: payload
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .fee_recipient,
+                withdrawals: Some(payload.execution_payload.withdrawals().clone()),
+                parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+            },
+            OpExecutionPayloadEnvelope::V4(payload) => PayloadAttributes {
+                timestamp: payload.execution_payload.payload_inner.timestamp(),
+                prev_randao: payload
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .payload_inner
+                    .prev_randao,
+                suggested_fee_recipient: payload
+                    .execution_payload
+                    .payload_inner
+                    .payload_inner
+                    .payload_inner
+                    .fee_recipient,
+                withdrawals: Some(
+                    payload
+                        .execution_payload
+                        .payload_inner
+                        .withdrawals()
+                        .clone(),
+                ),
+                parent_beacon_block_root: Some(payload.parent_beacon_block_root),
+            },
         }
     }
 }

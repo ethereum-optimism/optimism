@@ -13,11 +13,17 @@ struct CounterHandler {
 impl BuilderProxyHandler for CounterHandler {
     fn handle(
         &self,
-        _method: String,
+        method: String,
         _params: Value,
         _result: Value,
     ) -> Pin<Box<dyn Future<Output = Option<Value>> + Send>> {
-        *self.counter.lock().unwrap() += 1;
+        // Only count Engine API calls, not health check calls
+        if method != "eth_getBlockByNumber" {
+            *self.counter.lock().unwrap() += 1;
+            tracing::info!("Proxy handler intercepted Engine API call: {}", method);
+        } else {
+            tracing::debug!("Proxy handler intercepted health check call: {}", method);
+        }
         async move { None }.boxed()
     }
 }
