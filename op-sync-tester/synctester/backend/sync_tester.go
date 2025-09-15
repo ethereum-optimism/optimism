@@ -360,8 +360,10 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		// Let CL backfill via newPayload
 		return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 	}
+	// Equivalent to SetCanonical
+	session.UpdateFCULatest(candLatest.NumberU64())
+	logger.Debug("Updated FCU State", "latest", session.CurrentState.Latest)
 	// Simulate db check for finalized head
-	var finalizedNum uint64
 	if state.FinalizedBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
@@ -369,13 +371,15 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not available"))
 		}
-		finalizedNum = candFinalized.NumberU64()
-		// if session.CurrentState.Latest < finalizedNum {
-		// 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not canonical"))
-		// }
+		finalizedNum := candFinalized.NumberU64()
+		if session.CurrentState.Latest < finalizedNum {
+			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not canonical"))
+		}
+		// Equivalent to SetFinalized
+		session.UpdateFCUFinalized(finalizedNum)
+		logger.Debug("Updated FCU State", "finalized", session.CurrentState.Finalized)
 	}
 	// Simulate db check for safe head
-	var safeNum uint64
 	if state.SafeBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
@@ -383,10 +387,13 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not available"))
 		}
-		safeNum = candSafe.NumberU64()
-		// if session.CurrentState.Latest < safeNum {
-		// 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not canonical"))
-		// }
+		safeNum := candSafe.NumberU64()
+		if session.CurrentState.Latest < safeNum {
+			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not canonical"))
+		}
+		// Equivalent to SetSafe
+		session.UpdateFCUSafe(safeNum)
+		logger.Debug("Updated FCU State", "safe", session.CurrentState.Safe)
 	}
 	var id *engine.PayloadID
 	if attr != nil {
@@ -445,8 +452,6 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		logger.Debug("Store payload", "payloadID", payloadID)
 		session.Payloads[payloadID] = payloadEnv
 	}
-	session.UpdateFCUState(candLatest.NumberU64(), safeNum, finalizedNum)
-	logger.Debug("Updated FCU State")
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 	// Spec: Client software MUST respond to this method call in the following way: {payloadStatus: {status: VALID, latestValidHash: forkchoiceState.headBlockHash, validationError: null}, payloadId: buildProcessId} if the payload is deemed VALID and the build process has begun
 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &state.HeadBlockHash}, PayloadID: id}, nil

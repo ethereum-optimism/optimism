@@ -26,9 +26,15 @@ type SyncTesterSession struct {
 	InitialState FCUState `json:"initialState"`
 }
 
-func (s *SyncTesterSession) UpdateFCUState(latest, safe, finalized uint64) {
+func (s *SyncTesterSession) UpdateFCULatest(latest uint64) {
 	s.CurrentState.Latest = latest
+}
+
+func (s *SyncTesterSession) UpdateFCUSafe(safe uint64) {
 	s.CurrentState.Safe = safe
+}
+
+func (s *SyncTesterSession) UpdateFCUFinalized(finalized uint64) {
 	s.CurrentState.Finalized = finalized
 }
 
