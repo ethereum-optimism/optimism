@@ -32,7 +32,7 @@ func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2Fault
 	require.NoError(t, err, "SetMinBaseFee transaction failed")
 
 	// Build some L2 blocks to allow the config change to propagate
-	for range 10 {
+	for range 5 {
 		env.Sequencer.ActL2EmptyBlock(t)
 	}
 
@@ -62,15 +62,13 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			}
 		}
 
-		// Build the activation block
+		// Build the activation block and set the minimum base fee to a high value and make sure
+		// the actual base fee is below that value because it will be active the next block
 		env.Sequencer.ActL2EmptyBlock(t)
-		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		expectedJovianExtraData := eip1559.EncodeJovianExtraData(250, 6, 0)
-		require.Equal(t, expectedJovianExtraData, activationBlock.Extra(), "activation block should have Jovian extraData")
-
-		// Set the minimum base fee via system config
-		// targetMinBaseFee := uint64(1e9) // 1 Gwei
 		setMinBaseFeeViaSystemConfig(t, env, minBaseFee)
+		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+		require.Equal(t, eip1559.EncodeJovianExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
+		require.Less(t, activationBlock.BaseFee().Uint64(), minBaseFee, "activation block should have a base fee below the minimum base fee")
 
 		// Build a few more blocks and verify the minimum base fee is enforced
 		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
@@ -79,7 +77,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 
 			// Extract minimum base fee from extradata
-			var actualMinBaseFee uint64 = 0
+			actualMinBaseFee := uint64(0)
 			if len(b.Extra()) == 17 {
 				// The minimum base fee is encoded as an 8-byte uint64 starting at byte 9
 				actualMinBaseFee = binary.BigEndian.Uint64(b.Extra()[9:17])
