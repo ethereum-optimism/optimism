@@ -70,6 +70,11 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param when The timestamp when execution becomes valid.
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
 
+    /// @notice Emitted when a transaction is cancelled for a Safe.
+    /// @param safe The Safe whose transaction is cancelled.
+    /// @param txId The identifier of the cancelled transaction (nonce-independent).
+    event TransactionCancelled(Safe indexed safe, bytes32 indexed txId, uint256 newCancellationThreshold);
+
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -157,8 +162,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the blocking threshold threshold for a given safe
     /// @dev MUST NOT revert
     /// @return The current blocking threshold
-    function blockingThreshold(address /* _safe */ ) public pure returns (uint256) {
-        return 0;
+    function blockingThreshold(Safe /* _safe */ ) public pure returns (uint256) {
+        // TODO: Implement this
+        return 10;
         // return min(quorum, total_owners - quorum + 1) for _safe;
     }
 
@@ -276,23 +282,28 @@ contract TimelockGuard is IGuard, ISemver {
             _safe.encodeTransactionData(address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
         bytes32 cancellationTxHash =
             _safe.getTransactionHash(address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
+
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
         _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[_safe]);
 
         scheduledTransactions[_safe][_txHash].cancelled = true;
+        increaseCancellationThreshold(_safe, _txHash);
+
+        emit TransactionCancelled(_safe, _txHash, safeCancellationThreshold[_safe]);
     }
 
     /// @notice Increase the cancellation threshold for a safe
     /// @dev This function must be caled only once and only when calling cancel
-    function increaseCancellationThresholds(Safe _safe, bytes32 txHash) internal pure {
-        // if safeCancellationThreshold[_safe] < blockingThreshold(_safe)
-        //   safeCancellationThreshold[_safe]++
+    function increaseCancellationThreshold(Safe _safe, bytes32 _txHash) internal {
+        if (safeCancellationThreshold[_safe] < blockingThreshold(_safe)) {
+            safeCancellationThreshold[_safe]++;
+        }
     }
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
-    function resetCancellationThreshold(Safe _safe, bytes32 txHash) external pure {
+    function resetCancellationThreshold(Safe _safe, bytes32 _txHash) external pure {
         // safeCancellationThreshold[_safe] = 1
     }
 
