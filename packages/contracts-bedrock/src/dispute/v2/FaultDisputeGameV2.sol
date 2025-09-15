@@ -327,15 +327,17 @@ contract FaultDisputeGameV2 is Clone, ISemver {
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
     }
 
+    // @notice Returns the expected calldata length for the initialize method
     function expectedInitCallDataLength() internal pure returns (uint256) {
-        // Expected length: 6 bytes + CWIA data length
+        // Expected length: 6 bytes + immutable args byte count
         // - 4 bytes: selector
         // - 2 bytes: CWIA length prefix
-        // - n bytes: Remaining CWIA data
-        return 6 + expectedCWIADataLength();
+        // - n bytes: Immutable args data
+        return 6 + getImmutableArgsByteCount();
     }
 
-    function expectedCWIADataLength() internal virtual pure returns (uint256) {
+    // @notice Returns the byte count of the immutable args for this contract.
+    function getImmutableArgsByteCount() internal virtual pure returns (uint256) {
         // Expected length: 240 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
