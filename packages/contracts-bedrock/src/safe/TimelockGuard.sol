@@ -55,6 +55,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for when a transaction is already cancelled
     error TimelockGuard_TransactionAlreadyCancelled();
 
+    /// @notice Error for when a transaction is not scheduled
+    error TimelockGuard_TransactionNotScheduled();
+
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
 
@@ -263,6 +266,9 @@ contract TimelockGuard is IGuard, ISemver {
         );
         if (scheduledTransactions[_safe][txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
+        }
+        if (scheduledTransactions[_safe][txHash].executionTime == 0) {
+            revert TimelockGuard_TransactionNotScheduled();
         }
 
         // Generate the cancellation transaction data
