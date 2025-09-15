@@ -140,12 +140,21 @@ contract PermissionedDisputeGameV2_Version_Test is PermissionedDisputeGameV2_Tes
 /// @title PermissionedDisputeGameV2_Step_Test
 /// @notice Tests the `step` function of the `PermissionedDisputeGame` contract.
 contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestInit {
-    /// @notice Tests that step works properly.
-    function test_step_succeeds() public {
-        // Give the test contract some ether
-        vm.deal(CHALLENGER, 1_000 ether);
+    /// @notice Tests that step works properly for the challenger.
+    function test_step_from_challenger_succeeds() public {
+        step_with_actor(CHALLENGER);
+    }
 
-        vm.startPrank(CHALLENGER, CHALLENGER);
+    /// @notice Tests that step works properly for the proposer.
+    function test_step_from_proposer_succeeds() public {
+        step_with_actor(PROPOSER);
+    }
+
+    function step_with_actor(address permissionedActor) public {
+        // Give the test contract some ether
+        vm.deal(permissionedActor, 1_000 ether);
+
+        vm.startPrank(permissionedActor, permissionedActor);
 
         // Make claims all the way down the tree.
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
@@ -187,7 +196,7 @@ contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestIn
         assertEq(uint256(gameProxy.status()), uint256(GameStatus.CHALLENGER_WINS));
         assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
         (, address counteredBy,,,,,) = gameProxy.claimData(0);
-        assertEq(counteredBy, CHALLENGER);
+        assertEq(counteredBy, permissionedActor);
     }
 }
 
@@ -199,6 +208,15 @@ contract PermissionedDisputeGameV2_Unclassified_Test is PermissionedDisputeGameV
     function test_createGame_proposer_succeeds() public {
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
         vm.prank(PROPOSER, PROPOSER);
+        disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
+    }
+
+    /// @notice Tests that the permissioned game cannot be created by the challenger.
+    function test_createGame_challenger_reverts() public {
+        uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
+        vm.deal(CHALLENGER, bondAmount);
+        vm.prank(CHALLENGER, CHALLENGER);
+        vm.expectRevert(BadAuth.selector);
         disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, arbitaryRootClaim, abi.encode(validL2BlockNumber));
     }
 
