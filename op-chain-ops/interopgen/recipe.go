@@ -66,14 +66,20 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	if err != nil {
 		return nil, err
 	}
+	proposer, err := addrs.Address(chainOps(devkeys.ProposerRole))
+	if err != nil {
+		return nil, err
+	}
 	l1Cfg.Prefund[superchainDeployer] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainProxyAdmin] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
 	l1Cfg.Prefund[challenger] = Ether(10_000_000)
+	l1Cfg.Prefund[proposer] = Ether(10_000_000)
 
 	superchainCfg := &SuperchainConfig{
 		ProxyAdminOwner:       superchainProxyAdmin,
 		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
+		Proposer:              proposer,
 		Challenger:            challenger,
 		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
