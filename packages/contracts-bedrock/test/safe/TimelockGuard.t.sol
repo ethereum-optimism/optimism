@@ -81,20 +81,20 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 
         // Get the tx hash
         bytes32 txHash;
-            {
-                txHash = safeInstance.safe.getTransactionHash({
-                    to: dummyTxParams.to,
-                    value: dummyTxParams.value,
-                    data: dummyTxParams.data,
-                    operation: dummyTxParams.operation,
-                    safeTxGas: dummyTxParams.safeTxGas,
-                    baseGas: dummyTxParams.baseGas,
-                    gasPrice: dummyTxParams.gasPrice,
-                    gasToken: dummyTxParams.gasToken,
-                    refundReceiver: dummyTxParams.refundReceiver,
-                    _nonce: nonce
-                });
-            }
+        {
+            txHash = safeInstance.safe.getTransactionHash({
+                to: dummyTxParams.to,
+                value: dummyTxParams.value,
+                data: dummyTxParams.data,
+                operation: dummyTxParams.operation,
+                safeTxGas: dummyTxParams.safeTxGas,
+                baseGas: dummyTxParams.baseGas,
+                gasPrice: dummyTxParams.gasPrice,
+                gasToken: dummyTxParams.gasToken,
+                refundReceiver: dummyTxParams.refundReceiver,
+                _nonce: nonce
+            });
+        }
 
         // Sign the tx hash with the owners' private keys
         for (uint256 i; i < THRESHOLD; ++i) {
@@ -295,4 +295,26 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     function test_scheduleTransaction_guardNotConfigured_reverts() external { }
 
     function test_scheduleTransaction_canScheduleIdenticalWithSalt_succeeds() external { }
+}
+
+/// @title TimelockGuard_CancelTransaction_Test
+/// @notice Tests for cancelTransaction function
+contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+
+        // Configure the guard and schedule a transaction
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash) = _getDummyTx();
+        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams);
+
+        // verify that the transaction is scheduled
+        TimelockGuard.ScheduledTransaction memory scheduledTransaction =
+            timelockGuard.getScheduledTransaction(safeInstance.safe, txHash);
+        assertEq(scheduledTransaction.executionTime, block.timestamp + TIMELOCK_DELAY);
+        assertEq(scheduledTransaction.cancelled, false);
+        assertEq(scheduledTransaction.executed, false);
+    }
+
+    function test_cancelTransaction_succeeds() external { }
 }

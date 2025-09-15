@@ -191,7 +191,7 @@ library SafeTestLib {
                 refundReceiver: refundReceiver,
                 _nonce: _nonce
             });
-            console.log('txDataHash:');
+            console.log("txDataHash:");
             console.logBytes32(txDataHash);
         }
 
