@@ -71,8 +71,11 @@ func (mbf *minBaseFeeEnv) setMinBaseFeeViaSytemConfigOnL1(t devtest.T, minBaseFe
 
 func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *big.Int) {
 	// Simulate user transactions
-	for range 20 {
+	_ = mbf.l2EL.WaitForBlock()
+	for range 10 {
 		from.Transfer(common.Address{}, eth.OneGWei)
+		// Wait for the next block to ensure inclusion before sending the next tx
+		_ = mbf.l2EL.WaitForBlock()
 	}
 
 	// Wait for the next block
