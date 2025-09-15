@@ -25,43 +25,91 @@ import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 /// @notice Reusable test initialization for `L2StandardBridge` tests.
 contract L2StandardBridge_TestInit is CommonTest {
     /// @notice Sets up expected calls and emits for a successful ERC20 withdrawal.
-    function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
-        // Alice has 100 L2Token
-        deal(_l2Token, alice, 100, true);
-        assertEq(ERC20(_l2Token).balanceOf(alice), 100);
+    function _expectERC20WithdrawalCalls(
+        uint256 _amount,
+        uint32 _minGasLimit,
+        address _to,
+        bool _isLegacy,
+        address _l2Token
+    )
+        internal
+    {
+        deal(_l2Token, alice, _amount, true);
+        assertEq(ERC20(_l2Token).balanceOf(alice), _amount);
+
+        _expectWithdrawalCallsAndEvents(_amount, _minGasLimit, _to, _isLegacy, _l2Token);
+
+        vm.prank(alice, alice);
+    }
+
+    function _expectWithdrawalCallsAndEvents(
+        uint256 _amount,
+        uint32 _minGasLimit,
+        address _to,
+        bool _isLegacy,
+        address _l2Token
+    )
+        internal
+    {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
-        bytes memory message =
-            abi.encodeCall(IStandardBridge.finalizeBridgeERC20, (address(L1Token), _l2Token, alice, alice, 100, hex""));
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
+        bytes memory message = abi.encodeCall(
+            IStandardBridge.finalizeBridgeERC20, (address(L1Token), _l2Token, alice, _to, _amount, hex"")
+        );
+        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, _minGasLimit);
         bytes memory withdrawalData = abi.encodeCall(
             ICrossDomainMessenger.relayMessage,
-            (nonce, address(l2StandardBridge), address(l1StandardBridge), 0, 1000, message)
-        );
-        bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction({
-                nonce: nonce,
-                sender: address(l2CrossDomainMessenger),
-                target: address(l1CrossDomainMessenger),
-                value: 0,
-                gasLimit: baseGas,
-                data: withdrawalData
-            })
+            (nonce, address(l2StandardBridge), address(l1StandardBridge), 0, _minGasLimit, message)
         );
 
+        _expectBridgeCalls(_amount, _minGasLimit, _isLegacy, _l2Token, message, baseGas, withdrawalData, _to);
+        _expectWithdrawalEvents(_amount, _minGasLimit, _to, _l2Token, message, nonce, baseGas, withdrawalData);
+    }
+
+    function _expectBridgeCalls(
+        uint256 _amount,
+        uint32 _minGasLimit,
+        bool _isLegacy,
+        address _l2Token,
+        bytes memory message,
+        uint64 baseGas,
+        bytes memory withdrawalData,
+        address _to
+    )
+        internal
+    {
         if (_isLegacy) {
-            vm.expectCall(
-                address(l2StandardBridge), abi.encodeCall(l2StandardBridge.withdraw, (_l2Token, 100, 1000, hex""))
-            );
+            if (_to == alice) {
+                vm.expectCall(
+                    address(l2StandardBridge),
+                    abi.encodeCall(l2StandardBridge.withdraw, (_l2Token, _amount, _minGasLimit, hex""))
+                );
+            } else {
+                vm.expectCall(
+                    address(l2StandardBridge),
+                    abi.encodeCall(l2StandardBridge.withdrawTo, (_l2Token, _to, _amount, _minGasLimit, hex""))
+                );
+            }
         } else {
-            vm.expectCall(
-                address(l2StandardBridge),
-                abi.encodeCall(l2StandardBridge.bridgeERC20, (_l2Token, address(L1Token), 100, 1000, hex""))
-            );
+            if (_to == alice) {
+                vm.expectCall(
+                    address(l2StandardBridge),
+                    abi.encodeCall(
+                        l2StandardBridge.bridgeERC20, (_l2Token, address(L1Token), _amount, _minGasLimit, hex"")
+                    )
+                );
+            } else {
+                vm.expectCall(
+                    address(l2StandardBridge),
+                    abi.encodeCall(
+                        l2StandardBridge.bridgeERC20To, (_l2Token, address(L1Token), _to, _amount, _minGasLimit, hex"")
+                    )
+                );
+            }
         }
 
         vm.expectCall(
             address(l2CrossDomainMessenger),
-            abi.encodeCall(ICrossDomainMessenger.sendMessage, (address(l1StandardBridge), message, 1000))
+            abi.encodeCall(ICrossDomainMessenger.sendMessage, (address(l1StandardBridge), message, _minGasLimit))
         );
 
         vm.expectCall(
@@ -71,14 +119,26 @@ contract L2StandardBridge_TestInit is CommonTest {
             )
         );
 
-        // The l2StandardBridge should burn the tokens
-        vm.expectCall(_l2Token, abi.encodeCall(OptimismMintableERC20.burn, (alice, 100)));
+        vm.expectCall(_l2Token, abi.encodeCall(OptimismMintableERC20.burn, (alice, _amount)));
+    }
+
+    function _expectWithdrawalEvents(
+        uint256 _amount,
+        uint32 _minGasLimit,
+        address _to,
+        address _l2Token,
+        bytes memory message,
+        uint256 nonce,
+        uint64 baseGas,
+        bytes memory withdrawalData
+    )
+        internal
+    {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiated(address(L1Token), _l2Token, alice, _to, _amount, hex"");
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(address(L1Token), _l2Token, alice, alice, 100, hex"");
-
-        vm.expectEmit(true, true, true, true);
-        emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, alice, 100, hex"");
+        emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, _to, _amount, hex"");
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
@@ -88,18 +148,27 @@ contract L2StandardBridge_TestInit is CommonTest {
             0,
             baseGas,
             withdrawalData,
-            withdrawalHash
+            Hashing.hashWithdrawal(
+                Types.WithdrawalTransaction({
+                    nonce: nonce,
+                    sender: address(l2CrossDomainMessenger),
+                    target: address(l1CrossDomainMessenger),
+                    value: 0,
+                    gasLimit: baseGas,
+                    data: withdrawalData
+                })
+            )
         );
 
-        // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true);
-        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 1000);
+        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, _minGasLimit);
 
-        // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true);
         emit SentMessageExtension1(address(l2StandardBridge), 0);
+    }
 
-        vm.prank(alice, alice);
+    function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
+        _expectERC20WithdrawalCalls(100, 1000, alice, _isLegacy, _l2Token);
     }
 
     /// @notice Sets up expected calls and emits for a successful ERC20 withdrawal to a different
@@ -107,80 +176,7 @@ contract L2StandardBridge_TestInit is CommonTest {
     /// @dev `withdrawTo` and `bridgeERC20To` should behave the same when transferring ERC20 tokens
     ///      so they should share the same setup and expectEmit calls
     function _preBridgeERC20To(bool _isLegacy, address _l2Token) internal {
-        deal(_l2Token, alice, 100, true);
-        assertEq(L2Token.balanceOf(alice), 100);
-        uint256 nonce = l2CrossDomainMessenger.messageNonce();
-        bytes memory message =
-            abi.encodeCall(IStandardBridge.finalizeBridgeERC20, (address(L1Token), _l2Token, alice, bob, 100, hex""));
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
-        bytes memory withdrawalData = abi.encodeCall(
-            ICrossDomainMessenger.relayMessage,
-            (nonce, address(l2StandardBridge), address(l1StandardBridge), 0, 1000, message)
-        );
-        bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction({
-                nonce: nonce,
-                sender: address(l2CrossDomainMessenger),
-                target: address(l1CrossDomainMessenger),
-                value: 0,
-                gasLimit: baseGas,
-                data: withdrawalData
-            })
-        );
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit WithdrawalInitiated(address(L1Token), _l2Token, alice, bob, 100, hex"");
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, bob, 100, hex"");
-
-        vm.expectEmit(address(l2ToL1MessagePasser));
-        emit MessagePassed(
-            nonce,
-            address(l2CrossDomainMessenger),
-            address(l1CrossDomainMessenger),
-            0,
-            baseGas,
-            withdrawalData,
-            withdrawalHash
-        );
-
-        // SentMessage event emitted by the CrossDomainMessenger
-        vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessage(address(l1StandardBridge), address(l2StandardBridge), message, nonce, 1000);
-
-        // SentMessageExtension1 event emitted by the CrossDomainMessenger
-        vm.expectEmit(address(l2CrossDomainMessenger));
-        emit SentMessageExtension1(address(l2StandardBridge), 0);
-
-        if (_isLegacy) {
-            vm.expectCall(
-                address(l2StandardBridge),
-                abi.encodeCall(l2StandardBridge.withdrawTo, (_l2Token, bob, 100, 1000, hex""))
-            );
-        } else {
-            vm.expectCall(
-                address(l2StandardBridge),
-                abi.encodeCall(l2StandardBridge.bridgeERC20To, (_l2Token, address(L1Token), bob, 100, 1000, hex""))
-            );
-        }
-
-        vm.expectCall(
-            address(l2CrossDomainMessenger),
-            abi.encodeCall(ICrossDomainMessenger.sendMessage, (address(l1StandardBridge), message, 1000))
-        );
-
-        vm.expectCall(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            abi.encodeCall(
-                IL2ToL1MessagePasser.initiateWithdrawal, (address(l1CrossDomainMessenger), baseGas, withdrawalData)
-            )
-        );
-
-        // The l2StandardBridge should burn the tokens
-        vm.expectCall(address(L2Token), abi.encodeCall(OptimismMintableERC20.burn, (alice, 100)));
-
-        vm.prank(alice, alice);
+        _expectERC20WithdrawalCalls(100, 1000, bob, _isLegacy, _l2Token);
     }
 
     using stdStorage for StdStorage;
@@ -359,30 +355,7 @@ contract L2StandardBridge_Withdraw_Test is L2StandardBridge_TestInit {
         _amount = bound(_amount, 1, 1000000);
         _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
 
-        deal(address(L2Token), alice, _amount, true);
-        assertEq(L2Token.balanceOf(alice), _amount);
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit WithdrawalInitiated({
-            l1Token: address(L1Token),
-            l2Token: address(L2Token),
-            from: alice,
-            to: alice,
-            amount: _amount,
-            data: hex""
-        });
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit ERC20BridgeInitiated({
-            localToken: address(L2Token),
-            remoteToken: address(L1Token),
-            from: alice,
-            to: alice,
-            amount: _amount,
-            data: hex""
-        });
-
-        vm.prank(alice, alice);
+        _expectERC20WithdrawalCalls(_amount, _minGasLimit, alice, true, address(L2Token));
         l2StandardBridge.withdraw(address(L2Token), _amount, _minGasLimit, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -422,30 +395,7 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
         _amount = bound(_amount, 1, 1000000);
         _minGasLimit = uint32(bound(_minGasLimit, 21000, 1000000));
 
-        deal(address(L2Token), alice, _amount, true);
-        assertEq(L2Token.balanceOf(alice), _amount);
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit WithdrawalInitiated({
-            l1Token: address(L1Token),
-            l2Token: address(L2Token),
-            from: alice,
-            to: bob,
-            amount: _amount,
-            data: hex""
-        });
-
-        vm.expectEmit(address(l2StandardBridge));
-        emit ERC20BridgeInitiated({
-            localToken: address(L2Token),
-            remoteToken: address(L1Token),
-            from: alice,
-            to: bob,
-            amount: _amount,
-            data: hex""
-        });
-
-        vm.prank(alice, alice);
+        _expectERC20WithdrawalCalls(_amount, _minGasLimit, bob, true, address(L2Token));
         l2StandardBridge.withdrawTo(address(L2Token), bob, _amount, _minGasLimit, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
