@@ -907,3 +907,23 @@ contract SystemConfig_SetMinBaseFee_Test is SystemConfig_TestInit {
         assertEq(systemConfig.minBaseFee(), newMinBaseFee);
     }
 }
+
+/// @title SystemConfig_SetDAFootprintGasScalar_Test
+/// @notice Test contract for SystemConfig `setDAFootprintGasScalar` function.
+contract SystemConfig_SetDAFootprintGasScalar_Test is SystemConfig_TestInit {
+    /// @notice Tests that `setDAFootprintGasScalar` reverts if the caller is not the owner.
+    function test_setDAFootprintGasScalar_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setDAFootprintGasScalar(0);
+    }
+
+    /// @notice Tests that `setDAFootprintGasScalar` updates the DA footprint gas scalar successfully.
+    function testFuzz_setDAFootprintGasScalar_succeeds(uint16 newScalar) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.DA_FOOTPRINT_GAS_SCALAR, abi.encode(newScalar));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setDAFootprintGasScalar(newScalar);
+        assertEq(systemConfig.daFootprintGasScalar(), newScalar);
+    }
+}

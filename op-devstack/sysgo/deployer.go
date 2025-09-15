@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -44,6 +45,20 @@ type DeployerPipelineOption func(wb *worldBuilder, intent *state.Intent, cfg *de
 func WithDeployerCacheDir(dirPath string) DeployerPipelineOption {
 	return func(_ *worldBuilder, _ *state.Intent, cfg *deployer.ApplyPipelineOpts) {
 		cfg.CacheDir = dirPath
+	}
+}
+
+// WithDAFootprintGasScalar sets the DA footprint gas scalar with which the networks identified by
+// l2IDs will be launched. If there are no l2IDs provided, all L2 networks are set with scalar.
+func WithDAFootprintGasScalar(scalar uint16, l2IDs ...stack.L2NetworkID) DeployerOption {
+	return func(p devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2 := range builder.L2s() {
+			if len(l2IDs) == 0 || slices.ContainsFunc(l2IDs, func(id stack.L2NetworkID) bool {
+				return id.ChainID() == l2.ChainID()
+			}) {
+				l2.WithDAFootprintGasScalar(scalar)
+			}
+		}
 	}
 }
 
