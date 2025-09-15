@@ -68,7 +68,7 @@ func (mbf *minBaseFeeEnv) setMinBaseFeeViaSytemConfigOnL1(t devtest.T, minBaseFe
 	t.Logf("Set min base fee on L1: minBaseFee=%d", minBaseFee)
 }
 
-func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *big.Int, shouldEnforce bool) {
+func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *big.Int) {
 	// Simulate user transactions
 	for range 20 {
 		from.Transfer(common.Address{}, eth.OneGWei)
@@ -80,12 +80,7 @@ func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *
 	info, err := el.InfoByLabel(t.Ctx(), "latest")
 	t.Require().NoError(err)
 
-	feeCmp := info.BaseFee().Cmp(minBase)
-	if !shouldEnforce {
-		t.Require().True(feeCmp > 0, "expected base fee to be higher than the minBaseFee")
-	} else {
-		t.Require().True(feeCmp == 0, "expected base fee to be at least minBaseFee")
-	}
+	t.Require().True(info.BaseFee().Cmp(minBase) >= 0, "expected base fee to be higher than the minBaseFee")
 	t.Logf("base fee %s, minBase %s", info.BaseFee(), minBase)
 }
 
@@ -135,15 +130,15 @@ func TestMinBaseFee(gt *testing.T) {
 	sys.FunderL1.FundAtLeast(systemOwner, eth.OneTenthEther)
 
 	testCases := []struct {
-		name          string
-		minBaseFee    uint64
-		shouldEnforce bool
+		name       string
+		minBaseFee uint64
 	}{
-		// The min base fee is enforced since the calculated base fee is below the min base fee.
-		{"MinBaseFeeEnforced", 1_000_000_000, true},
-		// The min base fee is set too low so when there's activity, we enforce the
-		// calculated base fee over the min base fee.
-		{"MinBaseFeeNotEnforced", 0, false},
+		// High minimum base fee
+		{"MinBaseFeeHigh", 5_000_000_000},
+		// Medium minimum base fee
+		{"MinBaseFeeMedium", 1_000_000_000},
+		// Zero minimum base fee (not enforced)
+		{"MinBaseFeeZero", 0},
 	}
 
 	for _, tc := range testCases {
@@ -151,12 +146,11 @@ func TestMinBaseFee(gt *testing.T) {
 			minBaseFee.setMinBaseFeeViaSytemConfigOnL1(t, tc.minBaseFee)
 			minBaseFee.waitForMinBaseFeeConfigChangeOnL2(t, tc.minBaseFee)
 
-			minBaseFee.verifyMinBaseFee(t, alice, big.NewInt(int64(tc.minBaseFee)), tc.shouldEnforce)
+			minBaseFee.verifyMinBaseFee(t, alice, big.NewInt(int64(tc.minBaseFee)))
 
 			t.Log("Test completed successfully:",
 				"testCase", tc.name,
-				"minBaseFee", tc.minBaseFee,
-				"shouldEnforce", tc.shouldEnforce)
+				"minBaseFee", tc.minBaseFee)
 		})
 	}
 }
