@@ -154,9 +154,8 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Returns the blocking threshold threshold for a given safe
     /// @dev MUST NOT revert
-    /// @param _safe The Safe address to query
     /// @return The current blocking threshold
-    function blockingThreshold(address _safe) public view returns (uint256) {
+    function blockingThreshold(address /* _safe */) public pure returns (uint256) {
         return 0;
         // return min(quorum, total_owners - quorum + 1) for _safe;
     }
