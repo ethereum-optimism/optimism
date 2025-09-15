@@ -1876,9 +1876,16 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
         IOPContractsManager.DeployOutput memory output = opcmV2.deploy(opcmInput);
         vm.stopPrank();
 
+        // Verify that v2 dispute game contracts are deployed and non-zero
         assertTrue(address(output.permissionedDisputeGameV2) != address(0), "PermissionedDisputeGameV2 should be deployed");
         assertTrue(address(output.faultDisputeGameV2) != address(0), "FaultDisputeGameV2 should be deployed");
 
-        assertTrue(address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame v1 is still deployed, but not registered");
+        // Verify that v1 permissioned dispute game is still deployed (for backward compatibility)
+        assertTrue(address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame v1 should still be deployed");
+
+        // Verify that the DisputeGameFactory has registered the v2 implementation for PERMISSIONED_CANNON game type
+        address registeredPermissionedImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        assertEq(registeredPermissionedImpl, address(output.permissionedDisputeGameV2),
+            "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON");
     }
 }
