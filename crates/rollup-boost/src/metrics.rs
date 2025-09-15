@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use eyre::Result;
+use metrics::gauge;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{PrefixLayer, Stack};
 use tokio::net::TcpListener;
@@ -13,6 +14,7 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use metrics_exporter_prometheus::PrometheusHandle;
 
+use crate::ExecutionMode;
 use crate::cli::RollupBoostArgs;
 
 pub fn init_metrics(args: &RollupBoostArgs) -> Result<()> {
@@ -68,4 +70,10 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre
             }
         }
     }
+}
+
+/// Update the execution_mode prometheus metric
+pub fn update_execution_mode_gauge(execution_mode: ExecutionMode) {
+    let gauge = gauge!("rollup_boost_execution_mode");
+    gauge.set(execution_mode.to_metric_value());
 }

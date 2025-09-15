@@ -6,6 +6,8 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::update_execution_mode_gauge;
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionMode {
@@ -28,6 +30,14 @@ impl ExecutionMode {
 
     pub fn is_enabled(&self) -> bool {
         matches!(self, ExecutionMode::Enabled)
+    }
+
+    pub fn to_metric_value(&self) -> f64 {
+        match self {
+            ExecutionMode::Enabled => 3.0,
+            ExecutionMode::DryRun => 2.0,
+            ExecutionMode::Disabled => 1.0,
+        }
     }
 }
 
@@ -70,6 +80,10 @@ impl DebugServer {
     pub async fn run(self, debug_addr: &str) -> eyre::Result<()> {
         let server = Server::builder().build(debug_addr).await?;
 
+        // Register the initial execution mode metric
+        let current_mode = self.execution_mode();
+        update_execution_mode_gauge(current_mode);
+
         let handle = server.start(self.into_rpc());
 
         tracing::info!("Debug server listening on addr {}", debug_addr);
@@ -87,6 +101,7 @@ impl DebugServer {
 
     pub fn set_execution_mode(&self, mode: ExecutionMode) {
         *self.execution_mode.lock() = mode;
+        update_execution_mode_gauge(mode);
     }
 }
 
