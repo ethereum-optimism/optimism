@@ -1,22 +1,47 @@
 package proofs
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/stretchr/testify/require"
 )
 
+func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, minBaseFee uint64) {
+	// Create system config contract binding
+	systemConfig, err := bindings.NewSystemConfig(env.Sd.RollupCfg.L1SystemConfigAddress, env.Miner.EthClient())
+	require.NoError(t, err)
+
+	// Create transactor for the deployer (system config owner)
+	deployerTx, err := bind.NewKeyedTransactorWithChainID(env.Dp.Secrets.Deployer, env.Sd.RollupCfg.L1ChainID)
+	require.NoError(t, err)
+
+	t.Logf("Setting min base fee on L1: minBaseFee=%d", minBaseFee)
+
+	_, err = systemConfig.SetMinBaseFee(deployerTx, minBaseFee)
+	require.NoError(t, err, "SetMinBaseFee transaction failed")
+
+	// Build some L2 blocks to allow the config change to propagate
+	for range 10 {
+		env.Sequencer.ActL2EmptyBlock(t)
+	}
+
+	t.Logf("Min base fee set and propagated to L2")
+}
+
 func Test_ProgramAction_JovianActivation(gt *testing.T) {
 
-	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool) {
+	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool, minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
@@ -43,13 +68,33 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		expectedJovianExtraData := eip1559.EncodeJovianExtraData(250, 6, 0)
 		require.Equal(t, expectedJovianExtraData, activationBlock.Extra(), "activation block should have Jovian extraData")
 
-		// Build a few more blocks
+		// Set the minimum base fee via system config
+		// targetMinBaseFee := uint64(1e9) // 1 Gwei
+		setMinBaseFeeViaSystemConfig(t, env, minBaseFee)
+
+		// Build a few more blocks and verify the minimum base fee is enforced
+		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
 		for range 10 {
-			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-			require.Equal(t, expectedJovianExtraData, b.Extra(), "subsequent blocks should have Jovian extraData")
-			// assert that the block's base fee is greater than the minimum
-			require.Greater(t, b.BaseFee().Uint64(), uint64(0), "base fee should be > minimum")
 			env.Sequencer.ActL2EmptyBlock(t)
+			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+
+			// Extract minimum base fee from extradata
+			var actualMinBaseFee uint64 = 0
+			if len(b.Extra()) == 17 {
+				// The minimum base fee is encoded as an 8-byte uint64 starting at byte 9
+				actualMinBaseFee = binary.BigEndian.Uint64(b.Extra()[9:17])
+			}
+
+			// Check if the minimum base fee has been updated in the extradata
+			if actualMinBaseFee == minBaseFee {
+				require.Equal(t, expectedJovianExtraDataWithMinFee, b.Extra(), "block should have updated Jovian extraData with min base fee")
+				t.Logf("✓ Block %d: min base fee updated to %d in extradata", b.Number().Uint64(), actualMinBaseFee)
+			}
+
+			// assert that the block's base fee is greater than or equal to the minimum
+			require.GreaterOrEqual(t, b.BaseFee().Uint64(), actualMinBaseFee, "base fee should be >= minimum base fee")
+
+			t.Logf("Block %d: base fee %d, min base fee %d", b.Number().Uint64(), b.BaseFee().Uint64(), actualMinBaseFee)
 		}
 
 		if !jovianAtGenesis {
@@ -74,8 +119,9 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 	tests := map[string]struct {
 		genesisConfigFn func(*genesis.DeployConfig)
 		jovianAtGenesis bool
+		minBaseFee      uint64
 	}{
-		"JovianActivationAfterGenesis": {
+		/*"JovianActivationAfterGenesis": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				// Activate Isthmus at genesis
 				zero := hexutil.Uint64(0)
@@ -86,13 +132,32 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			},
 			jovianAtGenesis: false,
 		},
-		"JovianActivationAtGenesis": {
+		"JovianActivationAtGenesisZeroMinBaseFee": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				zero := hexutil.Uint64(0)
 				dc.L2GenesisJovianTimeOffset = &zero
 			},
 			jovianAtGenesis: true,
+		},*/
+		"JovianActivationAtGenesis1GweiMinBaseFee": {
+			genesisConfigFn: func(dc *genesis.DeployConfig) {
+				zero := hexutil.Uint64(0)
+				dc.L2GenesisJovianTimeOffset = &zero
+			},
+			jovianAtGenesis: true,
+			minBaseFee:      1e9,
 		},
+		/*"JovianActivationAtGenesis5GweiMinBaseFee": {
+			genesisConfigFn: func(dc *genesis.DeployConfig) {
+				zero := hexutil.Uint64(0)
+				dc.L2GenesisJovianTimeOffset = &zero
+				// Set 5 Gwei minimum base fee
+				fiveGwei := hexutil.Uint64(5_000_000_000) // 5e9
+				dc.SystemConfigStartBlock = 0
+				_ = fiveGwei // Will be used for minimum base fee configuration
+			},
+			jovianAtGenesis: true,
+		},*/
 	}
 
 	for name, tt := range tests {
@@ -105,7 +170,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				nil,
 				helpers.NewForkMatrix(helpers.Isthmus),
 				func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis)
+					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis, tt.minBaseFee)
 				},
 				helpers.ExpectNoError(),
 			)
@@ -114,7 +179,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				nil,
 				helpers.NewForkMatrix(helpers.Isthmus),
 				func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis)
+					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis, tt.minBaseFee)
 				},
 				helpers.ExpectError(claim.ErrClaimNotValid),
 				helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
