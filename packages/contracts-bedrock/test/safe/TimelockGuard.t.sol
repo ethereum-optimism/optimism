@@ -22,6 +22,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event GuardCleared(address indexed safe);
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
+    event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -299,7 +300,9 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         timelockGuard.scheduleTransaction(safeInstance.safe, nonce, dummyTxParams, signatures);
     }
 
-    function test_scheduleTransaction_identicalPreviouslyCancelled_reverts() external { }
+    function test_scheduleTransaction_identicalPreviouslyCancelled_reverts() external {
+        // TODO: Implement once cancelTransaction is implemented and tested
+     }
 
     function test_scheduleTransaction_guardNotEnabled_reverts() external { }
 
@@ -316,7 +319,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Configure the guard and schedule a transaction
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        (ExecTransactionParams memory dummyTxParams, bytes memory signatures, bytes32 txHash) = _getDummyTx();
+    }
 
     function _scheduleTransaction() internal {
         // Schedule a transaction
