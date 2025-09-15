@@ -14,6 +14,10 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
+import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -1793,12 +1797,55 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 /// @notice Tests for v2 dispute game implementations in OPContractsManager
 contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
 
+    /// @notice Helper function to deploy OPCM with v2 flag enabled
+    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
+        // Deploy Superchain contracts first
+        DeploySuperchain deploySuperchain = new DeploySuperchain();
+        DeploySuperchain.Output memory dso = deploySuperchain.run(
+            DeploySuperchain.Input({
+                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
+                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
+                guardian: makeAddr("guardian"),
+                paused: false,
+                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
+                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
+            })
+        );
+
+        // Deploy implementations with v2 flag enabled
+        DeployImplementations deployImplementations = new DeployImplementations();
+        DeployImplementations.Output memory dio = deployImplementations.run(
+            DeployImplementations.Input({
+                withdrawalDelaySeconds: 100,
+                minProposalSizeBytes: 200,
+                challengePeriodSeconds: 300,
+                proofMaturityDelaySeconds: 400,
+                disputeGameFinalityDelaySeconds: 500,
+                mipsVersion: StandardConstants.MIPS_VERSION,
+                faultGameV2MaxGameDepth: 73,
+                faultGameV2SplitDepth: 30,
+                faultGameV2ClockExtension: 10800,
+                faultGameV2MaxClockDuration: 302400,
+                superchainConfigProxy: dso.superchainConfigProxy,
+                protocolVersionsProxy: dso.protocolVersionsProxy,
+                superchainProxyAdmin: dso.superchainProxyAdmin,
+                upgradeController: dso.superchainProxyAdmin.owner(),
+                proposer: proposer,
+                challenger: challenger,
+                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES  // Enable v2 flag here
+            })
+        );
+
+        return dio.opcm;
+    }
+
     /// @notice Test that deploy without v2 flag doesn't set v2 implementations
     function test_deploy_withoutV2Flag_noV2Implementations() public {
         // Convert DOI to OPCM input and deploy
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(doi);
-        vm.prank(address(this));
+        vm.startPrank(address(this));
         IOPContractsManager.DeployOutput memory output = opcm.deploy(opcmInput);
+        vm.stopPrank();
 
         // Check that v2 implementations are not set (since flag is not enabled by default)
         assertEq(address(output.permissionedDisputeGameV2), address(0));
@@ -1811,21 +1858,27 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
 
     /// @notice Test that deploy with v2 flag would set v2 implementations
     function test_deploy_withV2Flag_concept() public {
-        // This test demonstrates the v2 flag concept
-        // In a real deployment with v2 flag enabled:
-        // 1. The OPContractsManagerContractsContainer would be created with DEPLOY_V2_DISPUTE_GAMES flag
-        // 2. The v2 implementation addresses would be non-zero
-        // 3. The deploy function would register v2 implementations with DisputeGameFactory
+        IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
 
-        // Get the current implementations from OPCM (these would be v2 in a v2-enabled deployment)
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        assertTrue(opcmV2.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES), "V2 flag should be enabled");
 
-        // In a v2-enabled deployment, these would be non-zero addresses
-        // For now, we just verify they are zero since v2 flag is not enabled
-        assertEq(address(impls.permissionedDisputeGameV2Impl), address(0));
-        assertEq(address(impls.faultDisputeGameV2Impl), address(0));
+        IOPContractsManager.Implementations memory impls = opcmV2.implementations();
 
-        // Test that we can check if v2 flag is enabled (it shouldn't be in default setup)
-        assertFalse(opcm.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES));
+        // Verify that v2 implementations are set (non-zero)
+        assertTrue(address(impls.permissionedDisputeGameV2Impl) != address(0), "PermissionedDisputeGameV2 implementation should be non-zero");
+        assertTrue(address(impls.faultDisputeGameV2Impl) != address(0), "FaultDisputeGameV2 implementation should be non-zero");
+
+        // Set up deploy input for the v2-enabled OPCM
+        doi.set(doi.opcm.selector, address(opcmV2));
+        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(doi);
+
+        vm.startPrank(address(this));
+        IOPContractsManager.DeployOutput memory output = opcmV2.deploy(opcmInput);
+        vm.stopPrank();
+
+        assertTrue(address(output.permissionedDisputeGameV2) != address(0), "PermissionedDisputeGameV2 should be deployed");
+        assertTrue(address(output.faultDisputeGameV2) != address(0), "FaultDisputeGameV2 should be deployed");
+
+        assertTrue(address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame v1 is still deployed, but not registered");
     }
 }
