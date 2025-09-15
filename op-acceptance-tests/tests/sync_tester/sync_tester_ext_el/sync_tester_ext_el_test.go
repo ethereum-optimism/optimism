@@ -2,41 +2,66 @@ package sync_tester_ext_el
 
 import (
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/shim"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+)
+
+// Configuration defaults for op-sepolia
+const (
+	DefaultL2NetworkName      = "op-sepolia"
+	DefaultL1ChainID          = 11155111
+	DefaultL2ELEndpoint       = "https://ci-sepolia-l2.optimism.io"
+	DefaultL1CLBeaconEndpoint = "https://ci-sepolia-beacon.optimism.io"
+	DefaultL1ELEndpoint       = "https://ci-sepolia-l1.optimism.io"
+
+	// Tailscale networking endpoints
+	DefaultL2ELEndpointTailscale       = "https://proxyd-l2-sepolia.primary.client.dev.oplabs.cloud"
+	DefaultL1CLBeaconEndpointTailscale = "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"
+	DefaultL1ELEndpointTailscale       = "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
+)
+
+var (
+	// Load configuration from environment variables with defaults
+	L2NetworkName = getEnvOrDefault("L2_NETWORK_NAME", DefaultL2NetworkName)
+	L1ChainID     = eth.ChainIDFromUInt64(getEnvUint64OrDefault("L1_CHAIN_ID", DefaultL1ChainID))
+
+	// Default endpoints
+	L2ELEndpoint       = getEnvOrDefault("L2_EL_ENDPOINT", DefaultL2ELEndpoint)
+	L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT", DefaultL1CLBeaconEndpoint)
+	L1ELEndpoint       = getEnvOrDefault("L1_EL_ENDPOINT", DefaultL1ELEndpoint)
 )
 
 func TestSyncTesterExtEL(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	l := t.Logger()
-
-	// Runtime configuration values
-	l.Info("Runtime configuration values for TestSyncTesterExtEL")
-	l.Info("L2_NETWORK_NAME", "value", L2NetworkName)
-	l.Info("L1_CHAIN_ID", "value", L1ChainID)
-	l.Info("INITIAL_L2_BLOCK", "value", InitialL2Block)
-	l.Info("L2_EL_ENDPOINT", "value", L2ELEndpoint)
-	l.Info("L1_CL_BEACON_ENDPOINT", "value", L1CLBeaconEndpoint)
-	l.Info("L1_EL_ENDPOINT", "value", L1ELEndpoint)
-	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
 
 	if os.Getenv("CIRCLECI_PIPELINE_SCHEDULE_NAME") != "build_daily" && os.Getenv("CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH") != "true" {
 		t.Skipf("TestSyncTesterExtEL only runs on daily scheduled pipeline jobs: schedule=%s dispatch=%s", os.Getenv("CIRCLECI_PIPELINE_SCHEDULE_NAME"), os.Getenv("CIRCLECI_PARAMETERS_SYNC_TEST_OP_NODE_DISPATCH"))
 	}
 
-	sys := presets.NewMinimalExternalELWithExternalL1(t)
+	l := t.Logger()
 	require := t.Require()
+	sys, initial := setupSystem(gt, t)
 
 	// Test that we can get sync status from L2CL node
 	l2CLSyncStatus := sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
 
 	blocksToSync := uint64(20)
-	targetBlock := InitialL2Block + blocksToSync
-	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 500)
+	sys.L2CL.Reached(types.LocalUnsafe, initial+blocksToSync, 500)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
@@ -53,4 +78,107 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	require.GreaterOrEqual(stSession.CurrentState.Safe, stSession.InitialState.Safe+blocksToSync, "SyncTester session Safe should be on the same block as L2CL")
 
 	l.Info("SyncTester ExtEL test completed successfully", "l2cl_chain_id", sys.L2CL.ID().ChainID(), "l2cl_sync_status", l2CLSyncStatus)
+}
+
+// setupSystem initializes the system for the test and returns the system and the initial block number of the session
+func setupSystem(gt *testing.T, t devtest.T) (*presets.MinimalExternalEL, uint64) {
+	// Initialize orchestrator
+	orch, initial := setupOrchestrator(gt, t)
+	system := shim.NewSystem(t)
+	orch.Hydrate(system)
+
+	// Extract the system components
+	l2 := system.L2Network(match.L2ChainA)
+	verifierCL := l2.L2CLNode(match.FirstL2CL)
+	syncTester := l2.SyncTester(match.FirstSyncTester)
+
+	sys := &presets.MinimalExternalEL{
+		Log:          t.Logger(),
+		T:            t,
+		ControlPlane: orch.ControlPlane(),
+		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
+		L1EL:         dsl.NewL1ELNode(system.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)),
+		L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
+		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
+		SyncTester:   dsl.NewSyncTester(syncTester),
+	}
+
+	return sys, initial
+}
+
+// setupOrchestrator initializes and configures the orchestrator for the test and returns the orchestrator and the initial block number of the session
+func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64) {
+	l := t.Logger()
+	ctx := t.Ctx()
+	require := t.Require()
+
+	// Override configuration with Tailscale endpoints if Tailscale networking is enabled
+	if os.Getenv("TAILSCALE_NETWORKING") == "true" {
+		L2ELEndpoint = getEnvOrDefault("L2_EL_ENDPOINT_TAILSCALE", DefaultL2ELEndpointTailscale)
+		L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT_TAILSCALE", DefaultL1CLBeaconEndpointTailscale)
+		L1ELEndpoint = getEnvOrDefault("L1_EL_ENDPOINT_TAILSCALE", DefaultL1ELEndpointTailscale)
+	}
+
+	// Runtime configuration values
+	l.Info("Runtime configuration values for TestSyncTesterExtEL")
+	l.Info("L2_NETWORK_NAME", "value", L2NetworkName)
+	l.Info("L1_CHAIN_ID", "value", L1ChainID)
+	l.Info("L2_EL_ENDPOINT", "value", L2ELEndpoint)
+	l.Info("L1_CL_BEACON_ENDPOINT", "value", L1CLBeaconEndpoint)
+	l.Info("L1_EL_ENDPOINT", "value", L1ELEndpoint)
+	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
+
+	// Setup orchestrator
+	logger := testlog.Logger(gt, log.LevelInfo)
+	onFail := func(now bool) {
+		if now {
+			gt.FailNow()
+		} else {
+			gt.Fail()
+		}
+	}
+	onSkipNow := func() {
+		gt.SkipNow()
+	}
+	p := devtest.NewP(ctx, logger, onFail, onSkipNow)
+	gt.Cleanup(p.Close)
+
+	// Fetch the latest block number from the remote L2EL node
+	cl, err := ethclient.DialContext(ctx, L2ELEndpoint)
+	require.NoError(err)
+	latestBlock, err := cl.BlockByNumber(ctx, nil)
+	require.NoError(err)
+
+	initial := latestBlock.NumberU64() - 1000
+	l.Info("LATEST_BLOCK", "latest_block", latestBlock.NumberU64(), "session_initial_block", initial)
+
+	opt := sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
+		Latest:    initial,
+		Safe:      initial,
+		Finalized: initial,
+	})
+
+	orch := sysgo.NewOrchestrator(p, stack.SystemHook(opt))
+	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opt, orch)
+
+	return orch, initial
+}
+
+// getEnvOrDefault returns the environment variable value or the default if not set
+func getEnvOrDefault(envVar, defaultValue string) string {
+	if value := os.Getenv(envVar); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvUint64OrDefault returns the environment variable value as uint64 or the default if not set
+func getEnvUint64OrDefault(envVar string, defaultValue uint64) uint64 {
+	if value := os.Getenv(envVar); value != "" {
+		if parsed, err := strconv.ParseUint(value, 10, 64); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
 }
