@@ -14,6 +14,4 @@ struct ExecTransactionParams {
     uint256 gasPrice;
     address gasToken;
     address payable refundReceiver;
-    // TODO: Life might be easier if this was left out of the struct
-    bytes signatures;
 }
