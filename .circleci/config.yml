@@ -2650,7 +2650,6 @@ workflows:
           l2_el_endpoint: "https://ci-sepolia-l2.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
           l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
-          initial_l2_block: "3201274"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2667,7 +2666,6 @@ workflows:
           l2_el_endpoint: "https://base-sepolia-rpc.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
           l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
-          initial_l2_block: "30621132"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2684,7 +2682,6 @@ workflows:
           l2_el_endpoint: "https://unichain-sepolia-rpc.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
           l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
-          initial_l2_block: "30145093"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2701,7 +2698,6 @@ workflows:
           l2_el_endpoint: "https://op-mainnet-rpc.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
           l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
-          initial_l2_block: "140013283"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2718,7 +2714,6 @@ workflows:
           l2_el_endpoint: "https://base-mainnet-rpc.optimism.io"
           l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
           l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
-          initial_l2_block: "35318000"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
