@@ -1696,7 +1696,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
-    function setUp() public override {
+    function setUp() public virtual override {
         DeployOPChain_TestBase.setUp();
 
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
@@ -1723,6 +1723,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     // to the input struct type defined in OPContractsManager.sol.
     function toOPCMDeployInput(DeployOPChainInput _doi)
         internal
+        virtual
         view
         returns (IOPContractsManager.DeployInput memory)
     {
