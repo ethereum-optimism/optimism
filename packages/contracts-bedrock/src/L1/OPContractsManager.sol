@@ -26,6 +26,8 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -541,15 +543,32 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 );
             }
 
-            // Deploy the new game type.
-            outputs[i].faultDisputeGame = IFaultDisputeGame(
-                Blueprint.deployFrom(
-                    blueprint1,
-                    blueprint2,
-                    computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
-                    constructorData
-                )
-            );
+            // Deploy the new game type or use v2 implementation
+            if (
+                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                    && gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
+                    && address(getImplementations().faultDisputeGameV2Impl) != address(0)
+            ) {
+                // Use v2 FaultDisputeGame implementation
+                outputs[i].faultDisputeGame = IFaultDisputeGame(getImplementations().faultDisputeGameV2Impl);
+            } else if (
+                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                    && gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                    && address(getImplementations().permissionedDisputeGameV2Impl) != address(0)
+            ) {
+                // Use v2 PermissionedDisputeGame implementation
+                outputs[i].faultDisputeGame = IFaultDisputeGame(getImplementations().permissionedDisputeGameV2Impl);
+            } else {
+                // Deploy v1 game using blueprint
+                outputs[i].faultDisputeGame = IFaultDisputeGame(
+                    Blueprint.deployFrom(
+                        blueprint1,
+                        blueprint2,
+                        computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
+                        constructorData
+                    )
+                );
+            }
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
@@ -1075,6 +1094,13 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             )
         );
 
+        // Store v2 implementation addresses if the feature flag is enabled
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Store v2 implementation addresses for later registration with DisputeGameFactory
+            output.permissionedDisputeGameV2 = IPermissionedDisputeGameV2(implementation.permissionedDisputeGameV2Impl);
+            output.faultDisputeGameV2 = IFaultDisputeGameV2(implementation.faultDisputeGameV2Impl);
+        }
+
         // -------- Set and Initialize Proxy Implementations --------
         bytes memory data;
 
@@ -1159,11 +1185,25 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             implementation.disputeGameFactoryImpl,
             data
         );
-        setDGFImplementation(
-            output.disputeGameFactoryProxy,
-            GameTypes.PERMISSIONED_CANNON,
-            IDisputeGame(address(output.permissionedDisputeGame))
-        );
+        // Register the appropriate dispute game implementation based on the feature flag
+        if (
+            isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                && address(output.permissionedDisputeGameV2) != address(0)
+        ) {
+            // Register v2 implementation for PERMISSIONED_CANNON game type
+            setDGFImplementation(
+                output.disputeGameFactoryProxy,
+                GameTypes.PERMISSIONED_CANNON,
+                IDisputeGame(address(output.permissionedDisputeGameV2))
+            );
+        } else {
+            // Register v1 implementation for PERMISSIONED_CANNON game type
+            setDGFImplementation(
+                output.disputeGameFactoryProxy,
+                GameTypes.PERMISSIONED_CANNON,
+                IDisputeGame(address(output.permissionedDisputeGame))
+            );
+        }
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));
 
@@ -1739,6 +1779,9 @@ contract OPContractsManager is ISemver {
         IPermissionedDisputeGame permissionedDisputeGame;
         IDelayedWETH delayedWETHPermissionedGameProxy;
         IDelayedWETH delayedWETHPermissionlessGameProxy;
+        // V2 dispute game contracts (deployed when DEPLOY_V2_DISPUTE_GAMES flag is set)
+        IFaultDisputeGameV2 faultDisputeGameV2;
+        IPermissionedDisputeGameV2 permissionedDisputeGameV2;
     }
 
     /// @notice Addresses of ERC-5202 Blueprint contracts. There are used for deploying full size

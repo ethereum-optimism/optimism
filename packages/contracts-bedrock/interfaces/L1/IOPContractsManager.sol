@@ -14,6 +14,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -177,6 +179,9 @@ interface IOPContractsManager {
         IPermissionedDisputeGame permissionedDisputeGame;
         IDelayedWETH delayedWETHPermissionedGameProxy;
         IDelayedWETH delayedWETHPermissionlessGameProxy;
+        // V2 dispute game contracts (deployed when DEPLOY_V2_DISPUTE_GAMES flag is set)
+        IFaultDisputeGameV2 faultDisputeGameV2;
+        IPermissionedDisputeGameV2 permissionedDisputeGameV2;
     }
 
     /// @notice Addresses of ERC-5202 Blueprint contracts. There are used for deploying full size
