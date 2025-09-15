@@ -283,7 +283,7 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     function test_scheduleTransaction_reschedulingIdenticalTransaction_reverts() external {
         uint256 nonce = safeInstance.safe.nonce();
 
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
+        (ExecTransactionParams memory dummyTxParams,, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
         timelockGuard.scheduleTransaction(safeInstance.safe, nonce, dummyTxParams, signatures);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
@@ -326,7 +326,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     function test_cancelTransaction_withPrivKeySignature_succeeds() external {
         _scheduleTransaction();
 
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash();
         uint256 numSignatures = timelockGuard.cancellationThreshold(address(safeInstance.safe));
         bytes memory cancelSignatures = _getSignaturesForTx(txHash, numSignatures);
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, safeInstance.safe.nonce(), cancelSignatures);
@@ -340,7 +340,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     function test_cancelTransaction_withApproveHash_succeeds() external {
         _scheduleTransaction();
 
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash();
         address owner = safeInstance.safe.getOwners()[0];
 
         vm.prank(owner);
@@ -357,7 +357,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     }
 
     function test_cancelTransaction_revertsIfTransactionNotScheduled_reverts() external {
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
+        (ExecTransactionParams memory dummyTxParams,,) = _getDummyTxWithSignaturesAndHash();
         uint256 nonce = safeInstance.safe.nonce();
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionNotScheduled.selector);
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, nonce, new bytes(0));
