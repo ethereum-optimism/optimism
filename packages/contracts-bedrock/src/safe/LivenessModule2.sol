@@ -87,7 +87,6 @@ contract LivenessModule2 is ISemver {
 
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     /// 0 if not
-    /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
     function getChallengePeriodEnd(address _safe) public view returns (uint256) {
@@ -100,7 +99,6 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Configures the module for a Safe that has already enabled it
-    /// @dev MUST only be callable by a Safe that has enabled this module
     /// @param _config The configuration parameters for the module
     function configure(ModuleConfig memory _config) external {
         // Validate configuration parameters to ensure module can function properly.
@@ -114,13 +112,7 @@ contract LivenessModule2 is ISemver {
         }
 
         // Check that this module is enabled on the calling Safe.
-        // This prevents Safes from configuring themselves for a module they haven't enabled,
-        // which would create orphaned configuration data. The Safe must first call
-        // enableModule() before configure() to ensure proper two-step initialization.
-        Safe safe = Safe(payable(msg.sender));
-        if (!safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleNotEnabled();
-        }
+        _assertModuleEnabled(msg.sender);
 
         // Store the configuration for this safe
         safeConfigs[msg.sender] = _config;
@@ -136,18 +128,13 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Clears the module configuration for a Safe
-    /// @dev MUST only be executable by a Safe that has DISABLED this module first
-    /// @dev MUST erase existing liveness_response_period and fallback_owner data
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges
     function clear() external {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
         // Check that this module is NOT enabled on the calling Safe
         // This prevents clearing configuration while module is still enabled
-        Safe safe = Safe(payable(msg.sender));
-        if (safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleStillEnabled();
-        }
+        _assertModuleNotEnabled(msg.sender);
 
         // Erase the configuration data for this safe
         delete safeConfigs[msg.sender];
@@ -157,10 +144,6 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Challenges an enabled safe
-    /// @dev MUST only be executable by fallback owner of the challenged safe
-    /// @dev MUST revert if there is a challenge for the safe
-    /// @dev MUST set challenge_start_time to the current block time
-    /// @dev MUST emit the ChallengeStarted event
     /// @param _safe The Safe to challenge
     function challenge(address _safe) external {
         _assertModuleConfigured(_safe);
@@ -181,10 +164,6 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Responds to a challenge for an enabled safe, canceling it
-    /// @dev MUST only be executable by an enabled safe
-    /// @dev MUST revert if there isn't a challenge for the calling safe
-    /// @dev MUST revert if challenge exists but response period has expired
-    /// @dev MUST emit the ChallengeCancelled event
     function respond() external {
         // Check that this module is enabled on the calling Safe
         _assertModuleEnabled(msg.sender);
@@ -197,21 +176,13 @@ contract LivenessModule2 is ISemver {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
-        // Check if response period has expired
-        if (block.timestamp >= getChallengePeriodEnd(msg.sender)) {
-            revert LivenessModule2_ResponsePeriodEnded();
-        }
-
+        // Cancel the challenge without checking if response period has expired
+        // This allows the Safe to respond at any time, providing more flexibility
         _cancelChallenge(msg.sender);
     }
 
     /// @notice With successful challenge, removes all current owners from enabled safe,
-    /// sole owner, and sets its quorum to 1
-    /// @dev MUST be executable by anyone
-    /// @dev MUST revert if the given safe hasn't enabled the module
-    /// @dev MUST revert if there isn't a successful challenge for the given safe
-    /// @dev MUST enable the module to start a new challenge
-    /// @dev MUST emit the ChallengeSucceeded event
+    /// appoints fallback as sole owner, and sets its quorum to 1
     /// @param _safe The Safe to transfer ownership of
     function changeOwnershipToFallback(address _safe) external {
         // Ensure Safe is configured with this module to prevent unauthorized execution
@@ -219,6 +190,11 @@ contract LivenessModule2 is ISemver {
 
         // Verify module is still enabled to ensure Safe hasn't disabled it mid-challenge
         _assertModuleEnabled(_safe);
+
+        // Only fallback owner can execute ownership transfer (per specs update)
+        if (msg.sender != safeConfigs[_safe].fallbackOwner) {
+            revert LivenessModule2_UnauthorizedCaller();
+        }
 
         // Verify active challenge exists - without challenge, ownership transfer not allowed
         uint256 startTime = challengeStartTime[_safe];
@@ -238,15 +214,15 @@ contract LivenessModule2 is ISemver {
         address[] memory owners = targetSafe.getOwners();
 
         // Remove all owners after the first one
+        // Note: This loop is safe as real-world Safes have limited owners (typically < 10)
+        // Gas limits would only be a concern with hundreds/thousands of owners
         while (owners.length > 1) {
-            // removeOwner automatically updates threshold, no manual update needed
             targetSafe.execTransactionFromModule({
                 to: _safe,
                 value: 0,
                 operation: Enum.Operation.Call,
                 data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNER, owners[0], 1))
             });
-            // Get updated owners list after removal
             owners = targetSafe.getOwners();
         }
 
@@ -287,9 +263,17 @@ contract LivenessModule2 is ISemver {
     /// @notice Internal function to cancel a challenge and emit the appropriate event
     /// @param _safe The Safe address for which to cancel the challenge
     function _cancelChallenge(address _safe) internal {
-        if (challengeStartTime[_safe] != 0) {
-            delete challengeStartTime[_safe];
-            emit ChallengeCancelled(_safe);
+        // Early return if no challenge exists
+        if (challengeStartTime[_safe] == 0) return;
+
+        delete challengeStartTime[_safe];
+        emit ChallengeCancelled(_safe);
+    }
+
+    function _assertModuleNotEnabled(address _safe) internal view {
+        Safe safe = Safe(payable(_safe));
+        if (safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleStillEnabled();
         }
     }
 }
