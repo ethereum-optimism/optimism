@@ -8,9 +8,9 @@ import (
 	"path"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-devstack/abis"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -28,6 +28,35 @@ import (
 	"github.com/lmittmann/w3"
 	w3eth "github.com/lmittmann/w3/module/eth"
 )
+
+type MigrateInput struct {
+	UsePermissionlessGame bool
+	StartingAnchorRoot    Proposal
+	GameParameters        GameParameters
+	OpChainConfigs        []OPChainConfig
+}
+
+type Proposal struct {
+	Root             common.Hash
+	L2SequenceNumber *big.Int
+}
+
+type GameParameters struct {
+	Proposer         common.Address
+	Challenger       common.Address
+	MaxGameDepth     *big.Int
+	SplitDepth       *big.Int
+	InitBond         *big.Int
+	ClockExtension   uint64
+	MaxClockDuration uint64
+}
+
+type OPChainConfig struct {
+	SystemConfigProxy  common.Address
+	ProxyAdmin         common.Address
+	CannonPrestate     common.Hash
+	CannonKonaPrestate common.Hash
+}
 
 func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
@@ -63,14 +92,14 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
 
 			absolutePrestate := getInteropAbsolutePrestate(t)
-			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
+			var opChainConfigs []OPChainConfig
 			var l2ChainIDs []eth.ChainID
 			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
 				l2ChainIDs = append(l2ChainIDs, l2ChainID)
-				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
+				opChainConfigs = append(opChainConfigs, OPChainConfig{
 					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
 					ProxyAdmin:        superchainProxyAdmin,
-					AbsolutePrestate:  absolutePrestate,
+					CannonPrestate:    absolutePrestate,
 				})
 			}
 
@@ -81,17 +110,18 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			challenger, err := o.keys.Address(permissionedChainOps(devkeys.ChallengerRole))
 			o.P().Require().NoError(err, "must have configured challenger")
 
-			opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
+			opcmArtifacts := abis.GetArtifactData(t, "OPContractsManager")
+			opcmABI := &opcmArtifacts.ABI
 			o.P().Require().NoError(err, "invalid OPCM ABI")
 			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 			contract := batching.NewBoundContract(opcmABI, opcmAddr)
-			migrateInput := bindings.OPContractsManagerInteropMigratorMigrateInput{
+			migrateInput := MigrateInput{
 				UsePermissionlessGame: true,
-				StartingAnchorRoot: bindings.Proposal{
+				StartingAnchorRoot: Proposal{
 					Root:             common.Hash(superRoot),
 					L2SequenceNumber: big.NewInt(int64(header.Time)),
 				},
-				GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
+				GameParameters: GameParameters{
 					Proposer:         proposer,
 					Challenger:       challenger,
 					MaxGameDepth:     big.NewInt(73),
@@ -341,7 +371,7 @@ func resetOwnershipAfterMigration(
 	w3Client *w3.Client,
 	client *ethclient.Client,
 	delegateCallProxy common.Address,
-	opChainConfigs []bindings.OPContractsManagerOpChainConfig,
+	opChainConfigs []OPChainConfig,
 ) {
 	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID)(devkeys.L1ProxyAdminOwnerRole))
 	t.Require().NoError(err, "must have L1 proxy admin owner private key")

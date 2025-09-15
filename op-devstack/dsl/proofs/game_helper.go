@@ -1,13 +1,11 @@
 package proofs
 
 import (
-	"bytes"
 	"encoding/json"
 	"math/big"
-	"os"
-	"path/filepath"
 
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/abis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +14,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -24,11 +21,6 @@ type GameHelperMove struct {
 	ParentIdx *big.Int
 	Claim     common.Hash
 	Attack    bool
-}
-
-type contractArtifactData struct {
-	Bytecode []byte
-	ABI      abi.ABI
 }
 
 type GameHelper struct {
@@ -41,7 +33,7 @@ type GameHelper struct {
 func DeployGameHelper(t devtest.T, deployer *dsl.EOA) *GameHelper {
 	req := require.New(t)
 
-	artifactData := getGameHelperArtifactData(t)
+	artifactData := abis.GetArtifactData(t, "GameHelper")
 
 	constructorABI := artifactData.ABI
 
@@ -80,42 +72,6 @@ type ArtifactBytecode struct {
 type ArtifactJSON struct {
 	Bytecode ArtifactBytecode `json:"bytecode"`
 	ABI      json.RawMessage  `json:"abi"`
-}
-
-func getGameHelperArtifactData(t devtest.T) *contractArtifactData {
-	req := require.New(t)
-	artifactPath := getGameHelperArtifactPath(t)
-
-	fileData, err := os.ReadFile(artifactPath)
-	req.NoError(err, "Failed to read GameHelper artifact file")
-
-	var artifactJSON ArtifactJSON
-	err = json.Unmarshal(fileData, &artifactJSON)
-	req.NoError(err, "Failed to parse GameHelper artifact JSON")
-
-	req.NotEmpty(artifactJSON.Bytecode.Object, "Bytecode object not found in GameHelper artifact")
-
-	bytecode := common.FromHex(artifactJSON.Bytecode.Object)
-
-	parsedABI, err := abi.JSON(bytes.NewReader(artifactJSON.ABI))
-	req.NoError(err, "Failed to parse ABI")
-
-	return &contractArtifactData{
-		Bytecode: bytecode,
-		ABI:      parsedABI,
-	}
-}
-
-func getGameHelperArtifactPath(t devtest.T) string {
-	req := require.New(t)
-	wd, err := os.Getwd()
-	req.NoError(err, "Failed to get current working directory")
-
-	monorepoRoot, err := opservice.FindMonorepoRoot(wd)
-	req.NoError(err, "Failed to find monorepo root")
-
-	contractsBedrock := filepath.Join(monorepoRoot, "packages", "contracts-bedrock")
-	return filepath.Join(contractsBedrock, "forge-artifacts", "GameHelper.sol", "GameHelper.json")
 }
 
 func (gs *GameHelper) AuthEOA(eoa *dsl.EOA) *GameHelper {
