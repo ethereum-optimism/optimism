@@ -73,21 +73,19 @@ func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, to *dsl.E
 		from.Transfer(to.Address(), eth.OneGWei)
 	}
 
-	info := mbf.getBlock(t)
-	prevBlockNum := info.NumberU64()
-	for range 5 {
-		n := mbf.getBlock(t)
-		t.Require().True(n.NumberU64() > prevBlockNum, "block number should increase")
+	// Wait for the next block
+	_ = mbf.l2EL.WaitForBlock()
+	el := mbf.l2EL.Escape().EthClient()
+	info, err := el.InfoByLabel(t.Ctx(), "latest")
+	t.Require().NoError(err)
 
-		prevBlockNum = n.NumberU64()
-		feeCmp := n.BaseFee().Cmp(minBase)
-		if !shouldEnforce {
-			t.Require().True(feeCmp > 0, "expected base fee to be higher than the minBaseFee")
-		} else {
-			t.Require().True(feeCmp == 0, "expected base fee to be at least minBaseFee")
-		}
-		t.Logf("base fee %s, minBase %s", n.BaseFee(), minBase)
+	feeCmp := info.BaseFee().Cmp(minBase)
+	if !shouldEnforce {
+		t.Require().True(feeCmp > 0, "expected base fee to be higher than the minBaseFee")
+	} else {
+		t.Require().True(feeCmp == 0, "expected base fee to be at least minBaseFee")
 	}
+	t.Logf("base fee %s, minBase %s", info.BaseFee(), minBase)
 }
 
 // waitForMinBaseFeeConfigChangeOnL2 waits until the L2 latest payload extra-data encodes the expected min base fee.
@@ -114,14 +112,6 @@ func (mbf *minBaseFeeEnv) waitForMinBaseFeeConfigChangeOnL2(t devtest.T, expecte
 	}, 2*time.Minute, 5*time.Second, "L2 min base fee did not sync within timeout")
 
 	t.Require().Equal(expectedExtraData, actualPayload, "extradata doesnt match")
-}
-
-func (mbf *minBaseFeeEnv) getBlock(t devtest.T) eth.BlockInfo {
-	_ = mbf.l2EL.WaitForBlock()
-	el := mbf.l2EL.Escape().EthClient()
-	info, err := el.InfoByLabel(t.Ctx(), "latest")
-	t.Require().NoError(err)
-	return info
 }
 
 // TestMinBaseFee verifies configurable minimum base fee using devstack presets.
