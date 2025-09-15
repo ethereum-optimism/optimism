@@ -19,6 +19,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Configuration for a Safe's timelock guard
     struct GuardConfig {
         uint256 timelockDelay;
+        bool configured;
     }
 
     /// @notice Scheduled transaction
@@ -83,8 +84,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function viewTimelockGuardConfiguration(Safe _safe) public view returns (uint256) {
-        return safeConfigs[_safe].timelockDelay;
+    function viewTimelockGuardConfiguration(Safe _safe) public view returns (GuardConfig memory) {
+        return safeConfigs[_safe];
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
@@ -116,6 +117,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Store the configuration for this safe
         safeConfigs[callingSafe].timelockDelay = _timelockDelay;
+        safeConfigs[callingSafe].configured = true;
 
         // Initialize cancellation threshold to 1
         safeCancellationThreshold[callingSafe] = 1;
