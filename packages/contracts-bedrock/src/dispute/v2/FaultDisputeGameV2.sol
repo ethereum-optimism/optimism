@@ -327,7 +327,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
     }
 
-    function expectedInitCallDataLength() internal returns (uint256) {
+    function expectedInitCallDataLength() internal pure returns (uint256) {
         // Expected length: 6 bytes + CWIA data length
         // - 4 bytes: selector
         // - 2 bytes: CWIA length prefix
@@ -335,7 +335,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         return 6 + expectedCWIADataLength();
     }
 
-    function expectedCWIADataLength() internal virtual returns (uint256) {
+    function expectedCWIADataLength() internal virtual pure returns (uint256) {
         // Expected length: 240 bytes
         // - 20 bytes: creator address
         // - 32 bytes: root claim
