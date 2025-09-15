@@ -337,6 +337,18 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         assertEq(scheduledTransaction.cancelled, true);
     }
 
+    function test_cancelTransaction_withApproveHash_succeeds() external {
+        _scheduleTransaction();
+
+        (ExecTransactionParams memory dummyTxParams, bytes32 txHash, bytes memory signatures) = _getDummyTxWithSignaturesAndHash();
+        address owner = safeInstance.safe.getOwners()[0];
+
+        vm.prank(owner);
+        safeInstance.safe.approveHash(txHash);
+
+        // Generate a prevalidated signature
+        bytes memory cancelSignatures = abi.encodePacked(bytes32(uint256(uint160(owner))), bytes32(0), uint8(1));
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, safeInstance.safe.nonce(), cancelSignatures);
 
         // Confirm that the transaction is cancelled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
