@@ -1857,7 +1857,7 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
     }
 
     /// @notice Test that deploy with v2 flag would set v2 implementations
-    function test_deploy_withV2Flag_concept() public {
+    function test_deploy_withV2Flag_setsV2Implementations() public {
         IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
 
         assertTrue(opcmV2.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES), "V2 flag should be enabled");
