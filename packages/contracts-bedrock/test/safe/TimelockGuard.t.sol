@@ -138,6 +138,18 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         return (dummyTxParams, txHash, signatures);
     }
 
+    function _getCancellationTx(SafeInstance memory _safe)
+        internal
+        pure
+        returns (ExecTransactionParams memory)
+    {
+        ExecTransactionParams memory cancellationTxParams = ExecTransactionParams(
+            address(0), 0, hex"", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0))
+        );
+
+        return cancellationTxParams;
+    }
+
     /// @notice Helper to configure the TimelockGuard for a Safe
     function _configureGuard(SafeInstance memory _safe, uint256 _delay) internal {
         SafeTestLib.execTransaction(
@@ -357,11 +369,12 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
 
     function test_scheduleTransaction_guardNotEnabled_reverts() external {
         // Attempt to schedule a transaction with a Safe that has not enabled the guard
+        uint256 nonce = unguardedSafe.safe.nonce();
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
-        timelockGuard.scheduleTransaction(unguardedSafe.safe, unguardedSafe.safe.nonce(), _getDummyTxParams(), "");
+        timelockGuard.scheduleTransaction(unguardedSafe.safe, nonce, _getDummyTxParams(), "");
     }
 
-    function test_scheduleTransaction_canScheduleIdenticalWithSalt_succeeds() external {
+    function test_scheduleTransaction_canScheduleIdenticalWithDifferentNonce_succeeds() external {
         // Schedule a transaction with a specific nonce
         (ExecTransactionParams memory dummyTxParams,, bytes memory signatures) =
             _getDummyTxWithSignaturesAndHash(safeInstance);
@@ -369,18 +382,7 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
 
         // Schedule an identical transaction with a different nonce (salt)
         uint256 newNonce = safeInstance.safe.nonce() + 1;
-        bytes32 newTxHash = safeInstance.safe.getTransactionHash({
-            to: dummyTxParams.to,
-            value: dummyTxParams.value,
-            data: dummyTxParams.data,
-            operation: dummyTxParams.operation,
-            safeTxGas: dummyTxParams.safeTxGas,
-            baseGas: dummyTxParams.baseGas,
-            gasPrice: dummyTxParams.gasPrice,
-            gasToken: dummyTxParams.gasToken,
-            refundReceiver: dummyTxParams.refundReceiver,
-            _nonce: newNonce
-        });
+        bytes32 newTxHash = _getTxHash(safeInstance, dummyTxParams, newNonce);
         bytes memory newSignatures = _getSignaturesForTx(safeInstance, newTxHash, THRESHOLD);
 
         vm.expectEmit(true, true, true, true);
@@ -415,10 +417,20 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     function test_cancelTransaction_withPrivKeySignature_succeeds() external {
         _scheduleTransaction();
 
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+        // Get the transaction hash
+        (, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+
+        // Get the nonce
+        uint256 nonce = safeInstance.safe.nonce();
+
+        // Get the cancellation signatures
         uint256 numSignatures = timelockGuard.cancellationThreshold(safeInstance.safe);
-        bytes memory cancelSignatures = _getSignaturesForTx(safeInstance, txHash, numSignatures);
-        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, safeInstance.safe.nonce(), cancelSignatures);
+        ExecTransactionParams memory cancellationTxParams = _getCancellationTx(safeInstance);
+        bytes32 cancellationTxHash = _getTxHash(safeInstance, cancellationTxParams, nonce);
+        bytes memory cancelSignatures = _getSignaturesForTx(safeInstance, cancellationTxHash, numSignatures);
+
+        // Cancel the transaction
+        timelockGuard.cancelTransaction(safeInstance.safe, txHash, nonce, cancelSignatures);
 
         // Confirm that the transaction is cancelled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
@@ -429,15 +441,28 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     function test_cancelTransaction_withApproveHash_succeeds() external {
         _scheduleTransaction();
 
-        (ExecTransactionParams memory dummyTxParams, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+        // Get the transaction hash
+        (, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+
+        // Get the nonce
+        uint256 nonce = safeInstance.safe.nonce();
+
+        // Get the cancellation transaction hash
+        ExecTransactionParams memory cancellationTxParams = _getCancellationTx(safeInstance);
+        bytes32 cancellationTxHash = _getTxHash(safeInstance, cancellationTxParams, nonce);
+
+        // Get the owner
         address owner = safeInstance.safe.getOwners()[0];
 
+        // Approve the cancellation transaction hash
         vm.prank(owner);
-        safeInstance.safe.approveHash(txHash);
+        safeInstance.safe.approveHash(cancellationTxHash);
 
-        // Generate a prevalidated signature
-        bytes memory cancelSignatures = abi.encodePacked(bytes32(uint256(uint160(owner))), bytes32(0), uint8(1));
-        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, safeInstance.safe.nonce(), cancelSignatures);
+        // Encode the prevalidated cancellation signature
+        bytes memory signatures = abi.encodePacked(bytes32(uint256(uint160(owner))), bytes32(0), uint8(1));
+
+        // Cancel the transaction
+        timelockGuard.cancelTransaction(safeInstance.safe, txHash, nonce, signatures);
 
         // Confirm that the transaction is cancelled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
@@ -446,9 +471,14 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     }
 
     function test_cancelTransaction_revertsIfTransactionNotScheduled_reverts() external {
-        (ExecTransactionParams memory dummyTxParams,,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+        // Get the transaction hash
+        (, bytes32 txHash,) = _getDummyTxWithSignaturesAndHash(safeInstance);
+
+        // Get the cancellation signatures
         uint256 nonce = safeInstance.safe.nonce();
+
+        // Attempt to cancel the transaction
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionNotScheduled.selector);
-        timelockGuard.cancelTransaction(safeInstance.safe, dummyTxParams, nonce, new bytes(0));
+        timelockGuard.cancelTransaction(safeInstance.safe, txHash, nonce, new bytes(0));
     }
 }

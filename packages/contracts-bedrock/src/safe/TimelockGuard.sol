@@ -249,7 +249,6 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
-    /// @dev NOT IMPLEMENTED YET
     /// @dev This function aims to mimic the approach which would be used by a quorum of signers to
     ///      cancel a partially signed transaction, which would be to sign and execute an empty
     ///      transaction at the same nonce. This enables us to deterministically generate the
@@ -259,29 +258,16 @@ contract TimelockGuard is IGuard, ISemver {
     ///      transaction hash.
     function cancelTransaction(
         Safe _safe,
-        ExecTransactionParams memory _params,
+        bytes32 _txHash,
         uint256 _nonce,
         bytes memory _signatures
     )
         external
     {
-        // Calculate the transaction hash
-        bytes32 txHash = _safe.getTransactionHash(
-            _params.to,
-            _params.value,
-            _params.data,
-            _params.operation,
-            _params.safeTxGas,
-            _params.baseGas,
-            _params.gasPrice,
-            _params.gasToken,
-            _params.refundReceiver,
-            _nonce
-        );
-        if (scheduledTransactions[_safe][txHash].cancelled) {
+        if (scheduledTransactions[_safe][_txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
-        if (scheduledTransactions[_safe][txHash].executionTime == 0) {
+        if (scheduledTransactions[_safe][_txHash].executionTime == 0) {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
@@ -294,7 +280,7 @@ contract TimelockGuard is IGuard, ISemver {
         // This function call reverts if the signatures are invalid.
         _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[_safe]);
 
-        scheduledTransactions[_safe][txHash].cancelled = true;
+        scheduledTransactions[_safe][_txHash].cancelled = true;
     }
 
     /// @notice Increase the cancellation threshold for a safe
