@@ -25,18 +25,10 @@ func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2Fault
 	// Create transactor for the deployer (system config owner)
 	deployerTx, err := bind.NewKeyedTransactorWithChainID(env.Dp.Secrets.Deployer, env.Sd.RollupCfg.L1ChainID)
 	require.NoError(t, err)
-
 	t.Logf("Setting min base fee on L1: minBaseFee=%d", minBaseFee)
 
 	_, err = systemConfig.SetMinBaseFee(deployerTx, minBaseFee)
 	require.NoError(t, err, "SetMinBaseFee transaction failed")
-
-	// Build some L2 blocks to allow the config change to propagate
-	for range 5 {
-		env.Sequencer.ActL2EmptyBlock(t)
-	}
-
-	t.Logf("Min base fee set and propagated to L2")
 }
 
 func Test_ProgramAction_JovianActivation(gt *testing.T) {
@@ -64,16 +56,15 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 
 		// Build the activation block and set the minimum base fee to a high value and make sure
 		// the actual base fee is below that value because it will be active the next block
-		env.Sequencer.ActL2EmptyBlock(t)
 		setMinBaseFeeViaSystemConfig(t, env, minBaseFee)
 		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 		require.Equal(t, eip1559.EncodeJovianExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
 		require.Less(t, activationBlock.BaseFee().Uint64(), minBaseFee, "activation block should have a base fee below the minimum base fee")
+		env.Sequencer.ActL2EmptyBlock(t)
 
 		// Build a few more blocks and verify the minimum base fee is enforced
 		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
 		for range 10 {
-			env.Sequencer.ActL2EmptyBlock(t)
 			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 
 			// Extract minimum base fee from extradata
@@ -82,17 +73,14 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				// The minimum base fee is encoded as an 8-byte uint64 starting at byte 9
 				actualMinBaseFee = binary.BigEndian.Uint64(b.Extra()[9:17])
 			}
-
-			// Check if the minimum base fee has been updated in the extradata
-			if actualMinBaseFee == minBaseFee {
-				require.Equal(t, expectedJovianExtraDataWithMinFee, b.Extra(), "block should have updated Jovian extraData with min base fee")
-				t.Logf("✓ Block %d: min base fee updated to %d in extradata", b.Number().Uint64(), actualMinBaseFee)
-			}
+			require.True(t, actualMinBaseFee == minBaseFee, "minimum base fee should be equal to the set minimum base fee")
+			require.Equal(t, expectedJovianExtraDataWithMinFee, b.Extra(), "block should have updated Jovian extraData with min base fee")
 
 			// assert that the block's base fee is greater than or equal to the minimum
 			require.GreaterOrEqual(t, b.BaseFee().Uint64(), actualMinBaseFee, "base fee should be >= minimum base fee")
-
 			t.Logf("Block %d: base fee %d, min base fee %d", b.Number().Uint64(), b.BaseFee().Uint64(), actualMinBaseFee)
+
+			env.Sequencer.ActL2EmptyBlock(t)
 		}
 
 		if !jovianAtGenesis {
