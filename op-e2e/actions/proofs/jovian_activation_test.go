@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"encoding/binary"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -14,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,16 +80,56 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		// Build activation+1 block
 		env.Sequencer.ActL2EmptyBlock(t)
 		nextBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-
-		// Extract minimum base fee from extradata
 		actualMinBaseFee := binary.BigEndian.Uint64(nextBlock.Extra()[9:17])
-		require.Equal(t, minBaseFee, actualMinBaseFee, "minimum base fee should be equal to the set minimum base fee")
 
 		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
+		require.Equal(t, minBaseFee, actualMinBaseFee, "minimum base fee should be equal to the set minimum base fee")
 		require.Equal(t, expectedJovianExtraDataWithMinFee, nextBlock.Extra(), "block should have updated Jovian extraData with min base fee")
 
-		// assert that the block's base fee is greater than or equal to the minimum
-		require.GreaterOrEqual(t, nextBlock.BaseFee().Uint64(), actualMinBaseFee, "base fee should be >= minimum base fee")
+		// Simulate some user transactions after to ensure base fee >= minimum base fee
+		cl := env.Engine.EthClient()
+		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
+		zeroAddr := common.Address{}
+		for i := 0; i < 10; i++ {
+			nonce, err := cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
+			require.NoError(t, err)
+
+			// Create transaction from Alice to zero address with sufficient gas fee cap for high minimum base fees
+			gasTipCap := big.NewInt(2 * params.GWei)
+			// Ensure gas fee cap is high enough to cover the minimum base fee plus tip
+			minGasFeeCap := new(big.Int).Add(big.NewInt(int64(minBaseFee)), gasTipCap)
+			l1BaseFee := env.Miner.L1Chain().CurrentBlock().BaseFee
+			regularGasFeeCap := new(big.Int).Add(l1BaseFee, big.NewInt(2*params.GWei))
+
+			// Use the higher of the two gas fee caps
+			gasFeeCap := minGasFeeCap
+			if regularGasFeeCap.Cmp(minGasFeeCap) > 0 {
+				gasFeeCap = regularGasFeeCap
+			}
+			tx := types.MustSignNewTx(env.Dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+				ChainID:   env.Sd.L2Cfg.Config.ChainID,
+				Nonce:     nonce,
+				GasTipCap: gasTipCap,
+				GasFeeCap: gasFeeCap,
+				Gas:       params.TxGas,
+				To:        &zeroAddr,
+				Value:     big.NewInt(1000), // Send 1000 wei to zero address
+			})
+			require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
+
+			// Build L2 block with the transaction
+			env.Sequencer.ActL2StartBlock(t)
+			env.Engine.ActL2IncludeTx(env.Dp.Addresses.Alice)(t)
+			env.Sequencer.ActL2EndBlock(t)
+
+			// Get the block and verify minimum base fee enforcement
+			block := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+
+			// Assert that the block's base fee is greater than or equal to the minimum
+			actualMinBaseFee := binary.BigEndian.Uint64(block.Extra()[9:17])
+			require.Equal(t, expectedJovianExtraDataWithMinFee, block.Extra(), "block %d should have updated Jovian extraData with min base fee", i+1)
+			require.GreaterOrEqual(t, block.BaseFee().Uint64(), actualMinBaseFee, "base fee should be >= minimum base fee in block %d", i+1)
+		}
 
 		if !jovianAtGenesis {
 			// Verify Jovian fork activation occurred by checking for the activation log
@@ -132,25 +175,22 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			jovianAtGenesis: true,
 			minBaseFee:      0,
 		},
-		"JovianActivationAtGenesis1GweiMinBaseFee": {
+		"JovianActivationAtGenesisMinBaseFeeMedium": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				zero := hexutil.Uint64(0)
 				dc.L2GenesisJovianTimeOffset = &zero
 			},
 			jovianAtGenesis: true,
-			minBaseFee:      1,
+			minBaseFee:      1_000_000_000, // 1 gwei
 		},
-		/*"JovianActivationAtGenesis5GweiMinBaseFee": {
+		"JovianActivationAtGenesisMinBaseFeeHigh": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				zero := hexutil.Uint64(0)
 				dc.L2GenesisJovianTimeOffset = &zero
-				// Set 5 Gwei minimum base fee
-				fiveGwei := hexutil.Uint64(5_000_000_000) // 5e9
-				dc.SystemConfigStartBlock = 0
-				_ = fiveGwei // Will be used for minimum base fee configuration
 			},
 			jovianAtGenesis: true,
-		},*/
+			minBaseFee:      5_000_000_000, // 5 gwei
+		},
 	}
 
 	for name, tt := range tests {
