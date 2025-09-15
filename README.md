@@ -205,13 +205,13 @@ To run rollup-boost in an op-stack devnet first make sure you have [just](https:
 Then run the following command to start the devnet:
 
 ```sh
-just devnet-up
+just kurtosis-devnet-up
 ```
 
 To stop the devnet run:
 
 ```sh
-just devnet-down
+just kurtosis-devnet-down
 ```
 
 To run a stress test against the devnet with [contender](https://github.com/flashbots/contender) first make sure you have docker installed.
@@ -219,7 +219,7 @@ To run a stress test against the devnet with [contender](https://github.com/flas
 Then run the following command:
 
 ```sh
-just stress-test
+just kurtosis-stress-test
 ```
 
 ## License

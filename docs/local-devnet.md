@@ -12,39 +12,6 @@ To run a local development network, you can use either Kurtosis or docker compos
 
 Kurtosis is a tool to manage containerized services. To run the devnet with Kurtosis, you can follow the instructions first to [install kurtosis](https://docs.kurtosis.com/quickstart).
 
-Then to run the devnet:
-
-```bash
-kurtosis run github.com/ethpandaops/optimism-package '{
-  "optimism_package": {
-    "chains": [
-      {
-        "participants": [
-          {
-            "el_type": "op-geth"
-          }
-        ],
-        "network_params": {
-          "name": "op-rollup-one"
-        },
-        "additional_services": [
-          "rollup-boost"
-        ]
-      }
-    ]
-  }
-}'
-```
-
-You can input your own configuration for the network. Available options are:
-
-- `el_builder_type` - builder execution engine client to be run. 
-- `el_builder_image` - the docker image used to run the builder
-- `mev_params`:
-    - `rollup_boost_image` - the docker image used to run rollup boost
-    - `builder_host` - the host to an external builder on outside of kurtosis
-    - `builder_port` - the port to an external builder on outside of kurtosis
-
 See the [optimism package](https://github.com/ethpandaops/optimism-package/blob/main/README.md#configuration) for the full set of configuration options.
 
 To clean up the devnet, you can run:

@@ -11,7 +11,7 @@ members = [
 rollup-boost = { path = "crates/rollup-boost" }
 
 tracing = "0.1.4"
-tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
 futures = "0.3.31"
 thiserror = "2.0.11"
@@ -25,24 +25,24 @@ url = "2.2.0"
 sha2 = { version = "0.10", default-features = false }
 
 # Reth deps
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.6.0" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.7.0" }
 
 # Alloy libraries
-alloy-rpc-types-engine = "1.0.23"
-alloy-rpc-types-eth = "1.0.23"
+alloy-rpc-types-engine = "1.0.30"
+alloy-rpc-types-eth = "1.0.30"
 alloy-primitives = { version = "1.2.0", features = ["rand"] }
-alloy-serde = "1.0.23"
-alloy-eips = "1.0.23"
-alloy-json-rpc = "1.0.23"
-alloy-consensus = "1.0.23"
-alloy-rpc-types = "1.0.23"
-alloy-genesis = "1.0.23"
-alloy-rpc-client = "1.0.23"
-alloy-provider = "1.0.23"
-op-alloy-network = "0.18.7"
-op-alloy-rpc-types-engine = "0.18.7"
-op-alloy-consensus = "0.18.7"
-op-alloy-rpc-types = "0.18.7"
+alloy-serde = "1.0.30"
+alloy-eips = "1.0.30"
+alloy-json-rpc = "1.0.30"
+alloy-consensus = "1.0.30"
+alloy-rpc-types = "1.0.30"
+alloy-genesis = "1.0.30"
+alloy-rpc-client = "1.0.30"
+alloy-provider = "1.0.30"
+op-alloy-network = "0.19.1"
+op-alloy-rpc-types-engine = "0.19.1"
+op-alloy-consensus = "0.19.1"
+op-alloy-rpc-types = "0.19.1"
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 testcontainers = "0.23"
 testcontainers-modules = { version = "0.11", features = ["redis"] }
