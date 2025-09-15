@@ -1687,15 +1687,7 @@ contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager
     }
 }
 
-/// @title OPContractsManager_Deploy_Test
-/// @notice Tests the `deploy` function of the `OPContractsManager` contract.
-/// @dev Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This
-///      is because OPContractsManager acts as a deploy script, so we start from a clean slate here
-///      and work OPContractsManager's deployment into the existing test setup, instead of using
-///      the existing test setup to deploy OPContractsManager. We do however inherit from
-///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
-///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
+contract OPContractsManager_Init is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
@@ -1727,7 +1719,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     // to the input struct type defined in OPContractsManager.sol.
     function toOPCMDeployInput(DeployOPChainInput _doi)
         internal
-        virtual
         view
         returns (IOPContractsManager.DeployInput memory)
     {
@@ -1754,48 +1745,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             disputeMaxClockDuration: _doi.disputeMaxClockDuration()
         });
     }
-
-    function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = 0;
-        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
-    }
-
-    function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = block.chainid;
-
-        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
-    }
-
-    function test_deploy_succeeds() public {
-        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
-        emit Deployed(doi.l2ChainId(), address(this), bytes(""));
-        opcm.deploy(toOPCMDeployInput(doi));
-    }
-}
-
-/// @title OPContractsManager_Version_Test
-/// @notice Tests the `version` function of the `OPContractsManager` contract.
-contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
-    IOPContractsManager internal prestateUpdater;
-    OPContractsManager.AddGameInput[] internal gameInput;
-
-    function setUp() public override {
-        super.setUp();
-        prestateUpdater = opcm;
-    }
-
-    function test_semver_works() public view {
-        assertNotEq(abi.encode(prestateUpdater.version()), abi.encode(0));
-    }
-}
-
-/// @title OPContractsManager_V2_Test
-/// @notice Tests for v2 dispute game implementations in OPContractsManager
-contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
 
     /// @notice Helper function to deploy OPCM with v2 flag enabled
     function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
@@ -1832,11 +1781,42 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
                 upgradeController: dso.superchainProxyAdmin.owner(),
                 proposer: proposer,
                 challenger: challenger,
-                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES  // Enable v2 flag here
-            })
+                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
+             })
         );
 
         return dio.opcm;
+    }
+}
+
+/// @title OPContractsManager_Deploy_Test
+/// @notice Tests the `deploy` function of the `OPContractsManager` contract.
+/// @dev Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This
+///      is because OPContractsManager acts as a deploy script, so we start from a clean slate here
+///      and work OPContractsManager's deployment into the existing test setup, instead of using
+///      the existing test setup to deploy OPContractsManager. We do however inherit from
+///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
+///      to how a real deployment would happen.
+contract OPContractsManager_Deploy_Test is OPContractsManager_Init {
+    function test_deploy_l2ChainIdEqualsZero_reverts() public {
+        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
+        deployInput.l2ChainId = 0;
+        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
+        opcm.deploy(deployInput);
+    }
+
+    function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
+        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
+        deployInput.l2ChainId = block.chainid;
+
+        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
+        opcm.deploy(deployInput);
+    }
+
+    function test_deploy_succeeds() public {
+        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
+        emit Deployed(doi.l2ChainId(), address(this), bytes(""));
+        opcm.deploy(toOPCMDeployInput(doi));
     }
 
     /// @notice Test that deploy without v2 flag doesn't set v2 implementations
@@ -1865,8 +1845,13 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
         IOPContractsManager.Implementations memory impls = opcmV2.implementations();
 
         // Verify that v2 implementations are set (non-zero)
-        assertTrue(address(impls.permissionedDisputeGameV2Impl) != address(0), "PermissionedDisputeGameV2 implementation should be non-zero");
-        assertTrue(address(impls.faultDisputeGameV2Impl) != address(0), "FaultDisputeGameV2 implementation should be non-zero");
+        assertTrue(
+            address(impls.permissionedDisputeGameV2Impl) != address(0),
+            "PermissionedDisputeGameV2 implementation should be non-zero"
+        );
+        assertTrue(
+            address(impls.faultDisputeGameV2Impl) != address(0), "FaultDisputeGameV2 implementation should be non-zero"
+        );
 
         // Set up deploy input for the v2-enabled OPCM
         doi.set(doi.opcm.selector, address(opcmV2));
@@ -1877,15 +1862,23 @@ contract OPContractsManager_V2_Test is OPContractsManager_Deploy_Test {
         vm.stopPrank();
 
         // Verify that v2 dispute game contracts are deployed and non-zero
-        assertTrue(address(output.permissionedDisputeGameV2) != address(0), "PermissionedDisputeGameV2 should be deployed");
+        assertTrue(
+            address(output.permissionedDisputeGameV2) != address(0), "PermissionedDisputeGameV2 should be deployed"
+        );
         assertTrue(address(output.faultDisputeGameV2) != address(0), "FaultDisputeGameV2 should be deployed");
 
         // Verify that v1 permissioned dispute game is still deployed (for backward compatibility)
-        assertTrue(address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame v1 should still be deployed");
+        assertTrue(
+            address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame v1 should still be deployed"
+        );
 
         // Verify that the DisputeGameFactory has registered the v2 implementation for PERMISSIONED_CANNON game type
-        address registeredPermissionedImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
-        assertEq(registeredPermissionedImpl, address(output.permissionedDisputeGameV2),
-            "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON");
+        address registeredPermissionedImpl =
+            address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        assertEq(
+            registeredPermissionedImpl,
+            address(output.permissionedDisputeGameV2),
+            "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON"
+        );
     }
 }
