@@ -1,6 +1,7 @@
 package sync_tester_elsync
 
 import (
+	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -36,13 +37,21 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// Wait for L2CL to advance more unsafe blocks
 	sys.L2CL.Advanced(types.LocalUnsafe, target+5, 30)
 
+	// EL Sync not done yet
+	session, err := syncTesterClient.GetSession(ctx)
+	require.NoError(err)
+	require.NotEqual(uint64(math.MaxUint64), session.ELSyncTarget)
+
 	// Restarting will trigger EL sync since unsafe head payload will arrive to L2CL2 via P2P
 	sys.L2CL2.Start()
 
 	// Wait until P2P is connected
 	sys.L2CL2.IsP2PConnected(sys.L2CL)
 
-	// Check not advancing
-	sys.L2CL2.NotAdvanced(types.LocalUnsafe, 10)
+	// Reaches EL Sync Target and advances
+	sys.L2CL2.Reached(types.LocalUnsafe, 40, 20)
 
+	session, err = syncTesterClient.GetSession(ctx)
+	require.NoError(err)
+	require.Equal(uint64(math.MaxUint64), session.ELSyncTarget)
 }
