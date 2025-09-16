@@ -1,27 +1,9 @@
-# ----------------------
-# build:
-# ----------------------
-# If CIRCLECI or SKIP_CONTRACTS_BUILD is true, this only builds the go binary
-# (i.e. assumes contracts were previously built + embedded).
-#
-# If CIRCLECI and SKIP_CONTRACTS_BUILD are false (i.e. this is run locally),
-# it compiles contracts and copies the artifacts into the op-deployer pkg so
-# that they are embedded in the binary
-build: build-and-copy-contracts
-    #!/bin/bash
-    echo "Building op-deployer go binary"
-    go build -o bin/op-deployer cmd/op-deployer/main.go
+import '../justfiles/go.just'
+
+build: build-contracts copy-contract-artifacts build-go
 
 test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
-
-build-and-copy-contracts:
-    #!/bin/bash
-    if [[ "${CIRCLECI:-}" == "true" || "${SKIP_CONTRACTS_BUILD:-}" == "true" ]]; then
-        echo "Skipping contracts build"
-    else
-        just build-contracts copy-contract-artifacts
-    fi
 
 build-contracts:
   just ../packages/contracts-bedrock/forge-build
@@ -30,11 +12,25 @@ copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
     tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
 
+_LDFLAGSSTRING := "'" + trim(
+    "-X main.GitCommit=" + GITCOMMIT + " " + \
+    "-X main.GitDate=" + GITDATE + " " + \
+    "-X main.Version=" + VERSION + " " + \
+    "-X main.Meta=" + VERSION_META + " " + \
+    "") + "'"
+
+build-go: (go_build "./bin/op-deployer" "./cmd/op-deployer" "-ldflags" _LDFLAGSSTRING)
+
+docker-build: build-contracts copy-contract-artifacts
+    #!/bin/bash
+    cd ..
+    docker buildx bake op-deployer --load --set op-deployer.tags=op-deployer:local
+
 # Updates pkg/deployer/forge/version.json with version and checksum of tarball for each supported OS/arch
-# - version format: e.g. "v1.3.4"
-update-forge version="":
+# - forge_version format: "v1.3.4"
+update-forge forge_version="":
   #!/bin/bash
-  ./scripts/forge-checksums.sh {{version}}
+  ./scripts/forge-checksums.sh {{forge_version}}
 
 # ======================================
 # Deployment and Verification Utilities

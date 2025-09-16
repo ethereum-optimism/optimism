@@ -25,8 +25,6 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64
-      - goos: linux
-        goarch: arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - -X main.GitCommit={{ .FullCommit }}
@@ -43,14 +41,6 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-
-dockers:
-  - id: default
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:{{ .Tag }}"
 
 changelog:
   sort: asc
