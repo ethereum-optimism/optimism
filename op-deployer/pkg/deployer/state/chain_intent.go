@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -144,4 +145,14 @@ func (c *ChainIntent) Check() error {
 	}
 
 	return nil
+}
+
+// GetNativeAssetLiquidityAmount returns the native asset liquidity amount for the chain.
+// If not set, returns the default value of zero.
+func (c *ChainIntent) GetNativeAssetLiquidityAmount() *big.Int {
+	if c.CustomGasToken != nil && c.CustomGasToken.NativeAssetLiquidityAmount != nil {
+		return c.CustomGasToken.NativeAssetLiquidityAmount.ToInt()
+	}
+
+	return (*hexutil.Big)(big.NewInt(0)).ToInt()
 }
