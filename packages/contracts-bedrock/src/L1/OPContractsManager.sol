@@ -1978,6 +1978,13 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
             abi.encodeCall(IETHLockbox.initialize, (_input.cts.systemConfig, portals))
         );
 
+        // If interop was requested, also set the ETHLockbox feature and migrate liquidity into the
+        // ETHLockbox contract.
+        if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            _input.cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            IOptimismPortalInterop(payable(_input.cts.optimismPortal)).migrateLiquidity();
+        }
+
         // Update the L1CrossDomainMessenger.
         // NOTE: L1CrossDomainMessenger initializer is at slot 0, offset 20.
         _resetAndInitialize(
