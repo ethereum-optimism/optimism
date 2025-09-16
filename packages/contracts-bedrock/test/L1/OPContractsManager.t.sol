@@ -33,8 +33,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
-import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -1687,7 +1685,7 @@ contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager
     }
 }
 
-contract OPContractsManager_Init is DeployOPChain_TestBase {
+contract OPContractsManager_DeployBase is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
@@ -1797,7 +1795,7 @@ contract OPContractsManager_Init is DeployOPChain_TestBase {
 ///      the existing test setup to deploy OPContractsManager. We do however inherit from
 ///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
 ///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is OPContractsManager_Init {
+contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
@@ -1820,7 +1818,7 @@ contract OPContractsManager_Deploy_Test is OPContractsManager_Init {
     }
 
     /// @notice Test that deploy without v2 flag doesn't set v2 implementations
-    function test_deploy_withoutV2Flag_noV2Implementations() public {
+    function test_deployWithoutV2Flag_succeeds() public {
         // Convert DOI to OPCM input and deploy
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(doi);
         vm.startPrank(address(this));
@@ -1837,7 +1835,7 @@ contract OPContractsManager_Deploy_Test is OPContractsManager_Init {
     }
 
     /// @notice Test that deploy with v2 flag would set v2 implementations
-    function test_deploy_withV2Flag_setsV2Implementations() public {
+    function test_deployWithV2Flag_succeeds() public {
         IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
 
         assertTrue(opcmV2.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES), "V2 flag should be enabled");
