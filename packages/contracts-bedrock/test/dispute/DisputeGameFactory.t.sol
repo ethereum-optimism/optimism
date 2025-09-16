@@ -283,6 +283,28 @@ contract DisputeGameFactory_TestInit is CommonTest {
         }
     }
 
+    function getPermissionedDisputeGameV2ImmutableArgs(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
+        // Encode the implementation args for CWIA (tightly packed)
+        implArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId, // 32 bytes (l2ChainId),
+            _proposer, // 20 bytes
+            _challenger // 20 bytes
+        );
+    }
+
     function setupPermissionedDisputeGameV2(
         Claim _absolutePrestate,
         address _proposer,
@@ -291,7 +313,14 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        bytes memory implArgs;
+        (implArgs, vm_, preimageOracle_) =
+            getPermissionedDisputeGameV2ImmutableArgs(_absolutePrestate, _proposer, _challenger);
+
+        gameImpl_ = setupPermissionedDisputeGameV2(implArgs);
+    }
+
+    function setupPermissionedDisputeGameV2(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
@@ -301,18 +330,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        // Encode the implementation args for CWIA (tightly packed)
-        bytes memory implArgs = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            l2ChainId, // 32 bytes (l2ChainId),
-            _proposer, // 20 bytes
-            _challenger // 20 bytes
-        );
-
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, implArgs);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, _implArgs);
     }
 }
 
