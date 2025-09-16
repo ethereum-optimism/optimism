@@ -90,11 +90,56 @@ print_component_json() {
 ####   MAIN                                         ####
 ########################################################
 
-declare -A component_versions # hash map: component -> "space-separated versions"
-declare -A latest_versions    # hash map: component -> latest version
-declare -A stable_versions    # hash map: component -> stable version
+# Create temporary files to simulate associative arrays
+temp_dir=$(mktemp -d)
+component_versions_file="$temp_dir/component_versions"
+latest_versions_file="$temp_dir/latest_versions"
+stable_versions_file="$temp_dir/stable_versions"
 
-# Collect all remote tags once and group by component in `component_versions`
+# Clean up temp files on exit
+trap 'rm -rf "$temp_dir"' EXIT
+
+# Initialize temporary files
+touch "$component_versions_file" "$latest_versions_file" "$stable_versions_file"
+
+# Helper functions to simulate associative array operations
+get_component_versions() {
+  local component="$1"
+  grep "^$component:" "$component_versions_file" 2>/dev/null | cut -d: -f2- || true
+}
+
+set_component_versions() {
+  local component="$1"
+  local versions="$2"
+  # Remove existing entry and add new one
+  grep -v "^$component:" "$component_versions_file" > "$component_versions_file.tmp" 2>/dev/null || true
+  echo "$component:$versions" >> "$component_versions_file.tmp"
+  mv "$component_versions_file.tmp" "$component_versions_file"
+}
+
+set_latest_version() {
+  local component="$1"
+  local version="$2"
+  echo "$component:$version" >> "$latest_versions_file"
+}
+
+set_stable_version() {
+  local component="$1"
+  local version="$2"
+  echo "$component:$version" >> "$stable_versions_file"
+}
+
+get_latest_version() {
+  local component="$1"
+  grep "^$component:" "$latest_versions_file" 2>/dev/null | cut -d: -f2- || true
+}
+
+get_stable_version() {
+  local component="$1"
+  grep "^$component:" "$stable_versions_file" 2>/dev/null | cut -d: -f2- || true
+}
+
+# Collect all remote tags once and group by component
 while IFS= read -r tag; do
   # Skip empty lines
   [[ -z "$tag" ]] && continue
@@ -109,32 +154,36 @@ while IFS= read -r tag; do
     version="${BASH_REMATCH[2]}"
 
     # Append version to component's list (space-separated)
-    if [[ -n "${component_versions[$component]:-}" ]]; then
-      component_versions["$component"]+=" $version"
+    existing_versions=$(get_component_versions "$component")
+    if [[ -n "$existing_versions" ]]; then
+      set_component_versions "$component" "$existing_versions $version"
     else
-      component_versions["$component"]="$version"
+      set_component_versions "$component" "$version"
     fi
   fi
 done < <(git ls-remote --tags origin)
 
-# Process each component once and store results in `latest_versions`, `stable_versions`
-for component in "${!component_versions[@]}"; do
-  result=$(find_latest_versions "${component_versions[$component]}")
-  latest_versions["$component"]="${result%|*}"  # Everything before pipe delimiter
-  stable_versions["$component"]="${result#*|}"  # Everything after pipe delimiter
-done
+# Process each component once and store results
+while IFS=: read -r component versions; do
+  [[ -z "$component" ]] && continue
+  result=$(find_latest_versions "$versions")
+  latest_version="${result%|*}"  # Everything before pipe delimiter
+  stable_version="${result#*|}"  # Everything after pipe delimiter
+  set_latest_version "$component" "$latest_version"
+  set_stable_version "$component" "$stable_version"
+done < "$component_versions_file"
 
-# Sort components alphabetically for consistent output
-mapfile -t sorted_components < <(printf '%s\n' "${!latest_versions[@]}" | sort)
+# Get sorted list of components
+sorted_components=$(cut -d: -f1 "$latest_versions_file" | sort)
 
 # Print results in JSON format
 echo "{"
-for i in "${!sorted_components[@]}"; do
-  component="${sorted_components[i]}"
-  print_component_json "$component" \
-    "${stable_versions[$component]}" \
-    "${latest_versions[$component]}" \
-    "$([ "$i" -eq 0 ] && echo true || echo false)"
+first=true
+for component in $sorted_components; do
+  latest_ver=$(get_latest_version "$component")
+  stable_ver=$(get_stable_version "$component")
+  print_component_json "$component" "$stable_ver" "$latest_ver" "$first"
+  first=false
 done
 echo ""
 echo "}"
