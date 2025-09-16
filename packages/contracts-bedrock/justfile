@@ -297,8 +297,8 @@ comment-length-check:
   #!/bin/bash
   echo "🔎 Checking that comments in src/ (excluding src/vendor) are not longer than 100 characters..."
   violations=$(
-    grep -RInE '^\s*(//|#|/\*\*?|\* )' src/ --exclude-dir=vendor \
-    | awk 'length($0) > 100'
+    grep -RhE '^\s*(//|#|/\*\*?|\* )' src/ --exclude-dir=vendor \
+    | awk 'length($0) > 100 {print length($0) " chars: " $0}'
   )
   if [ -n "$violations" ]; then
     echo "❌ Found comments longer than 100 characters:"
