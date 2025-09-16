@@ -2,19 +2,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_minWithdrawalAmount",
+        "type": "uint256"
+      },
+      {
         "internalType": "address",
         "name": "_recipient",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "_minWithdrawalAmount",
+        "name": "_withdrawalGasLimit",
         "type": "uint256"
       },
       {
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "_withdrawalNetwork",
-        "type": "uint8"
+        "internalType": "bytes",
+        "name": "_withdrawalData",
+        "type": "bytes"
       }
     ],
     "stateMutability": "nonpayable",
@@ -23,45 +28,6 @@
   {
     "stateMutability": "payable",
     "type": "receive"
-  },
-  {
-    "inputs": [],
-    "name": "MIN_WITHDRAWAL_AMOUNT",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "RECIPIENT",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "WITHDRAWAL_NETWORK",
-    "outputs": [
-      {
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [],
@@ -118,27 +84,27 @@
   {
     "inputs": [
       {
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "_newWithdrawalNetwork",
-        "type": "uint8"
+        "internalType": "bytes",
+        "name": "_newWithdrawalData",
+        "type": "bytes"
       }
     ],
-    "name": "setWithdrawalNetwork",
+    "name": "setWithdrawalData",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "totalProcessed",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_newWithdrawalGasLimit",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
+    "name": "setWithdrawalGasLimit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -156,19 +122,25 @@
   },
   {
     "inputs": [],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "withdrawalData",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "withdrawalNetwork",
+    "name": "withdrawalGasLimit",
     "outputs": [
       {
-        "internalType": "enum Types.WithdrawalNetwork",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint8"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -180,13 +152,13 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "oldWithdrawalAmount",
+        "name": "oldMinWithdrawalAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "newWithdrawalAmount",
+        "name": "newMinWithdrawalAmount",
         "type": "uint256"
       }
     ],
@@ -217,24 +189,18 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
+        "internalType": "bytes",
+        "name": "oldWithdrawalData",
+        "type": "bytes"
       },
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
+        "internalType": "bytes",
+        "name": "newWithdrawalData",
+        "type": "bytes"
       }
     ],
-    "name": "Withdrawal",
+    "name": "WithdrawalDataUpdated",
     "type": "event"
   },
   {
@@ -243,29 +209,17 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "value",
+        "name": "oldWithdrawalGasLimit",
         "type": "uint256"
       },
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "from",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "withdrawalNetwork",
-        "type": "uint8"
+        "internalType": "uint256",
+        "name": "newWithdrawalGasLimit",
+        "type": "uint256"
       }
     ],
-    "name": "Withdrawal",
+    "name": "WithdrawalGasLimitUpdated",
     "type": "event"
   },
   {
@@ -273,23 +227,23 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "oldWithdrawalNetwork",
-        "type": "uint8"
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       },
       {
-        "indexed": false,
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "newWithdrawalNetwork",
-        "type": "uint8"
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
       }
     ],
-    "name": "WithdrawalNetworkUpdated",
+    "name": "WithdrawalInitiated",
     "type": "event"
   },
   {
     "inputs": [],
-    "name": "FeeSplitter_OnlyProxyAdminOwner",
+    "name": "L1Withdrawer_OnlyProxyAdminOwner",
     "type": "error"
   }
 ]

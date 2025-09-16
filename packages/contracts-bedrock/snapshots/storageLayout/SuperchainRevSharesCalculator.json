@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "shareRecipient",
+    "offset": 2,
+    "slot": "0",
+    "type": "address payable"
+  },
+  {
+    "bytes": "20",
+    "label": "remainderRecipient",
+    "offset": 0,
+    "slot": "1",
+    "type": "address payable"
+  }
+]

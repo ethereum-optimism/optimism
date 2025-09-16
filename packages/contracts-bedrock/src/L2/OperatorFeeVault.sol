@@ -6,7 +6,6 @@ import { FeeVault } from "src/L2/FeeVault.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -17,10 +16,18 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @notice The OperatorFeeVault accumulates the operator portion of the transaction fees.
 contract OperatorFeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Constructs the OperatorFeeVault contract.
-    /// Funds are withdrawn to the base fee vault on the L2 network.
-    constructor() FeeVault(Predeploys.BASE_FEE_VAULT, 0, Types.WithdrawalNetwork.L2) { }
+    /// @param _recipient           Wallet that will receive the fees.
+    /// @param _minWithdrawalAmount Minimum balance for withdrawals.
+    /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
+    constructor(
+        address _recipient,
+        uint256 _minWithdrawalAmount,
+        Types.WithdrawalNetwork _withdrawalNetwork
+    )
+        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
+    { }
 }

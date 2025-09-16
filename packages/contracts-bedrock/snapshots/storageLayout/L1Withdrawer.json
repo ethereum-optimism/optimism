@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "32",
+    "label": "minWithdrawalAmount",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint256"
+  },
+  {
+    "bytes": "20",
+    "label": "recipient",
+    "offset": 0,
+    "slot": "1",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "withdrawalGasLimit",
+    "offset": 0,
+    "slot": "2",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "withdrawalData",
+    "offset": 0,
+    "slot": "3",
+    "type": "bytes"
+  }
+]
