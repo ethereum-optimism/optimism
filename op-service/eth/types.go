@@ -613,8 +613,9 @@ type SystemConfig struct {
 	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
-	// More fields can be added for future SystemConfig versions.
+	// MinBaseFee identifies the minimum base fee.
 	MinBaseFee uint64 `json:"minBaseFee"`
+	// More fields can be added for future SystemConfig versions.
 
 	// MarshalPreHolocene indicates whether or not this struct should be
 	// marshaled in the pre-Holocene format. The pre-Holocene format does
