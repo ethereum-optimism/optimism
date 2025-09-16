@@ -1110,13 +1110,18 @@ jobs:
         description: Rule to run the tests
         type: string
         default: "go-tests-short-ci"
+      parallelism:
+        description: Number machines to distribute the tests across
+        type: integer
+        default: 1
     machine: true
     resource_class: <<parameters.resource_class>>
     circleci_ip_ranges: true
+    parallelism: <<parameters.parallelism>>
     steps:
       - checkout-from-workspace
       - run:
-          name: Run all Go tests via Makefile
+          name: Run Go tests via Makefile
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
@@ -1126,10 +1131,15 @@ jobs:
           path: ./tmp/test-results
       - run:
           name: Compress test logs
-          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
+          command: |
+            if [ -n "$CIRCLE_NODE_TOTAL" ] && [ "$CIRCLE_NODE_TOTAL" -gt 1 ]; then
+              tar -czf testlogs-${CIRCLE_NODE_INDEX}-of-${CIRCLE_NODE_TOTAL}.tar.gz -C ./tmp testlogs
+            else
+              tar -czf testlogs.tar.gz -C ./tmp testlogs
+            fi
           when: always
       - store_artifacts:
-          path: testlogs.tar.gz
+          path: testlogs*.tar.gz
           when: always
       - when:
           condition: "<<parameters.notify>>"
@@ -2112,6 +2122,7 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
+          parallelism: 8
           no_output_timeout: 19m
           test_timeout: 20m
           requires:
@@ -2125,6 +2136,7 @@ workflows:
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
+          parallelism: 8
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
