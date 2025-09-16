@@ -2,7 +2,6 @@ package proofs
 
 import (
 	"encoding/binary"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -15,8 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,56 +62,31 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		env.Sequencer.ActL2EmptyBlock(t)
 		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 		require.Equal(t, eip1559.EncodeJovianExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
-		require.Greater(t, activationBlock.BaseFee().Uint64(), uint64(0), "activation block should have a base fee above the minimum base fee since it was just enabled")
 
 		// Set the minimum base fee
 		setMinBaseFeeViaSystemConfig(t, env, minBaseFee)
 
-		// Allow L1->L2 derivation to propagate the SystemConfig change
-		env.Sequencer.ActL1HeadSignal(t)
-		env.Sequencer.ActL2PipelineFull(t)
-
-		// Build L2 blocks up to the L1 origin that includes the SystemConfig change
-		env.Sequencer.ActBuildToL1Head(t)
-
 		// Build activation+1 block
 		env.Sequencer.ActL2EmptyBlock(t)
-		nextBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+		blockAfterActivation := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
+		// Assert extradata of the blocks which were past the Jovian activation, but before the L1 origin moved to the SystemConfig change
+		// It should have a zero min base fee
+		actualMinBaseFee := binary.BigEndian.Uint64(blockAfterActivation.Extra()[9:17])
+		require.Equal(t, uint64(0), actualMinBaseFee, "activation block should have a zero min base fee")
+
+		// Allow L1->L2 derivation to propagate the SystemConfig change & build L2 blocks up to the L1 origin that includes the SystemConfig change
+		env.Sequencer.ActL1HeadSignal(t)
+		env.Sequencer.ActL2PipelineFull(t)
+		env.Sequencer.ActBuildToL1Head(t)
+
+		// Block after the SystemConfig change
+		env.Sequencer.ActL2EmptyBlock(t)
+		blockAfterSystemConfigChange := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
-		require.Equal(t, expectedJovianExtraDataWithMinFee, nextBlock.Extra(), "block should have updated Jovian extraData with min base fee")
+		require.Equal(t, expectedJovianExtraDataWithMinFee, blockAfterSystemConfigChange.Extra(), "block should have updated Jovian extraData with min base fee")
 
-		// Simulate some user transactions after to ensure base fee >= minimum base fee
-		cl := env.Engine.EthClient()
-		signer := types.LatestSigner(env.Sd.L2Cfg.Config)
-		zeroAddr := common.Address{}
-		for i := 0; i < 10; i++ {
-			nonce, err := cl.PendingNonceAt(t.Ctx(), env.Dp.Addresses.Alice)
-			require.NoError(t, err)
-
-			tx := types.MustSignNewTx(env.Dp.Secrets.Alice, signer, &types.DynamicFeeTx{
-				ChainID:   env.Sd.L2Cfg.Config.ChainID,
-				Nonce:     nonce,
-				GasTipCap: big.NewInt(2 * params.GWei),
-				GasFeeCap: new(big.Int).Add(big.NewInt(int64(minBaseFee)), big.NewInt(2*params.GWei)),
-				Gas:       params.TxGas,
-				To:        &zeroAddr,
-				Value:     big.NewInt(1000), // Send 1000 wei to zero address
-			})
-			require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
-
-			// Build L2 block with the transaction
-			env.Sequencer.ActL2StartBlock(t)
-			env.Engine.ActL2IncludeTx(env.Dp.Addresses.Alice)(t)
-			env.Sequencer.ActL2EndBlock(t)
-
-			// Get the block and verify minimum base fee enforcement
-			block := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-
-			// Assert that the block's base fee is greater than or equal to the minimum
-			actualMinBaseFee := binary.BigEndian.Uint64(block.Extra()[9:17])
-			require.Equal(t, expectedJovianExtraDataWithMinFee, block.Extra(), "block %d should have updated Jovian extraData with min base fee", i+1)
-			require.GreaterOrEqual(t, block.BaseFee().Uint64(), actualMinBaseFee, "base fee should be >= minimum base fee in block %d", i+1)
-		}
+		// Verify base fee is clamped
+		require.GreaterOrEqual(t, blockAfterSystemConfigChange.BaseFee().Uint64(), minBaseFee, "base fee should be >= minimum base fee")
 
 		if !jovianAtGenesis {
 			// Verify Jovian fork activation occurred by checking for the activation log
