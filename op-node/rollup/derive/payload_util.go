@@ -97,11 +97,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 	d, e, m := eip1559.DecodeOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
 	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
 	if rollupCfg.IsJovian(uint64(payload.Timestamp)) {
-		// The minBaseFee MUST be non-null after the Jovian fork
-		r.MinBaseFee = 0
-		if m != nil {
-			r.MinBaseFee = *m
-		}
+		r.MinBaseFee = *m
 	}
 
 	if rollupCfg.IsIsthmus(uint64(payload.Timestamp)) {

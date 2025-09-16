@@ -80,10 +80,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		// Build activation+1 block
 		env.Sequencer.ActL2EmptyBlock(t)
 		nextBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		actualMinBaseFee := binary.BigEndian.Uint64(nextBlock.Extra()[9:17])
-
 		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
-		require.Equal(t, minBaseFee, actualMinBaseFee, "minimum base fee should be equal to the set minimum base fee")
 		require.Equal(t, expectedJovianExtraDataWithMinFee, nextBlock.Extra(), "block should have updated Jovian extraData with min base fee")
 
 		// Simulate some user transactions after to ensure base fee >= minimum base fee
