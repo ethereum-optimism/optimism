@@ -49,7 +49,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 	sys.L2CL2.IsP2PConnected(sys.L2CL)
 
 	// Reaches EL Sync Target and advances
-	sys.L2CL2.Reached(types.LocalUnsafe, 40, 20)
+	sys.L2CL2.Reached(types.LocalUnsafe, 40, 30)
 
 	session, err = syncTesterClient.GetSession(ctx)
 	require.NoError(err)
