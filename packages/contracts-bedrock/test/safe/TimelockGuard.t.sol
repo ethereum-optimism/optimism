@@ -138,13 +138,14 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         return (dummyTxParams, txHash, signatures);
     }
 
-    function _getCancellationTx()
+    function _getCancellationTx(address _safe, bytes32 _txHash)
         internal
         pure
         returns (ExecTransactionParams memory)
     {
+        bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
         ExecTransactionParams memory cancellationTxParams = ExecTransactionParams(
-            address(0), 0, hex"", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0))
+            _safe, 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0))
         );
 
         return cancellationTxParams;
@@ -438,7 +439,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Get the cancellation signatures
         uint256 numSignatures = timelockGuard.cancellationThreshold(safeInstance.safe);
-        ExecTransactionParams memory cancellationTxParams = _getCancellationTx();
+        ExecTransactionParams memory cancellationTxParams = _getCancellationTx(address(safeInstance.safe), txHash);
         bytes32 cancellationTxHash = _getTxHash(safeInstance, cancellationTxParams, nonce);
         bytes memory cancelSignatures = _getSignaturesForTx(safeInstance, cancellationTxHash, numSignatures);
 
@@ -463,7 +464,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         uint256 nonce = safeInstance.safe.nonce();
 
         // Get the cancellation transaction hash
-        ExecTransactionParams memory cancellationTxParams = _getCancellationTx();
+        ExecTransactionParams memory cancellationTxParams = _getCancellationTx(address(safeInstance.safe), txHash);
         bytes32 cancellationTxHash = _getTxHash(safeInstance, cancellationTxParams, nonce);
 
         // Get the owner
