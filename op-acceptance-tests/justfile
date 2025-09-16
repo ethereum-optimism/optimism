@@ -15,7 +15,7 @@ isthmus:
     @just acceptance-test "" isthmus
 
 jovian:
-    @just acceptance-test simple jovian
+    @just acceptance-test jovian jovian
 
 interop:
     @just acceptance-test "" interop
