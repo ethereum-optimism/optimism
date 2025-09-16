@@ -1685,7 +1685,7 @@ contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager
     }
 }
 
-contract OPContractsManager_DeployBase is DeployOPChain_TestBase {
+contract OPContractsManager_Deploy_TestInit is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
@@ -1795,7 +1795,7 @@ contract OPContractsManager_DeployBase is DeployOPChain_TestBase {
 ///      the existing test setup to deploy OPContractsManager. We do however inherit from
 ///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
 ///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
+contract OPContractsManager_Deploy_Test is OPContractsManager_Deploy_TestInit {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
