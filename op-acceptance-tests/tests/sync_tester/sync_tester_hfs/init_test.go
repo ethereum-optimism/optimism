@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 		Latest:    0,
 		Safe:      0,
 		Finalized: 0,
-	}),
+	}, 0),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithHardforkSequentialActivation(rollup.Bedrock, rollup.Jovian, 15),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {

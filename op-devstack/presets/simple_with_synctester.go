@@ -19,8 +19,8 @@ type SimpleWithSyncTester struct {
 	L2CL2          *dsl.L2CLNode
 }
 
-func WithSimpleWithSyncTester(fcus eth.FCUState) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}, fcus))
+func WithSimpleWithSyncTester(fcu eth.FCUState, elSyncTarget uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}, fcu, elSyncTarget))
 }
 
 func NewSimpleWithSyncTester(t devtest.T) *SimpleWithSyncTester {

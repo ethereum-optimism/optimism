@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 			Latest:    0,
 			Safe:      0,
 			Finalized: 0,
-		}),
+		}, 35),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }
