@@ -15,7 +15,7 @@ import { Config } from "scripts/libraries/Config.sol";
 // Libraries
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { LibString } from "solady/src/utils/LibString.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
