@@ -39,9 +39,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 
 	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool, minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
-
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
-
 		t.Logf("L2 Genesis Time: %d, JovianTime: %d ", env.Sequencer.RollupCfg.Genesis.L2Time, *env.Sequencer.RollupCfg.JovianTime)
 
 		if jovianAtGenesis {
@@ -99,7 +97,6 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		}
 
 		env.BatchMineAndSync(t)
-
 		l2SafeHead := env.Sequencer.L2Safe()
 		t.Logf("Safe head block number: %d, timestamp: %d", l2SafeHead.Number, l2SafeHead.Time)
 		require.True(t, l2SafeHead.Number >= uint64(0), "safe head should progress")

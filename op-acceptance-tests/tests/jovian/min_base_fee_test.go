@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -69,22 +68,15 @@ func (mbf *minBaseFeeEnv) setMinBaseFeeViaSytemConfigOnL1(t devtest.T, minBaseFe
 	t.Logf("Set min base fee on L1: minBaseFee=%d", minBaseFee)
 }
 
-func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, from *dsl.EOA, minBase *big.Int) {
-	// Simulate user transactions
-	_ = mbf.l2EL.WaitForBlock()
-	for range 10 {
-		from.Transfer(common.Address{}, eth.OneGWei)
-		// Wait for the next block to ensure inclusion before sending the next tx
-		_ = mbf.l2EL.WaitForBlock()
-	}
-
+func (mbf *minBaseFeeEnv) verifyMinBaseFee(t devtest.T, minBase *big.Int) {
 	// Wait for the next block
 	_ = mbf.l2EL.WaitForBlock()
 	el := mbf.l2EL.Escape().EthClient()
 	info, err := el.InfoByLabel(t.Ctx(), "latest")
 	t.Require().NoError(err)
 
-	t.Require().True(info.BaseFee().Cmp(minBase) >= 0, "expected base fee to be higher than the minBaseFee")
+	// Verify base fee is clamped
+	t.Require().True(info.BaseFee().Cmp(minBase) >= 0, "expected base fee to be >= minBaseFee")
 	t.Logf("base fee %s, minBase %s", info.BaseFee(), minBase)
 }
 
@@ -133,10 +125,6 @@ func TestMinBaseFee(gt *testing.T) {
 	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, rollup.Jovian)
 	require.NoError(err, "Jovian fork must be active for this test")
 
-	fundAmount := eth.OneTenthEther
-	alice := sys.FunderL2.NewFundedEOA(fundAmount)
-	alice.WaitForBalance(fundAmount)
-
 	minBaseFee := newMinBaseFee(t, sys.L2Chain, sys.L1EL, sys.L2EL)
 	minBaseFee.checkCompatibility(t)
 
@@ -160,7 +148,7 @@ func TestMinBaseFee(gt *testing.T) {
 			minBaseFee.setMinBaseFeeViaSytemConfigOnL1(t, tc.minBaseFee)
 			minBaseFee.waitForMinBaseFeeConfigChangeOnL2(t, tc.minBaseFee)
 
-			minBaseFee.verifyMinBaseFee(t, alice, big.NewInt(int64(tc.minBaseFee)))
+			minBaseFee.verifyMinBaseFee(t, big.NewInt(int64(tc.minBaseFee)))
 
 			t.Log("Test completed successfully:",
 				"testCase", tc.name,
