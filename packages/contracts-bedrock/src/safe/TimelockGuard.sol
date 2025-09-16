@@ -299,14 +299,14 @@ contract TimelockGuard is IGuard, ISemver {
         _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[_safe]);
 
         scheduledTransactions[_safe][_txHash].cancelled = true;
-        increaseCancellationThreshold(_safe, _txHash);
+        increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash, safeCancellationThreshold[_safe]);
     }
 
     /// @notice Increase the cancellation threshold for a safe
     /// @dev This function must be caled only once and only when calling cancel
-    function increaseCancellationThreshold(Safe _safe, bytes32 _txHash) internal {
+    function increaseCancellationThreshold(Safe _safe) internal {
         if (safeCancellationThreshold[_safe] < blockingThreshold(_safe)) {
             safeCancellationThreshold[_safe]++;
         }
