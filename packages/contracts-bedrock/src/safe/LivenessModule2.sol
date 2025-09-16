@@ -19,9 +19,10 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      2. The Safe must then configure the module by calling configure() with params
 contract LivenessModule2 is ISemver {
     /// @notice Configuration for a Safe's liveness module.
-    /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to respond to a challenge.
-    /// @custom:field fallbackOwner The address that can initiate challenges and claim ownership if the Safe is
-    /// unresponsive.
+    /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
+    ///                                      respond to a challenge.
+    /// @custom:field fallbackOwner The address that can initiate challenges and claim
+    ///                             ownership if the Safe is unresponsive.
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
         address fallbackOwner;
@@ -51,7 +52,8 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for when trying to cancel a challenge after response period has ended.
     error LivenessModule2_ResponsePeriodEnded();
 
-    /// @notice Error for when trying to execute ownership transfer while response period is active.
+    /// @notice Error for when trying to execute ownership transfer while response period is
+    ///         active.
     error LivenessModule2_ResponsePeriodActive();
 
     /// @notice Error for when caller is not authorized.
@@ -71,8 +73,10 @@ contract LivenessModule2 is ISemver {
 
     /// @notice Emitted when a Safe enables the module.
     /// @param safe The Safe address that enabled the module.
-    /// @param livenessResponsePeriod The duration in seconds that Safe owners have to respond to a challenge.
-    /// @param fallbackOwner The address that can initiate challenges and claim ownership if the Safe is unresponsive.
+    /// @param livenessResponsePeriod The duration in seconds that Safe owners have to
+    ///                               respond to a challenge.
+    /// @param fallbackOwner The address that can initiate challenges and claim ownership if
+    ///                      the Safe is unresponsive.
     event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
 
     /// @notice Emitted when a Safe disables the module.
@@ -111,7 +115,8 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Configures the module for a Safe that has already enabled it.
-    /// @param _config The configuration parameters for the module containing the response period and fallback owner.
+    /// @param _config The configuration parameters for the module containing the response
+    ///                period and fallback owner.
     function configure(ModuleConfig memory _config) external {
         // Validate configuration parameters to ensure module can function properly.
         // livenessResponsePeriod must be > 0 to allow time for Safe owners to respond.
@@ -130,7 +135,8 @@ contract LivenessModule2 is ISemver {
         safeConfigs[msg.sender] = _config;
 
         // Clear any existing challenge when configuring/re-configuring.
-        // This is necessary because changing the configuration (especially livenessResponsePeriod)
+        // This is necessary because changing the configuration (especially
+        // livenessResponsePeriod)
         // would invalidate any ongoing challenge timing, creating inconsistent state.
         // For example, if a challenge was started with a 7-day period and we reconfigure to
         // 1 day, the challenge timing becomes ambiguous. Canceling ensures clean state.
@@ -154,6 +160,7 @@ contract LivenessModule2 is ISemver {
     function clear() external {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
+
         // Check that this module is NOT enabled on the calling Safe
         // This prevents clearing configuration while module is still enabled
         _assertModuleNotEnabled(msg.sender);
@@ -168,31 +175,36 @@ contract LivenessModule2 is ISemver {
     /// @notice Challenges an enabled safe.
     /// @param _safe The Safe address to challenge.
     function challenge(address _safe) external {
+        // Check if the calling safe has configuration set
         _assertModuleConfigured(_safe);
 
         // Check that the module is still enabled on the target Safe.
         _assertModuleEnabled(_safe);
 
+        // Check that the caller is the fallback owner
         if (msg.sender != safeConfigs[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
+        // Check that no challenge already exists
         if (challengeStartTime[_safe] != 0) {
             revert LivenessModule2_ChallengeAlreadyExists();
         }
 
+        // Set the challenge start time and emit the event
         challengeStartTime[_safe] = block.timestamp;
         emit ChallengeStarted(_safe, block.timestamp);
     }
 
     /// @notice Responds to a challenge for an enabled safe, canceling it.
     function respond() external {
-        // Check that this module is enabled on the calling Safe.
-        _assertModuleEnabled(msg.sender);
-
         // Check if the calling safe has configuration set.
         _assertModuleConfigured(msg.sender);
 
+        // Check that this module is enabled on the calling Safe.
+        _assertModuleEnabled(msg.sender);
+
+        // Check that a challenge exists
         uint256 startTime = challengeStartTime[msg.sender];
         if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
