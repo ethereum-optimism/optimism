@@ -26,16 +26,14 @@ func TestUpgradeOPChainInput_OpChainConfigs(t *testing.T) {
 		Opcm:  common.Address{0xbb},
 		EncodedChainConfigs: []OPChainConfig{
 			{
-				SystemConfigProxy:  common.Address{0x01},
-				ProxyAdmin:         common.Address{0x02},
-				CannonPrestate:     common.Hash{0x03},
-				CannonKonaPrestate: common.Hash{0x04},
+				SystemConfigProxy: common.Address{0x01},
+				ProxyAdmin:        common.Address{0x02},
+				AbsolutePrestate:  common.Hash{0x03},
 			},
 			{
-				SystemConfigProxy:  common.Address{0x05},
-				ProxyAdmin:         common.Address{0x06},
-				CannonPrestate:     common.Hash{0x07},
-				CannonKonaPrestate: common.Hash{0x08},
+				SystemConfigProxy: common.Address{0x04},
+				ProxyAdmin:        common.Address{0x05},
+				AbsolutePrestate:  common.Hash{0x06},
 			},
 		},
 	}
@@ -48,11 +46,9 @@ func TestUpgradeOPChainInput_OpChainConfigs(t *testing.T) {
 			"0000000000000000000000000100000000000000000000000000000000000000"+
 			"0000000000000000000000000200000000000000000000000000000000000000"+
 			"0300000000000000000000000000000000000000000000000000000000000000"+
-			"0400000000000000000000000000000000000000000000000000000000000000"+
+			"0000000000000000000000000400000000000000000000000000000000000000"+
 			"0000000000000000000000000500000000000000000000000000000000000000"+
-			"0000000000000000000000000600000000000000000000000000000000000000"+
-			"0700000000000000000000000000000000000000000000000000000000000000"+
-			"0800000000000000000000000000000000000000000000000000000000000000",
+			"0600000000000000000000000000000000000000000000000000000000000000",
 		hex.EncodeToString(data),
 	)
 }
