@@ -72,6 +72,7 @@ func (n *SyncTesterEL) Start() {
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
 	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID(), true)
 
+	suffix := fmt.Sprintf("%s?latest=%d&safe=%d&finalized=%d", endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
 	if n.authProxy == nil {
 		n.authProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-auth"))
 		n.p.Require().NoError(n.authProxy.Start())
@@ -80,8 +81,7 @@ func (n *SyncTesterEL) Start() {
 		})
 
 		rpc := "http://" + n.authProxy.Addr()
-		n.authRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+		n.authRPC = rpc + suffix
 	}
 	if n.userProxy == nil {
 		n.userProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-user"))
@@ -91,13 +91,10 @@ func (n *SyncTesterEL) Start() {
 		})
 
 		rpc := "http://" + n.userProxy.Addr()
-		n.userRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+		n.userRPC = rpc + suffix
 	}
 
-	session := fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-		n.orch.syncTester.service.RPC(), endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
-
+	session := n.orch.syncTester.service.RPC() + suffix
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
 }
