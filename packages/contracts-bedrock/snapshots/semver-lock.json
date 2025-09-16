@@ -201,7 +201,7 @@
   },
   "src/safe/LivenessModule2.sol:LivenessModule2": {
     "initCodeHash": "0x18a8fcd72d8e50f62e7febc16ab9ef04ef3075f7728963a4f23f40f74b45e1ef",
-    "sourceCodeHash": "0x25589aab4808dc3e4c97536aa196199a61e6fe3395f7ac206f7f009411d7fa42"
+    "sourceCodeHash": "0x34cde35b3d99acaea06fc7be6b4b7b902bd5429f3cccf8ad607054fabeb40cd1"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0xc3289416829b252c830ad7d389a430986a7404df4fe0be37cb19e1c40907f047",

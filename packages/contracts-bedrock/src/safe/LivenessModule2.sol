@@ -20,7 +20,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 contract LivenessModule2 is ISemver {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to respond to a challenge.
-    /// @custom:field fallbackOwner The address that can initiate challenges and claim ownership if the Safe is unresponsive.
+    /// @custom:field fallbackOwner The address that can initiate challenges and claim ownership if the Safe is
+    /// unresponsive.
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
         address fallbackOwner;
