@@ -7,7 +7,7 @@
     "type": "struct OPContractsManager.Blueprints"
   },
   {
-    "bytes": "416",
+    "bytes": "448",
     "label": "implementation",
     "offset": 0,
     "slot": "13",

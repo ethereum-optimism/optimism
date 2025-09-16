@@ -340,11 +340,13 @@ func TestBackendCallsMetrics(t *testing.T) {
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
-		Version:               "test",
-		LogConfig:             oplog.CLIConfig{},
-		MetricsConfig:         opmetrics.CLIConfig{},
-		PprofConfig:           oppprof.CLIConfig{},
-		RPC:                   oprpc.CLIConfig{},
+		Version:       "test",
+		LogConfig:     oplog.CLIConfig{},
+		MetricsConfig: opmetrics.CLIConfig{},
+		PprofConfig:   oppprof.CLIConfig{},
+		RPC: oprpc.CLIConfig{
+			ListenAddr: "127.0.0.1",
+		},
 		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
@@ -535,11 +537,13 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 
 	// Initialize backend with mock metrics
 	cfg := &config.Config{
-		Version:               "test",
-		LogConfig:             oplog.CLIConfig{},
-		MetricsConfig:         opmetrics.CLIConfig{},
-		PprofConfig:           oppprof.CLIConfig{},
-		RPC:                   oprpc.CLIConfig{},
+		Version:       "test",
+		LogConfig:     oplog.CLIConfig{},
+		MetricsConfig: opmetrics.CLIConfig{},
+		PprofConfig:   oppprof.CLIConfig{},
+		RPC: oprpc.CLIConfig{
+			ListenAddr: "127.0.0.1",
+		},
 		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,

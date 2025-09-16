@@ -30,6 +30,8 @@ var (
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
+	cannonKonaServer        = "./bin/kona-host"
+	cannonKonaPreState      = "./cannon-kona-pre.json"
 	datadir                 = "./test_data"
 	rollupRpc               = "http://example.com:8555"
 	asteriscBin             = "./bin/asterisc"
@@ -139,7 +141,7 @@ func TestOpSupervisor(t *testing.T) {
 
 func TestTraceType(t *testing.T) {
 	t.Run("Default", func(t *testing.T) {
-		expectedDefault := []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsteriscKona}
+		expectedDefault := []types.TraceType{types.TraceTypeCannon, types.TraceTypeAsteriscKona, types.TraceTypeCannonKona}
 		cfg := configForArgs(t, addRequiredArgsForMultipleTracesExcept(expectedDefault, "--trace-type"))
 		require.Equal(t, expectedDefault, cfg.TraceTypes)
 	})
@@ -325,6 +327,25 @@ func TestPollInterval(t *testing.T) {
 			t,
 			"invalid value \"abc\" for flag -http-poll-interval",
 			addRequiredArgs(types.TraceTypeAlphabet, "--http-poll-interval", "abc"))
+	})
+}
+
+func TestMinUpdateInterval(t *testing.T) {
+	t.Run("DefaultsToZero", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeCannon))
+		require.Equal(t, time.Duration(0), cfg.MinUpdateInterval)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "10m"))
+		require.Equal(t, 10*time.Minute, cfg.MinUpdateInterval)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"invalid value \"abc\" for flag -min-update-interval",
+			addRequiredArgs(types.TraceTypeAlphabet, "--min-update-interval", "abc"))
 	})
 }
 
@@ -1287,6 +1308,8 @@ func requiredArgs(traceType types.TraceType) map[string]string {
 	switch traceType {
 	case types.TraceTypeCannon, types.TraceTypePermissioned:
 		addRequiredCannonArgs(args)
+	case types.TraceTypeCannonKona:
+		addRequiredCannonKonaArgs(args)
 	case types.TraceTypeAsterisc:
 		addRequiredAsteriscArgs(args)
 	case types.TraceTypeAsteriscKona:
@@ -1311,6 +1334,11 @@ func addRequiredCannonArgs(args map[string]string) {
 	addRequiredOutputRootArgs(args)
 }
 
+func addRequiredCannonKonaArgs(args map[string]string) {
+	addRequiredCannonKonaBaseArgs(args)
+	addRequiredOutputRootArgs(args)
+}
+
 func addRequiredOutputRootArgs(args map[string]string) {
 	args["--rollup-rpc"] = rollupRpc
 }
@@ -1320,6 +1348,13 @@ func addRequiredCannonBaseArgs(args map[string]string) {
 	args["--cannon-bin"] = cannonBin
 	args["--cannon-server"] = cannonServer
 	args["--cannon-prestate"] = cannonPreState
+}
+
+func addRequiredCannonKonaBaseArgs(args map[string]string) {
+	args["--network"] = network
+	args["--cannon-bin"] = cannonBin
+	args["--cannon-kona-server"] = cannonKonaServer
+	args["--cannon-kona-prestate"] = cannonKonaPreState
 }
 
 func addRequiredAsteriscArgs(args map[string]string) {

@@ -22,6 +22,9 @@ const defaultGasLimit = 30_000_000
 // HoloceneExtraData represents the default extra data for Holocene-genesis chains.
 var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 
+// JovianExtraData represents the default extra data for Jovian-genesis chains.
+var JovianExtraData = eip1559.EncodeJovianExtraData(250, 6, 0)
+
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
 	if config.L2ChainID == 0 {
@@ -119,6 +122,9 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 	}
 	if optimismChainConfig.IsIsthmus(genesis.Timestamp) {
 		genesis.Alloc[params.HistoryStorageAddress] = types.Account{Nonce: 1, Code: params.HistoryStorageCode, Balance: common.Big0}
+	}
+	if optimismChainConfig.IsJovian(genesis.Timestamp) {
+		genesis.ExtraData = JovianExtraData
 	}
 
 	return genesis, nil

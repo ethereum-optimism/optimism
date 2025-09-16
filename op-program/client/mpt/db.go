@@ -114,4 +114,12 @@ func (p *DB) AncientDatadir() (string, error) {
 	panic("not supported")
 }
 
+func (p *DB) SyncAncient() error {
+	panic("not supported")
+}
+
+func (p *DB) SyncKeyValue() error {
+	panic("not supported")
+}
+
 var _ ethdb.Database = (*DB)(nil)

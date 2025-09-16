@@ -117,10 +117,10 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 							Value: endpoint.HttpURL(l1EL.userRPC),
 						},
 						L2EL: endpoint.MustRPC{
-							Value: endpoint.HttpURL(l2EL.userRPC),
+							Value: endpoint.HttpURL(l2EL.UserRPC()),
 						},
 						L2CL: endpoint.MustRPC{
-							Value: endpoint.HttpURL(l2CL.userRPC),
+							Value: endpoint.HttpURL(l2CL.UserRPC()),
 						},
 					},
 				},
@@ -149,7 +149,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 				cid_L2: {
 					Standard: &standardcommitter.Config{
 						RPC: endpoint.MustRPC{
-							Value: endpoint.HttpURL(l2CL.userRPC),
+							Value: endpoint.HttpURL(l2CL.UserRPC()),
 						},
 					},
 				},
@@ -161,7 +161,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 				pid_L2: {
 					Standard: &standardpublisher.Config{
 						RPC: endpoint.MustRPC{
-							Value: endpoint.HttpURL(l2CL.userRPC),
+							Value: endpoint.HttpURL(l2CL.UserRPC()),
 						},
 					},
 				},

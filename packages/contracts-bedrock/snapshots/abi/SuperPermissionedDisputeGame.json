@@ -967,6 +967,11 @@
   },
   {
     "inputs": [],
+    "name": "BadExtraData",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BondTransferFailed",
     "type": "error"
   },

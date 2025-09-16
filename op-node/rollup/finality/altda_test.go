@@ -35,6 +35,16 @@ func (b *fakeAltDABackend) OnFinalizedHeadSignal(f altda.HeadSignalFn) {
 
 var _ AltDABackend = (*fakeAltDABackend)(nil)
 
+type fakeEngineController struct {
+	finalizedL2 eth.L2BlockRef
+}
+
+var _ EngineController = (*fakeEngineController)(nil)
+
+func (f *fakeEngineController) PromoteFinalized(_ context.Context, ref eth.L2BlockRef) {
+	f.finalizedL2 = ref
+}
+
 func TestAltDAFinalityData(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	l1F := &testutils.MockL1Source{}
@@ -97,7 +107,8 @@ func TestAltDAFinalityData(t *testing.T) {
 	}
 
 	emitter := &testutils.MockEmitter{}
-	fi := NewAltDAFinalizer(context.Background(), logger, cfg, l1F, altDABackend)
+	ec := new(fakeEngineController)
+	fi := NewAltDAFinalizer(context.Background(), logger, cfg, l1F, altDABackend, ec)
 	fi.AttachEmitter(emitter)
 	require.NotNil(t, altDABackend.forwardTo, "altda backend must have access to underlying standard finalizer")
 
@@ -167,20 +178,12 @@ func TestAltDAFinalityData(t *testing.T) {
 			// of the safe block matches that of the finalized L1 block.
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
-			var finalizedL2 eth.L2BlockRef
-			emitter.ExpectOnceRun(func(ev event.Event) {
-				if x, ok := ev.(engine.PromoteFinalizedEvent); ok {
-					finalizedL2 = x.Ref
-				} else {
-					t.Fatalf("expected L2 finalization, but got: %s", ev)
-				}
-			})
 			fi.OnEvent(context.Background(), TryFinalizeEvent{})
 			l1F.AssertExpectations(t)
 			emitter.AssertExpectations(t)
-			require.Equal(t, commitmentInclusionFinalized.Number, finalizedL2.L1Origin.Number+1)
+			require.Equal(t, commitmentInclusionFinalized.Number, ec.finalizedL2.L1Origin.Number+1)
 			// Confirm finalization, so there will be no repeats of the PromoteFinalizedEvent
-			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{FinalizedL2Head: finalizedL2})
+			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{FinalizedL2Head: ec.finalizedL2})
 			emitter.AssertExpectations(t)
 		}
 	}

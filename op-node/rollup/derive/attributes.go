@@ -198,6 +198,9 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
-
+	if ba.rollupCfg.IsJovian(nextL2Time) {
+		zero := uint64(0)
+		r.MinBaseFee = &zero // TODO: replace with sysConfig.MinBaseFee
+	}
 	return r, nil
 }

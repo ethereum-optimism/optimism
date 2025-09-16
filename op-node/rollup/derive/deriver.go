@@ -121,10 +121,12 @@ func (d *PipelineDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
+func (d *PipelineDeriver) ResetPipeline() {
+	d.pipeline.Reset()
+}
+
 func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
-	case rollup.ForceResetEvent:
-		d.pipeline.Reset()
 	case PipelineStepEvent:
 		// Don't generate attributes if there are already attributes in-flight
 		if d.needAttributesConfirmation {

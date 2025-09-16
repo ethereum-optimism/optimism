@@ -17,3 +17,7 @@ shellcheck:
 # Generates a table of contents for the README.md file.
 toc:
   md_toc -p github README.md
+
+latest-versions:
+  ./ops/scripts/latest-versions.sh
+

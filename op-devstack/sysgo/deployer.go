@@ -249,11 +249,46 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 	}
 }
 
+// WithDevFeatureBitmap sets the dev feature bitmap.
+func WithDevFeatureBitmap(devFlags common.Hash) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("devFeatureBitmap", devFlags)
+	}
+}
+
 // WithInteropAtGenesis activates interop at genesis for all known L2s
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
 			l2Cfg.WithForkAtGenesis(rollup.Interop)
+		}
+	}
+}
+
+// WithHardforkSequentialActivation configures a deployment such that L2 chains
+// activate hardforks sequentially, starting from startFork and continuing
+// until (but not including) endFork. Each successive fork is scheduled at
+// an increasing offset.
+func WithHardforkSequentialActivation(startFork, endFork rollup.ForkName, delta *uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtGenesis(startFork)
+			activateWithOffset := false
+			deactivate := false
+			for idx, refFork := range rollup.AllForks {
+				if deactivate || refFork == endFork {
+					l2Cfg.WithForkAtOffset(refFork, nil)
+					deactivate = true
+					continue
+				}
+				if activateWithOffset {
+					offset := *delta * uint64(idx)
+					l2Cfg.WithForkAtOffset(refFork, &offset)
+				}
+				if startFork == refFork {
+					activateWithOffset = true
+				}
+			}
 		}
 	}
 }

@@ -87,8 +87,8 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 
 		batcherCLIConfig := &bss.CLIConfig{
 			L1EthRpc:                 l1EL.userRPC,
-			L2EthRpc:                 []string{l2EL.userRPC},
-			RollupRpc:                []string{l2CL.userRPC},
+			L2EthRpc:                 []string{l2EL.UserRPC()},
+			RollupRpc:                []string{l2CL.UserRPC()},
 			MaxPendingTransactions:   1,
 			MaxChannelDuration:       1,
 			MaxL1TxSize:              120_000,
@@ -133,8 +133,8 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			service: batcher,
 			rpc:     batcher.HTTPEndpoint(),
 			l1RPC:   l1EL.userRPC,
-			l2CLRPC: l2CL.userRPC,
-			l2ELRPC: l2EL.userRPC,
+			l2CLRPC: l2CL.UserRPC(),
+			l2ELRPC: l2EL.UserRPC(),
 		}
 		orch.batchers.Set(batcherID, b)
 	})

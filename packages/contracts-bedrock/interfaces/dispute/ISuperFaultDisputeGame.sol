@@ -40,6 +40,7 @@ interface ISuperFaultDisputeGame is IDisputeGame {
 
     error AlreadyInitialized();
     error AnchorRootNotFound();
+    error BadExtraData();
     error BondTransferFailed();
     error CannotDefendRootClaim();
     error ClaimAboveSplit();

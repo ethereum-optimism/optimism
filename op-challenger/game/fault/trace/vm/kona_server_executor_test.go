@@ -39,8 +39,8 @@ func TestKonaFillHostCommand(t *testing.T) {
 	require.True(t, slices.Contains(args, "--data-dir"))
 	require.True(t, slices.Contains(args, "--l2-chain-id"))
 	require.True(t, slices.Contains(args, "--l1-head"))
-	require.True(t, slices.Contains(args, "--l2-head"))
-	require.True(t, slices.Contains(args, "--l2-output-root"))
-	require.True(t, slices.Contains(args, "--l2-claim"))
-	require.True(t, slices.Contains(args, "--l2-block-number"))
+	require.True(t, slices.Contains(args, "--agreed-l2-head-hash"))
+	require.True(t, slices.Contains(args, "--agreed-l2-output-root"))
+	require.True(t, slices.Contains(args, "--claimed-l2-output-root"))
+	require.True(t, slices.Contains(args, "--claimed-l2-block-number"))
 }

@@ -22,21 +22,31 @@ VERSIONS_FILE="${STATES_DIR}/versions.json"
 
 mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 
-
 cd "${REPO_DIR}"
 
 VERSIONS_JSON="[]"
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
-for VERSION in ${VERSIONS}
+for VERSION in "${VERSIONS[@]}"
 do
     SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
-    git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    # use --force to overwrite any mise.toml changes
+    git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
     if [ -f mise.toml ]
     then
       echo "Install dependencies with mise" >> "${LOG_FILE}"
+      # we rely only on go and jq for the reproducible-prestate build.
+      # The mise cache should already have jq preinstalled
+      # But we need to ensure that this ${VERSION} has the correct go version
+      # So we replace the mise.toml with a minimal one that only specifies go
+      # Otherwise, `mise install` fails as it conflicts with other preinstalled dependencies
+      GO_VERSION=$(mise config get tools.go)
+      cat >mise.toml <<EOF
+[tools]
+go = "${GO_VERSION}"
+EOF
       mise install -v -y >> "${LOG_FILE}" 2>&1
     fi
     rm -rf "${BIN_DIR}"

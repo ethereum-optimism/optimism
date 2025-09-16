@@ -71,4 +71,6 @@ type SyncTester interface {
 	Common
 	ID() SyncTesterID
 	API() apis.SyncTester
+
+	APIWithSession(sessionID string) apis.SyncTester
 }

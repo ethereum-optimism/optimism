@@ -143,6 +143,7 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
     }
 }
 

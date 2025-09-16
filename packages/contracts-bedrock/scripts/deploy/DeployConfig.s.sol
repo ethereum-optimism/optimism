@@ -29,6 +29,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisFjordTimeOffset;
     uint256 public l2GenesisGraniteTimeOffset;
     uint256 public l2GenesisHoloceneTimeOffset;
+    uint256 public l2GenesisJovianTimeOffset;
     address public p2pSequencerAddress;
     address public batchInboxAddress;
     address public batchSenderAddress;
@@ -80,6 +81,8 @@ contract DeployConfig is Script {
 
     bool public useInterop;
     bool public useUpgradedFork;
+    bytes32 public devFeatureBitmap;
+
     bool public useRevenueShare;
     address public chainFeesRecipient;
     address public l1FeesDepositor;
@@ -102,6 +105,7 @@ contract DeployConfig is Script {
         l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
         l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
         l2GenesisHoloceneTimeOffset = _readOr(_json, "$.l2GenesisHoloceneTimeOffset", NULL_OFFSET);
+        l2GenesisJovianTimeOffset = _readOr(_json, "$.l2GenesisJovianTimeOffset", NULL_OFFSET);
 
         p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
         batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
@@ -158,6 +162,7 @@ contract DeployConfig is Script {
         daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
 
         useInterop = _readOr(_json, "$.useInterop", false);
+        devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
         useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
         chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
@@ -232,6 +237,11 @@ contract DeployConfig is Script {
         fundDevAccounts = _fundDevAccounts;
     }
 
+    /// @notice Allow the `devFeatureBitmap` config to be overridden in testing environments
+    function setDevFeatureBitmap(bytes32 _devFeatureBitmap) public {
+        devFeatureBitmap = _devFeatureBitmap;
+    }
+
     /// @notice Allow the `useUpgradedFork` config to be overridden in testing environments
     /// @dev When true, the forked system WILL be upgraded in setUp().
     ///      When false, the forked system WILL NOT be upgraded in setUp().
@@ -244,7 +254,9 @@ contract DeployConfig is Script {
     }
 
     function latestGenesisFork() internal view returns (Fork) {
-        if (l2GenesisHoloceneTimeOffset == 0) {
+        if (l2GenesisJovianTimeOffset == 0) {
+            return Fork.JOVIAN;
+        } else if (l2GenesisHoloceneTimeOffset == 0) {
             return Fork.HOLOCENE;
         } else if (l2GenesisGraniteTimeOffset == 0) {
             return Fork.GRANITE;

@@ -152,3 +152,12 @@ The following environment variables can be used to configure devstack:
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_ENV_URL`: Used when `DEVSTACK_ORCHESTRATOR=sysext` to specify the network descriptor URL.
 - `DEVNET_EXPECT_PRECONDITIONS_MET`: This can be set of force test failures when their pre-conditions are not met, which would otherwise result in them being skipped. This is helpful in particular for runs that do intend to run specific tests (as opposed to whatever is available). `op-acceptor` does set that variable, for example.
+
+Rust stack env vars:
+- `DEVSTACK_L2CL_KIND=kona` to select kona as default L2 CL node
+- `DEVSTACK_L2EL_KIND=op-reth` to select op-reth as default L2 EL node
+- `KONA_NODE_EXEC_PATH=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run
+- `OP_RETH_EXEC_PATH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run
+
+Other useful env vars:
+- `DISABLE_OP_E2E_LEGACY=true` to disable the op-e2e package from loading build-artifacts that are not used by devstack.

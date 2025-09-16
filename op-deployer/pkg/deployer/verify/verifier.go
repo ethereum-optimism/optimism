@@ -88,7 +88,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse l1 contracts release locator: %w", err)
 	}
-	artifactsFS, err := artifacts.Download(ctx, locator, nil, deployer.GetDefaultCacheDir())
+	artifactsFS, err := artifacts.Download(ctx, locator, nil, deployer.EnsureDefaultCacheDir())
 	if err != nil {
 		return fmt.Errorf("failed to get artifacts: %w", err)
 	}

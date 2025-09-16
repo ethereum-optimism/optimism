@@ -414,6 +414,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "isFeatureEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "l1CrossDomainMessenger",
     "outputs": [
@@ -476,6 +495,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minBaseFee",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -707,6 +739,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_feature",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "_enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setFeature",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_overhead",
         "type": "uint256"
@@ -749,6 +799,19 @@
       }
     ],
     "name": "setGasLimit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "_minBaseFee",
+        "type": "uint64"
+      }
+    ],
+    "name": "setMinBaseFee",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -837,24 +900,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_l2ChainId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
-      }
-    ],
-    "name": "upgrade",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -890,6 +935,25 @@
       }
     ],
     "name": "ConfigUpdate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "feature",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "FeatureSet",
     "type": "event"
   },
   {
@@ -957,6 +1021,11 @@
   {
     "inputs": [],
     "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SystemConfig_InvalidFeatureState",
     "type": "error"
   }
 ]

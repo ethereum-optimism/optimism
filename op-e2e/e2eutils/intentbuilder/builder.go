@@ -194,6 +194,7 @@ func (b *intentBuilder) WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator) 
 		Eip1559DenominatorCanyon: standard.Eip1559DenominatorCanyon,
 		Eip1559Denominator:       standard.Eip1559Denominator,
 		Eip1559Elasticity:        standard.Eip1559Elasticity,
+		GasLimit:                 standard.GasLimit,
 		DeployOverrides:          make(map[string]any),
 	}
 	b.intent.Chains = append(b.intent.Chains, chainIntent)
