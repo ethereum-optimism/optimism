@@ -111,7 +111,7 @@ contract DeployOPChainInput is BaseDeployIO {
         if (_sel == this.disputeAbsolutePrestate.selector) {
             _disputeAbsolutePrestate = Claim.wrap(_value);
         } else {
-            revert("DeployImplementationsInput: unknown selector");
+            revert("DeployOPChainInput: unknown selector");
         }
     }
 

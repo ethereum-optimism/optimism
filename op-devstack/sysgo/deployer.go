@@ -339,10 +339,10 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	}
 }
 
-func WithCustomGasToken(enabled bool, name, symbol string) DeployerOption {
+func WithCustomGasToken(enabled bool, name, symbol string, nativeAssetLiquidityAmount *big.Int) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithCustomGasToken(enabled, name, symbol)
+			l2Cfg.WithCustomGasToken(enabled, name, symbol, nativeAssetLiquidityAmount)
 		}
 	}
 }

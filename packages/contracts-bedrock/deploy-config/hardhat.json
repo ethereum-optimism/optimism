@@ -65,5 +65,6 @@
   "daResolverRefundPercentage": 50,
   "useCustomGasToken": false,
   "gasPayingTokenName": "",
-  "gasPayingTokenSymbol": ""
+  "gasPayingTokenSymbol": "",
+  "nativeAssetLiquidityAmount": null
 }

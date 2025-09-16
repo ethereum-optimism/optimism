@@ -296,6 +296,8 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 		if d.NativeAssetLiquidityAmount == nil {
 			return fmt.Errorf("%w: NativeAssetLiquidityAmount cannot be nil", ErrInvalidDeployConfig)
 		}
+
+		log.Info("Using custom gas token", "name", d.GasPayingTokenName, "symbol", d.GasPayingTokenSymbol, "nativeAssetLiquidityAmount", d.NativeAssetLiquidityAmount.ToInt())
 	}
 	return nil
 }
