@@ -229,6 +229,9 @@ RPC_TEST_PKGS := \
 	./op-deployer/pkg/deployer/pipeline/... \
 	./op-deployer/pkg/deployer/upgrade/...
 
+# All test packages used by CI (combination of all package groups)
+ALL_TEST_PACKAGES := $(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)
+
 # Common test environment variables
 # For setting PARALLEL, nproc is for linux, sysctl for Mac and then fallback to 4 if neither is available
 define DEFAULT_TEST_ENV_VARS
@@ -261,41 +264,9 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 	go test -short -parallel=$$PARALLEL -timeout=$(TEST_TIMEOUT) $(TEST_PKGS)
 .PHONY: go-tests-short
 
-go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
-	@echo "Setting up test directories..."
-	mkdir -p ./tmp/test-results ./tmp/testlogs
-	@echo 'Running Go tests (short) with gotestsum...'
-	$(DEFAULT_TEST_ENV_VARS) && \
-	$(CI_ENV_VARS) && \
-	if [ -n "$$CIRCLE_NODE_TOTAL" ] && [ "$$CIRCLE_NODE_TOTAL" -gt 1 ]; then \
-		export NODE_INDEX=$${CIRCLE_NODE_INDEX:-0} && \
-		export NODE_TOTAL=$${CIRCLE_NODE_TOTAL:-1} && \
-		export PARALLEL_PACKAGES=$$(echo "$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
-		if [ -n "$$PARALLEL_PACKAGES" ]; then \
-			echo "Node $$NODE_INDEX/$$NODE_TOTAL running packages: $$PARALLEL_PACKAGES"; \
-			gotestsum --format=testname \
-				--junitfile=./tmp/test-results/results-$$NODE_INDEX.xml \
-				--jsonfile=./tmp/testlogs/log-$$NODE_INDEX.json \
-				--rerun-fails=3 \
-				--rerun-fails-max-failures=50 \
-				--packages="$$PARALLEL_PACKAGES" \
-				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out -short -timeout=$(TEST_TIMEOUT) -tags="ci"; \
-		else \
-			echo "Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run"; \
-			touch ./tmp/test-results/results-$$NODE_INDEX.xml; \
-		fi; \
-	else \
-		gotestsum --format=testname \
-			--junitfile=./tmp/test-results/results.xml \
-			--jsonfile=./tmp/testlogs/log.json \
-			--rerun-fails=3 \
-			--rerun-fails-max-failures=50 \
-			--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
-			-- -parallel=$$PARALLEL -coverprofile=coverage.out -short -timeout=$(TEST_TIMEOUT) -tags="ci"; \
-	fi
-.PHONY: go-tests-short-ci
-
-go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
+# Internal target for running Go tests with gotestsum for CI
+# Usage: make _go-tests-ci-internal GO_TEST_FLAGS="-short"
+_go-tests-ci-internal:
 	@echo "Setting up test directories..."
 	mkdir -p ./tmp/test-results ./tmp/testlogs
 	@echo "Running Go tests with gotestsum..."
@@ -304,7 +275,7 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 	if [ -n "$$CIRCLE_NODE_TOTAL" ] && [ "$$CIRCLE_NODE_TOTAL" -gt 1 ]; then \
 		export NODE_INDEX=$${CIRCLE_NODE_INDEX:-0} && \
 		export NODE_TOTAL=$${CIRCLE_NODE_TOTAL:-1} && \
-		export PARALLEL_PACKAGES=$$(echo "$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
+		export PARALLEL_PACKAGES=$$(echo "$(ALL_TEST_PACKAGES)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
 		if [ -n "$$PARALLEL_PACKAGES" ]; then \
 			echo "Node $$NODE_INDEX/$$NODE_TOTAL running packages: $$PARALLEL_PACKAGES"; \
 			gotestsum --format=testname \
@@ -313,10 +284,10 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 				--rerun-fails=3 \
 				--rerun-fails-max-failures=50 \
 				--packages="$$PARALLEL_PACKAGES" \
-				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out -timeout=$(TEST_TIMEOUT) -tags="ci"; \
+				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
 		else \
-			echo "Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run"; \
-			touch ./tmp/test-results/results-$$NODE_INDEX.xml; \
+			echo "ERROR: Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $$(echo '$(ALL_TEST_PACKAGES)' | wc -w) packages)"; \
+			exit 1; \
 		fi; \
 	else \
 		gotestsum --format=testname \
@@ -324,9 +295,17 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 			--jsonfile=./tmp/testlogs/log.json \
 			--rerun-fails=3 \
 			--rerun-fails-max-failures=50 \
-			--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
-			-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT) -tags="ci"; \
+			--packages="$(ALL_TEST_PACKAGES)" \
+			-- -parallel=$$PARALLEL -coverprofile=coverage.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
 	fi
+.PHONY: _go-tests-ci-internal
+
+go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
+	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS="-short"
+.PHONY: go-tests-short-ci
+
+go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
+	$(MAKE) _go-tests-ci-internal GO_TEST_FLAGS=""
 .PHONY: go-tests-ci
 
 go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)

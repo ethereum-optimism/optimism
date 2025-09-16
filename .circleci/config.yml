@@ -2122,7 +2122,7 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
-          parallelism: 8
+          parallelism: 4
           no_output_timeout: 19m
           test_timeout: 20m
           requires:
@@ -2136,7 +2136,7 @@ workflows:
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 8
+          parallelism: 4
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
