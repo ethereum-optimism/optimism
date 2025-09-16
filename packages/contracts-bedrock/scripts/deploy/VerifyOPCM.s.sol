@@ -897,7 +897,8 @@ contract VerifyOPCM is Script {
         }
 
         // Check if the dispute profile artifact exists and should be used.
-        string memory disputePath = string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".dispute.json");
+        string memory disputePath =
+            string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".dispute.json");
         if (vm.exists(disputePath)) {
             return disputePath;
         }
