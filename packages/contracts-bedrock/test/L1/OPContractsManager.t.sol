@@ -2,50 +2,12 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
-import { VmSafe } from "forge-std/Vm.sol";
-import { CommonTest } from "test/setup/CommonTest.sol";
-import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
-
-// Scripts
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { Deploy } from "scripts/deploy/Deploy.s.sol";
-import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
-import { Config } from "scripts/libraries/Config.sol";
-
-// Libraries
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
-import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-
-// Interfaces
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerInteropMigrator,
     IOPContractsManagerUpgrader
 } from "interfaces/L1/IOPContractsManager.sol";
-import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
-import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
-
-// Contracts
 import {
     OPContractsManager,
     OPContractsManagerGameTypeAdder,
@@ -55,7 +17,49 @@ import {
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
+import { Config } from "scripts/libraries/Config.sol";
+
+// Scripts
+import { DelegateCaller } from "test/mocks/Callers.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
+import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+
+// Interfaces
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
+import {
+    IOPContractsManagerLegacyUpgrade,
+    IOPContractsManagerLegacyStandardValidator
+} from "../../interfaces/L1/IOPContractsManagerLegacy.sol";
+import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
+
+// Contracts
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 /// @title OPContractsManager_Harness
 /// @notice Exposes internal functions for testing.
@@ -179,7 +183,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     function _runOpcmUpgradeAndChecks(
         IOPContractsManager _opcm,
         address _delegateCaller,
-        bytes memory _revertBytes
+        bytes memory _revertBytes,
+        bool _legacyABI
     )
         internal
     {
@@ -220,10 +225,26 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.expectRevert(_revertBytes);
         }
 
-        // Execute the chain upgrade.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
+        if (_legacyABI) {
+            // Execute chain upgrade using previous ABI
+            IOPContractsManagerLegacyUpgrade.OpChainConfig[] memory opChains =
+                new IOPContractsManagerLegacyUpgrade.OpChainConfig[](opChainConfigs.length);
+            for (uint256 i = 0; i < opChainConfigs.length; i++) {
+                opChains[i] = IOPContractsManagerLegacyUpgrade.OpChainConfig({
+                    systemConfigProxy: opChainConfigs[i].systemConfigProxy,
+                    proxyAdmin: opChainConfigs[i].proxyAdmin,
+                    absolutePrestate: opChainConfigs[i].cannonPrestate
+                });
+            }
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOPContractsManagerLegacyUpgrade.upgrade, (opChains))
+            );
+        } else {
+            // Execute the chain upgrade.
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
+            );
+        }
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
@@ -265,16 +286,28 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Run the StandardValidator checks.
-        validator.validate(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: opChainConfigs[0].proxyAdmin,
-                sysCfg: opChainConfigs[0].systemConfigProxy,
-                cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
-                cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
-                l2ChainID: l2ChainId
-            }),
-            false
-        );
+        if (_legacyABI) {
+            IOPContractsManagerLegacyStandardValidator(address(validator)).validate(
+                IOPContractsManagerLegacyStandardValidator.ValidationInput({
+                    proxyAdmin: opChainConfigs[0].proxyAdmin,
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    l2ChainID: l2ChainId
+                }),
+                false
+            );
+        } else {
+            validator.validate(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    proxyAdmin: opChainConfigs[0].proxyAdmin,
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId
+                }),
+                false
+            );
+        }
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -289,7 +322,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             // Mainnet
             // U16a
             _runOpcmUpgradeAndChecks(
-                IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
+                IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes(""), true
             );
         } else {
             revert UnsupportedChainId();
@@ -299,14 +332,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     /// @notice Executes the current upgrade and checks the results.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     function runCurrentUpgrade(address _delegateCaller) public {
-        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, bytes(""));
+        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, bytes(""), false);
     }
 
     /// @notice Executes the current upgrade and expects reverts.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
     /// @param _revertBytes The bytes of the revert to expect.
     function runCurrentUpgrade(address _delegateCaller, bytes memory _revertBytes) public {
-        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, _revertBytes);
+        _runOpcmUpgradeAndChecks(opcm, _delegateCaller, _revertBytes, false);
     }
 }
 

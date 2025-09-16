@@ -32,6 +32,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerLegacyUpgrade } from "../../interfaces/L1/IOPContractsManagerLegacy.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -249,6 +250,62 @@ contract ForkLive is Deployer, StdAssertions {
         vm.etch(_delegateCaller, upgraderCode);
     }
 
+    /// @notice Performs a single OPCM upgrade.
+    /// @param _opcm The OPCM contract to upgrade.
+    /// @param _delegateCaller The address of the upgrader to use for the upgrade.
+    function _doU16aUpgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
+
+        IOPContractsManagerLegacyUpgrade.OpChainConfig[] memory opChains =
+            new IOPContractsManagerLegacyUpgrade.OpChainConfig[](1);
+        opChains[0] = IOPContractsManagerLegacyUpgrade.OpChainConfig({
+            systemConfigProxy: systemConfig,
+            proxyAdmin: proxyAdmin,
+            absolutePrestate: Claim.wrap(bytes32(keccak256("cannonPrestate")))
+        });
+
+        // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
+        // SuperchainConfig contract.
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
+        bytes memory superchainPAOCode = address(superchainPAO).code;
+        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
+        // every time rather than adding or removing this code for each upgrade.
+        try DelegateCaller(superchainPAO).dcForward(
+            address(_opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        ) {
+            // Great, the upgrade succeeded.
+        } catch (bytes memory reason) {
+            // Only acceptable revert reason is the SuperchainConfig already being up to date.
+            assertTrue(
+                bytes4(reason)
+                    == IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector,
+                "Revert reason other than SuperchainConfigAlreadyUpToDate"
+            );
+        }
+
+        // Reset the superchainPAO to the original code.
+        vm.etch(superchainPAO, superchainPAOCode);
+
+        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
+        // then reset its code to the original code.
+        bytes memory upgraderCode = address(_delegateCaller).code;
+        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Upgrade the chain.
+        DelegateCaller(_delegateCaller).dcForward(
+            address(_opcm), abi.encodeCall(IOPContractsManagerLegacyUpgrade.upgrade, (opChains))
+        );
+
+        // Reset the upgrader to the original code.
+        vm.etch(_delegateCaller, upgraderCode);
+    }
+
     /// @notice Upgrades the contracts using the OPCM.
     function _upgrade() internal {
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
@@ -263,7 +320,7 @@ contract ForkLive is Deployer, StdAssertions {
         if (block.chainid == 1) {
             // Mainnet
             // U16a.
-            _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+            _doU16aUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
         } else {
             revert UnsupportedChainId();
         }

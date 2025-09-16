@@ -825,6 +825,18 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _gameType: GameTypes.CANNON,
                 _opChainConfig: _opChainConfig
             });
+            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
+                // If a cannon kona prestate is specified, deploy a Cannon Kona game with the same parameters as the
+                // Cannon game, but using the cannon kona prestate and game type.
+                deployAndSetNewGameImpl({
+                    _l2ChainId: _l2ChainId,
+                    _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
+                    _newDelayedWeth: permissionlessDisputeGame.weth(),
+                    _newAnchorStateRegistryProxy: permissionlessDisputeGame.anchorStateRegistry(),
+                    _gameType: GameTypes.CANNON_KONA,
+                    _opChainConfig: _opChainConfig
+                });
+            }
         }
     }
 

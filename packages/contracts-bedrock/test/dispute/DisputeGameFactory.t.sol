@@ -419,6 +419,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // values. We skip over game type = 0, since the deploy script set the implementation for
         // that game type.
         GameType gt = GameType.wrap(uint32(bound(gameType, 2, type(uint32).max)));
+        vm.assume(gt.raw() != GameTypes.CANNON_KONA.raw());
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
