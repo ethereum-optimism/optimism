@@ -327,7 +327,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
     }
 
-    // @notice Returns the expected calldata length for the initialize method
+    /// @notice Returns the expected calldata length for the initialize method
     function expectedInitCallDataLength() internal pure returns (uint256) {
         // Expected length: 6 bytes + immutable args byte count
         // - 4 bytes: selector
@@ -336,7 +336,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         return 6 + immutableArgsByteCount();
     }
 
-    // @notice Returns the byte count of the immutable args for this contract.
+    /// @notice Returns the byte count of the immutable args for this contract.
     function immutableArgsByteCount() internal pure virtual returns (uint256) {
         // Expected length: 240 bytes
         // - 20 bytes: creator address
