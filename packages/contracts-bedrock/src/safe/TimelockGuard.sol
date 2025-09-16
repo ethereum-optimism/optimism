@@ -259,11 +259,19 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev This function aims to mimic the approach which would be used by a quorum of signers to
     ///      cancel a partially signed transaction, which would be to sign and execute an empty
-    ///      transaction at the same nonce. This enables us to deterministically generate the
-    ///      transaction inputs for a cancellation transaction from the transaction being cancelled.
-    ///      Thus in order for an owners to sign their cancellation transaction, they must first sign
-    ///      an empty transaction at the same nonce, or call approveHash on the Safe for that
-    ///      transaction hash.
+    ///      transaction at the same nonce.
+    ///      This enables us to deterministically generate the transaction inputs for a cancellation
+    ///      transaction from the transaction being cancelled.
+    ///      In this case however we cannot use a completely empty transaction (with all inputs other than the nonce being null),
+    ///      as that would allow for the signatures used to cancel one transaction at nonce X to
+    ///      be used to cancel all transactions at nonce X.
+    ///
+    ///      Therefore we define a custom set of inputs for a cancellation transaction, based on the
+    ///      Safe's address as well as the nonce and hash of the transaction being cancelled.
+    ///
+    ///      Since the Safe's checkNSignatures function is used, the owner can use any method
+    ///      to sign the cancellation transaction inputs, including signing with a private key,
+    ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
     function cancelTransaction(
         Safe _safe,
         bytes32 _txHash,
@@ -280,10 +288,11 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Generate the cancellation transaction data
+        bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
         bytes memory cancellationTxData =
-            _safe.encodeTransactionData(address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
+            _safe.encodeTransactionData(address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
         bytes32 cancellationTxHash =
-            _safe.getTransactionHash(address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
+            _safe.getTransactionHash(address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce);
 
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
