@@ -1,4 +1,4 @@
-name: Build Docker Image
+name: "[common] Build Docker Image"
 
 on:
   workflow_dispatch:

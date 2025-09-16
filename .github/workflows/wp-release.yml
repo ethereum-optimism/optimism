@@ -1,4 +1,4 @@
-name: Release
+name: "[websocket-proxy] Release"
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           echo "| \`GITHUB_SHA\`      | \`${GITHUB_SHA}\`      |" >> $GITHUB_STEP_SUMMARY
           echo "| \`VERSION\`         | \`${VERSION}\`         |" >> $GITHUB_STEP_SUMMARY
           echo "| \`FEATURES\`        | \`${{ github.event.inputs.features || 'none' }}\` |" >> $GITHUB_STEP_SUMMARY
-        
+
   build-binary:
     name: Build binary
     needs: extract-version
@@ -108,7 +108,7 @@ jobs:
           platform=${{ matrix.configs.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
           echo "RELEASE_VERSION=${{ needs.extract-version.outputs.VERSION }}" >> $GITHUB_ENV
-          
+
       - name: Print version
         run: |
           echo $RELEASE_VERSION

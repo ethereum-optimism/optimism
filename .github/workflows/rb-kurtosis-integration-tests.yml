@@ -1,4 +1,4 @@
-name: Kurtosis Integration Tests
+name: "[rollup-boost] Kurtosis Integration Tests"
 
 on:
   # Allow manual trigger

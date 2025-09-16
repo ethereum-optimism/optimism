@@ -1,4 +1,4 @@
-name: Release
+name: "[rollup-boost] Release"
 
 on:
   push:
@@ -35,7 +35,7 @@ jobs:
           echo "| \`GITHUB_SHA\`      | \`${GITHUB_SHA}\`      |" >> $GITHUB_STEP_SUMMARY
           echo "| \`VERSION\`         | \`${VERSION}\`         |" >> $GITHUB_STEP_SUMMARY
           echo "| \`FEATURES\`        | \`${{ github.event.inputs.features || 'none' }}\` |" >> $GITHUB_STEP_SUMMARY
-        
+
   build-binary:
     name: Build binary
     needs: extract-version

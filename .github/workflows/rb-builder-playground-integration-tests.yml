@@ -1,4 +1,4 @@
-name: Builder Playground Integration Tests
+name: "[rollup-boost] Builder Playground Integration Tests"
 
 on:
   # Allow manual trigger

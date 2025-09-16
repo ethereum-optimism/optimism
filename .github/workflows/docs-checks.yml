@@ -1,7 +1,7 @@
 # Documentation and mdbook related jobs.
 # Heavily inspired by Reth https://github.com/paradigmxyz/reth/blob/main/.github/workflows/book.yml
 
-name: book-tests
+name: "[docs] Checks"
 
 on:
   pull_request:

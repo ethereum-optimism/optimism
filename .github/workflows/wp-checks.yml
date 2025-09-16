@@ -1,4 +1,4 @@
-name: Websocket Proxy CI
+name: "[websocket-proxy] Checks"
 
 on:
   push:
