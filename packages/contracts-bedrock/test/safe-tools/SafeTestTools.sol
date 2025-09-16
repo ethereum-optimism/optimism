@@ -191,8 +191,6 @@ library SafeTestLib {
                 refundReceiver: refundReceiver,
                 _nonce: _nonce
             });
-            console.log("txDataHash:");
-            console.logBytes32(txDataHash);
         }
 
         (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
