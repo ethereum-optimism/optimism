@@ -2,6 +2,7 @@ package intentbuilder
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
-	WithCustomGasToken(enabled bool, name, symbol string)
+	WithCustomGasToken(enabled bool, name string, symbol string, nativeAssetLiquidityAmount *big.Int)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -388,11 +389,12 @@ func (c *l2Configurator) WithEIP1559Denominator(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].Eip1559Denominator = value
 }
 
-func (c *l2Configurator) WithCustomGasToken(enabled bool, name, symbol string) {
+func (c *l2Configurator) WithCustomGasToken(enabled bool, name, symbol string, nativeAssetLiquidityAmount *big.Int) {
 	c.builder.intent.Chains[c.chainIndex].CustomGasToken = &state.CustomGasToken{
-		Enabled: enabled,
-		Name:    name,
-		Symbol:  symbol,
+		Enabled:                    enabled,
+		Name:                       name,
+		Symbol:                     symbol,
+		NativeAssetLiquidityAmount: (*hexutil.Big)(nativeAssetLiquidityAmount),
 	}
 }
 

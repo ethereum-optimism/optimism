@@ -41,5 +41,6 @@
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "useCustomGasToken": false,
   "gasPayingTokenName": "",
-  "gasPayingTokenSymbol": ""
+  "gasPayingTokenSymbol": "",
+  "nativeAssetLiquidityAmount": null
 }

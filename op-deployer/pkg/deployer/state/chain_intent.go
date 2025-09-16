@@ -2,7 +2,6 @@ package state
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -134,6 +133,10 @@ func (c *ChainIntent) Check() error {
 		if c.CustomGasToken.Symbol == "" {
 			return fmt.Errorf("%w: CustomGasToken.Symbol cannot be empty when enabled, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
+
+		if c.CustomGasToken.NativeAssetLiquidityAmount == nil {
+			return fmt.Errorf("%w: CustomGasToken.NativeAssetLiquidityAmount must be set when custom gas token is enabled, chainId=%s", ErrIncompatibleValue, c.ID)
+		}
 	}
 
 	if c.DangerousAltDAConfig.UseAltDA {
@@ -141,15 +144,4 @@ func (c *ChainIntent) Check() error {
 	}
 
 	return nil
-}
-
-// GetNativeAssetLiquidityAmount returns the native asset liquidity amount for the chain.
-// If not set, returns the default value of type(uint248).max.
-func (c *ChainIntent) GetNativeAssetLiquidityAmount() *big.Int {
-	if c.CustomGasToken != nil && c.CustomGasToken.NativeAssetLiquidityAmount != nil {
-		return c.CustomGasToken.NativeAssetLiquidityAmount.ToInt()
-	}
-	// Default to type(uint248).max = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-	maxUint248, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
-	return maxUint248
 }

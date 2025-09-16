@@ -22,9 +22,13 @@ import (
 )
 
 type l2GenesisOverrides struct {
-	UseCustomGasToken                        bool                      `json:"useCustomGasToken"`
-	GasPayingTokenName                       string                    `json:"gasPayingTokenName"`
-	GasPayingTokenSymbol                     string                    `json:"gasPayingTokenSymbol"`
+	// ===== CUSTOM GAS TOKEN (CGT) CONFIGURATION =====
+	UseCustomGasToken          bool         `json:"useCustomGasToken"`          // CGT: Enable custom gas token mode
+	GasPayingTokenName         string       `json:"gasPayingTokenName"`         // CGT: Name of the custom gas token
+	GasPayingTokenSymbol       string       `json:"gasPayingTokenSymbol"`       // CGT: Symbol of the custom gas token
+	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"` // CGT: Liquidity amount for NativeAssetLiquidity contract
+
+	// ===== GENERAL L2 CONFIGURATION (NON-CGT) =====
 	FundDevAccounts                          bool                      `json:"fundDevAccounts"`
 	BaseFeeVaultMinimumWithdrawalAmount      *hexutil.Big              `json:"baseFeeVaultMinimumWithdrawalAmount"`
 	L1FeeVaultMinimumWithdrawalAmount        *hexutil.Big              `json:"l1FeeVaultMinimumWithdrawalAmount"`
@@ -34,7 +38,6 @@ type l2GenesisOverrides struct {
 	SequencerFeeVaultWithdrawalNetwork       genesis.WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
-	NativeAssetLiquidityAmount               *hexutil.Big              `json:"nativeAssetLiquidityAmount"`
 }
 
 func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
@@ -98,10 +101,11 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
-		UseCustomGasToken:                        thisIntent.CustomGasToken.Enabled,
-		GasPayingTokenName:                       thisIntent.CustomGasToken.Name,
-		GasPayingTokenSymbol:                     thisIntent.CustomGasToken.Symbol,
-		NativeAssetLiquidityAmount:               thisIntent.GetNativeAssetLiquidityAmount(),
+		// Custom Gas Token (CGT) configuration passed to L2Genesis script
+		UseCustomGasToken:          thisIntent.CustomGasToken.Enabled,                            // CGT: Enable/disable custom gas token
+		GasPayingTokenName:         thisIntent.CustomGasToken.Name,                               // CGT: Token name (e.g., "Custom Gas Token")
+		GasPayingTokenSymbol:       thisIntent.CustomGasToken.Symbol,                             // CGT: Token symbol (e.g., "CGT")
+		NativeAssetLiquidityAmount: thisIntent.CustomGasToken.NativeAssetLiquidityAmount.ToInt(), // CGT: Liquidity amount for NativeAssetLiquidity contract
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -172,13 +176,8 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 }
 
 func defaultOverrides() l2GenesisOverrides {
-	// Default to type(uint248).max = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-	maxUint248, _ := new(big.Int).SetString("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
-
 	return l2GenesisOverrides{
-		UseCustomGasToken:                        false,
-		GasPayingTokenName:                       "",
-		GasPayingTokenSymbol:                     "",
+		// ===== GENERAL L2 DEFAULTS =====
 		FundDevAccounts:                          false,
 		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
 		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
@@ -188,6 +187,10 @@ func defaultOverrides() l2GenesisOverrides {
 		SequencerFeeVaultWithdrawalNetwork:       "local",
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
-		NativeAssetLiquidityAmount:               (*hexutil.Big)(maxUint248),
+		// ===== CGT DEFAULTS =====
+		UseCustomGasToken:          false,                         // CGT disabled by default
+		GasPayingTokenName:         "",                            // Empty when CGT disabled
+		GasPayingTokenSymbol:       "",                            // Empty when CGT disabled
+		NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)), // Default to 0 when CGT disabled (consistent with "" and false)
 	}
 }
