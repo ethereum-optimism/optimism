@@ -154,20 +154,29 @@ contract PermissionedDisputeGameV2_Version_Test is PermissionedDisputeGameV2_Tes
 contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestInit {
     /// @notice Tests that step works properly for the challenger.
     function test_step_fromChallenger_succeeds() public {
-        step_with_actor(CHALLENGER);
+        validateStepForActor(CHALLENGER);
     }
 
     /// @notice Tests that step works properly for the proposer.
     function test_step_fromProposer_succeeds() public {
-        step_with_actor(PROPOSER);
+        validateStepForActor(PROPOSER);
     }
 
-    function step_with_actor(address permissionedActor) public {
-        // Give the test contract some ether
-        vm.deal(permissionedActor, 1_000 ether);
+    function validateStepForActor(address actor) internal {
+        vm.deal(actor, 1_000 ether);
+        vm.startPrank(actor, actor);
 
-        vm.startPrank(permissionedActor, permissionedActor);
+        performStepAndResolveGame();
 
+        assertEq(uint256(gameProxy.status()), uint256(GameStatus.CHALLENGER_WINS));
+        assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
+        (, address counteredBy,,,,,) = gameProxy.claimData(0);
+        assertEq(counteredBy, actor);
+
+        vm.stopPrank();
+    }
+
+    function performStepAndResolveGame() internal {
         // Make claims all the way down the tree.
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
         gameProxy.attack{ value: _getRequiredBond(0) }(disputed, 0, _dummyClaim());
@@ -204,11 +213,6 @@ contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestIn
 
         gameProxy.resolveClaim(0, 0);
         gameProxy.resolve();
-
-        assertEq(uint256(gameProxy.status()), uint256(GameStatus.CHALLENGER_WINS));
-        assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
-        (, address counteredBy,,,,,) = gameProxy.claimData(0);
-        assertEq(counteredBy, permissionedActor);
     }
 }
 
