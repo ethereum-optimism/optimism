@@ -475,7 +475,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 			require.NoError(t, err)
 			require.Equal(t, eip1559Params, *attrs.EIP1559Params)
-			require.Equal(t, minBaseFee, attrs.MinBaseFee)
+			require.Equal(t, minBaseFee, *attrs.MinBaseFee)
 			require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		})
 	})

@@ -97,6 +97,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 	d, e, m := eip1559.DecodeOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
 	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
 	if rollupCfg.IsJovian(uint64(payload.Timestamp)) {
+		// ValidateOptimismExtraData returning a nil error guarantees that m is not nil
 		r.MinBaseFee = *m
 	}
 
