@@ -7,19 +7,24 @@ use op_alloy_consensus::{transaction::OpTransactionInfo, OpTransaction};
 use reth_optimism_primitives::DepositReceipt;
 use reth_primitives_traits::SignedTransaction;
 use reth_rpc_eth_api::{
-    helpers::{spec::SignersForRpc, EthTransactions, LoadTransaction},
-    try_into_op_tx_info, FromEthApiError, RpcConvert, RpcNodeCore, TxInfoMapper,
+    helpers::{spec::SignersForRpc, EthTransactions, LoadReceipt, LoadTransaction},
+    try_into_op_tx_info, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore, RpcReceipt,
+    TxInfoMapper,
 };
 use reth_rpc_eth_types::utils::recover_raw_transaction;
 use reth_storage_api::{errors::ProviderError, ReceiptProvider};
 use reth_transaction_pool::{
     AddedTransactionOutcome, PoolTransaction, TransactionOrigin, TransactionPool,
 };
-use std::fmt::{Debug, Formatter};
+use std::{
+    fmt::{Debug, Formatter},
+    future::Future,
+};
 
 impl<N, Rpc> EthTransactions for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     fn signers(&self) -> &SignersForRpc<Self::Provider, Self::NetworkTypes> {
@@ -62,11 +67,39 @@ where
 
         Ok(hash)
     }
+
+    /// Returns the transaction receipt for the given hash.
+    ///
+    /// With flashblocks, we should also lookup the pending block for the transaction
+    /// because this is considered confirmed/mined.
+    fn transaction_receipt(
+        &self,
+        hash: B256,
+    ) -> impl Future<Output = Result<Option<RpcReceipt<Self::NetworkTypes>>, Self::Error>> + Send
+    {
+        let this = self.clone();
+        async move {
+            // first attempt to fetch the mined transaction receipt data
+            let mut tx_receipt = this.load_transaction_and_receipt(hash).await?;
+
+            if tx_receipt.is_none() {
+                // if flashblocks are supported, attempt to find id from the pending block
+                if let Ok(Some(pending_block)) = this.pending_flashblock() {
+                    tx_receipt = pending_block
+                        .find_transaction_and_receipt_by_hash(hash)
+                        .map(|(tx, receipt)| (tx.tx().clone(), tx.meta(), receipt.clone()));
+                }
+            }
+            let Some((tx, meta, receipt)) = tx_receipt else { return Ok(None) };
+            self.build_transaction_receipt(tx, meta, receipt).await.map(Some)
+        }
+    }
 }
 
 impl<N, Rpc> LoadTransaction for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
+    OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
 }

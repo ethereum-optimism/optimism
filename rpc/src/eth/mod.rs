@@ -118,7 +118,8 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     /// If flashblocks receiver is not set, then it always returns `None`.
     pub fn pending_flashblock(&self) -> eyre::Result<Option<BlockAndReceipts<N::Primitives>>>
     where
-        Self: LoadPendingBlock,
+        OpEthApiError: FromEvmError<N::Evm>,
+        Rpc: RpcConvert<Primitives = N::Primitives>,
     {
         let pending = self.pending_block_env_and_cfg()?;
         let parent = match pending.origin {
