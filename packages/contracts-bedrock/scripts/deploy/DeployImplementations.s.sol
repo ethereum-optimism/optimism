@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Types } from "scripts/libraries/Types.sol";
+import { GameTypes, Duration } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -17,6 +18,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import {
     IOPContractsManager,
+    IOPContractsManagerV2,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
@@ -24,6 +26,8 @@ import {
     IOPContractsManagerInteropMigrator,
     IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -47,6 +51,10 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
+        uint256 maxGameDepth;
+        uint256 splitDepth;
+        uint64 clockExtension;
+        uint64 maxClockDuration;
         bytes32 devFeatureBitmap;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
@@ -64,6 +72,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
         IOPContractsManagerStandardValidator opcmStandardValidator;
+        IOPContractsManagerV2 opcmV2;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
         IOptimismPortalInterop optimismPortalInteropImpl;
@@ -79,6 +88,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
+        IFaultDisputeGameV2 faultDisputeGameImpl;
+        IPermissionedDisputeGameV2 permissionedDisputeGameImpl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -104,6 +115,8 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
+        deployFaultDisputeGameImpl(_input, output_);
+        deployPermissionedDisputeGameImpl(_input, output_);
 
         // Deploy the OP Contracts Manager with the new implementations set.
         deployOPContractsManager(_input, output_);
@@ -137,7 +150,9 @@ contract DeployImplementations is Script {
             disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
-            mipsImpl: address(_output.mipsSingleton)
+            mipsImpl: address(_output.mipsSingleton),
+            faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
+            permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl)
         });
 
         deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
@@ -146,6 +161,7 @@ contract DeployImplementations is Script {
         deployOPCMUpgrader(_output);
         deployOPCMInteropMigrator(_output);
         deployOPCMStandardValidator(_input, _output, implementations);
+        deployOPCMV2(_output);
 
         // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
@@ -183,6 +199,7 @@ contract DeployImplementations is Script {
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
+                    _output.opcmV2,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
@@ -464,6 +481,58 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
+    function deployFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "FaultDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IFaultDisputeGameV2.__constructor__,
+                        (
+                            IFaultDisputeGameV2.GameConstructorParams({
+                                gameType: GameTypes.CANNON,
+                                maxGameDepth: _input.maxGameDepth,
+                                splitDepth: _input.splitDepth,
+                                clockExtension: Duration.wrap(uint64(_input.clockExtension)),
+                                maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration))
+                            })
+                        )
+                    )
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "FaultDisputeGameImpl");
+        _output.faultDisputeGameImpl = impl;
+    }
+
+    function deployPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
+        IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "PermissionedDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IPermissionedDisputeGameV2.__constructor__,
+                        (
+                            IFaultDisputeGameV2.GameConstructorParams({
+                                gameType: GameTypes.PERMISSIONED_CANNON,
+                                maxGameDepth: _input.maxGameDepth,
+                                splitDepth: _input.splitDepth,
+                                clockExtension: Duration.wrap(uint64(_input.clockExtension)),
+                                maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration))
+                            }),
+                            address(0), // TODO: These should be passed in as inputs
+                            address(0)
+                        )
+                    )
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "PermissionedDisputeGameImpl");
+        _output.permissionedDisputeGameImpl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
         Input memory _input,
         Output memory _output,
@@ -586,6 +655,20 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OPContractsManagerStandardValidatorImpl");
         _output.opcmStandardValidator = impl;
+    }
+
+    function deployOPCMV2(Output memory _output) private {
+        IOPContractsManagerV2 impl = IOPContractsManagerV2(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager.sol:OPContractsManagerV2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerV2.__constructor__, (_output.opcmContractsContainer))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerV2Impl");
+        _output.opcmV2 = impl;
     }
 
     function assertValidInput(Input memory _input) private pure {

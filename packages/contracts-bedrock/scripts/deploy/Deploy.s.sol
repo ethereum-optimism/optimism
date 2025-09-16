@@ -24,6 +24,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -42,6 +43,8 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/IOPContractsManager.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -274,6 +277,10 @@ contract Deploy is Deployer {
                 proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
                 disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
+                maxGameDepth: cfg.faultGameMaxDepth(),
+                splitDepth: cfg.faultGameSplitDepth(),
+                clockExtension: uint64(cfg.faultGameClockExtension()),
+                maxClockDuration: uint64(cfg.faultGameMaxClockDuration()),
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
@@ -334,49 +341,39 @@ contract Deploy is Deployer {
         // Ensure that the requisite contracts are deployed
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
-        IOPContractsManager.DeployInput memory deployInput = getDeployInput();
-        IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
+        // IOPContractsManager.DeployInput memory deployInput = getDeployInput();
+        // IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
+        IOPContractsManagerV2.ExecutionOutput memory deployOutput = opcm.deployV2(getDeployInputV2(opcm.superchainConfig()));
 
         // Store code in the Final system owner address so that it can be used for prank delegatecalls
         // Store "fe" opcode so that accidental calls to this address revert
         vm.etch(cfg.finalSystemOwner(), hex"fe");
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
-        artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
-        artifacts.save("AddressManager", address(deployOutput.addressManager));
-        artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
-        artifacts.save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
-        artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
-        artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
-        artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
-        artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockboxProxy));
+        artifacts.save("ProxyAdmin", address(deployOutput.cts.proxyAdmin));
+        artifacts.save("AddressManager", address(deployOutput.cts.addressManager));
+        artifacts.save("L1ERC721BridgeProxy", address(deployOutput.cts.l1ERC721Bridge));
+        artifacts.save("SystemConfigProxy", address(deployOutput.cts.systemConfig));
+        artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.cts.optimismMintableERC20Factory));
+        artifacts.save("L1StandardBridgeProxy", address(deployOutput.cts.l1StandardBridge));
+        artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.cts.l1CrossDomainMessenger));
+        artifacts.save("ETHLockboxProxy", address(deployOutput.cts.ethLockbox));
 
         // Fault Proof contracts
-        artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
-        artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
-        artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-        artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
-        artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
-        artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+        artifacts.save("DisputeGameFactoryProxy", address(deployOutput.cts.disputeGameFactory));
+        artifacts.save("DelayedWETHProxy", address(deployOutput.cts.delayedWETH));
+        artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.cts.delayedWETH));
+        artifacts.save("AnchorStateRegistryProxy", address(deployOutput.cts.anchorStateRegistry));
+        artifacts.save("OptimismPortalProxy", address(deployOutput.cts.optimismPortal));
+        artifacts.save("OptimismPortal2Proxy", address(deployOutput.cts.optimismPortal));
 
-        // Check if the permissionless game implementation is already set
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        // Grab the dispute games from the factory.
+        IDisputeGameFactory factory = deployOutput.cts.disputeGameFactory;
         address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
-
-        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
-        // If the following require statement is hit, you can delete the block of code after it.
-        require(
-            permissionlessGameImpl == address(0),
-            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
-        );
-        address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy =
-            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
-        vm.broadcast(address(deployOutput.opChainProxyAdmin));
-        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
-            _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
-        });
+        address permissionedGameImpl = address(factory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        artifacts.save("PermissionedDisputeGame", permissionedGameImpl);
+        artifacts.save("PermissionlessDisputeGame", permissionlessGameImpl);
+        artifacts.save("FaultDisputeGame", permissionlessGameImpl);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -434,6 +431,53 @@ contract Deploy is Deployer {
             disputeSplitDepth: cfg.faultGameSplitDepth(),
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
             disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
+        });
+    }
+
+    function getDeployInputV2(ISuperchainConfig _superchainConfig) public view returns (IOPContractsManagerV2.FullConfig memory) {
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](2);
+        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()))
+                })
+            )
+        });
+        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+                    proposer: cfg.l2OutputOracleProposer(),
+                    challenger: cfg.l2OutputOracleChallenger()
+                })
+            )
+        });
+        return IOPContractsManagerV2.FullConfig({
+            saltMixer: "salt mixer",
+            superchainConfig: _superchainConfig,
+            roles: IOPContractsManagerV2.SystemRoles({
+                proxyAdminOwner: cfg.finalSystemOwner(),
+                systemConfigOwner: cfg.finalSystemOwner(),
+                unsafeBlockSigner: cfg.p2pSequencerAddress(),
+                batcherHash: bytes32(uint256(uint160(cfg.batchSenderAddress())))
+            }),
+            l2SystemConfig: IOPContractsManagerV2.L2SystemConfig({
+                basefeeScalar: cfg.basefeeScalar(),
+                blobBasefeeScalar: cfg.blobbasefeeScalar(),
+                gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
+                l2ChainId: cfg.l2ChainID(),
+                resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG()
+            }),
+            disputeGameConfigs: disputeGameConfigs,
+            anchorStateConfig: IOPContractsManagerV2.AnchorStateConfig({
+                startingAnchorRoot: abi.encode(
+                    Proposal({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: cfg.faultGameGenesisBlock() })
+                ),
+                startingRespectedGameType: GameTypes.CANNON
+            })
         });
     }
 }

@@ -131,11 +131,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
 
     function _setGame(address _gameImpl, GameType _gameType, bytes memory _implArgs) internal {
         vm.startPrank(disputeGameFactory.owner());
-        if (_implArgs.length > 0) {
-            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), _implArgs);
-        } else {
-            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
-        }
+        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), _implArgs);
         disputeGameFactory.setInitBond(_gameType, 0.08 ether);
         vm.stopPrank();
     }

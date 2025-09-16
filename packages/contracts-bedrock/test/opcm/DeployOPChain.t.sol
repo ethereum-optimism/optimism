@@ -372,6 +372,10 @@ contract DeployOPChain_TestBase is Test {
                 protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: upgradeController,
+                maxGameDepth: disputeMaxGameDepth,
+                splitDepth: disputeSplitDepth,
+                clockExtension: disputeClockExtension,
+                maxClockDuration: disputeMaxClockDuration,
                 challenger: challenger,
                 devFeatureBitmap: bytes32(0)
             })

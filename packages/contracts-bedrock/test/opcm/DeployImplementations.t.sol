@@ -8,6 +8,7 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { Duration } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -28,6 +29,10 @@ contract DeployImplementations_Test is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
+    uint256 disputeMaxGameDepth = 73;
+    uint256 disputeSplitDepth = 30;
+    uint64 disputeClockExtension = Duration.unwrap(Duration.wrap(3 hours));
+    uint64 disputeMaxClockDuration = Duration.unwrap(Duration.wrap(3.5 days));
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
@@ -116,6 +121,10 @@ contract DeployImplementations_Test is Test {
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
+            disputeMaxGameDepth,
+            disputeSplitDepth,
+            disputeClockExtension,
+            disputeMaxClockDuration,
             bytes32(0), // devFeatureBitmap
             superchainConfigProxy,
             protocolVersionsProxy,
@@ -245,6 +254,10 @@ contract DeployImplementations_Test is Test {
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
+            disputeMaxGameDepth,
+            disputeSplitDepth,
+            disputeClockExtension,
+            disputeMaxClockDuration,
             bytes32(0), // devFeatureBitmap
             superchainConfigProxy,
             protocolVersionsProxy,

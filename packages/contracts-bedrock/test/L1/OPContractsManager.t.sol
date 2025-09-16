@@ -48,6 +48,7 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 // Contracts
 import {
     OPContractsManager,
+    OPContractsManagerV2,
     OPContractsManagerGameTypeAdder,
     OPContractsManagerDeployer,
     OPContractsManagerUpgrader,
@@ -66,6 +67,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
         OPContractsManagerStandardValidator _opcmStandardValidator,
+        OPContractsManagerV2 _opcmV2,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -77,6 +79,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmUpgrader,
             _opcmInteropMigrator,
             _opcmStandardValidator,
+            _opcmV2,
             _superchainConfig,
             _protocolVersions,
             _superchainProxyAdmin,
@@ -402,6 +405,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             _opcmStandardValidator: new OPContractsManagerStandardValidator(
                 opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100, bytes32(0)
             ),
+            _opcmV2: new OPContractsManagerV2(container),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,

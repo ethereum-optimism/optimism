@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import {console2 as console} from "forge-std/console2.sol";
+
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
@@ -10,6 +12,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -571,9 +574,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
-        (Hash anchorRoot,) = _asr.getAnchorRoot();
-
         _errors = internalRequire(
             LibString.eq(getVersion(address(_game)), permissionedDisputeGameVersion()),
             string.concat(_errorPrefix, "-20"),
@@ -595,17 +595,38 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
+
+        // Grab ASR from contract or initialization data if using V2.
+        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
+        if (address(_asr) == address(0)) {
+            _asr = IAnchorStateRegistry(_getAddressFromGameArgs(_factory, _gameType, 52));
+        }
+
+        // Check the anchor root is valid.
+        (Hash anchorRoot,) = _asr.getAnchorRoot();
         _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
 
-        _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
+        // Grab WETH from contract or initialization data if using V2.
+        IDelayedWETH _weth = _game.weth();
+        if (address(_weth) == address(0)) {
+            _weth = IDelayedWETH(payable(_getAddressFromGameArgs(_factory, _gameType, 72)));
+        }
+
+        _errors = assertValidDelayedWETH(_errors, _sysCfg, _weth, _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
-        _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
+        // Grab VM from contract or initialization data if using V2.
+        IMIPS64 _vm = IMIPS64(address(_game.vm()));
+        if (address(_vm) == address(0)) {
+            _vm = IMIPS64(_getAddressFromGameArgs(_factory, _gameType, 32));
+        }
+
+        _errors = assertValidMipsVm(_errors, _vm, _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
-        if (address(_game.vm()) == mipsImpl) {
-            _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
+        if (address(_vm) == mipsImpl) {
+            _errors = assertValidPreimageOracle(_errors, _vm.oracle(), _errorPrefix);
         }
 
         return _errors;
@@ -797,5 +818,25 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return finalErrors;
+    }
+
+    function _getAddressFromGameArgs(
+        IDisputeGameFactory _factory,
+        GameType _gameType,
+        uint256 _offset
+    )
+        internal
+        view
+        returns (address)
+    {
+        bytes memory gameArgs = _factory.gameArgs(_gameType);
+        bytes memory argBytes = Bytes.slice(gameArgs, _offset, 20);
+
+        address arg;
+        assembly {
+            arg := mload(add(argBytes, 20))
+        }
+
+        return arg;
     }
 }

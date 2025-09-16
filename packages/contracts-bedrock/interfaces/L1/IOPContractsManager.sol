@@ -24,6 +24,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 
 interface IOPContractsManagerContractsContainer {
     error OPContractsManagerContractsContainer_DevFeatureInProd();
@@ -126,6 +127,85 @@ interface IOPContractsManagerInteropMigrator {
     function migrate(MigrateInput calldata _input) external;
 }
 
+interface IOPContractsManagerV2 {
+    error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
+    error OPContractsManagerV2_UnknownGameType();
+    error OPContractsManagerV2_UnsupportedGameType();
+
+    struct FaultDisputeGameConfig {
+        Claim absolutePrestate;
+    }
+
+    struct PermissionedDisputeGameConfig {
+        Claim absolutePrestate;
+        address proposer;
+        address challenger;
+    }
+
+    struct DisputeGameConfig {
+        GameType gameType;
+        bytes gameArgs;
+    }
+
+    struct SystemRoles {
+        address proxyAdminOwner;
+        address systemConfigOwner;
+        address unsafeBlockSigner;
+        bytes32 batcherHash;
+    }
+
+    struct L2SystemConfig {
+        uint32 basefeeScalar;
+        uint32 blobBasefeeScalar;
+        uint64 gasLimit;
+        uint256 l2ChainId;
+        IResourceMetering.ResourceConfig resourceConfig;
+    }
+
+    struct AnchorStateConfig {
+        bytes startingAnchorRoot;
+        GameType startingRespectedGameType;
+    }
+
+    struct FullConfig {
+        string saltMixer;
+        SystemRoles roles;
+        L2SystemConfig l2SystemConfig;
+        DisputeGameConfig[] disputeGameConfigs;
+        AnchorStateConfig anchorStateConfig;
+        ISuperchainConfig superchainConfig;
+    }
+
+    struct UpgradeInput {
+        ISystemConfig systemConfigProxy;
+        DisputeGameConfig[] disputeGameConfigs;
+    }
+
+    struct ChainContracts {
+        ISystemConfig systemConfig;
+        IProxyAdmin proxyAdmin;
+        IAddressManager addressManager;
+        IL1CrossDomainMessenger l1CrossDomainMessenger;
+        IL1ERC721Bridge l1ERC721Bridge;
+        IL1StandardBridge l1StandardBridge;
+        IOptimismPortal2 optimismPortal;
+        IETHLockbox ethLockbox;
+        IOptimismMintableERC20Factory optimismMintableERC20Factory;
+        IDisputeGameFactory disputeGameFactory;
+        IAnchorStateRegistry anchorStateRegistry;
+        IDelayedWETH delayedWETH;
+    }
+
+    struct ExecutionOutput {
+        ChainContracts cts;
+    }
+
+    function version() external pure returns (string memory);
+    function deploy(FullConfig memory _input) external returns (ExecutionOutput memory);
+    function upgrade(UpgradeInput memory _input) external returns (ExecutionOutput memory);
+    function __constructor__(IOPContractsManagerContractsContainer _container) external;
+}
+
 interface IOPContractsManager {
     // -------- Structs --------
 
@@ -216,6 +296,8 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
@@ -305,6 +387,7 @@ interface IOPContractsManager {
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         IOPContractsManagerStandardValidator _opcmStandardValidator,
+        IOPContractsManagerV2 _opcmV2,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -328,6 +411,10 @@ interface IOPContractsManager {
         external
         view
         returns (string memory);
+
+    function upgradeV2(IOPContractsManagerV2.UpgradeInput calldata _input) external;
+
+    function deployV2(IOPContractsManagerV2.FullConfig calldata _input) external returns (IOPContractsManagerV2.ExecutionOutput memory);
 
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 
@@ -371,6 +458,8 @@ interface IOPContractsManager {
     function opcmInteropMigrator() external view returns (IOPContractsManagerInteropMigrator);
 
     function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
+
+    function opcmV2() external view returns (IOPContractsManagerV2);
 
     /// @notice Retrieves the development feature bitmap stored in this OPCM contract
     /// @return The development feature bitmap.

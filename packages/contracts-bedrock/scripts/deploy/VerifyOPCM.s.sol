@@ -121,11 +121,14 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["superPermissionlessDisputeGame2"] = "SuperFaultDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame1"] = "SuperPermissionedDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame2"] = "SuperPermissionedDisputeGame";
+        fieldNameOverrides["faultDisputeGameImpl"] = "FaultDisputeGameV2";
+        fieldNameOverrides["permissionedDisputeGameImpl"] = "PermissionedDisputeGameV2";
         fieldNameOverrides["opcmGameTypeAdder"] = "OPContractsManagerGameTypeAdder";
         fieldNameOverrides["opcmDeployer"] = "OPContractsManagerDeployer";
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
+        fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
 
         // Overrides for situations where contracts have differently named source files.
@@ -134,6 +137,7 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerV2"] = "OPContractsManager";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -155,6 +159,7 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";
