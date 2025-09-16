@@ -283,6 +283,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         }
     }
 
+    /// @notice Sets up immutable args for PDG v2 implementation
     function getPermissionedDisputeGameV2ImmutableArgs(
         Claim _absolutePrestate,
         address _proposer,
@@ -305,6 +306,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         );
     }
 
+    /// @notice Deploys PDG v2 implementation and sets it on the DGF
     function setupPermissionedDisputeGameV2(
         Claim _absolutePrestate,
         address _proposer,
@@ -320,6 +322,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = setupPermissionedDisputeGameV2(implArgs);
     }
 
+    /// @notice Deploys PDG v2 implementation and sets it on the DGF
     function setupPermissionedDisputeGameV2(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGameV2",
