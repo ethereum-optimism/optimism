@@ -292,6 +292,22 @@ validate-spacers: build validate-spacers-no-build
 check-kontrol-summaries-unchanged:
   ./scripts/checks/check-kontrol-summaries-unchanged.sh
 
+# Checks that comment lines under src/ (excluding src/vendor) do not exceed 100 characters.
+comment-length-check:
+  #!/bin/bash
+  echo "🔎 Checking that comments in src/ (excluding src/vendor) are not longer than 100 characters..."
+  violations=$(
+    grep -RInE '^\s*(//|#|/\*\*?|\* )' src/ --exclude-dir=vendor \
+    | awk 'length($0) > 100'
+  )
+  if [ -n "$violations" ]; then
+    echo "❌ Found comments longer than 100 characters:"
+    echo "$violations"
+    exit 1
+  else
+    echo "✅ All comments in src/ (excluding vendor) are within 100 characters"
+  fi
+
 # Runs semgrep on the contracts.
 semgrep:
   cd ../../ && semgrep scan --config .semgrep/rules/ ./packages/contracts-bedrock
@@ -311,7 +327,8 @@ check:
   validate-spacers-no-build \
   reinitializer-check-no-build \
   interfaces-check-no-build \
-  lint-forge-tests-check-no-build
+  lint-forge-tests-check-no-build \
+  comment-length-check
 
 ########################################################
 #                      DEV TOOLS                       #
