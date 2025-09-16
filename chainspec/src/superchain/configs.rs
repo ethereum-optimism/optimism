@@ -8,8 +8,8 @@ use alloy_genesis::Genesis;
 use miniz_oxide::inflate::decompress_to_vec_zlib_with_limit;
 use tar_no_std::{CorruptDataError, TarArchiveRef};
 
-/// A genesis file can be up to 10MiB. This is a reasonable limit for the genesis file size.
-const MAX_GENESIS_SIZE: usize = 16 * 1024 * 1024; // 16MiB
+/// A genesis file can be up to 100MiB. This is a reasonable limit for the genesis file size.
+const MAX_GENESIS_SIZE: usize = 100 * 1024 * 1024; // 100MiB
 
 /// The tar file contains the chain configs and genesis files for all chains.
 const SUPER_CHAIN_CONFIGS_TAR_BYTES: &[u8] = include_bytes!("../../res/superchain-configs.tar");
