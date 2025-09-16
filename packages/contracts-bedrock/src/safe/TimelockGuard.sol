@@ -229,15 +229,15 @@ contract TimelockGuard is IGuard, ISemver {
             _nonce
         );
 
-        // Verify signatures using the Safe's signature checking logic
-        // This function call reverts if the signatures are invalid.
-        _safe.checkSignatures(txHash, txHashData, _signatures);
-
         // Check if the transaction exists
         // A transaction can only be scheduled once, regardless of whether it has been cancelled or not.
         if (scheduledTransactions[_safe][txHash].executionTime != 0) {
             revert TimelockGuard_TransactionAlreadyScheduled();
         }
+
+        // Verify signatures using the Safe's signature checking logic
+        // This function call reverts if the signatures are invalid.
+        _safe.checkSignatures(txHash, txHashData, _signatures);
 
         // Calculate the execution time
         uint256 executionTime = block.timestamp + safeConfigs[_safe].timelockDelay;
