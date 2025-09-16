@@ -205,9 +205,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.1.0
+    /// @custom:semver 5.1.1
     function version() public pure virtual returns (string memory) {
-        return "5.1.0";
+        return "5.1.1";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -326,8 +326,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Intentionally empty.
     }
 
-    /// @notice Proves a withdrawal transaction using an Output Root proof. Only callable when the
-    ///         OptimismPortal is using Output Roots (superRootsActive flag is false).
+    /// @notice Proves a withdrawal transaction using an Output Root proof.
     /// @param _tx               Withdrawal transaction to finalize.
     /// @param _disputeGameIndex Index of the dispute game to prove the withdrawal against.
     /// @param _outputRootProof  Inclusion proof of the L2ToL1MessagePasser storage root.
