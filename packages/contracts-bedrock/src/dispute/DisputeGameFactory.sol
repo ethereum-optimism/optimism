@@ -36,6 +36,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     /// @param gameType The type of the DisputeGame.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
+    /// @notice Emitted when a game type's implementation args are set
+    /// @param gameType The type of the DisputeGame.
+    /// @param args The constructor args for the game type.
+    event ImplementationArgsSet(GameType indexed gameType, bytes args);
+
     /// @notice Emitted when a game type's initialization bond is updated
     /// @param gameType The type of the DisputeGame.
     /// @param newBond The new bond (in wei) for initializing the game type.
@@ -51,8 +56,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
@@ -68,6 +73,10 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     /// @notice An append-only array of disputeGames that have been created. Used by offchain game solvers to
     ///         efficiently track dispute games.
     GameId[] internal _disputeGameList;
+
+    /// @notice Maps each Game Type to an associated configuration to use with it, but because we need to pass them
+    ///         to a clone with immutable args so they have to be stored as arbitrary bytes unfortunately
+    mapping(GameType => bytes) public gameArgs;
 
     /// @notice Constructs a new DisputeGameFactory contract.
     constructor() OwnableUpgradeable() ReinitializableBase(1) {
@@ -159,15 +168,18 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // Clone the implementation contract and initialize it with the given parameters.
         //
         // CWIA Calldata Layout:
-        // ┌──────────────┬────────────────────────────────────┐
-        // │    Bytes     │            Description             │
-        // ├──────────────┼────────────────────────────────────┤
-        // │ [0, 20)      │ Game creator address               │
-        // │ [20, 52)     │ Root claim                         │
-        // │ [52, 84)     │ Parent block hash at creation time │
-        // │ [84, 84 + n) │ Extra data (opaque)                │
-        // └──────────────┴────────────────────────────────────┘
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData)));
+        // ┌──────────────────────┬─────────────────────────────────────┐
+        // │        Bytes         │            Description              │
+        // ├──────────────────────┼─────────────────────────────────────┤
+        // │ [0, 20)              │ Game creator address                │
+        // │ [20, 52)             │ Root claim                          │
+        // │ [52, 84)             │ Parent block hash at creation time  │
+        // │ [84, 84 + n)         │ Extra data (opaque)                 │
+        // │ [84 + n, 84 + n + m) │ Implementation args (opaque)        │
+        // └──────────────────────┴─────────────────────────────────────┘
+        proxy_ = IDisputeGame(
+            address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData, gameArgs[_gameType]))
+        );
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.
@@ -266,6 +278,19 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
         gameImpls[_gameType] = _impl;
         emit ImplementationSet(address(_impl), _gameType);
+    }
+
+    /// @notice Sets the implementation contract for a specific `GameType`.
+    /// @dev May only be called by the `owner`.
+    /// @param _gameType The type of the DisputeGame.
+    /// @param _impl The implementation contract for the given `GameType`.
+    /// @param _args The constructor args to be passed for each implementation
+    function setImplementation(GameType _gameType, IDisputeGame _impl, bytes calldata _args) external onlyOwner {
+        gameImpls[_gameType] = _impl;
+        gameArgs[_gameType] = _args;
+
+        emit ImplementationSet(address(_impl), _gameType);
+        emit ImplementationArgsSet(_gameType, _args);
     }
 
     /// @notice Sets the bond (in wei) for initializing a game type.

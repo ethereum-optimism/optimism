@@ -38,16 +38,16 @@ func TestERC20Bridge(gt *testing.T) {
 	mintAmount := eth.OneHundredthEther
 	t.Logger().Info("Minting WETH tokens on L1", "amount", mintAmount)
 	depositCall := wethContract.Deposit()
-	contract.Write(l1User, depositCall, txplan.WithValue(mintAmount.ToBig()))
+	contract.Write(l1User, depositCall, txplan.WithValue(mintAmount))
 
-	l1User.VerifyTokenBalance(l1TokenAddress, mintAmount)
+	l1User.WaitForTokenBalance(l1TokenAddress, mintAmount)
 	t.Logger().Info("User has WETH tokens on L1", "balance", mintAmount)
 
 	bridge := dsl.NewStandardBridge(t, sys.L2Chain, nil, sys.L1EL)
 	l2TokenAddress := bridge.CreateL2Token(l1TokenAddress, "L2 WETH", "L2WETH", l2User)
 	t.Logger().Info("Created L2 token", "address", l2TokenAddress)
 
-	l2User.VerifyTokenBalance(l2TokenAddress, eth.ZeroWei)
+	l2User.WaitForTokenBalance(l2TokenAddress, eth.ZeroWei)
 
 	l1BridgeAddress := sys.L2Chain.Escape().Deployment().L1StandardBridgeProxyAddr()
 
@@ -63,7 +63,6 @@ func TestERC20Bridge(gt *testing.T) {
 	t.Logger().Info("Waiting for deposit to be processed on L2...")
 	l2User.WaitForTokenBalance(l2TokenAddress, bridgeAmount)
 
-	l2User.VerifyTokenBalance(l2TokenAddress, bridgeAmount)
 	t.Logger().Info("Successfully verified tokens on L2", "balance", bridgeAmount)
 
 	t.Logger().Info("ERC20 bridge test completed successfully!")

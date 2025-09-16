@@ -14,6 +14,8 @@ type L2CLNodeConfig struct {
 	ID     stack.L2CLNodeID
 	Client client.RPC
 
+	UserRPC string
+
 	InteropEndpoint  string
 	InteropJwtSecret eth.Bytes32
 }
@@ -25,6 +27,8 @@ type rpcL2CLNode struct {
 	rollupClient apis.RollupClient
 	p2pClient    apis.P2PClient
 	els          locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
+
+	userRPC string
 
 	// Store interop ws endpoints and secrets to provide to the supervisor,
 	// when reconnection happens using the supervisor's admin_addL2RPC method.
@@ -44,9 +48,14 @@ func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
 		client:           cfg.Client,
 		rollupClient:     sources.NewRollupClient(cfg.Client),
 		p2pClient:        sources.NewP2PClient(cfg.Client),
+		userRPC:          cfg.UserRPC,
 		interopEndpoint:  cfg.InteropEndpoint,
 		interopJwtSecret: cfg.InteropJwtSecret,
 	}
+}
+
+func (r *rpcL2CLNode) ClientRPC() client.RPC {
+	return r.client
 }
 
 func (r *rpcL2CLNode) ID() stack.L2CLNodeID {
@@ -67,6 +76,10 @@ func (r *rpcL2CLNode) LinkEL(el stack.L2ELNode) {
 
 func (r *rpcL2CLNode) ELs() []stack.L2ELNode {
 	return stack.SortL2ELNodes(r.els.Values())
+}
+
+func (r *rpcL2CLNode) UserRPC() string {
+	return r.userRPC
 }
 
 func (r *rpcL2CLNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {

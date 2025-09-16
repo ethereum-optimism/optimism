@@ -42,6 +42,11 @@ var (
 	validAsteriscKonaNetwork                    = "mainnet"
 	validAsteriscKonaAbsolutePreState           = "pre.json"
 	validAsteriscKonaAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
+
+	validCannonKonaBin                        = "./bin/cannon"
+	validCannonKonaServerBin                  = "./bin/kona-host"
+	validCannonKonaNetwork                    = "mainnet"
+	validCannonKonaAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
 )
 
 var singleCannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
@@ -119,6 +124,20 @@ func applyValidConfigForAsteriscKona(t *testing.T, cfg *Config) {
 	cfg.AsteriscKona.Networks = []string{validAsteriscKonaNetwork}
 }
 
+func applyValidConfigForCannonKona(t *testing.T, cfg *Config) {
+	tmpDir := t.TempDir()
+	vmBin := filepath.Join(tmpDir, validCannonKonaBin)
+	server := filepath.Join(tmpDir, validCannonKonaServerBin)
+	err := ensureExists(vmBin)
+	require.NoError(t, err)
+	err = ensureExists(server)
+	require.NoError(t, err)
+	cfg.CannonKona.VmBin = vmBin
+	cfg.CannonKona.Server = server
+	cfg.CannonKonaAbsolutePreStateBaseURL = validCannonKonaAbsolutePreStateBaseURL
+	cfg.CannonKona.Networks = []string{validCannonKonaNetwork}
+}
+
 func applyValidConfigForSuperAsteriscKona(t *testing.T, cfg *Config) {
 	cfg.SupervisorRPC = validSupervisorRpc
 	applyValidConfigForAsteriscKona(t, cfg)
@@ -131,6 +150,9 @@ func validConfig(t *testing.T, traceType types.TraceType) Config {
 	}
 	if traceType == types.TraceTypeCannon || traceType == types.TraceTypePermissioned {
 		applyValidConfigForCannon(t, &cfg)
+	}
+	if traceType == types.TraceTypeCannonKona {
+		applyValidConfigForCannonKona(t, &cfg)
 	}
 	if traceType == types.TraceTypeAsterisc {
 		applyValidConfigForAsterisc(t, &cfg)

@@ -171,6 +171,8 @@ func (fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2Blo
 func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 }
 
+func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
@@ -714,6 +716,8 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		FjordTime:         new(uint64),
 		GraniteTime:       new(uint64),
 		HoloceneTime:      new(uint64),
+		IsthmusTime:       new(uint64),
+		JovianTime:        new(uint64),
 	}
 	deps := &sequencerTestDeps{
 		cfg:           cfg,

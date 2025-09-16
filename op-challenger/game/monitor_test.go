@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,7 +27,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Schedules games", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{}, 0)
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +72,7 @@ func TestMonitorGames(t *testing.T) {
 	t.Run("Resubscribes on error", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
-		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{})
+		monitor, source, sched, mockHeadSource, preimages, _ := setupMonitorTest(t, []common.Address{}, 0)
 		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -117,7 +118,7 @@ func TestMonitorGames(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{})
+	monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{}, 0)
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -132,7 +133,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{addr2})
+	monitor, source, sched, _, _, stubClaimer := setupMonitorTest(t, []common.Address{addr2}, 0)
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}, 0))
@@ -140,6 +141,58 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	require.Len(t, sched.Scheduled(), 1)
 	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
 	require.Equal(t, 1, stubClaimer.scheduledGames)
+}
+
+func TestMinUpdatePeriod(t *testing.T) {
+	tests := []struct {
+		name                   string
+		minUpdatePeriodSeconds int64
+		processBlock2          bool
+		processBlock3          bool
+	}{
+		{name: "ZeroUpdatePeriod", minUpdatePeriodSeconds: 0, processBlock2: true, processBlock3: true},
+		{name: "SmallUpdatePeriod", minUpdatePeriodSeconds: 1, processBlock2: true, processBlock3: true},
+		{name: "SkipBlockUpdatePeriod", minUpdatePeriodSeconds: 1000, processBlock2: false, processBlock3: true},
+		{name: "LongUpdatePeriod", minUpdatePeriodSeconds: 1000000, processBlock2: false, processBlock3: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			block1 := eth.L1BlockRef{
+				Hash:   common.HexToHash("0x1"),
+				Number: 1,
+				Time:   1_000_000,
+			}
+			block2 := eth.L1BlockRef{
+				Hash:   common.HexToHash("0x2"),
+				Number: 2,
+				Time:   1_000_500,
+			}
+			block3 := eth.L1BlockRef{
+				Hash:   common.HexToHash("0x2"),
+				Number: 2,
+				Time:   1_001_000,
+			}
+			addr1 := common.Address{0xaa}
+			addr2 := common.Address{0xbb}
+			monitor, source, sched, _, _, _ := setupMonitorTest(t, []common.Address{addr2}, test.minUpdatePeriodSeconds)
+			source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+			monitor.onNewL1Head(context.Background(), block1)
+			expectedScheduleCount := 1
+			require.Len(t, sched.Scheduled(), expectedScheduleCount, "Should schedule update on first new block")
+
+			monitor.onNewL1Head(context.Background(), block2)
+			if test.processBlock2 {
+				expectedScheduleCount++
+			}
+			require.Len(t, sched.Scheduled(), expectedScheduleCount, "Should not schedule update prior to min update period being reached")
+
+			monitor.onNewL1Head(context.Background(), block3)
+			if test.processBlock3 {
+				expectedScheduleCount++
+			}
+			require.Len(t, sched.Scheduled(), expectedScheduleCount, "Should schedule update once min update period is reached")
+		})
+	}
 }
 
 func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
@@ -152,6 +205,7 @@ func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
 func setupMonitorTest(
 	t *testing.T,
 	allowedGames []common.Address,
+	minUpdatePeriodSeconds int64,
 ) (*gameMonitor, *stubGameSource, *stubScheduler, *mockNewHeadSource, *stubPreimageScheduler, *mockScheduler) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	source := &stubGameSource{}
@@ -169,6 +223,7 @@ func setupMonitorTest(
 		stubClaimer,
 		allowedGames,
 		mockHeadSource,
+		time.Duration(minUpdatePeriodSeconds)*time.Second,
 	)
 	return monitor, source, sched, mockHeadSource, preimages, stubClaimer
 }

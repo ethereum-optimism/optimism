@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -37,6 +38,7 @@ type ImplementationsConfig struct {
 	ChallengePeriodSeconds          uint64             `cli:"challenge-period-seconds"`
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
+	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
@@ -116,6 +118,13 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	}
 	cfg.Logger = l
 
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
+	artifactsLocator := new(artifacts.Locator)
+	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
+		return fmt.Errorf("failed to parse artifacts URL: %w", err)
+	}
+	cfg.ArtifactsLocator = artifactsLocator
+
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 	outfile := cliCtx.String(OutfileFlagName)
 	dio, err := Implementations(ctx, cfg)
@@ -136,7 +145,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	lgr := cfg.Logger
 
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cfg.CacheDir)
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
 	}
@@ -195,6 +204,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
+			DevFeatureBitmap:                cfg.DevFeatureBitmap,
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,

@@ -31,6 +31,8 @@ type EngineResetDeriver struct {
 	syncCfg *sync.Config
 
 	emitter event.Emitter
+
+	engController *EngineController
 }
 
 func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Config,
@@ -43,6 +45,10 @@ func NewEngineResetDeriver(ctx context.Context, log log.Logger, cfg *rollup.Conf
 		l2:      l2,
 		syncCfg: syncCfg,
 	}
+}
+
+func (d *EngineResetDeriver) SetEngController(engController *EngineController) {
+	d.engController = engController
 }
 
 func (d *EngineResetDeriver) AttachEmitter(em event.Emitter) {
@@ -59,13 +65,7 @@ func (d *EngineResetDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 			return true
 		}
-		d.emitter.Emit(ctx, rollup.ForceResetEvent{
-			LocalUnsafe: result.Unsafe,
-			CrossUnsafe: result.Unsafe,
-			LocalSafe:   result.Safe,
-			CrossSafe:   result.Safe,
-			Finalized:   result.Finalized,
-		})
+		d.engController.ForceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
 	default:
 		return false
 	}

@@ -2,9 +2,6 @@ package deployer
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"path"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
@@ -31,40 +28,6 @@ const (
 	ContractNameFlagName     = "contract-name"
 )
 
-type DeploymentTarget string
-
-const (
-	DeploymentTargetLive     DeploymentTarget = "live"
-	DeploymentTargetGenesis  DeploymentTarget = "genesis"
-	DeploymentTargetCalldata DeploymentTarget = "calldata"
-	DeploymentTargetNoop     DeploymentTarget = "noop"
-)
-
-func NewDeploymentTarget(s string) (DeploymentTarget, error) {
-	switch s {
-	case string(DeploymentTargetLive):
-		return DeploymentTargetLive, nil
-	case string(DeploymentTargetGenesis):
-		return DeploymentTargetGenesis, nil
-	case string(DeploymentTargetCalldata):
-		return DeploymentTargetCalldata, nil
-	case string(DeploymentTargetNoop):
-		return DeploymentTargetNoop, nil
-	default:
-		return "", fmt.Errorf("invalid deployment target: %s", s)
-	}
-}
-
-func GetDefaultCacheDir() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		fallbackDir := ".op-deployer/cache"
-		log.Printf("error getting user home directory: %v, using fallback directory: %s\n", err, fallbackDir)
-		return fallbackDir
-	}
-	return path.Join(homeDir, ".op-deployer/cache")
-}
-
 var (
 	L1RPCURLFlag = &cli.StringFlag{
 		Name: L1RPCURLFlagName,
@@ -85,7 +48,7 @@ var (
 		Usage: "Cache directory. " +
 			"If set, the deployer will attempt to cache downloaded artifacts in the specified directory.",
 		EnvVars: PrefixEnvVar("CACHE_DIR"),
-		Value:   GetDefaultCacheDir(),
+		Value:   EnsureDefaultCacheDir(),
 	}
 	L1ChainIDFlag = &cli.Uint64Flag{
 		Name:    L1ChainIDFlagName,
@@ -186,12 +149,4 @@ var VerifyFlags = []cli.Flag{
 
 func PrefixEnvVar(name string) []string {
 	return op_service.PrefixEnvVar(EnvVarPrefix, name)
-}
-
-func cwd() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return dir
 }

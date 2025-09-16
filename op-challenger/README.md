@@ -22,11 +22,10 @@ accessed by running `./op-challenger --help`.
 ### Running with Cannon on Local Devnet
 
 To run `op-challenger` against the local devnet, first clean and run
-the devnet from the root of the repository.
+the devnet. From the root of the repository run:
 
 ```shell
-make devnet-clean
-make devnet-up
+cd kurtosis-devnet && just simple-devnet
 ```
 
 Then build the `op-challenger` with `make op-challenger`.
@@ -56,6 +55,22 @@ The mnemonic and hd-path above is a prefunded address on the devnet.
 The challenger will monitor dispute games and respond to any invalid
 claims by posting the correct trace as the counter-claim. The commands
 below can then be used to create and interact with games.
+
+#### Devnet Management Commands
+
+```shell
+# Check status
+kurtosis enclave ls
+kurtosis enclave inspect simple-devnet
+
+# View logs from specific services
+kurtosis service logs simple-devnet op-challenger-challenger-2151908 # Adjust names as needed
+kurtosis service logs simple-devnet op-node-2151908-node0 # Adjust names as needed
+
+# Stop and clean up when done
+kurtosis enclave stop simple-devnet
+kurtosis enclave rm simple-devnet
+```
 
 ## Subcommands
 

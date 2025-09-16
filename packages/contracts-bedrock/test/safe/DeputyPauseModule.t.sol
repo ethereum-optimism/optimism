@@ -17,8 +17,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    event ExecutionFromModuleSuccess(address indexed);
-    event DeputySet(address indexed);
+    event ExecutionFromModuleSuccess(address indexed module);
+    event DeputySet(address indexed deputy);
     event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
 
     IDeputyPauseModule deputyPauseModule;

@@ -14,6 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// Compile-time interface compliance check
+var _ engine.CrossUpdateHandler = (*StatusTracker)(nil)
+
 type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
@@ -60,17 +63,9 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe
-	case engine.CrossUnsafeUpdateEvent:
-		st.log.Debug("Cross unsafe head updated", "cross_unsafe", x.CrossUnsafe, "local_unsafe", x.LocalUnsafe)
-		st.data.CrossUnsafeL2 = x.CrossUnsafe
-		st.data.UnsafeL2 = x.LocalUnsafe
 	case engine.LocalSafeUpdateEvent:
 		st.log.Debug("Local safe head updated", "local_safe", x.Ref)
 		st.data.LocalSafeL2 = x.Ref
-	case engine.CrossSafeUpdateEvent:
-		st.log.Debug("Cross safe head updated", "cross_safe", x.CrossSafe, "local_safe", x.LocalSafe)
-		st.data.SafeL2 = x.CrossSafe
-		st.data.LocalSafeL2 = x.LocalSafe
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
 	case rollup.ResetEvent:
@@ -150,4 +145,26 @@ func (st *StatusTracker) SyncStatus() *eth.SyncStatus {
 // L1Head is a helper function; the L1 head is closely monitored for confirmation-distance logic.
 func (st *StatusTracker) L1Head() eth.L1BlockRef {
 	return st.SyncStatus().HeadL1
+}
+
+func (st *StatusTracker) OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	st.log.Debug("Cross unsafe head updated", "cross_unsafe", crossUnsafe, "local_unsafe", localUnsafe)
+	st.data.CrossUnsafeL2 = crossUnsafe
+	st.data.UnsafeL2 = localUnsafe
+
+	st.UpdateSyncStatus()
+}
+
+func (st *StatusTracker) OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	st.log.Debug("Cross safe head updated", "cross_safe", crossSafe, "local_safe", localSafe)
+	st.data.SafeL2 = crossSafe
+	st.data.LocalSafeL2 = localSafe
+
+	st.UpdateSyncStatus()
 }

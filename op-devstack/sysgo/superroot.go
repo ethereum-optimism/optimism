@@ -46,7 +46,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			l2CL, ok := o.l2CLs.Get(l2CLID)
 			require.True(ok, "must have L2 CL node")
-			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.opNode.UserRPC().RPC())
+			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.UserRPC())
 			require.NoError(err)
 			rollupClient, err := rollupClientProvider.RollupClient(t.Ctx())
 			require.NoError(err)
@@ -188,8 +188,11 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 }
 
 func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
-	deployAddress, _, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
+	deployAddress, tx, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
 	t.Require().NoError(err, "DelegateCallProxy deployment failed")
+	// Make sure the transaction actually got included rather than just being sent
+	_, err = wait.ForReceiptOK(t.Ctx(), client, tx.Hash())
+	t.Require().NoError(err, "DelegateCallProxy deployment tx was not included successfully")
 	return deployAddress, proxyContract
 }
 
@@ -197,7 +200,7 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	supervisor, ok := o.supervisors.Get(supervisorID)
 	t.Require().True(ok, "must have supervisor")
 
-	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.userRPC)
+	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")

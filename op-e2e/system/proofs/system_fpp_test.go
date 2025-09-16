@@ -79,6 +79,8 @@ func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
 		dp.L2GenesisFjordTimeOffset = nil
 		dp.L2GenesisGraniteTimeOffset = nil
 		dp.L2GenesisHoloceneTimeOffset = nil
+		dp.L2GenesisIsthmusTimeOffset = nil
+		dp.L2GenesisJovianTimeOffset = nil
 	}
 }
 

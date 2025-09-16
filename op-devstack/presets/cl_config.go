@@ -4,31 +4,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
 func WithExecutionLayerSyncOnVerifiers() stack.CommonOption {
 	return stack.MakeCommon(
-		sysgo.WithL2CLOption(func(_ devtest.P, id stack.L2CLNodeID, cfg *config.Config) {
-			// Can't enable ELSync on the sequencer or it will never start sequencing because
-			// ELSync needs to receive gossip from the sequencer to drive the sync
-			if !cfg.Driver.SequencerEnabled {
-				cfg.Sync.SyncMode = sync.ELSync
-			}
-		}))
+		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.VerifierSyncMode = sync.ELSync
+			})))
 }
 
 func WithConsensusLayerSync() stack.CommonOption {
 	return stack.MakeCommon(
-		sysgo.WithL2CLOption(func(_ devtest.P, id stack.L2CLNodeID, cfg *config.Config) {
-			cfg.Sync.SyncMode = sync.CLSync
-		}))
+		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.SequencerSyncMode = sync.CLSync
+				cfg.VerifierSyncMode = sync.CLSync
+			})))
 }
 
 func WithSafeDBEnabled() stack.CommonOption {
 	return stack.MakeCommon(
-		sysgo.WithL2CLOption(func(p devtest.P, _ stack.L2CLNodeID, cfg *config.Config) {
-			cfg.SafeDBPath = p.TempDir()
-		}))
+		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+			func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.SafeDBPath = p.TempDir()
+			})))
 }

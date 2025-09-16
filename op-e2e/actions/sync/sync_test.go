@@ -1052,8 +1052,7 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
 			// Make sure we do the post-processing of what safety updates might happen
-			// Digest events until EngDeriver implicitly consumes PromoteSafeEvent
-			verifier.ActL2EventsUntil(t, event.Is[engine2.TryUpdateEngineEvent], 100, true)
+			verifier.ActL2PipelineFull(t)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())

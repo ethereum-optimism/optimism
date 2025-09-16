@@ -39,6 +39,8 @@ func IsForkActivated(c *params.ChainConfig, forkName rollup.ForkName, timestamp 
 		return c.IsOptimismHolocene(timestamp), nil
 	case rollup.Isthmus:
 		return c.IsOptimismIsthmus(timestamp), nil
+	case rollup.Jovian:
+		return c.IsOptimismJovian(timestamp), nil
 	case rollup.Interop:
 		return c.IsInterop(timestamp), nil
 	default:

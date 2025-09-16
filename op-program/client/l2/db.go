@@ -74,6 +74,10 @@ func (o *OracleKeyValueStore) Close() error {
 
 // Remaining methods are unused when accessing the state for block processing so leaving unimplemented.
 
+func (o *OracleKeyValueStore) SyncKeyValue() error {
+	panic("not supported")
+}
+
 func (o *OracleKeyValueStore) Has(key []byte) (bool, error) {
 	panic("not supported")
 }

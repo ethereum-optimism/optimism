@@ -151,7 +151,7 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 
 	lgr := cfg.Logger
 	cacheDir := cfg.CacheDir
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cacheDir)
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cacheDir)
 	if err != nil {
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}

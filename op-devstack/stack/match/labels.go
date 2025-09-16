@@ -17,19 +17,21 @@ const (
 	LabelVendor = "vendor"
 )
 
-type L2ELVendor string
+type Vendor string
 
 const (
-	OpReth                    L2ELVendor = "op-reth"
-	OpGeth                    L2ELVendor = "op-geth"
-	Proxyd                    L2ELVendor = "proxyd"
-	FlashblocksWebsocketProxy L2ELVendor = "flashblocks-websocket-proxy"
+	OpReth                    Vendor = "op-reth"
+	OpGeth                    Vendor = "op-geth"
+	Proxyd                    Vendor = "proxyd"
+	FlashblocksWebsocketProxy Vendor = "flashblocks-websocket-proxy"
+	OpNode                    Vendor = "op-node"
+	KonaNode                  Vendor = "kona-node"
 )
 
-func (v L2ELVendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {
+func (v Vendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {
 	return WithLabel[stack.L2ELNodeID, stack.L2ELNode](LabelVendor, string(v)).Match(elems)
 }
 
-func (v L2ELVendor) String() string {
+func (v Vendor) String() string {
 	return string(v)
 }

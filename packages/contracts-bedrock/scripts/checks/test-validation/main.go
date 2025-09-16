@@ -147,6 +147,10 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 
 	// Validate each contract name in the compilation target
 	for _, contractName := range artifact.Metadata.Settings.CompilationTarget {
+		if isExcludedTest(contractName) {
+			continue
+		}
+
 		contractParts := strings.Split(contractName, "_")
 
 		// Check for initialization test pattern
@@ -309,6 +313,16 @@ func isExcluded(filePath string) bool {
 	return false
 }
 
+// Checks if a contract name should be excluded from test validation
+func isExcludedTest(contractName string) bool {
+	for _, excluded := range excludedTests {
+		if excluded == contractName {
+			return true
+		}
+	}
+	return false
+}
+
 // Defines the list of paths that should be excluded from validation
 var excludedPaths = []string{
 	// PATHS EXCLUDED FROM SRC VALIDATION:
@@ -350,15 +364,17 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/FaultDisputeGame.t.sol",               // Contains contracts not matching FaultDisputeGame base name
-	"test/dispute/SuperFaultDisputeGame.t.sol",          // Contains contracts not matching SuperFaultDisputeGame base name
-	"test/L1/ResourceMetering.t.sol",                    // Contains contracts not matching ResourceMetering base name
-	"test/L1/OPContractsManagerStandardValidator.t.sol", // Contains contracts not matching OPContractsManagerStandardValidator base name
-	"test/L2/CrossDomainOwnable.t.sol",                  // Contains contracts not matching CrossDomainOwnable base name
-	"test/L2/CrossDomainOwnable2.t.sol",                 // Contains contracts not matching CrossDomainOwnable2 base name
-	"test/L2/CrossDomainOwnable3.t.sol",                 // Contains contracts not matching CrossDomainOwnable3 base name
-	"test/L2/GasPriceOracle.t.sol",                      // Contains contracts not matching GasPriceOracle base name
-	"test/universal/StandardBridge.t.sol",               // Contains contracts not matching StandardBridge base name
+	"test/dispute/FaultDisputeGame.t.sol",                // Contains contracts not matching FaultDisputeGame base name
+	"test/dispute/v2/FaultDisputeGameV2.t.sol",           // Contains contracts not matching FaultDisputeGameV2 base name
+	"test/dispute/SuperFaultDisputeGame.t.sol",           // Contains contracts not matching SuperFaultDisputeGame base name
+	"test/L1/ResourceMetering.t.sol",                     // Contains contracts not matching ResourceMetering base name
+	"test/L1/OPContractsManagerStandardValidator.t.sol",  // Contains contracts not matching OPContractsManagerStandardValidator base name
+	"test/L2/CrossDomainOwnable.t.sol",                   // Contains contracts not matching CrossDomainOwnable base name
+	"test/L2/CrossDomainOwnable2.t.sol",                  // Contains contracts not matching CrossDomainOwnable2 base name
+	"test/L2/CrossDomainOwnable3.t.sol",                  // Contains contracts not matching CrossDomainOwnable3 base name
+	"test/L2/GasPriceOracle.t.sol",                       // Contains contracts not matching GasPriceOracle base name
+	"test/universal/StandardBridge.t.sol",                // Contains contracts not matching StandardBridge base name
+	"test/L1/OPContractsManagerContractsContainer.t.sol", // Contains contracts not matching OPContractsManagerContractsContainer base name
 
 	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
 	// These paths are excluded because they don't pass the function name validation, which checks
@@ -382,6 +398,13 @@ var excludedPaths = []string{
 	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
 	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
 	"test/safe/SafeSigners.t.sol",        // Function name validation issues
+}
+
+var excludedTests = []string{
+	// Interop tests hosted in the OptimismPortal2 test file.
+	"OptimismPortal2_MigrateLiquidity_Test",
+	"OptimismPortal2_MigrateToSuperRoots_Test",
+	"OptimismPortal2_UpgradeInterop_Test",
 }
 
 // Defines the signature for test name validation functions
