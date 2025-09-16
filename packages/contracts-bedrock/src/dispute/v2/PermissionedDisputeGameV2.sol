@@ -76,11 +76,11 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
         super.initialize();
     }
 
-    function getImmutableArgsByteCount() internal pure override returns (uint256) {
+    function immutableArgsByteCount() internal pure override returns (uint256) {
         // Extend expected data length to account for proposer and challenger addresses
         // - 20 bytes: proposer address
         // - 20 bytes: challenger address
-        return super.getImmutableArgsByteCount() + 40;
+        return super.immutableArgsByteCount() + 40;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -90,11 +90,11 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
     /// @notice Returns the proposer address. The proposer role is allowed to create proposals and participate in the
     /// dispute game.
     function proposer() public pure returns (address proposer_) {
-        proposer_ = _getArgAddress(super.getImmutableArgsByteCount());
+        proposer_ = _getArgAddress(super.immutableArgsByteCount());
     }
 
     /// @notice Returns the challenger address. The challenger role is allowed to participate in the dispute game.
     function challenger() public pure returns (address challenger_) {
-        challenger_ = _getArgAddress(super.getImmutableArgsByteCount() + 20);
+        challenger_ = _getArgAddress(super.immutableArgsByteCount() + 20);
     }
 }
