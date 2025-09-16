@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"math"
 	"sync"
 )
 
@@ -23,6 +24,8 @@ type SyncTesterSession struct {
 	// payloads
 	Payloads map[PayloadID]*ExecutionPayloadEnvelope `json:"-"`
 
+	ELSyncTarget uint64 `json:"el_sync_target"`
+
 	InitialState FCUState `json:"initialState"`
 }
 
@@ -38,13 +41,22 @@ func (s *SyncTesterSession) UpdateFCUFinalized(finalized uint64) {
 	s.CurrentState.Finalized = finalized
 }
 
+func (s *SyncTesterSession) FinishELSync(target uint64) {
+	s.ELSyncTarget = math.MaxUint64
+	s.Validated = target
+}
+
+func (s *SyncTesterSession) IsELSyncFinished() bool {
+	return s.ELSyncTarget == math.MaxUint64
+}
+
 func (s *SyncTesterSession) ResetSession() {
 	s.CurrentState = s.InitialState
 	s.Validated = s.InitialState.Latest
 	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
 }
 
-func NewSyncTesterSession(sessionID string, latest, safe, finalized uint64) *SyncTesterSession {
+func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarget uint64) *SyncTesterSession {
 	return &SyncTesterSession{
 		SessionID: sessionID,
 		Validated: latest,
@@ -53,7 +65,8 @@ func NewSyncTesterSession(sessionID string, latest, safe, finalized uint64) *Syn
 			Safe:      safe,
 			Finalized: finalized,
 		},
-		Payloads: make(map[PayloadID]*ExecutionPayloadEnvelope),
+		Payloads:     make(map[PayloadID]*ExecutionPayloadEnvelope),
+		ELSyncTarget: elSyncTarget,
 		InitialState: FCUState{
 			Latest:    latest,
 			Safe:      safe,
