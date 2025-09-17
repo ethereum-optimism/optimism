@@ -315,7 +315,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
-    function resetCancellationThreshold(Safe _safe, bytes32 _txHash) internal {
+    function resetCancellationThreshold(Safe _safe) internal {
         uint256 oldThreshold = safeCancellationThreshold[_safe];
         safeCancellationThreshold[_safe] = 1;
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
