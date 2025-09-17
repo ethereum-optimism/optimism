@@ -37,6 +37,9 @@ contract LiquidityController_Minter is StdUtils {
     uint256 public mintAmount;
     uint256 public burnAmount;
 
+    bool public deltaBalanceMint;
+    bool public deltaBalanceBurn;
+
     /// @param _vm The Vm contract.
     /// @param _liquidityController The LiquidityController contract.
     constructor(Vm _vm, ILiquidityController _liquidityController, RandomActor _randomActor) {
@@ -47,13 +50,21 @@ contract LiquidityController_Minter is StdUtils {
 
     function mint(uint256 _amount) public {
         mintAmount += _amount;
+
+        uint256 _preBalance = payable(Predeploys.NATIVE_ASSET_LIQUIDITY).balance;
+
         liquidityController.mint(address(randomActor), _amount);
+
+        deltaBalanceMint = _amount != (_preBalance - uint256(payable(Predeploys.NATIVE_ASSET_LIQUIDITY).balance));
     }
 
     function burn(uint256 _amount) public {
         _amount = bound(_amount, 0, address(this).balance);
         burnAmount += _amount;
+
+        uint256 _preBalance = payable(Predeploys.NATIVE_ASSET_LIQUIDITY).balance;
         liquidityController.burn{ value: _amount }();
+        deltaBalanceBurn = _preBalance + _amount != uint256(payable(Predeploys.NATIVE_ASSET_LIQUIDITY).balance);
     }
 
     receive() external payable { }
@@ -69,9 +80,9 @@ contract NativeAssetLiquidity_Fundooor is StdUtils {
     /// @notice Ghost accounting
     uint256 public fundAmount;
 
-    constructor(Vm _vm, INativeAssetLiquidity _nativeAssetLiquidity) {
+    constructor(Vm _vm) {
         vm = _vm;
-        nativeAssetLiquidity = _nativeAssetLiquidity;
+        nativeAssetLiquidity = INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY);
     }
 
     function fund(uint256 _amount) public {
@@ -121,7 +132,7 @@ contract RandomActor is StdUtils {
 ///         to the sum of the initial supply, the deposits, the funds, and minus the withdrawals.
 ///         NAL Balance = Initial Supply + Deposits + Funds - Withdrawals
 contract CustomGasToken_Invariants is CommonTest {
-    /// @notice Starting balance of the contract.
+    /// @notice Starting balance of the contract - arbitrary value
     uint256 internal constant STARTING_BALANCE = type(uint248).max / 5;
 
     LiquidityController_Minter internal actor_minter;
@@ -131,11 +142,10 @@ contract CustomGasToken_Invariants is CommonTest {
     /// @notice Test setup.
     function setUp() public override {
         enableCustomGasToken();
-        super.enableInterop(); // double check if needed
         super.setUp();
 
         randomActor = new RandomActor();
-        actor_funder = new NativeAssetLiquidity_Fundooor(vm, nativeAssetLiquidity);
+        actor_funder = new NativeAssetLiquidity_Fundooor(vm);
         actor_minter = new LiquidityController_Minter(vm, liquidityController, randomActor);
 
         randomActor.initAddresses(address(actor_minter), address(actor_funder));
@@ -169,6 +179,20 @@ contract CustomGasToken_Invariants is CommonTest {
             STARTING_BALANCE + actor_funder.fundAmount() + actor_minter.burnAmount() - actor_minter.mintAmount(),
             "NativeAssetLiquidity balance is not equal to the sum of the initial supply, the deposits, the funds, and minus the withdrawals"
         );
+    }
+
+    /// @notice Invariant that checks that the minted amount is equal to the withdrawn amount
+    /// @dev Checks if the amount minted equals the amount transferred outside the NativeAssetLiquidity contract
+    function invariant_mintedEqualsWithdrawn() public view {
+        assertFalse(actor_minter.deltaBalanceMint(), "Minted amount is not equal to the withdrawn amount");
+    }
+
+    function invariant_burnedEqualsDeposited() public view {
+        assertFalse(actor_minter.deltaBalanceBurn(), "Burned amount is not equal to the deposited amount");
+    }
+
+    function invariant_noDustLiquidityController() public view {
+        assertEq(address(liquidityController).balance, 0, "LiquidityController balance is not 0");
     }
 
     function invariant_mintNeverCallsBack() public view {
