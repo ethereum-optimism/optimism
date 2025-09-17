@@ -85,6 +85,8 @@ contract DeployConfig is Script {
 
     bool public useRevenueShare;
     address public chainFeesRecipient;
+    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
+    ///         for testing.
     address public l1FeesDepositor;
 
     function read(string memory _path) public {

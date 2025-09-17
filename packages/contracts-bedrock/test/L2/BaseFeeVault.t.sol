@@ -8,6 +8,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { FeeVault_Test } from "test/L2/FeeVault.t.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @title BaseFeeVault_Test
 /// @notice Test contract for the BaseFeeVault contract's functionality
@@ -19,5 +20,7 @@ contract BaseFeeVault_Test is FeeVault_Test {
         feeVaultName = "BaseFeeVault";
         minWithdrawalAmount = deploy.cfg().baseFeeVaultMinimumWithdrawalAmount();
         feeVault = IFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+        // Current recipient is a contract that reverts when receiving fees, so etching empty bytes to it
+        vm.etch(recipient, hex"");
     }
 }

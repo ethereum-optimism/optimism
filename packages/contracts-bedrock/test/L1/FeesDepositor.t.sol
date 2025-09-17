@@ -9,6 +9,9 @@ import { FeesDepositor } from "src/L1/FeesDepositor.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { Proxy } from "src/universal/Proxy.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Features } from "src/libraries/Features.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @title FeesDepositor_Test
 /// @notice Tests all functionality of FeesDepositor including receive, deposit, and setters.
@@ -32,8 +35,7 @@ contract FeesDepositor_Test is CommonTest {
 
         // Deploy FeesDepositor implementation
         address implementation = DeployUtils.create1(
-            "FeesDepositor",
-            DeployUtils.encodeConstructor(abi.encodeCall(IFeesDepositor.__constructor__, ()))
+            "FeesDepositor", DeployUtils.encodeConstructor(abi.encodeCall(IFeesDepositor.__constructor__, ()))
         );
 
         // Deploy proxy pointing to proxyAdmin
@@ -48,13 +50,14 @@ contract FeesDepositor_Test is CommonTest {
 
         // Initialize through proxy
         vm.prank(proxyAdminOwner);
-        feesDepositor.initialize(
-            minDepositAmount,
-            l2Recipient,
-            optimismPortal2,
-            gasLimit,
-            depositData
-        );
+        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit, depositData);
+    }
+
+    /// @notice This contract is excluded from the Initializable.t.sol test because it is not deployed as part of the
+    /// standard deployment script and instead is deployed manually, that's why we have this test.
+    function test_cannotReinitialize_succeeds() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit, depositData);
     }
 
     function testFuzz_receive_belowThreshold_succeeds(uint256 _amount) external {
@@ -77,7 +80,8 @@ contract FeesDepositor_Test is CommonTest {
 
         assertTrue(success);
         assertEq(address(feesDepositor).balance, _amount);
-        assertEq(address(ethLockbox).balance, 0);
+        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, 0);
+        else assertEq(address(optimismPortal2).balance, 0);
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
@@ -101,7 +105,8 @@ contract FeesDepositor_Test is CommonTest {
 
         assertTrue(success);
         assertEq(address(feesDepositor).balance, 0);
-        assertEq(address(ethLockbox).balance, _sendAmount);
+        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, _sendAmount);
+        else assertEq(address(optimismPortal2).balance, _sendAmount);
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
@@ -144,7 +149,8 @@ contract FeesDepositor_Test is CommonTest {
 
         // Verify deposit occurred
         assertEq(address(feesDepositor).balance, 0);
-        assertEq(address(ethLockbox).balance, totalAmount);
+        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, totalAmount);
+        else assertEq(address(optimismPortal2).balance, totalAmount);
     }
 
     function testFuzz_setMinDepositAmount_asOwner_succeeds(uint96 _newMinDepositAmount) external {
