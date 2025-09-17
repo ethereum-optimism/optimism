@@ -1201,7 +1201,12 @@ pub struct OpEngineValidatorBuilder;
 
 impl<Node> PayloadValidatorBuilder<Node> for OpEngineValidatorBuilder
 where
-    Node: FullNodeComponents<Types: OpNodeTypes>,
+    Node: FullNodeComponents<
+        Types: NodeTypes<
+            ChainSpec: OpHardforks,
+            Payload: PayloadTypes<ExecutionData = OpExecutionData>,
+        >,
+    >,
 {
     type Validator = OpEngineValidator<
         Node::Provider,
