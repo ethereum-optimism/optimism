@@ -135,7 +135,7 @@ contract TimelockGuard is IGuard, ISemver {
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
         // Check if the calling safe has configuration set
-        if (safeConfigs[callingSafe].timelockDelay == 0) {
+        if (safeConfigs[callingSafe].configured == false) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
