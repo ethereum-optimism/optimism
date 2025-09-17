@@ -2782,12 +2782,12 @@ workflows:
             - discord
           requires:
             - initialize
-      # KURTOSIS (Isthmus)
+      # KURTOSIS (Jovian)
       - op-acceptance-tests:
           # Acceptance Testing params
-          name: kurtosis-isthmus
-          devnet: isthmus
-          gate: isthmus
+          name: kurtosis-jovian
+          devnet: jovian
+          gate: jovian
           use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
@@ -2861,12 +2861,12 @@ workflows:
             - discord
           requires:
             - initialize
-      # KURTOSIS (Isthmus)
+      # KURTOSIS (Jovian)
       - op-acceptance-tests:
           # Acceptance Testing params
-          name: kurtosis-isthmus
-          devnet: isthmus
-          gate: isthmus
+          name: kurtosis-jovian
+          devnet: jovian
+          gate: jovian
           use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
