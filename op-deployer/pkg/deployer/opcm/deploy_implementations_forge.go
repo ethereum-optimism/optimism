@@ -17,6 +17,7 @@ type DeployImplementationsForgeInput struct {
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
+	DevFeatureBitmap                common.Hash
 	SuperchainConfigProxy           common.Address
 	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address
@@ -35,6 +36,7 @@ type DeployImplementationsForgeOutput struct {
 	OpcmStandardValidator            common.Address
 	DelayedWETHImpl                  common.Address
 	OptimismPortalImpl               common.Address
+	OptimismPortalInteropImpl        common.Address
 	ETHLockboxImpl                   common.Address
 	PreimageOracleSingleton          common.Address
 	MipsSingleton                    common.Address
@@ -61,6 +63,7 @@ func (e *DeployImplementationsForgeEncoder) Encode(input DeployImplementationsFo
 		{Name: "proofMaturityDelaySeconds", Type: "uint256"},
 		{Name: "disputeGameFinalityDelaySeconds", Type: "uint256"},
 		{Name: "mipsVersion", Type: "uint256"},
+		{Name: "devFeatureBitmap", Type: "bytes32"},
 		{Name: "superchainConfigProxy", Type: "address"},
 		{Name: "protocolVersionsProxy", Type: "address"},
 		{Name: "superchainProxyAdmin", Type: "address"},
@@ -81,6 +84,7 @@ func (e *DeployImplementationsForgeEncoder) Encode(input DeployImplementationsFo
 		ProofMaturityDelaySeconds       *big.Int
 		DisputeGameFinalityDelaySeconds *big.Int
 		MipsVersion                     *big.Int
+		DevFeatureBitmap                common.Hash
 		SuperchainConfigProxy           common.Address
 		ProtocolVersionsProxy           common.Address
 		SuperchainProxyAdmin            common.Address
@@ -93,6 +97,7 @@ func (e *DeployImplementationsForgeEncoder) Encode(input DeployImplementationsFo
 		ProofMaturityDelaySeconds:       input.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: input.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     input.MipsVersion,
+		DevFeatureBitmap:                input.DevFeatureBitmap,
 		SuperchainConfigProxy:           input.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           input.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            input.SuperchainProxyAdmin,
@@ -121,6 +126,7 @@ func (d *DeployImplementationsForgeDecoder) Decode(raw []byte) (DeployImplementa
 		{Name: "opcmStandardValidator", Type: "address"},
 		{Name: "delayedWETHImpl", Type: "address"},
 		{Name: "optimismPortalImpl", Type: "address"},
+		{Name: "optimismPortalInteropImpl", Type: "address"},
 		{Name: "ethLockboxImpl", Type: "address"},
 		{Name: "preimageOracleSingleton", Type: "address"},
 		{Name: "mipsSingleton", Type: "address"},
@@ -161,6 +167,7 @@ func (d *DeployImplementationsForgeDecoder) Decode(raw []byte) (DeployImplementa
 		OpcmStandardValidator            common.Address
 		DelayedWETHImpl                  common.Address
 		OptimismPortalImpl               common.Address
+		OptimismPortalInteropImpl        common.Address
 		ETHLockboxImpl                   common.Address
 		PreimageOracleSingleton          common.Address
 		MipsSingleton                    common.Address
@@ -185,6 +192,7 @@ func (d *DeployImplementationsForgeDecoder) Decode(raw []byte) (DeployImplementa
 		OpcmStandardValidator:            result.OpcmStandardValidator,
 		DelayedWETHImpl:                  result.DelayedWETHImpl,
 		OptimismPortalImpl:               result.OptimismPortalImpl,
+		OptimismPortalInteropImpl:        result.OptimismPortalInteropImpl,
 		ETHLockboxImpl:                   result.ETHLockboxImpl,
 		PreimageOracleSingleton:          result.PreimageOracleSingleton,
 		MipsSingleton:                    result.MipsSingleton,
@@ -208,7 +216,7 @@ func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCalle
 	return forge.NewScriptCaller[DeployImplementationsForgeInput, DeployImplementationsForgeOutput](
 		client,
 		"scripts/deploy/DeployImplementations.s.sol:DeployImplementations",
-		"run((uint256,uint256,uint256,uint256,uint256,uint256,address,address,address,address,address))",
+		"run((uint256,uint256,uint256,uint256,uint256,uint256,bytes32,address,address,address,address,address))",
 		encoder,
 		decoder,
 	)
@@ -243,6 +251,7 @@ func ConvertFromForgeOutput(output DeployImplementationsForgeOutput) DeployImple
 		OpcmStandardValidator:            output.OpcmStandardValidator,
 		DelayedWETHImpl:                  output.DelayedWETHImpl,
 		OptimismPortalImpl:               output.OptimismPortalImpl,
+		OptimismPortalInteropImpl:        output.OptimismPortalInteropImpl,
 		ETHLockboxImpl:                   output.ETHLockboxImpl,
 		PreimageOracleSingleton:          output.PreimageOracleSingleton,
 		MipsSingleton:                    output.MipsSingleton,

@@ -18,6 +18,7 @@ func TestDeployImplementationsForgeEncoder(t *testing.T) {
 		ProofMaturityDelaySeconds:       big.NewInt(604800),
 		DisputeGameFinalityDelaySeconds: big.NewInt(302400),
 		MipsVersion:                     big.NewInt(1),
+		DevFeatureBitmap:                common.Hash{},
 		SuperchainConfigProxy:           common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		ProtocolVersionsProxy:           common.HexToAddress("0x2345678901234567890123456789012345678901"),
 		SuperchainProxyAdmin:            common.HexToAddress("0x3456789012345678901234567890123456789012"),
@@ -30,8 +31,8 @@ func TestDeployImplementationsForgeEncoder(t *testing.T) {
 	require.NotEmpty(t, encoded)
 
 	// Verify the encoded data has the expected length
-	// 11 fields: 6 uint256 (32 bytes each) + 5 addresses (32 bytes each) = 352 bytes
-	require.Equal(t, 352, len(encoded))
+	// 12 fields: 6 uint256 (32 bytes each) + 1 bytes32 (32 bytes) + 5 addresses (32 bytes each) = 384 bytes
+	require.Equal(t, 384, len(encoded))
 }
 
 func TestDeployImplementationsForgeDecoder(t *testing.T) {

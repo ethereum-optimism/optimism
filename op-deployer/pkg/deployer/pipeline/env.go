@@ -31,7 +31,6 @@ type Env struct {
 	Deployer           common.Address
 	Logger             log.Logger
 	Scripts            *opcm.Scripts
-	UseForge           bool            // Whether to use Forge for deployments
 	ForgeClient        *forge.Client   // Forge client instance
 	Context            context.Context // Context for Forge operations
 	ForgeScriptOptions []string        // Additional options for Forge scripts

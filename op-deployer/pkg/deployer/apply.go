@@ -3,6 +3,7 @@ package deployer
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -302,14 +304,36 @@ func ApplyPipeline(
 		return fmt.Errorf("failed to load OPCM script: %w", err)
 	}
 
+	// Initialize Forge client for DeployImplementations
+	forgeBinary, err := forge.NewStandardBinary()
+	if err != nil {
+		return fmt.Errorf("failed to initialize forge binary: %w", err)
+	}
+	forgeClient := forge.NewClient(forgeBinary)
+
+	// Set up Forge script options based on deployment target
+	var forgeScriptOptions []string
+	if opts.DeploymentTarget == DeploymentTargetLive && opts.L1RPCUrl != "" {
+		forgeScriptOptions = append(forgeScriptOptions, "--rpc-url", opts.L1RPCUrl)
+		if opts.DeployerPrivateKey != nil {
+			privateKeyHex := hex.EncodeToString(crypto.FromECDSA(opts.DeployerPrivateKey))
+			forgeScriptOptions = append(forgeScriptOptions, "--private-key", privateKeyHex)
+		}
+		// Add broadcast flag for live deployment
+		forgeScriptOptions = append(forgeScriptOptions, "--broadcast")
+	}
+
 	pEnv := &pipeline.Env{
-		StateWriter:  opts.StateWriter,
-		L1ScriptHost: l1Host,
-		L1Client:     l1Client,
-		Logger:       opts.Logger,
-		Broadcaster:  bcaster,
-		Deployer:     deployer,
-		Scripts:      opcmScripts,
+		StateWriter:        opts.StateWriter,
+		L1ScriptHost:       l1Host,
+		L1Client:           l1Client,
+		Logger:             opts.Logger,
+		Broadcaster:        bcaster,
+		Deployer:           deployer,
+		Scripts:            opcmScripts,
+		ForgeClient:        forgeClient,
+		Context:            ctx,
+		ForgeScriptOptions: forgeScriptOptions,
 	}
 
 	pline := []pipelineStage{
