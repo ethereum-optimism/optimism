@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -247,6 +248,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		AllowCustomDisputeParameters: true,
 		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
 		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
+		UseRevenueShare:              cfg.UseRevenueShare,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -324,11 +326,17 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		L1FeeVaultRecipient:                      cfg.L1FeeVaultRecipient,
 		L1FeeVaultMinimumWithdrawalAmount:        cfg.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
 		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
+		OperatorFeeVaultRecipient:                cfg.OperatorFeeVaultRecipient,
+		OperatorFeeVaultMinimumWithdrawalAmount:  cfg.OperatorFeeVaultMinimumWithdrawalAmount.ToInt(),
+		OperatorFeeVaultWithdrawalNetwork:        big.NewInt(int64(cfg.OperatorFeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		DeployCrossL2Inbox:                       multichainDepSet,
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
+		UseRevenueShare:                          cfg.UseRevenueShare,
+		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
+		L1FeesDepositor:                          standard.L1FeesDepositor,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

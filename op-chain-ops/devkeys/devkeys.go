@@ -158,6 +158,8 @@ const (
 	SequencerFeeVaultRecipientRole ChainOperatorRole = 9
 	// SystemConfigOwner is the key that can make SystemConfig changes.
 	SystemConfigOwner ChainOperatorRole = 10
+	// OperatorFeeVaultRecipientRole is the key that receives from the OperatorFeeVault predeploy
+	OperatorFeeVaultRecipientRole ChainOperatorRole = 11
 )
 
 func (role ChainOperatorRole) String() string {
@@ -182,6 +184,8 @@ func (role ChainOperatorRole) String() string {
 		return "l1-fee-vault-recipient"
 	case SequencerFeeVaultRecipientRole:
 		return "sequencer-fee-vault-recipient"
+	case OperatorFeeVaultRecipientRole:
+		return "operator-fee-vault-recipient"
 	case SystemConfigOwner:
 		return "system-config-owner"
 	default:

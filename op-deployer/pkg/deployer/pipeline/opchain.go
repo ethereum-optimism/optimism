@@ -112,6 +112,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
 		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
 		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
+		UseRevenueShare:              thisIntent.UseRevenueShare,
 	}, nil
 }
 

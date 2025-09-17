@@ -176,6 +176,7 @@ contract FeeVaultInitializer_Test is CommonTest {
         assertEq(newSequencerFeeVault.minWithdrawalAmount(), legacyVault.MIN_WITHDRAWAL_AMOUNT());
         assertEq(uint8(newSequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
     }
+
     function test_constructor_withLegacyL1FeeVault_succeeds() public {
         // Deploy the legacy mock vault
         MockLegacyFeeVault legacyVault = new MockLegacyFeeVault();

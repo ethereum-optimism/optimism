@@ -20,6 +20,9 @@
         "baseFeeVaultRecipient": "0x0000000000000000000000000000000000000001",
         "l1FeeVaultRecipient": "0x0000000000000000000000000000000000000002",
         "sequencerFeeVaultRecipient": "0x0000000000000000000000000000000000000003",
+        "operatorFeeVaultRecipient": "0x0000000000000000000000000000000000000004",
+        "useRevenueShare": true,
+        "chainFeesRecipient": "0x0000000000000000000000000000000000000005",
         "eip1559DenominatorCanyon": 250,
         "eip1559Denominator": 50,
         "eip1559Elasticity": 6,
@@ -57,4 +60,3 @@
   "l1StateDump": null,
   "DeploymentCalldata": null
 }
-
