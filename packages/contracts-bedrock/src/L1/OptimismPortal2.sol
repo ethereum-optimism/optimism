@@ -349,13 +349,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Cannot prove withdrawal transactions while the system is paused.
         _assertNotPaused();
 
-        // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
-        (,, IDisputeGame disputeGameProxy) = disputeGameFactory().gameAtIndex(_disputeGameIndex);
-
         // Make sure that the target address is safe.
         if (_isUnsafeTarget(_tx.target)) {
             revert OptimismPortal_BadTarget();
         }
+
+        // Cannot prove withdrawal with value when custom gas token mode is enabled.
+        if (_isInvalidCGTWithdrawal(_tx.value)) {
+            revert OptimismPortal_NotAllowedOnCGTMode();
+        }
+
+        // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
+        (,, IDisputeGame disputeGameProxy) = disputeGameFactory().gameAtIndex(_disputeGameIndex);
 
         // Game must be a Proper Game.
         if (!anchorStateRegistry.isGameProper(disputeGameProxy)) {
@@ -442,24 +447,24 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         public
     {
-        // Cannot finalize withdrawal with value when custom gas token mode is enabled.
-        if (_isUsingCustomGasToken()) {
-            if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
-        }
-
         // Cannot finalize withdrawal transactions while the system is paused.
         _assertNotPaused();
+
+        // Make sure that the target address is safe.
+        if (_isUnsafeTarget(_tx.target)) {
+            revert OptimismPortal_BadTarget();
+        }
+
+        // Cannot finalize withdrawal with value when custom gas token mode is enabled.
+        if (_isInvalidCGTWithdrawal(_tx.value)) {
+            revert OptimismPortal_NotAllowedOnCGTMode();
+        }
 
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
         if (l2Sender != Constants.DEFAULT_L2_SENDER) {
             revert OptimismPortal_NoReentrancy();
-        }
-
-        // Make sure that the target address is safe.
-        if (_isUnsafeTarget(_tx.target)) {
-            revert OptimismPortal_BadTarget();
         }
 
         // Grab the withdrawal.
@@ -657,6 +662,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         return _target == address(this) || _target == address(ethLockbox);
+    }
+
+    /// @notice Checks if a withdrawal transaction is invalid due to CGT mode restrictions.
+    /// @param _value The value of the withdrawal transaction to validate.
+    /// @return Whether the transaction is invalid (has value when CGT mode is enabled).
+    function _isInvalidCGTWithdrawal(uint256 _value) internal view returns (bool) {
+        // Cannot process withdrawal with value when custom gas token mode is enabled.
+        return _isUsingCustomGasToken() && _value > 0;
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.
