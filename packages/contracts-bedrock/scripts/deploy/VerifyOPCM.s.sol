@@ -113,6 +113,8 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
+        fieldNameOverrides["faultDisputeGameV2Impl"] = "FaultDisputeGameV2";
+        fieldNameOverrides["permissionedDisputeGameV2Impl"] = "PermissionedDisputeGameV2";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
         fieldNameOverrides["permissionedDisputeGame1"] = "PermissionedDisputeGame";
@@ -896,12 +898,12 @@ contract VerifyOPCM is Script {
             sourceName = sourceNameOverrides[_contractName];
         }
 
-        // // Check if the dispute profile artifact exists and should be used.
-        // string memory disputePath =
-        //     string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".dispute.json");
-        // if (vm.exists(disputePath)) {
-        //     return disputePath;
-        // }
+        // Check if the dispute profile artifact exists and should be used.
+        string memory disputePath =
+            string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".dispute.json");
+        if (vm.exists(disputePath)) {
+            return disputePath;
+        }
 
         // Return computed path, relative to the contracts-bedrock directory.
         return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
