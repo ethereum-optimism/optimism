@@ -543,32 +543,15 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 );
             }
 
-            // Deploy the new game type or use v2 implementation
-            if (
-                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
-                    && gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
-                    && address(getImplementations().faultDisputeGameV2Impl) != address(0)
-            ) {
-                // Use v2 FaultDisputeGame implementation
-                outputs[i].faultDisputeGame = IFaultDisputeGame(getImplementations().faultDisputeGameV2Impl);
-            } else if (
-                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
-                    && gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                    && address(getImplementations().permissionedDisputeGameV2Impl) != address(0)
-            ) {
-                // Use v2 PermissionedDisputeGame implementation
-                outputs[i].faultDisputeGame = IFaultDisputeGame(getImplementations().permissionedDisputeGameV2Impl);
-            } else {
-                // Deploy v1 game using blueprint
-                outputs[i].faultDisputeGame = IFaultDisputeGame(
-                    Blueprint.deployFrom(
-                        blueprint1,
-                        blueprint2,
-                        computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
-                        constructorData
-                    )
-                );
-            }
+            // Deploy the new game type.
+            outputs[i].faultDisputeGame = IFaultDisputeGame(
+                Blueprint.deployFrom(
+                    blueprint1,
+                    blueprint2,
+                    computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
+                    constructorData
+                )
+            );
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
