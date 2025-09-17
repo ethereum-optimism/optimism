@@ -183,6 +183,9 @@ mod tests {
     use reth_optimism_forks::{OpHardfork, BASE_SEPOLIA_HARDFORKS};
     use std::sync::Arc;
 
+    const JOVIAN_TIMESTAMP: u64 = 1900000000;
+    const BLOCK_TIME_SECONDS: u64 = 2;
+
     fn holocene_chainspec() -> Arc<OpChainSpec> {
         let mut hardforks = BASE_SEPOLIA_HARDFORKS.clone();
         hardforks.insert(OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1800000000));
@@ -206,6 +209,15 @@ mod tests {
             .inner
             .hardforks
             .insert(OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1800000000));
+        chainspec
+    }
+
+    fn jovian_chainspec() -> OpChainSpec {
+        let mut chainspec = BASE_SEPOLIA.as_ref().clone();
+        chainspec
+            .inner
+            .hardforks
+            .insert(OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(1900000000));
         chainspec
     }
 
@@ -291,6 +303,179 @@ mod tests {
         )
         .unwrap();
         assert_eq!(base_fee, 507);
+    }
+
+    #[test]
+    fn test_get_base_fee_holocene_extra_data_set_and_min_base_fee_set() {
+        const MIN_BASE_FEE: u64 = 10;
+
+        let mut extra_data = Vec::new();
+        // eip1559 params
+        extra_data.append(&mut hex!("00000000fa0000000a").to_vec());
+        // min base fee
+        extra_data.append(&mut MIN_BASE_FEE.to_be_bytes().to_vec());
+        let extra_data = Bytes::from(extra_data);
+
+        let parent = Header {
+            base_fee_per_gas: Some(507),
+            gas_used: 4847634,
+            gas_limit: 60000000,
+            extra_data,
+            timestamp: 1735315544,
+            ..Default::default()
+        };
+
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &*BASE_SEPOLIA,
+            &parent,
+            1735315546,
+        );
+        assert_eq!(base_fee, None);
+    }
+
+    /// The version byte for Jovian is 1.
+    const JOVIAN_EXTRA_DATA_VERSION_BYTE: u8 = 1;
+
+    #[test]
+    fn test_get_base_fee_jovian_extra_data_and_min_base_fee_not_set() {
+        let op_chain_spec = jovian_chainspec();
+
+        let mut extra_data = Vec::new();
+        extra_data.push(JOVIAN_EXTRA_DATA_VERSION_BYTE);
+        // eip1559 params
+        extra_data.append(&mut [0_u8; 8].to_vec());
+        let extra_data = Bytes::from(extra_data);
+
+        let parent = Header {
+            base_fee_per_gas: Some(1),
+            gas_used: 15763614,
+            gas_limit: 144000000,
+            timestamp: JOVIAN_TIMESTAMP,
+            extra_data,
+            ..Default::default()
+        };
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS,
+        );
+        assert_eq!(base_fee, None);
+    }
+
+    /// After Jovian, the next block base fee cannot be less than the minimum base fee.
+    #[test]
+    fn test_get_base_fee_jovian_default_extra_data_and_min_base_fee() {
+        const CURR_BASE_FEE: u64 = 1;
+        const MIN_BASE_FEE: u64 = 10;
+
+        let mut extra_data = Vec::new();
+        extra_data.push(JOVIAN_EXTRA_DATA_VERSION_BYTE);
+        // eip1559 params
+        extra_data.append(&mut [0_u8; 8].to_vec());
+        // min base fee
+        extra_data.append(&mut MIN_BASE_FEE.to_be_bytes().to_vec());
+        let extra_data = Bytes::from(extra_data);
+
+        let op_chain_spec = jovian_chainspec();
+        let parent = Header {
+            base_fee_per_gas: Some(CURR_BASE_FEE),
+            gas_used: 15763614,
+            gas_limit: 144000000,
+            timestamp: JOVIAN_TIMESTAMP,
+            extra_data,
+            ..Default::default()
+        };
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS,
+        );
+        assert_eq!(base_fee, Some(MIN_BASE_FEE));
+    }
+
+    /// After Jovian, the next block base fee cannot be less than the minimum base fee.
+    #[test]
+    fn test_jovian_min_base_fee_cannot_decrease() {
+        const MIN_BASE_FEE: u64 = 10;
+
+        let mut extra_data = Vec::new();
+        extra_data.push(JOVIAN_EXTRA_DATA_VERSION_BYTE);
+        // eip1559 params
+        extra_data.append(&mut [0_u8; 8].to_vec());
+        // min base fee
+        extra_data.append(&mut MIN_BASE_FEE.to_be_bytes().to_vec());
+        let extra_data = Bytes::from(extra_data);
+
+        let op_chain_spec = jovian_chainspec();
+
+        // If we're currently at the minimum base fee, the next block base fee cannot decrease.
+        let parent = Header {
+            base_fee_per_gas: Some(MIN_BASE_FEE),
+            gas_used: 10,
+            gas_limit: 144000000,
+            timestamp: JOVIAN_TIMESTAMP,
+            extra_data: extra_data.clone(),
+            ..Default::default()
+        };
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS,
+        );
+        assert_eq!(base_fee, Some(MIN_BASE_FEE));
+
+        // The next block can increase the base fee
+        let parent = Header {
+            base_fee_per_gas: Some(MIN_BASE_FEE),
+            gas_used: 144000000,
+            gas_limit: 144000000,
+            timestamp: JOVIAN_TIMESTAMP,
+            extra_data,
+            ..Default::default()
+        };
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            JOVIAN_TIMESTAMP + 2 * BLOCK_TIME_SECONDS,
+        );
+        assert_eq!(base_fee, Some(MIN_BASE_FEE + 1));
+    }
+
+    #[test]
+    fn test_jovian_base_fee_can_decrease_if_above_min_base_fee() {
+        const MIN_BASE_FEE: u64 = 10;
+
+        let mut extra_data = Vec::new();
+        extra_data.push(JOVIAN_EXTRA_DATA_VERSION_BYTE);
+        // eip1559 params
+        extra_data.append(&mut [0_u8; 8].to_vec());
+        // min base fee
+        extra_data.append(&mut MIN_BASE_FEE.to_be_bytes().to_vec());
+        let extra_data = Bytes::from(extra_data);
+
+        let op_chain_spec = jovian_chainspec();
+
+        let parent = Header {
+            base_fee_per_gas: Some(100 * MIN_BASE_FEE),
+            gas_used: 10,
+            gas_limit: 144000000,
+            timestamp: JOVIAN_TIMESTAMP,
+            extra_data,
+            ..Default::default()
+        };
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS,
+        )
+        .unwrap();
+        assert_eq!(
+            base_fee,
+            op_chain_spec
+                .inner
+                .next_block_base_fee(&parent, JOVIAN_TIMESTAMP + BLOCK_TIME_SECONDS)
+                .unwrap()
+        );
     }
 
     #[test]

@@ -226,11 +226,25 @@ where
                         "MissingEip1559ParamsInPayloadAttributes".to_string().into(),
                     )
                 })?;
+
             if elasticity != 0 && denominator == 0 {
                 return Err(EngineObjectValidationError::InvalidParams(
                     "Eip1559ParamsDenominatorZero".to_string().into(),
                 ));
             }
+        }
+
+        if self.chain_spec().is_jovian_active_at_timestamp(attributes.payload_attributes.timestamp)
+        {
+            if attributes.min_base_fee.is_none() {
+                return Err(EngineObjectValidationError::InvalidParams(
+                    "MissingMinBaseFeeInPayloadAttributes".to_string().into(),
+                ));
+            }
+        } else if attributes.min_base_fee.is_some() {
+            return Err(EngineObjectValidationError::InvalidParams(
+                "MinBaseFeeNotAllowedBeforeJovian".to_string().into(),
+            ));
         }
 
         Ok(())
@@ -289,32 +303,46 @@ mod test {
     use crate::engine;
     use alloy_primitives::{b64, Address, B256, B64};
     use alloy_rpc_types_engine::PayloadAttributes;
-    use reth_chainspec::ChainSpec;
+    use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};
     use reth_optimism_chainspec::{OpChainSpec, BASE_SEPOLIA};
+    use reth_optimism_forks::OpHardfork;
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
 
+    const JOVIAN_TIMESTAMP: u64 = 1744909000;
+
     fn get_chainspec() -> Arc<OpChainSpec> {
+        let mut base_sepolia_spec = BASE_SEPOLIA.inner.clone();
+
+        // TODO: Remove this once we know the Jovian timestamp
+        base_sepolia_spec
+            .hardforks
+            .insert(OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(JOVIAN_TIMESTAMP));
+
         Arc::new(OpChainSpec {
             inner: ChainSpec {
-                chain: BASE_SEPOLIA.inner.chain,
-                genesis: BASE_SEPOLIA.inner.genesis.clone(),
-                genesis_header: BASE_SEPOLIA.inner.genesis_header.clone(),
-                paris_block_and_final_difficulty: BASE_SEPOLIA
-                    .inner
+                chain: base_sepolia_spec.chain,
+                genesis: base_sepolia_spec.genesis,
+                genesis_header: base_sepolia_spec.genesis_header,
+                paris_block_and_final_difficulty: base_sepolia_spec
                     .paris_block_and_final_difficulty,
-                hardforks: BASE_SEPOLIA.inner.hardforks.clone(),
-                base_fee_params: BASE_SEPOLIA.inner.base_fee_params.clone(),
+                hardforks: base_sepolia_spec.hardforks,
+                base_fee_params: base_sepolia_spec.base_fee_params,
                 prune_delete_limit: 10000,
                 ..Default::default()
             },
         })
     }
 
-    const fn get_attributes(eip_1559_params: Option<B64>, timestamp: u64) -> OpPayloadAttributes {
+    const fn get_attributes(
+        eip_1559_params: Option<B64>,
+        min_base_fee: Option<u64>,
+        timestamp: u64,
+    ) -> OpPayloadAttributes {
         OpPayloadAttributes {
             gas_limit: Some(1000),
             eip_1559_params,
+            min_base_fee,
             transactions: None,
             no_tx_pool: None,
             payload_attributes: PayloadAttributes {
@@ -331,7 +359,7 @@ mod test {
     fn test_well_formed_attributes_pre_holocene() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(None, 1732633199);
+        let attributes = get_attributes(None, None, 1732633199);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -345,7 +373,7 @@ mod test {
     fn test_well_formed_attributes_holocene_no_eip1559_params() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(None, 1732633200);
+        let attributes = get_attributes(None, None, 1732633200);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -359,7 +387,7 @@ mod test {
     fn test_well_formed_attributes_holocene_eip1559_params_zero_denominator() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000008")), 1732633200);
+        let attributes = get_attributes(Some(b64!("0000000000000008")), None, 1732633200);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -373,7 +401,7 @@ mod test {
     fn test_well_formed_attributes_holocene_valid() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000800000008")), 1732633200);
+        let attributes = get_attributes(Some(b64!("0000000800000008")), None, 1732633200);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -387,7 +415,7 @@ mod test {
     fn test_well_formed_attributes_holocene_valid_all_zero() {
         let validator =
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
-        let attributes = get_attributes(Some(b64!("0000000000000000")), 1732633200);
+        let attributes = get_attributes(Some(b64!("0000000000000000")), None, 1732633200);
 
         let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
@@ -395,5 +423,64 @@ mod test {
             &validator, EngineApiMessageVersion::V3, &attributes,
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_well_formed_attributes_jovian_valid() {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
+        let attributes = get_attributes(Some(b64!("0000000000000000")), Some(1), JOVIAN_TIMESTAMP);
+
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
+            OpEngineTypes,
+        >>::ensure_well_formed_attributes(
+            &validator, EngineApiMessageVersion::V3, &attributes,
+        );
+        assert!(result.is_ok());
+    }
+
+    /// After Jovian (and holocene), eip1559 params must be Some
+    #[test]
+    fn test_malformed_attributes_jovian_with_eip_1559_params_none() {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
+        let attributes = get_attributes(None, Some(1), JOVIAN_TIMESTAMP);
+
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
+            OpEngineTypes,
+        >>::ensure_well_formed_attributes(
+            &validator, EngineApiMessageVersion::V3, &attributes,
+        );
+        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+    }
+
+    /// Before Jovian, min base fee must be None
+    #[test]
+    fn test_malformed_attributes_pre_jovian_with_min_base_fee() {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
+        let attributes = get_attributes(Some(b64!("0000000000000000")), Some(1), 1732633200);
+
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
+            OpEngineTypes,
+        >>::ensure_well_formed_attributes(
+            &validator, EngineApiMessageVersion::V3, &attributes,
+        );
+        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
+    }
+
+    /// After Jovian, min base fee must be Some
+    #[test]
+    fn test_malformed_attributes_post_jovian_with_min_base_fee_none() {
+        let validator =
+            OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
+        let attributes = get_attributes(Some(b64!("0000000000000000")), None, JOVIAN_TIMESTAMP);
+
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
+            OpEngineTypes,
+        >>::ensure_well_formed_attributes(
+            &validator, EngineApiMessageVersion::V3, &attributes,
+        );
+        assert!(matches!(result, Err(EngineObjectValidationError::InvalidParams(_))));
     }
 }
