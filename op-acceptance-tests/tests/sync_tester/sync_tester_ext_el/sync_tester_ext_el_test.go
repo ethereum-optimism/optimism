@@ -108,7 +108,7 @@ func setupSystem(gt *testing.T, t devtest.T) (*presets.MinimalExternalEL, uint64
 }
 
 // setupOrchestrator initializes and configures the orchestrator for the test and returns the orchestrator and the initial block number of the session
-func setupOrchestrator(gt *testing.T, t devtest.T) (stack.Orchestrator, uint64) {
+func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64) {
 	l := t.Logger()
 	ctx := t.Ctx()
 	require := t.Require()
@@ -165,7 +165,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (stack.Orchestrator, uint64) 
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
 	stack.ApplyOptionLifecycle(opt, orch)
 
-	return orch, initial
+	return orch.(*sysgo.Orchestrator), initial
 }
 
 // getEnvOrDefault returns the environment variable value or the default if not set

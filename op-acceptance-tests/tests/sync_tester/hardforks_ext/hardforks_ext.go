@@ -76,7 +76,7 @@ func getEnvUint64OrDefault(envVar string, defaultValue uint64) uint64 {
 }
 
 // setupOrchestrator initializes and configures the orchestrator for the test
-func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) stack.Orchestrator {
+func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrator {
 	l := t.Logger()
 
 	// Override configuration with Tailscale endpoints if Tailscale networking is enabled
@@ -127,7 +127,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) stack.Orchestrato
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
 	stack.ApplyOptionLifecycle(opt, orch)
 
-	return orch
+	return orch.(*sysgo.Orchestrator)
 }
 
 func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
