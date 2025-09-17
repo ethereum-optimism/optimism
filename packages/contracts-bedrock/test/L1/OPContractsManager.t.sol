@@ -316,12 +316,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 contract OPContractsManager_Init is DeployOPChain_TestBase {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
+    IDelayedWETH internal standaloneDelayedWETH;
 
     function setUp() public virtual override {
         DeployOPChain_TestBase.setUp();
 
         // Initialize DOI with necessary values
-        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
+        // Set the test contract as the owner for delegatecall compatibility
+        doi.set(doi.opChainProxyAdminOwner.selector, address(this));
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
         doi.set(doi.batcher.selector, batcher);
         doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
@@ -344,6 +346,27 @@ contract OPContractsManager_Init is DeployOPChain_TestBase {
 
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+
+        // Deploy a standalone DelayedWETH for tests to avoid ProxyAdmin ownership issues
+        standaloneDelayedWETH = deployStandaloneDelayedWETH();
+    }
+
+    /// @notice Deploy a standalone DelayedWETH contract for testing
+    function deployStandaloneDelayedWETH() internal returns (IDelayedWETH) {
+        // Deploy proxy
+        address delayedWETHProxy = DeployUtils.create1({
+            _name: "Proxy",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(this))))
+        });
+
+        // Deploy implementation
+        address delayedWETHImpl = address(opcm.implementations().delayedWETHImpl);
+
+        // Initialize the proxy with the implementation
+        IProxy(payable(delayedWETHProxy)).upgradeTo(delayedWETHImpl);
+        IDelayedWETH(payable(delayedWETHProxy)).initialize(chainDeployOutput1.systemConfigProxy);
+
+        return IDelayedWETH(payable(delayedWETHProxy));
     }
 
     /// @notice Helper function to deploy OPCM with v2 flag enabled
@@ -435,6 +458,7 @@ contract OPContractsManager_Init is DeployOPChain_TestBase {
 contract OPContractsManager_TestInit is CommonTest {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
+    IDelayedWETH internal standaloneDelayedWETH;
 
     function setUp() public virtual override {
         super.setUp();
@@ -444,6 +468,27 @@ contract OPContractsManager_TestInit is CommonTest {
 
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+
+        // Deploy a standalone DelayedWETH for tests to avoid ProxyAdmin ownership issues
+        standaloneDelayedWETH = deployStandaloneDelayedWETH();
+    }
+
+    /// @notice Deploy a standalone DelayedWETH contract for testing
+    function deployStandaloneDelayedWETH() internal returns (IDelayedWETH) {
+        // Deploy proxy
+        address delayedWETHProxy = DeployUtils.create1({
+            _name: "Proxy",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(this))))
+        });
+
+        // Deploy implementation
+        address delayedWETHImpl = address(opcm.implementations().delayedWETHImpl);
+
+        // Initialize the proxy with the implementation
+        IProxy(payable(delayedWETHProxy)).upgradeTo(delayedWETHImpl);
+        IDelayedWETH(payable(delayedWETHProxy)).initialize(chainDeployOutput1.systemConfigProxy);
+
+        return IDelayedWETH(payable(delayedWETHProxy));
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
@@ -926,7 +971,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             saltMixer: "hello",
             systemConfig: chainDeployOutput1.systemConfigProxy,
             proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
-            delayedWETH: IDelayedWETH(payable(address(0))),
+            delayedWETH: standaloneDelayedWETH,
             disputeGameType: GameType.wrap(permissioned ? 1 : 0),
             disputeAbsolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
             disputeMaxGameDepth: 73,
@@ -1233,7 +1278,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             saltMixer: "hello",
             systemConfig: chainDeployOutput1.systemConfigProxy,
             proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
-            delayedWETH: IDelayedWETH(payable(address(0))),
+            delayedWETH: standaloneDelayedWETH,
             disputeGameType: GameType.wrap(permissioned ? 1 : 0),
             disputeAbsolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
             disputeMaxGameDepth: 73,
