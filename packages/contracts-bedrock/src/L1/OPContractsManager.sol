@@ -1666,7 +1666,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 }
 
 contract OPContractsManagerV2 is OPContractsManagerBase {
-
     struct FaultDisputeGameConfig {
         Claim absolutePrestate;
     }
@@ -2203,10 +2202,10 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
                 _input.cts.anchorStateRegistry,
                 _input.cts.delayedWETH,
                 _input.cfg.l2SystemConfig.l2ChainId
-                // TODO: Properly support proposer/challenger
-                // parsedCfg.proposer,
-                // parsedCfg.challenger
             );
+            // TODO: Properly support proposer/challenger
+            // parsedCfg.proposer,
+            // parsedCfg.challenger
         } else {
             // TODO: Support custom data if a dev flag is enabled.
             revert OPContractsManagerV2_UnknownGameType();

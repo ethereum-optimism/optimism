@@ -620,6 +620,7 @@ contract DeployImplementations is Script {
     )
         private
     {
+        // TODO: Jesus, why are these two different structs?
         IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
@@ -633,6 +634,8 @@ contract DeployImplementations is Script {
         opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
         opcmImplementations.mipsImpl = _implementations.mipsImpl;
+        opcmImplementations.faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        opcmImplementations.permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
 
         IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
             DeployUtils.createDeterministic({

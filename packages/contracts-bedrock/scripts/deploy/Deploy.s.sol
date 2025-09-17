@@ -343,7 +343,8 @@ contract Deploy is Deployer {
 
         // IOPContractsManager.DeployInput memory deployInput = getDeployInput();
         // IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
-        IOPContractsManagerV2.ExecutionOutput memory deployOutput = opcm.deployV2(getDeployInputV2(opcm.superchainConfig()));
+        IOPContractsManagerV2.ExecutionOutput memory deployOutput =
+            opcm.deployV2(getDeployInputV2(opcm.superchainConfig()));
 
         // Store code in the Final system owner address so that it can be used for prank delegatecalls
         // Store "fe" opcode so that accidental calls to this address revert
@@ -434,7 +435,11 @@ contract Deploy is Deployer {
         });
     }
 
-    function getDeployInputV2(ISuperchainConfig _superchainConfig) public view returns (IOPContractsManagerV2.FullConfig memory) {
+    function getDeployInputV2(ISuperchainConfig _superchainConfig)
+        public
+        view
+        returns (IOPContractsManagerV2.FullConfig memory)
+    {
         IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerV2.DisputeGameConfig[](2);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({

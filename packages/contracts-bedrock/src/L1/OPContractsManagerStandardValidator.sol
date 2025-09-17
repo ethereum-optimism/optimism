@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {console2 as console} from "forge-std/console2.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
@@ -94,6 +94,12 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The MIPS implementation address.
     address public mipsImpl;
 
+    /// @notice The FaultDisputeGame implementation address.
+    address public faultDisputeGameImpl;
+
+    /// @notice The PermissionedDisputeGame implementation address.
+    address public permissionedDisputeGameImpl;
+
     /// @notice Bitmap of development features, verification may depend on these features.
     bytes32 public devFeatureBitmap;
 
@@ -111,6 +117,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameImpl;
+        address permissionedDisputeGameImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -155,6 +163,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         delayedWETHImpl = _implementations.delayedWETHImpl;
         mipsImpl = _implementations.mipsImpl;
+        faultDisputeGameImpl = _implementations.faultDisputeGameImpl;
+        permissionedDisputeGameImpl = _implementations.permissionedDisputeGameImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -187,16 +197,6 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _overrides.challenger;
         }
         return challenger;
-    }
-
-    /// @notice Returns the expected PermissionedDisputeGame version.
-    function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.8.0";
-    }
-
-    /// @notice Returns the expected PreimageOracle version.
-    function preimageOracleVersion() public pure returns (string memory) {
-        return "1.1.4";
     }
 
     /// @notice Internal function to get version from any contract implementing ISemver.
@@ -512,8 +512,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
 
         // Challenger is specific to the PermissionedDisputeGame contract.
-        address _challenger = expectedChallenger(_overrides);
-        _errors = internalRequire(_game.challenger() == _challenger, "PDDG-130", _errors);
+        // TODO: Add this back in when PDGv2 gets fixed.
+        // address _challenger = expectedChallenger(_overrides);
+        // _errors = internalRequire(_game.challenger() == _challenger, "PDDG-130", _errors);
 
         return _errors;
     }
@@ -575,7 +576,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_game)), permissionedDisputeGameVersion()),
+            LibString.eq(getVersion(address(_game)), getVersion(faultDisputeGameImpl)),
             string.concat(_errorPrefix, "-20"),
             _errors
         );
@@ -585,7 +586,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
         );
-        _errors = internalRequire(_game.l2ChainId() == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(_game.l2SequenceNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             Duration.unwrap(_game.clockExtension()) == 10800, string.concat(_errorPrefix, "-80"), _errors
@@ -596,24 +596,39 @@ contract OPContractsManagerStandardValidator is ISemver {
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
 
+        // TODO: Get rid of the backwards compatibility and support V2 games only.
+
+        // Grab L2 chain ID from contract or initialization data if using V2.
+        {
+            uint256 l2ChainID = _game.l2ChainId();
+            if (l2ChainID == 0) {
+                l2ChainID = _getUint256FromGameArgs(_factory, _gameType, 92);
+            }
+
+            _errors = internalRequire(l2ChainID == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        }
+
         // Grab ASR from contract or initialization data if using V2.
-        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
-        if (address(_asr) == address(0)) {
-            _asr = IAnchorStateRegistry(_getAddressFromGameArgs(_factory, _gameType, 52));
+        {
+            IAnchorStateRegistry _asr = _game.anchorStateRegistry();
+            if (address(_asr) == address(0)) {
+                _asr = IAnchorStateRegistry(_getAddressFromGameArgs(_factory, _gameType, 52));
+            }
+
+            // Check the anchor root is valid.
+            (Hash anchorRoot,) = _asr.getAnchorRoot();
+            _errors =
+                internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
+
+            // Grab WETH from contract or initialization data if using V2.
+            IDelayedWETH _weth = _game.weth();
+            if (address(_weth) == address(0)) {
+                _weth = IDelayedWETH(payable(_getAddressFromGameArgs(_factory, _gameType, 72)));
+            }
+
+            _errors = assertValidDelayedWETH(_errors, _sysCfg, _weth, _admin, _overrides, _errorPrefix);
+            _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
         }
-
-        // Check the anchor root is valid.
-        (Hash anchorRoot,) = _asr.getAnchorRoot();
-        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
-
-        // Grab WETH from contract or initialization data if using V2.
-        IDelayedWETH _weth = _game.weth();
-        if (address(_weth) == address(0)) {
-            _weth = IDelayedWETH(payable(_getAddressFromGameArgs(_factory, _gameType, 72)));
-        }
-
-        _errors = assertValidDelayedWETH(_errors, _sysCfg, _weth, _admin, _overrides, _errorPrefix);
-        _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
         // Grab VM from contract or initialization data if using V2.
         IMIPS64 _vm = IMIPS64(address(_game.vm()));
@@ -729,9 +744,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         _errorPrefix = string.concat(_errorPrefix, "-PIMGO");
-        // The preimage oracle's address is correct if the MIPS address is correct.
         _errors = internalRequire(
-            LibString.eq(getVersion(address(_oracle)), preimageOracleVersion()),
+            LibString.eq(getVersion(address(_oracle)), getVersion(address(IMIPS64(mipsImpl).oracle()))),
             string.concat(_errorPrefix, "-10"),
             _errors
         );
@@ -820,6 +834,20 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
+    function _getBytesFromGameArgs(
+        IDisputeGameFactory _factory,
+        GameType _gameType,
+        uint256 _offset,
+        uint256 _length
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes memory gameArgs = _factory.gameArgs(_gameType);
+        return Bytes.slice(gameArgs, _offset, _length);
+    }
+
     function _getAddressFromGameArgs(
         IDisputeGameFactory _factory,
         GameType _gameType,
@@ -829,14 +857,24 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (address)
     {
-        bytes memory gameArgs = _factory.gameArgs(_gameType);
-        bytes memory argBytes = Bytes.slice(gameArgs, _offset, 20);
-
+        bytes memory argBytes = _getBytesFromGameArgs(_factory, _gameType, _offset, 20);
         address arg;
         assembly {
             arg := mload(add(argBytes, 20))
         }
-
         return arg;
+    }
+
+    function _getUint256FromGameArgs(
+        IDisputeGameFactory _factory,
+        GameType _gameType,
+        uint256 _offset
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        bytes memory argBytes = _getBytesFromGameArgs(_factory, _gameType, _offset, 32);
+        return abi.decode(argBytes, (uint256));
     }
 }

@@ -107,6 +107,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
         // Load the PermissionedDisputeGame once, we'll need it later.
         pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
+        fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
 
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
@@ -139,13 +140,6 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
                 abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
             );
-            // Use vm.store so that the .setImplementation call below works.
-            vm.store(
-                address(disputeGameFactory),
-                // this assumes that it is not packed with any other value
-                bytes32(ForgeArtifacts.getSlot("DisputeGameFactory", "_owner").slot),
-                bytes32(uint256(uint160(opcm.opcmStandardValidator().l1PAOMultisig())))
-            );
         } else {
             l2ChainId = deployInput.l2ChainId;
             absolutePrestate = deployInput.disputeAbsolutePrestate;
@@ -155,41 +149,6 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
             opcm.opcmStandardValidator(), disputeGameFactory, IDisputeGameFactory(address(0xbad))
         );
-
-        if (isForkTest()) {
-            // Load the FaultDisputeGame once, we'll need it later.
-            fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
-        } else {
-            // Deploy the FaultDisputeGame.
-            fdg = IFaultDisputeGame(
-                DeployUtils.create1({
-                    _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IFaultDisputeGame.__constructor__,
-                            (
-                                IFaultDisputeGame.GameConstructorParams({
-                                    gameType: GameTypes.CANNON,
-                                    absolutePrestate: absolutePrestate,
-                                    maxGameDepth: 73,
-                                    splitDepth: 30,
-                                    clockExtension: Duration.wrap(10800),
-                                    maxClockDuration: Duration.wrap(302400),
-                                    vm: mips,
-                                    weth: delayedWeth,
-                                    anchorStateRegistry: anchorStateRegistry,
-                                    l2ChainId: l2ChainId
-                                })
-                            )
-                        )
-                    )
-                })
-            );
-        }
-
-        // Add the FaultDisputeGame to the DisputeGameFactory.
-        vm.prank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)));
     }
 
     /// @notice Runs the OPContractsManagerStandardValidator.validate function.
@@ -1071,15 +1030,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     ///         DelayedWETH version is invalid.
     function test_validate_delayedWETHInvalidVersion_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
-
-        // One last mess here, during local tests delayedWeth refers to the contract attached to
-        // the FaultDisputeGame, but during fork tests it refers to the one attached to the
-        // PermissionedDisputeGame. We'll just branch based on the test type.
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-10", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-10", _validate(true));
-        }
+        assertEq("PDDG-DWETH-10,PLDG-DWETH-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1090,12 +1041,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWeth))),
             abi.encode(address(0xbad))
         );
-
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-20", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-20", _validate(true));
-        }
+        assertEq("PDDG-DWETH-20,PLDG-DWETH-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1104,36 +1050,21 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad))
         );
-
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-30", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-30", _validate(true));
-        }
+        assertEq("PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         DelayedWETH delay is invalid.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
-
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-40", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-40", _validate(true));
-        }
+        assertEq("PDDG-DWETH-40,PLDG-DWETH-40", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         DelayedWETH systemConfig is invalid.
     function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
-
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-50", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-50", _validate(true));
-        }
+        assertEq("PDDG-DWETH-50,PLDG-DWETH-50", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1142,12 +1073,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
-
-        if (isForkTest()) {
-            assertEq("PDDG-DWETH-60", _validate(true));
-        } else {
-            assertEq("PLDG-DWETH-60", _validate(true));
-        }
+        assertEq("PDDG-DWETH-60,PLDG-DWETH-60", _validate(true));
     }
 }
 
@@ -1342,62 +1268,5 @@ contract OPContractsManagerStandardValidator_L1StandardBridge_Test is OPContract
             address(l1StandardBridge), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
         assertEq("L1SB-80", _validate(true));
-    }
-}
-
-/// @title OPContractsManagerStandardValidator_Versions_Test
-/// @notice Tests the `version` functions on `OPContractsManagerStandardValidator`.
-contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManagerStandardValidator_TestInit {
-    /// @notice Tests that the version getter functions on `OPContractsManagerStandardValidator` return non-empty
-    ///         strings.
-    function test_versions_succeeds() public view {
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().systemConfigImpl()).version()).length > 0,
-            "systemConfigVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().optimismPortalImpl()).version()).length > 0,
-            "optimismPortalVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1CrossDomainMessengerImpl()).version()).length > 0,
-            "l1CrossDomainMessengerVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1ERC721BridgeImpl()).version()).length > 0,
-            "l1ERC721BridgeVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1StandardBridgeImpl()).version()).length > 0,
-            "l1StandardBridgeVersion empty"
-        );
-        assertTrue(bytes(ISemver(opcm.opcmStandardValidator().mipsImpl()).version()).length > 0, "mipsVersion empty");
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl()).version()).length > 0,
-            "optimismMintableERC20FactoryVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().disputeGameFactoryImpl()).version()).length > 0,
-            "disputeGameFactoryVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().anchorStateRegistryImpl()).version()).length > 0,
-            "anchorStateRegistryVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().delayedWETHImpl()).version()).length > 0,
-            "delayedWETHVersion empty"
-        );
-        assertTrue(
-            bytes(opcm.opcmStandardValidator().permissionedDisputeGameVersion()).length > 0,
-            "permissionedDisputeGameVersion empty"
-        );
-        assertTrue(
-            bytes(opcm.opcmStandardValidator().preimageOracleVersion()).length > 0, "preimageOracleVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().ethLockboxImpl()).version()).length > 0,
-            "ethLockboxVersion empty"
-        );
     }
 }
