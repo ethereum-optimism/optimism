@@ -8,5 +8,5 @@ func (c *Config) IsMinBaseFee(time uint64) bool {
 }
 
 func (c *Config) IsDAFootprintBlockLimit(time uint64) bool {
-	return c.IsMinBaseFee(time) // Replace with return false to disable
+	return c.IsJovian(time) // Replace with return false to disable
 }
