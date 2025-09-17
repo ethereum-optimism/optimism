@@ -2,6 +2,13 @@ import '../justfiles/prerequisites.just'
 
 KURTOSIS_PACKAGE := "./optimism-package-trampoline/"
 
+# Extract version from docker-bake.hcl to maintain single source of truth
+kona_version:
+    @grep -A1 'variable "KONA_VERSION"' ../docker-bake.hcl | tail -n1 | sed 's/.*default = "\(.*\)".*/\1/'
+
+asterisc_version:
+    @grep -A1 'variable "ASTERISC_VERSION"' ../docker-bake.hcl | tail -n1 | sed 's/.*default = "\(.*\)".*/\1/'
+
 test: _prerequisites
     go test --tags=testonly ./...
 
@@ -31,10 +38,7 @@ _docker_build_stack TAG TARGET *ARGS: (_docker_build TAG TARGET "../" "ops/docke
 cannon-image TAG='cannon:devnet': (_docker_build_stack TAG "cannon-target")
 da-server-image TAG='da-server:devnet': (_docker_build_stack TAG "da-server-target")
 op-batcher-image TAG='op-batcher:devnet': (_docker_build_stack TAG "op-batcher-target")
-# TODO: this is a temporary hack to get the kona + asterisc version right.
-# Ideally the Dockerfile should be self-sufficient (right now we depend on
-# docker-bake.hcl to do the right thing).
-op-challenger-image TAG='op-challenger:devnet': (_docker_build_stack TAG "op-challenger-target" "--build-arg" "KONA_VERSION=1.0.1" "--build-arg" "ASTERISC_VERSION=v1.3.0")
+op-challenger-image TAG='op-challenger:devnet': (_docker_build_stack TAG "op-challenger-target" "--build-arg" ("KONA_VERSION=" + `just kona_version`) "--build-arg" ("ASTERISC_VERSION=" + `just asterisc_version`))
 op-conductor-image TAG='op-conductor:devnet': (_docker_build_stack TAG "op-conductor-target")
 op-deployer-image TAG='op-deployer:devnet': (_docker_build_stack TAG "op-deployer-target")
 op-dispute-mon-image TAG='op-dispute-mon:devnet': (_docker_build_stack TAG "op-dispute-mon-target")
