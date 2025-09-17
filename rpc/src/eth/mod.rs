@@ -35,7 +35,7 @@ use reth_rpc_eth_api::{
     RpcNodeCoreExt, RpcTypes, SignableTxRequest,
 };
 use reth_rpc_eth_types::{
-    block::BlockAndReceipts, EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlockEnvOrigin,
+    EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlock, PendingBlockEnvOrigin,
 };
 use reth_storage_api::{ProviderHeader, ProviderTx};
 use reth_tasks::{
@@ -113,10 +113,10 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         OpEthApiBuilder::new()
     }
 
-    /// Returns a [`BlockAndReceipts`] that is built out of flashblocks.
+    /// Returns a [`PendingBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
-    pub fn pending_flashblock(&self) -> eyre::Result<Option<BlockAndReceipts<N::Primitives>>>
+    pub fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,
         Rpc: RpcConvert<Primitives = N::Primitives>,
@@ -138,7 +138,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             parent.hash() == pending_block.block().parent_hash() &&
             now <= pending_block.expires_at
         {
-            return Ok(Some(pending_block.to_block_and_receipts()));
+            return Ok(Some(pending_block.clone()));
         }
 
         Ok(None)

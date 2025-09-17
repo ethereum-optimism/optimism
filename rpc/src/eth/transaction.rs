@@ -86,6 +86,7 @@ where
                 // if flashblocks are supported, attempt to find id from the pending block
                 if let Ok(Some(pending_block)) = this.pending_flashblock() {
                     tx_receipt = pending_block
+                        .into_block_and_receipts()
                         .find_transaction_and_receipt_by_hash(hash)
                         .map(|(tx, receipt)| (tx.tx().clone(), tx.meta(), receipt.clone()));
                 }
