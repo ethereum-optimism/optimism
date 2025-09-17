@@ -100,7 +100,6 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon 
 			validSender := true
 			if _, ok := config.BatchSenders[sender]; !ok {
 				fmt.Printf("Found a transaction (%s) from an invalid sender (%s)\n", tx.Hash().String(), sender.String())
-				invalidBatchCount += 1
 				validSender = false
 			}
 			var datas []hexutil.Bytes
