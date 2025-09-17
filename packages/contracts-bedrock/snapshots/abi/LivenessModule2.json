@@ -46,7 +46,7 @@
   },
   {
     "inputs": [],
-    "name": "clear",
+    "name": "clearLivenessModule",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -71,7 +71,7 @@
         "type": "tuple"
       }
     ],
-    "name": "configure",
+    "name": "configureLivenessModule",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -96,13 +96,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "respond",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -110,7 +103,7 @@
         "type": "address"
       }
     ],
-    "name": "safeConfigs",
+    "name": "livenessSafeConfiguration",
     "outputs": [
       {
         "internalType": "uint256",
@@ -124,6 +117,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "respond",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -200,7 +200,7 @@
         "type": "address"
       }
     ],
-    "name": "ModuleDisabled",
+    "name": "ModuleCleared",
     "type": "event"
   },
   {
@@ -225,7 +225,7 @@
         "type": "address"
       }
     ],
-    "name": "ModuleEnabled",
+    "name": "ModuleConfigured",
     "type": "event"
   },
   {

@@ -29,7 +29,7 @@ contract LivenessModule2 is ISemver {
     }
 
     /// @notice Mapping from Safe address to its configuration.
-    mapping(address => ModuleConfig) public safeConfigs;
+    mapping(address => ModuleConfig) public livenessSafeConfiguration;
 
     /// @notice Mapping from Safe address to active challenge start time (0 if none).
     mapping(address => uint256) public challengeStartTime;
@@ -71,17 +71,17 @@ contract LivenessModule2 is ISemver {
     /// @notice Error for when ownership transfer verification fails.
     error LivenessModule2_OwnershipTransferFailed();
 
-    /// @notice Emitted when a Safe enables the module.
-    /// @param safe The Safe address that enabled the module.
+    /// @notice Emitted when a Safe configures the module.
+    /// @param safe The Safe address that configured the module.
     /// @param livenessResponsePeriod The duration in seconds that Safe owners have to
     ///                               respond to a challenge.
     /// @param fallbackOwner The address that can initiate challenges and claim ownership if
     ///                      the Safe is unresponsive.
-    event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
+    event ModuleConfigured(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
 
-    /// @notice Emitted when a Safe disables the module.
-    /// @param safe The Safe address that disabled the module.
-    event ModuleDisabled(address indexed safe);
+    /// @notice Emitted when a Safe clears the module configuration.
+    /// @param safe The Safe address that cleared the module configuration.
+    event ModuleCleared(address indexed safe);
 
     /// @notice Emitted when a challenge is started.
     /// @param safe The Safe address that started the challenge.
@@ -110,14 +110,14 @@ contract LivenessModule2 is ISemver {
         if (startTime == 0) {
             return 0;
         }
-        ModuleConfig storage config = safeConfigs[_safe];
+        ModuleConfig storage config = livenessSafeConfiguration[_safe];
         return startTime + config.livenessResponsePeriod;
     }
 
     /// @notice Configures the module for a Safe that has already enabled it.
     /// @param _config The configuration parameters for the module containing the response
     ///                period and fallback owner.
-    function configure(ModuleConfig memory _config) external {
+    function configureLivenessModule(ModuleConfig memory _config) external {
         // Validate configuration parameters to ensure module can function properly.
         // livenessResponsePeriod must be > 0 to allow time for Safe owners to respond.
         if (_config.livenessResponsePeriod == 0) {
@@ -132,7 +132,7 @@ contract LivenessModule2 is ISemver {
         _assertModuleEnabled(msg.sender);
 
         // Store the configuration for this safe
-        safeConfigs[msg.sender] = _config;
+        livenessSafeConfiguration[msg.sender] = _config;
 
         // Clear any existing challenge when configuring/re-configuring.
         // This is necessary because changing the configuration (especially
@@ -145,7 +145,7 @@ contract LivenessModule2 is ISemver {
         // theoretical standpoint.
         _cancelChallenge(msg.sender);
 
-        emit ModuleEnabled(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
+        emit ModuleConfigured(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
     }
 
     /// @notice Clears the module configuration for a Safe.
@@ -153,11 +153,11 @@ contract LivenessModule2 is ISemver {
     ///      This function is intended for use when a Safe wants to permanently remove
     ///      the LivenessModule2 configuration. Typical usage pattern:
     ///      1. Safe disables the module via ModuleManager.disableModule().
-    ///      2. Safe calls this clear() function to remove stored configuration.
-    ///      3. If Safe later re-enables the module, it must call configure() again.
-    ///      Never calling clear() after disabling keeps configuration data persistent
+    ///      2. Safe calls this clearLivenessModule() function to remove stored configuration.
+    ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
+    ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
     ///      for potential future re-enabling.
-    function clear() external {
+    function clearLivenessModule() external {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
 
@@ -166,10 +166,10 @@ contract LivenessModule2 is ISemver {
         _assertModuleNotEnabled(msg.sender);
 
         // Erase the configuration data for this safe
-        delete safeConfigs[msg.sender];
+        delete livenessSafeConfiguration[msg.sender];
         // Also clear any active challenge
         _cancelChallenge(msg.sender);
-        emit ModuleDisabled(msg.sender);
+        emit ModuleCleared(msg.sender);
     }
 
     /// @notice Challenges an enabled safe.
@@ -182,7 +182,7 @@ contract LivenessModule2 is ISemver {
         _assertModuleEnabled(_safe);
 
         // Check that the caller is the fallback owner
-        if (msg.sender != safeConfigs[_safe].fallbackOwner) {
+        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -230,7 +230,7 @@ contract LivenessModule2 is ISemver {
         _assertModuleEnabled(_safe);
 
         // Only fallback owner can execute ownership transfer (per specs update)
-        if (msg.sender != safeConfigs[_safe].fallbackOwner) {
+        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -269,25 +269,27 @@ contract LivenessModule2 is ISemver {
             to: _safe,
             value: 0,
             operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], safeConfigs[_safe].fallbackOwner))
+            data: abi.encodeCall(
+                OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], livenessSafeConfiguration[_safe].fallbackOwner)
+            )
         });
 
         // Sanity check: verify the fallback owner is now the only owner
         address[] memory finalOwners = targetSafe.getOwners();
-        if (finalOwners.length != 1 || finalOwners[0] != safeConfigs[_safe].fallbackOwner) {
+        if (finalOwners.length != 1 || finalOwners[0] != livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_OwnershipTransferFailed();
         }
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
 
-        emit ChallengeSucceeded(_safe, safeConfigs[_safe].fallbackOwner);
+        emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
     /// @param _safe The Safe address to check.
     function _assertModuleConfigured(address _safe) internal view {
-        ModuleConfig storage config = safeConfigs[_safe];
+        ModuleConfig storage config = livenessSafeConfiguration[_safe];
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotConfigured();
         }
@@ -302,6 +304,15 @@ contract LivenessModule2 is ISemver {
         }
     }
 
+    /// @notice Asserts that the module is not enabled for the given Safe.
+    /// @param _safe The Safe address to check.
+    function _assertModuleNotEnabled(address _safe) internal view {
+        Safe safe = Safe(payable(_safe));
+        if (safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleStillEnabled();
+        }
+    }
+
     /// @notice Internal function to cancel a challenge and emit the appropriate event.
     /// @param _safe The Safe address for which to cancel the challenge.
     function _cancelChallenge(address _safe) internal {
@@ -310,14 +321,5 @@ contract LivenessModule2 is ISemver {
 
         delete challengeStartTime[_safe];
         emit ChallengeCancelled(_safe);
-    }
-
-    /// @notice Asserts that the module is not enabled for the given Safe.
-    /// @param _safe The Safe address to check.
-    function _assertModuleNotEnabled(address _safe) internal view {
-        Safe safe = Safe(payable(_safe));
-        if (safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleStillEnabled();
-        }
     }
 }

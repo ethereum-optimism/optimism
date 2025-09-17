@@ -70,7 +70,7 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         // LivenessModule2 checks
         LivenessModuleConfig memory lmConfig = exampleSecurityCouncilConfig.livenessModuleConfig;
         (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).safeConfigs(address(securityCouncilSafe));
+            LivenessModule2(livenessModule).livenessSafeConfiguration(address(securityCouncilSafe));
         assertEq(configuredPeriod, lmConfig.livenessInterval);
         assertEq(configuredFallback, lmConfig.fallbackOwner);
 

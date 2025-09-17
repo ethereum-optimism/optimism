@@ -309,7 +309,7 @@ contract DeployOwnership is Deploy {
             _safe: safe,
             _target: livenessModule,
             _data: abi.encodeCall(
-                LivenessModule2.configure,
+                LivenessModule2.configureLivenessModule,
                 (
                     LivenessModule2.ModuleConfig({
                         livenessResponsePeriod: livenessModuleConfig.livenessInterval,
@@ -324,7 +324,7 @@ contract DeployOwnership is Deploy {
 
         // Verify the module was configured correctly
         (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).safeConfigs(address(safe));
+            LivenessModule2(livenessModule).livenessSafeConfiguration(address(safe));
         require(
             configuredPeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
             "DeployOwnership: configured liveness interval must match expected value"

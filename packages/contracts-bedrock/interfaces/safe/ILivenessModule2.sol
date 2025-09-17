@@ -15,7 +15,7 @@ interface ILivenessModule2 is ISemver {
     /// @notice Returns the configuration for a Safe
     /// @return livenessResponsePeriod The response period
     /// @return fallbackOwner The fallback owner address
-    function safeConfigs(address) external view returns (uint256 livenessResponsePeriod, address fallbackOwner);
+    function livenessSafeConfiguration(address) external view returns (uint256 livenessResponsePeriod, address fallbackOwner);
 
     /// @notice Returns the challenge start time for a Safe (0 if no challenge)
     /// @return The challenge start timestamp
@@ -27,10 +27,10 @@ interface ILivenessModule2 is ISemver {
 
     /// @notice Configures the module for a Safe that has already enabled it
     /// @param _config The configuration parameters for the module
-    function configure(ModuleConfig memory _config) external;
+    function configureLivenessModule(ModuleConfig memory _config) external;
 
     /// @notice Clears the module configuration for a Safe
-    function clear() external;
+    function clearLivenessModule() external;
 
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not
     /// @param _safe The Safe address to query
