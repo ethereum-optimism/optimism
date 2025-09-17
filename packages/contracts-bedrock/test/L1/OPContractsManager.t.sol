@@ -275,18 +275,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
-
-        // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
-        // standard validator. This happens because an absolute prestate of zero means that the
-        // user is requesting to use the existing prestate. We could avoid the error by grabbing
-        // the prestate from the actual contracts, but that doesn't actually give us any valuable
-        // checks. Easier to just expect the error in this case.
-        if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
-            vm.expectRevert("OPContractsManagerStandardValidator: PDDG-40,PLDG-40");
-        }
-
         // Run the StandardValidator checks.
         if (_legacyABI) {
+            // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
+            // standard validator. This happens because an absolute prestate of zero means that the
+            // user is requesting to use the existing prestate. We could avoid the error by grabbing
+            // the prestate from the actual contracts, but that doesn't actually give us any valuable
+            // checks. Easier to just expect the error in this case.
+            if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+                vm.expectRevert("OPContractsManagerStandardValidator: PDDG-40,PLDG-40");
+            }
+
             IOPContractsManagerLegacyStandardValidator(address(validator)).validate(
                 IOPContractsManagerLegacyStandardValidator.ValidationInput({
                     proxyAdmin: opChainConfigs[0].proxyAdmin,
@@ -297,6 +296,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 false
             );
         } else {
+            // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
+            // standard validator. This happens because an absolute prestate of zero means that the
+            // user is requesting to use the existing prestate. We could avoid the error by grabbing
+            // the prestate from the actual contracts, but that doesn't actually give us any valuable
+            // checks. Easier to just expect the error in this case.
+            if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+                vm.expectRevert("OPContractsManagerStandardValidator: PDDG-40,CDG-40");
+            }
+
             validator.validate(
                 IOPContractsManagerStandardValidator.ValidationInput({
                     proxyAdmin: opChainConfigs[0].proxyAdmin,
