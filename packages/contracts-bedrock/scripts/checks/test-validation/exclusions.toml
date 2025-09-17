@@ -1,0 +1,94 @@
+  # Test validation exclusions configuration
+# This file contains lists of paths and test names that should be excluded
+# from various validation checks in the test validation script.
+
+[excluded_paths]
+# PATHS EXCLUDED FROM SRC VALIDATION:
+# These paths are excluded because they don't follow the standard naming convention where test
+# files (*.t.sol) have corresponding source files (*.sol) in the src/ directory. Instead, they
+# follow alternative naming conventions or serve specialized purposes:
+# - Some are utility/infrastructure tests that don't test specific contracts
+# - Some test external libraries or vendor code that exists elsewhere
+# - Some are integration tests that test multiple contracts together
+# - Some are specialized test types (invariants, formal verification, etc.)
+#
+# Resolving these naming inconsistencies is outside the script's scope, but they are
+# documented here to avoid false validation failures while maintaining the validation rules
+# for standard contract tests.
+src_validation = [
+    "test/invariants/",                    # Invariant testing framework - no direct src counterpart
+    "test/opcm/",                          # OP Chain Manager tests - may have different structure
+    "test/scripts/",                       # Script tests - test deployment/utility scripts, not contracts
+    "test/integration/",                   # Integration tests - test multiple contracts together
+    "test/cannon/MIPS64Memory.t.sol",      # Tests external MIPS implementation
+    "test/dispute/lib/LibClock.t.sol",     # Tests library utilities
+    "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
+    "test/setup/DeployVariations.t.sol",   # Tests deployment variations
+    "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
+    "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
+    "test/vendor/Initializable.t.sol",     # Tests external vendor code
+    "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
+]
+
+# PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
+# These paths are excluded because they don't follow the standard naming convention where the
+# contract name matches the file name pattern: <FileName>_<Function>_Test. Instead, these
+# files contain contracts with names like <AnotherName>_<Function>_Test, where the base
+# contract name doesn't match the file name.
+#
+# This typically occurs when:
+# - The test file contains helper contracts or alternative implementations
+# - The test file tests multiple related contracts or contract variants
+# - The test file uses a different naming strategy for organizational purposes
+# - The contracts being tested have complex inheritance or composition patterns
+#
+# These naming inconsistencies may indicate the presence of specialized test
+# infrastructure beyond standard harnesses or different setup contracts patterns.
+contract_name_validation = [
+    "test/dispute/FaultDisputeGame.t.sol",                # Contains contracts not matching FaultDisputeGame base name
+    "test/dispute/v2/FaultDisputeGameV2.t.sol",           # Contains contracts not matching FaultDisputeGameV2 base name
+    "test/dispute/SuperFaultDisputeGame.t.sol",           # Contains contracts not matching SuperFaultDisputeGame base name
+    "test/L1/ResourceMetering.t.sol",                     # Contains contracts not matching ResourceMetering base name
+    "test/L1/OPContractsManagerStandardValidator.t.sol",  # Contains contracts not matching OPContractsManagerStandardValidator base name
+    "test/L2/CrossDomainOwnable.t.sol",                   # Contains contracts not matching CrossDomainOwnable base name
+    "test/L2/CrossDomainOwnable2.t.sol",                  # Contains contracts not matching CrossDomainOwnable2 base name
+    "test/L2/CrossDomainOwnable3.t.sol",                  # Contains contracts not matching CrossDomainOwnable3 base name
+    "test/L2/GasPriceOracle.t.sol",                       # Contains contracts not matching GasPriceOracle base name
+    "test/universal/StandardBridge.t.sol",                # Contains contracts not matching StandardBridge base name
+    "test/L1/OPContractsManagerContractsContainer.t.sol", # Contains contracts not matching OPContractsManagerContractsContainer base name
+]
+
+# PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
+# These paths are excluded because they don't pass the function name validation, which checks
+# that the function in the <FileName>_<Function>_Test pattern actually exists in the source
+# contract's ABI.
+#
+# Common reasons for exclusion:
+# - Libraries: Have different artifact structures that the validation system
+#   doesn't currently support, making function name lookup impossible
+# - Internal/Private functions: Some contracts test internal functions that
+#   aren't exposed in the public ABI, so they can't be validated
+# - Misspelled/Incorrect function names: Test contracts may have typos or
+#   incorrect function names that don't match the actual source contract
+#
+# Resolving these issues requires either:
+# - Enhancing the validation system to support libraries and complex structures
+# - Fixing misspelled function names in test contracts
+# - Restructuring tests to match actual function signatures
+function_name_validation = [
+    "test/libraries",                     # Libraries have different artifact structure, unsupported
+    "test/dispute/lib/LibPosition.t.sol", # Library testing - artifact structure issues
+    "test/L1/ProxyAdminOwnedBase.t.sol",  # Tests internal functions not in ABI
+    "test/L1/SystemConfig.t.sol",         # Tests internal functions not in ABI
+    "test/safe/SafeSigners.t.sol",        # Function name validation issues
+]
+
+[excluded_tests]
+# Specific test contract names that should be excluded from validation
+# These are individual test contracts that don't follow the standard patterns
+# for various reasons specific to their implementation or purpose.
+contracts = [
+    "OptimismPortal2_MigrateLiquidity_Test",    # Interop tests hosted in the OptimismPortal2 test file
+    "OptimismPortal2_MigrateToSuperRoots_Test", # Interop tests hosted in the OptimismPortal2 test file
+    "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
+]
