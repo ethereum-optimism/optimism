@@ -96,9 +96,6 @@ user-devnet DATA_FILE:
 # Jovian devnet
 jovian-devnet: (devnet "jovian.yaml")
 
-# Jovian devnet
-jovian-devnet: (devnet "jovian.yaml")
-
 # Flashblocks devnet
 flash-devnet: (devnet "flash.yaml")
 
