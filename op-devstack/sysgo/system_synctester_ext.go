@@ -39,7 +39,7 @@ func NewDefaultMinimalExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimal
 
 // DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry creates a minimal external EL system
 // using a network from the superchain registry instead of the deployer
-func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcu eth.FCUState) stack.Option[*Orchestrator] {
+func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string) stack.Option[*Orchestrator] {
 	chainCfg := chaincfg.ChainByName(networkName)
 	if chainCfg == nil {
 		panic(fmt.Sprintf("network %s not found in superchain registry", networkName))
@@ -83,7 +83,7 @@ func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *Defau
 	opt.Add(WithSyncTesterWithExternalEndpoint(ids.SyncTester, l2ELRPC, l2ChainID))
 
 	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
-	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL, fcu))
+	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {

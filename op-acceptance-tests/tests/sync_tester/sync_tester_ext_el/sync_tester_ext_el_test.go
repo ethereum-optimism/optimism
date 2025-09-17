@@ -108,7 +108,7 @@ func setupSystem(gt *testing.T, t devtest.T) (*presets.MinimalExternalEL, uint64
 }
 
 // setupOrchestrator initializes and configures the orchestrator for the test and returns the orchestrator and the initial block number of the session
-func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64) {
+func setupOrchestrator(gt *testing.T, t devtest.T) (stack.Orchestrator, uint64) {
 	l := t.Logger()
 	ctx := t.Ctx()
 	require := t.Require()
@@ -153,14 +153,17 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64)
 	initial := latestBlock.NumberU64() - 1000
 	l.Info("LATEST_BLOCK", "latest_block", latestBlock.NumberU64(), "session_initial_block", initial)
 
-	opt := sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
-		Latest:    initial,
-		Safe:      initial,
-		Finalized: initial,
-	})
+	opt := stack.Combine(
+		presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName),
+		presets.WithSyncTesterELInitialState(eth.FCUState{
+			Latest:    initial,
+			Safe:      initial,
+			Finalized: initial,
+		}),
+	)
 
-	orch := sysgo.NewOrchestrator(p, stack.SystemHook(opt))
-	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opt, orch)
+	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
+	stack.ApplyOptionLifecycle(opt, orch)
 
 	return orch, initial
 }
