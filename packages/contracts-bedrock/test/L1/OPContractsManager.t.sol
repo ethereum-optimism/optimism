@@ -1958,47 +1958,7 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 /// @title OPContractsManager_V2_Test
 /// @notice Tests for v2 dispute game implementations in OPContractsManager
 contract OPContractsManager_V2_Test is OPContractsManager_Init {
-    /// @notice Helper function to deploy OPCM with v2 flag enabled
-    // function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
-    //     // Deploy Superchain contracts first
-    //     DeploySuperchain deploySuperchain = new DeploySuperchain();
-    //     DeploySuperchain.Output memory dso = deploySuperchain.run(
-    //         DeploySuperchain.Input({
-    //             superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
-    //             protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
-    //             guardian: makeAddr("guardian"),
-    //             paused: false,
-    //             requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
-    //             recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
-    //         })
-    //     );
-
-    //     // Deploy implementations with v2 flag enabled
-    //     DeployImplementations deployImplementations = new DeployImplementations();
-    //     DeployImplementations.Output memory dio = deployImplementations.run(
-    //         DeployImplementations.Input({
-    //             withdrawalDelaySeconds: 100,
-    //             minProposalSizeBytes: 200,
-    //             challengePeriodSeconds: 300,
-    //             proofMaturityDelaySeconds: 400,
-    //             disputeGameFinalityDelaySeconds: 500,
-    //             mipsVersion: StandardConstants.MIPS_VERSION,
-    //             faultGameV2MaxGameDepth: 73,
-    //             faultGameV2SplitDepth: 30,
-    //             faultGameV2ClockExtension: 10800,
-    //             faultGameV2MaxClockDuration: 302400,
-    //             superchainConfigProxy: dso.superchainConfigProxy,
-    //             protocolVersionsProxy: dso.protocolVersionsProxy,
-    //             superchainProxyAdmin: dso.superchainProxyAdmin,
-    //             upgradeController: dso.superchainProxyAdmin.owner(),
-    //             proposer: proposer,
-    //             challenger: challenger,
-    //             devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-    //          })
-    //     );
-
-    //     return dio.opcm;
-    // }
+}
 
 /// @title OPContractsManager_Deploy_Test
 /// @notice Tests the `deploy` function of the `OPContractsManager` contract.
