@@ -59,8 +59,8 @@ type L2DevGenesisParams struct {
 
 type CustomGasToken struct {
 	Enabled                    bool         `json:"enabled" toml:"enabled"`
-	Name                       string       `json:"name" toml:"name"`
-	Symbol                     string       `json:"symbol" toml:"symbol"`
+	Name                       string       `json:"name,omitempty" toml:"name,omitempty"`
+	Symbol                     string       `json:"symbol,omitempty" toml:"symbol,omitempty"`
 	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount,omitempty" toml:"nativeAssetLiquidityAmount,omitempty"`
 }
 

@@ -279,6 +279,13 @@ func TestEndToEndApply(t *testing.T) {
 		err = fn.DecodeReturns(res, &response)
 		require.NoError(t, err)
 		require.Equal(t, true, response)
+
+		// Check that the native asset liquidity predeploy has the configured amount in L2 genesis
+		nativeAssetLiquidityAddr := common.HexToAddress("0x4200000000000000000000000000000000000029")
+		l2Genesis := st.Chains[0].Allocs.Data.Accounts
+		account, exists := l2Genesis[nativeAssetLiquidityAddr]
+		require.True(t, exists, "Native asset liquidity predeploy should exist in L2 genesis")
+		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
 }
 
