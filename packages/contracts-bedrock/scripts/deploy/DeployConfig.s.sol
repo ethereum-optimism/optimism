@@ -126,7 +126,7 @@ contract DeployConfig is Script {
         useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
         gasPayingTokenName = _readOr(_json, "$.gasPayingTokenName", "");
         gasPayingTokenSymbol = _readOr(_json, "$.gasPayingTokenSymbol", "");
-        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", type(uint248).max);
+        nativeAssetLiquidityAmount = _readOr(_json, "$.nativeAssetLiquidityAmount", 0);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
