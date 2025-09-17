@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 )
 
 // SyncTesterEL is an L2ELNode implementation that runs a sync tester service.
@@ -44,7 +45,7 @@ type SyncTesterELConfig struct {
 func (cfg *SyncTesterELConfig) Path() string {
 	path := fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", cfg.FCUState.Latest, cfg.FCUState.Safe, cfg.FCUState.Finalized)
 	if cfg.ELSyncEnabled {
-		path += fmt.Sprintf("&el_sync_target=%d", cfg.ELSyncTarget)
+		path += fmt.Sprintf("&%s=%d", synctester.ELSyncTargetKey, cfg.ELSyncTarget)
 	}
 	return path
 }

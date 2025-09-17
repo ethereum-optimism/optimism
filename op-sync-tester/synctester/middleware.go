@@ -16,6 +16,8 @@ var ErrInvalidSessionIDFormat = errors.New("invalid UUID")
 var ErrInvalidParams = errors.New("invalid param")
 var ErrInvalidELSyncTarget = errors.New("invalid el sync target")
 
+const ELSyncTargetKey = "el_sync_target"
+
 func IsValidSessionID(sessionID string) error {
 	u, err := uuid.Parse(sessionID)
 	if err != nil {
@@ -72,8 +74,7 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-
-		elSyncTarget, err := parseParam("el_sync_target")
+		elSyncTarget, err := parseParam(ELSyncTargetKey)
 		if err != nil {
 			return r, err
 		}
