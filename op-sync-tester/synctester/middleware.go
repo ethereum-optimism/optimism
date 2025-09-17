@@ -3,7 +3,6 @@ package synctester
 import (
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,15 +77,14 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		if elSyncTarget == 0 {
-			// default value when EL Sync disabled
-			elSyncTarget = math.MaxUint64
-		} else {
+		elSyncEnabled := false
+		if elSyncTarget != 0 {
 			if elSyncTarget < latest {
 				return r, ErrInvalidELSyncTarget
 			}
+			elSyncEnabled = true
 		}
-		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncTarget)
+		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncTarget, elSyncEnabled)
 		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")

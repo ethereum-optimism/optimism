@@ -707,7 +707,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			session.Validated += 1
 			logger.Debug("Advanced non canonical chain", "validated", session.Validated)
 		}
-		if session.Validated == session.ELSyncTarget {
+		if !session.IsELSyncFinished() && session.Validated == session.ELSyncTarget {
 			logger.Debug("Non canonical chain reached EL Sync target", "validated", session.Validated)
 			session.FinishELSync(session.Validated)
 		}

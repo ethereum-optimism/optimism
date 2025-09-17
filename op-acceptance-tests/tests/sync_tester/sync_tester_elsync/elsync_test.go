@@ -1,7 +1,6 @@
 package sync_tester_elsync
 
 import (
-	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -40,7 +39,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// EL Sync not done yet
 	session, err := syncTesterClient.GetSession(ctx)
 	require.NoError(err)
-	require.NotEqual(uint64(math.MaxUint64), session.ELSyncTarget)
+	require.True(session.ELSyncEnabled)
 
 	// Restarting will trigger EL sync since unsafe head payload will arrive to L2CL2 via P2P
 	sys.L2CL2.Start()
@@ -53,5 +52,5 @@ func TestSyncTesterELSync(gt *testing.T) {
 
 	session, err = syncTesterClient.GetSession(ctx)
 	require.NoError(err)
-	require.Equal(uint64(math.MaxUint64), session.ELSyncTarget)
+	require.False(session.ELSyncEnabled)
 }

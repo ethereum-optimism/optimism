@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"fmt"
-	"math"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -37,13 +36,14 @@ type SyncTesterEL struct {
 }
 
 type SyncTesterELConfig struct {
-	FCUState     eth.FCUState
-	ELSyncTarget uint64
+	FCUState      eth.FCUState
+	ELSyncEnabled bool
+	ELSyncTarget  uint64
 }
 
 func (cfg *SyncTesterELConfig) Path() string {
 	path := fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", cfg.FCUState.Latest, cfg.FCUState.Safe, cfg.FCUState.Finalized)
-	if cfg.ELSyncTarget != math.MaxUint64 {
+	if cfg.ELSyncEnabled {
 		path += fmt.Sprintf("&el_sync_target=%d", cfg.ELSyncTarget)
 	}
 	return path
@@ -51,8 +51,9 @@ func (cfg *SyncTesterELConfig) Path() string {
 
 func DefaultSyncTesterELConfig() *SyncTesterELConfig {
 	return &SyncTesterELConfig{
-		FCUState:     eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
-		ELSyncTarget: math.MaxUint64,
+		FCUState:      eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
+		ELSyncEnabled: false,
+		ELSyncTarget:  0,
 	}
 }
 
