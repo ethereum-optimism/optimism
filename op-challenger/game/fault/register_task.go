@@ -88,6 +88,25 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 }
 
 func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
+}
+
+func NewCannonKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
+	return newCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, l2Client, rollupClient, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+}
+
+func newCannonVMRegisterTaskWithConfig(
+	gameType faultTypes.GameType,
+	cfg *config.Config,
+	m caching.Metrics,
+	serverExecutor vm.OracleServerExecutor,
+	l2Client utils.L2HeaderSource,
+	rollupClient outputs.OutputRollupClient,
+	syncValidator SyncValidator,
+	vmCfg vm.Config,
+	preStateBaseURL *url.URL,
+	preState string,
+) *RegisterTask {
 	stateConverter := cannon.NewStateConverter(cfg.Cannon)
 	return &RegisterTask{
 		gameType:      gameType,
@@ -103,9 +122,9 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			gameType,
 			stateConverter,
 			m,
-			cfg.CannonAbsolutePreStateBaseURL,
-			cfg.CannonAbsolutePreState,
-			filepath.Join(cfg.Datadir, "cannon-prestates"),
+			preStateBaseURL,
+			preState,
+			filepath.Join(cfg.Datadir, vmCfg.VmType.String()+"-prestates"),
 			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
 			}),
@@ -120,7 +139,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			prestateBlock uint64,
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
-			return outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return outputs.NewOutputCannonTraceAccessor(logger, m, vmCfg, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }

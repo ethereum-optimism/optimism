@@ -11,6 +11,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -165,14 +166,14 @@ type Config struct {
 }
 
 // ValidateL1Config checks L1 config variables for errors.
-func (cfg *Config) ValidateL1Config(ctx context.Context, client L1Client) error {
+func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, client L1Client) error {
 	// Validate the L1 Client Chain ID
 	if err := cfg.CheckL1ChainID(ctx, client); err != nil {
 		return err
 	}
 
 	// Validate the Rollup L1 Genesis Blockhash
-	if err := cfg.CheckL1GenesisBlockHash(ctx, client); err != nil {
+	if err := cfg.CheckL1GenesisBlockHash(ctx, logger, client); err != nil {
 		return err
 	}
 
@@ -233,9 +234,14 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 }
 
 // CheckL1GenesisBlockHash checks that the configured L1 genesis block hash is valid for the given client.
-func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client) error {
+func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, logger log.Logger, client L1Client) error {
 	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
 	if err != nil {
+		if errors.Is(eth.MaybeAsNotFoundErr(err), ethereum.NotFound) {
+			// Genesis block isn't available to check, so just accept it and hope for the best
+			logger.Warn("L1 genesis block not found, skipping validity check")
+			return nil
+		}
 		return fmt.Errorf("failed to get L1 genesis blockhash: %w", err)
 	}
 	if l1GenesisBlockRef.Hash != cfg.Genesis.L1.Hash {
@@ -585,6 +591,9 @@ func (c *Config) ActivationTimeFor(fork ForkName) *uint64 {
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
 	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
 		return Interop
+	}
+	if c.IsJovian(newTime) && !c.IsJovian(oldTime) {
+		return Jovian
 	}
 	if c.IsIsthmus(newTime) && !c.IsIsthmus(oldTime) {
 		return Isthmus

@@ -145,10 +145,12 @@ func blockToDepositsOnlyAttributes(cfg *rollup.Config, block *types.Block, outpu
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
 	}
+
 	if cfg.IsHolocene(block.Time()) {
-		d, e := eip1559.DecodeHoloceneExtraData(block.Extra())
+		d, e, m := eip1559.DecodeOptimismExtraData(cfg, block.Time(), block.Extra())
 		eip1559Params := eth.Bytes8(eip1559.EncodeHolocene1559Params(d, e))
 		attrs.EIP1559Params = &eip1559Params
+		attrs.MinBaseFee = m
 	}
 	return attrs, nil
 }

@@ -81,7 +81,7 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 		return nil, fmt.Errorf("failed to detect game type: %w", err)
 	}
 	switch gameType {
-	case types.SuperCannonGameType, types.SuperPermissionedGameType, types.SuperAsteriscKonaGameType:
+	case types.SuperCannonGameType, types.SuperCannonKonaGameType, types.SuperPermissionedGameType, types.SuperAsteriscKonaGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
 	default:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)

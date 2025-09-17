@@ -14,10 +14,6 @@ import (
 	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimal())
-}
-
 func TestL1ToL2Deposit(gt *testing.T) {
 	// Create a test environment using op-devstack
 	t := devtest.SerialT(gt)
@@ -30,6 +26,8 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	fundingAmount := eth.ThreeHundredthsEther
 	alice := sys.FunderL1.NewFundedEOA(fundingAmount)
 	t.Log("Alice L1 address", alice.Address())
+
+	alice.WaitForBalance(fundingAmount)
 	initialBalance := alice.GetBalance()
 	t.Log("Alice L1 balance", initialBalance)
 

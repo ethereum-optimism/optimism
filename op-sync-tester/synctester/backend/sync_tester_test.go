@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -136,7 +137,7 @@ func TestSyncTester_ChainId(t *testing.T) {
 			st := initTestSyncTester(t, tc.cfgID, mock)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSyncTesterSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			got, err := st.ChainId(ctx)
 			if tc.wantErrContains != "" {
@@ -194,7 +195,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSyncTesterSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			raw, err := st.GetBlockByHash(ctx, hash, false)
 			if tc.wantErrContains != "" {
@@ -320,7 +321,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSyncTesterSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			raw, err := st.GetBlockByNumber(ctx, tc.inNumber, false)
 			if tc.wantErrContains != "" {
@@ -462,7 +463,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
-				ctx = WithSyncTesterSession(ctx, tc.session)
+				ctx = session.WithSyncTesterSession(ctx, tc.session)
 			}
 			recs, err := st.GetBlockReceipts(ctx, tc.arg)
 			if tc.wantErrContains != "" {

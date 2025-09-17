@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -331,6 +332,7 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+			WithDevFeatureBitmap(interopgen.OptimismPortalInteropDevFlag),
 		}, deployerOpts...)...))
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))

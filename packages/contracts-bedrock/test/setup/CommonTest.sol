@@ -54,6 +54,11 @@ contract CommonTest is Test, Setup, Events {
         // changes will not be persisted into the new network.
         Setup.setUp();
 
+        // Set the code for 0xbeefcafe to a single non-zero byte. We use this address as a signal
+        // that something is running in the testing environment and not production, useful for
+        // forked tests.
+        vm.etch(address(0xbeefcafe), bytes(hex"01"));
+
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         vm.deal(alice, 10000 ether);

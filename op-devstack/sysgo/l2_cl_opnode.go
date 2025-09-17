@@ -65,6 +65,7 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig:     shim.NewCommonConfig(system.T()),
 		ID:               n.id,
 		Client:           rpcCl,
+		UserRPC:          n.userRPC,
 		InteropEndpoint:  n.interopEndpoint,
 		InteropJwtSecret: n.interopJwtSecret,
 	})
@@ -256,7 +257,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{
-				BeaconAddr: l1CL.beacon.BeaconAddr(),
+				BeaconAddr: l1CL.beaconHTTPAddr,
 			},
 			Driver: driver.Config{
 				SequencerEnabled:   cfg.IsSequencer,

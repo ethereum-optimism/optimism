@@ -18,7 +18,7 @@ func NewSyncFrontend(b SyncBackend) *SyncFrontend {
 	return &SyncFrontend{b: b}
 }
 
-func (s *SyncFrontend) GetSession(ctx context.Context) (eth.SyncTesterSession, error) {
+func (s *SyncFrontend) GetSession(ctx context.Context) (*eth.SyncTesterSession, error) {
 	return s.b.GetSession(ctx)
 }
 

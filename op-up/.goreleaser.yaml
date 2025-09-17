@@ -25,6 +25,11 @@ builds:
       - goos: linux
         goarch: arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
+    ldflags:
+      - -X main.GitCommit={{ .FullCommit }}
+      - -X main.GitDate={{ .CommitDate }}
+      - -X main.Version={{ .Version }}
+      - -X main.VersionMeta=
 
 archives:
   - format: tar.gz
