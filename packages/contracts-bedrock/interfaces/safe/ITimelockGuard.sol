@@ -19,14 +19,17 @@ interface ITimelockGuard is IGuard, ISemver {
     event GuardCleared(address indexed safe);
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
 
+    struct GuardConfig {
+        uint256 timelockDelay;
+        bool configured;
+    }
+
     // Views
     function version() external view returns (string memory);
 
-    function viewTimelockGuardConfiguration(address _safe) external view returns (uint256);
+    function viewTimelockGuardConfiguration(address _safe) external view returns (GuardConfig memory);
 
     function cancellationThreshold(address _safe) external view returns (uint256 cancellationThreshold_);
-
-    function safeCancellationThreshold(address) external view returns (uint256);
 
     function safeConfigs(address)
         external
@@ -56,10 +59,6 @@ interface ITimelockGuard is IGuard, ISemver {
         pure;
 
     function checkPendingTransactions(address _safe) external pure returns (bytes32[] memory pendingTxs_);
-
-    function rejectTransaction(address _safe, bytes32 _txHash) external pure;
-
-    function rejectTransactionWithSignature(address _safe, bytes32 _txHash, bytes memory _signatures) external pure;
 
     function cancelTransaction(address _safe, bytes32 _txHash) external pure;
 }

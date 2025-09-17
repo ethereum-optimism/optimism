@@ -22,7 +22,8 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
     event GuardCleared(Safe indexed safe);
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
-    event TransactionCancelled(Safe indexed safe, bytes32 indexed txId, uint256 newCancellationThreshold);
+    event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
+    event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -138,15 +139,10 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
         return (dummyTxParams, txHash, signatures);
     }
 
-    function _getCancellationTx(address _safe, bytes32 _txHash)
-        internal
-        pure
-        returns (ExecTransactionParams memory)
-    {
+    function _getCancellationTx(address _safe, bytes32 _txHash) internal pure returns (ExecTransactionParams memory) {
         bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
-        ExecTransactionParams memory cancellationTxParams = ExecTransactionParams(
-            _safe, 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0))
-        );
+        ExecTransactionParams memory cancellationTxParams =
+            ExecTransactionParams(_safe, 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)));
 
         return cancellationTxParams;
     }
@@ -445,7 +441,9 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Cancel the transaction
         vm.expectEmit(true, true, true, true);
-        emit TransactionCancelled(safeInstance.safe, txHash, numSignatures + 1);
+        emit CancellationThresholdUpdated(safeInstance.safe, numSignatures, numSignatures + 1);
+        vm.expectEmit(true, true, true, true);
+        emit TransactionCancelled(safeInstance.safe, txHash);
         timelockGuard.cancelTransaction(safeInstance.safe, txHash, nonce, cancelSignatures);
 
         // Confirm that the transaction is cancelled
@@ -482,7 +480,9 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Cancel the transaction
         vm.expectEmit(true, true, true, true);
-        emit TransactionCancelled(safeInstance.safe, txHash, cancellationThreshold + 1);
+        emit CancellationThresholdUpdated(safeInstance.safe, cancellationThreshold, cancellationThreshold + 1);
+        vm.expectEmit(true, true, true, true);
+        emit TransactionCancelled(safeInstance.safe, txHash);
         timelockGuard.cancelTransaction(safeInstance.safe, txHash, nonce, signatures);
 
         // Confirm that the transaction is cancelled
