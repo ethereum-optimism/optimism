@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -311,13 +312,14 @@ func (p *Lazy[V]) Close() {
 func (p *Lazy[V]) String() string {
 	p.upstream.RLock()
 	defer p.upstream.RUnlock()
-	out := fmt.Sprintf("%T(", p)
+	var out strings.Builder
+	out.WriteString(fmt.Sprintf("%T(", p))
 	for i, up := range p.upstream.Value {
 		if i > 0 {
-			out += ", "
+			out.WriteString(", ")
 		}
-		out += fmt.Sprintf("%T", up)
+		out.WriteString(fmt.Sprintf("%T", up))
 	}
-	out += ")"
-	return out
+	out.WriteString(")")
+	return out.String()
 }

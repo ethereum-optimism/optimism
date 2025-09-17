@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,11 +59,11 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 }
 
 func fmtEntries(entries []Entry) string {
-	out := ""
+	var out strings.Builder
 	for i, entry := range entries {
-		out += fmt.Sprintf("%v: %x\n", i, entry)
+		out.WriteString(fmt.Sprintf("%v: %x\n", i, entry))
 	}
-	return out
+	return out.String()
 }
 
 func invariantFileSizeMultipleOfEntrySize(stat os.FileInfo, _ *stubMetrics) error {

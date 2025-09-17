@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-program/prestates"
 )
@@ -65,7 +66,7 @@ func main() {
 	slices.SortFunc(actual, sortFunc)
 
 	differs := false
-	report := ""
+	var report strings.Builder
 	for _, release := range actual {
 		var expectedPrestate prestates.Prestate
 		standardVersion := expected.Prestates[release.Version]
@@ -92,7 +93,7 @@ func main() {
 			marker = "❌"
 			differs = true
 		}
-		report += fmt.Sprintf("%v Expected: %v\tActual: %v\n", marker, expectedStr, actualStr)
+		report.WriteString(fmt.Sprintf("%v Expected: %v\tActual: %v\n", marker, expectedStr, actualStr))
 	}
 	// Verify there aren't any additional entries in expected
 	totalExpected := 0
@@ -111,16 +112,16 @@ func main() {
 				Hash:    prestate.Hash,
 				Type:    prestate.Type,
 			})
-			report += fmt.Sprintf("❌ Expected: %v\tActual: <missing>\n", expectedStr)
+			report.WriteString(fmt.Sprintf("❌ Expected: %v\tActual: <missing>\n", expectedStr))
 			differs = true
 		}
 	}
 	// Sanity check entries are not duplicated in the standard prestates
 	if totalExpected != len(actual) {
-		report += fmt.Sprintf("❌ Found %v expected prestates but %v actual\n", totalExpected, len(actual))
+		report.WriteString(fmt.Sprintf("❌ Found %v expected prestates but %v actual\n", totalExpected, len(actual)))
 		differs = true
 	}
-	fmt.Println(report)
+	fmt.Println(report.String())
 	if differs {
 		os.Exit(1)
 	}

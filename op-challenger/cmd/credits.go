@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
@@ -78,7 +79,8 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 		return fmt.Errorf("failed to get withdrawals: %w", err)
 	}
 	lineFormat := "%-42v %12v %-19v\n"
-	info := fmt.Sprintf(lineFormat, "Claimant", "ETH", "Unlock Time")
+	var info strings.Builder
+	info.WriteString(fmt.Sprintf(lineFormat, "Claimant", "ETH", "Unlock Time"))
 	for i, withdrawal := range withdrawals {
 		var amount string
 		if withdrawal.Amount.Cmp(big.NewInt(0)) == 0 {
@@ -92,10 +94,10 @@ func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) e
 		} else {
 			unlockTime = time.Unix(withdrawal.Timestamp.Int64(), 0).Add(withdrawalDelay).Format(time.DateTime)
 		}
-		info += fmt.Sprintf(lineFormat, claimants[i], amount, unlockTime)
+		info.WriteString(fmt.Sprintf(lineFormat, claimants[i], amount, unlockTime))
 	}
 	fmt.Printf("DelayedWETH Contract: %v • Total Balance (ETH): %12.8f • Delay: %v\n%v\n",
-		wethAddress, eth.WeiToEther(balance), withdrawalDelay, info)
+		wethAddress, eth.WeiToEther(balance), withdrawalDelay, info.String())
 	return nil
 }
 

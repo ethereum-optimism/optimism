@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -54,15 +55,15 @@ func (r *RpcStub) CallContext(_ context.Context, out interface{}, method string,
 }
 
 func (r *RpcStub) findExpectedCall(rpcMethod string, args ...interface{}) ExpectedRpcCall {
-	var matchResults string
+	var matchResults strings.Builder
 	for _, call := range r.expectedCalls {
 		if err := call.Matches(rpcMethod, args...); err == nil {
 			return call
 		} else {
-			matchResults += fmt.Sprintf("%v: %v\n", call, err)
+			matchResults.WriteString(fmt.Sprintf("%v: %v\n", call, err))
 		}
 	}
-	require.Failf(r.t, "No matching expected calls.", matchResults)
+	require.Failf(r.t, "No matching expected calls.", matchResults.String())
 	return nil
 }
 
