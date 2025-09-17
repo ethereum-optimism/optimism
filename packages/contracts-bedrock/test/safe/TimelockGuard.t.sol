@@ -358,6 +358,8 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         vm.expectEmit(true, true, true, true);
         emit TransactionScheduled(unguardedSafe.safe, txHash, INIT_TIME + 0);
         timelockGuard.scheduleTransaction(unguardedSafe.safe, nonce, dummyTxParams, signatures);
+
+        // TODO: show that an unscheduled tx will be executed immediately.
     }
 
     function test_scheduleTransaction_reschedulingIdenticalTransaction_reverts() external {
@@ -376,6 +378,15 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 
     function test_scheduleTransaction_guardNotEnabled_reverts() external {
+        // Attempt to schedule a transaction with a Safe that has enabled the guard but
+        // has not configured it.
+        _enableGuard(unguardedSafe);
+        uint256 nonce = unguardedSafe.safe.nonce();
+        vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
+        timelockGuard.scheduleTransaction(unguardedSafe.safe, nonce, _getDummyTxParams(), "");
+    }
+
+    function test_scheduleTransaction_guardNotConfigured_reverts() external {
         // Attempt to schedule a transaction with a Safe that has not enabled the guard
         uint256 nonce = unguardedSafe.safe.nonce();
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
