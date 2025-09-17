@@ -200,6 +200,11 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_GuardNotEnabled();
         }
 
+        // Check that the guard has been configured for the Safe
+        if (!safeConfigs[_safe].configured) {
+            revert TimelockGuard_GuardNotConfigured();
+        }
+
         // Get the encoded transaction data as defined in the Safe
         // The format of the string returned is: "0x1901{domainSeparator}{safeTxHash}"
         bytes memory txHashData = _safe.encodeTransactionData(
