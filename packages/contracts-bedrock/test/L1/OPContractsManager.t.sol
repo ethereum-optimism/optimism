@@ -1685,7 +1685,15 @@ contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager
     }
 }
 
-contract OPContractsManager_Deploy_TestInit is DeployOPChain_TestBase {
+/// @title OPContractsManager_Deploy_Test
+/// @notice Tests the `deploy` function of the `OPContractsManager` contract.
+/// @dev Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This
+///      is because OPContractsManager acts as a deploy script, so we start from a clean slate here
+///      and work OPContractsManager's deployment into the existing test setup, instead of using
+///      the existing test setup to deploy OPContractsManager. We do however inherit from
+///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
+///      to how a real deployment would happen.
+contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
@@ -1785,17 +1793,7 @@ contract OPContractsManager_Deploy_TestInit is DeployOPChain_TestBase {
 
         return dio.opcm;
     }
-}
 
-/// @title OPContractsManager_Deploy_Test
-/// @notice Tests the `deploy` function of the `OPContractsManager` contract.
-/// @dev Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This
-///      is because OPContractsManager acts as a deploy script, so we start from a clean slate here
-///      and work OPContractsManager's deployment into the existing test setup, instead of using
-///      the existing test setup to deploy OPContractsManager. We do however inherit from
-///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
-///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is OPContractsManager_Deploy_TestInit {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
