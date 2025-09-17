@@ -46,11 +46,8 @@ func TestMain(m *testing.M) {
 		L1ELEndpoint = getEnvOrDefault("L1_EL_ENDPOINT_TAILSCALE", DefaultL1ELEndpointTailscale)
 	}
 
-	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
-		Latest:    InitialL2Block,
-		Safe:      InitialL2Block,
-		Finalized: InitialL2Block,
-	}),
+	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName),
+		presets.WithSyncTesterELInitialState(eth.FCUState{Latest: InitialL2Block, Safe: InitialL2Block, Finalized: InitialL2Block}),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 

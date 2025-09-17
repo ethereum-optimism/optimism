@@ -33,8 +33,8 @@ func (m *MinimalExternalEL) L2Networks() []*dsl.L2Network {
 	}
 }
 
-func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcu eth.FCUState) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName, fcu))
+func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName))
 }
 
 func NewMinimalExternalELWithExternalL1(t devtest.T) *MinimalExternalEL {
