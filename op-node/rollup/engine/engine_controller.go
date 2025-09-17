@@ -518,9 +518,12 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 	fcu2Finish := time.Now()
-	e.SetUnsafeHead(ref)
-	e.needFCUCall = false
-	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+
+	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
+		e.SetUnsafeHead(ref)
+		e.needFCUCall = false
+		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+	}
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
