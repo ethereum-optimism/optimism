@@ -243,10 +243,13 @@ func TestEndToEndApply(t *testing.T) {
 
 	t.Run("with custom gas token", func(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		amount := new(big.Int)
+		amount.SetString("1000000000000000000000", 10)
 		intent.Chains[0].CustomGasToken = &state.CustomGasToken{
-			Enabled: true,
-			Name:    "Custom Gas Token",
-			Symbol:  "CGT",
+			Enabled:                    true,
+			Name:                       "Custom Gas Token",
+			Symbol:                     "CGT",
+			NativeAssetLiquidityAmount: (*hexutil.Big)(amount),
 		}
 
 		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
