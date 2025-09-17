@@ -9,11 +9,6 @@
             "type": "uint32"
           },
           {
-            "internalType": "Claim",
-            "name": "absolutePrestate",
-            "type": "bytes32"
-          },
-          {
             "internalType": "uint256",
             "name": "maxGameDepth",
             "type": "uint256"
@@ -32,26 +27,6 @@
             "internalType": "Duration",
             "name": "maxClockDuration",
             "type": "uint64"
-          },
-          {
-            "internalType": "contract IBigStepper",
-            "name": "vm",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IDelayedWETH",
-            "name": "weth",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IAnchorStateRegistry",
-            "name": "anchorStateRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "l2ChainId",
-            "type": "uint256"
           }
         ],
         "internalType": "struct FaultDisputeGameV2.GameConstructorParams",
@@ -72,7 +47,7 @@
         "type": "bytes32"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -108,7 +83,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -563,7 +538,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -926,7 +901,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -952,7 +927,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {

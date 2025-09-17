@@ -153,8 +153,8 @@ func (u *EOA) VerifyBalanceAtLeast(v eth.ETH) {
 
 func (u *EOA) WaitForBalance(v eth.ETH) {
 	u.t.Require().Eventually(func() bool {
-		u.VerifyBalanceExact(v)
-		return true
+		actual := u.balance()
+		return actual == v
 	}, u.el.stackEL().TransactionTimeout(), time.Second, "awaiting balance to be updated")
 }
 

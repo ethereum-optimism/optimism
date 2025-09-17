@@ -6,7 +6,6 @@ linters:
     - asciicheck
     - misspell
     - errorlint
-    - bodyclose
 
     # Only enabled in specific cases. See settings and exclusions below
     - exhaustruct

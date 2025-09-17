@@ -226,7 +226,14 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to create execution rpc client out of the el p2p rpc url: "+c.cfg.HealthCheck.ExecutionP2pRPCUrl)
 		}
-		elP2p = client.NewElP2PClientAdmin(execClient)
+		switch c.cfg.HealthCheck.ExecutionP2pCheckApi {
+		case "net":
+			elP2p = client.NewElP2PClientNet(execClient)
+		case "admin":
+			elP2p = client.NewElP2PClientAdmin(execClient)
+		default:
+			return errors.New("invalid el p2p check api")
+		}
 	} else {
 		elP2p = nil
 	}

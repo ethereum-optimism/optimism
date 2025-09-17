@@ -99,6 +99,9 @@ pectra-devnet: (devnet "pectra.yaml")
 # Isthmus devnet
 isthmus-devnet: (devnet "isthmus.yaml")
 
+# Jovian devnet
+jovian-devnet: (devnet "jovian.yaml")
+
 # Flashblocks devnet
 flash-devnet: (devnet "flash.yaml")
 

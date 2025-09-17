@@ -15,6 +15,11 @@
           },
           {
             "internalType": "address",
+            "name": "optimismPortalInteropImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "ethLockboxImpl",
             "type": "address"
           },
@@ -82,6 +87,11 @@
         "internalType": "uint256",
         "name": "_withdrawalDelaySeconds",
         "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_devFeatureBitmap",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -98,19 +108,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "anchorStateRegistryVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -141,15 +138,15 @@
   },
   {
     "inputs": [],
-    "name": "delayedWETHVersion",
+    "name": "devFeatureBitmap",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "bytes32",
         "name": "",
-        "type": "string"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -167,19 +164,6 @@
   },
   {
     "inputs": [],
-    "name": "disputeGameFactoryVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "ethLockboxImpl",
     "outputs": [
       {
@@ -189,19 +173,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "ethLockboxVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -219,19 +190,6 @@
   },
   {
     "inputs": [],
-    "name": "l1CrossDomainMessengerVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "l1ERC721BridgeImpl",
     "outputs": [
       {
@@ -241,19 +199,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l1ERC721BridgeVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -284,19 +229,6 @@
   },
   {
     "inputs": [],
-    "name": "l1StandardBridgeVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "mipsImpl",
     "outputs": [
       {
@@ -306,19 +238,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "mipsVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -336,19 +255,6 @@
   },
   {
     "inputs": [],
-    "name": "optimismMintableERC20FactoryVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "optimismPortalImpl",
     "outputs": [
       {
@@ -362,15 +268,15 @@
   },
   {
     "inputs": [],
-    "name": "optimismPortalVersion",
+    "name": "optimismPortalInteropImpl",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "address",
         "name": "",
-        "type": "string"
+        "type": "address"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -423,19 +329,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfigVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {

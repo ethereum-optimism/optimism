@@ -35,6 +35,8 @@ contract L2CrossDomainMessenger_Constructor_Test is L2CrossDomainMessenger_TestI
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
+        assertGt(bytes(impl.version()).length, 0);
+        assertEq(impl.MESSAGE_VERSION(), 1);
     }
 }
 
@@ -46,13 +48,29 @@ contract L2CrossDomainMessenger_Initialize_Test is L2CrossDomainMessenger_TestIn
         assertEq(address(l2CrossDomainMessenger.OTHER_MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.otherMessenger()), address(l1CrossDomainMessenger));
         assertEq(address(l2CrossDomainMessenger.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
+        assertGt(bytes(l2CrossDomainMessenger.version()).length, 0);
+        assertEq(l2CrossDomainMessenger.MESSAGE_VERSION(), 1);
+        assertGt(l2CrossDomainMessenger.messageNonce(), 0);
     }
 }
 
 /// @title L2CrossDomainMessenger_SendMessage_Test
 /// @notice Tests the `sendMessage` function of the `L2CrossDomainMessenger` contract.
 contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestInit {
-    /// @notice Tests that `sendMessage` executes successfully.
+    /// @notice Tests that `sendMessage` executes successfully with various target addresses and gas limits.
+    function testFuzz_sendMessage_withValidTargetAndGasLimit_succeeds(address _target, uint32 _minGasLimit) external {
+        vm.assume(_target != address(0));
+        _minGasLimit = uint32(bound(_minGasLimit, 21000, 30_000_000));
+
+        uint256 initialNonce = l2CrossDomainMessenger.messageNonce();
+
+        vm.prank(alice);
+        l2CrossDomainMessenger.sendMessage(_target, hex"1234", _minGasLimit);
+
+        assertEq(l2CrossDomainMessenger.messageNonce(), initialNonce + 1);
+    }
+
+    /// @notice Tests that `sendMessage` executes successfully with the original test case.
     function test_sendMessage_succeeds() external {
         bytes memory xDomainCallData =
             Encoding.encodeCrossDomainMessage(l2CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff");
@@ -64,7 +82,6 @@ contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestI
             )
         );
 
-        // MessagePassed event
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
             l2ToL1MessagePasser.messageNonce(),
@@ -89,13 +106,11 @@ contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestI
         l2CrossDomainMessenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
-    /// @notice Tests that `sendMessage` can be called twice and that the nonce increments
-    ///         correctly.
+    /// @notice Tests that `sendMessage` can be called twice and that the nonce increments correctly.
     function test_sendMessage_twice_succeeds() external {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
         l2CrossDomainMessenger.sendMessage(recipient, hex"aa", uint32(500_000));
         l2CrossDomainMessenger.sendMessage(recipient, hex"aa", uint32(500_000));
-        // the nonce increments for each message sent
         assertEq(nonce + 2, l2CrossDomainMessenger.messageNonce());
     }
 }

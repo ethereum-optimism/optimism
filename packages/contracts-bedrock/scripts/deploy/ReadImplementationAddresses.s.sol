@@ -30,6 +30,7 @@ contract ReadImplementationAddressesInput is DeployOPChainOutput {
 contract ReadImplementationAddressesOutput is BaseDeployIO {
     address internal _delayedWETH;
     address internal _optimismPortal;
+    address internal _optimismPortalInterop;
     address internal _ethLockbox;
     address internal _systemConfig;
     address internal _l1CrossDomainMessenger;
@@ -44,6 +45,7 @@ contract ReadImplementationAddressesOutput is BaseDeployIO {
         require(_addr != address(0), "ReadImplementationAddressesOutput: cannot set zero address");
         if (_sel == this.delayedWETH.selector) _delayedWETH = _addr;
         else if (_sel == this.optimismPortal.selector) _optimismPortal = _addr;
+        else if (_sel == this.optimismPortalInterop.selector) _optimismPortalInterop = _addr;
         else if (_sel == this.ethLockbox.selector) _ethLockbox = _addr;
         else if (_sel == this.systemConfig.selector) _systemConfig = _addr;
         else if (_sel == this.l1CrossDomainMessenger.selector) _l1CrossDomainMessenger = _addr;
@@ -64,6 +66,13 @@ contract ReadImplementationAddressesOutput is BaseDeployIO {
     function optimismPortal() public view returns (address) {
         require(_optimismPortal != address(0), "ReadImplementationAddressesOutput: optimismPortal not set");
         return _optimismPortal;
+    }
+
+    function optimismPortalInterop() public view returns (address) {
+        require(
+            _optimismPortalInterop != address(0), "ReadImplementationAddressesOutput: optimismPortalInterop not set"
+        );
+        return _optimismPortalInterop;
     }
 
     function ethLockbox() public view returns (address) {
@@ -164,5 +173,8 @@ contract ReadImplementationAddresses is Script {
 
         address ethLockbox = _rii.opcm().implementations().ethLockboxImpl;
         _rio.set(_rio.ethLockbox.selector, ethLockbox);
+
+        address optimismPortalInterop = _rii.opcm().implementations().optimismPortalInteropImpl;
+        _rio.set(_rio.optimismPortalInterop.selector, optimismPortalInterop);
     }
 }

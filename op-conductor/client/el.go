@@ -3,9 +3,9 @@ package client
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 type ElP2PClient interface {

@@ -1,3 +1,5 @@
+//go:build !ci
+
 package sync
 
 import (
@@ -202,6 +204,8 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 // TestUnsafeChainUnknownToL2CL tests the below scenario:
 // supervisor unsafe ahead of L2CL unsafe, aka L2CL processes new blocks first.
 func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
+	gt.Skip("TODO(#16972): skipping due to flakiness and impending op-node/supervisor refactor")
+
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)

@@ -11,7 +11,6 @@ interface IL1ERC721Bridge is IERC721Bridge, IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
 
     function initVersion() external view returns (uint8);
-    function upgrade(ISystemConfig _systemConfig) external;
     function bridgeERC721(
         address _localToken,
         address _remoteToken,

@@ -25,6 +25,7 @@ import {
     IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -46,6 +47,7 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
+        bytes32 devFeatureBitmap;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -64,6 +66,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
+        IOptimismPortalInterop optimismPortalInteropImpl;
         IETHLockbox ethLockboxImpl;
         IPreimageOracle preimageOracleSingleton;
         IMIPS64 mipsSingleton;
@@ -94,6 +97,7 @@ contract DeployImplementations is Script {
         deployL1StandardBridgeImpl(output_);
         deployOptimismMintableERC20FactoryImpl(output_);
         deployOptimismPortalImpl(_input, output_);
+        deployOptimismPortalInteropImpl(_input, output_);
         deployETHLockboxImpl(output_);
         deployDelayedWETHImpl(_input, output_);
         deployPreimageOracleSingleton(_input, output_);
@@ -124,6 +128,7 @@ contract DeployImplementations is Script {
             protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
             optimismPortalImpl: address(_output.optimismPortalImpl),
+            optimismPortalInteropImpl: address(_output.optimismPortalInteropImpl),
             ethLockboxImpl: address(_output.ethLockboxImpl),
             systemConfigImpl: address(_output.systemConfigImpl),
             optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
@@ -135,7 +140,7 @@ contract DeployImplementations is Script {
             mipsImpl: address(_output.mipsSingleton)
         });
 
-        deployOPCMBPImplsContainer(_output, _blueprints, implementations);
+        deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
         deployOPCMGameTypeAdder(_output);
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
@@ -350,8 +355,6 @@ contract DeployImplementations is Script {
     // These are:
     // - FaultDisputeGame (not proxied)
     // - PermissionedDisputeGame (not proxied)
-    // - DelayedWeth (proxies only)
-    // - OptimismPortal2 (proxies only)
 
     function deployOptimismPortalImpl(Input memory _input, Output memory _output) private {
         uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
@@ -366,6 +369,21 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OptimismPortalImpl");
         _output.optimismPortalImpl = impl;
+    }
+
+    function deployOptimismPortalInteropImpl(Input memory _input, Output memory _output) private {
+        uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
+        IOptimismPortalInterop impl = IOptimismPortalInterop(
+            DeployUtils.createDeterministic({
+                _name: "OptimismPortalInterop",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOptimismPortalInterop.__constructor__, (proofMaturityDelaySeconds))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OptimismPortalInteropImpl");
+        _output.optimismPortalInteropImpl = impl;
     }
 
     function deployDelayedWETHImpl(Input memory _input, Output memory _output) private {
@@ -447,6 +465,7 @@ contract DeployImplementations is Script {
     }
 
     function deployOPCMBPImplsContainer(
+        Input memory _input,
         Output memory _output,
         IOPContractsManager.Blueprints memory _blueprints,
         IOPContractsManager.Implementations memory _implementations
@@ -457,7 +476,10 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerContractsContainer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(
+                        IOPContractsManagerContractsContainer.__constructor__,
+                        (_blueprints, _implementations, _input.devFeatureBitmap)
+                    )
                 ),
                 _salt: _salt
             })
@@ -532,6 +554,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
+        opcmImplementations.optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
         opcmImplementations.ethLockboxImpl = _implementations.ethLockboxImpl;
         opcmImplementations.systemConfigImpl = _implementations.systemConfigImpl;
         opcmImplementations.optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
@@ -553,7 +576,8 @@ contract DeployImplementations is Script {
                             _input.superchainConfigProxy,
                             _input.upgradeController, // Proxy admin owner
                             _input.challenger,
-                            _input.withdrawalDelaySeconds
+                            _input.withdrawalDelaySeconds,
+                            _input.devFeatureBitmap
                         )
                     )
                 ),

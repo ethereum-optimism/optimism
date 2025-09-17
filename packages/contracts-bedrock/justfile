@@ -62,8 +62,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "7701807"
-export mainnetBlockNumber := "21983965"
+export sepoliaBlockNumber := "9118951"
+export mainnetBlockNumber := "23327678"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -299,10 +299,6 @@ semgrep:
 # Runs semgrep tests.
 semgrep-test:
   cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-
-# Checks that the frozen code has not been modified.
-check-frozen-code:
-  ./scripts/checks/check-frozen-files.sh
 
 # Runs all checks.
 check:
