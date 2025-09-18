@@ -59,6 +59,10 @@ contract FeesDepositor_Uncategorized_Test is CommonTest {
     }
 
     function testFuzz_receive_belowThreshold_succeeds(uint256 _amount) external {
+        // Handling the fork tests scenario
+        address depositFeesRecipient =
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) ? address(ethLockbox) : address(optimismPortal2);
+        uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
         _amount = bound(_amount, 0, minDepositAmount - 1);
 
         vm.deal(address(this), _amount);
@@ -78,12 +82,15 @@ contract FeesDepositor_Uncategorized_Test is CommonTest {
 
         assertTrue(success);
         assertEq(address(feesDepositor).balance, _amount);
-        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, 0);
-        else assertEq(address(optimismPortal2).balance, 0);
+        assertEq(address(depositFeesRecipient).balance, depositFeesRecipientBalanceBefore);
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
-        _sendAmount = bound(_sendAmount, minDepositAmount, type(uint256).max);
+        // Handling the fork tests scenario case for the fork tests
+        address depositFeesRecipient =
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) ? address(ethLockbox) : address(optimismPortal2);
+        uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
+        _sendAmount = bound(_sendAmount, minDepositAmount, type(uint256).max - depositFeesRecipientBalanceBefore);
 
         vm.deal(address(this), _sendAmount);
 
@@ -103,18 +110,16 @@ contract FeesDepositor_Uncategorized_Test is CommonTest {
 
         assertTrue(success);
         assertEq(address(feesDepositor).balance, 0);
-        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, _sendAmount);
-        else assertEq(address(optimismPortal2).balance, _sendAmount);
+        assertEq(address(depositFeesRecipient).balance, depositFeesRecipientBalanceBefore + _sendAmount);
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
+        // Handling the fork tests scenario
+        address depositFeesRecipient =
+            systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX) ? address(ethLockbox) : address(optimismPortal2);
+        uint256 depositFeesRecipientBalanceBefore = depositFeesRecipient.balance;
         // First amount should not exceed minDepositAmount (so it doesn't trigger deposit)
         _firstAmount = bound(_firstAmount, 0, minDepositAmount - 1);
-
-        // Second amount should ensure total reaches threshold to trigger deposit
-        _secondAmount = bound(_secondAmount, minDepositAmount - _firstAmount, type(uint256).max - _firstAmount);
-
-        uint256 totalAmount = _firstAmount + _secondAmount;
 
         // First deposit (should not trigger portal deposit)
         vm.deal(address(this), _firstAmount);
@@ -125,7 +130,18 @@ contract FeesDepositor_Uncategorized_Test is CommonTest {
         (bool success1,) = address(feesDepositor).call{ value: _firstAmount }("");
         assertTrue(success1);
         assertEq(address(feesDepositor).balance, _firstAmount);
-        assertEq(address(ethLockbox).balance, 0);
+        assertEq(
+            address(depositFeesRecipient).balance, depositFeesRecipientBalanceBefore, "depositFeesRecipient balance 1"
+        );
+
+        // Second amount should ensure total reaches threshold to trigger deposit
+        _secondAmount = bound(
+            _secondAmount,
+            minDepositAmount - _firstAmount,
+            type(uint256).max - depositFeesRecipient.balance - _firstAmount
+        );
+
+        uint256 totalAmount = _firstAmount + _secondAmount;
 
         // Second deposit (will trigger portal deposit since total >= minDepositAmount)
         vm.deal(address(this), _secondAmount);
@@ -147,8 +163,11 @@ contract FeesDepositor_Uncategorized_Test is CommonTest {
 
         // Verify deposit occurred
         assertEq(address(feesDepositor).balance, 0);
-        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) assertEq(address(ethLockbox).balance, totalAmount);
-        else assertEq(address(optimismPortal2).balance, totalAmount);
+        assertEq(
+            address(depositFeesRecipient).balance,
+            depositFeesRecipientBalanceBefore + totalAmount,
+            "depositFeesRecipient balance 2"
+        );
     }
 
     function testFuzz_setMinDepositAmount_asOwner_succeeds(uint96 _newMinDepositAmount) external {
