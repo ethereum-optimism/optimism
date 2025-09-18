@@ -19,7 +19,6 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Configuration for a Safe's timelock guard
     struct GuardConfig {
         uint256 timelockDelay;
-        bool configured;
     }
 
     /// @notice Scheduled transaction
@@ -129,7 +128,6 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Store the configuration for this safe
         safeConfigs[callingSafe].timelockDelay = _timelockDelay;
-        safeConfigs[callingSafe].configured = true;
 
         // Initialize cancellation threshold to 1
         safeCancellationThreshold[callingSafe] = 1;
@@ -144,7 +142,7 @@ contract TimelockGuard is IGuard, ISemver {
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
         // Check if the calling safe has configuration set
-        if (safeConfigs[callingSafe].configured == false) {
+        if (safeConfigs[callingSafe].timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -210,7 +208,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that the guard has been configured for the Safe
-        if (!safeConfigs[_safe].configured) {
+        if (safeConfigs[_safe].timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -355,7 +353,7 @@ contract TimelockGuard is IGuard, ISemver {
     {
         Safe callingSafe = Safe(payable(msg.sender));
 
-        if (safeConfigs[callingSafe].configured == false) {
+        if (safeConfigs[callingSafe].timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
             // guard set, but not configured to complete the setup process.
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a

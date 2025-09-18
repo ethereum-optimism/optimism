@@ -217,14 +217,16 @@ contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_Test
     function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
         TimelockGuard.GuardConfig memory config = timelockGuard.viewTimelockGuardConfiguration(safeInstance.safe);
         assertEq(config.timelockDelay, 0);
-        assertEq(config.configured, false);
+        // configured is now determined by timelockDelay == 0
+        assertEq(config.timelockDelay == 0, true);
     }
 
     function test_viewTimelockGuardConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         TimelockGuard.GuardConfig memory config = timelockGuard.viewTimelockGuardConfiguration(safeInstance.safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
-        assertEq(config.configured, true);
+        // configured is now determined by timelockDelay != 0
+        assertEq(config.timelockDelay != 0, true);
     }
 }
 
@@ -239,7 +241,8 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         TimelockGuard.GuardConfig memory config = timelockGuard.viewTimelockGuardConfiguration(safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
-        assertEq(config.configured, true);
+        // configured is now determined by timelockDelay != 0
+        assertEq(config.timelockDelay != 0, true);
     }
 
     function test_configureTimelockGuard_revertsIfGuardNotEnabled_reverts() external {
@@ -264,7 +267,8 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         TimelockGuard.GuardConfig memory config = timelockGuard.viewTimelockGuardConfiguration(safe);
         assertEq(config.timelockDelay, ONE_YEAR);
-        assertEq(config.configured, true);
+        // configured is now determined by timelockDelay != 0
+        assertEq(config.timelockDelay != 0, true);
     }
 
     function test_configureTimelockGuard_allowsReconfiguration_succeeds() external {
@@ -319,7 +323,8 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
 
         // Configuration should be cleared
         assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay, 0);
-        assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).configured, false);
+        // configured is now determined by timelockDelay == 0
+        assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay == 0, true);
         // Ensure cancellation threshold is reset to 0
         assertEq(timelockGuard.cancellationThreshold(safe), 0);
 
