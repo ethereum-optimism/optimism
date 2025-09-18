@@ -54,7 +54,6 @@ just acceptance-test "" base
 
 # Run against Kurtosis devnets (requires Docker + Kurtosis)
 just acceptance-test simple base
-just acceptance-test isthmus isthmus
 just acceptance-test interop interop
 ```
 
@@ -106,7 +105,7 @@ For integration testing against realistic networks:
 
 1. **Automated approach** (rebuilds devnet each time):
    ```bash
-   just acceptance-test isthmus isthmus
+   just acceptance-test interop interop
    ```
 
 2. **Manual approach** (once-off)
