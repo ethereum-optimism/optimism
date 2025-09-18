@@ -48,9 +48,15 @@ func TestSyncTesterELSync(gt *testing.T) {
 	sys.L2CL2.IsP2PConnected(sys.L2CL)
 
 	// Reaches EL Sync Target and advances
-	sys.L2CL2.Reached(types.LocalUnsafe, 40, 30)
+	target = uint64(40)
+	sys.L2CL2.Reached(types.LocalUnsafe, target, 30)
 
 	session, err = syncTesterClient.GetSession(ctx)
 	require.NoError(err)
 	require.False(session.ELSyncEnabled)
+
+	// Check CL2 view is consistent with read only EL
+	unsafeHead := sys.L2CL2.SyncStatus().UnsafeL2
+	require.GreaterOrEqual(unsafeHead.Number, target)
+	require.Equal(sys.L2EL.BlockRefByNumber(unsafeHead.Number).Hash, unsafeHead.Hash)
 }
