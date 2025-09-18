@@ -17,7 +17,6 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 
     // Events
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
-    event GuardCleared(Safe indexed safe);
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
@@ -206,7 +205,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     /// @notice Helper to clear the TimelockGuard configuration for a Safe
     function _clearGuard(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.clearTimelockGuard, ()), Enum.Operation.Call
+            _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.configureTimelockGuard, (0)), Enum.Operation.Call
         );
     }
 }
@@ -302,50 +301,30 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         _configureGuard(safeInstance, newDelay);
         assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay, newDelay);
     }
-}
 
-/// @title TimelockGuard_ClearTimelockGuard_Test
-/// @notice Tests for clearTimelockGuard function
-contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
-    function test_clearTimelockGuard_succeeds() external {
+    function test_configureTimelockGuard_clearConfiguration_succeeds() external {
         // First configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay, TIMELOCK_DELAY);
 
-        // Disable the guard
-        _disableGuard(safeInstance);
-
-        // Clear should succeed and emit event
+        // Configure timelock delay to 0 should succeed and emit event
         vm.expectEmit(true, true, true, true);
-        emit GuardCleared(safe);
+        emit GuardConfigured(safe, 0);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(0);
 
-        _clearGuard(safeInstance);
-
-        // Configuration should be cleared
+        // Timelock delay should be set to 0
         assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay, 0);
-        // configured is now determined by timelockDelay == 0
-        assertEq(timelockGuard.viewTimelockGuardConfiguration(safe).timelockDelay == 0, true);
-        // Ensure cancellation threshold is reset to 0
+        // Cancellation threshold should be reset to 0
         assertEq(timelockGuard.cancellationThreshold(safe), 0);
-
-        // TODO: Check that any active challenge is cancelled
     }
 
-    function test_clearTimelockGuard_revertsIfGuardStillEnabled_reverts() external {
-        // First configure the guard
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-
-        // Try to clear without disabling guard first - should revert
-        vm.expectRevert(TimelockGuard.TimelockGuard_GuardStillEnabled.selector);
+    function test_configureTimelockGuard_notConfigured_succeeds() external {
+        // Try to clear - should succeed even if not yet configured
+        vm.expectEmit(true, true, true, true);
+        emit GuardConfigured(safe, 0);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.clearTimelockGuard();
-    }
-
-    function test_clearTimelockGuard_revertsIfNotConfigured_reverts() external {
-        // Try to clear - should revert because not configured
-        vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
-        vm.prank(address(safeInstance.safe));
-        timelockGuard.clearTimelockGuard();
+        timelockGuard.configureTimelockGuard(0);
     }
 }
 
