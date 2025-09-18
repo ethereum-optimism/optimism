@@ -30,7 +30,17 @@ contract L2Genesis_TestInit is Test {
     }
 
     function testProxyAdmin() internal view {
+        // Verify owner in the proxy
         assertEq(input.opChainProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+
+        // Verify owner in the implementation to catch storage shifting issues
+        // The implementation is stored in the code namespace
+        address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN);
+        assertEq(
+            input.opChainProxyAdminOwner,
+            IProxyAdmin(proxyAdminImpl).owner(),
+            "ProxyAdmin implementation owner should match expected"
+        );
     }
 
     function testPredeploys() internal view {
@@ -83,7 +93,14 @@ contract L2Genesis_TestInit is Test {
 
     function testGovernance() internal view {
         IGovernanceToken token = IGovernanceToken(payable(Predeploys.GOVERNANCE_TOKEN));
+
+        // Verify owner (existing check)
         assertEq(token.owner(), input.governanceTokenOwner);
+
+        // Verify name and symbol to catch storage shifting issues
+        // These should match the values hardcoded in GovernanceToken constructor
+        assertEq(token.name(), "Optimism", "GovernanceToken name should be 'Optimism'");
+        assertEq(token.symbol(), "OP", "GovernanceToken symbol should be 'OP'");
     }
 
     function testFactories() internal view {

@@ -48,7 +48,7 @@ contract L2ToL1MessagePasser is ISemver {
     );
 
     /// @notice Emitted when the balance of this contract is burned.
-    /// @param amount Amount of ETh that was burned.
+    /// @param amount Amount of ETH that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
     /// @custom:semver 1.1.3

@@ -520,6 +520,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
     /// @notice Returns whether the custom gas token feature is enabled.
     /// @return bool True if the custom gas token feature is enabled, false otherwise.
+    /// @custom:legacy
     function isCustomGasToken() public view returns (bool) {
         return isFeatureEnabled[Features.CUSTOM_GAS_TOKEN];
     }
