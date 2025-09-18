@@ -167,8 +167,13 @@ contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestIn
         vm.deal(actor, 1_000 ether);
         vm.startPrank(actor, actor);
 
-        performStepAndResolveGame();
+        // Set up and perform the step
+        setupGameForStep();
+        performStep();
+        assertEq(gameProxy.claimDataLen(), 9);
 
+        // Resolve the game and check that the expected actor countered the root claim
+        resolveGame();
         assertEq(uint256(gameProxy.status()), uint256(GameStatus.CHALLENGER_WINS));
         assertEq(gameProxy.resolvedAt().raw(), block.timestamp);
         (, address counteredBy,,,,,) = gameProxy.claimData(0);
@@ -177,7 +182,30 @@ contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestIn
         vm.stopPrank();
     }
 
-    function performStepAndResolveGame() internal {
+    /// @notice Tests that step reverts for unauthorized addresses.
+    function test_step_notAuthorized_reverts(address _unauthorized) internal {
+        vm.assume(_unauthorized != PROPOSER && _unauthorized != CHALLENGER);
+        vm.deal(_unauthorized, 1_000 ether);
+        vm.deal(CHALLENGER, 1_000 ether);
+
+        // Set up for the step using an authorized actor
+        vm.startPrank(CHALLENGER, CHALLENGER);
+        setupGameForStep();
+        vm.stopPrank();
+
+        // Perform step with the unauthorized actor
+        vm.startPrank(_unauthorized, _unauthorized);
+        vm.expectRevert(BadAuth.selector);
+        performStep();
+
+        // Game should still be in progress, leaf claim should be missing
+        assertEq(uint256(gameProxy.status()), uint256(GameStatus.CHALLENGER_WINS));
+        assertEq(gameProxy.claimDataLen(), 8);
+
+        vm.stopPrank();
+    }
+
+    function setupGameForStep() internal {
         // Make claims all the way down the tree.
         (,,,, Claim disputed,,) = gameProxy.claimData(0);
         gameProxy.attack{ value: _getRequiredBond(0) }(disputed, 0, _dummyClaim());
@@ -196,12 +224,16 @@ contract PermissionedDisputeGameV2_Step_Test is PermissionedDisputeGameV2_TestIn
         (,,,, disputed,,) = gameProxy.claimData(7);
         gameProxy.attack{ value: _getRequiredBond(7) }(disputed, 7, _dummyClaim());
 
-        // Verify game state before step
+        // Verify game state and add local data
         assertEq(uint256(gameProxy.status()), uint256(GameStatus.IN_PROGRESS));
-
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
-        gameProxy.step(8, true, absolutePrestateData, hex"");
+    }
 
+    function performStep() internal {
+        gameProxy.step(8, true, absolutePrestateData, hex"");
+    }
+
+    function resolveGame() internal {
         vm.warp(block.timestamp + gameProxy.maxClockDuration().raw() + 1);
         gameProxy.resolveClaim(8, 0);
         gameProxy.resolveClaim(7, 0);
