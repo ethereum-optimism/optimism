@@ -36,9 +36,9 @@ interface IFeeVaultConstructor {
     ///       it is an abstract contract, and on the scripts it gets an empty constructor automatically generated that
     ///       makes the `interfaces-check` script fail.
     function __constructor__(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        Types.WithdrawalNetwork _withdrawalNetwork
+        address __recipient,
+        uint256 __minWithdrawalAmount,
+        Types.WithdrawalNetwork __withdrawalNetwork
     )
         external;
 }

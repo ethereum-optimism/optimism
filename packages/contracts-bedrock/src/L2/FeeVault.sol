@@ -95,13 +95,14 @@ abstract contract FeeVault {
         Types.WithdrawalNetwork oldWithdrawalNetwork, Types.WithdrawalNetwork newWithdrawalNetwork
     );
 
-    /// @param _recipient           Wallet that will receive the fees.
-    /// @param _minWithdrawalAmount Minimum balance for withdrawals.
-    /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
-    constructor(address _recipient, uint256 _minWithdrawalAmount, Types.WithdrawalNetwork _withdrawalNetwork) {
-        RECIPIENT = _recipient;
-        MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
-        WITHDRAWAL_NETWORK = _withdrawalNetwork;
+    /// @dev Using `__` on params to avoid warnings related to shadowing (even though there is no shadowing)
+    /// @param __recipient           Wallet that will receive the fees.
+    /// @param __minWithdrawalAmount Minimum balance for withdrawals.
+    /// @param __withdrawalNetwork   Network which the recipient will receive fees on.
+    constructor(address __recipient, uint256 __minWithdrawalAmount, Types.WithdrawalNetwork __withdrawalNetwork) {
+        RECIPIENT = __recipient;
+        MIN_WITHDRAWAL_AMOUNT = __minWithdrawalAmount;
+        WITHDRAWAL_NETWORK = __withdrawalNetwork;
     }
 
     /// @notice Allow the contract to receive ETH.
