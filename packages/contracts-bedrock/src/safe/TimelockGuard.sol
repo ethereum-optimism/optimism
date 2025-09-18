@@ -403,9 +403,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Called by the Safe after executing a transaction
     /// @dev Implementation of IGuard interface
     function checkAfterExecution(bytes32, bool) external override {
-        // TODO: Implement
-        // extract txHash
-        // resetCancellationThreshold(_safe, txHash)
-        // scheduledTransactions[_safe][txHash].executed = true
+        // Do nothing
+        // In order to follow the Checks-Effects-Interactions pattern,
+        // all checks and effects should be done in the checkTransaction function.
     }
 }
