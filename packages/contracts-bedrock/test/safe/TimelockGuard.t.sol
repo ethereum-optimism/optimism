@@ -5,11 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { StorageAccessible } from "safe-contracts/common/StorageAccessible.sol";
 import { ExecTransactionParams } from "src/safe/Types.sol";
 import "test/safe-tools/SafeTestTools.sol";
-
-import { console2 as console } from "forge-std/console2.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
@@ -140,7 +137,10 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Helper to generate everything needed to schedule a transaction for the current nonce
-    function _getTxWithSignaturesAndHash(SafeInstance memory _safe, ExecTransactionParams memory _params)
+    function _getTxWithSignaturesAndHash(
+        SafeInstance memory _safe,
+        ExecTransactionParams memory _params
+    )
         internal
         view
         returns (bytes32, bytes memory)
@@ -286,7 +286,9 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
             refundReceiver: payable(address(0))
         });
         (, bytes memory signatures) = _getTxWithSignaturesAndHash(safeInstance, reconfigureGuardTxParams);
-        timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), reconfigureGuardTxParams, signatures);
+        timelockGuard.scheduleTransaction(
+            safeInstance.safe, safeInstance.safe.nonce(), reconfigureGuardTxParams, signatures
+        );
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
         // Reconfigure with different delay
@@ -566,6 +568,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 /// @notice Tests for checkTransaction function
 contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     using stdStorage for StdStorage;
+
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
@@ -582,13 +585,17 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         // Fast forward past the timelock delay
         vm.warp(block.timestamp + TIMELOCK_DELAY);
         // Increment the nonce, as would normally happen when the transaction is executed
-        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(nonce+1)));
+        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(nonce + 1)));
 
         // increment the cancellation threshold so that we can test that it is reset
         uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
             address(safeInstance.safe)
         ).find();
-        vm.store(address(timelockGuard), bytes32(slot), bytes32(uint256(timelockGuard.cancellationThreshold(safeInstance.safe)+1)));
+        vm.store(
+            address(timelockGuard),
+            bytes32(slot),
+            bytes32(uint256(timelockGuard.cancellationThreshold(safeInstance.safe) + 1))
+        );
 
         vm.prank(address(safeInstance.safe));
         vm.expectEmit(true, true, true, true);
@@ -625,7 +632,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         timelockGuard.scheduleTransaction(safeInstance.safe, safeInstance.safe.nonce(), dummyTxParams, signatures);
 
         // Increment the nonce, as would normally happen when the transaction is executed
-        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(safeInstance.safe.nonce()+1)));
+        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(safeInstance.safe.nonce() + 1)));
 
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionNotReady.selector);
         vm.prank(address(safeInstance.safe));
@@ -664,7 +671,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         // Fast forward past the timelock delay
         vm.warp(block.timestamp + TIMELOCK_DELAY);
         // Increment the nonce, as would normally happen when the transaction is executed
-        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(safeInstance.safe.nonce()+1)));
+        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(safeInstance.safe.nonce() + 1)));
 
         // Should revert because transaction was cancelled
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyCancelled.selector);
@@ -706,15 +713,4 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             address(0)
         );
     }
-}
-
-/// @title TimelockGuard_Integration_Test
-/// @notice Integration tests for TimelockGuard with full Safe execution flow
-contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
-// TODO: Add end-to-end tests that verify the complete flow:
-// - Schedule a transaction
-// - Wait for delay to pass
-// - Execute transaction through Safe.execTransaction()
-// - Verify that the target contract was actually called
-// - Test various failure scenarios in the full execution context
 }
