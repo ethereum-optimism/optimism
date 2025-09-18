@@ -297,9 +297,11 @@ func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	}
 	// dummyChainCfg without Prague scheduled
 	dummyChainCfg := &params.ChainConfig{
-		BlobScheduleConfig: &params.BlobScheduleConfig{
-			Cancun: params.DefaultCancunBlobConfig,
-		},
+		LondonBlock:        big.NewInt(0),
+		CancunTime:         ptr(uint64(0)),
+		BlobScheduleConfig: params.DefaultBlobSchedule,
 	}
 	return eip4844.CalcBlobFee(dummyChainCfg, header)
 }
+
+func ptr[T any](t T) *T { return &t }
