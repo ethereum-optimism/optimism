@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -18,22 +20,37 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
+//go:embed version.json
+var versionJSON []byte
+
+type VersionConfig struct {
+	Forge     string            `json:"forge"`
+	Checksums map[string]string `json:"checksums"`
+}
+
 // StandardVersion is the Foundry version that op-deployer will download if it's not found on PATH.
-const StandardVersion = "v1.3.1"
+var StandardVersion string
+
+// checksums map the OS/architecture to the expected checksum of the binary.
+var checksums = map[string]string{}
+
+func init() {
+	var versionConfig VersionConfig
+	if err := json.Unmarshal(versionJSON, &versionConfig); err != nil {
+		panic(err)
+	}
+	StandardVersion = versionConfig.Forge
+	checksums = versionConfig.Checksums
+}
 
 // maxDownloadSize is the maximum size of the Foundry tarball that will be downloaded. It's typically ~60MB so
 // this should be more than enough.
 const maxDownloadSize = 100 * 1024 * 1024
 
-// checksums map the OS/architecture to the expected checksum of the binary.
-var checksums = map[string]string{
-	"darwin_amd64": "0b74d7efa2fe020c58dafbec5377617c1830f4ce8de26c0bbe8b57334984aab6",
-	"darwin_arm64": "e3c880d28eae2a150f3f01a674b3cd6a130d6d3f16685740cd1e16538b58a4a5",
-	"linux_amd64":  "baad3e1b06d6f310d210c93e95258a03d923fe610f8d0742138f2245f94abd7c",
-	"linux_arm64":  "ac5f88c0f6c1e5ed09c035a9f4405f74b996ea8a701d7150dc0184c18dd09f11",
-}
-
 func getOS() string {
+	if os.Getenv("FORGE_ENV") == "alpine" {
+		return "alpine"
+	}
 	sysOS := runtime.GOOS
 	if runtime.GOOS == "windows" {
 		sysOS = "win32"
@@ -252,11 +269,11 @@ func getForgeVersion(ctx context.Context, forgePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("exec %s --version failed: %w", forgePath, err)
 	}
-	// Example output: "forge Version: 1.3.1-v1.3.1" -> capture "v1.3.1"
-	re := regexp.MustCompile(`(?mi)^\s*forge\s+version:\s+\d+\.\d+\.\d+-\s*(v\d+\.\d+\.\d+)\s*$`)
+	// Example output: "forge Version: 1.3.1-v1.3.1" -> capture initial "1.3.1"
+	re := regexp.MustCompile(`(\d+\.\d+\.\d+)`)
 	m := re.FindStringSubmatch(string(out))
-	if len(m) != 2 {
+	if len(m) < 2 {
 		return "", fmt.Errorf("could not parse version tag from: %q", out)
 	}
-	return m[1], nil
+	return "v" + m[1], nil
 }

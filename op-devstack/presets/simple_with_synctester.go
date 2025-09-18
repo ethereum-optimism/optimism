@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type SimpleWithSyncTester struct {
@@ -19,8 +18,8 @@ type SimpleWithSyncTester struct {
 	L2CL2          *dsl.L2CLNode
 }
 
-func WithSimpleWithSyncTester(fcus eth.FCUState) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}, fcus))
+func WithSimpleWithSyncTester() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}))
 }
 
 func NewSimpleWithSyncTester(t devtest.T) *SimpleWithSyncTester {
