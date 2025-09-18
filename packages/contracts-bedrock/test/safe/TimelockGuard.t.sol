@@ -707,3 +707,14 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         );
     }
 }
+
+/// @title TimelockGuard_Integration_Test
+/// @notice Integration tests for TimelockGuard with full Safe execution flow
+contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
+// TODO: Add end-to-end tests that verify the complete flow:
+// - Schedule a transaction
+// - Wait for delay to pass
+// - Execute transaction through Safe.execTransaction()
+// - Verify that the target contract was actually called
+// - Test various failure scenarios in the full execution context
+}
