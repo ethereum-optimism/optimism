@@ -31,22 +31,39 @@ func GoStructToABITuple(structType reflect.Type, tupleName string) (abi.Type, er
 }
 
 func GoTypeToABIType(goType reflect.Type) (string, error) {
+	// handle pointers by dereferencing
+	if goType.Kind() == reflect.Ptr {
+		goType = goType.Elem()
+	}
+
 	// standard go types
 	switch goType.Kind() {
 	case reflect.Slice:
 		elemType := goType.Elem()
 
-		// Special case: []byte -> "bytes"
+		// special case: []byte -> "bytes"
 		if elemType.Kind() == reflect.Uint8 {
 			return "bytes", nil
 		}
 
-		// Recursive: []T -> "T[]"
+		// recursive: []T -> "T[]"
 		elemABI, err := GoTypeToABIType(elemType)
 		if err != nil {
 			return "", fmt.Errorf("unsupported slice element type: %w", err)
 		}
 		return elemABI + "[]", nil
+
+	case reflect.Array:
+		elemType := goType.Elem()
+		arrayLen := goType.Len()
+
+		// recursive: [N]T -> "T[N]"
+		elemABI, err := GoTypeToABIType(elemType)
+		if err != nil {
+			return "", fmt.Errorf("unsupported array element type: %w", err)
+		}
+		return fmt.Sprintf("%s[%d]", elemABI, arrayLen), nil
+
 	case reflect.String:
 		return "string", nil
 	case reflect.Bool:
@@ -57,7 +74,7 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 		return "uint16", nil
 	case reflect.Uint32:
 		return "uint32", nil
-	case reflect.Uint64:
+	case reflect.Uint64, reflect.Uint:
 		return "uint64", nil
 	case reflect.Int8:
 		return "int8", nil
@@ -65,7 +82,7 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 		return "int16", nil
 	case reflect.Int32:
 		return "int32", nil
-	case reflect.Int64:
+	case reflect.Int64, reflect.Int:
 		return "int64", nil
 	}
 

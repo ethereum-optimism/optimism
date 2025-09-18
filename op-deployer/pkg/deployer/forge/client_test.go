@@ -20,6 +20,7 @@ type ioStruct struct {
 	ID    uint8
 	Data  []byte
 	Slice []uint32
+	Array [3]uint64
 }
 
 func TestMinimalSources(t *testing.T) {
@@ -53,6 +54,7 @@ func TestMinimalSources(t *testing.T) {
 		ID:    1,
 		Data:  []byte{0x01, 0x02, 0x03, 0x04},
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
 	out, changed, err := caller(ctx, in)
 	require.NoError(t, err)
@@ -61,6 +63,7 @@ func TestMinimalSources(t *testing.T) {
 		ID:    2,
 		Data:  in.Data,
 		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
 }
 
@@ -106,22 +109,25 @@ func TestScriptCaller(t *testing.T) {
 		ID:    1,
 		Data:  []byte{0x01, 0x02},
 		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
 	out, recompiled, err := caller(context.Background(), in)
 	require.NoError(t, err)
 	require.True(t, recompiled)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
-		Data:  []byte{0x01, 0x02},
-		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Data:  in.Data,
+		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
 	out, recompiled, err = caller(context.Background(), in)
 	require.NoError(t, err)
 	require.False(t, recompiled)
 	require.EqualValues(t, ioStruct{
 		ID:    2,
-		Data:  []byte{0x01, 0x02},
-		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Data:  in.Data,
+		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
 }
 

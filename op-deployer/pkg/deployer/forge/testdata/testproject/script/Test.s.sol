@@ -6,16 +6,18 @@ contract TestScript {
         uint8 id;
         bytes data;
         uint32[] slice;
+        uint256[3] array;
     }
 
     struct Output {
         uint8 id;
         bytes data;
         uint32[] slice;
+        uint256[3] array;
     }
 
     function _run(Input memory _input) public pure returns (Output memory) {
-        return Output({ id: 0x02, data: _input.data, slice: _input.slice });
+        return Output({ id: 0x02, data: _input.data, slice: _input.slice, array: _input.array });
     }
 
     function runEncoded(bytes memory _input) public pure returns (bytes memory) {
