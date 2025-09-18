@@ -27,6 +27,7 @@ type EngineController interface {
 	// RequestForkchoiceUpdate requests a forkchoice update
 	RequestForkchoiceUpdate(ctx context.Context)
 	RequestPendingSafeUpdate(ctx context.Context)
+	StartBuildAsync(ctx context.Context, attrs *derive.AttributesWithParent) event.Promise0[error]
 }
 
 type L2 interface {
@@ -184,11 +185,18 @@ func (eq *AttributesHandler) onPendingSafeUpdate(ctx context.Context, x engine.P
 	} else {
 		// if there already exists a block we can just consolidate it
 		if x.PendingSafe.Number < x.Unsafe.Number {
-			eq.consolidateNextSafeAttributes(eq.attributes, x.PendingSafe)
+			eq.consolidateNextSafeAttributes(ctx, eq.attributes, x.PendingSafe)
 		} else {
 			// append to tip otherwise
 			eq.sentAttributes = true
-			eq.emitter.Emit(ctx, engine.BuildStartEvent{Attributes: eq.attributes})
+			p := eq.engineController.StartBuildAsync(ctx, eq.attributes)
+			if err := p.Await(ctx); err != nil {
+				// context cancelled
+				return
+			}
+			if err, _ := p.Result(); err != nil {
+				eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
+			}
 		}
 	}
 }
@@ -196,8 +204,8 @@ func (eq *AttributesHandler) onPendingSafeUpdate(ctx context.Context, x engine.P
 // consolidateNextSafeAttributes tries to match the next safe attributes against the existing unsafe chain,
 // to avoid extra processing or unnecessary unwinding of the chain.
 // However, if the attributes do not match, they will be forced to process the attributes.
-func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.AttributesWithParent, onto eth.L2BlockRef) {
-	ctx, cancel := context.WithTimeout(eq.ctx, time.Second*10)
+func (eq *AttributesHandler) consolidateNextSafeAttributes(ctx context.Context, attributes *derive.AttributesWithParent, onto eth.L2BlockRef) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	envelope, err := eq.l2.PayloadByNumber(ctx, attributes.Parent.Number+1)
@@ -220,7 +228,14 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 
 		eq.sentAttributes = true
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
-		eq.emitter.Emit(eq.ctx, engine.BuildStartEvent{Attributes: attributes})
+		p := eq.engineController.StartBuildAsync(ctx, attributes)
+		if err := p.Await(ctx); err != nil {
+			// context cancelled
+			return
+		}
+		if err, _ := p.Result(); err != nil {
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
+		}
 		return
 	} else {
 		ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)

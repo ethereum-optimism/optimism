@@ -15,6 +15,7 @@ import (
 
 type EngineController interface {
 	RequestPendingSafeUpdate(context.Context)
+	StartBuildAsync(context.Context, *derive.AttributesWithParent) event.Promise0[error]
 }
 
 // ProgramDeriver expresses how engine and derivation events are
@@ -67,9 +68,10 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// triggering a single PendingSafeUpdateEvent or InvalidPayloadAttributesEvent,
 		// to continue derivation from.
 		d.Emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
-		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
-		// and no temporary-error retry to perform on block processing.
-		d.Emitter.Emit(ctx, engine.BuildStartEvent{Attributes: x.Attributes})
+		// Start building asynchronously; errors are surfaced via emitted events
+		// by the engine controller. The driver self-drains, so no Await is required
+		// to make progress in single-thread mode.
+		_ = d.engineController.StartBuildAsync(ctx, x.Attributes)
 	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -161,22 +163,10 @@ func (f *FakeAsyncGossip) Start() {
 
 var _ AsyncGossiper = (*FakeAsyncGossip)(nil)
 
-type fakeEngController struct{}
-
-func (fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {}
-
-func (fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-}
-
-func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-}
-
-func (fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {}
-
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	seq, deps := createSequencer(logger)
+	seq, deps := NewTestSequencer(logger, &attributes.MockEngineController{})
 	emitter := &testutils.MockEmitter{}
 	seq.AttachEmitter(emitter)
 
@@ -265,7 +255,8 @@ func TestSequencer_StartStop(t *testing.T) {
 // instead of trying to re-insert the block.
 func TestSequencer_StaleBuild(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	seq, deps := createSequencer(logger)
+	controller := &attributes.MockEngineController{}
+	seq, deps := NewTestSequencer(logger, controller)
 
 	testClock := clock.NewSimpleClock()
 	seq.timeNow = testClock.Now
@@ -312,16 +303,16 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.l1OriginSelector.l1OriginFn = func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		return l1Origin, nil
 	}
+
 	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
+	controller.On("StartBuildAsync", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sentAttributes = args.Get(1).(*derive.AttributesWithParent)
+		require.Equal(t, head, sentAttributes.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(sentAttributes.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, sentAttributes.DerivedFrom)
 	})
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	controller.AssertExpectations(t)
 	emitter.AssertExpectations(t)
 
 	// Now report the block was started
@@ -466,18 +457,19 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.True(t, ok, "ready to sequence again")
 	// start, not seal, when continuing to sequence.
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		buildEv, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, newHead, buildEv.Attributes.Parent, "build on the new L2 head")
+	controller.On("StartBuildAsync", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		attributes := args.Get(1).(*derive.AttributesWithParent)
+		require.Equal(t, newHead, attributes.Parent, "build on the new L2 head")
 	})
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	controller.AssertExpectations(t)
 	emitter.AssertExpectations(t)
 }
 
 func TestSequencerBuild(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	seq, deps := createSequencer(logger)
+	controller := &attributes.MockEngineController{}
+	seq, deps := NewTestSequencer(logger, controller)
 	testClock := clock.NewSimpleClock()
 	seq.timeNow = testClock.Now
 	testClock.SetTime(30000)
@@ -520,16 +512,16 @@ func TestSequencerBuild(t *testing.T) {
 		return l1Origin, nil
 	}
 	var sentAttributes *derive.AttributesWithParent
-	emitter.ExpectOnceRun(func(ev event.Event) {
-		x, ok := ev.(engine.BuildStartEvent)
-		require.True(t, ok)
-		require.Equal(t, head, x.Attributes.Parent)
-		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(x.Attributes.Attributes.Timestamp))
-		require.Equal(t, eth.L1BlockRef{}, x.Attributes.DerivedFrom)
-		sentAttributes = x.Attributes
+	controller.On("StartBuildAsync", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		sentAttributes = args.Get(1).(*derive.AttributesWithParent)
+		require.Equal(t, head, sentAttributes.Parent)
+		require.Equal(t, head.Time+deps.cfg.BlockTime, uint64(sentAttributes.Attributes.Timestamp))
+		require.Equal(t, eth.L1BlockRef{}, sentAttributes.DerivedFrom)
 	})
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
+	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
+	controller.AssertExpectations(t)
 
 	// pretend we are already 150ms into the block-window when starting building
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
@@ -635,7 +627,7 @@ func TestSequencerBuild(t *testing.T) {
 
 func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
-	seq, deps := createSequencer(logger)
+	seq, deps := NewTestSequencer(logger, &attributes.MockEngineController{})
 	testClock := clock.NewSimpleClock()
 	seq.timeNow = testClock.Now
 	testClock.SetTime(30000)
@@ -692,7 +684,7 @@ type sequencerTestDeps struct {
 	asyncGossip      *FakeAsyncGossip
 }
 
-func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
+func NewTestSequencer(log log.Logger, eng attributes.EngineController) (*Sequencer, *sequencerTestDeps) {
 	rng := rand.New(rand.NewSource(123))
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -733,7 +725,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	}
 	seq := NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
+		deps.asyncGossip, metrics.NoopMetrics, eng)
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
 	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
 		return eth.L2BlockRef{

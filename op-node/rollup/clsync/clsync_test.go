@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -30,6 +31,9 @@ func (f *fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2
 func (f *fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 }
 func (f *fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {
+}
+func (f *fakeEngController) StartBuildAsync(ctx context.Context, attrs *derive.AttributesWithParent) event.Promise0[error] {
+	return nil
 }
 
 func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {

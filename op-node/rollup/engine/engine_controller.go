@@ -79,7 +79,6 @@ type EngineController struct {
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
-
 	// TODO(#16917) Remove Event System Refactor Comments
 	// Event system fields (moved from EngDeriver)
 	ctx     context.Context
@@ -699,9 +698,13 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 			d.PromoteSafe(ctx, x.Ref, x.Source)
 		}
 	case InteropInvalidateBlockEvent:
-		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
-	case BuildStartEvent:
-		d.onBuildStart(ctx, x)
+		p := d.StartBuildAsync(ctx, x.Attributes)
+		if err := p.Await(ctx); err != nil {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
+		}
+		if err, _ := p.Result(); err != nil {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
+		}
 	case BuildStartedEvent:
 		d.onBuildStarted(ctx, x)
 	case BuildSealEvent:

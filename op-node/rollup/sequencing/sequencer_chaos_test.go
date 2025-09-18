@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -55,46 +56,59 @@ func (c *ChaoticEngine) clockRandomIncrement(minIncr, maxIncr time.Duration) {
 	c.clock.Set(c.clock.Now().Add(incr))
 }
 
+func (c *ChaoticEngine) StartBuildAsync(ctx context.Context, attrs *derive.AttributesWithParent) (event.Promise0[error], error) {
+	c.currentPayloadInfo = eth.PayloadInfo{}
+	// init new payload building ID
+	_, err := c.rng.Read(c.currentPayloadInfo.ID[:])
+	require.NoError(c.t, err)
+	c.currentPayloadInfo.Timestamp = uint64(attrs.Attributes.Timestamp)
+
+	// Move forward time, to simulate time consumption
+	c.clockRandomIncrement(0, time.Millisecond*300)
+	if c.rng.Intn(10) == 0 { // 10% chance the block start is slow
+		c.clockRandomIncrement(0, time.Second*2)
+	}
+
+	promise, r := event.NewPromise0[error]()
+
+	p := c.rng.Float32()
+	switch {
+	case p < 0.05: // 5%
+		err = errors.New("mock start invalid error")
+		r.Reject(err)
+		c.emitter.Emit(ctx, engine.BuildInvalidEvent{
+			Attributes: attrs,
+			Err:        err,
+		})
+	case p < 0.07: // 2 %
+		err = errors.New("mock reset on start error")
+		r.Reject(err)
+		c.emitter.Emit(ctx, rollup.ResetEvent{
+			Err: err,
+		})
+	case p < 0.12: // 5%
+		err = errors.New("mock temp start error")
+		r.Reject(err)
+		c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+			Err: err,
+		})
+	default:
+		c.currentAttributes = attrs
+		c.emitter.Emit(ctx, engine.BuildStartedEvent{
+			Info:         c.currentPayloadInfo,
+			BuildStarted: c.clock.Now(),
+			Parent:       attrs.Parent,
+			Concluding:   false,
+			DerivedFrom:  eth.L1BlockRef{},
+		})
+	}
+	r.Resolve()
+
+	return promise, nil
+}
+
 func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
-	case engine.BuildStartEvent:
-		c.currentPayloadInfo = eth.PayloadInfo{}
-		// init new payload building ID
-		_, err := c.rng.Read(c.currentPayloadInfo.ID[:])
-		require.NoError(c.t, err)
-		c.currentPayloadInfo.Timestamp = uint64(x.Attributes.Attributes.Timestamp)
-
-		// Move forward time, to simulate time consumption
-		c.clockRandomIncrement(0, time.Millisecond*300)
-		if c.rng.Intn(10) == 0 { // 10% chance the block start is slow
-			c.clockRandomIncrement(0, time.Second*2)
-		}
-
-		p := c.rng.Float32()
-		switch {
-		case p < 0.05: // 5%
-			c.emitter.Emit(ctx, engine.BuildInvalidEvent{
-				Attributes: x.Attributes,
-				Err:        errors.New("mock start invalid error"),
-			})
-		case p < 0.07: // 2 %
-			c.emitter.Emit(ctx, rollup.ResetEvent{
-				Err: errors.New("mock reset on start error"),
-			})
-		case p < 0.12: // 5%
-			c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
-				Err: errors.New("mock temp start error"),
-			})
-		default:
-			c.currentAttributes = x.Attributes
-			c.emitter.Emit(ctx, engine.BuildStartedEvent{
-				Info:         c.currentPayloadInfo,
-				BuildStarted: c.clock.Now(),
-				Parent:       x.Attributes.Parent,
-				Concluding:   false,
-				DerivedFrom:  eth.L1BlockRef{},
-			})
-		}
 	case rollup.EngineTemporaryErrorEvent:
 		c.clockRandomIncrement(0, time.Millisecond*100)
 		c.currentPayloadInfo = eth.PayloadInfo{}
@@ -251,7 +265,8 @@ func TestSequencerChaos(t *testing.T) {
 func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 	// Lower the log level to inspect the mocked errors and event-traces.
 	logger := testlog.Logger(t, log.LevelCrit)
-	seq, deps := createSequencer(logger)
+	controller := &attributes.MockEngineController{}
+	seq, deps := NewTestSequencer(logger, controller)
 	testClock := clock.NewSimpleClock()
 	testClock.SetTime(deps.cfg.Genesis.L2Time)
 	seq.timeNow = testClock.Now

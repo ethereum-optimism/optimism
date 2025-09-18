@@ -3,7 +3,9 @@ package attributes
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -27,4 +29,9 @@ func (m *MockEngineController) RequestForkchoiceUpdate(ctx context.Context) {
 
 func (m *MockEngineController) RequestPendingSafeUpdate(ctx context.Context) {
 	m.Mock.MethodCalled("RequestPendingSafeUpdate", ctx)
+}
+
+func (m *MockEngineController) StartBuildAsync(ctx context.Context, attrs *derive.AttributesWithParent) event.Promise0[error] {
+	m.Mock.MethodCalled("StartBuildAsync", ctx, attrs)
+	return nil
 }

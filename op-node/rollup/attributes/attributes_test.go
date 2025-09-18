@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -266,11 +267,12 @@ func TestAttributesHandler(t *testing.T) {
 			// The payloadA1 is going to get reorged out in favor of attrA1Alt (turns into payloadA1Alt)
 			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 			// fail consolidation, perform force reorg
-			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
+			engDeriver.On("StartBuildAsync", mock.Anything, attrA1Alt).Return(nil, nil).Once()
 			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 				PendingSafe: refA0,
 				Unsafe:      refA1,
 			})
+			engDeriver.AssertExpectations(t)
 			l2.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
@@ -360,7 +362,7 @@ func TestAttributesHandler(t *testing.T) {
 		require.True(t, attrA1Alt.Concluding, "must be concluding attributes")
 
 		// attrA1Alt will fit right on top of A0
-		emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
+		engDeriver.On("StartBuildAsync", mock.Anything, attrA1Alt).Return(nil, nil).Once()
 		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA0,
 			Unsafe:      refA0,

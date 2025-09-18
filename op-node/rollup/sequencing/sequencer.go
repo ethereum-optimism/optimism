@@ -189,7 +189,7 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.PayloadSuccessEvent:
 		d.onPayloadSuccess(x)
 	case SequencerActionEvent:
-		d.onSequencerAction(x)
+		d.onSequencerAction(ctx, x)
 	case rollup.EngineTemporaryErrorEvent:
 		d.onEngineTemporaryError(x)
 	case rollup.ResetEvent:
@@ -345,7 +345,7 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	d.asyncGossip.Clear()
 }
 
-func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
+func (d *Sequencer) onSequencerAction(ctx context.Context, ev SequencerActionEvent) {
 	d.log.Debug("Sequencer action")
 	payload := d.asyncGossip.Get()
 	if payload != nil {
@@ -387,7 +387,7 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 			})
 		} else if d.latest == (BuildingState{}) {
 			// If we have not started building anything, start building.
-			d.startBuildingBlock()
+			d.startBuildingBlock(ctx)
 		}
 	}
 }
@@ -483,8 +483,7 @@ func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
-func (d *Sequencer) startBuildingBlock() {
-	ctx := d.ctx
+func (d *Sequencer) startBuildingBlock(ctx context.Context) {
 	l2Head := d.latestHead
 
 	// If we do not have data to know what to build on, then request a forkchoice update
@@ -601,9 +600,17 @@ func (d *Sequencer) startBuildingBlock() {
 	// If we get a forkchoice update that conflicts, we will have to abort building.
 	d.latest = BuildingState{Onto: l2Head}
 
-	d.emitter.Emit(d.ctx, engine.BuildStartEvent{
-		Attributes: withParent,
-	})
+	p := d.eng.StartBuildAsync(ctx, withParent)
+	if err := p.Await(ctx); err != nil {
+		// context cancelled
+		return
+	}
+	if err, _ := p.Result(); err != nil {
+		d.log.Error("Failed to start building block", "err", err)
+		d.emitter.Emit(d.ctx, rollup.CriticalErrorEvent{Err: err})
+		return
+	}
+	// Not awaiting the result as we don't need it.
 }
 
 func (d *Sequencer) NextAction() (t time.Time, ok bool) {
