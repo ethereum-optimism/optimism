@@ -184,12 +184,13 @@ abstract contract OPContractsManagerBase {
     /// This method should be used as the salt mixer when deploying contracts when there is no user
     /// provided salt mixer. This protects against a situation where multiple chains with the same
     /// L2 chain ID exist, which would otherwise result in address collisions.
-    function reusableSaltMixer(OPContractsManager.OpChainConfig memory _opChainConfig)
+    /// @param _systemConfigProxy The SystemConfig contract found in the OpChainConfig of the chain being deployed to.
+    function reusableSaltMixer(ISystemConfig _systemConfigProxy)
         internal
         pure
         returns (string memory)
     {
-        return string(bytes.concat(bytes32(uint256(uint160(address(_opChainConfig.systemConfigProxy))))));
+        return string(bytes.concat(bytes32(uint256(uint160(address(_systemConfigProxy))))));
     }
 
     /// @notice Deterministically deploys a new proxy contract owned by the provided ProxyAdmin.
@@ -565,18 +566,13 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
         return outputs;
     }
 
-    /// @notice Updates the prestate hash for a given game type while keeping all other game
+    /// @notice Updates the prestate hash for all deployed dispute games while keeping all other game
     ///         parameters exactly the same. Currently requires deploying a new implementation
     ///         as there is no way to update the prestate on an existing implementation.
     /// @param _prestateUpdateInputs The new prestate hash to use.
-    function updatePrestate(OPContractsManager.OpChainConfig[] memory _prestateUpdateInputs) public {
+    function updatePrestate(OPContractsManager.UpdatePrestateInput[] memory _prestateUpdateInputs) public {
         // Loop through each chain and prestate hash
         for (uint256 i = 0; i < _prestateUpdateInputs.length; i++) {
-            // Ensure that the prestate is not the zero hash.
-            if (Claim.unwrap(_prestateUpdateInputs[i].absolutePrestate) == bytes32(0)) {
-                revert OPContractsManager.PrestateRequired();
-            }
-
             // Grab the DisputeGameFactory.
             IDisputeGameFactory dgf =
                 IDisputeGameFactory(_prestateUpdateInputs[i].systemConfigProxy.disputeGameFactory());
@@ -621,13 +617,24 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     revert OPContractsManagerGameTypeAdder_MixedGameTypes();
                 }
 
+                // Select the prestate to use
+                Claim prestate = gameType.raw() == GameTypes.CANNON_KONA.raw()
+                    || gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+                    ? _prestateUpdateInputs[i].cannonKonaPrestate
+                    : _prestateUpdateInputs[i].cannonPrestate;
+
+                // Ensure that the prestate is not the zero hash.
+                if (Claim.unwrap(prestate) == bytes32(0)) {
+                    revert OPContractsManager.PrestateRequired();
+                }
+
                 // Grab the existing game constructor params and init bond.
                 IFaultDisputeGame.GameConstructorParams memory gameParams = getGameConstructorParams(existingGame);
 
                 // Create a new game input with the updated prestate.
                 OPContractsManager.AddGameInput memory input = OPContractsManager.AddGameInput({
-                    disputeAbsolutePrestate: _prestateUpdateInputs[i].absolutePrestate,
-                    saltMixer: reusableSaltMixer(_prestateUpdateInputs[i]),
+                    disputeAbsolutePrestate: prestate,
+                    saltMixer: reusableSaltMixer(_prestateUpdateInputs[i].systemConfigProxy),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
                     proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
                     delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
@@ -732,7 +739,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     deployProxy({
                         _l2ChainId: _l2ChainId,
                         _proxyAdmin: _opChainConfig.proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_opChainConfig),
+                        _saltMixer: reusableSaltMixer(_opChainConfig.systemConfigProxy),
                         _contractName: "ETHLockbox-U16a"
                     })
                 );
@@ -913,7 +920,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     bps.permissionedDisputeGame1,
                     bps.permissionedDisputeGame2,
-                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionedDisputeGame"),
+                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionedDisputeGame"),
                     encodePermissionedFDGConstructor(params, proposer, challenger)
                 )
             );
@@ -922,7 +929,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     bps.permissionlessDisputeGame1,
                     bps.permissionlessDisputeGame2,
-                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionlessDisputeGame"),
+                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionlessDisputeGame"),
                     encodePermissionlessFDGConstructor(params)
                 )
             );
@@ -1471,7 +1478,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             deployProxy({
                 _l2ChainId: block.timestamp,
                 _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "ETHLockbox-Interop"
             })
         );
@@ -1499,7 +1506,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             deployProxy({
                 _l2ChainId: block.timestamp,
                 _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "DisputeGameFactory-Interop"
             })
         );
@@ -1517,7 +1524,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             deployProxy({
                 _l2ChainId: block.timestamp,
                 _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "AnchorStateRegistry-Interop"
             })
         );
@@ -1576,7 +1583,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     deployProxy({
                         _l2ChainId: block.timestamp,
                         _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                         _contractName: "DelayedWETH-Interop-Permissioned"
                     })
                 )
@@ -1600,7 +1607,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     blueprints().superPermissionedDisputeGame1,
                     blueprints().superPermissionedDisputeGame2,
                     computeSalt(
-                        block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
+                        block.timestamp, reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy), "SuperPermissionedDisputeGame"
                     ),
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
@@ -1636,7 +1643,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     deployProxy({
                         _l2ChainId: block.timestamp,
                         _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                         _contractName: "DelayedWETH-Interop-Permissionless"
                     })
                 )
@@ -1655,7 +1662,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     blueprints().superPermissionlessDisputeGame1,
                     blueprints().superPermissionlessDisputeGame2,
-                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
+                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy), "SuperFaultDisputeGame"),
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
@@ -1777,6 +1784,14 @@ contract OPContractsManager is ISemver {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
+    }
+
+    /// @notice The input required to identify a chain for updating prestates
+    struct UpdatePrestateInput {
+        ISystemConfig systemConfigProxy;
+        IProxyAdmin proxyAdmin;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     struct AddGameInput {
@@ -1975,9 +1990,9 @@ contract OPContractsManager is ISemver {
         return abi.decode(returnData, (AddGameOutput[]));
     }
 
-    /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
-    /// @param _prestateUpdateInputs The new prestate hash to use
-    function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
+    /// @notice Updates the prestate hash for dispute games while keeping all other parameters the same
+    /// @param _prestateUpdateInputs The new prestate hashes to use
+    function updatePrestate(UpdatePrestateInput[] memory _prestateUpdateInputs) public {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.updatePrestate, (_prestateUpdateInputs));
