@@ -100,12 +100,13 @@ func TestSystemConfigMarshaling(t *testing.T) {
 		Scalar:            Bytes32{0x7, 0x8, 0x9},
 		OperatorFeeParams: Bytes32{0x1, 0x2, 0x3},
 		GasLimit:          1234,
+		MinBaseFee:        0,
 		// Leave EIP1559 params empty to prove that the
 		// zero value is sent.
 	}
 	j, err := json.Marshal(sysConfig)
 	require.NoError(t, err)
-	require.Equal(t, `{"batcherAddr":"0x4100000000000000000000000000000000000000","overhead":"0x0405060000000000000000000000000000000000000000000000000000000000","scalar":"0x0708090000000000000000000000000000000000000000000000000000000000","gasLimit":1234,"eip1559Params":"0x0000000000000000","operatorFeeParams":"0x0102030000000000000000000000000000000000000000000000000000000000"}`, string(j))
+	require.Equal(t, `{"batcherAddr":"0x4100000000000000000000000000000000000000","overhead":"0x0405060000000000000000000000000000000000000000000000000000000000","scalar":"0x0708090000000000000000000000000000000000000000000000000000000000","gasLimit":1234,"eip1559Params":"0x0000000000000000","operatorFeeParams":"0x0102030000000000000000000000000000000000000000000000000000000000","minBaseFee":0}`, string(j))
 	sysConfig.MarshalPreHolocene = true
 	j, err = json.Marshal(sysConfig)
 	require.NoError(t, err)

@@ -7,7 +7,6 @@ project_name: op-deployer
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
 
 builds:
@@ -26,8 +25,6 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64
-      - goos: linux
-        goarch: arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - -X main.GitCommit={{ .FullCommit }}
@@ -44,20 +41,6 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-
-dockers:
-  - id: default
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.default
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:{{ .Tag }}"
-  - id: minimal
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.minimal
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:{{ .Tag }}-minimal"
 
 changelog:
   sort: asc

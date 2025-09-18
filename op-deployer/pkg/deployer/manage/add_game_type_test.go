@@ -12,6 +12,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/lmittmann/w3"
+	"github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum/go-ethereum/superchain"
@@ -23,6 +25,44 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// getAddressesOnchain reads addresses from on-chain contracts (using chainConfig to get entrypoints)
+func getAddressesOnchain(ctx context.Context, rpcURL string, chainConfig *superchain.ChainConfig) (opChainProxyAdmin, delayedWETHProxy common.Address, err error) {
+	var proxyAdminFn = w3.MustNewFunc("proxyAdmin()", "address")
+	var gameImplsFn = w3.MustNewFunc("gameImpls(uint32)", "address")
+	var wethFn = w3.MustNewFunc("weth()", "address")
+
+	client, err := w3.Dial(rpcURL)
+	if err != nil {
+		return common.Address{}, common.Address{}, fmt.Errorf("failed to connect to RPC: %w", err)
+	}
+	defer client.Close()
+
+	systemConfigProxy := *chainConfig.Addresses.SystemConfigProxy
+	disputeGameFactoryProxy := *chainConfig.Addresses.DisputeGameFactoryProxy
+
+	// Read OPChainProxyAdmin from systemConfigProxy.proxyAdmin()
+	err = client.CallCtx(ctx, eth.CallFunc(systemConfigProxy, proxyAdminFn).Returns(&opChainProxyAdmin))
+	if err != nil {
+		return common.Address{}, common.Address{}, fmt.Errorf("failed to read proxyAdmin from SystemConfig: %w", err)
+	}
+
+	// Read permissionless dispute game address from disputeGameFactoryProxy.gameImpls(0)
+	// GameTypes.CANNON = 0 (permissionless)
+	var permissionlessDisputeGame common.Address
+	err = client.CallCtx(ctx, eth.CallFunc(disputeGameFactoryProxy, gameImplsFn, uint32(0)).Returns(&permissionlessDisputeGame))
+	if err != nil {
+		return common.Address{}, common.Address{}, fmt.Errorf("failed to read gameImpls(0) from DisputeGameFactory: %w", err)
+	}
+
+	// Read DelayedWETHProxy from permissionlessDisputeGame.weth()
+	err = client.CallCtx(ctx, eth.CallFunc(permissionlessDisputeGame, wethFn).Returns(&delayedWETHProxy))
+	if err != nil {
+		return common.Address{}, common.Address{}, fmt.Errorf("failed to read weth from permissionless dispute game: %w", err)
+	}
+
+	return opChainProxyAdmin, delayedWETHProxy, nil
+}
+
 func TestAddGameType(t *testing.T) {
 	rpcURL := os.Getenv("SEPOLIA_RPC_URL")
 	require.NotEmpty(t, rpcURL, "must specify RPC url via SEPOLIA_RPC_URL env var")
@@ -31,10 +71,16 @@ func TestAddGameType(t *testing.T) {
 	v200SepoliaAddrs := validation.StandardVersionsSepolia[standard.ContractsV200Tag]
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	supChain, err := superchain.GetChain(11155420)
+	chain, err := superchain.GetChain(11155420)
 	require.NoError(t, err)
-	supChainConfig, err := supChain.Config()
+	chainConfig, err := chain.Config()
 	require.NoError(t, err)
+
+	readCtx, readCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer readCancel()
+
+	opChainProxyAdmin, delayedWETHProxy, err := getAddressesOnchain(readCtx, rpcURL, chainConfig)
+	require.NoError(t, err, "failed to read addresses from chain")
 
 	cfg := AddGameTypeConfig{
 		L1RPCUrl:         rpcURL,
@@ -42,9 +88,9 @@ func TestAddGameType(t *testing.T) {
 		ArtifactsLocator: afacts,
 		SaltMixer:        "foo",
 		// The values below were pulled from the Superchain Registry for OP Sepolia.
-		SystemConfigProxy:       *supChainConfig.Addresses.SystemConfigProxy,
-		OPChainProxyAdmin:       *supChainConfig.Addresses.ProxyAdmin,
-		DelayedWETHProxy:        *supChainConfig.Addresses.DelayedWETHProxy,
+		SystemConfigProxy:       *chainConfig.Addresses.SystemConfigProxy,
+		OPChainProxyAdmin:       opChainProxyAdmin,
+		DelayedWETHProxy:        delayedWETHProxy,
 		DisputeGameType:         999,
 		DisputeAbsolutePrestate: common.HexToHash("0x1234"),
 		DisputeMaxGameDepth:     big.NewInt(73),
@@ -54,14 +100,15 @@ func TestAddGameType(t *testing.T) {
 		InitialBond:             big.NewInt(1),
 		VM:                      common.Address(*v200SepoliaAddrs.Mips.Address),
 		Permissionless:          false,
-		L1ProxyAdminOwner:       *supChainConfig.Roles.ProxyAdminOwner,
+		L1ProxyAdminOwner:       *chainConfig.Roles.ProxyAdminOwner,
 		OPCMImpl:                common.Address(*v200SepoliaAddrs.OPContractsManager.Address),
 		CacheDir:                testCacheDir,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	output, broadcasts, err := AddGameType(ctx, cfg)
+	addCtx, addCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer addCancel()
+
+	output, broadcasts, err := AddGameType(addCtx, cfg)
 	require.NoError(t, err)
 
 	require.Equal(t, 1, len(broadcasts))
