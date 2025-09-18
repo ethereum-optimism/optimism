@@ -161,23 +161,13 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 			// Pattern: <ContractName>_Harness
 			continue
 		} else if len(contractParts) == 3 && contractParts[2] == "Test" {
-			// Check for uncategorized test pattern
-			if contractParts[1] == "Uncategorized" || contractParts[1] == "Unclassified" {
-				// Pattern: <ContractName>_Uncategorized_Test
-				continue
-			} else {
-				// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
-				functionName := contractParts[1]
-				if !checkFunctionExists(artifact, functionName) {
-					// Convert to camelCase for error message
-					camelCaseFunctionName := strings.ToLower(functionName[:1]) + functionName[1:]
-					errors = append(errors, fmt.Errorf("contract '%s': function '%s' does not exist in source contract", contractName, camelCaseFunctionName))
-				}
-			}
+			errors = append(errors, checkTestMethodName(artifact, contractName, contractParts[1], "")...)
 		} else if len(contractParts) == 3 && contractParts[2] == "Harness" {
 			// Pattern: <ContractName>_<Descriptor>_Harness
 			// (e.g., OPContractsManager_Upgrade_Harness)
 			continue
+		} else if len(contractParts) == 4 && contractParts[3] == "Test" {
+			errors = append(errors, checkTestMethodName(artifact, contractName, contractParts[1], contractParts[2])...)
 		} else {
 			// Invalid naming pattern
 			errors = append(errors, fmt.Errorf("contract '%s': invalid naming pattern. Expected patterns: <ContractName>_TestInit, <ContractName>_<FunctionName>_Test, or <ContractName>_Uncategorized_Test", contractName))
@@ -185,6 +175,21 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 	}
 
 	return errors
+}
+
+func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, featureEnabledName string) []error {
+	// Check for uncategorized test pattern
+	if functionName == "Uncategorized" || functionName == "Unclassified" {
+		// Pattern: <ContractName>_Uncategorized_Test
+		return nil
+	}
+	// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
+	if !checkFunctionExists(artifact, functionName) {
+		// Convert to camelCase for error message
+		camelCaseFunctionName := strings.ToLower(functionName[:1]) + functionName[1:]
+		return []error{fmt.Errorf("contract '%s': function '%s' does not exist in source contract", contractName, camelCaseFunctionName)}
+	}
+	return nil
 }
 
 // Artifact and path validation helpers

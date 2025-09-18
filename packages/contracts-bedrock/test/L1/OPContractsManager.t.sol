@@ -730,7 +730,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
 /// @title OPContractsManager_AddGameTypeCannonKonaEnabled_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract with CANNON_KONA enabled.
-contract OPContractsManager_AddGameTypeCannonKonaEnabled_Test is OPContractsManager_AddGameType_Test {
+contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsManager_AddGameType_Test {
     function setUp() public override {
         setDevFeatureEnabled(DevFeatures.CANNON_KONA);
         super.setUp();
