@@ -39,7 +39,6 @@ interface Interface {
     error TimelockGuard_TransactionNotScheduled();
 
     event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event GuardCleared(address indexed safe);
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event TransactionCancelled(address indexed safe, bytes32 indexed txId);
     event TransactionScheduled(address indexed safe, bytes32 indexed txId, uint256 when);
@@ -62,7 +61,6 @@ interface Interface {
         bytes memory,
         address
     ) external;
-    function clearTimelockGuard() external;
     function configureTimelockGuard(uint256 _timelockDelay) external;
     function getScheduledTransaction(address _safe, bytes32 _txHash)
         external

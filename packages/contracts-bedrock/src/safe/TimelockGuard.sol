@@ -43,9 +43,6 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for when Safe is not configured for this guard
     error TimelockGuard_GuardNotConfigured();
 
-    /// @notice Error for when attempt to clear guard while it is still enabled for the Safe
-    error TimelockGuard_GuardStillEnabled();
-
     /// @notice Error for invalid timelock delay
     error TimelockGuard_InvalidTimelockDelay();
 
@@ -63,9 +60,6 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
-
-    /// @notice Emitted when a Safe clears the guard configuration
-    event GuardCleared(Safe indexed safe);
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
@@ -113,48 +107,33 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST set the caller as a Safe
     /// @dev MUST take timelock_delay as a parameter and store it as related to the Safe
     /// @dev MUST emit a GuardConfigured event with at least timelock_delay as a parameter
-    /// @param _timelockDelay The timelock delay in seconds
+    /// @dev If _timelockDelay is 0, clears the configuration for the Safe
+    /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
     function configureTimelockGuard(uint256 _timelockDelay) external {
         Safe callingSafe = Safe(payable(msg.sender));
-        // Validate timelock delay - must be non-zero and not longer than 1 year
-        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
-            revert TimelockGuard_InvalidTimelockDelay();
-        }
 
         // Check that this guard is enabled on the calling Safe
         if (!_isGuardEnabled(callingSafe)) {
             revert TimelockGuard_GuardNotEnabled();
         }
 
+        // Validate timelock delay - must not be longer than 1 year
+        if (_timelockDelay > 365 days) {
+            revert TimelockGuard_InvalidTimelockDelay();
+        }
+
         // Store the configuration for this safe
         safeConfigs[callingSafe].timelockDelay = _timelockDelay;
 
-        // Initialize cancellation threshold to 1
-        safeCancellationThreshold[callingSafe] = 1;
-
         emit GuardConfigured(callingSafe, _timelockDelay);
-    }
 
-    /// @notice Remove the timelock guard configuration by a previously enabled Safe
-    /// @dev MUST revert if the contract is not enabled as a guard for the Safe
-    /// @dev MUST erase the existing timelock_delay data related to the calling Safe
-    /// @dev MUST emit a GuardCleared event
-    function clearTimelockGuard() external {
-        Safe callingSafe = Safe(payable(msg.sender));
-        // Check if the calling safe has configuration set
-        if (safeConfigs[callingSafe].timelockDelay == 0) {
-            revert TimelockGuard_GuardNotConfigured();
+        // If timelock delay is 0, ensure the cancellation threshold is deleted
+        if (_timelockDelay == 0) {
+            delete safeCancellationThreshold[callingSafe];
+        } else {
+            // Initialize cancellation threshold to 1
+            safeCancellationThreshold[callingSafe] = 1;
         }
-
-        // Check that this guard is NOT enabled on the calling Safe
-        if (_isGuardEnabled(callingSafe)) {
-            revert TimelockGuard_GuardStillEnabled();
-        }
-
-        // Erase the configuration data for this safe
-        delete safeConfigs[callingSafe];
-
-        emit GuardCleared(callingSafe);
     }
 
     /// @notice Returns the cancellation threshold for a given safe
