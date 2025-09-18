@@ -40,7 +40,7 @@ func createTxMgr(ctx *cli.Context, logger log.Logger, rpcUrlFlag string) (*txmgr
 	txMgrConfig.L1RPCURL = ctx.String(rpcUrlFlag)
 	txMgrConfig.ReceiptQueryInterval = time.Second
 
-	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, txMgrConfig)
+	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, txMgrConfig, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}

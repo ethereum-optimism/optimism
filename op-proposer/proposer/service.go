@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
+	"github.com/ethereum/go-ethereum/beacon/params"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -102,7 +103,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	if err := ps.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
-	if err := ps.initTxManager(cfg); err != nil {
+	if err := ps.initTxManager(cfg, nil); err != nil { // the l1ChainConfig is only needed to price blob txs
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
 	ps.initBalanceMonitor(cfg)
@@ -175,8 +176,8 @@ func (ps *ProposerService) initBalanceMonitor(cfg *CLIConfig) {
 	}
 }
 
-func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
-	txManager, err := txmgr.NewSimpleTxManager("proposer", ps.Log, ps.Metrics, cfg.TxMgrConfig)
+func (ps *ProposerService) initTxManager(cfg *CLIConfig, l1ChainConfig *params.ChainConfig) error {
+	txManager, err := txmgr.NewSimpleTxManager("proposer", ps.Log, ps.Metrics, cfg.TxMgrConfig, nil)
 	if err != nil {
 		return err
 	}

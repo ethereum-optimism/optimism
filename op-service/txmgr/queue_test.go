@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -312,7 +313,7 @@ func TestQueue_Send_MaxPendingMetrics(t *testing.T) {
 	conf.Backend = backend
 	conf.NetworkTimeout = 1 * time.Second
 	conf.ChainID = big.NewInt(1)
-	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelDebug), &metrics, conf)
+	mgr, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelDebug), &metrics, conf, params.MergedTestChainConfig)
 	require.NoError(t, err)
 
 	// Construct queue with maxPending limit, mocks and fakes

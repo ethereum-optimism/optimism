@@ -129,7 +129,7 @@ func (ds *DripExecutorService) initBalanceMonitor(cfg *CLIConfig) {
 }
 
 func (ds *DripExecutorService) initTxManager(cfg *CLIConfig) error {
-	txManager, err := txmgr.NewSimpleTxManager("dripper", ds.Log, ds.Metrics, cfg.TxMgrConfig)
+	txManager, err := txmgr.NewSimpleTxManager("dripper", ds.Log, ds.Metrics, cfg.TxMgrConfig, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return err
 	}

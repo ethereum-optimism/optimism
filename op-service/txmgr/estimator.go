@@ -6,11 +6,12 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/params"
 )
 
-type GasPriceEstimatorFn func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error)
+type GasPriceEstimatorFn func(ctx context.Context, backend ETHBackend, chainCfg *params.ChainConfig) (*big.Int, *big.Int, *big.Int, error)
 
-func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
+func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend, chainCfg *params.ChainConfig) (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := backend.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, nil, nil, err
@@ -26,7 +27,7 @@ func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend) (*big.I
 
 	var blobFee *big.Int
 	if head.ExcessBlobGas != nil {
-		blobFee = eth.CalcBlobFeeDefault(head)
+		blobFee = eth.CalcBlobFeeDefault(head, chainCfg)
 	}
 
 	return tip, head.BaseFee, blobFee, nil

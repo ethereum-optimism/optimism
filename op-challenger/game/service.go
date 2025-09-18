@@ -129,7 +129,7 @@ func (s *Service) initClaimants(cfg *config.Config) {
 }
 
 func (s *Service) initTxManager(ctx context.Context, cfg *config.Config) error {
-	txMgr, err := txmgr.NewSimpleTxManager("challenger", s.logger, s.metrics, cfg.TxMgrConfig)
+	txMgr, err := txmgr.NewSimpleTxManager("challenger", s.logger, s.metrics, cfg.TxMgrConfig, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return fmt.Errorf("failed to create the transaction manager: %w", err)
 	}

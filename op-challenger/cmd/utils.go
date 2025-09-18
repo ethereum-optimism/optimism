@@ -86,7 +86,7 @@ func newClientsFromCLI(ctx *cli.Context) (*batching.MultiCaller, txmgr.TxManager
 
 	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
-	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, txMgrConfig)
+	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, txMgrConfig, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}

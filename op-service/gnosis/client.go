@@ -129,7 +129,7 @@ func NewGnosisClient(lgr log.Logger, rpcUrl string, privateKeys []string, safeAd
 	boundContract := bind.NewBoundContract(safeAddress, safeABI, ethClient, ethClient, ethClient)
 
 	// Create the transaction manager
-	txMgr, err := txmgr.NewSimpleTxManager("gnosis-safe", lgr, &metrics.NoopTxMetrics{}, txMgrCfg)
+	txMgr, err := txmgr.NewSimpleTxManager("gnosis-safe", lgr, &metrics.NoopTxMetrics{}, txMgrCfg, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction manager: %w", err)
 	}

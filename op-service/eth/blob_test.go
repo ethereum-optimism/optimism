@@ -5,8 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -296,18 +294,8 @@ func TestExtraneousData(t *testing.T) {
 	}
 }
 
-// TestCalcBlobFeeDefault ensures that the best-effort implementation of CalcBlobFeeDefault
-// works as expected. In particular, this test will quickly fail and help detect any changes
-// made to the internals of the upstream eip4844.CalcBlobFee function, on which
-// CalcBlobFeeDefault relies on with certain assumptions.
-func TestCalcBlobFeeDefault(t *testing.T) {
-	header := &types.Header{
-		ExcessBlobGas: ptr(uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction)),
-	}
-	cancunBlobFee := CalcBlobFeeDefault(header)
+func TestCalcBlobFeeCancun(t *testing.T) {
+	ebg := uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction)
+	cancunBlobFee := CalcBlobFeeCancun(ebg)
 	require.Equal(t, big.NewInt(485165195), cancunBlobFee)
-
-	header.RequestsHash = &(common.Hash{})
-	pragueBlobFee := CalcBlobFeeDefault(header)
-	require.Equal(t, big.NewInt(617436), pragueBlobFee)
 }

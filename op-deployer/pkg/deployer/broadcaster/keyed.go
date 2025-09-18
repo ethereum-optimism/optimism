@@ -78,6 +78,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		cfg.Logger,
 		&metrics.NoopTxMetrics{},
 		mgrCfg,
+		nil, // the l1ChainConfig is only needed to price blob txs
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx manager: %w", err)

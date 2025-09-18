@@ -995,7 +995,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 func TestManagerErrsOnZeroCLIConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, CLIConfig{}, nil)
 	require.Error(t, err)
 }
 
@@ -1008,7 +1008,7 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 		NumConfirmations: 0,
 	}
 
-	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, &cfg)
+	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, &cfg, nil)
 	require.Error(t, err)
 }
 
@@ -1266,7 +1266,7 @@ func TestIncreaseGasPrice(t *testing.T) {
 		{
 			name: "supports extension through custom estimator",
 			run: func(t *testing.T) {
-				estimator := func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
+				estimator := func(ctx context.Context, backend ETHBackend, chainCfg *params.ChainConfig) (*big.Int, *big.Int, *big.Int, error) {
 					return big.NewInt(100), big.NewInt(3000), big.NewInt(100), nil
 				}
 				_, newTx, err := doGasPriceIncrease(t, 70, 2000, 80, 2100, estimator)

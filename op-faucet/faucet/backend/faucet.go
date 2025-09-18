@@ -43,7 +43,7 @@ func FaucetFromConfig(logger log.Logger, m metrics.Metricer, fID ftypes.FaucetID
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup tx manager config: %w", err)
 	}
-	txMgr, err := txmgr.NewSimpleTxManagerFromConfig(string(fID), logger, m, txCfg)
+	txMgr, err := txmgr.NewSimpleTxManagerFromConfig(string(fID), logger, m, txCfg, nil) // the l1ChainConfig is only needed to price blob txs
 	if err != nil {
 		return nil, fmt.Errorf("failed to start tx manager: %w", err)
 	}

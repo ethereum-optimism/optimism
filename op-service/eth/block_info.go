@@ -62,7 +62,7 @@ func (b blockInfo) BlobBaseFee() *big.Int {
 	if ebg == nil {
 		return nil
 	}
-	return CalcBlobFeeDefault(b.Header())
+	return CalcBlobFeeCancun(*ebg) // TODO use eth.CalcBlobFeeDefault and pass in the l1 chain config
 }
 
 func (b blockInfo) HeaderRLP() ([]byte, error) {
@@ -128,7 +128,7 @@ func (h *headerBlockInfo) BlobBaseFee() *big.Int {
 	if h.header.ExcessBlobGas == nil {
 		return nil
 	}
-	return CalcBlobFeeDefault(h.header)
+	return CalcBlobFeeCancun(*h.header.ExcessBlobGas) // TODO use eth.CalcBlobFeeDefault and pass in the l1 chain config
 }
 
 func (h *headerBlockInfo) ExcessBlobGas() *uint64 {

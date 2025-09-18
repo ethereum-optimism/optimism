@@ -28,6 +28,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/slices"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	opgethparams "github.com/ethereum/go-ethereum/params"
 )
 
 var ErrAlreadyStopped = errors.New("already stopped")
@@ -56,6 +57,7 @@ type BatcherService struct {
 	Log              log.Logger
 	Metrics          metrics.Metricer
 	L1Client         *ethclient.Client
+	L1ChainConfig    *opgethparams.ChainConfig
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        txmgr.TxManager
 	AltDA            *altda.DAClient
@@ -165,7 +167,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	if err := bs.initTxManager(cfg); err != nil {
+	if err := bs.initTxManager(cfg, bs.L1ChainConfig); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
 	// must be init before driver and channel config
@@ -198,7 +200,6 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 		return fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
 	bs.L1Client = l1Client
-
 	var endpointProvider dial.L2EndpointProvider
 	if len(cfg.RollupRpc) > 1 && len(cfg.L2EthRpc) > 1 {
 		provider, err := dial.NewActiveL2EndpointProvider(ctx, cfg.L2EthRpc, cfg.RollupRpc, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
@@ -336,8 +337,8 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initTxManager(cfg *CLIConfig) error {
-	txManager, err := txmgr.NewSimpleTxManager("batcher", bs.Log, bs.Metrics, cfg.TxMgrConfig)
+func (bs *BatcherService) initTxManager(cfg *CLIConfig, l1ChainConfig *opgethparams.ChainConfig) error {
+	txManager, err := txmgr.NewSimpleTxManager("batcher", bs.Log, bs.Metrics, cfg.TxMgrConfig, l1ChainConfig.BlobScheduleConfig)
 	if err != nil {
 		return err
 	}

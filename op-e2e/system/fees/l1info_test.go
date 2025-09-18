@@ -171,7 +171,7 @@ func TestL1InfoContract(t *testing.T) {
 			l1blocks[h].BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 			l1blocks[h].BaseFeeScalar = scalars.BaseFeeScalar
 			if excess := b.ExcessBlobGas(); excess != nil {
-				l1blocks[h].BlobBaseFee = eth.CalcBlobFeeDefault(b.Header())
+				l1blocks[h].BlobBaseFee = eth.CalcBlobFeeCancun(*excess) // TODO use eth.CalcBlobFeeDefault and pass in the l1 chain config
 			} else {
 				l1blocks[h].BlobBaseFee = big.NewInt(1)
 			}

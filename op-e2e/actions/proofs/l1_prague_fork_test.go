@@ -92,7 +92,7 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		checkL1BlockBlobBaseFee := func(t actionsHelpers.StatefulTesting, l2Block eth.L2BlockRef) {
 			l1BlockID := l2Block.L1Origin
 			l1BlockHeader := miner.L1Chain().GetHeaderByHash(l1BlockID.Hash)
-			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader)
+			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader, env.Sd.L1Cfg.Config.BlobScheduleConfig)
 			upstreamExpectedBbf := eip4844.CalcBlobFee(env.Sd.L1Cfg.Config, l1BlockHeader)
 			require.Equal(t, expectedBbf.Uint64(), upstreamExpectedBbf.Uint64(), "expected blob base fee should match upstream calculation")
 			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})

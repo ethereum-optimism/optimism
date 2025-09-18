@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
@@ -139,6 +140,8 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
+	chainCfg *params.ChainConfig
+
 	backend             ETHBackend
 	l                   log.Logger
 	metr                metrics.TxMetricer
@@ -153,21 +156,21 @@ type SimpleTxManager struct {
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*SimpleTxManager, error) {
+func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig, chainCfg *params.ChainConfig) (*SimpleTxManager, error) {
 	conf, err := NewConfig(cfg, l)
 	if err != nil {
 		return nil, err
 	}
-	return NewSimpleTxManagerFromConfig(name, l, m, conf)
+	return NewSimpleTxManagerFromConfig(name, l, m, conf, chainCfg)
 }
 
 // NewSimpleTxManagerFromConfig initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetricer, conf *Config) (*SimpleTxManager, error) {
+func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetricer, conf *Config, chainCfg *params.ChainConfig) (*SimpleTxManager, error) {
 	if err := conf.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	return &SimpleTxManager{
+	txmgr := SimpleTxManager{
 		chainID:             conf.ChainID,
 		name:                name,
 		cfg:                 conf,
@@ -175,7 +178,10 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		l:                   l.New("service", name),
 		metr:                m,
 		gasPriceEstimatorFn: conf.GasPriceEstimatorFn,
-	}, nil
+		chainCfg:            chainCfg,
+	}
+
+	return &txmgr, nil
 }
 
 func (m *SimpleTxManager) ChainID() eth.ChainID {
@@ -816,7 +822,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 
 	m.metr.RecordBaseFee(tip.BaseFee)
 	if tip.ExcessBlobGas != nil {
-		blobFee := eth.CalcBlobFeeDefault(tip)
+		blobFee := eth.CalcBlobFeeDefault(tip, m.chainCfg)
 		m.metr.RecordBlobBaseFee(blobFee)
 	}
 
@@ -959,7 +965,7 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		estimatorFn = DefaultGasPriceEstimatorFn
 	}
 
-	tip, baseFee, blobFee, err := estimatorFn(cCtx, m.backend)
+	tip, baseFee, blobFee, err := estimatorFn(cCtx, m.backend, m.chainCfg)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
