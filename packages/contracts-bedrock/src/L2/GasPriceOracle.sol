@@ -213,7 +213,6 @@ contract GasPriceOracle is ISemver {
     ///      - Pre-Isthmus: Returns 0 (no operator fee)
     ///      - Isthmus (pre-Jovian): operatorFee = (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
     ///      - Jovian and after: operatorFee = (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
-    ///      The Jovian formula provides better precision for small scalar values.
     /// @param _gasUsed The amount of gas used by the transaction
     /// @return The calculated operator fee
     function getOperatorFee(uint256 _gasUsed) public view returns (uint256) {
@@ -225,10 +224,8 @@ contract GasPriceOracle is ISemver {
         uint256 operatorConstant = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant();
 
         if (isJovian) {
-            // New formula (post-Jovian): multiply by 100
             return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) * 100, operatorConstant);
         } else {
-            // Original Isthmus formula: divide by 1e6
             return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) / 1e6, operatorConstant);
         }
     }
