@@ -59,6 +59,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for when a transaction is not scheduled
     error TimelockGuard_TransactionNotScheduled();
 
+    /// @notice Error for when a transaction is not ready to execute (timelock delay not passed)
+    error TimelockGuard_TransactionNotReady();
+
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
 
@@ -78,6 +81,12 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Emitted when the cancellation threshold is updated
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
+
+    /// @notice Emitted when a transaction is executed for a Safe.
+    /// @param safe The Safe whose transaction is executed.
+    /// @param nonce The nonce of the Safe for the transaction being executed.
+    /// @param txHash The identifier of the executed transaction (nonce-independent).
+    event TransactionExecuted(Safe indexed safe, uint256 indexed nonce, bytes32 txHash);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -329,22 +338,66 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Called by the Safe before executing a transaction
     /// @dev Implementation of IGuard interface
     function checkTransaction(
-        address,
+        address _to,
         uint256 _value,
-        bytes memory,
-        Enum.Operation,
-        uint256,
-        uint256,
-        uint256,
-        address,
-        address payable,
+        bytes memory _data,
+        Enum.Operation _operation,
+        uint256 _safeTxGas,
+        uint256 _baseGas,
+        uint256 _gasPrice,
+        address _gasToken,
+        address payable _refundReceiver,
         bytes memory,
         address
     )
         external
         override
     {
-        // TODO: Implement
+        Safe callingSafe = Safe(payable(msg.sender));
+
+        if (safeConfigs[callingSafe].configured == false) {
+            // We return immediately. This is important in order to allow a Safe which has the
+            // guard set, but not configured to complete the setup process.
+            // It is also just a reasonable thing to do, since an unconfigured Safe must have a
+            // delay of zero.
+            return;
+        }
+
+        // Get the nonce of the Safe for the transaction being executed,
+        // since the Safe's nonce is incremented before the transaction is executed,
+        // we must subtract 1.
+        uint256 nonce = callingSafe.nonce() - 1;
+
+        // Get the transaction hash from the Safe's getTransactionHash function
+        bytes32 txHash = callingSafe.getTransactionHash(
+            _to, _value, _data, _operation, _safeTxGas, _baseGas, _gasPrice, _gasToken, _refundReceiver, nonce
+        );
+
+        // Get the scheduled transaction
+        ScheduledTransaction storage scheduledTx = scheduledTransactions[callingSafe][txHash];
+
+        // Check if the transaction has been scheduled
+        if (scheduledTx.executionTime == 0) {
+            revert TimelockGuard_TransactionNotScheduled();
+        }
+
+        // Check if the transaction was cancelled
+        if (scheduledTx.cancelled) {
+            revert TimelockGuard_TransactionAlreadyCancelled();
+        }
+
+        // Check if the timelock delay has passed
+        if (scheduledTx.executionTime > block.timestamp) {
+            revert TimelockGuard_TransactionNotReady();
+        }
+
+        // Set the transaction as executed
+        scheduledTx.executed = true;
+
+        // Reset the cancellation threshold
+        resetCancellationThreshold(callingSafe);
+
+        emit TransactionExecuted(callingSafe, nonce, txHash);
     }
 
     /// @notice Called by the Safe after executing a transaction
