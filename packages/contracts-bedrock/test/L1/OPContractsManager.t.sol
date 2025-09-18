@@ -550,7 +550,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     function test_addGameType_cannonKonaGameTypeDisabled_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
-        input.disputeGameType = GameTypes.CANNON_KONA;
 
         // Run the addGameType call, should revert.
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
@@ -563,7 +562,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     function test_addGameType_superCannonKonaGameTypeDisabled_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
-        input.disputeGameType = GameTypes.CANNON_KONA;
 
         // Run the addGameType call, should revert.
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
