@@ -14,6 +14,10 @@ library DevFeatures {
     bytes32 public constant OPTIMISM_PORTAL_INTEROP =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
 
+    /// @notice The feature that enables the custom gas token.
+    bytes32 public constant CUSTOM_GAS_TOKEN =
+        bytes32(0x0000000000000000000000000000000000000000000000000000000000000010);
+
     /// @notice Checks if a feature is enabled in a bitmap. Note that this function does not check
     ///         that the input feature represents a single feature and the bitwise AND operation
     ///         allows for multiple features to be enabled at once. Users should generally check

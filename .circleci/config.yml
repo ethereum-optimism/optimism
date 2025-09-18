@@ -2028,7 +2028,8 @@ workflows:
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP"]
+              dev_features:
+                ["main", "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN"]
           # need this requires to ensure that all FFI JSONs exist
           requires:
             - contracts-bedrock-build
