@@ -19,9 +19,11 @@ reth-primitives-traits = { workspace = true, features = ["serde"] }
 reth-execution-types = { workspace = true, features = ["serde"] }
 reth-evm.workspace = true
 reth-revm.workspace = true
+reth-optimism-payload-builder.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-errors.workspace = true
 reth-storage-api.workspace = true
+reth-node-api.workspace = true
 reth-tasks.workspace = true
 
 # alloy
@@ -29,6 +31,7 @@ alloy-eips = { workspace = true, features = ["serde"] }
 alloy-serde.workspace = true
 alloy-primitives = { workspace = true, features = ["serde"] }
 alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-consensus.workspace = true
 
 # io
 tokio.workspace = true
@@ -44,6 +47,8 @@ tracing.workspace = true
 
 # errors
 eyre.workspace = true
+
+ringbuffer.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true

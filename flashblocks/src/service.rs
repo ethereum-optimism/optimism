@@ -1,7 +1,7 @@
 use crate::{
     sequence::FlashBlockPendingSequence,
     worker::{BuildArgs, FlashBlockBuilder},
-    ExecutionPayloadBaseV1, FlashBlock, FlashBlockCompleteSequence,
+    ExecutionPayloadBaseV1, FlashBlock, FlashBlockCompleteSequenceRx,
 };
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
@@ -20,10 +20,7 @@ use std::{
     task::{ready, Context, Poll},
     time::Instant,
 };
-use tokio::{
-    pin,
-    sync::{broadcast, oneshot},
-};
+use tokio::{pin, sync::oneshot};
 use tracing::{debug, trace, warn};
 
 /// The `FlashBlockService` maintains an in-memory [`PendingBlock`] built out of a sequence of
@@ -84,7 +81,7 @@ where
     }
 
     /// Returns a subscriber to the flashblock sequence.
-    pub fn subscribe_block_sequence(&self) -> broadcast::Receiver<FlashBlockCompleteSequence> {
+    pub fn subscribe_block_sequence(&self) -> FlashBlockCompleteSequenceRx {
         self.blocks.subscribe_block_sequence()
     }
 

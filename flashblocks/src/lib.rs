@@ -7,6 +7,8 @@ use reth_rpc_eth_types::PendingBlock;
 pub use service::FlashBlockService;
 pub use ws::{WsConnect, WsFlashBlockStream};
 
+mod consensus;
+pub use consensus::FlashBlockConsensusClient;
 mod payload;
 mod sequence;
 pub use sequence::FlashBlockCompleteSequence;
