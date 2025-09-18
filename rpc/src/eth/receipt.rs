@@ -1,7 +1,7 @@
 //! Loads and formats OP receipt RPC response.
 
 use crate::{eth::RpcNodeCore, OpEthApi, OpEthApiError};
-use alloy_consensus::{Receipt, TxReceipt};
+use alloy_consensus::{BlockHeader, Receipt, TxReceipt};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use op_alloy_consensus::{OpReceiptEnvelope, OpTransaction};
@@ -11,7 +11,7 @@ use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::OpReceipt;
-use reth_primitives_traits::Block;
+use reth_primitives_traits::SealedBlock;
 use reth_rpc_eth_api::{
     helpers::LoadReceipt,
     transaction::{ConvertReceiptInput, ReceiptConverter},
@@ -44,7 +44,8 @@ impl<Provider> OpReceiptConverter<Provider> {
 impl<Provider, N> ReceiptConverter<N> for OpReceiptConverter<Provider>
 where
     N: NodePrimitives<SignedTx: OpTransaction, Receipt = OpReceipt>,
-    Provider: BlockReader + ChainSpecProvider<ChainSpec: OpHardforks> + Debug + 'static,
+    Provider:
+        BlockReader<Block = N::Block> + ChainSpecProvider<ChainSpec: OpHardforks> + Debug + 'static,
 {
     type RpcReceipt = OpTransactionReceipt;
     type Error = OpEthApiError;
@@ -62,12 +63,20 @@ where
             .block_by_number(block_number)?
             .ok_or(EthApiError::HeaderNotFound(block_number.into()))?;
 
+        self.convert_receipts_with_block(inputs, &SealedBlock::new_unhashed(block))
+    }
+
+    fn convert_receipts_with_block(
+        &self,
+        inputs: Vec<ConvertReceiptInput<'_, N>>,
+        block: &SealedBlock<N::Block>,
+    ) -> Result<Vec<Self::RpcReceipt>, Self::Error> {
         let mut l1_block_info = match reth_optimism_evm::extract_l1_info(block.body()) {
             Ok(l1_block_info) => l1_block_info,
             Err(err) => {
-                // If it is the genesis block (i.e block number is 0), there is no L1 info, so
+                // If it is the genesis block (i.e. block number is 0), there is no L1 info, so
                 // we return an empty l1_block_info.
-                if block_number == 0 {
+                if block.header().number() == 0 {
                     return Ok(vec![]);
                 }
                 return Err(err.into());

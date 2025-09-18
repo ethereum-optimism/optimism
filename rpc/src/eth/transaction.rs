@@ -106,18 +106,21 @@ where
 
                         return Ok(Some(
                             this.tx_resp_builder()
-                                .convert_receipts(vec![ConvertReceiptInput {
-                                    tx: tx
-                                        .tx()
-                                        .clone()
-                                        .try_into_recovered_unchecked()
-                                        .map_err(Self::Error::from_eth_err)?
-                                        .as_recovered_ref(),
-                                    gas_used: receipt.cumulative_gas_used() - gas_used,
-                                    receipt: receipt.clone(),
-                                    next_log_index,
-                                    meta,
-                                }])?
+                                .convert_receipts_with_block(
+                                    vec![ConvertReceiptInput {
+                                        tx: tx
+                                            .tx()
+                                            .clone()
+                                            .try_into_recovered_unchecked()
+                                            .map_err(Self::Error::from_eth_err)?
+                                            .as_recovered_ref(),
+                                        gas_used: receipt.cumulative_gas_used() - gas_used,
+                                        receipt: receipt.clone(),
+                                        next_log_index,
+                                        meta,
+                                    }],
+                                    block_and_receipts.sealed_block(),
+                                )?
                                 .pop()
                                 .unwrap(),
                         ))
