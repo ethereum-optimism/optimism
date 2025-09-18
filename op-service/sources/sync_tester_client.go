@@ -41,3 +41,7 @@ func (cl *SyncTesterClient) ListSessions(ctx context.Context) ([]string, error) 
 func (cl *SyncTesterClient) DeleteSession(ctx context.Context) error {
 	return cl.client.CallContext(ctx, nil, "sync_deleteSession")
 }
+
+func (cl *SyncTesterClient) ResetSession(ctx context.Context) error {
+	return cl.client.CallContext(ctx, nil, "sync_resetSession")
+}
