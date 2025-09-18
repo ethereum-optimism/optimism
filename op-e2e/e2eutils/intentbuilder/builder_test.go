@@ -163,7 +163,7 @@ func TestBuilder(t *testing.T) {
 				GasLimit:                 standard.GasLimit,
 				OperatorFeeScalar:        100,
 				OperatorFeeConstant:      200,
-				CustomGasToken: &state.CustomGasToken{
+				CustomGasToken: state.CustomGasToken{
 					Enabled:                    false,
 					Name:                       "",
 					Symbol:                     "",

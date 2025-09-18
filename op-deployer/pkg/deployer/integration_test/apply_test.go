@@ -247,7 +247,7 @@ func TestEndToEndApply(t *testing.T) {
 		// CGT config for L2 genesis
 		amount := new(big.Int)
 		amount.SetString("1000000000000000000000", 10)
-		intent.Chains[0].CustomGasToken = &state.CustomGasToken{
+		intent.Chains[0].CustomGasToken = state.CustomGasToken{
 			Enabled:                    true,
 			Name:                       "Custom Gas Token",
 			Symbol:                     "CGT",
@@ -766,7 +766,7 @@ func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 			Proposer:          addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
 			Challenger:        addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
 		},
-		CustomGasToken: &state.CustomGasToken{
+		CustomGasToken: state.CustomGasToken{
 			Enabled: false,
 			Name:    "",
 			Symbol:  "",
