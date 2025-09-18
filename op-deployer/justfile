@@ -1,15 +1,36 @@
-build:
-    go build -o bin/op-deployer cmd/op-deployer/main.go
+import '../justfiles/go.just'
+
+build: build-contracts copy-contract-artifacts build-go
+
+test args='./...': build-contracts copy-contract-artifacts
+    go test -v {{args}}
 
 build-contracts:
-    just ../packages/contracts-bedrock/forge-build
-
-test args='./...': build-contracts
-    go test -v {{args}}
+  just ../packages/contracts-bedrock/forge-build
 
 copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
     tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+
+_LDFLAGSSTRING := "'" + trim(
+    "-X main.GitCommit=" + GITCOMMIT + " " + \
+    "-X main.GitDate=" + GITDATE + " " + \
+    "-X main.Version=" + VERSION + " " + \
+    "-X main.Meta=" + VERSION_META + " " + \
+    "") + "'"
+
+build-go: (go_build "./bin/op-deployer" "./cmd/op-deployer" "-ldflags" _LDFLAGSSTRING)
+
+docker-build: build-contracts copy-contract-artifacts
+    #!/bin/bash
+    cd ..
+    docker buildx bake op-deployer --load --set op-deployer.tags=op-deployer:local
+
+# Updates pkg/deployer/forge/version.json with version and checksum of tarball for each supported OS/arch
+# - forge_version format: "v1.3.4"
+update-forge forge_version="":
+  #!/bin/bash
+  ./scripts/forge-checksums.sh {{forge_version}}
 
 # ======================================
 # Deployment and Verification Utilities

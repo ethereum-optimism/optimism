@@ -130,13 +130,13 @@ exit 1
 			expectUsePath: true,
 		},
 		{
-			name:          "mismatch_tag",
-			versionLine:   fmt.Sprintf("forge Version: %s-v0.0.0", strings.TrimPrefix(StandardVersion, "v")),
-			expectUsePath: false,
+			name:          "dev_tag",
+			versionLine:   fmt.Sprintf("forge Version: %s-dev", strings.TrimPrefix(StandardVersion, "v")),
+			expectUsePath: true,
 		},
 		{
-			name:          "no_tag",
-			versionLine:   fmt.Sprintf("forge Version: %s", strings.TrimPrefix(StandardVersion, "v")),
+			name:          "non_standard_tag",
+			versionLine:   "forge Version: 0.0.0-v0.0.0",
 			expectUsePath: false,
 		},
 		{

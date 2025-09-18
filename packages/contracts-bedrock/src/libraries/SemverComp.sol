@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { LibString } from "solady/src/utils/LibString.sol";
-import { JSONParserLib } from "solady/src/utils/JSONParserLib.sol";
+import { LibString } from "@solady/utils/LibString.sol";
+import { JSONParserLib } from "@solady/utils/JSONParserLib.sol";
 
 /// @notice Library for comparing semver strings. Ignores prereleases and build metadata.
 library SemverComp {

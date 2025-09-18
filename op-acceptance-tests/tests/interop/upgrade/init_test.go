@@ -9,6 +9,6 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithSimpleInterop(),
-		presets.WithSuggestedInteropActivationOffset(30),
+		presets.WithSuggestedInteropActivationOffset(60),
 		presets.WithInteropNotAtGenesis())
 }
