@@ -8,7 +8,6 @@ library Enum {
 library TimelockGuard {
     struct GuardConfig {
         uint256 timelockDelay;
-        bool configured;
     }
 
     struct ScheduledTransaction {
@@ -69,7 +68,7 @@ interface Interface {
         external
         view
         returns (TimelockGuard.ScheduledTransaction memory);
-    function safeConfigs(address) external view returns (uint256 timelockDelay, bool configured);
+    function safeConfigs(address) external view returns (uint256 timelockDelay);
     function scheduleTransaction(
         address _safe,
         uint256 _nonce,
