@@ -338,7 +338,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 }
 
 func (bs *BatcherService) initTxManager(cfg *CLIConfig, l1ChainConfig *opgethparams.ChainConfig) error {
-	txManager, err := txmgr.NewSimpleTxManager("batcher", bs.Log, bs.Metrics, cfg.TxMgrConfig, l1ChainConfig.BlobScheduleConfig)
+	txManager, err := txmgr.NewSimpleTxManager("batcher", bs.Log, bs.Metrics, cfg.TxMgrConfig, l1ChainConfig)
 	if err != nil {
 		return err
 	}

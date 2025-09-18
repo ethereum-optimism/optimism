@@ -82,7 +82,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActBuildToL1HeadUnsafe(t)
 
 	cancunBBF1 := eth.CalcBlobFeeCancun(*l1_1.ExcessBlobGas)
-	pragueBBF1 := eth.CalcBlobFeeDefault(l1_1, env.Sd.L1Cfg.Config.BlobScheduleConfig)
+	pragueBBF1 := eth.CalcBlobFeeDefault(l1_1, env.Sd.L1Cfg.Config)
 	// Make sure they differ.
 	require.Less(t, pragueBBF1.Uint64(), cancunBBF1.Uint64())
 	opts := &bind.CallOpts{}
@@ -113,7 +113,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActBuildToL1HeadUnsafe(t)
 
 	cancunBBF2 := eth.CalcBlobFeeCancun(*l1_2.ExcessBlobGas)
-	pragueBBF2 := eth.CalcBlobFeeDefault(l1_2, env.Sd.L1Cfg.Config.BlobScheduleConfig)
+	pragueBBF2 := eth.CalcBlobFeeDefault(l1_2, env.Sd.L1Cfg.Config)
 	require.Less(t, pragueBBF2.Uint64(), cancunBBF2.Uint64())
 	bbf2, err := l1Block.BlobBaseFee(opts)
 	require.NoError(t, err)

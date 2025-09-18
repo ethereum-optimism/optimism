@@ -303,5 +303,3 @@ func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	}
 	return eip4844.CalcBlobFee(dummyChainCfg, header)
 }
-
-func ptr[T any](t T) *T { return &t }
