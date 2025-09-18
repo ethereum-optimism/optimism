@@ -738,7 +738,6 @@ contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsMan
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_cannonKonaGameType_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
 
@@ -759,7 +758,6 @@ contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsMan
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_superCannonKonaGameType_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
 
