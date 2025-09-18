@@ -588,7 +588,7 @@ contract OptimismPortal2_NumProofSubmitters_Test is OptimismPortal2_TestInit {
 /// @title OptimismPortal2_Receive_Test
 /// @notice Test contract for OptimismPortal2 `receive` function.
 contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
-    /// @notice Tests that `receive` successfully deposits ETH.
+    /// @notice Tests that the `receive` function properly deposits ETH.
     function testFuzz_receive_succeeds(uint256 _value) external {
         skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         // Prevent overflow on an upgrade context
