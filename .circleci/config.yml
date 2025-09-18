@@ -1224,40 +1224,8 @@ jobs:
         type: string
         default: 30m
       # Optional sync test configuration parameters
-      l2_network_name:
-        description: L2 network name
-        type: string
-        default: ""
-      l1_chain_id:
-        description: L1 chain ID
-        type: string
-        default: ""
-      l2_el_endpoint:
-        description: L2 EL endpoint
-        type: string
-        default: ""
-      l1_cl_beacon_endpoint:
-        description: L1 CL beacon endpoint
-        type: string
-        default: ""
-      l1_el_endpoint:
-        description: L1 EL endpoint
-        type: string
-        default: ""
-      initial_l2_block:
-        description: Initial L2 block
-        type: string
-        default: ""
-      l2_el_endpoint_tailscale:
-        description: L2 EL endpoint for Tailscale networking
-        type: string
-        default: ""
-      l1_cl_beacon_endpoint_tailscale:
-        description: L1 CL beacon endpoint for Tailscale networking
-        type: string
-        default: ""
-      l1_el_endpoint_tailscale:
-        description: L1 EL endpoint for Tailscale networking
+      network_preset:
+        description: Network preset
         type: string
         default: ""
     resource_class: xlarge
@@ -1292,15 +1260,7 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
             # Optional sync test configuration environment variables (only set if parameters are provided)
-            L2_NETWORK_NAME: "<<parameters.l2_network_name>>"
-            L1_CHAIN_ID: "<<parameters.l1_chain_id>>"
-            L2_EL_ENDPOINT: "<<parameters.l2_el_endpoint>>"
-            L1_CL_BEACON_ENDPOINT: "<<parameters.l1_cl_beacon_endpoint>>"
-            L1_EL_ENDPOINT: "<<parameters.l1_el_endpoint>>"
-            INITIAL_L2_BLOCK: "<<parameters.initial_l2_block>>"
-            L2_EL_ENDPOINT_TAILSCALE: "<<parameters.l2_el_endpoint_tailscale>>"
-            L1_CL_BEACON_ENDPOINT_TAILSCALE: "<<parameters.l1_cl_beacon_endpoint_tailscale>>"
-            L1_EL_ENDPOINT_TAILSCALE: "<<parameters.l1_el_endpoint_tailscale>>"
+            NETWORK_PRESET: "<<parameters.network_preset>>"
           command: |
             # Run the tests
             LOG_LEVEL=debug just acceptance-test "" "<<parameters.gate>>"
@@ -2642,80 +2602,55 @@ workflows:
           requires:
             - initialize
       # Sync tests for multiple networks (runs in parallel)
-      # OP Sepolia
       - op-acceptance-sync-tests-docker:
           name: sync-test-op-sepolia-daily
           gate: sync-test-op-node
           no_output_timeout: 30m
-          l2_network_name: "op-sepolia"
-          l1_chain_id: "11155111"
-          l2_el_endpoint: "https://ci-sepolia-l2.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
+          network_preset: "op-sepolia"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      # Base Sepolia
       - op-acceptance-sync-tests-docker:
           name: sync-test-base-sepolia-daily
           gate: sync-test-op-node
           no_output_timeout: 30m
-          l2_network_name: "base-sepolia"
-          l1_chain_id: "11155111"
-          l2_el_endpoint: "https://base-sepolia-rpc.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
+          network_preset: "base-sepolia"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      ## Unichain Sepolia
       - op-acceptance-sync-tests-docker:
           name: sync-test-unichain-sepolia-daily
           gate: sync-test-op-node
           no_output_timeout: 30m
-          l2_network_name: "unichain-sepolia"
-          l1_chain_id: "11155111"
-          l2_el_endpoint: "https://unichain-sepolia-rpc.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-sepolia-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-sepolia-l1.optimism.io"
+          network_preset: "unichain-sepolia"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      ## OP Mainnet
       - op-acceptance-sync-tests-docker:
           name: sync-test-op-mainnet-daily
           gate: sync-test-op-node
           no_output_timeout: 30m
-          l2_network_name: "op-mainnet"
-          l1_chain_id: "1"
-          l2_el_endpoint: "https://op-mainnet-rpc.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
+          network_preset: "op-mainnet"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      ## Base Mainnet
       - op-acceptance-sync-tests-docker:
           name: sync-test-base-mainnet-daily
           gate: sync-test-op-node
           no_output_timeout: 30m
-          l2_network_name: "base-mainnet"
-          l1_chain_id: "1"
-          l2_el_endpoint: "https://base-mainnet-rpc.optimism.io"
-          l1_cl_beacon_endpoint: "https://ci-mainnet-beacon.optimism.io"
-          l1_el_endpoint: "https://ci-mainnet-l1.optimism.io"
+          network_preset: "base-mainnet"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord

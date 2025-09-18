@@ -43,6 +43,51 @@ var (
 	L2ELEndpoint       = getEnvOrDefault("L2_EL_ENDPOINT", DefaultL2ELEndpoint)
 	L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT", DefaultL1CLBeaconEndpoint)
 	L1ELEndpoint       = getEnvOrDefault("L1_EL_ENDPOINT", DefaultL1ELEndpoint)
+
+	// Network presets for different networks against which we test op-node syncing
+	networkPresets = map[string]struct {
+		L2NetworkName      string
+		L1ChainID          uint64
+		L2ELEndpoint       string
+		L1CLBeaconEndpoint string
+		L1ELEndpoint       string
+	}{
+		"op-sepolia": {
+			L2NetworkName:      "op-sepolia",
+			L1ChainID:          11155111,
+			L2ELEndpoint:       "https://ci-sepolia-l2.optimism.io",
+			L1CLBeaconEndpoint: "https://ci-sepolia-beacon.optimism.io",
+			L1ELEndpoint:       "https://ci-sepolia-l1.optimism.io",
+		},
+		"base-sepolia": {
+			L2NetworkName:      "base-sepolia",
+			L1ChainID:          11155111,
+			L2ELEndpoint:       "https://base-sepolia-rpc.optimism.io",
+			L1CLBeaconEndpoint: "https://ci-sepolia-beacon.optimism.io",
+			L1ELEndpoint:       "https://ci-sepolia-l1.optimism.io",
+		},
+		"unichain-sepolia": {
+			L2NetworkName:      "unichain-sepolia",
+			L1ChainID:          11155111,
+			L2ELEndpoint:       "https://unichain-sepolia-rpc.optimism.io",
+			L1CLBeaconEndpoint: "https://ci-sepolia-beacon.optimism.io",
+			L1ELEndpoint:       "https://ci-sepolia-l1.optimism.io",
+		},
+		"op-mainnet": {
+			L2NetworkName:      "op-mainnet",
+			L1ChainID:          1,
+			L2ELEndpoint:       "https://op-mainnet-rpc.optimism.io",
+			L1CLBeaconEndpoint: "https://ci-mainnet-beacon.optimism.io",
+			L1ELEndpoint:       "https://ci-mainnet-l1.optimism.io",
+		},
+		"base-mainnet": {
+			L2NetworkName:      "base-mainnet",
+			L1ChainID:          1,
+			L2ELEndpoint:       "https://base-mainnet-rpc.optimism.io",
+			L1CLBeaconEndpoint: "https://ci-mainnet-beacon.optimism.io",
+			L1ELEndpoint:       "https://ci-mainnet-l1.optimism.io",
+		},
+	}
 )
 
 func TestSyncTesterExtEL(gt *testing.T) {
@@ -120,8 +165,21 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64)
 		L1ELEndpoint = getEnvOrDefault("L1_EL_ENDPOINT_TAILSCALE", DefaultL1ELEndpointTailscale)
 	}
 
+	if os.Getenv("NETWORK_PRESET") != "" {
+		preset, ok := networkPresets[os.Getenv("NETWORK_PRESET")]
+		if !ok {
+			gt.Errorf("NETWORK_PRESET %s not found", os.Getenv("NETWORK_PRESET"))
+		}
+		L2NetworkName = preset.L2NetworkName
+		L1ChainID = eth.ChainIDFromUInt64(preset.L1ChainID)
+		L2ELEndpoint = preset.L2ELEndpoint
+		L1CLBeaconEndpoint = preset.L1CLBeaconEndpoint
+		L1ELEndpoint = preset.L1ELEndpoint
+	}
+
 	// Runtime configuration values
 	l.Info("Runtime configuration values for TestSyncTesterExtEL")
+	l.Info("NETWORK_PRESET", "value", os.Getenv("NETWORK_PRESET"))
 	l.Info("L2_NETWORK_NAME", "value", L2NetworkName)
 	l.Info("L1_CHAIN_ID", "value", L1ChainID)
 	l.Info("L2_EL_ENDPOINT", "value", L2ELEndpoint)
