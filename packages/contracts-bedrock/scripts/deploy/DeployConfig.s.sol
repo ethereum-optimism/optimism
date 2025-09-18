@@ -236,6 +236,11 @@ contract DeployConfig is Script {
         useCustomGasToken = _useCustomGasToken;
     }
 
+    /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
+    function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
+        nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
+    }
+
     /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
     function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
         baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;

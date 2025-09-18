@@ -77,6 +77,7 @@ contract CommonTest is Test, Setup, Events {
         }
         if (useCustomGasToken) {
             deploy.cfg().setUseCustomGasToken(true);
+            deploy.cfg().setNativeAssetLiquidityAmount(type(uint248).max);
             deploy.cfg().setBaseFeeVaultWithdrawalNetwork(1);
             deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
             deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);

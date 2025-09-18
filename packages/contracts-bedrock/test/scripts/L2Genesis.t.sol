@@ -244,5 +244,14 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.l1FeeVaultWithdrawalNetwork = 0;
         vm.expectRevert("L1FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
+        // Reset l1FeeVaultWithdrawalNetwork input to L2
+        input.l1FeeVaultWithdrawalNetwork = 1;
+
+        // Expect revert when nativeAssetLiquidityAmount is greater than type(uint248).max
+        input.nativeAssetLiquidityAmount += 1;
+        vm.expectRevert("Native asset liquidity amount must be less than or equal to type(uint248).max");
+        genesis.run(input);
+        // Reset nativeAssetLiquidityAmount input to type(uint248).max
+        input.nativeAssetLiquidityAmount = type(uint248).max;
     }
 }
