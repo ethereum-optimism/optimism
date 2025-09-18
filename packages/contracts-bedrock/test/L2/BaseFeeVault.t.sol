@@ -5,14 +5,12 @@ pragma solidity 0.8.15;
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 
 // Libraries
-import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { FeeVault_Test } from "test/L2/FeeVault.t.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { FeeVault_Uncategorized_Test } from "test/L2/FeeVault.t.sol";
 
-/// @title BaseFeeVault_Test
+/// @title BaseFeeVault_Uncategorized_Test
 /// @notice Test contract for the BaseFeeVault contract's functionality
-contract BaseFeeVault_Test is FeeVault_Test {
+contract BaseFeeVault_Uncategorized_Test is FeeVault_Uncategorized_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();

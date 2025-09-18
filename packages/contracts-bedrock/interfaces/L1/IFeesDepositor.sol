@@ -7,6 +7,7 @@ import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 
 interface IFeesDepositor is ISemver, IProxyAdminOwnedBase, IReinitializableBase {
+    event Initialized(uint8 version);
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event FeesDeposited(address indexed l2Recipient, uint256 amount);
     event MinDepositAmountUpdated(uint96 oldminDepositAmount, uint96 newminDepositAmount);
@@ -14,7 +15,7 @@ interface IFeesDepositor is ISemver, IProxyAdminOwnedBase, IReinitializableBase 
     event GasLimitUpdated(uint64 oldGasLimit, uint64 newGasLimit);
     event DepositDataUpdated(bytes oldDepositData, bytes newDepositData);
 
-    function minDepositAmount() external view returns (uint256);
+    function minDepositAmount() external view returns (uint96);
     function portal() external view returns (IOptimismPortal);
     function l2Recipient() external view returns (address);
     function gasLimit() external view returns (uint64);
@@ -32,6 +33,8 @@ interface IFeesDepositor is ISemver, IProxyAdminOwnedBase, IReinitializableBase 
     function setL2Recipient(address _l2Recipient) external;
     function setGasLimit(uint64 _gasLimit) external;
     function setDepositData(bytes memory _depositData) external;
+
+    receive() external payable;
 
     function __constructor__() external;
 }

@@ -8,7 +8,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Script } from "forge-std/Script.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { OutputMode, OutputModeUtils, Fork, ForkUtils, Config } from "scripts/libraries/Config.sol";
+import { OutputMode, OutputModeUtils, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -32,8 +32,7 @@ import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
-import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IFeeVault, IFeeVaultConstructor } from "interfaces/L2/IFeeVault.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -324,7 +323,7 @@ contract L2Genesis is Script {
                 _name: "SequencerFeeVault",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        ISequencerFeeVault.__constructor__,
+                        IFeeVaultConstructor.__constructor__,
                         (recipient, _input.sequencerFeeVaultMinimumWithdrawalAmount, network)
                     )
                 )
@@ -422,7 +421,8 @@ contract L2Genesis is Script {
                 _name: "BaseFeeVault",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        IBaseFeeVault.__constructor__, (recipient, _input.baseFeeVaultMinimumWithdrawalAmount, network)
+                        IFeeVaultConstructor.__constructor__,
+                        (recipient, _input.baseFeeVaultMinimumWithdrawalAmount, network)
                     )
                 )
             })
@@ -453,7 +453,7 @@ contract L2Genesis is Script {
                 _name: "L1FeeVault",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        IL1FeeVault.__constructor__, (recipient, _input.l1FeeVaultMinimumWithdrawalAmount, network)
+                        IFeeVaultConstructor.__constructor__, (recipient, _input.l1FeeVaultMinimumWithdrawalAmount, network)
                     )
                 )
             })
@@ -484,7 +484,7 @@ contract L2Genesis is Script {
                 _name: "OperatorFeeVault",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        IOperatorFeeVault.__constructor__,
+                        IFeeVaultConstructor.__constructor__,
                         (recipient, _input.operatorFeeVaultMinimumWithdrawalAmount, network)
                     )
                 )
@@ -658,19 +658,21 @@ contract L2Genesis is Script {
 
             // Deploy L1Withdrawer with constructor args
             bytes32 l1WithdrawerSalt = keccak256("L1Withdrawer");
-            address l1Withdrawer = DeployUtils.create2(
-                "L1Withdrawer.sol:L1Withdrawer",
-                abi.encode(MIN_WITHDRAWAL_AMOUNT_THRESHOLD, _input.l1FeesDepositor, WITHDRAWAL_MIN_GAS_LIMIT),
-                l1WithdrawerSalt
-            );
+            address l1Withdrawer = DeployUtils.create2({
+                _name: "L1Withdrawer.sol:L1Withdrawer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encode(MIN_WITHDRAWAL_AMOUNT_THRESHOLD, _input.l1FeesDepositor, WITHDRAWAL_MIN_GAS_LIMIT)
+                ),
+                _salt: l1WithdrawerSalt
+            });
 
             // Deploy SuperchainRevSharesCalculator with constructor args
             bytes32 calcSalt = keccak256("SuperchainRevSharesCalculator");
-            revSharesCalculator = DeployUtils.create2(
-                "SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator",
-                abi.encode(payable(l1Withdrawer), payable(_input.chainFeesRecipient)),
-                calcSalt
-            );
+            revSharesCalculator = DeployUtils.create2({
+                _name: "SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator",
+                _args: DeployUtils.encodeConstructor(abi.encode(payable(l1Withdrawer), payable(_input.chainFeesRecipient))),
+                _salt: calcSalt
+            });
         }
 
         // Initialize the implementation with dummy values

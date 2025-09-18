@@ -14,31 +14,24 @@
     "type": "bool"
   },
   {
-    "bytes": "32",
-    "label": "_revenuePerVault",
-    "offset": 0,
-    "slot": "1",
-    "type": "mapping(address => uint256)"
-  },
-  {
     "bytes": "20",
     "label": "sharesCalculator",
-    "offset": 0,
-    "slot": "2",
+    "offset": 2,
+    "slot": "0",
     "type": "contract ISharesCalculator"
   },
   {
     "bytes": "16",
     "label": "lastDisbursementTime",
     "offset": 0,
-    "slot": "3",
+    "slot": "1",
     "type": "uint128"
   },
   {
     "bytes": "16",
     "label": "feeDisbursementInterval",
     "offset": 16,
-    "slot": "3",
+    "slot": "1",
     "type": "uint128"
   }
 ]

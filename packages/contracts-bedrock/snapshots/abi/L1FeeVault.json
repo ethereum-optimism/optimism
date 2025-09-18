@@ -157,7 +157,13 @@
   {
     "inputs": [],
     "name": "withdraw",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "value_",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -289,7 +295,7 @@
   },
   {
     "inputs": [],
-    "name": "FeeSplitter_OnlyProxyAdminOwner",
+    "name": "FeeVault_OnlyProxyAdminOwner",
     "type": "error"
   }
 ]

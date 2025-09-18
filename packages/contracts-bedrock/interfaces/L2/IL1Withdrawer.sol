@@ -6,7 +6,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 interface IL1Withdrawer is ISemver {
     error L1Withdrawer_OnlyProxyAdminOwner();
 
-    event WithdrawalInitiated(uint256 amount, address indexed recipient);
+    event WithdrawalInitiated(address indexed recipient, uint256 amount);
+    event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event WithdrawalGasLimitUpdated(uint96 oldWithdrawalGasLimit, uint96 newWithdrawalGasLimit);
@@ -18,6 +19,8 @@ interface IL1Withdrawer is ISemver {
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external;
     function setRecipient(address _newRecipient) external;
     function setWithdrawalGasLimit(uint96 _newWithdrawalGasLimit) external;
+
+    receive() external payable;
 
     function __constructor__(uint256 _minWithdrawalAmount, address _recipient, uint96 _withdrawalGasLimit) external;
 }

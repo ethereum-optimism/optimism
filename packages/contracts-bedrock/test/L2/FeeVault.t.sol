@@ -6,12 +6,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
-// Contracts
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
-
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IFeeVault, IFeeVaultConstructor } from "interfaces/L2/IFeeVault.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -19,10 +16,10 @@ import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-/// @title FeeVault_Test
+/// @title FeeVault_Uncategorized_Test
 /// @notice Abstract test contract for fee feeVault testing.
 ///         Subclasses can override the feeVault-specific variables.
-abstract contract FeeVault_Test is CommonTest {
+abstract contract FeeVault_Uncategorized_Test is CommonTest {
     // Variables that can be overridden by concrete test contracts
     address recipient;
     IFeeVault feeVault;
@@ -47,7 +44,8 @@ abstract contract FeeVault_Test is CommonTest {
                     _name: feeVaultName,
                     _args: DeployUtils.encodeConstructor(
                         abi.encodeCall(
-                            IFeeVault.__constructor__, (recipient, minWithdrawalAmount, Types.WithdrawalNetwork.L2)
+                            IFeeVaultConstructor.__constructor__,
+                            (recipient, minWithdrawalAmount, Types.WithdrawalNetwork.L2)
                         )
                     )
                 })
@@ -197,7 +195,7 @@ abstract contract FeeVault_Test is CommonTest {
         uint256 initialAmount = feeVault.minWithdrawalAmount();
 
         vm.prank(_caller);
-        vm.expectRevert();
+        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setMinWithdrawalAmount(_newAmount);
 
         // Verify the value and boolean flag were NOT changed
@@ -223,7 +221,7 @@ abstract contract FeeVault_Test is CommonTest {
         address initialRecipient = feeVault.recipient();
 
         vm.prank(_caller);
-        vm.expectRevert();
+        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setRecipient(_newRecipient);
 
         // Verify the value and boolean flag were NOT changed
@@ -257,7 +255,7 @@ abstract contract FeeVault_Test is CommonTest {
         Types.WithdrawalNetwork initialNetwork = feeVault.withdrawalNetwork();
 
         vm.prank(_caller);
-        vm.expectRevert();
+        vm.expectRevert(IFeeVault.FeeVault_OnlyProxyAdminOwner.selector);
         IFeeVault(payable(address(feeVault))).setWithdrawalNetwork(newNetwork);
 
         // Verify the value and boolean flag were NOT changed

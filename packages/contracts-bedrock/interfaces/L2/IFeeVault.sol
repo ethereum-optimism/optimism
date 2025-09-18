@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { Types } from "src/libraries/Types.sol";
 
 interface IFeeVault {
-    error FeeSplitter_OnlyProxyAdminOwner();
+    error FeeVault_OnlyProxyAdminOwner();
 
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
@@ -28,9 +28,17 @@ interface IFeeVault {
     function setRecipient(address _newRecipient) external;
     function setWithdrawalNetwork(Types.WithdrawalNetwork _newWithdrawalNetwork) external;
 
+    function __constructor__() external;
+}
+
+interface IFeeVaultConstructor {
+    /// NOTE: This is the real constructor for the FeeVault contract, but can't be added to the main interface because
+    ///       it is an abstract contract, and on the scripts it gets an empty constructor automatically generated that
+    ///       makes the `interfaces-check` script fail.
     function __constructor__(
         address _recipient,
         uint256 _minWithdrawalAmount,
         Types.WithdrawalNetwork _withdrawalNetwork
-    ) external;
+    )
+        external;
 }

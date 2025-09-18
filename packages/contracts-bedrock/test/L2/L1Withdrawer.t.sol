@@ -4,13 +4,11 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
-/// @title L1Withdrawer_Test
+/// @title L1Withdrawer_Uncategorized_Test
 /// @notice Tests all functionality of L1Withdrawer including receive, withdrawal, and setters.
-contract L1Withdrawer_Test is CommonTest {
+contract L1Withdrawer_Uncategorized_Test is CommonTest {
     uint256 minWithdrawalAmount = 10 ether;
     uint96 withdrawalGasLimit = 300_000;
 

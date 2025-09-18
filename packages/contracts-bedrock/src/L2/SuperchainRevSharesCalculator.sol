@@ -61,7 +61,7 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     /// @param _baseFeeRevenue Revenue from base fees.
     /// @param _operatorFeeRevenue Revenue from operator fees.
     /// @param _l1FeeRevenue Revenue from L1 fees.
-    /// @return shareInfo Array of ShareInfo structs containing recipients and amounts.
+    /// @return shareInfo_ Array of ShareInfo structs containing recipients and amounts.
     function getRecipientsAndAmounts(
         uint256 _sequencerFeeRevenue,
         uint256 _baseFeeRevenue,
@@ -70,13 +70,13 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     )
         external
         view
-        returns (ShareInfo[] memory shareInfo)
+        returns (ShareInfo[] memory shareInfo_)
     {
         // Two recipients: share recipient first (explicit amount), remainder recipient second (0; FeeSplitter sends
         // remainder)
-        shareInfo = new ShareInfo[](2);
-        shareInfo[0] = ShareInfo({ recipient: shareRecipient, amount: 0 });
-        shareInfo[1] = ShareInfo({ recipient: remainderRecipient, amount: 0 });
+        shareInfo_ = new ShareInfo[](2);
+        shareInfo_[0] = ShareInfo({ recipient: shareRecipient, amount: 0 });
+        shareInfo_[1] = ShareInfo({ recipient: remainderRecipient, amount: 0 });
 
         // Gross component: 2.5% of total revenue.
         uint256 grossRevenue = _sequencerFeeRevenue + _baseFeeRevenue + _operatorFeeRevenue + _l1FeeRevenue;
@@ -94,8 +94,8 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
         uint256 amountToShareRecipient = grossShare > netShare ? grossShare : netShare;
 
         // Set the share amount and the remainder.
-        shareInfo[0].amount = amountToShareRecipient;
-        shareInfo[1].amount = grossRevenue - amountToShareRecipient;
+        shareInfo_[0].amount = amountToShareRecipient;
+        shareInfo_[1].amount = grossRevenue - amountToShareRecipient;
     }
 
     /// @notice Sets the share recipient. Only callable by the ProxyAdmin owner.

@@ -12,14 +12,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint96",
         "name": "_withdrawalGasLimit",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_withdrawalData",
-        "type": "bytes"
+        "type": "uint96"
       }
     ],
     "stateMutability": "nonpayable",
@@ -84,22 +79,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes",
-        "name": "_newWithdrawalData",
-        "type": "bytes"
-      }
-    ],
-    "name": "setWithdrawalData",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
+        "internalType": "uint96",
         "name": "_newWithdrawalGasLimit",
-        "type": "uint256"
+        "type": "uint96"
       }
     ],
     "name": "setWithdrawalGasLimit",
@@ -122,29 +104,41 @@
   },
   {
     "inputs": [],
-    "name": "withdrawalData",
+    "name": "withdrawalGasLimit",
     "outputs": [
       {
-        "internalType": "bytes",
+        "internalType": "uint96",
         "name": "",
-        "type": "bytes"
+        "type": "uint96"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "withdrawalGasLimit",
-    "outputs": [
+    "anonymous": false,
+    "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
         "internalType": "uint256",
-        "name": "",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newBalance",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "name": "FundsReceived",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -189,34 +183,15 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "bytes",
-        "name": "oldWithdrawalData",
-        "type": "bytes"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "newWithdrawalData",
-        "type": "bytes"
-      }
-    ],
-    "name": "WithdrawalDataUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint96",
         "name": "oldWithdrawalGasLimit",
-        "type": "uint256"
+        "type": "uint96"
       },
       {
         "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint96",
         "name": "newWithdrawalGasLimit",
-        "type": "uint256"
+        "type": "uint96"
       }
     ],
     "name": "WithdrawalGasLimitUpdated",
@@ -226,16 +201,16 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
         "indexed": true,
         "internalType": "address",
         "name": "recipient",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       }
     ],
     "name": "WithdrawalInitiated",

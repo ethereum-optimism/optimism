@@ -29,10 +29,24 @@
   },
   {
     "bytes": "1",
-    "label": "_configFlags",
+    "label": "_ownerSetRecipient",
     "offset": 21,
     "slot": "2",
-    "type": "uint8"
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "_ownerSetMinWithdrawalAmount",
+    "offset": 22,
+    "slot": "2",
+    "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "_ownerSetWithdrawalNetwork",
+    "offset": 23,
+    "slot": "2",
+    "type": "bool"
   },
   {
     "bytes": "1472",

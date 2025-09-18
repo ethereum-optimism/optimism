@@ -7,6 +7,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Contracts
 import { FeeVaultInitializer } from "src/L2/FeeVaultInitializer.sol";
 
+// Mocks
+import { MockLegacyFeeVault } from "test/mocks/MockFeeVault.sol";
+
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 
@@ -19,18 +22,9 @@ import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-/// @title MockLegacyFeeVault
-/// @notice Mock fee vault contract that simulates legacy vaults without WITHDRAWAL_NETWORK function
-contract MockLegacyFeeVault {
-    address public constant RECIPIENT = address(0x1234567890123456789012345678901234567890);
-    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 0.01 ether;
-
-    // No WITHDRAWAL_NETWORK() implementation
-
-    receive() external payable { }
-}
-
-contract FeeVaultInitializer_Test is CommonTest {
+/// @title FeeVaultInitializer_Uncategorized_Test
+/// @notice Test contract for the FeeVaultInitializer contract's functionality
+contract FeeVaultInitializer_Uncategorized_Test is CommonTest {
     FeeVaultInitializer feeVaultInitializer;
 
     // Store original vault configurations

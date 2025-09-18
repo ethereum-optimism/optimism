@@ -22,7 +22,7 @@ contract LegacyFeeSplitter {
     }
 
     function _feeVaultWithdrawal(address payable _feeVault) internal {
-        bytes memory _calldata = abi.encodeWithSelector(ILegacyFeeVault.withdraw.selector);
+        bytes memory _calldata = abi.encodeCall(ILegacyFeeVault.withdraw, ());
         (bool success,) = _feeVault.call(_calldata);
         require(success, "LegacyFeeSplitter: fee vault withdrawal failed");
     }

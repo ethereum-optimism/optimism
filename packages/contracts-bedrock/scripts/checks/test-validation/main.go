@@ -349,6 +349,7 @@ var excludedPaths = []string{
 	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
 	"test/vendor/Initializable.t.sol",     // Tests external vendor code
 	"test/vendor/InitializableOZv5.t.sol", // Tests external vendor code
+	"test/L2/LegacyFeeSplitter.t.sol",     // Tests legacy fee splitter with updated vaults interface
 
 	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
 	// These paths are excluded because they don't follow the standard naming convention where the

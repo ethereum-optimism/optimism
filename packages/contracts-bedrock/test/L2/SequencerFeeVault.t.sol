@@ -6,13 +6,12 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 
 // Libraries
-import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { FeeVault_Test } from "test/L2/FeeVault.t.sol";
+import { FeeVault_Uncategorized_Test } from "test/L2/FeeVault.t.sol";
 
-/// @title SequencerFeeVault_Test
+/// @title SequencerFeeVault_Uncategorized_Test
 /// @notice Test contract for the SequencerFeeVault contract's functionality
-contract SequencerFeeVault_Test is FeeVault_Test {
+contract SequencerFeeVault_Uncategorized_Test is FeeVault_Uncategorized_Test {
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();

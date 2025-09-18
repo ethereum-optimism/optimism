@@ -10,6 +10,19 @@
   },
   {
     "inputs": [],
+    "name": "MAX_DISBURSEMENT_INTERVAL",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "disburseFees",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -34,11 +47,6 @@
         "internalType": "contract ISharesCalculator",
         "name": "_sharesCalculator",
         "type": "address"
-      },
-      {
-        "internalType": "uint128",
-        "name": "_feeDisbursementInterval",
-        "type": "uint128"
       }
     ],
     "name": "initialize",
@@ -142,12 +150,12 @@
           },
           {
             "internalType": "uint256",
-            "name": "value",
+            "name": "amount",
             "type": "uint256"
           }
         ],
         "indexed": false,
-        "internalType": "struct ShareInfo[]",
+        "internalType": "struct ISharesCalculator.ShareInfo[]",
         "name": "shareInfo",
         "type": "tuple[]"
       },
@@ -198,25 +206,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "contract ISharesCalculator",
-        "name": "sharesCalculator",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint128",
-        "name": "feeDisbursementInterval",
-        "type": "uint128"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "address",
         "name": "oldSharesCalculator",
         "type": "address"
@@ -234,6 +223,11 @@
   {
     "inputs": [],
     "name": "FeeSplitter_DisbursementIntervalNotReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_ExceedsMaxFeeDisbursementTime",
     "type": "error"
   },
   {

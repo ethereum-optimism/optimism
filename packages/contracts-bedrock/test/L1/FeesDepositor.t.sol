@@ -6,16 +6,13 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IFeesDepositor } from "interfaces/L1/IFeesDepositor.sol";
 import { FeesDepositor } from "src/L1/FeesDepositor.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Features } from "src/libraries/Features.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
-/// @title FeesDepositor_Test
+/// @title FeesDepositor_Uncategorized_Test
 /// @notice Tests all functionality of FeesDepositor including receive, deposit, and setters.
-contract FeesDepositor_Test is CommonTest {
+contract FeesDepositor_Uncategorized_Test is CommonTest {
     FeesDepositor feesDepositor;
 
     address l2Recipient = makeAddr("l2Recipient");
@@ -34,9 +31,10 @@ contract FeesDepositor_Test is CommonTest {
         super.setUp();
 
         // Deploy FeesDepositor implementation
-        address implementation = DeployUtils.create1(
-            "FeesDepositor", DeployUtils.encodeConstructor(abi.encodeCall(IFeesDepositor.__constructor__, ()))
-        );
+        address implementation = DeployUtils.create1({
+            _name: "FeesDepositor",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeesDepositor.__constructor__, ()))
+        });
 
         // Deploy proxy pointing to proxyAdmin
         address proxy = address(new Proxy(address(proxyAdmin)));

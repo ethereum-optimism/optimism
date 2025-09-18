@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";

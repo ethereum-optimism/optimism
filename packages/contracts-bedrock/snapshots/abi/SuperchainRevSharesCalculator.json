@@ -1,6 +1,17 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_shareRecipient",
+        "type": "address"
+      },
+      {
+        "internalType": "address payable",
+        "name": "_remainderRecipient",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -66,7 +77,7 @@
         "type": "uint256"
       }
     ],
-    "name": "getRecipientsAndValues",
+    "name": "getRecipientsAndAmounts",
     "outputs": [
       {
         "components": [
@@ -77,34 +88,16 @@
           },
           {
             "internalType": "uint256",
-            "name": "value",
+            "name": "amount",
             "type": "uint256"
           }
         ],
-        "internalType": "struct ShareInfo[]",
-        "name": "shareInfo",
+        "internalType": "struct ISharesCalculator.ShareInfo[]",
+        "name": "shareInfo_",
         "type": "tuple[]"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address payable",
-        "name": "_shareRecipient",
-        "type": "address"
-      },
-      {
-        "internalType": "address payable",
-        "name": "_remainderRecipient",
-        "type": "address"
-      }
-    ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -124,7 +117,7 @@
     "inputs": [
       {
         "internalType": "address payable",
-        "name": "_remainderRecipient",
+        "name": "_newRemainderRecipient",
         "type": "address"
       }
     ],
@@ -137,7 +130,7 @@
     "inputs": [
       {
         "internalType": "address payable",
-        "name": "_shareRecipient",
+        "name": "_newShareRecipient",
         "type": "address"
       }
     ],
@@ -176,28 +169,15 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "version",
-        "type": "uint8"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
-        "name": "remainderRecipient",
+        "name": "oldRemainderRecipient",
         "type": "address"
       },
       {
         "indexed": true,
         "internalType": "address",
-        "name": "oldRemainderRecipient",
+        "name": "newRemainderRecipient",
         "type": "address"
       }
     ],
@@ -210,13 +190,13 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "shareRecipient",
+        "name": "oldShareRecipient",
         "type": "address"
       },
       {
         "indexed": true,
         "internalType": "address",
-        "name": "oldSHareRecipient",
+        "name": "newShareRecipient",
         "type": "address"
       }
     ],
@@ -226,6 +206,11 @@
   {
     "inputs": [],
     "name": "SharesCalculator_OnlyProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SharesCalculator_ZeroGrossShare",
     "type": "error"
   }
 ]

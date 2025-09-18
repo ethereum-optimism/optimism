@@ -3,7 +3,10 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { LegacyFeeSplitter } from "test/mocks/LegacyFeeSplitter.sol";
+
+// Mocks
+import { MockFeeVault } from "test/mocks/MockFeeVault.sol";
+import { RevertingRecipient } from "test/mocks/RevertingRecipient.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -90,7 +93,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
     event Initialized(uint8 version);
 
     /// @notice Test that re-initialization fails on the already-initialized predeploy
-    function test_reinitialization_reverts() public {
+    function test_feeSplitter_reinitialization_reverts() public {
         // The FeeSplitter at the predeploy address is already initialized through genesis
         vm.prank(_owner);
         vm.expectRevert("Initializable: contract is already initialized");
@@ -111,7 +114,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test that the implementation contract disables initializers in the constructor
-    function test_feeSplitterImplementation_constructorDisablesInitializers() public {
+    function test_feeSplitterImplementation_constructorDisablesInitializers_succeeds() public {
         bytes memory creationCode = vm.getCode("FeeSplitter.sol:FeeSplitter");
         address implementation;
 
@@ -137,7 +140,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 /// @notice Tests the receive function of the `FeeSplitter` contract.
 contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     /// @notice Test that receive function reverts when not during disbursement
-    function test_feeSplitterReceive_WhenReceiveWindowIsClosed_Reverts(address _caller, uint256 _amount) public {
+    function test_feeSplitterReceive_whenReceiveWindowIsClosed_reverts(address _caller, uint256 _amount) public {
         vm.deal(_caller, _amount);
 
         vm.prank(_caller);
@@ -146,15 +149,11 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function from non-approved vault reverts even during disbursement
-    function testFuzz_feeSplitterReceive_WhenNonFeeVault_Reverts(address _caller, uint256 _amount) public {
+    function testFuzz_feeSplitterReceive_whenNonFeeVault_reverts(address _caller, uint256 _amount) public {
         vm.assume(_caller != Predeploys.SEQUENCER_FEE_WALLET);
         vm.assume(_caller != Predeploys.BASE_FEE_VAULT);
         vm.assume(_caller != Predeploys.OPERATOR_FEE_VAULT);
         vm.assume(_caller != Predeploys.L1_FEE_VAULT);
-
-        // Mock the _isTransientDisbursing() function to return true
-        // This allows us to test the sender validation logic
-        vm.mockCall(address(feeSplitter), abi.encodeWithSignature("_isTransientDisbursing()"), abi.encode(true));
 
         // Setup disbursement conditions but expect revert from non-approved sender
         vm.deal(_caller, _amount);
@@ -166,7 +165,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from SequencerFeeVault
-    function test_feeSplitterReceive_SequencerFeeVault_Succeeds(uint256 _amount) public {
+    function test_feeSplitterReceive_sequencerFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -200,7 +199,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from BaseFeeVault
-    function test_feeSplitterReceive_BaseFeeVault_Succeeds(uint256 _amount) public {
+    function test_feeSplitterReceive_baseFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -234,7 +233,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from L1FeeVault
-    function test_feeSplitterReceive_L1FeeVault_Succeeds(uint256 _amount) public {
+    function test_feeSplitterReceive_l1FeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -268,7 +267,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from OperatorFeeVault
-    function test_feeSplitterReceive_OperatorFeeVault_Succeeds(uint256 _amount) public {
+    function test_feeSplitterReceive_operatorFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -306,7 +305,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
 /// @notice Tests the disburseFees function of the `FeeSplitter` contract.
 contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     /// @notice Test disburseFees reverts when interval not reached
-    function test_feeSplitterDisburseFees_WhenIntervalNotReached_Reverts() public {
+    function test_feeSplitterDisburseFees_whenIntervalNotReached_reverts() public {
         vm.prank(_owner);
         feeSplitter.setFeeDisbursementInterval(48 hours);
 
@@ -315,7 +314,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees reverts when no fees collected
-    function test_feeSplitterDisburseFees_WhenNoFeesCollected_Reverts() public {
+    function test_feeSplitterDisburseFees_whenNoFeesCollected_reverts() public {
         _setupStandardFeeVaultMocks(0, 0, 0, 0);
 
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
@@ -324,7 +323,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees fails when fee vault has wrong withdrawal network
-    function test_feeSplitterDisburseFees_WhenFeeVaultWrongNetwork_Reverts() public {
+    function test_feeSplitterDisburseFees_whenFeeVaultWrongNetwork_reverts() public {
         // Mock fee vault with L1 withdrawal network (invalid)
         vm.mockCall(
             Predeploys.SEQUENCER_FEE_WALLET,
@@ -338,7 +337,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees fails when fee vault has wrong recipient
-    function test_feeSplitterDisburseFees_WhenFeeVaultWrongRecipient_Reverts() public {
+    function test_feeSplitterDisburseFees_whenFeeVaultWrongRecipient_reverts() public {
         // Mock fee vault with wrong recipient
         vm.mockCall(
             Predeploys.SEQUENCER_FEE_WALLET,
@@ -415,7 +414,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees reverts when shares calculator returns an empty array
-    function test_feeSplitterDisburseFees_WhenSharesInfoEmpty_Reverts() public {
+    function test_feeSplitterDisburseFees_whenSharesInfoEmpty_reverts() public {
         uint256 _sequencerAmount = 2 ether;
         _setupStandardFeeVaultMocks(_sequencerAmount, 0, 0, 0);
 
@@ -434,7 +433,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees reverts when sending to a recipient fails
-    function test_feeSplitterDisburseFees_WhenSendingFails_Reverts() public {
+    function test_feeSplitterDisburseFees_whenSendingFails_reverts() public {
         uint256 _sequencerAmount = 1 ether;
         _setupStandardFeeVaultMocks(_sequencerAmount, 0, 0, 0);
 
@@ -456,7 +455,7 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test disburseFees reverts when total shares do not match gross revenue
-    function test_feeSplitterDisburseFees_WhenSharesMalformed_Reverts() public {
+    function test_feeSplitterDisburseFees_whenSharesMalformed_reverts() public {
         uint256 _sequencerAmount = 1 ether;
         _setupStandardFeeVaultMocks(_sequencerAmount, 0, 0, 0);
 
@@ -475,92 +474,9 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         vm.expectRevert(IFeeSplitter.FeeSplitter_SharesCalculatorMalformedOutput.selector);
         feeSplitter.disburseFees();
     }
-}
-
-/// @title FeeSplitter_SetSharesCalculator_Test
-/// @notice Tests the setSharesCalculator function of the `FeeSplitter` contract.
-contract FeeSplitter_SetSharesCalculator_Test is FeeSplitter_TestInit {
-    /// @notice Test setSharesCalculator reverts when caller is not owner
-    function testFuzz_feeSplitterSetSharesCalculator_WhenNotOwner_Reverts(address _caller) public {
-        vm.assume(_caller != _owner);
-
-        vm.prank(_caller);
-        vm.expectRevert(IFeeSplitter.FeeSplitter_OnlyProxyAdminOwner.selector);
-        feeSplitter.setSharesCalculator(ISharesCalculator(address(0x123)));
-    }
-
-    /// @notice Test setSharesCalculator reverts with zero address
-    function test_feeSplitterSetSharesCalculator_WhenZeroAddress_Reverts() public {
-        vm.prank(_owner);
-        vm.expectRevert(IFeeSplitter.FeeSplitter_SharesCalculatorCannotBeZero.selector);
-        feeSplitter.setSharesCalculator(ISharesCalculator(address(0)));
-    }
-
-    /// @notice Test successful setSharesCalculator
-    function test_feeSplitterSetSharesCalculator_succeeds(address _newSharesCalculator) public {
-        vm.assume(_newSharesCalculator != address(0));
-
-        vm.expectEmit(address(feeSplitter));
-        emit SharesCalculatorUpdated(address(feeSplitter.sharesCalculator()), _newSharesCalculator);
-
-        vm.prank(_owner);
-        feeSplitter.setSharesCalculator(ISharesCalculator(_newSharesCalculator));
-
-        assertEq(address(feeSplitter.sharesCalculator()), _newSharesCalculator);
-    }
-}
-
-/// @title FeeSplitter_SetFeeDisbursementInterval_Test
-/// @notice Tests the setFeeDisbursementInterval function of the `FeeSplitter` contract.
-contract FeeSplitter_SetFeeDisbursementInterval_Test is FeeSplitter_TestInit {
-    /// @notice Test setFeeDisbursementInterval reverts when caller is not owner
-    function testFuzz_feeSplitterSetFeeDisbursementInterval_WhenNotOwner_Reverts(address _caller) public {
-        vm.assume(_caller != _owner);
-
-        vm.prank(_caller);
-        vm.expectRevert(IFeeSplitter.FeeSplitter_OnlyProxyAdminOwner.selector);
-        feeSplitter.setFeeDisbursementInterval(48 hours);
-    }
-
-    /// @notice Test setFeeDisbursementInterval reverts when interval is too long
-    function testFuzz_feeSplitterSetFeeDisbursementInterval_WhenIntervalTooLong_Reverts(uint256 _disbursementInterval)
-        public
-    {
-        _disbursementInterval = bound(_disbursementInterval, 365 days + 1, type(uint128).max);
-
-        vm.prank(_owner);
-        vm.expectRevert(IFeeSplitter.FeeSplitter_ExceedsMaxFeeDisbursementTime.selector);
-        feeSplitter.setFeeDisbursementInterval(uint128(_disbursementInterval));
-    }
-
-    /// @notice Test successful setFeeDisbursementInterval
-    function testFuzz_feeSplitterSetFeeDisbursementInterval_succeeds(uint128 _newInterval) public {
-        _newInterval = uint128(bound(_newInterval, 1, 365 days));
-
-        vm.expectEmit(address(feeSplitter));
-        emit FeeDisbursementIntervalUpdated(feeSplitter.feeDisbursementInterval(), _newInterval);
-
-        vm.prank(_owner);
-        feeSplitter.setFeeDisbursementInterval(_newInterval);
-
-        assertEq(feeSplitter.feeDisbursementInterval(), _newInterval);
-    }
-}
-
-/// @title FeeSplitter_DisburseFees_TestFail
-/// @notice Test failure scenario where vaults have insufficient balance for withdrawal
-contract FeeSplitter_DisburseFees_TestFail is FeeSplitter_TestInit {
-    /// @notice Helper to mock fee vault with specific minimum withdrawal amount
-    function _setFeeVaultData(address _vault, uint256 _balance, uint256 _minWithdrawal) internal {
-        MockFeeVault mockVault =
-            new MockFeeVault(payable(address(feeSplitter)), _minWithdrawal, Types.WithdrawalNetwork.L2);
-        vm.deal(address(mockVault), _balance);
-        vm.etch(_vault, address(mockVault).code);
-        vm.deal(_vault, _balance);
-    }
 
     /// @notice Fuzz test that a vault with balance below minimum causes entire disbursement to revert
-    function test_disburseFees_vaultBelowMinimum_Reverts(uint256 _minWithdrawalAmount, uint256 _vaultIndex) public {
+    function test_disburseFees_vaultBelowMinimum_reverts(uint256 _minWithdrawalAmount, uint256 _vaultIndex) public {
         // If uint256, the test will revert due to ETH transfer overflow
         _minWithdrawalAmount = bound(_minWithdrawalAmount, 1, type(uint128).max);
         _vaultIndex = bound(_vaultIndex, 0, 3); // 0-3 for the 4 vaults
@@ -596,123 +512,82 @@ contract FeeSplitter_DisburseFees_TestFail is FeeSplitter_TestInit {
             assertEq(address(vaults[i]).balance, expectedBalance);
         }
     }
+
+    function _setFeeVaultData(address _vault, uint256 _balance, uint256 _minWithdrawal) internal {
+        MockFeeVault mockVault =
+            new MockFeeVault(payable(address(feeSplitter)), _minWithdrawal, Types.WithdrawalNetwork.L2);
+        vm.deal(address(mockVault), _balance);
+        vm.etch(_vault, address(mockVault).code);
+        vm.deal(_vault, _balance);
+    }
 }
 
-contract LegacyFeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
-    LegacyFeeSplitter public legacyFeeSplitter;
+/// @title FeeSplitter_SetSharesCalculator_Test
+/// @notice Tests the setSharesCalculator function of the `FeeSplitter` contract.
+contract FeeSplitter_SetSharesCalculator_Test is FeeSplitter_TestInit {
+    /// @notice Test setSharesCalculator reverts when caller is not owner
+    function testFuzz_feeSplitterSetSharesCalculator_whenNotOwner_reverts(address _caller) public {
+        vm.assume(_caller != _owner);
 
-    function setUp() public override {
-        super.setUp();
-
-        legacyFeeSplitter = new LegacyFeeSplitter();
-
-        // Setup the legacy splitter as the recipient in the vaults
-        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-
-        vm.startPrank(owner);
-        IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).setRecipient(address(legacyFeeSplitter));
-        IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).setRecipient(address(legacyFeeSplitter));
-        IFeeVault(payable(Predeploys.L1_FEE_VAULT)).setRecipient(address(legacyFeeSplitter));
-        IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).setRecipient(address(legacyFeeSplitter));
-        vm.stopPrank();
+        vm.prank(_caller);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_OnlyProxyAdminOwner.selector);
+        feeSplitter.setSharesCalculator(ISharesCalculator(address(0x123)));
     }
 
-    function test_legacyFeeSplitterDisburseFees_succeeds(
-        uint256 _sequencerBalance,
-        uint256 _baseBalance,
-        uint256 _l1Balance,
-        uint256 _operatorBalance
-    )
+    /// @notice Test setSharesCalculator reverts with zero address
+    function test_feeSplitterSetSharesCalculator_whenZeroAddress_reverts() public {
+        vm.prank(_owner);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_SharesCalculatorCannotBeZero.selector);
+        feeSplitter.setSharesCalculator(ISharesCalculator(address(0)));
+    }
+
+    /// @notice Test successful setSharesCalculator
+    function test_feeSplitterSetSharesCalculator_succeeds(address _newSharesCalculator) public {
+        vm.assume(_newSharesCalculator != address(0));
+
+        vm.expectEmit(address(feeSplitter));
+        emit SharesCalculatorUpdated(address(feeSplitter.sharesCalculator()), _newSharesCalculator);
+
+        vm.prank(_owner);
+        feeSplitter.setSharesCalculator(ISharesCalculator(_newSharesCalculator));
+
+        assertEq(address(feeSplitter.sharesCalculator()), _newSharesCalculator);
+    }
+}
+
+/// @title FeeSplitter_SetFeeDisbursementInterval_Test
+/// @notice Tests the setFeeDisbursementInterval function of the `FeeSplitter` contract.
+contract FeeSplitter_SetFeeDisbursementInterval_Test is FeeSplitter_TestInit {
+    /// @notice Test setFeeDisbursementInterval reverts when caller is not owner
+    function testFuzz_feeSplitterSetFeeDisbursementInterval_whenNotOwner_reverts(address _caller) public {
+        vm.assume(_caller != _owner);
+
+        vm.prank(_caller);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_OnlyProxyAdminOwner.selector);
+        feeSplitter.setFeeDisbursementInterval(48 hours);
+    }
+
+    /// @notice Test setFeeDisbursementInterval reverts when interval is too long
+    function testFuzz_feeSplitterSetFeeDisbursementInterval_whenIntervalTooLong_reverts(uint256 _disbursementInterval)
         public
     {
-        _sequencerBalance = bound(
-            _sequencerBalance,
-            IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).minWithdrawalAmount(),
-            type(uint128).max
-        );
+        _disbursementInterval = bound(_disbursementInterval, 365 days + 1, type(uint128).max);
 
-        _baseBalance =
-            bound(_baseBalance, IFeeVault(payable(Predeploys.BASE_FEE_VAULT)).minWithdrawalAmount(), type(uint128).max);
-
-        _l1Balance =
-            bound(_l1Balance, IFeeVault(payable(Predeploys.L1_FEE_VAULT)).minWithdrawalAmount(), type(uint128).max);
-
-        _operatorBalance = bound(
-            _operatorBalance, IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).minWithdrawalAmount(), type(uint128).max
-        );
-
-        // Setup mock fee vaults
-        _mockFeeVaultForSuccessfulWithdrawalWithSplitter(
-            address(legacyFeeSplitter), Predeploys.SEQUENCER_FEE_WALLET, uint256(_sequencerBalance)
-        );
-        _mockFeeVaultForSuccessfulWithdrawalWithSplitter(
-            address(legacyFeeSplitter), Predeploys.BASE_FEE_VAULT, uint256(_baseBalance)
-        );
-        _mockFeeVaultForSuccessfulWithdrawalWithSplitter(
-            address(legacyFeeSplitter), Predeploys.L1_FEE_VAULT, uint256(_l1Balance)
-        );
-        _mockFeeVaultForSuccessfulWithdrawalWithSplitter(
-            address(legacyFeeSplitter), Predeploys.OPERATOR_FEE_VAULT, uint256(_operatorBalance)
-        );
-
-        assertEq(address(legacyFeeSplitter).balance, 0);
-        legacyFeeSplitter.disburseFees();
-        assertEq(address(legacyFeeSplitter).balance, _sequencerBalance + _baseBalance + _l1Balance + _operatorBalance);
-    }
-}
-
-/// @notice Simple mock FeeVault for testing that actually transfers ETH
-contract MockFeeVault {
-    uint256 public immutable MIN_WITHDRAWAL_AMOUNT;
-    address public immutable RECIPIENT;
-    Types.WithdrawalNetwork public immutable WITHDRAWAL_NETWORK;
-
-    event Withdrawal(uint256 value, address to, address from);
-    event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
-
-    constructor(address payable _recipient, uint256 _minWithdrawalAmount, Types.WithdrawalNetwork _withdrawalNetwork) {
-        RECIPIENT = _recipient;
-        MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
-        WITHDRAWAL_NETWORK = _withdrawalNetwork;
+        vm.prank(_owner);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_ExceedsMaxFeeDisbursementTime.selector);
+        feeSplitter.setFeeDisbursementInterval(uint128(_disbursementInterval));
     }
 
-    receive() external payable { }
+    /// @notice Test successful setFeeDisbursementInterval
+    function testFuzz_feeSplitterSetFeeDisbursementInterval_succeeds(uint128 _newInterval) public {
+        _newInterval = uint128(bound(_newInterval, 1, 365 days));
 
-    function withdrawalNetwork() external view returns (Types.WithdrawalNetwork) {
-        return WITHDRAWAL_NETWORK;
-    }
+        vm.expectEmit(address(feeSplitter));
+        emit FeeDisbursementIntervalUpdated(feeSplitter.feeDisbursementInterval(), _newInterval);
 
-    function minWithdrawalAmount() external view returns (uint256) {
-        return MIN_WITHDRAWAL_AMOUNT;
-    }
+        vm.prank(_owner);
+        feeSplitter.setFeeDisbursementInterval(_newInterval);
 
-    function recipient() external view returns (address) {
-        return RECIPIENT;
-    }
-
-    function withdraw() external returns (uint256) {
-        require(
-            address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
-            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
-
-        uint256 value = address(this).balance;
-
-        emit Withdrawal(value, RECIPIENT, msg.sender);
-        emit Withdrawal(value, RECIPIENT, msg.sender, WITHDRAWAL_NETWORK);
-
-        if (WITHDRAWAL_NETWORK == Types.WithdrawalNetwork.L2) {
-            (bool success,) = RECIPIENT.call{ value: value }("");
-            require(success, "FeeVault: failed to send ETH to L2 fee recipient");
-        }
-
-        return value;
-    }
-}
-
-/// @notice Helper recipient that always reverts on receiving ETH
-contract RevertingRecipient {
-    receive() external payable {
-        revert("RevertingRecipient: cannot accept ETH");
+        assertEq(feeSplitter.feeDisbursementInterval(), _newInterval);
     }
 }
