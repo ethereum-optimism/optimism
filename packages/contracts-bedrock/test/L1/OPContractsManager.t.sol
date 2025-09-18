@@ -798,7 +798,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             basefeeScalar: 100,
             blobBasefeeScalar: 200,
             l2ChainId: 10001,
-            startingAnchorRoot: abi.encode(bytes32(uint256(0x123))),
+            startingAnchorRoot: abi.encode(Proposal({
+                root: Hash.wrap(bytes32(uint256(0x123))),
+                l2SequenceNumber: 1
+            })),
             saltMixer: "test-salt",
             gasLimit: 30_000_000,
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
@@ -822,7 +825,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
             systemConfig: output.systemConfigProxy,
             proxyAdmin: output.opChainProxyAdmin,
-            delayedWETH: IDelayedWETH(payable(address(0))), // Will deploy new one
+            delayedWETH: output.delayedWETHPermissionedGameProxy, // Use existing DelayedWETH to avoid proxy upgrade
             disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0x789))), // Different prestate
             disputeMaxGameDepth: 73,
             disputeSplitDepth: 30,
@@ -834,13 +837,21 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             saltMixer: "salt1"
         });
 
-        // Add the game type
+        // Transfer DisputeGameFactory ownership to test contract temporarily for delegatecall
+        // This is needed because addGameType uses delegatecall and needs to call setImplementation
+        vm.prank(makeAddr("opChainProxyAdminOwner"));
+        output.disputeGameFactoryProxy.transferOwnership(address(this));
+
+        // Add the game type via delegatecall
         (bool success, bytes memory rawGameOut) =
             address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (gameConfigs)));
         assertTrue(success, "addGameType failed");
 
         IOPContractsManager.AddGameOutput[] memory addGameOutputs =
             abi.decode(rawGameOut, (IOPContractsManager.AddGameOutput[]));
+
+        // Transfer DisputeGameFactory ownership back to the original owner
+        output.disputeGameFactoryProxy.transferOwnership(makeAddr("opChainProxyAdminOwner"));
 
         // Verify v2 implementation is registered in DisputeGameFactory
         address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
@@ -878,7 +889,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             basefeeScalar: 100,
             blobBasefeeScalar: 200,
             l2ChainId: 10002,
-            startingAnchorRoot: abi.encode(bytes32(uint256(0x123))),
+            startingAnchorRoot: abi.encode(Proposal({
+                root: Hash.wrap(bytes32(uint256(0x123))),
+                l2SequenceNumber: 1
+            })),
             saltMixer: "test-salt-2",
             gasLimit: 30_000_000,
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
@@ -902,7 +916,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             disputeGameType: GameTypes.CANNON,
             systemConfig: output.systemConfigProxy,
             proxyAdmin: output.opChainProxyAdmin,
-            delayedWETH: IDelayedWETH(payable(address(0))), // Will deploy new one
+            delayedWETH: output.delayedWETHPermissionedGameProxy, // Use existing DelayedWETH to avoid proxy upgrade
             disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0xabc))), // Different prestate
             disputeMaxGameDepth: 73,
             disputeSplitDepth: 30,
@@ -914,13 +928,21 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             saltMixer: "salt2"
         });
 
-        // Add the game type
+        // Transfer DisputeGameFactory ownership to test contract temporarily for delegatecall
+        // This is needed because addGameType uses delegatecall and needs to call setImplementation
+        vm.prank(makeAddr("opChainProxyAdminOwner"));
+        output.disputeGameFactoryProxy.transferOwnership(address(this));
+
+        // Add the game type via delegatecall
         (bool success, bytes memory rawGameOut) =
             address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (gameConfigs)));
         assertTrue(success, "addGameType failed");
 
         IOPContractsManager.AddGameOutput[] memory addGameOutputs =
             abi.decode(rawGameOut, (IOPContractsManager.AddGameOutput[]));
+
+        // Transfer DisputeGameFactory ownership back to the original owner
+        output.disputeGameFactoryProxy.transferOwnership(makeAddr("opChainProxyAdminOwner"));
 
         // Verify v2 implementation is registered in DisputeGameFactory
         address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON));
