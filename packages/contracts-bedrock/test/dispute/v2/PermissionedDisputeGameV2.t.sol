@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 // Testing
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
@@ -243,8 +244,7 @@ contract PermissionedDisputeGameV2_Initialize_Test is PermissionedDisputeGameV2_
 
         Claim claim = _dummyClaim();
         vm.prank(PROPOSER, PROPOSER);
-        // Invalid extra data causes the proposer address to be malformed, so we get BadAuth rather than BadExtraData
-        vm.expectRevert(BadAuth.selector);
+        vm.expectRevert(IFaultDisputeGameV2.BadExtraData.selector);
         gameProxy = IPermissionedDisputeGameV2(
             payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, _extraData)))
         );
@@ -291,9 +291,7 @@ contract PermissionedDisputeGameV2_Initialize_Test is PermissionedDisputeGameV2_
 
         Claim claim = _dummyClaim();
         vm.prank(PROPOSER, PROPOSER);
-        // If we truncate > 20 bytes, the proposer address gets mangled, so we get BadAuth instead of BadExtraData
-        bytes4 expectedError = _truncatedByteCount > 20 ? BadAuth.selector : IFaultDisputeGameV2.BadExtraData.selector;
-        vm.expectRevert(expectedError);
+        vm.expectRevert(IFaultDisputeGameV2.BadExtraData.selector);
         gameProxy = IPermissionedDisputeGameV2(
             payable(
                 address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))

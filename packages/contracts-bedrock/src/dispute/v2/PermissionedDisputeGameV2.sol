@@ -69,11 +69,10 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
 
     /// @notice Initializes the contract.
     function initialize() public payable override {
+        super.initialize();
+
         // The creator of the dispute game must be the proposer EOA.
         if (tx.origin != proposer()) revert BadAuth();
-
-        // Fallthrough initialization.
-        super.initialize();
     }
 
     function immutableArgsByteCount() internal pure override returns (uint256) {
