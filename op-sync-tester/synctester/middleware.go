@@ -79,14 +79,14 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		elSyncEnabled := false
+		elSyncActive := false
 		if elSyncTarget != 0 {
 			if elSyncTarget < latest {
 				return r, ErrInvalidELSyncTarget
 			}
-			elSyncEnabled = true
+			elSyncActive = true
 		}
-		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncTarget, elSyncEnabled)
+		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncTarget, elSyncActive)
 		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")

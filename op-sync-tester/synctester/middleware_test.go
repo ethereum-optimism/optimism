@@ -85,7 +85,7 @@ func TestParseSession_ELSyncTarget(t *testing.T) {
 	require.Equal(t, uint64(0), session.InitialState.Finalized)
 	require.Equal(t, session.InitialState.Latest, session.Validated)
 	require.Equal(t, session.InitialState, session.CurrentState)
-	require.True(t, session.ELSyncEnabled)
+	require.True(t, session.ELSyncActive)
 	require.Equal(t, session.ELSyncTarget, elSyncTarget)
 }
 

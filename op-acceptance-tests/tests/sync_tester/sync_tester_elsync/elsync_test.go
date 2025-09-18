@@ -39,7 +39,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// EL Sync not done yet
 	session, err := syncTesterClient.GetSession(ctx)
 	require.NoError(err)
-	require.True(session.ELSyncEnabled)
+	require.True(session.ELSyncActive)
 
 	// Restarting will trigger EL sync since unsafe head payload will arrive to L2CL2 via P2P
 	sys.L2CL2.Start()
@@ -53,7 +53,7 @@ func TestSyncTesterELSync(gt *testing.T) {
 
 	session, err = syncTesterClient.GetSession(ctx)
 	require.NoError(err)
-	require.False(session.ELSyncEnabled)
+	require.False(session.ELSyncActive)
 
 	// Check CL2 view is consistent with read only EL
 	unsafeHead := sys.L2CL2.SyncStatus().UnsafeL2

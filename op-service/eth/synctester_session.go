@@ -23,11 +23,11 @@ type SyncTesterSession struct {
 	// payloads
 	Payloads map[PayloadID]*ExecutionPayloadEnvelope `json:"-"`
 
-	ELSyncTarget  uint64 `json:"el_sync_target"`
-	ELSyncEnabled bool   `json:"el_sync_enabled"`
+	ELSyncTarget uint64 `json:"el_sync_target"`
+	ELSyncActive bool   `json:"el_sync_active"`
 
-	InitialState         FCUState `json:"initial_state"`
-	InitialELSyncEnabled bool     `json:"initial_el_sync_enabled"`
+	InitialState        FCUState `json:"initial_state"`
+	InitialELSyncActive bool     `json:"initial_el_sync_active"`
 }
 
 func (s *SyncTesterSession) UpdateFCULatest(latest uint64) {
@@ -43,22 +43,22 @@ func (s *SyncTesterSession) UpdateFCUFinalized(finalized uint64) {
 }
 
 func (s *SyncTesterSession) FinishELSync(target uint64) {
-	s.ELSyncEnabled = false
+	s.ELSyncActive = false
 	s.Validated = target
 }
 
 func (s *SyncTesterSession) IsELSyncFinished() bool {
-	return !s.ELSyncEnabled
+	return !s.ELSyncActive
 }
 
 func (s *SyncTesterSession) ResetSession() {
 	s.CurrentState = s.InitialState
 	s.Validated = s.InitialState.Latest
 	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
-	s.ELSyncEnabled = s.InitialELSyncEnabled
+	s.ELSyncActive = s.InitialELSyncActive
 }
 
-func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarget uint64, elSyncEnabled bool) *SyncTesterSession {
+func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarget uint64, elSyncActive bool) *SyncTesterSession {
 	return &SyncTesterSession{
 		SessionID: sessionID,
 		Validated: latest,
@@ -67,14 +67,14 @@ func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarge
 			Safe:      safe,
 			Finalized: finalized,
 		},
-		Payloads:      make(map[PayloadID]*ExecutionPayloadEnvelope),
-		ELSyncTarget:  elSyncTarget,
-		ELSyncEnabled: elSyncEnabled,
+		Payloads:     make(map[PayloadID]*ExecutionPayloadEnvelope),
+		ELSyncTarget: elSyncTarget,
+		ELSyncActive: elSyncActive,
 		InitialState: FCUState{
 			Latest:    latest,
 			Safe:      safe,
 			Finalized: finalized,
 		},
-		InitialELSyncEnabled: elSyncEnabled,
+		InitialELSyncActive: elSyncActive,
 	}
 }

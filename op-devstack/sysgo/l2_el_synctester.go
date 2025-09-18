@@ -36,14 +36,14 @@ type SyncTesterEL struct {
 }
 
 type SyncTesterELConfig struct {
-	FCUState      eth.FCUState
-	ELSyncEnabled bool
-	ELSyncTarget  uint64
+	FCUState     eth.FCUState
+	ELSyncActive bool
+	ELSyncTarget uint64
 }
 
 func (cfg *SyncTesterELConfig) Path() string {
 	path := fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", cfg.FCUState.Latest, cfg.FCUState.Safe, cfg.FCUState.Finalized)
-	if cfg.ELSyncEnabled {
+	if cfg.ELSyncActive {
 		path += fmt.Sprintf("&el_sync_target=%d", cfg.ELSyncTarget)
 	}
 	return path
@@ -51,9 +51,9 @@ func (cfg *SyncTesterELConfig) Path() string {
 
 func DefaultSyncTesterELConfig() *SyncTesterELConfig {
 	return &SyncTesterELConfig{
-		FCUState:      eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
-		ELSyncEnabled: false,
-		ELSyncTarget:  0,
+		FCUState:     eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
+		ELSyncActive: false,
+		ELSyncTarget: 0,
 	}
 }
 
