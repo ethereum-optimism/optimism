@@ -368,6 +368,7 @@ func (cl *L2CLNode) WaitForNonZeroUnsafeTime(ctx context.Context) *eth.SyncStatu
 }
 
 func (cl *L2CLNode) SignalTarget(el *L2ELNode, targetNum uint64) {
+	cl.log.Info("Signaling L2CL", "target", targetNum)
 	payload := el.PayloadByNumber(targetNum)
 	err := retry.Do0(cl.ctx, 3, retry.Fixed(2*time.Second), func() error {
 		return cl.inner.RollupAPI().PostUnsafePayload(cl.ctx, payload)
