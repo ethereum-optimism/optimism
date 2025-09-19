@@ -1406,7 +1406,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_proveWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         skipIfForkTest(
             "OptimismPortal2_ProveWithdrawalTransaction_Test: isCustomGasToken() not available on forked networks"
         );

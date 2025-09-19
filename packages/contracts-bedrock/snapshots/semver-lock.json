@@ -96,8 +96,8 @@
     "sourceCodeHash": "0xdc7bd63134eeab163a635950f2afd16b59f40f9cf1306f2ed33ad661cc7b4962"
   },
   "src/L2/L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT": {
-    "initCodeHash": "0xf36eab44c41249b4d8ea95a21b70f1eae55b1a555384870c2f4ca306fa9121b6",
-    "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
+    "initCodeHash": "0xe09e6219f705bc120b604f25997610f3107daef880f33e380da7ed618b45bb6e",
+    "sourceCodeHash": "0x1ba0f62d5101f3541fe074a39fd67ab6a06b5b72678a4f08d08366fbe4bef764"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
     "initCodeHash": "0x975fd33a3a386310d54dbb01b56f3a6a8350f55a3b6bd7781e5ccc2166ddf2e6",
