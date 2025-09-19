@@ -120,8 +120,9 @@ async fn authenticated_websocket_handler(
                 .unwrap()
         }
         Some(app) => {
-            state.metrics.proxy_connections_by_app(app);
-            websocket_handler(state, ws, addr, headers)
+            let app = app.clone();
+            state.metrics.proxy_connections_by_app(&app);
+            websocket_handler(state, ws, addr, headers, Some(app))
         }
     }
 }
@@ -132,7 +133,7 @@ async fn unauthenticated_websocket_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    websocket_handler(state, ws, addr, headers)
+    websocket_handler(state, ws, addr, headers, None)
 }
 
 fn websocket_handler(
@@ -140,6 +141,7 @@ fn websocket_handler(
     ws: WebSocketUpgrade,
     addr: SocketAddr,
     headers: HeaderMap,
+    app: Option<String>,
 ) -> Response {
     let connect_addr = addr.ip();
 
@@ -148,7 +150,7 @@ fn websocket_handler(
         Some(value) => extract_addr(value, connect_addr),
     };
 
-    let ticket = match state.rate_limiter.try_acquire(client_addr) {
+    let ticket = match state.rate_limiter.try_acquire(client_addr, app) {
         Ok(ticket) => ticket,
         Err(RateLimitError::Limit { reason }) => {
             state.metrics.rate_limited_requests.increment(1);

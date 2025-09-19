@@ -1,12 +1,13 @@
 use crate::auth::AuthenticationParseError::{
     DuplicateAPIKeyArgument, DuplicateApplicationArgument, MissingAPIKeyArgument,
-    MissingApplicationArgument, NoData, TooManyComponents,
+    MissingApplicationArgument, MissingRateLimitArgument, NoData, TooManyComponents,
 };
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct Authentication {
     key_to_application: HashMap<String, String>,
+    app_to_rate_limit: HashMap<String, usize>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -14,6 +15,7 @@ pub enum AuthenticationParseError {
     NoData(),
     MissingApplicationArgument(String),
     MissingAPIKeyArgument(String),
+    MissingRateLimitArgument(String),
     TooManyComponents(String),
     DuplicateApplicationArgument(String),
     DuplicateAPIKeyArgument(String),
@@ -23,9 +25,10 @@ impl std::fmt::Display for AuthenticationParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             NoData() => write!(f, "No API Keys Provided"),
-            MissingApplicationArgument(arg) => write!(f, "Missing application argument: [{arg}]"),
-            MissingAPIKeyArgument(app) => write!(f, "Missing API Key argument: [{app}]"),
-            TooManyComponents(app) => write!(f, "Too many components: [{app}]"),
+            MissingApplicationArgument(arg) => write!(f, "Missing application argument: [{}]", arg),
+            MissingAPIKeyArgument(app) => write!(f, "Missing API Key argument: [{}]", app),
+            MissingRateLimitArgument(app) => write!(f, "Missing rate limit argument: [{}]", app),
+            TooManyComponents(app) => write!(f, "Too many components: [{}]", app),
             DuplicateApplicationArgument(app) => {
                 write!(f, "Duplicate application argument: [{app}]")
             }
@@ -42,6 +45,7 @@ impl TryFrom<Vec<String>> for Authentication {
     fn try_from(args: Vec<String>) -> Result<Self, Self::Error> {
         let mut applications = HashSet::new();
         let mut key_to_application: HashMap<String, String> = HashMap::new();
+        let mut app_to_rate_limit: HashMap<String, usize> = HashMap::new();
 
         if args.is_empty() {
             return Err(NoData());
@@ -61,6 +65,13 @@ impl TryFrom<Vec<String>> for Authentication {
                 return Err(MissingAPIKeyArgument(app.to_string()));
             }
 
+            let rate_limit = parts
+                .next()
+                .ok_or(MissingRateLimitArgument(app.to_string()))?;
+            if rate_limit.is_empty() {
+                return Err(MissingRateLimitArgument(app.to_string()));
+            }
+
             if parts.count() > 0 {
                 return Err(TooManyComponents(app.to_string()));
             }
@@ -75,9 +86,13 @@ impl TryFrom<Vec<String>> for Authentication {
 
             applications.insert(app.to_string());
             key_to_application.insert(key.to_string(), app.to_string());
+            app_to_rate_limit.insert(app.to_string(), rate_limit.parse().unwrap());
         }
 
-        Ok(Self { key_to_application })
+        Ok(Self {
+            key_to_application,
+            app_to_rate_limit,
+        })
     }
 }
 
@@ -85,18 +100,27 @@ impl Authentication {
     pub fn none() -> Self {
         Self {
             key_to_application: HashMap::new(),
+            app_to_rate_limit: HashMap::new(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn new(api_keys: HashMap<String, String>) -> Self {
+    pub fn new(
+        api_keys: HashMap<String, String>,
+        app_to_rate_limit: HashMap<String, usize>,
+    ) -> Self {
         Self {
             key_to_application: api_keys,
+            app_to_rate_limit,
         }
     }
 
     pub fn get_application_for_key(&self, api_key: &String) -> Option<&String> {
         self.key_to_application.get(api_key)
+    }
+
+    pub fn get_rate_limits(&self) -> HashMap<String, usize> {
+        self.app_to_rate_limit.clone()
     }
 }
 
@@ -107,9 +131,9 @@ mod tests {
     #[test]
     fn test_parsing() {
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
-            "app2:key2".to_string(),
-            "app3:key3".to_string(),
+            "app1:key1:10".to_string(),
+            "app2:key2:10".to_string(),
+            "app3:key3:10".to_string(),
         ])
         .unwrap();
 
@@ -117,51 +141,71 @@ mod tests {
         assert_eq!(auth.key_to_application["key1"], "app1");
         assert_eq!(auth.key_to_application["key2"], "app2");
         assert_eq!(auth.key_to_application["key3"], "app3");
+        assert_eq!(auth.app_to_rate_limit.len(), 3);
+        assert_eq!(auth.app_to_rate_limit["app1"], 10);
+        assert_eq!(auth.app_to_rate_limit["app2"], 10);
+        assert_eq!(auth.app_to_rate_limit["app3"], 10);
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
+            "app1:key1:10".to_string(),
             "".to_string(),
-            "app3:key3".to_string(),
+            "app3:key3:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), MissingApplicationArgument("".into()));
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
+            "app1:key1:10".to_string(),
             "app2".to_string(),
-            "app3:key3".to_string(),
+            "app3:key3:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), MissingAPIKeyArgument("app2".into()));
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
-            ":".to_string(),
+            "app1:key1:10".to_string(),
+            "app2:key2:10".to_string(),
             "app3:key3".to_string(),
+        ]);
+        assert!(auth.is_err());
+        assert_eq!(auth.unwrap_err(), MissingRateLimitArgument("app3".into()));
+
+        let auth = Authentication::try_from(vec![
+            "app1:key1:10".to_string(),
+            ":".to_string(),
+            "app3:key3:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), MissingApplicationArgument(":".into()));
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
+            "app1:key1:10".to_string(),
             "app2:".to_string(),
-            "app3:key3".to_string(),
+            "app3:key3:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), MissingAPIKeyArgument("app2".into()));
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
-            "app2:key2:unexpected2".to_string(),
-            "app3:key3".to_string(),
+            "app1:key1:10".to_string(),
+            "app2:key2:10".to_string(),
+            "app3:key3:".to_string(),
+        ]);
+        assert!(auth.is_err());
+        assert_eq!(auth.unwrap_err(), MissingRateLimitArgument("app3".into()));
+
+        let auth = Authentication::try_from(vec![
+            "app1:key1:10".to_string(),
+            "app2:key2:10:unexpected2".to_string(),
+            "app3:key3:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), TooManyComponents("app2".into()));
 
         let auth = Authentication::try_from(vec![
-            "app1:key1".to_string(),
-            "app1:key3".to_string(),
-            "app2:key2".to_string(),
+            "app1:key1:10".to_string(),
+            "app1:key3:10".to_string(),
+            "app2:key2:10".to_string(),
         ]);
         assert!(auth.is_err());
         assert_eq!(
@@ -169,7 +213,8 @@ mod tests {
             DuplicateApplicationArgument("app1".into())
         );
 
-        let auth = Authentication::try_from(vec!["app1:key1".to_string(), "app2:key1".to_string()]);
+        let auth =
+            Authentication::try_from(vec!["app1:key1:10".to_string(), "app2:key1:10".to_string()]);
         assert!(auth.is_err());
         assert_eq!(auth.unwrap_err(), DuplicateAPIKeyArgument("app2".into()));
     }
