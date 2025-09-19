@@ -457,7 +457,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.CLSync.OnUnsafePayload(t.Ctx(), payload)
+		s.CLSync.AddUnsafePayload(t.Ctx(), payload)
 	}
 }
 

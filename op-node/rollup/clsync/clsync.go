@@ -129,11 +129,14 @@ func (eq *CLSync) onForkchoiceUpdate(ctx context.Context, event engine.Forkchoic
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
-func (eq *CLSync) OnUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+func (eq *CLSync) AddUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 	if envelope == nil {
-		eq.log.Error("CL sync OnUnsafePayload cannot add nil unsafe payload")
+		eq.log.Error("CL sync AddUnsafePayload cannot add nil unsafe payload")
 		return
 	}
+	eq.mu.Lock()
+	defer eq.mu.Unlock()
+
 	eq.log.Debug("CL sync received payload", "payload", envelope.ExecutionPayload.ID())
 
 	if err := eq.unsafePayloads.Push(envelope); err != nil {
