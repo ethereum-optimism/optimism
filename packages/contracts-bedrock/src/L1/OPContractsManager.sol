@@ -1767,6 +1767,9 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         STORAGE_SETTER = new StorageSetter();
     }
 
+    /// @notice Deploys a new chain from full config.
+    /// @param _cfg The full config.
+    /// @return The chain contracts.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory) {
         // Build the chain world.
         ChainContracts memory cts =
@@ -1776,6 +1779,9 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return _execute(_cfg, cts, true);
     }
 
+    /// @notice Upgrades an existing chain from upgrade input.
+    /// @param _inp The upgrade input.
+    /// @return The chain contracts.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory) {
         // Build the chain world.
         ChainContracts memory cts =
@@ -1788,6 +1794,12 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return _execute(cfg, cts, false);
     }
 
+    /// @notice Builds or loads the chain contracts from whatever exists.
+    /// @param _systemConfig The SystemConfig contract.
+    /// @param _l2ChainId The L2 chain ID.
+    /// @param _saltMixer The salt mixer for creating new proxies if needed.
+    /// @param _mustLoad Whether to load the contracts or build them.
+    /// @return The chain contracts.
     function _buildChainWorld(
         ISystemConfig _systemConfig,
         uint256 _l2ChainId,
@@ -1845,6 +1857,8 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         // load the SystemConfig from, so we just forcibly deploy it in this case.
         if (address(_systemConfig) == address(0)) {
             cts.systemConfig = ISystemConfig(deployProxy(_l2ChainId, cts.proxyAdmin, _saltMixer, "SystemConfig"));
+        } else {
+            cts.systemConfig = _systemConfig;
         }
 
         // For every other contract, we load-or-build the proxy. Each contract has a theoretical
@@ -1959,6 +1973,10 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return cts;
     }
 
+    /// @notice Builds the full config from the upgrade input.
+    /// @param _inp The upgrade input.
+    /// @param _cts The chain contracts.
+    /// @return The full config.
     function _buildFullConfig(
         UpgradeInput memory _inp,
         ChainContracts memory _cts
@@ -2001,6 +2019,11 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return cfg;
     }
 
+    /// @notice Executes the deployment/upgrade action.
+    /// @param _cfg The full config.
+    /// @param _cts The chain contracts.
+    /// @param _xfer Whether to allow ownership transfer for the DisputeGameFactory and ProxyAdmin.
+    /// @return The chain contracts.
     function _execute(
         FullConfig memory _cfg,
         ChainContracts memory _cts,
@@ -2017,40 +2040,12 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
             revert OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
         }
 
-        // SystemConfig initializer is large enough that we need a sub-block to avoid
-        // stack-too-deep errors.
-        {
-            // Generate the SystemConfig addresses input.
-            ISystemConfig.Addresses memory addrs = ISystemConfig.Addresses({
-                l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
-                l1ERC721Bridge: address(_cts.l1ERC721Bridge),
-                l1StandardBridge: address(_cts.l1StandardBridge),
-                optimismPortal: address(_cts.optimismPortal),
-                optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
-                delayedWETH: address(_cts.delayedWETH)
-            });
-
-            // Generate the initializer arguments first.
-            bytes memory systemConfigArgs = abi.encodeCall(
-                ISystemConfig.initialize,
-                (
-                    _cfg.roles.systemConfigOwner,
-                    _cfg.l2SystemConfig.basefeeScalar,
-                    _cfg.l2SystemConfig.blobBasefeeScalar,
-                    _cfg.roles.batcherHash,
-                    _cfg.l2SystemConfig.gasLimit,
-                    _cfg.roles.unsafeBlockSigner,
-                    _cfg.l2SystemConfig.resourceConfig,
-                    chainIdToBatchInboxAddress(_cfg.l2SystemConfig.l2ChainId),
-                    addrs,
-                    _cfg.l2SystemConfig.l2ChainId,
-                    _cfg.superchainConfig
-                )
-            );
-
-            // Update the SystemConfig.
-            _resetAndInitialize(_cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, systemConfigArgs);
-        }
+        // Update the SystemConfig.
+        // SystemConfig initializer is the only one large enough to require a separate function to
+        // avoid stack-too-deep errors.
+        _resetAndInitialize(
+            _cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, _makeSystemConfigInitArgs(_cfg, _cts)
+        );
 
         // Update the OptimismPortal.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
@@ -2084,7 +2079,12 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         // If interop was requested, also set the ETHLockbox feature and migrate liquidity into the
         // ETHLockbox contract.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            // If we haven't already enabled the ETHLockbox, enable it.
+            if (!_cts.systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+                _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            }
+
+            // Migrate any ETH into the ETHLockbox.
             IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
@@ -2431,6 +2431,48 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
             // TODO: Support custom data if a dev flag is enabled.
             revert OPContractsManagerV2_UnknownGameType();
         }
+    }
+
+    /// @notice Helper for making the SystemConfig initializer arguments. This is the only
+    ///         initializer that needs a helper function because we get stack-too-deep.
+    /// @param _cfg The full config.
+    /// @param _cts The chain contracts.
+    /// @return The SystemConfig initializer arguments.
+    function _makeSystemConfigInitArgs(
+        FullConfig memory _cfg,
+        ChainContracts memory _cts
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        // Generate the SystemConfig addresses input.
+        ISystemConfig.Addresses memory addrs = ISystemConfig.Addresses({
+            l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
+            l1ERC721Bridge: address(_cts.l1ERC721Bridge),
+            l1StandardBridge: address(_cts.l1StandardBridge),
+            optimismPortal: address(_cts.optimismPortal),
+            optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
+            delayedWETH: address(_cts.delayedWETH)
+        });
+
+        // Generate the initializer arguments.
+        return abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                _cfg.roles.systemConfigOwner,
+                _cfg.l2SystemConfig.basefeeScalar,
+                _cfg.l2SystemConfig.blobBasefeeScalar,
+                _cfg.roles.batcherHash,
+                _cfg.l2SystemConfig.gasLimit,
+                _cfg.roles.unsafeBlockSigner,
+                _cfg.l2SystemConfig.resourceConfig,
+                chainIdToBatchInboxAddress(_cfg.l2SystemConfig.l2ChainId),
+                addrs,
+                _cfg.l2SystemConfig.l2ChainId,
+                _cfg.superchainConfig
+            )
+        );
     }
 }
 

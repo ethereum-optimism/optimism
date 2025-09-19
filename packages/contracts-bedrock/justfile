@@ -25,7 +25,7 @@ forge-build-dev *ARGS:
 
 # Builds source contracts only.
 build-source:
-  forge build --skip "/**/test/**" --skip "/**/scripts/**"
+  forge build --skip "/**/test/**" --skip "/**/scripts/**" --sizes
 
 # Builds source contracts and scripts, skipping tests.
 build-no-tests:
