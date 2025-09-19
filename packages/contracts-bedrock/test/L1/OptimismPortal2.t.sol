@@ -240,9 +240,9 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
             assertEq(address(optimismPortal2.ethLockbox()), address(0));
         }
         if (isUsingCustomGasToken()) {
-            assertTrue(OptimismPortal2(payable(address(optimismPortal2))).isCustomGasToken());
+            assertTrue(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         } else if (!isUsingLockbox()) {
-            assertFalse(OptimismPortal2(payable(address(optimismPortal2))).isCustomGasToken());
+            assertFalse(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         }
 
         returnIfForkTest(
@@ -270,6 +270,56 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Assert that the initializer value matches the expected value.
         assertEq(val, optimismPortal2.initVersion());
+    }
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+
+    function testFuzz_initialize_interopNotProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        IOptimismPortalInterop(payable(optimismPortal2)).initialize(systemConfig, anchorStateRegistry, ethLockbox);
+    }
+
+    /// @notice Tests that the initialize function reverts when lockbox state is invalid.
+    function test_initialize_invalidLockboxState_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Enable ETH_LOCKBOX feature but clear the lockbox address to create invalid state.
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(address(proxyAdmin));
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Clear the lockbox address.
+        StorageSlot memory lockboxSlot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(lockboxSlot.slot), bytes32(0));
+
+        // Expect the revert with `OptimismPortal_InvalidLockboxState` selector.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidLockboxState.selector);
+
+        // Call the `initialize` function
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry);
     }
 
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.

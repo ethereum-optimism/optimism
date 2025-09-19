@@ -236,6 +236,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
 
+        // Assert that the lockbox state is valid.
+        _assertValidLockboxState();
+
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
         if (l2Sender == address(0)) {
@@ -244,12 +247,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Initialize the ResourceMetering contract.
         __ResourceMetering_init();
-    }
-
-    /// @notice Returns whether the custom gas token feature is enabled.
-    /// @return bool True if the custom gas token feature is enabled, false otherwise.
-    function isCustomGasToken() public view returns (bool) {
-        return _isUsingCustomGasToken();
     }
 
     /// @notice Getter for the current paused status.
