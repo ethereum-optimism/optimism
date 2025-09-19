@@ -93,18 +93,24 @@ func (c *ImplementationsConfig) Check() error {
 	if c.DisputeGameFinalityDelaySeconds == 0 {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
-	// Set default values for V2 fault game parameters if not specified
-	if c.FaultGameV2MaxGameDepth == 0 {
-		c.FaultGameV2MaxGameDepth = 73
-	}
-	if c.FaultGameV2SplitDepth == 0 {
-		c.FaultGameV2SplitDepth = 30
-	}
-	if c.FaultGameV2ClockExtension == 0 {
-		c.FaultGameV2ClockExtension = 10800
-	}
-	if c.FaultGameV2MaxClockDuration == 0 {
-		c.FaultGameV2MaxClockDuration = 302400
+	// Check V2 fault game parameters only if V2 dispute games feature is enabled
+	// DevFeatureBitmap 0x10 bit enables V2 dispute game deployment (using bitwise AND)
+	var deployV2FeatureFlag common.Hash
+	deployV2FeatureFlag[31] = 0x10
+	deployV2Games := (c.DevFeatureBitmap[31] & deployV2FeatureFlag[31]) != 0
+	if deployV2Games {
+		if c.FaultGameMaxGameDepth == 0 {
+			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameSplitDepth == 0 {
+			return errors.New("fault game split depth must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameClockExtension == 0 {
+			return errors.New("fault game clock extension must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameMaxClockDuration == 0 {
+			return errors.New("fault game max clock duration must be specified when V2 dispute games feature is enabled")
+		}
 	}
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
@@ -222,10 +228,10 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
-			FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameV2MaxGameDepth),
-			FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameV2SplitDepth),
-			FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameV2ClockExtension),
-			FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameV2MaxClockDuration),
+			FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
+			FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
+			FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
+			FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
