@@ -1271,6 +1271,11 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
             - go-mod-v1-
+      # Restore Go build cache
+      - restore_cache:
+          keys:
+            - go-build-cache-v1-{{ checksum "go.sum" }}
+            - go-build-cache-v1-
       # Download Go dependencies
       - run:
           name: Download Go dependencies
@@ -1291,6 +1296,7 @@ jobs:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
             GOGC: "0"
+            GOCACHE: "./.gocache"
             # Optional sync test configuration environment variables (only set if parameters are provided)
             L2_NETWORK_NAME: "<<parameters.l2_network_name>>"
             L1_CHAIN_ID: "<<parameters.l1_chain_id>>"
@@ -1335,6 +1341,11 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+      # Save the Go build cache for future runs
+      - save_cache:
+          key: go-build-cache-v1-{{ checksum "go.sum" }}
+          paths:
+            - "./op-acceptance-tests/.gocache"
       # Store test results and artifacts
       - when:
           condition: always
@@ -1419,6 +1430,11 @@ jobs:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
             - go-mod-v1-
+      # Restore Go build cache
+      - restore_cache:
+          keys:
+            - go-build-cache-v1-{{ checksum "go.sum" }}
+            - go-build-cache-v1-
       # Download Go dependencies
       - run:
           name: Download Go dependencies
@@ -1428,6 +1444,8 @@ jobs:
       - run:
           name: Prepare test environment (compile tests and cache build results)
           working_directory: op-acceptance-tests
+          environment:
+            GOCACHE: "./.gocache"
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
@@ -1438,6 +1456,7 @@ jobs:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
             GOGC: "0"
+            GOCACHE: "./.gocache"
           command: |
             if [[ "<<parameters.gate>>" == "" ]]; then
               echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
@@ -1476,6 +1495,11 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+      # Save the Go build cache for future runs
+      - save_cache:
+          key: go-build-cache-v1-{{ checksum "go.sum" }}
+          paths:
+            - "op-acceptance-tests/.gocache"
       # Store test results and artifacts
       - when:
           condition: always
