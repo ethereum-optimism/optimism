@@ -2150,6 +2150,7 @@ workflows:
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
+                - op-deployer
                 - op-conductor
                 - da-server
                 - op-supervisor
