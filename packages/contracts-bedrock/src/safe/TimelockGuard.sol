@@ -110,6 +110,24 @@ contract TimelockGuard is IGuard, ISemver {
         return scheduledTransactions[_safe][_txHash];
     }
 
+    /// @notice Returns the list of all scheduled but not cancelled or executed transactions for
+    /// for a given safe
+    /// @dev WARNING: This operation will copy the entire set of pending transactions to memory,
+    /// which can be quite expensive. This is designed only to be used by view accessors that are
+    /// queried without any gas fees. Developers should keep in mind that this function has an
+    /// unbounded cost, and using it as part of a state-changing function may render the function
+    /// uncallable if the set grows to a point where copying to memory consumes too much gas to fit
+    /// in a block.
+    /// @return List of pending transaction hashes
+    function getScheduledTransactions(Safe _safe) external view returns (ScheduledTransaction[] memory) {
+        bytes32[] memory hashes = safePendingTxHashes[_safe].values();
+        ScheduledTransaction[] memory scheduled = new ScheduledTransaction[](hashes.length);
+        for (uint256 i = 0; i < hashes.length; i++) {
+            scheduled[i] = scheduledTransactions[_safe][hashes[i]];
+        }
+        return scheduled;
+    }
+
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
     /// @dev MUST allow an arbitrary number of Safe contracts to use the contract as a guard
     /// @dev MUST revert if the contract is not enabled as a guard for the Safe
@@ -248,21 +266,10 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Schedule the transaction
         scheduledTransactions[_safe][txHash] =
-            ScheduedTransaction({ executionTime: executionTime, cancelled: false, executed: false, params: _params });
+            ScheduledTransaction({ executionTime: executionTime, cancelled: false, executed: false, params: _params });
         safePendingTxHashes[_safe].add(txHash);
 
         emit TransactionScheduled(_safe, txHash, executionTime);
-    }
-
-    /// @notice Returns the list of all scheduled but not cancelled transactions for a given safe
-    /// @dev WARNING: This operation will copy the entire set of pending transactions to memory, which can be quite expensive. This is designed
-    ///      to mostly be used by view accessors that are queried without any gas fees. Developers should keep in mind that
-    ///      this function has an unbounded cost, and using it as part of a state-changing function may render the function
-    ///      uncallable if the set grows to a point where copying to memory consumes too much gas to fit in a block.
-     */
-    /// @return List of pending transaction hashes
-    function checkPendingTransactions(Safe _safe) external view returns (bytes32[] memory) {
-        return safePendingTxHashes[_safe].values();
     }
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
@@ -303,7 +310,7 @@ contract TimelockGuard is IGuard, ISemver {
         // This function call reverts if the signatures are invalid.
         _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, safeCancellationThreshold[_safe]);
 
-        scheduledTansactions[_safe][_txHash].cancelled = true;
+        scheduledTransactions[_safe][_txHash].cancelled = true;
         safePendingTxHashes[_safe].remove(_txHash);
         increaseCancellationThreshold(_safe);
 
@@ -386,7 +393,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Set the transaction as executed
         scheduledTx.executed = true;
-        safePendingTxHashes[_safe].remove(txHash);
+        safePendingTxHashes[callingSafe].remove(txHash);
 
         // Reset the cancellation threshold
         resetCancellationThreshold(callingSafe);

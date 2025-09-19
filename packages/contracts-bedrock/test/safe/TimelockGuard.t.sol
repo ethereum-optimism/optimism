@@ -205,7 +205,11 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     /// @notice Helper to clear the TimelockGuard configuration for a Safe
     function _clearGuard(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.configureTimelockGuard, (0)), Enum.Operation.Call
+            _safe,
+            address(timelockGuard),
+            0,
+            abi.encodeCall(TimelockGuard.configureTimelockGuard, (0)),
+            Enum.Operation.Call
         );
     }
 }
@@ -440,6 +444,14 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         vm.expectEmit(true, true, true, true);
         emit TransactionScheduled(safe, newTxHash, INIT_TIME + TIMELOCK_DELAY);
         timelockGuard.scheduleTransaction(safeInstance.safe, newNonce, dummyTxParams, newSignatures);
+    }
+}
+
+contract TimelockGuard_GetScheduledTransactions_Test is TimelockGuard_ScheduleTransaction_Test {
+    function test_getScheduleTransactions_succeeds() external {
+        // schedule a transaction
+        test_scheduleTransaction_succeeds();
+        timelockGuard.getScheduledTransactions(safe);
     }
 }
 
