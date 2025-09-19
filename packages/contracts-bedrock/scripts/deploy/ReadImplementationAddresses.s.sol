@@ -36,7 +36,7 @@ contract ReadImplementationAddresses is Script {
         address preimageOracleSingleton;
     }
 
-    function run(Input memory _input) public returns (Output memory _output) {
+    function run(Input memory _input) public returns (Output memory output_) {
         // Read implementations from EIP-1967 proxies
         address[6] memory eip1967Proxies = [
             _input.delayedWETHPermissionedGameProxy,
@@ -53,31 +53,31 @@ contract ReadImplementationAddresses is Script {
             vm.prank(address(0));
             address impl = proxy.implementation();
 
-            if (i == 0) _output.delayedWETH = impl;
-            else if (i == 1) _output.optimismPortal = impl;
-            else if (i == 2) _output.systemConfig = impl;
-            else if (i == 3) _output.l1ERC721Bridge = impl;
-            else if (i == 4) _output.optimismMintableERC20Factory = impl;
-            else if (i == 5) _output.disputeGameFactory = impl;
+            if (i == 0) output_.delayedWETH = impl;
+            else if (i == 1) output_.optimismPortal = impl;
+            else if (i == 2) output_.systemConfig = impl;
+            else if (i == 3) output_.l1ERC721Bridge = impl;
+            else if (i == 4) output_.optimismMintableERC20Factory = impl;
+            else if (i == 5) output_.disputeGameFactory = impl;
         }
 
         // Get L1StandardBridge implementation (uses different proxy type)
         vm.prank(address(0));
-        _output.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
+        output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
 
         // Get implementations from OPCM
         IOPContractsManager opcm = IOPContractsManager(_input.opcm);
-        _output.mipsSingleton = opcm.implementations().mipsImpl;
-        _output.delayedWETH = opcm.implementations().delayedWETHImpl;
-        _output.ethLockbox = opcm.implementations().ethLockboxImpl;
-        _output.optimismPortalInterop = opcm.implementations().optimismPortalInteropImpl;
+        output_.mipsSingleton = opcm.implementations().mipsImpl;
+        output_.delayedWETH = opcm.implementations().delayedWETHImpl;
+        output_.ethLockbox = opcm.implementations().ethLockboxImpl;
+        output_.optimismPortalInterop = opcm.implementations().optimismPortalInteropImpl;
 
         // Get L1CrossDomainMessenger from AddressManager
         IAddressManager am = IAddressManager(_input.addressManager);
-        _output.l1CrossDomainMessenger = am.getAddress("OVM_L1CrossDomainMessenger");
+        output_.l1CrossDomainMessenger = am.getAddress("OVM_L1CrossDomainMessenger");
 
         // Get PreimageOracle from MIPS singleton
-        _output.preimageOracleSingleton = address(IMIPS64(_output.mipsSingleton).oracle());
+        output_.preimageOracleSingleton = address(IMIPS64(output_.mipsSingleton).oracle());
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
