@@ -449,6 +449,30 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
+/// @title TimelockGuard_GetScheduledTransactions_Test
+/// @notice Tests for getScheduledTransactions function
+contract TimelockGuard_GetScheduledTransactions_Test is TimelockGuard_TestInit {
+    /// @notice Configures the guard before each scheduleTransaction test.
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    function test_getScheduledTransaction_succeeds() external {
+        // schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        TimelockGuard.ScheduledTransaction memory scheduledTransaction = timelockGuard.getScheduledTransaction(safe, dummyTx.hash);
+        assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
+        assertEq(scheduledTransaction.cancelled, false);
+        assertEq(scheduledTransaction.executed, false);
+        assertEq(keccak256(abi.encode(scheduledTransaction.params)), keccak256(abi.encode(dummyTx.params)));
+    }
+}
+
+/// @title TimelockGuard_GetPendingTransactions_Test
+/// @notice Tests for getPendingTransactions function
 contract TimelockGuard_GetPendingTransactions_Test is TimelockGuard_TestInit {
     function setUp() public override {
         super.setUp();
