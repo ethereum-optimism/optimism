@@ -188,3 +188,9 @@ func (el *L2ELNode) Start() {
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
+
+func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {
+	payload, err := el.inner.L2EthExtendedClient().PayloadByNumber(el.ctx, number)
+	el.require.NoError(err, "failed to get payload")
+	return payload
+}
