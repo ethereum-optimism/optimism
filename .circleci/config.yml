@@ -2316,17 +2316,7 @@ workflows:
       not:
         equal: [scheduled_pipeline, << pipeline.trigger_source >>]
     jobs:
-      # Wait for approval on the release
-      - hold:
-          type: approval
-          filters:
-            tags:
-              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
-            branches:
-              ignore: /.*/
       - initialize:
-          requires:
-            - hold
           context:
             - circleci-repo-readonly-authenticated-github-token
           filters:
@@ -2782,12 +2772,12 @@ workflows:
             - discord
           requires:
             - initialize
-      # KURTOSIS (Isthmus)
+      # KURTOSIS (Jovian)
       - op-acceptance-tests:
           # Acceptance Testing params
-          name: kurtosis-isthmus
-          devnet: isthmus
-          gate: isthmus
+          name: kurtosis-jovian
+          devnet: jovian
+          gate: jovian
           use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m
@@ -2861,12 +2851,12 @@ workflows:
             - discord
           requires:
             - initialize
-      # KURTOSIS (Isthmus)
+      # KURTOSIS (Jovian)
       - op-acceptance-tests:
           # Acceptance Testing params
-          name: kurtosis-isthmus
-          devnet: isthmus
-          gate: isthmus
+          name: kurtosis-jovian
+          devnet: jovian
+          gate: jovian
           use_circleci_runner: true
           # CircleCI params
           no_output_timeout: 30m

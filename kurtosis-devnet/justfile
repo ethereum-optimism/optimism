@@ -93,12 +93,6 @@ interop-devnet-test: (devnet-test "interop-devnet" "interop-smoke-test.sh")
 user-devnet DATA_FILE:
     {{just_executable()}} devnet "user.yaml" {{DATA_FILE}} {{file_stem(DATA_FILE)}}
 
-# Pectra devnet
-pectra-devnet: (devnet "pectra.yaml")
-
-# Isthmus devnet
-isthmus-devnet: (devnet "isthmus.yaml")
-
 # Jovian devnet
 jovian-devnet: (devnet "jovian.yaml")
 

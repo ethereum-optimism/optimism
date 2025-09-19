@@ -1,4 +1,4 @@
-package sync_tester_e2e
+package sync_tester_elsync
 
 import (
 	"testing"
@@ -8,7 +8,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSimpleWithSyncTester(),
+	presets.DoMain(m,
+		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithSimpleWithSyncTester(),
+		presets.WithELSyncTarget(35),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }

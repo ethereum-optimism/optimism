@@ -86,7 +86,7 @@ contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
         assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy
-        vm.label(address(gameProxy), "FaultDisputeGame_Clone");
+        vm.label(address(gameProxy), "PermissionedDisputeGame_Clone");
     }
 
     function setUp() public override {
