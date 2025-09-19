@@ -36,7 +36,15 @@ RUN wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$TARG
 
 # Install versioned toolchain
 COPY ./mise.toml .
-RUN mise trust && mise install -v -y just && cp $(mise which just) /usr/local/bin/just && just --version
+RUN mise trust
+RUN mise install -v -y just && cp $(mise which just) /usr/local/bin/just && just --version
+# mise does not install the alpine binary for forge, so we download it manually
+COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
+RUN set -e && \
+    FORGE_VERSION=$(jq -r '.forge' /tmp/op-deployer-versions.json) && \
+    curl -fsSL https://github.com/foundry-rs/foundry/releases/download/${FORGE_VERSION}/foundry_${FORGE_VERSION}_alpine_${TARGETARCH}.tar.gz | \
+    tar -xzf - -C /usr/local/bin forge && \
+    forge --version
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
@@ -146,8 +154,9 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-chain-ops && make op-deployer  \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION"
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
+  op-deployer/build-go
 
 FROM --platform=$BUILDPLATFORM builder AS op-dripper-builder
 ARG OP_DRIPPER_VERSION=v0.0.0
@@ -235,7 +244,9 @@ COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequenc
 CMD ["op-test-sequencer"]
 
 FROM $TARGET_BASE_IMAGE AS op-deployer-target
-COPY --from=op-deployer-builder /app/op-chain-ops/bin/op-deployer /usr/local/bin/
+RUN apk add --no-cache ca-certificates
+COPY --from=op-deployer-builder /usr/local/bin/forge /app/op-deployer/bin/op-deployer /usr/local/bin/
+ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target

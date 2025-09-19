@@ -512,6 +512,19 @@
   },
   {
     "inputs": [],
+    "name": "minBaseFee",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "minimumGasLimit",
     "outputs": [
       {
@@ -799,6 +812,19 @@
       }
     ],
     "name": "setGasLimit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "_minBaseFee",
+        "type": "uint64"
+      }
+    ],
+    "name": "setMinBaseFee",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

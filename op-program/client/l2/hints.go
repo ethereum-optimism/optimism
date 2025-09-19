@@ -15,16 +15,17 @@ import (
 )
 
 const (
-	HintL2BlockHeader    = "l2-block-header"
-	HintL2Transactions   = "l2-transactions"
-	HintL2Receipts       = "l2-receipts"
-	HintL2Code           = "l2-code"
-	HintL2StateNode      = "l2-state-node"
-	HintL2Output         = "l2-output"
-	HintL2BlockData      = "l2-block-data"
-	HintAgreedPrestate   = "agreed-pre-state"
-	HintL2AccountProof   = "l2-account-proof"
-	HintL2PayloadWitness = "l2-payload-witness"
+	HintL2BlockHeader     = "l2-block-header"
+	HintL2Transactions    = "l2-transactions"
+	HintL2Receipts        = "l2-receipts"
+	HintL2Code            = "l2-code"
+	HintL2StateNode       = "l2-state-node"
+	HintL2Output          = "l2-output"
+	HintL2BlockData       = "l2-block-data"
+	HintAgreedPrestate    = "agreed-pre-state"
+	HintL2AccountProof    = "l2-account-proof"
+	HintL2PayloadWitness  = "l2-payload-witness"
+	HintL2BlockHashLookup = "l2-block-hash-lookup"
 )
 
 type LegacyBlockHeaderHint common.Hash
@@ -185,3 +186,25 @@ func (l PayloadWitnessHint) Hint() string {
 
 	return HintL2PayloadWitness + " " + hexutil.Encode(marshaled)
 }
+
+type BlockHashLookupHint struct {
+	BlockNumber   uint64
+	HeadBlockHash common.Hash
+	ChainID       eth.ChainID
+}
+
+func (b BlockHashLookupHint) Hint() string {
+	hintBytes := make([]byte, 8+32+8)
+
+	binary.BigEndian.PutUint64(hintBytes[0:8], b.BlockNumber)
+	copy(hintBytes[8:40], b.HeadBlockHash.Bytes())
+	binary.BigEndian.PutUint64(hintBytes[40:], eth.EvilChainIDToUInt64(b.ChainID))
+
+	return HintL2BlockHashLookup + " " + hexutil.Encode(hintBytes)
+}
+
+func (b BlockHashLookupHint) String() string {
+	return fmt.Sprintf("%v(%v, %v, %v)", HintL2BlockHashLookup, b.BlockNumber, b.HeadBlockHash, b.ChainID)
+}
+
+var _ preimage.Hint = BlockHashLookupHint{}

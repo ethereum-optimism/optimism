@@ -28,12 +28,64 @@ type SyncTesterEL struct {
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
 
-	// Sync tester specific fields
-	fcuState eth.FCUState
-	p        devtest.P
+	config *SyncTesterELConfig
+	p      devtest.P
 
 	// Reference to the orchestrator to find the EL node to connect to
 	orch *Orchestrator
+}
+
+type SyncTesterELConfig struct {
+	FCUState      eth.FCUState
+	ELSyncEnabled bool
+	ELSyncTarget  uint64
+}
+
+func (cfg *SyncTesterELConfig) Path() string {
+	path := fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", cfg.FCUState.Latest, cfg.FCUState.Safe, cfg.FCUState.Finalized)
+	if cfg.ELSyncEnabled {
+		path += fmt.Sprintf("&el_sync_target=%d", cfg.ELSyncTarget)
+	}
+	return path
+}
+
+func DefaultSyncTesterELConfig() *SyncTesterELConfig {
+	return &SyncTesterELConfig{
+		FCUState:      eth.FCUState{Latest: 0, Safe: 0, Finalized: 0},
+		ELSyncEnabled: false,
+		ELSyncTarget:  0,
+	}
+}
+
+type SyncTesterELOption interface {
+	Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig)
+}
+
+// WithGlobalSyncTesterELOption applies the SyncTesterELOption to all SyncTesterEL instances in this orchestrator
+func WithGlobalSyncTesterELOption(opt SyncTesterELOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.SyncTesterELOptions = append(o.SyncTesterELOptions, opt)
+	})
+}
+
+type SyncTesterELOptionFn func(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig)
+
+var _ SyncTesterELOption = SyncTesterELOptionFn(nil)
+
+func (fn SyncTesterELOptionFn) Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig) {
+	fn(p, id, cfg)
+}
+
+// SyncTesterELOptionBundle a list of multiple SyncTesterELOption, to all be applied in order.
+type SyncTesterELOptionBundle []SyncTesterELOption
+
+var _ SyncTesterELOptionBundle = SyncTesterELOptionBundle(nil)
+
+func (l SyncTesterELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig) {
+	for _, opt := range l {
+		p.Require().NotNil(opt, "cannot Apply nil SyncTesterELOption")
+		opt.Apply(p, id, cfg)
+	}
 }
 
 var _ L2ELNode = (*SyncTesterEL)(nil)
@@ -72,6 +124,8 @@ func (n *SyncTesterEL) Start() {
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
 	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID(), true)
 
+	path := endpoint + n.config.Path()
+
 	if n.authProxy == nil {
 		n.authProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-auth"))
 		n.p.Require().NoError(n.authProxy.Start())
@@ -80,8 +134,7 @@ func (n *SyncTesterEL) Start() {
 		})
 
 		rpc := "http://" + n.authProxy.Addr()
-		n.authRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+		n.authRPC = rpc + path
 	}
 	if n.userProxy == nil {
 		n.userProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-user"))
@@ -91,15 +144,13 @@ func (n *SyncTesterEL) Start() {
 		})
 
 		rpc := "http://" + n.userProxy.Addr()
-		n.userRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+		n.userRPC = rpc + path
 	}
 
-	session := fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
-		n.orch.syncTester.service.RPC(), endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+	sessionURL := n.orch.syncTester.service.RPC() + path
 
-	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
-	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
+	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), sessionURL))
+	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), sessionURL))
 }
 
 func (n *SyncTesterEL) Stop() {
@@ -120,7 +171,7 @@ func (n *SyncTesterEL) JWTPath() string {
 
 // WithSyncTesterL2ELNode creates a SyncTesterEL that satisfies the L2ELNode interface
 // The sync tester acts as an EL node that can be used by CL nodes for testing sync.
-func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, fcuState eth.FCUState, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, opts ...SyncTesterELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
@@ -128,19 +179,19 @@ func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, fcuState eth.FCUSta
 		l2Net, ok := orch.l2Nets.Get(readonlyEL.ChainID())
 		require.True(ok, "L2 network required")
 
-		cfg := DefaultL2ELConfig()
-		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
-		L2ELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
+		cfg := DefaultSyncTesterELConfig()
+		orch.SyncTesterELOptions.Apply(p, id, cfg)       // apply global options
+		SyncTesterELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
 
 		jwtPath, _ := orch.writeDefaultJWT()
 
 		syncTesterEL := &SyncTesterEL{
-			id:       id,
-			l2Net:    l2Net,
-			jwtPath:  jwtPath,
-			fcuState: fcuState,
-			p:        p,
-			orch:     orch,
+			id:      id,
+			l2Net:   l2Net,
+			jwtPath: jwtPath,
+			config:  cfg,
+			p:       p,
+			orch:    orch,
 		}
 
 		p.Logger().Info("Starting sync tester EL", "id", id)
