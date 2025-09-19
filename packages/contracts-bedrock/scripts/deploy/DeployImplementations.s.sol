@@ -88,8 +88,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
-        IFaultDisputeGameV2 faultDisputeGameV2Impl;
-        IPermissionedDisputeGameV2 permissionedDisputeGameV2Impl;
+        IFaultDisputeGame faultDisputeGameV2Impl;
+        IPermissionedDisputeGame permissionedDisputeGameV2Impl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
