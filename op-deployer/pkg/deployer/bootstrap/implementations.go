@@ -39,10 +39,10 @@ type ImplementationsConfig struct {
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
-	FaultGameMaxGameDepth         uint64             `cli:"fault-game-max-game-depth"`
-	FaultGameSplitDepth           uint64             `cli:"fault-game-split-depth"`
-	FaultGameClockExtension       uint64             `cli:"fault-game-clock-extension"`
-	FaultGameMaxClockDuration     uint64             `cli:"fault-game-max-clock-duration"`
+	FaultGameMaxGameDepth           uint64             `cli:"fault-game-max-game-depth"`
+	FaultGameSplitDepth             uint64             `cli:"fault-game-split-depth"`
+	FaultGameClockExtension         uint64             `cli:"fault-game-clock-extension"`
+	FaultGameMaxClockDuration       uint64             `cli:"fault-game-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
@@ -94,10 +94,10 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
 	// Check V2 fault game parameters only if V2 dispute games feature is enabled
-	// DevFeatureBitmap 0x10 bit enables V2 dispute game deployment (using bitwise AND)
+	// DevFeatureBitmap 0x0100 bit enables V2 dispute game deployment
 	var deployV2FeatureFlag common.Hash
-	deployV2FeatureFlag[31] = 0x10
-	deployV2Games := (c.DevFeatureBitmap[31] & deployV2FeatureFlag[31]) != 0
+	deployV2FeatureFlag[30] = 0x01
+	deployV2Games := (c.DevFeatureBitmap[30] & deployV2FeatureFlag[30]) != 0
 	if deployV2Games {
 		if c.FaultGameMaxGameDepth == 0 {
 			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
