@@ -798,10 +798,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             basefeeScalar: 100,
             blobBasefeeScalar: 200,
             l2ChainId: 10001,
-            startingAnchorRoot: abi.encode(Proposal({
-                root: Hash.wrap(bytes32(uint256(0x123))),
-                l2SequenceNumber: 1
-            })),
+            startingAnchorRoot: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0x123))), l2SequenceNumber: 1 })),
             saltMixer: "test-salt",
             gasLimit: 30_000_000,
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
@@ -889,10 +886,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
             basefeeScalar: 100,
             blobBasefeeScalar: 200,
             l2ChainId: 10002,
-            startingAnchorRoot: abi.encode(Proposal({
-                root: Hash.wrap(bytes32(uint256(0x123))),
-                l2SequenceNumber: 1
-            })),
+            startingAnchorRoot: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0x123))), l2SequenceNumber: 1 })),
             saltMixer: "test-salt-2",
             gasLimit: 30_000_000,
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
