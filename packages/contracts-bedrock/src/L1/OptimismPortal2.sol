@@ -352,8 +352,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         // Cannot prove withdrawal with value when custom gas token mode is enabled.
-        if (_isInvalidCGTWithdrawal(_tx.value)) {
-            revert OptimismPortal_NotAllowedOnCGTMode();
+        if (_isUsingCustomGasToken()) {
+            if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
         // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
@@ -448,8 +448,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _assertNotPaused();
 
         // Cannot finalize withdrawal with value when custom gas token mode is enabled.
-        if (_isInvalidCGTWithdrawal(_tx.value)) {
-            revert OptimismPortal_NotAllowedOnCGTMode();
+        if (_isUsingCustomGasToken()) {
+            if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
 
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
@@ -635,6 +635,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
     function _isUsingCustomGasToken() internal view returns (bool) {
+        // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
+        //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
         return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 
@@ -659,16 +661,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         return _target == address(this) || _target == address(ethLockbox);
-    }
-
-    /// @notice Checks if a withdrawal transaction is invalid due to CGT mode restrictions.
-    /// @param _value The value of the withdrawal transaction to validate.
-    /// @return Whether the transaction is invalid (has value when CGT mode is enabled).
-    function _isInvalidCGTWithdrawal(uint256 _value) internal view returns (bool) {
-        // Cannot process withdrawal with value when custom gas token mode is enabled.
-        // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
-        //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
-        return _isUsingCustomGasToken() && _value > 0;
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.
