@@ -8,6 +8,7 @@ require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/andybalholm/brotli v1.1.0
+	github.com/base/go-bip39 v1.1.0
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
@@ -60,7 +61,6 @@ require (
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/afero v1.12.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/urfave/cli/v2 v2.27.6
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
@@ -314,3 +314,5 @@ exclude (
 	github.com/kataras/iris/v12 v12.2.0
 	github.com/kataras/iris/v12 v12.2.11
 )
+
+replace github.com/ethereum-optimism/go-ethereum-hdwallet => github.com/mdehoog/go-ethereum-hdwallet v0.0.0-20250919015454-4f3f74837ae0
