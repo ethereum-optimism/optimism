@@ -335,6 +335,7 @@ jobs:
         default: false
     steps:
       - checkout-from-workspace
+      - utils/checkout-with-mise
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
@@ -1281,6 +1282,41 @@ jobs:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
           command: go mod download
+      - run:
+          name: Ensure op-acceptor exists
+          working_directory: .
+          command: |
+            if [[ "<<parameters.devnet>>" == "" && "<<parameters.gate>>" == "" ]]; then
+              set -eo pipefail
+              echo "[debug] PATH before mise: $PATH"
+              export PATH="$HOME/.local/share/mise/shims:$PATH"
+              mise --version || true
+              # Install op-acceptor (or all tools) from repo root
+              mise install -y op-acceptor || mise install -y || true
+              # Resolve binary path from PATH and mise shims
+              BIN=$(command -v op-acceptor || true)
+              if [[ -z "$BIN" ]]; then
+                BIN=$(mise which op-acceptor 2>/dev/null || true)
+              fi
+              if [[ -z "$BIN" ]]; then
+                echo "[debug] op-acceptor not found; listing mise shims dir"
+                ls -la "$HOME/.local/share/mise/shims" || true
+              fi
+              echo "export BINARY_PATH=$BIN" >> $BASH_ENV
+              source $BASH_ENV
+              echo "[debug] PATH after mise: $PATH"
+              echo "[debug] which op-acceptor: $(command -v op-acceptor || echo 'not found')"
+              echo "[debug] BINARY_PATH: ${BINARY_PATH:-<unset>}"
+              if [[ -z "${BINARY_PATH:-}" ]]; then
+                echo "op-acceptor binary not found in PATH; please ensure mise manages it on this executor";
+                exit 1
+              fi
+              if [[ ! -x "$BINARY_PATH" ]]; then
+                echo "[debug] BINARY_PATH is not executable or missing: $BINARY_PATH"
+                ls -la "$(dirname "$BINARY_PATH")" || true
+                exit 1
+              fi
+            fi
       # Persist schedule name into env var
       - run:
           name: Persist schedule name into env var
@@ -1296,7 +1332,7 @@ jobs:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
             GOGC: "0"
-            GOCACHE: "./.gocache"
+            GOCACHE: "/home/circleci/project/op-acceptance-tests/.gocache"
             # Optional sync test configuration environment variables (only set if parameters are provided)
             L2_NETWORK_NAME: "<<parameters.l2_network_name>>"
             L1_CHAIN_ID: "<<parameters.l1_chain_id>>"
@@ -1387,6 +1423,7 @@ jobs:
       image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
       docker_layer_caching: <<parameters.use_circleci_runner>>
     resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
+    parallelism: 4
     steps:
       - checkout-from-workspace
       - unless:
@@ -1414,6 +1451,16 @@ jobs:
                   kurtosis engine status || true
 
                   echo "Kurtosis setup complete"
+      # Skip extra nodes for non-memory-all (only node 0 runs when gate or devnet is set)
+      - run:
+          name: Skip extra nodes for non-memory-all
+          command: |
+            if [[ "<<parameters.devnet>>" != "" || "<<parameters.gate>>" != "" ]]; then
+              if [[ "${CIRCLE_NODE_INDEX:-0}" != "0" ]]; then
+                echo "Skipping on node ${CIRCLE_NODE_INDEX} (only primary node runs for non-memory-all)";
+                circleci-agent step halt
+              fi
+            fi
       # Notify us of a setup failure
       - when:
           condition: on_fail
@@ -1445,7 +1492,7 @@ jobs:
           name: Prepare test environment (compile tests and cache build results)
           working_directory: op-acceptance-tests
           environment:
-            GOCACHE: "./.gocache"
+            GOCACHE: "/home/circleci/project/op-acceptance-tests/.gocache"
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
@@ -1456,14 +1503,35 @@ jobs:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
             GOGC: "0"
-            GOCACHE: "./.gocache"
+            GOCACHE: "/home/circleci/project/op-acceptance-tests/.gocache"
           command: |
-            if [[ "<<parameters.gate>>" == "" ]]; then
-              echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+            if [[ "<<parameters.devnet>>" == "" && "<<parameters.gate>>" == "" ]]; then
+              set -eo pipefail
+              BINARY_PATH=${BINARY_PATH:-op-acceptor}
+              echo "[debug] Using BINARY_PATH=${BINARY_PATH}"
+              echo "[debug] CircleCI binary: $(command -v circleci || echo 'not found')"
+              echo "Running in parallel using timings-based split"
+              PKGS=$(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
+              ASSIGNED=$(echo "$PKGS" | circleci tests split --split-by=timings --timings-type=classname)
+              for PKG in $ASSIGNED; do
+                LOCAL_DIR=$(echo "$PKG" | sed -e 's#^github.com/ethereum-optimism/optimism/op-acceptance-tests/#./#')
+                echo "Running $PKG at ${LOCAL_DIR}"
+                "$BINARY_PATH" \
+                  --testdir "${LOCAL_DIR}/..." \
+                  --allow-skips \
+                  --timeout 90m \
+                  --default-timeout 10m \
+                  --orchestrator sysgo \
+                  --show-progress
+              done
             else
-              echo "Running in gate mode (gate=<<parameters.gate>>)"
+              if [[ "<<parameters.gate>>" == "" ]]; then
+                echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+              else
+                echo "Running in gate mode (gate=<<parameters.gate>>)"
+              fi
+              LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
             fi
-            LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -1488,8 +1556,18 @@ jobs:
           working_directory: op-acceptance-tests
           when: always
           command: |
-            LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
+            mkdir -p results
+            if [[ "<<parameters.devnet>>" == "" && "<<parameters.gate>>" == "" ]]; then
+              for d in $(ls -td -- logs/* 2>/dev/null || true); do
+                base=$(basename "$d")
+                if [ -f "$d/raw_go_events.log" ]; then
+                  gotestsum --junitfile "results/$base.xml" --raw-command cat "$d/raw_go_events.log" || true
+                fi
+              done
+            else
+              LOG_DIR=$(ls -td -- logs/* | head -1)
+              gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
+            fi
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
