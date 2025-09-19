@@ -42,8 +42,18 @@ RUN mise install -v -y just && cp $(mise which just) /usr/local/bin/just && just
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
 RUN set -e && \
     FORGE_VERSION=$(jq -r '.forge' /tmp/op-deployer-versions.json) && \
-    curl -fsSL https://github.com/foundry-rs/foundry/releases/download/${FORGE_VERSION}/foundry_${FORGE_VERSION}_alpine_${TARGETARCH}.tar.gz | \
-    tar -xzf - -C /usr/local/bin forge && \
+    mkdir -p /usr/local/bin && \
+    FORGE_URL="https://github.com/foundry-rs/foundry/releases/download/${FORGE_VERSION}/foundry_${FORGE_VERSION}_alpine_${TARGETARCH}.tar.gz" && \
+    echo "Downloading forge from: ${FORGE_URL}" && \
+    if ! curl -SL "${FORGE_URL}" -o /tmp/foundry.tar.gz; then \
+        echo "Failed to download forge from ${FORGE_URL}" >&2; \
+        exit 1; \
+    fi && \
+    ls -la /tmp/foundry.tar.gz && \
+    tar -tzf /tmp/foundry.tar.gz && \
+    tar -xzf /tmp/foundry.tar.gz -C /usr/local/bin forge && \
+    rm /tmp/foundry.tar.gz && \
+    chmod +x /usr/local/bin/forge && \
     forge --version
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
