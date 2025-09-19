@@ -249,7 +249,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
         // Expect revert when nativeAssetLiquidityAmount is greater than type(uint248).max
         input.nativeAssetLiquidityAmount += 1;
-        vm.expectRevert("Native asset liquidity amount must be less than or equal to type(uint248).max");
+        vm.expectRevert("L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max");
         genesis.run(input);
         // Reset nativeAssetLiquidityAmount input to type(uint248).max
         input.nativeAssetLiquidityAmount = type(uint248).max;

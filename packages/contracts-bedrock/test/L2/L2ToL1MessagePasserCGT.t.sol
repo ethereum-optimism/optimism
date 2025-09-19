@@ -21,6 +21,17 @@ contract L2ToL1MessagePasserCGT_TestInit is CommonTest {
     }
 }
 
+/// @title L2ToL1MessagePasserCGT_Version_Test
+/// @notice Tests the `version` function of the `L2ToL1MessagePasser` contract with custom gas token
+///         enabled.
+contract L2ToL1MessagePasserCGT_Version_Test is L2ToL1MessagePasserCGT_TestInit {
+    /// @notice Tests that the `version` function returns the correct string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() external view {
+        assert(bytes(l2ToL1MessagePasser.version()).length > 0);
+    }
+}
+
 /// @title L2ToL1MessagePasserCGT_InitiateWithdrawal_Test
 /// @notice Tests the `initiateWithdrawal` function of the `L2ToL1MessagePasser` contract with
 ///         custom gas token enabled.
