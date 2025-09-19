@@ -449,6 +449,54 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
+contract TimelockGuard_GetPendingTransactions_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    function test_getPendingTransactions_succeeds() external {
+        // schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        assertEq(pendingTransactions.length, 1);
+        // ensure the hash of the transaction params are the same
+        assertEq(pendingTransactions[0].params.to, dummyTx.params.to);
+        assertEq(keccak256(abi.encode(pendingTransactions[0].params)), keccak256(abi.encode(dummyTx.params)));
+    }
+
+    function test_getPendingTransactions_removeTransactionAfterCancellation_succeeds() external {
+        // schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        // cancel the transaction
+        TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
+
+        // get the pending transactions
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        assertEq(pendingTransactions.length, 0);
+    }
+
+    function test_getPendingTransactions_removeTransactionAfterExecution_succeeds() external {
+        // schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        // execute the transaction
+        dummyTx.executeTransaction();
+
+        // get the pending transactions
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        assertEq(pendingTransactions.length, 0);
+    }
+}
+
 /// @title TimelockGuard_CancelTransaction_Test
 /// @notice Tests for cancelTransaction function
 contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
