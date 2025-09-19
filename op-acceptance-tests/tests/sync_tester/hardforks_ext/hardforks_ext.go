@@ -127,14 +127,26 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 	// Create orchestrator with the same configuration that was in TestMain
 	opt := stack.Combine(
 		presets.WithExternalELWithSuperchainRegistry(config),
-		presets.WithSyncTesterELInitialState(eth.FCUState{
-			Latest:    blk,
-			Safe:      blk,
-			Finalized: blk,
-		}),
 	)
 	if l2CLSyncMode == sync.ELSync {
-		opt = stack.Combine(opt, presets.WithELSyncTarget(targetBlock))
+		opt = stack.Combine(opt,
+			presets.WithExecutionLayerSyncOnVerifiers(),
+			presets.WithELSyncTarget(targetBlock),
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest: blk,
+				Safe:   0,
+				// Need to set finalized to genesis to unskip EL Sync
+				Finalized: 0,
+			}),
+		)
+	} else {
+		opt = stack.Combine(opt,
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest:    blk,
+				Safe:      blk,
+				Finalized: blk,
+			}),
+		)
 	}
 
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
@@ -163,27 +175,36 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 	syncTester := l2.SyncTester(match.FirstSyncTester)
 
 	sys := &struct {
-		L2CL       *dsl.L2CLNode
-		L2EL       *dsl.L2ELNode
-		SyncTester *dsl.SyncTester
-		L2         *dsl.L2Network
+		L2CL         *dsl.L2CLNode
+		L2ELReadOnly *dsl.L2ELNode
+		L2EL         *dsl.L2ELNode
+		SyncTester   *dsl.SyncTester
+		L2           *dsl.L2Network
 	}{
-		L2CL:       dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
-		L2EL:       dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
-		SyncTester: dsl.NewSyncTester(syncTester),
-		L2:         dsl.NewL2Network(l2, orch.ControlPlane()),
+		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+		L2ELReadOnly: dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
+		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.SecondL2EL), orch.ControlPlane()),
+		SyncTester:   dsl.NewSyncTester(syncTester),
+		L2:           dsl.NewL2Network(l2, orch.ControlPlane()),
 	}
 	require := t.Require()
 
 	if l2CLSyncMode == sync.ELSync {
-		// Signal L2CL for triggering EL Sync
-		sys.L2CL.SignalTarget(sys.L2EL, targetBlock)
+		// Signal L2CL for starting EL Sync
+		signalTarget := networkUpgradeBlocks[upgradeName] - 1
+		sys.L2CL.SignalTarget(sys.L2ELReadOnly, signalTarget)
+		// EL Sync is still progressing at this point
 	}
 
 	l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
+
+	if l2CLSyncMode == sync.ELSync {
+		// Signal L2CL for finishing EL Sync
+		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+	}
 
 	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)

@@ -93,7 +93,7 @@ func TestSyncTesterExtEL(gt *testing.T) {
 
 	if L2CLSyncMode == sync.ELSync {
 		// Signal L2CL for triggering EL Sync
-		sys.L2CL.SignalTarget(sys.L2EL, target)
+		sys.L2CL.SignalTarget(sys.L2ELReadOnly, target)
 	}
 
 	// Test that we can get sync status from L2CL node
@@ -208,15 +208,27 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blocksToSync uint64) (*sysgo.
 
 	opt := stack.Combine(
 		presets.WithExternalELWithSuperchainRegistry(config),
-		presets.WithSyncTesterELInitialState(eth.FCUState{
-			Latest:    initial,
-			Safe:      initial,
-			Finalized: initial,
-		}),
 	)
 
 	if L2CLSyncMode == sync.ELSync {
-		opt = stack.Combine(opt, presets.WithELSyncTarget(target))
+		opt = stack.Combine(opt,
+			presets.WithExecutionLayerSyncOnVerifiers(),
+			presets.WithELSyncTarget(target),
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest: initial,
+				Safe:   0,
+				// Need to set finalized to genesis to unskip EL Sync
+				Finalized: 0,
+			}),
+		)
+	} else {
+		opt = stack.Combine(opt,
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest:    initial,
+				Safe:      initial,
+				Finalized: initial,
+			}),
+		)
 	}
 
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
