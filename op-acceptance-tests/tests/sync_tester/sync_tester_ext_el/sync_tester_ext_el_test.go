@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
@@ -68,7 +69,15 @@ var (
 			L1ELEndpoint:       "https://ci-mainnet-l1.optimism.io",
 		},
 	}
+	L2CLSyncMode = getSyncMode("L2_CL_SYNCMODE")
 )
+
+func getSyncMode(envVar string) sync.Mode {
+	if value := os.Getenv(envVar); value == sync.ELSyncString {
+		return sync.ELSync
+	}
+	return sync.CLSync
+}
 
 func TestSyncTesterExtEL(gt *testing.T) {
 	t := devtest.SerialT(gt)
@@ -79,14 +88,19 @@ func TestSyncTesterExtEL(gt *testing.T) {
 
 	l := t.Logger()
 	require := t.Require()
-	sys, initial := setupSystem(gt, t)
+	blocksToSync := uint64(20)
+	sys, target := setupSystem(gt, t, blocksToSync)
+
+	if L2CLSyncMode == sync.ELSync {
+		// Signal L2CL for triggering EL Sync
+		sys.L2CL.SignalTarget(sys.L2EL, target)
+	}
 
 	// Test that we can get sync status from L2CL node
 	l2CLSyncStatus := sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
 
-	blocksToSync := uint64(20)
-	sys.L2CL.Reached(types.LocalUnsafe, initial+blocksToSync, 500)
+	sys.L2CL.Reached(types.LocalUnsafe, target, 500)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
@@ -105,10 +119,10 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	l.Info("SyncTester ExtEL test completed successfully", "l2cl_chain_id", sys.L2CL.ID().ChainID(), "l2cl_sync_status", l2CLSyncStatus)
 }
 
-// setupSystem initializes the system for the test and returns the system and the initial block number of the session
-func setupSystem(gt *testing.T, t devtest.T) (*presets.MinimalExternalEL, uint64) {
+// setupSystem initializes the system for the test and returns the system and the target block number of the session
+func setupSystem(gt *testing.T, t devtest.T, blocksToSync uint64) (*presets.MinimalExternalEL, uint64) {
 	// Initialize orchestrator
-	orch, initial := setupOrchestrator(gt, t)
+	orch, target := setupOrchestrator(gt, t, blocksToSync)
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
@@ -129,11 +143,11 @@ func setupSystem(gt *testing.T, t devtest.T) (*presets.MinimalExternalEL, uint64
 		SyncTester:   dsl.NewSyncTester(syncTester),
 	}
 
-	return sys, initial
+	return sys, target
 }
 
-// setupOrchestrator initializes and configures the orchestrator for the test and returns the orchestrator and the initial block number of the session
-func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64) {
+// setupOrchestrator initializes and configures the orchestrator for the test and returns the orchestrator and the target block number of the session
+func setupOrchestrator(gt *testing.T, t devtest.T, blocksToSync uint64) (*sysgo.Orchestrator, uint64) {
 	l := t.Logger()
 	ctx := t.Ctx()
 	require := t.Require()
@@ -164,6 +178,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64)
 	l.Info("L1_CL_BEACON_ENDPOINT", "value", config.L1CLBeaconEndpoint)
 	l.Info("L1_EL_ENDPOINT", "value", config.L1ELEndpoint)
 	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
+	l.Info("L2_CL_SYNCMODE", "value", L2CLSyncMode)
 
 	// Setup orchestrator
 	logger := testlog.Logger(gt, log.LevelInfo)
@@ -187,7 +202,8 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64)
 	require.NoError(err)
 
 	initial := latestBlock.NumberU64() - 1000
-	l.Info("LATEST_BLOCK", "latest_block", latestBlock.NumberU64(), "session_initial_block", initial)
+	target := initial + blocksToSync
+	l.Info("LATEST_BLOCK", "latest_block", latestBlock.NumberU64(), "session_initial_block", initial, "target_block", target)
 
 	opt := stack.Combine(
 		presets.WithExternalELWithSuperchainRegistry(config),
@@ -198,10 +214,14 @@ func setupOrchestrator(gt *testing.T, t devtest.T) (*sysgo.Orchestrator, uint64)
 		}),
 	)
 
+	if L2CLSyncMode == sync.ELSync {
+		opt = stack.Combine(opt, presets.WithELSyncTarget(target))
+	}
+
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
 	stack.ApplyOptionLifecycle(opt, orch)
 
-	return orch.(*sysgo.Orchestrator), initial
+	return orch.(*sysgo.Orchestrator), target
 }
 
 // getEnvOrDefault returns the environment variable value or the default if not set

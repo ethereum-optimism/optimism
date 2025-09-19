@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -76,7 +77,7 @@ func getEnvUint64OrDefault(envVar string, defaultValue uint64) uint64 {
 }
 
 // setupOrchestrator initializes and configures the orchestrator for the test
-func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrator {
+func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CLSyncMode sync.Mode) *sysgo.Orchestrator {
 	l := t.Logger()
 
 	// Override configuration with Tailscale endpoints if Tailscale networking is enabled
@@ -113,6 +114,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	l.Info("L1_CL_BEACON_ENDPOINT", "value", l1CLBeaconEndpoint)
 	l.Info("L1_EL_ENDPOINT", "value", l1ELEndpoint)
 	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
+	l.Info("L2_CL_SYNCMODE", "value", l2CLSyncMode)
 
 	config := stack.ExtNetworkConfig{
 		L2NetworkName:      L2NetworkName,
@@ -131,6 +133,9 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 			Finalized: blk,
 		}),
 	)
+	if l2CLSyncMode == sync.ELSync {
+		opt = stack.Combine(opt, presets.WithELSyncTarget(targetBlock))
+	}
 
 	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
 	stack.ApplyOptionLifecycle(opt, orch)
@@ -138,15 +143,18 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	return orch.(*sysgo.Orchestrator)
 }
 
-func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
+func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
 	t := devtest.SerialT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade
 	blk := networkUpgradeBlocks[upgradeName] - 5
 
+	blocksToSync := uint64(10)
+	targetBlock := blk + blocksToSync
 	// Initialize orchestrator
-	orch := setupOrchestrator(gt, t, blk)
+
+	orch := setupOrchestrator(gt, t, blk, targetBlock, l2CLSyncMode)
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
@@ -167,13 +175,16 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
 	}
 	require := t.Require()
 
+	if l2CLSyncMode == sync.ELSync {
+		// Signal L2CL for triggering EL Sync
+		sys.L2CL.SignalTarget(sys.L2EL, targetBlock)
+	}
+
 	l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 
-	blocksToSync := uint64(10)
-	targetBlock := blk + blocksToSync
 	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 	sys.L2CL.Reached(types.LocalSafe, targetBlock, 1000)
