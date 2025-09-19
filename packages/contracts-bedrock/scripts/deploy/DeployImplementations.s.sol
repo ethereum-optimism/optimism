@@ -500,7 +500,7 @@ contract DeployImplementations is Script {
 
     function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
         IFaultDisputeGameV2.GameConstructorParams memory params;
-        params.gameType = GameType.wrap(1); // Permissioned game type
+        params.gameType = GameTypes.PERMISSIONED_CANNON;
         params.maxGameDepth = _input.faultGameV2MaxGameDepth;
         params.splitDepth = _input.faultGameV2SplitDepth;
         params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
