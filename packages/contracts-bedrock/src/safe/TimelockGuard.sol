@@ -58,6 +58,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for when a transaction is not ready to execute (timelock delay not passed)
     error TimelockGuard_TransactionNotReady();
 
+    /// @notice Error for when a transaction has already been executed
+    error TimelockGuard_TransactionAlreadyExecuted();
+
     /// @notice Emitted when a Safe configures the guard
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
 
@@ -271,6 +274,9 @@ contract TimelockGuard is IGuard, ISemver {
         if (scheduledTransactions[_safe][_txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
+        if (scheduledTransactions[_safe][_txHash].executed) {
+            revert TimelockGuard_TransactionAlreadyExecuted();
+        }
         if (scheduledTransactions[_safe][_txHash].executionTime == 0) {
             revert TimelockGuard_TransactionNotScheduled();
         }
@@ -353,19 +359,26 @@ contract TimelockGuard is IGuard, ISemver {
         // Get the scheduled transaction
         ScheduledTransaction storage scheduledTx = scheduledTransactions[callingSafe][txHash];
 
-        // Check if the transaction has been scheduled
-        if (scheduledTx.executionTime == 0) {
-            revert TimelockGuard_TransactionNotScheduled();
-        }
-
         // Check if the transaction was cancelled
         if (scheduledTx.cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
 
+        // Check if the transaction has been scheduled
+        if (scheduledTx.executionTime == 0) {
+            revert TimelockGuard_TransactionNotScheduled();
+        }
+
         // Check if the timelock delay has passed
         if (scheduledTx.executionTime > block.timestamp) {
             revert TimelockGuard_TransactionNotReady();
+        }
+
+        // Check if the transaction has already been executed
+        // Note: this is of course enforced by the Safe itself, but we check it here for
+        // completeness
+        if (scheduledTx.executed) {
+            revert TimelockGuard_TransactionAlreadyExecuted();
         }
 
         // Set the transaction as executed
@@ -382,6 +395,6 @@ contract TimelockGuard is IGuard, ISemver {
     function checkAfterExecution(bytes32, bool) external override {
         // Do nothing
         // In order to follow the Checks-Effects-Interactions pattern,
-        // all checks and effects should be done in the checkTransaction function.
+        // all logic should be done in the checkTransaction function.
     }
 }
