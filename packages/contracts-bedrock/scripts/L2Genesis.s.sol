@@ -603,7 +603,7 @@ contract L2Genesis is Script {
 
         require(
             _input.nativeAssetLiquidityAmount <= type(uint248).max,
-            "Native asset liquidity amount must be less than or equal to type(uint248).max"
+            "L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max"
         );
 
         // Pre-fund the liquidity contract with the specified amount

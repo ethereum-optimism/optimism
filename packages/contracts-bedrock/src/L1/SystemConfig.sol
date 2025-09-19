@@ -154,9 +154,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.8.1
+    /// @custom:semver 3.9.0
     function version() public pure virtual returns (string memory) {
-        return "3.8.1";
+        return "3.9.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -518,9 +518,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         return superchainConfig.guardian();
     }
 
+    /// @custom:legacy
     /// @notice Returns whether the custom gas token feature is enabled.
     /// @return bool True if the custom gas token feature is enabled, false otherwise.
-    /// @custom:legacy
     function isCustomGasToken() public view returns (bool) {
         return isFeatureEnabled[Features.CUSTOM_GAS_TOKEN];
     }

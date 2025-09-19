@@ -9,7 +9,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";

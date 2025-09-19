@@ -208,9 +208,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.1.1
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.1.1";
+        return "5.2.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -447,11 +447,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Cannot finalize withdrawal transactions while the system is paused.
         _assertNotPaused();
 
-        // Make sure that the target address is safe.
-        if (_isUnsafeTarget(_tx.target)) {
-            revert OptimismPortal_BadTarget();
-        }
-
         // Cannot finalize withdrawal with value when custom gas token mode is enabled.
         if (_isInvalidCGTWithdrawal(_tx.value)) {
             revert OptimismPortal_NotAllowedOnCGTMode();
@@ -462,6 +457,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // a defacto reentrancy guard.
         if (l2Sender != Constants.DEFAULT_L2_SENDER) {
             revert OptimismPortal_NoReentrancy();
+        }
+
+        // Make sure that the target address is safe.
+        if (_isUnsafeTarget(_tx.target)) {
+            revert OptimismPortal_BadTarget();
         }
 
         // Grab the withdrawal.
@@ -666,6 +666,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return Whether the transaction is invalid (has value when CGT mode is enabled).
     function _isInvalidCGTWithdrawal(uint256 _value) internal view returns (bool) {
         // Cannot process withdrawal with value when custom gas token mode is enabled.
+        // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
+        //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
         return _isUsingCustomGasToken() && _value > 0;
     }
 
