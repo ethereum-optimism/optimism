@@ -139,7 +139,8 @@ func setupSystem(gt *testing.T, t devtest.T, blocksToSync uint64) (*presets.Mini
 		L1EL:         dsl.NewL1ELNode(system.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)),
 		L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
 		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
-		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
+		L2ELReadOnly: dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
+		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.SecondL2EL), orch.ControlPlane()),
 		SyncTester:   dsl.NewSyncTester(syncTester),
 	}
 
