@@ -88,7 +88,7 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
 
-	opt.Add(WithExtL2Node(ids.L2ELReadOnly, l2ELRPC))
+	opt.Add(WithExtL2Node(ids.L2ELReadOnly, networkPreset.L2ELEndpoint))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

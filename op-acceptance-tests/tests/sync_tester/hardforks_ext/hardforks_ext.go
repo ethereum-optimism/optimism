@@ -125,9 +125,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 	}
 
 	// Create orchestrator with the same configuration that was in TestMain
-	opt := stack.Combine(
-		presets.WithExternalELWithSuperchainRegistry(config),
-	)
+	opt := presets.WithExternalELWithSuperchainRegistry(config)
 	if l2CLSyncMode == sync.ELSync {
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),

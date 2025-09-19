@@ -206,10 +206,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blocksToSync uint64) (*sysgo.
 	target := initial + blocksToSync
 	l.Info("LATEST_BLOCK", "latest_block", latestBlock.NumberU64(), "session_initial_block", initial, "target_block", target)
 
-	opt := stack.Combine(
-		presets.WithExternalELWithSuperchainRegistry(config),
-	)
-
+	opt := presets.WithExternalELWithSuperchainRegistry(config)
 	if L2CLSyncMode == sync.ELSync {
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
