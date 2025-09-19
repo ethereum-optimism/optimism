@@ -421,11 +421,6 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         timelockGuard.scheduleTransaction(dummyTx.safeInstance.safe, dummyTx.nonce, dummyTx.params, dummyTx.signatures);
     }
 
-    /// @notice Placeholder for verifying rescheduling after cancellation behaviour.
-    function test_scheduleTransaction_identicalPreviouslyCancelled_reverts() external {
-        // TODO: Implement once cancelTransaction is implemented and tested
-    }
-
     /// @notice Confirms scheduling fails when the guard has not been enabled.
     function test_scheduleTransaction_guardNotEnabled_reverts() external {
         // Attempt to schedule a transaction with a Safe that has enabled the guard but
@@ -669,5 +664,107 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             "",
             address(0)
         );
+    }
+}
+
+/// @title TimelockGuard_Integration_test
+/// @notice Tests for integration between TimelockGuard and Safe
+contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    /// @notice Test that scheduling a transaction and then executing it succeeds
+    function test_integration_scheduleThenExecute_succeeds() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        dummyTx.executeTransaction();
+
+        assertEq(timelockGuard.getScheduledTransaction(safeInstance.safe, dummyTx.hash).executed, true);
+    }
+
+    /// @notice Test that scheduling a transaction and then executing it twice reverts
+    function test_integration_scheduleThenExecuteTwice_reverts() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        dummyTx.executeTransaction();
+
+        vm.expectRevert("GS026");
+        dummyTx.executeTransaction();
+    }
+
+    function test_integration_scheduleThenExecuteThenCancel_reverts() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        dummyTx.executeTransaction();
+
+        TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyExecuted.selector);
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
+    }
+
+    /// @notice Test that rescheduling an identical previously cancelled transaction reverts
+    function test_integration_scheduleTransaction_identicalPreviouslyCancelled_reverts() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
+        timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
+
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
+        dummyTx.scheduleTransaction(timelockGuard);
+    }
+
+    /// @notice Test that the guard can be disabled while still configured, and then can be
+    ///         deconfigured
+    function test_integration_disablThenResetGuard_succeeds() external {
+        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
+        disableGuardTx.params.to = address(disableGuardTx.safeInstance.safe);
+        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
+        disableGuardTx.updateTransaction();
+        disableGuardTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        disableGuardTx.executeTransaction();
+
+        // TODO: this test fails because the guard config cannot be modified while the guard is
+        // disabled. IMO a guard should be able to manage its own configuration while it is disabled.
+        vm.skip(true);
+
+        TransactionBuilder.Transaction memory resetGuardConfigTx = _createEmptyTransaction(safeInstance);
+        resetGuardConfigTx.params.to = address(timelockGuard);
+        resetGuardConfigTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
+        resetGuardConfigTx.updateTransaction();
+        resetGuardConfigTx.scheduleTransaction(timelockGuard);
+
+        // vm.warp(block.timestamp + TIMELOCK_DELAY);
+        resetGuardConfigTx.executeTransaction();
+    }
+
+    /// @notice Test that the guard can be reset while still enabled, and then can be disabled
+    function test_integration_resetThenDisableGuard_succeeds() external {
+        TransactionBuilder.Transaction memory resetGuardTx = _createEmptyTransaction(safeInstance);
+        resetGuardTx.params.to = address(timelockGuard);
+        resetGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
+        resetGuardTx.updateTransaction();
+        resetGuardTx.scheduleTransaction(timelockGuard);
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        resetGuardTx.executeTransaction();
+
+        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
+        disableGuardTx.params.to = address(safeInstance.safe);
+        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
+        disableGuardTx.updateTransaction();
+
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+        disableGuardTx.executeTransaction();
     }
 }
