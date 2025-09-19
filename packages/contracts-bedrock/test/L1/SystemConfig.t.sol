@@ -823,3 +823,23 @@ contract SystemConfig_SuperchainConfig_Test is SystemConfig_TestInit {
         assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
     }
 }
+
+/// @title SystemConfig_SetMinBaseFee_Test
+/// @notice Test contract for SystemConfig `setMinBaseFee` function.
+contract SystemConfig_SetMinBaseFee_Test is SystemConfig_TestInit {
+    /// @notice Tests that `setMinBaseFee` reverts if the caller is not the owner.
+    function test_setMinBaseFee_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setMinBaseFee(0);
+    }
+
+    /// @notice Tests that `setMinBaseFee` updates the min base fee successfully.
+    function testFuzz_setMinBaseFee_succeeds(uint64 newMinBaseFee) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.MIN_BASE_FEE, abi.encode(newMinBaseFee));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setMinBaseFee(newMinBaseFee);
+        assertEq(systemConfig.minBaseFee(), newMinBaseFee);
+    }
+}

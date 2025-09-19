@@ -11,4 +11,5 @@ import (
 type OracleHinter interface {
 	HintBlockExecution(parentBlockHash common.Hash, attr eth.PayloadAttributes, chainID eth.ChainID)
 	HintWithdrawalsRoot(blockHash common.Hash, chainID eth.ChainID)
+	HintBlockHashLookup(blockNumber uint64, headBlockHash common.Hash, l2ChainID eth.ChainID)
 }
