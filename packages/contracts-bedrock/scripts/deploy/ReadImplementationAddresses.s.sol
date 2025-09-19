@@ -37,29 +37,13 @@ contract ReadImplementationAddresses is Script {
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
-        // Read implementations from EIP-1967 proxies
-        address[6] memory eip1967Proxies = [
-            _input.delayedWETHPermissionedGameProxy,
-            _input.optimismPortalProxy,
-            _input.systemConfigProxy,
-            _input.l1ERC721BridgeProxy,
-            _input.optimismMintableERC20FactoryProxy,
-            _input.disputeGameFactoryProxy
-        ];
-
         // Get implementations from EIP-1967 proxies
-        for (uint256 i = 0; i < eip1967Proxies.length; i++) {
-            IProxy proxy = IProxy(payable(eip1967Proxies[i]));
-            vm.prank(address(0));
-            address impl = proxy.implementation();
-
-            if (i == 0) output_.delayedWETH = impl;
-            else if (i == 1) output_.optimismPortal = impl;
-            else if (i == 2) output_.systemConfig = impl;
-            else if (i == 3) output_.l1ERC721Bridge = impl;
-            else if (i == 4) output_.optimismMintableERC20Factory = impl;
-            else if (i == 5) output_.disputeGameFactory = impl;
-        }
+        output_.delayedWETH = getEIP1967Impl(_input.delayedWETHPermissionedGameProxy);
+        output_.optimismPortal = getEIP1967Impl(_input.optimismPortalProxy);
+        output_.systemConfig = getEIP1967Impl(_input.systemConfigProxy);
+        output_.l1ERC721Bridge = getEIP1967Impl(_input.l1ERC721BridgeProxy);
+        output_.optimismMintableERC20Factory = getEIP1967Impl(_input.optimismMintableERC20FactoryProxy);
+        output_.disputeGameFactory = getEIP1967Impl(_input.disputeGameFactoryProxy);
 
         // Get L1StandardBridge implementation (uses different proxy type)
         vm.prank(address(0));
@@ -84,5 +68,14 @@ contract ReadImplementationAddresses is Script {
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
         return abi.encode(output);
+    }
+
+    /// @notice Gets the implementation address from an EIP-1967 proxy
+    /// @param _proxy The proxy address to read from
+    /// @return impl_ The implementation address
+    function getEIP1967Impl(address _proxy) private returns (address impl_) {
+        IProxy proxy = IProxy(payable(_proxy));
+        vm.prank(address(0));
+        impl_ = proxy.implementation();
     }
 }
