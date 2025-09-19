@@ -151,9 +151,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.1.0
     function version() public pure virtual returns (string memory) {
-        return "2.0.0";
+        return "2.1.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -281,7 +281,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId
-        if (msg.data.length != 246) revert BadExtraData();
+        if (msg.data.length != _expectedCalldataSize()) revert BadExtraData();
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
@@ -1134,6 +1134,13 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     ////////////////////////////////////////////////////////////////
     //                          HELPERS                           //
     ////////////////////////////////////////////////////////////////
+
+    /// @notice Returns the expected calldata size for the game. Virtual so that the
+    ///         PermissionedDisputeGame can override it.
+    /// @return The expected calldata size for the game.
+    function _expectedCalldataSize() internal pure virtual returns (uint256) {
+        return 246;
+    }
 
     /// @notice Pays out the bond of a claim to a given recipient.
     /// @param _recipient The recipient of the bond.

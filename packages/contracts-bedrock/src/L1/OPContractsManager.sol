@@ -6,6 +6,7 @@ import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerSt
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 
 // Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
@@ -1182,7 +1183,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
             optimismPortal: address(_output.optimismPortalProxy),
-            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy)
+            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
+            delayedWETH: address(_output.delayedWETHPermissionedGameProxy)
         });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
@@ -1676,6 +1678,11 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         address challenger;
     }
 
+    struct ContractTarget {
+        string name;
+        uint256 ptr;
+    }
+
     struct DisputeGameConfig {
         GameType gameType;
         bytes gameArgs;
@@ -1699,11 +1706,6 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
     struct AnchorStateConfig {
         bytes startingAnchorRoot;
         GameType startingRespectedGameType;
-    }
-
-    struct UpgradeInput {
-        ISystemConfig systemConfigProxy;
-        DisputeGameConfig[] disputeGameConfigs;
     }
 
     struct DisputeGameContracts {
@@ -1735,24 +1737,29 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         ISuperchainConfig superchainConfig;
     }
 
+    struct UpgradeInput {
+        ISystemConfig systemConfigProxy;
+        DisputeGameConfig[] disputeGameConfigs;
+    }
+
     struct ExecutionInput {
         ChainContracts cts;
         FullConfig cfg;
     }
 
-    struct ExecutionOutput {
-        ChainContracts cts;
-    }
-
     struct ProxyDeployArgs {
-        uint256 l2ChainId;
         IProxyAdmin proxyAdmin;
+        IAddressManager addressManager;
+        uint256 l2ChainId;
         string saltMixer;
     }
 
     error OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
     error OPContractsManagerV2_UnknownGameType();
     error OPContractsManagerV2_UnsupportedGameType();
+    error OPContractsManagerV2_ProxyMustLoad();
+    error OPContractsManagerV2_ProxyLoadFailed();
+    error OPContractsManagerV2_ProxyLoadNeedsGas();
 
     StorageSetter internal immutable STORAGE_SETTER;
 
@@ -1760,154 +1767,243 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         STORAGE_SETTER = new StorageSetter();
     }
 
-    function deploy(FullConfig memory _input) external returns (ExecutionOutput memory) {
+    function deploy(FullConfig memory _cfg) external returns (ChainContracts memory) {
+        // Build the chain world.
+        ChainContracts memory cts =
+            _buildChainWorld(ISystemConfig(address(0)), _cfg.l2SystemConfig.l2ChainId, _cfg.saltMixer, false);
+
+        // Execute the deployment.
+        return _execute(_cfg, cts, true);
+    }
+
+    function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory) {
+        // Build the chain world.
+        ChainContracts memory cts =
+            _buildChainWorld(_inp.systemConfigProxy, _inp.systemConfigProxy.l2ChainId(), "salt mixer", true);
+
+        // Build the full config.
+        FullConfig memory cfg = _buildFullConfig(cts);
+
+        // Execute the upgrade.
+        return _execute(cfg, cts, false);
+    }
+
+    function _buildChainWorld(
+        ISystemConfig _systemConfig,
+        uint256 _l2ChainId,
+        string memory _saltMixer,
+        bool _mustLoad
+    )
+        internal
+        returns (ChainContracts memory)
+    {
         // Load blueprints.
         OPContractsManager.Blueprints memory bps = blueprints();
 
-        // Start building the execution input.
-        ExecutionInput memory inp;
+        // Start building the chain contracts.
+        ChainContracts memory cts;
 
-        // Deploy already has the full config, use it.
-        inp.cfg = _input;
-
-        // ProxyAdmin and AddressManager are special cases, not deployed as proxies.
-        inp.cts.proxyAdmin = IProxyAdmin(
-            Blueprint.deployFrom(
-                bps.proxyAdmin,
-                _makeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.saltMixer, "ProxyAdmin"),
-                abi.encode(address(this))
-            )
-        );
-        inp.cts.addressManager = IAddressManager(
-            Blueprint.deployFrom(
-                bps.addressManager,
-                _makeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.saltMixer, "AddressManager"),
-                abi.encode()
-            )
-        );
-
-        // Set the AddressManager on the ProxyAdmin.
-        inp.cts.proxyAdmin.setAddressManager(inp.cts.addressManager);
-
-        // Transfer ownership of the AddressManager to the ProxyAdmin.
-        inp.cts.addressManager.transferOwnership(address(inp.cts.proxyAdmin));
-
-        // L1CrossDomainMessenger is a special case ResolvedDelegateProxy (legacy).
-        string memory l1XdmName = "OVM_L1CrossDomainMessenger";
-        inp.cts.l1CrossDomainMessenger = IL1CrossDomainMessenger(
-            Blueprint.deployFrom(
-                bps.resolvedDelegateProxy,
-                _makeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.saltMixer, "L1CrossDomainMessenger"),
-                abi.encode(inp.cts.addressManager, l1XdmName)
-            )
-        );
-
-        // ResolvedDelegateProxy requires setting the proxy type on the ProxyAdmin.
-        inp.cts.proxyAdmin.setProxyType(address(inp.cts.l1CrossDomainMessenger), IProxyAdmin.ProxyType.RESOLVED);
-        inp.cts.proxyAdmin.setImplementationName(address(inp.cts.l1CrossDomainMessenger), l1XdmName);
-
-        // L1StandardBridge is a special case ChugSplashProxy (legacy).
-        inp.cts.l1StandardBridge = IL1StandardBridge(
-            payable(
+        // ProxyAdmin and AddressManager are the two special cases where we handle them
+        // differently than everything else because they're fundamental, not proxies, and we need
+        // them before we can get anything else. If we don't have a SystemConfig, we assume that
+        // the entire chain is being built from scratch and need to build that too.
+        if (address(_systemConfig) == address(0)) {
+            // ProxyAdmin and AddressManager are special cases, not deployed as proxies.
+            cts.proxyAdmin = IProxyAdmin(
                 Blueprint.deployFrom(
-                    bps.l1ChugSplashProxy,
-                    _makeSalt(inp.cfg.l2SystemConfig.l2ChainId, inp.cfg.saltMixer, "L1StandardBridge"),
-                    abi.encode(inp.cts.proxyAdmin)
+                    bps.proxyAdmin, _makeSalt(_l2ChainId, _saltMixer, "ProxyAdmin"), abi.encode(address(this))
+                )
+            );
+            cts.addressManager = IAddressManager(
+                Blueprint.deployFrom(
+                    bps.addressManager, _makeSalt(_l2ChainId, _saltMixer, "AddressManager"), abi.encode()
+                )
+            );
+
+            // Set the AddressManager on the ProxyAdmin.
+            cts.proxyAdmin.setAddressManager(cts.addressManager);
+
+            // Transfer ownership of the AddressManager to the ProxyAdmin.
+            cts.addressManager.transferOwnership(address(cts.proxyAdmin));
+        } else {
+            // Special case handling, don't bother with the standard flow.
+            cts.proxyAdmin = _systemConfig.proxyAdmin();
+            cts.addressManager = cts.proxyAdmin.addressManager();
+        }
+
+        // Set up the deploy args once, keeps the code cleaner.
+        ProxyDeployArgs memory proxyDeployArgs = ProxyDeployArgs({
+            proxyAdmin: cts.proxyAdmin,
+            addressManager: cts.addressManager,
+            l2ChainId: _l2ChainId,
+            saltMixer: _saltMixer
+        });
+
+        // Deploy the SystemConfig.
+        // SystemConfig is the other special case, if we don't have that, we don't have anything.
+        // Normal load-or-build flow doesn't quite work here because there's nothing that we can
+        // load the SystemConfig from, so we just forcibly deploy it in this case.
+        if (address(_systemConfig) == address(0)) {
+            cts.systemConfig = ISystemConfig(deployProxy(_l2ChainId, cts.proxyAdmin, _saltMixer, "SystemConfig"));
+        }
+
+        // For every other contract, we load-or-build the proxy. Each contract has a theoretical
+        // source where the address would be found. If the address isn't found there, we assume the
+        // address needs to be constructed.
+
+        // Load the L1CrossDomainMessenger.
+        cts.l1CrossDomainMessenger = IL1CrossDomainMessenger(
+            _loadOrBuildProxy(
+                address(_systemConfig),
+                _systemConfig.l1CrossDomainMessenger.selector,
+                proxyDeployArgs,
+                "L1CrossDomainMessenger",
+                _mustLoad
+            )
+        );
+
+        // Load the L1ERC721Bridge.
+        cts.l1ERC721Bridge = IL1ERC721Bridge(
+            _loadOrBuildProxy(
+                address(_systemConfig),
+                _systemConfig.l1ERC721Bridge.selector,
+                proxyDeployArgs,
+                "L1ERC721Bridge",
+                _mustLoad
+            )
+        );
+
+        // Load the L1StandardBridge.
+        cts.l1StandardBridge = IL1StandardBridge(
+            payable(
+                _loadOrBuildProxy(
+                    address(_systemConfig),
+                    _systemConfig.l1StandardBridge.selector,
+                    proxyDeployArgs,
+                    "L1StandardBridge",
+                    _mustLoad
                 )
             )
         );
 
-        // ChugSplashProxy requires setting the proxy type on the ProxyAdmin.
-        inp.cts.proxyAdmin.setProxyType(address(inp.cts.l1StandardBridge), IProxyAdmin.ProxyType.CHUGSPLASH);
+        // Load the OptimismPortal.
+        cts.optimismPortal = IOptimismPortal(
+            payable(
+                _loadOrBuildProxy(
+                    address(_systemConfig),
+                    _systemConfig.optimismPortal.selector,
+                    proxyDeployArgs,
+                    "OptimismPortal",
+                    _mustLoad
+                )
+            )
+        );
 
-        // Everything else is deployed as a proxy.
-        // Set up the deploy args once, keeps the code cleaner.
-        ProxyDeployArgs memory proxyDeployArgs = ProxyDeployArgs({
-            l2ChainId: inp.cfg.l2SystemConfig.l2ChainId,
-            proxyAdmin: inp.cts.proxyAdmin,
-            saltMixer: inp.cfg.saltMixer
-        });
+        // Load the ETHLockbox.
+        cts.ethLockbox = IETHLockbox(
+            _loadOrBuildProxy(
+                address(cts.optimismPortal),
+                cts.optimismPortal.ethLockbox.selector,
+                proxyDeployArgs,
+                "ETHLockbox",
+                _mustLoad
+            )
+        );
 
-        // Deploy all of system proxies.
-        inp.cts.systemConfig = ISystemConfig(_makeProxy(proxyDeployArgs, "SystemConfig"));
-        inp.cts.l1ERC721Bridge = IL1ERC721Bridge(_makeProxy(proxyDeployArgs, "L1ERC721Bridge"));
-        inp.cts.optimismPortal = IOptimismPortal(payable(_makeProxy(proxyDeployArgs, "OptimismPortal")));
-        inp.cts.ethLockbox = IETHLockbox(_makeProxy(proxyDeployArgs, "ETHLockbox"));
-        inp.cts.disputeGameFactory = IDisputeGameFactory(_makeProxy(proxyDeployArgs, "DisputeGameFactory"));
-        inp.cts.anchorStateRegistry = IAnchorStateRegistry(_makeProxy(proxyDeployArgs, "AnchorStateRegistry"));
-        inp.cts.delayedWETH = IDelayedWETH(payable(_makeProxy(proxyDeployArgs, "DelayedWETH")));
-        inp.cts.optimismMintableERC20Factory =
-            IOptimismMintableERC20Factory(_makeProxy(proxyDeployArgs, "OptimismMintableERC20Factory"));
+        // Load the OptimismMintableERC20Factory.
+        cts.optimismMintableERC20Factory = IOptimismMintableERC20Factory(
+            _loadOrBuildProxy(
+                address(_systemConfig),
+                _systemConfig.optimismMintableERC20Factory.selector,
+                proxyDeployArgs,
+                "OptimismMintableERC20Factory",
+                _mustLoad
+            )
+        );
 
-        // Execute the deployment.
-        ExecutionOutput memory output = _execute(inp);
+        // Load the DisputeGameFactory.
+        cts.disputeGameFactory = IDisputeGameFactory(
+            _loadOrBuildProxy(
+                address(cts.optimismPortal),
+                cts.optimismPortal.disputeGameFactory.selector,
+                proxyDeployArgs,
+                "DisputeGameFactory",
+                _mustLoad
+            )
+        );
 
-        // Transfer ownership of the DisputeGameFactory to the proxyAdminOwner.
-        inp.cts.disputeGameFactory.transferOwnership(address(inp.cfg.roles.proxyAdminOwner));
+        // Load the AnchorStateRegistry.
+        cts.anchorStateRegistry = IAnchorStateRegistry(
+            _loadOrBuildProxy(
+                address(cts.optimismPortal),
+                cts.optimismPortal.anchorStateRegistry.selector,
+                proxyDeployArgs,
+                "AnchorStateRegistry",
+                _mustLoad
+            )
+        );
 
-        // Transfer ownership of the ProxyAdmin to the proxyAdminOwner.
-        inp.cts.proxyAdmin.transferOwnership(inp.cfg.roles.proxyAdminOwner);
+        // Load the DelayedWETH.
+        cts.delayedWETH = IDelayedWETH(
+            payable(
+                _loadOrBuildProxy(
+                    address(_systemConfig),
+                    _systemConfig.delayedWETH.selector,
+                    proxyDeployArgs,
+                    "DelayedWETH",
+                    false // TODO(#?????): Replace with _mustLoad once this upgrade goes through.
+                )
+            )
+        );
 
-        // Return the output.
-        return output;
+        return cts;
     }
 
-    function upgrade(UpgradeInput memory _input) external returns (ExecutionOutput memory) {
-        ExecutionInput memory inp;
-
-        // Grab all of the easy contracts.
-        inp.cts.systemConfig = _input.systemConfigProxy;
-        inp.cts.proxyAdmin = inp.cts.systemConfig.proxyAdmin();
-        inp.cts.addressManager = inp.cts.proxyAdmin.addressManager();
-        inp.cts.l1CrossDomainMessenger = IL1CrossDomainMessenger(inp.cts.systemConfig.l1CrossDomainMessenger());
-        inp.cts.l1ERC721Bridge = IL1ERC721Bridge(inp.cts.systemConfig.l1ERC721Bridge());
-        inp.cts.l1StandardBridge = IL1StandardBridge(payable(inp.cts.systemConfig.l1StandardBridge()));
-        inp.cts.optimismPortal = IOptimismPortal(payable(inp.cts.systemConfig.optimismPortal()));
-        inp.cts.ethLockbox = inp.cts.optimismPortal.ethLockbox();
-        inp.cts.disputeGameFactory = inp.cts.optimismPortal.disputeGameFactory();
-        inp.cts.anchorStateRegistry = inp.cts.optimismPortal.anchorStateRegistry();
-        inp.cts.delayedWETH = IDelayedWETH(payable(address(0))); // TODO
-        inp.cts.optimismMintableERC20Factory =
-            IOptimismMintableERC20Factory(inp.cts.systemConfig.optimismMintableERC20Factory());
+    function _buildFullConfig(ChainContracts memory _cts) internal view returns (FullConfig memory) {
+        // Start building the full config.
+        FullConfig memory cfg;
 
         // Extract system roles.
-        inp.cfg.roles.proxyAdminOwner = inp.cts.optimismPortal.proxyAdminOwner();
-        inp.cfg.roles.systemConfigOwner = inp.cts.systemConfig.owner();
-        inp.cfg.roles.batcherHash = inp.cts.systemConfig.batcherHash();
-        inp.cfg.roles.unsafeBlockSigner = inp.cts.systemConfig.unsafeBlockSigner();
+        cfg.roles.proxyAdminOwner = _cts.optimismPortal.proxyAdminOwner();
+        cfg.roles.systemConfigOwner = _cts.systemConfig.owner();
+        cfg.roles.batcherHash = _cts.systemConfig.batcherHash();
+        cfg.roles.unsafeBlockSigner = _cts.systemConfig.unsafeBlockSigner();
 
         // Extract system config.
-        inp.cfg.l2SystemConfig.basefeeScalar = inp.cts.systemConfig.basefeeScalar();
-        inp.cfg.l2SystemConfig.blobBasefeeScalar = inp.cts.systemConfig.blobbasefeeScalar();
-        inp.cfg.l2SystemConfig.gasLimit = inp.cts.systemConfig.gasLimit();
-        inp.cfg.l2SystemConfig.l2ChainId = inp.cts.systemConfig.l2ChainId();
-        inp.cfg.l2SystemConfig.resourceConfig = inp.cts.systemConfig.resourceConfig();
+        cfg.l2SystemConfig.basefeeScalar = _cts.systemConfig.basefeeScalar();
+        cfg.l2SystemConfig.blobBasefeeScalar = _cts.systemConfig.blobbasefeeScalar();
+        cfg.l2SystemConfig.gasLimit = _cts.systemConfig.gasLimit();
+        cfg.l2SystemConfig.l2ChainId = _cts.systemConfig.l2ChainId();
+        cfg.l2SystemConfig.resourceConfig = _cts.systemConfig.resourceConfig();
 
         // Extract AnchorStateRegistry parameters.
-        (Hash root, uint256 l2SequenceNumber) = inp.cts.anchorStateRegistry.getAnchorRoot();
-        inp.cfg.anchorStateConfig.startingAnchorRoot = abi.encode(root, l2SequenceNumber);
-        inp.cfg.anchorStateConfig.startingRespectedGameType = inp.cts.anchorStateRegistry.respectedGameType();
+        (Hash root, uint256 l2SequenceNumber) = _cts.anchorStateRegistry.getAnchorRoot();
+        cfg.anchorStateConfig.startingAnchorRoot = abi.encode(root, l2SequenceNumber);
+        cfg.anchorStateConfig.startingRespectedGameType = _cts.anchorStateRegistry.respectedGameType();
 
         // Generate a salt mixer based on the SystemConfig address.
-        inp.cfg.saltMixer = string(bytes.concat(bytes32(uint256(uint160(address(inp.cts.systemConfig))))));
+        cfg.saltMixer = string(bytes.concat(bytes32(uint256(uint160(address(_cts.systemConfig))))));
 
         // Set the SuperchainConfig address.
-        inp.cfg.superchainConfig = inp.cts.systemConfig.superchainConfig();
+        cfg.superchainConfig = _cts.systemConfig.superchainConfig();
 
-        // Execute the upgrade.
-        return _execute(inp);
+        // Return the full config.
+        return cfg;
     }
 
-    function _execute(ExecutionInput memory _input) internal returns (ExecutionOutput memory output_) {
+    function _execute(
+        FullConfig memory _cfg,
+        ChainContracts memory _cts,
+        bool _xfer
+    )
+        internal
+        returns (ChainContracts memory)
+    {
         // Load implementations.
         OPContractsManager.Implementations memory impls = implementations();
 
         // Make sure the provided SuperchainConfig is up to date.
-        if (
-            SemverComp.lt(
-                _input.cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version()
-            )
-        ) {
+        if (SemverComp.lt(_cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {
             revert OPContractsManagerV2_SuperchainConfigNeedsUpgrade();
         }
 
@@ -1916,152 +2012,162 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         {
             // Generate the SystemConfig addresses input.
             ISystemConfig.Addresses memory addrs = ISystemConfig.Addresses({
-                l1CrossDomainMessenger: address(_input.cts.l1CrossDomainMessenger),
-                l1ERC721Bridge: address(_input.cts.l1ERC721Bridge),
-                l1StandardBridge: address(_input.cts.l1StandardBridge),
-                optimismPortal: address(_input.cts.optimismPortal),
-                optimismMintableERC20Factory: address(_input.cts.optimismMintableERC20Factory)
+                l1CrossDomainMessenger: address(_cts.l1CrossDomainMessenger),
+                l1ERC721Bridge: address(_cts.l1ERC721Bridge),
+                l1StandardBridge: address(_cts.l1StandardBridge),
+                optimismPortal: address(_cts.optimismPortal),
+                optimismMintableERC20Factory: address(_cts.optimismMintableERC20Factory),
+                delayedWETH: address(_cts.delayedWETH)
             });
 
             // Generate the initializer arguments first.
             bytes memory systemConfigArgs = abi.encodeCall(
                 ISystemConfig.initialize,
                 (
-                    _input.cfg.roles.systemConfigOwner,
-                    _input.cfg.l2SystemConfig.basefeeScalar,
-                    _input.cfg.l2SystemConfig.blobBasefeeScalar,
-                    _input.cfg.roles.batcherHash,
-                    _input.cfg.l2SystemConfig.gasLimit,
-                    _input.cfg.roles.unsafeBlockSigner,
-                    _input.cfg.l2SystemConfig.resourceConfig,
-                    chainIdToBatchInboxAddress(_input.cfg.l2SystemConfig.l2ChainId),
+                    _cfg.roles.systemConfigOwner,
+                    _cfg.l2SystemConfig.basefeeScalar,
+                    _cfg.l2SystemConfig.blobBasefeeScalar,
+                    _cfg.roles.batcherHash,
+                    _cfg.l2SystemConfig.gasLimit,
+                    _cfg.roles.unsafeBlockSigner,
+                    _cfg.l2SystemConfig.resourceConfig,
+                    chainIdToBatchInboxAddress(_cfg.l2SystemConfig.l2ChainId),
                     addrs,
-                    _input.cfg.l2SystemConfig.l2ChainId,
-                    _input.cfg.superchainConfig
+                    _cfg.l2SystemConfig.l2ChainId,
+                    _cfg.superchainConfig
                 )
             );
 
             // Update the SystemConfig.
-            _resetAndInitialize(
-                _input.cts.proxyAdmin, address(_input.cts.systemConfig), impls.systemConfigImpl, systemConfigArgs
-            );
+            _resetAndInitialize(_cts.proxyAdmin, address(_cts.systemConfig), impls.systemConfigImpl, systemConfigArgs);
         }
 
         // Update the OptimismPortal.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             _resetAndInitialize(
-                _input.cts.proxyAdmin,
-                address(_input.cts.optimismPortal),
+                _cts.proxyAdmin,
+                address(_cts.optimismPortal),
                 impls.optimismPortalInteropImpl,
                 abi.encodeCall(
-                    IOptimismPortalInterop.initialize,
-                    (_input.cts.systemConfig, _input.cts.anchorStateRegistry, _input.cts.ethLockbox)
+                    IOptimismPortalInterop.initialize, (_cts.systemConfig, _cts.anchorStateRegistry, _cts.ethLockbox)
                 )
             );
         } else {
             _resetAndInitialize(
-                _input.cts.proxyAdmin,
-                address(_input.cts.optimismPortal),
+                _cts.proxyAdmin,
+                address(_cts.optimismPortal),
                 impls.optimismPortalImpl,
-                abi.encodeCall(IOptimismPortal.initialize, (_input.cts.systemConfig, _input.cts.anchorStateRegistry))
+                abi.encodeCall(IOptimismPortal.initialize, (_cts.systemConfig, _cts.anchorStateRegistry))
             );
         }
 
         // Update the ETHLockbox.
         IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-        portals[0] = _input.cts.optimismPortal;
+        portals[0] = _cts.optimismPortal;
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.ethLockbox),
+            _cts.proxyAdmin,
+            address(_cts.ethLockbox),
             impls.ethLockboxImpl,
-            abi.encodeCall(IETHLockbox.initialize, (_input.cts.systemConfig, portals))
+            abi.encodeCall(IETHLockbox.initialize, (_cts.systemConfig, portals))
         );
 
         // If interop was requested, also set the ETHLockbox feature and migrate liquidity into the
         // ETHLockbox contract.
         if (_isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            _input.cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            IOptimismPortalInterop(payable(_input.cts.optimismPortal)).migrateLiquidity();
+            _cts.systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+            IOptimismPortalInterop(payable(_cts.optimismPortal)).migrateLiquidity();
         }
 
         // Update the L1CrossDomainMessenger.
         // NOTE: L1CrossDomainMessenger initializer is at slot 0, offset 20.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.l1CrossDomainMessenger),
+            _cts.proxyAdmin,
+            address(_cts.l1CrossDomainMessenger),
             impls.l1CrossDomainMessengerImpl,
-            abi.encodeCall(IL1CrossDomainMessenger.initialize, (_input.cts.systemConfig, _input.cts.optimismPortal)),
+            abi.encodeCall(IL1CrossDomainMessenger.initialize, (_cts.systemConfig, _cts.optimismPortal)),
             bytes32(0),
             20
         );
 
         // Update the L1StandardBridge.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.l1StandardBridge),
+            _cts.proxyAdmin,
+            address(_cts.l1StandardBridge),
             impls.l1StandardBridgeImpl,
-            abi.encodeCall(IL1StandardBridge.initialize, (_input.cts.l1CrossDomainMessenger, _input.cts.systemConfig))
+            abi.encodeCall(IL1StandardBridge.initialize, (_cts.l1CrossDomainMessenger, _cts.systemConfig))
         );
 
         // Update the L1ERC721Bridge.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.l1ERC721Bridge),
+            _cts.proxyAdmin,
+            address(_cts.l1ERC721Bridge),
             impls.l1ERC721BridgeImpl,
-            abi.encodeCall(IL1ERC721Bridge.initialize, (_input.cts.l1CrossDomainMessenger, _input.cts.systemConfig))
+            abi.encodeCall(IL1ERC721Bridge.initialize, (_cts.l1CrossDomainMessenger, _cts.systemConfig))
         );
 
         // Update the OptimismMintableERC20Factory.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.optimismMintableERC20Factory),
+            _cts.proxyAdmin,
+            address(_cts.optimismMintableERC20Factory),
             impls.optimismMintableERC20FactoryImpl,
-            abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_input.cts.l1StandardBridge)))
+            abi.encodeCall(IOptimismMintableERC20Factory.initialize, (address(_cts.l1StandardBridge)))
         );
 
         // Update the DisputeGameFactory.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.disputeGameFactory),
+            _cts.proxyAdmin,
+            address(_cts.disputeGameFactory),
             impls.disputeGameFactoryImpl,
             abi.encodeCall(IDisputeGameFactory.initialize, (address(this)))
         );
 
         // Update the DelayedWETH.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.delayedWETH),
+            _cts.proxyAdmin,
+            address(_cts.delayedWETH),
             impls.delayedWETHImpl,
-            abi.encodeCall(IDelayedWETH.initialize, (_input.cts.systemConfig))
+            abi.encodeCall(IDelayedWETH.initialize, (_cts.systemConfig))
         );
 
         // Update the AnchorStateRegistry.
         _resetAndInitialize(
-            _input.cts.proxyAdmin,
-            address(_input.cts.anchorStateRegistry),
+            _cts.proxyAdmin,
+            address(_cts.anchorStateRegistry),
             impls.anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
                 (
-                    _input.cts.systemConfig,
-                    _input.cts.disputeGameFactory,
-                    abi.decode(_input.cfg.anchorStateConfig.startingAnchorRoot, (Proposal)),
-                    _input.cfg.anchorStateConfig.startingRespectedGameType
+                    _cts.systemConfig,
+                    _cts.disputeGameFactory,
+                    abi.decode(_cfg.anchorStateConfig.startingAnchorRoot, (Proposal)),
+                    _cfg.anchorStateConfig.startingRespectedGameType
                 )
             )
         );
 
+        // TODO: This adds new games, but it doesn't unset any other games. Should it?
         // Update the DisputeGame config and implementations.
-        for (uint256 i = 0; i < _input.cfg.disputeGameConfigs.length; i++) {
-            _input.cts.disputeGameFactory.setImplementation(
-                _input.cfg.disputeGameConfigs[i].gameType,
-                IDisputeGame(_getGameImpl(_input.cfg.disputeGameConfigs[i].gameType)),
-                _makeGameArgs(_input, _input.cfg.disputeGameConfigs[i])
+        for (uint256 i = 0; i < _cfg.disputeGameConfigs.length; i++) {
+            _cts.disputeGameFactory.setImplementation(
+                _cfg.disputeGameConfigs[i].gameType,
+                IDisputeGame(_getGameImpl(_cfg.disputeGameConfigs[i].gameType)),
+                _makeGameArgs(_cts, _cfg, _cfg.disputeGameConfigs[i])
             );
         }
 
+        // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
+        // ProxyAdmin to the PAO. Theoretically we could always do this transfer but it feels a bit
+        // safer to only allow it if explicitly requested.
+        if (_xfer) {
+            // Transfer ownership of the DisputeGameFactory to the proxyAdminOwner.
+            _cts.disputeGameFactory.transferOwnership(address(_cfg.roles.proxyAdminOwner));
+
+            // Transfer ownership of the ProxyAdmin to the proxyAdminOwner.
+            _cts.proxyAdmin.transferOwnership(_cfg.roles.proxyAdminOwner);
+        }
+
         // Return contracts as the execution output.
-        return ExecutionOutput({ cts: _input.cts });
+        return _cts;
     }
 
     /// @notice Makes a salt for a contract deployment.
@@ -2081,14 +2187,6 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return computeSalt(_l2ChainId, _saltMixer, _contractName);
     }
 
-    /// @notice Helper function for deploying a proxy with nicer arguments than deployProxy.
-    /// @param _args The arguments for the proxy deployment.
-    /// @param _contractName The name of the contract to deploy.
-    /// @return The address of the deployed proxy.
-    function _makeProxy(ProxyDeployArgs memory _args, string memory _contractName) internal returns (address) {
-        return deployProxy(_args.l2ChainId, _args.proxyAdmin, _args.saltMixer, _contractName);
-    }
-
     /// @notice Generates a batch inbox address for a given L2 chain ID.
     /// @param _l2ChainId The L2 chain ID.
     /// @return The batch inbox address.
@@ -2101,6 +2199,118 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
     /// @return True if the feature is enabled, false otherwise.
     function _isDevFeatureEnabled(bytes32 _feature) internal view returns (bool) {
         return isDevFeatureEnabled(_feature);
+    }
+
+    /// @notice Attempts to load a proxy from a source function where the proxy should be found. If
+    ///         the proxy isn't found at the source, or the call to the source fails, we build a
+    ///         new proxy instead. Calls to source contracts MUST NOT fail under any circumstances
+    ///         other than the function not existing (which can happen in an upgrade scenario).
+    /// @param _source The source contract to load the proxy from.
+    /// @param _selector The selector of the function to call on the source contract.
+    /// @param _args The basic arguments for the proxy deployment.
+    /// @param _contractName The name of the contract to deploy.
+    /// @param _mustLoad Whether to revert if the proxy cannot be loaded from the source.
+    /// @return The address of the loaded or built proxy.
+    function _loadOrBuildProxy(
+        address _source,
+        bytes4 _selector,
+        ProxyDeployArgs memory _args,
+        string memory _contractName,
+        bool _mustLoad
+    )
+        internal
+        returns (address)
+    {
+        // Will revert at THIS call level if source has no code, so we need to handle that case.
+        // If there is no code, success = false and res = empty bytes.
+        bool success;
+        bytes memory res;
+        if (_source.code.length > 0) {
+            // Use a low-level call because we only have an address and a selector.
+            (success, res) = _source.call(abi.encodePacked(_selector));
+        }
+
+        // Handle the result.
+        if (success) {
+            // Success case is easy, this should decode properly.
+            // TODO: Stricter checks here.
+            return abi.decode(res, (address));
+        } else {
+            // Handling the failure case well is important to making sure that this function is
+            // safe. This function is great because it cuts down on a large amount of duplicated
+            // code, but we need to make sure that it doesn't go off and deploy contracts when we
+            // don't want it to. This can be potentially unsafe depending on which contract gets a
+            // new proxy deployed.
+
+            // Checking that we "must load" is the first and most important line of defense. The
+            // upgrade path passes in "true" here for contracts by default. This prevents us from
+            // accidentally creating new proxies during an upgrade. Certain upgrades may need to
+            // deploy new proxies for contracts that don't already exist, but we require that all
+            // such cases come with a clear TODO that removes the allowance as soon as possible.
+            // TODO: Check for the TODO statement with semgrep.
+            if (_mustLoad) {
+                revert OPContractsManagerV2_ProxyMustLoad();
+            }
+
+            // All of the source functions are meant to be simple functions that return a single
+            // address. These functions should not be reverting unless the function doesn't exist
+            // or we ran out of gas (we'll handle that later). It's acceptable for the function not
+            // to exist in certain upgrade paths, but if we get error data back then we hit some
+            // revert statement that we really should be hitting.
+            if (
+                res.length > 0
+                    && keccak256(res)
+                        != keccak256(abi.encodeWithSignature("Error(string)", "Proxy: implementation not initialized"))
+            ) {
+                revert OPContractsManagerV2_ProxyLoadFailed();
+            }
+
+            // Now we check that there's at least 100k gas left. We need this because only 63/64 of
+            // all available gas gets passed into the call above. In theory, it could be possible
+            // for the above call to have reverted without error data if it ran out of gas.
+            // Requiring 100k gas left means that the above call would have needed to use
+            // 63 * 100k = 6.3m gas, which is much larger than we'd ever reasonably expect a source
+            // function to use.
+            if (gasleft() < 100_000) {
+                revert OPContractsManagerV2_ProxyLoadNeedsGas();
+            }
+
+            // Load the blueprints.
+            OPContractsManager.Blueprints memory bps = blueprints();
+
+            // If we've gotten through all of these safety checks, we can say with strong certainty
+            // that we do intend to deploy a new proxy. Deploy it and return the address.
+            address result;
+            if (LibString.eq(_contractName, "L1StandardBridge")) {
+                // L1StandardBridge is a special case ChugSplashProxy (legacy).
+                result = Blueprint.deployFrom(
+                    bps.l1ChugSplashProxy,
+                    _makeSalt(_args.l2ChainId, _args.saltMixer, "L1StandardBridge"),
+                    abi.encode(_args.proxyAdmin)
+                );
+
+                // ChugSplashProxy requires setting the proxy type on the ProxyAdmin.
+                _args.proxyAdmin.setProxyType(result, IProxyAdmin.ProxyType.CHUGSPLASH);
+            } else if (LibString.eq(_contractName, "L1CrossDomainMessenger")) {
+                // L1CrossDomainMessenger is a special case ResolvedDelegateProxy (legacy).
+                string memory l1XdmName = "OVM_L1CrossDomainMessenger";
+                result = Blueprint.deployFrom(
+                    bps.resolvedDelegateProxy,
+                    _makeSalt(_args.l2ChainId, _args.saltMixer, "L1CrossDomainMessenger"),
+                    abi.encode(_args.addressManager, l1XdmName)
+                );
+
+                // ResolvedDelegateProxy requires setting the proxy type on the ProxyAdmin.
+                _args.proxyAdmin.setProxyType(result, IProxyAdmin.ProxyType.RESOLVED);
+                _args.proxyAdmin.setImplementationName(result, l1XdmName);
+            } else {
+                // Otherwise this is a normal proxy.
+                result = deployProxy(_args.l2ChainId, _args.proxyAdmin, _args.saltMixer, _contractName);
+            }
+
+            // Return the final deployment result.
+            return result;
+        }
     }
 
     /// @notice Resets the initialized slot for a contract and then initializes it.
@@ -2170,42 +2380,43 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
     }
 
     /// @notice Makes full game arguments for a given game type.
-    /// @param _input The execution input.
-    /// @param _cfg The game config.
+    /// @param _cts The chain contracts.
+    /// @param _cfg The full config.
+    /// @param _gcfg The game config.
     /// @return The full game arguments.
     function _makeGameArgs(
-        ExecutionInput memory _input,
-        DisputeGameConfig memory _cfg
+        ChainContracts memory _cts,
+        FullConfig memory _cfg,
+        DisputeGameConfig memory _gcfg
     )
         internal
         view
         returns (bytes memory)
     {
         OPContractsManager.Implementations memory impls = implementations();
-        if (_cfg.gameType.raw() == GameTypes.CANNON.raw() || _cfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
-            FaultDisputeGameConfig memory parsedCfg = abi.decode(_cfg.gameArgs, (FaultDisputeGameConfig));
+        if (_gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.SUPER_CANNON.raw()) {
+            FaultDisputeGameConfig memory parsedCfg = abi.decode(_gcfg.gameArgs, (FaultDisputeGameConfig));
             return abi.encodePacked(
                 parsedCfg.absolutePrestate,
                 impls.mipsImpl,
-                _input.cts.anchorStateRegistry,
-                _input.cts.delayedWETH,
-                _input.cfg.l2SystemConfig.l2ChainId
+                _cts.anchorStateRegistry,
+                _cts.delayedWETH,
+                _cfg.l2SystemConfig.l2ChainId
             );
         } else if (
-            _cfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                || _cfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            _gcfg.gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gcfg.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         ) {
-            PermissionedDisputeGameConfig memory parsedCfg = abi.decode(_cfg.gameArgs, (PermissionedDisputeGameConfig));
+            PermissionedDisputeGameConfig memory parsedCfg = abi.decode(_gcfg.gameArgs, (PermissionedDisputeGameConfig));
             return abi.encodePacked(
                 parsedCfg.absolutePrestate,
                 impls.mipsImpl,
-                _input.cts.anchorStateRegistry,
-                _input.cts.delayedWETH,
-                _input.cfg.l2SystemConfig.l2ChainId
+                _cts.anchorStateRegistry,
+                _cts.delayedWETH,
+                _cfg.l2SystemConfig.l2ChainId,
+                parsedCfg.proposer,
+                parsedCfg.challenger
             );
-            // TODO: Properly support proposer/challenger
-            // parsedCfg.proposer,
-            // parsedCfg.challenger
         } else {
             // TODO: Support custom data if a dev flag is enabled.
             revert OPContractsManagerV2_UnknownGameType();
@@ -2483,14 +2694,14 @@ contract OPContractsManager is ISemver {
     }
 
     /// @notice Deploys a new chain using the OPCMv2 contract.
-    /// @param _input The deploy input parameters for the deployment.
+    /// @param _cfg The deploy input parameters for the deployment.
     /// @return The deploy output values of the deployment.
-    function deployV2(OPContractsManagerV2.FullConfig calldata _input)
+    function deployV2(OPContractsManagerV2.FullConfig calldata _cfg)
         external
         virtual
-        returns (OPContractsManagerV2.ExecutionOutput memory)
+        returns (OPContractsManagerV2.ChainContracts memory)
     {
-        return opcmV2.deploy(_input);
+        return opcmV2.deploy(_cfg);
     }
 
     /// @notice Deploys a new OP Stack chain.

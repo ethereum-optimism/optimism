@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { console2 as console } from "forge-std/console2.sol";
+
 // Contracts
 import { FaultDisputeGameV2 } from "src/dispute/v2/FaultDisputeGameV2.sol";
 
@@ -17,39 +19,22 @@ import { BadAuth } from "src/dispute/lib/Errors.sol";
 ///         costs that certain networks may not wish to support. This contract can also be used as a fallback mechanism
 ///         in case of a failure in the permissionless fault proof system in the stage one release.
 contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
-    /// @notice The proposer role is allowed to create proposals and participate in the dispute game.
-    address internal immutable PROPOSER;
-
-    /// @notice The challenger role is allowed to participate in the dispute game.
-    address internal immutable CHALLENGER;
-
     /// @notice Modifier that gates access to the `challenger` and `proposer` roles.
     modifier onlyAuthorized() {
-        if (!(msg.sender == PROPOSER || msg.sender == CHALLENGER)) {
+        if (!(msg.sender == proposer() || msg.sender == challenger())) {
             revert BadAuth();
         }
         _;
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.1.0
     function version() public pure override returns (string memory) {
-        return "2.0.0";
+        return "2.1.0";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.
-    /// @param _proposer Address that is allowed to create instances of this contract.
-    /// @param _challenger Address that is allowed to challenge instances of this contract.
-    constructor(
-        GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
-    )
-        FaultDisputeGameV2(_params)
-    {
-        PROPOSER = _proposer;
-        CHALLENGER = _challenger;
-    }
+    constructor(GameConstructorParams memory _params) FaultDisputeGameV2(_params) { }
 
     /// @inheritdoc FaultDisputeGameV2
     function step(
@@ -86,24 +71,35 @@ contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
 
     /// @notice Initializes the contract.
     function initialize() public payable override {
-        // The creator of the dispute game must be the proposer EOA.
-        if (tx.origin != PROPOSER) revert BadAuth();
-
         // Fallthrough initialization.
         super.initialize();
+
+        console.log("proposer", proposer());
+
+        // The creator of the dispute game must be the proposer EOA.
+        if (tx.origin != proposer()) revert BadAuth();
     }
 
     ////////////////////////////////////////////////////////////////
-    //                     IMMUTABLE GETTERS                      //
+    //                           GETTERS                          //
     ////////////////////////////////////////////////////////////////
 
     /// @notice Returns the proposer address.
-    function proposer() external view returns (address proposer_) {
-        proposer_ = PROPOSER;
+    function proposer() public pure returns (address proposer_) {
+        proposer_ = _getArgAddress(240);
     }
 
     /// @notice Returns the challenger address.
-    function challenger() external view returns (address challenger_) {
-        challenger_ = CHALLENGER;
+    function challenger() public pure returns (address challenger_) {
+        challenger_ = _getArgAddress(260);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                           HELPERS                          //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Returns the expected calldata size for the game.
+    function _expectedCalldataSize() internal pure override returns (uint256) {
+        return 286;
     }
 }

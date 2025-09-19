@@ -134,9 +134,7 @@ interface IPermissionedDisputeGameV2 is IDisputeGame {
     function challenger() external view returns (address challenger_);
 
     function __constructor__(
-        IFaultDisputeGameV2.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
+        IFaultDisputeGameV2.GameConstructorParams memory _params
     )
         external;
 }

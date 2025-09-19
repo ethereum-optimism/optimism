@@ -520,9 +520,7 @@ contract DeployImplementations is Script {
                                 splitDepth: _input.splitDepth,
                                 clockExtension: Duration.wrap(uint64(_input.clockExtension)),
                                 maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration))
-                            }),
-                            address(0), // TODO: These should be passed in as inputs
-                            address(0)
+                            })
                         )
                     )
                 ),

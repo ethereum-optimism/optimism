@@ -272,8 +272,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             _name: "PermissionedDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IPermissionedDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON), _proposer, _challenger)
+                    IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON))
                 )
             )
         });
@@ -284,7 +283,9 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm_, // 20 bytes
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
-            l2ChainId // 32 bytes (l2ChainId)
+            l2ChainId, // 32 bytes (l2ChainId)
+            _proposer, // 20 bytes
+            _challenger // 20 bytes
         );
 
         _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, implArgs);

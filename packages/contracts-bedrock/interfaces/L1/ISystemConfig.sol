@@ -21,6 +21,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
         address l1StandardBridge;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address delayedWETH;
     }
 
     error ReinitializableBase_ZeroInitVersion();
@@ -36,6 +37,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function L1_ERC_721_BRIDGE_SLOT() external view returns (bytes32);
     function L1_STANDARD_BRIDGE_SLOT() external view returns (bytes32);
     function OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT() external view returns (bytes32);
+    function DELAYED_WETH_SLOT() external view returns (bytes32);
     function OPTIMISM_PORTAL_SLOT() external view returns (bytes32);
     function START_BLOCK_SLOT() external view returns (bytes32);
     function UNSAFE_BLOCK_SIGNER_SLOT() external view returns (bytes32);
@@ -74,6 +76,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function operatorFeeScalar() external view returns (uint32);
     function optimismMintableERC20Factory() external view returns (address addr_);
     function optimismPortal() external view returns (address addr_);
+    function delayedWETH() external view returns (address addr_);
     function overhead() external view returns (uint256);
     function owner() external view returns (address);
     function renounceOwnership() external;

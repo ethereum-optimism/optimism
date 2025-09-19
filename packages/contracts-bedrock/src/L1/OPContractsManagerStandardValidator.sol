@@ -511,10 +511,14 @@ contract OPContractsManagerStandardValidator is ISemver {
             "PDDG"
         );
 
-        // Challenger is specific to the PermissionedDisputeGame contract.
-        // TODO: Add this back in when PDGv2 gets fixed.
-        // address _challenger = expectedChallenger(_overrides);
-        // _errors = internalRequire(_game.challenger() == _challenger, "PDDG-130", _errors);
+        // Challenger comes from game args in v2.
+        address actualChallenger = _game.challenger();
+        if (actualChallenger == address(0)) {
+            actualChallenger = _getAddressFromGameArgs(_factory, GameTypes.PERMISSIONED_CANNON, 144);
+        }
+
+        // Should match.
+        _errors = internalRequire(actualChallenger == expectedChallenger(_overrides), "PDDG-130", _errors);
 
         return _errors;
     }
