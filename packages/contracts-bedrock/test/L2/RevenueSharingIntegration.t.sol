@@ -2,13 +2,9 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
-import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
-import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 
