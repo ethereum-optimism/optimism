@@ -33,7 +33,6 @@ contract DeployImplementations_Test is Test {
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address upgradeController = makeAddr("upgradeController");
-    address proposer = makeAddr("proposer");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
@@ -135,7 +134,6 @@ contract DeployImplementations_Test is Test {
             protocolVersionsProxy,
             superchainProxyAdmin,
             upgradeController,
-            proposer,
             challenger
         );
 
@@ -348,7 +346,6 @@ contract DeployImplementations_Test is Test {
             protocolVersionsProxy,
             superchainProxyAdmin,
             upgradeController,
-            proposer,
             challenger
         );
     }

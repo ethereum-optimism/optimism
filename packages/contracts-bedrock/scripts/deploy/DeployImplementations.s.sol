@@ -62,7 +62,6 @@ contract DeployImplementations is Script {
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address upgradeController;
-        address proposer;
         address challenger;
     }
 
