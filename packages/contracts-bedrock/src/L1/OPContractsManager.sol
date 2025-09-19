@@ -1782,7 +1782,7 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
             _buildChainWorld(_inp.systemConfigProxy, _inp.systemConfigProxy.l2ChainId(), "salt mixer", true);
 
         // Build the full config.
-        FullConfig memory cfg = _buildFullConfig(cts);
+        FullConfig memory cfg = _buildFullConfig(_inp, cts);
 
         // Execute the upgrade.
         return _execute(cfg, cts, false);
@@ -1959,7 +1959,14 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         return cts;
     }
 
-    function _buildFullConfig(ChainContracts memory _cts) internal view returns (FullConfig memory) {
+    function _buildFullConfig(
+        UpgradeInput memory _inp,
+        ChainContracts memory _cts
+    )
+        internal
+        view
+        returns (FullConfig memory)
+    {
         // Start building the full config.
         FullConfig memory cfg;
 
@@ -1980,6 +1987,9 @@ contract OPContractsManagerV2 is OPContractsManagerBase {
         (Hash root, uint256 l2SequenceNumber) = _cts.anchorStateRegistry.getAnchorRoot();
         cfg.anchorStateConfig.startingAnchorRoot = abi.encode(root, l2SequenceNumber);
         cfg.anchorStateConfig.startingRespectedGameType = _cts.anchorStateRegistry.respectedGameType();
+
+        // Set dispute game configs.
+        cfg.disputeGameConfigs = _inp.disputeGameConfigs;
 
         // Generate a salt mixer based on the SystemConfig address.
         cfg.saltMixer = string(bytes.concat(bytes32(uint256(uint160(address(_cts.systemConfig))))));
