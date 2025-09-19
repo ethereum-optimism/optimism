@@ -39,10 +39,10 @@ type ImplementationsConfig struct {
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
-	FaultGameV2MaxGameDepth         uint64             `cli:"fault-game-v2-max-game-depth"`
-	FaultGameV2SplitDepth           uint64             `cli:"fault-game-v2-split-depth"`
-	FaultGameV2ClockExtension       uint64             `cli:"fault-game-v2-clock-extension"`
-	FaultGameV2MaxClockDuration     uint64             `cli:"fault-game-v2-max-clock-duration"`
+	FaultGameMaxGameDepth         uint64             `cli:"fault-game-max-game-depth"`
+	FaultGameSplitDepth           uint64             `cli:"fault-game-split-depth"`
+	FaultGameClockExtension       uint64             `cli:"fault-game-clock-extension"`
+	FaultGameMaxClockDuration     uint64             `cli:"fault-game-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
