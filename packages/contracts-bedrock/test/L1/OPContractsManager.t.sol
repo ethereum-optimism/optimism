@@ -2017,11 +2017,6 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
     }
 }
 
-/// @title OPContractsManager_V2_Test
-/// @notice Tests for v2 dispute game implementations in OPContractsManager
-contract OPContractsManager_V2_Test is OPContractsManager_Init {
-}
-
 /// @title OPContractsManager_Deploy_Test
 /// @notice Tests the `deploy` function of the `OPContractsManager` contract.
 /// @dev Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This
@@ -2053,6 +2048,7 @@ contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
         opcm.deploy(toOPCMDeployInput(deployOPChainInput));
     }
     /// @notice Test that deploy without v2 flag doesn't set v2 implementations
+
     function test_deployWithoutV2Flag_succeeds() public {
         // Convert DOI to OPCM input and deploy
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
