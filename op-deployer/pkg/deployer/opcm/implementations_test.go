@@ -66,18 +66,11 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
 			MipsVersion:                     big.NewInt(mipsVersion),
 			DevFeatureBitmap:                common.Hash{},
-			// V2 Dispute Game parameters (using default values)
-			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
-			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
-			FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
-			FaultGameV2MaxClockDuration: big.NewInt(302400), // 3.5 days in seconds
-			// Outputs from DeploySuperchain.s.sol
-			SuperchainConfigProxy: proxyAddress,
-			ProtocolVersionsProxy: protocolVersionsAddress,
-			SuperchainProxyAdmin:  proxyAdminAddress,
-			UpgradeController:     common.BigToAddress(big.NewInt(13)),
-			Proposer:              common.BigToAddress(big.NewInt(15)),
-			Challenger:            common.BigToAddress(big.NewInt(14)),
+			SuperchainConfigProxy:           proxyAddress,
+			ProtocolVersionsProxy:           protocolVersionsAddress,
+			SuperchainProxyAdmin:            proxyAdminAddress,
+			UpgradeController:               common.BigToAddress(big.NewInt(13)),
+			Challenger:                      common.BigToAddress(big.NewInt(14)),
 		})
 
 		// And do some simple asserts

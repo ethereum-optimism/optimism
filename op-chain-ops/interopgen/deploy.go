@@ -196,18 +196,11 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
 		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
-		// V2 Dispute Game parameters (using default values)
-		FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
-		FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
-		FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
-		FaultGameV2MaxClockDuration: big.NewInt(302400), // 3.5 days in seconds
-		// Outputs from DeploySuperchain.s.sol
-		SuperchainProxyAdmin:  superDeployment.SuperchainProxyAdmin,
-		SuperchainConfigProxy: superDeployment.SuperchainConfigProxy,
-		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
-		UpgradeController:     superCfg.ProxyAdminOwner,
-		Proposer:              superCfg.Proposer,
-		Challenger:            superCfg.Challenger,
+		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
+		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
+		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
+		UpgradeController:               superCfg.ProxyAdminOwner,
+		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)

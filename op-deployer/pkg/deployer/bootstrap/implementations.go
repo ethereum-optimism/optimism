@@ -43,7 +43,6 @@ type ImplementationsConfig struct {
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
-	Proposer                        common.Address     `cli:"proposer"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
 
@@ -101,9 +100,6 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.SuperchainProxyAdmin == (common.Address{}) {
 		return errors.New("superchain proxy admin must be specified")
-	}
-	if c.Proposer == (common.Address{}) {
-		return errors.New("proposer must be specified")
 	}
 	if c.Challenger == (common.Address{}) {
 		return errors.New("challenger must be specified")
@@ -209,18 +205,11 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
-			// V2 Dispute Game parameters (using default values)
-			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
-			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
-			FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
-			FaultGameV2MaxClockDuration: big.NewInt(302400), // 3.5 days in seconds
-			// Outputs from DeploySuperchain.s.sol
-			SuperchainConfigProxy: cfg.SuperchainConfigProxy,
-			ProtocolVersionsProxy: cfg.ProtocolVersionsProxy,
-			SuperchainProxyAdmin:  cfg.SuperchainProxyAdmin,
-			UpgradeController:     cfg.UpgradeController,
-			Proposer:              cfg.Proposer,
-			Challenger:            cfg.Challenger,
+			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
+			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
+			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
+			UpgradeController:               cfg.UpgradeController,
+			Challenger:                      cfg.Challenger,
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)

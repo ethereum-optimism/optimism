@@ -84,7 +84,6 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
-			Proposer:                        common.Address{'P'},
 			Challenger:                      common.Address{'C'},
 			CacheDir:                        cacheDir,
 		})

@@ -48,18 +48,11 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
 			DevFeatureBitmap:                proofParams.DevFeatureBitmap,
-			// V2 Dispute Game parameters (using default values)
-			FaultGameV2MaxGameDepth:     big.NewInt(73),     // Default max depth
-			FaultGameV2SplitDepth:       big.NewInt(30),     // Default split depth
-			FaultGameV2ClockExtension:   big.NewInt(10800),  // 3 hours in seconds
-			FaultGameV2MaxClockDuration: big.NewInt(302400), // 3.5 days in seconds
-			// Outputs from DeploySuperchain.s.sol
-			SuperchainConfigProxy: st.SuperchainDeployment.SuperchainConfigProxy,
-			ProtocolVersionsProxy: st.SuperchainDeployment.ProtocolVersionsProxy,
-			SuperchainProxyAdmin:  st.SuperchainDeployment.SuperchainProxyAdminImpl,
-			UpgradeController:     st.SuperchainRoles.SuperchainProxyAdminOwner,
-			Proposer:              st.SuperchainRoles.Challenger, // Using Challenger as default Proposer
-			Challenger:            st.SuperchainRoles.Challenger,
+			SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
+			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
+			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
+			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
+			Challenger:                      st.SuperchainRoles.Challenger,
 		},
 	)
 	if err != nil {
