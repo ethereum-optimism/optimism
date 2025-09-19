@@ -53,8 +53,8 @@ RUN set -e && \
     tar -tzf /tmp/foundry.tar.gz && \
     tar -xzf /tmp/foundry.tar.gz -C /usr/local/bin forge && \
     rm /tmp/foundry.tar.gz && \
-    chmod +x /usr/local/bin/forge && \
-    forge --version
+    chmod +x /usr/local/bin/forge
+# Note: can't check the forge version because in CI we're building arm64 images using a non-emulated x86_64 host, therefore the version check would fail
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
