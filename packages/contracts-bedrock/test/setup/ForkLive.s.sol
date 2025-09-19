@@ -198,10 +198,8 @@ contract ForkLive is Deployer, StdAssertions {
     /// @param _opcm The OPCM contract to upgrade.
     /// @param _delegateCaller The address of the upgrader to use for the upgrade.
     function _doUpgradeV2(IOPContractsManager _opcm, address _delegateCaller) internal {
-        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-        IOPContractsManagerV2.UpgradeInput memory inp;
-        inp.systemConfigProxy = systemConfig;
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs = new IOPContractsManagerV2.DisputeGameConfig[](2);
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](2);
         disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
             gameType: GameTypes.CANNON,
             gameArgs: abi.encode(
@@ -219,6 +217,12 @@ contract ForkLive is Deployer, StdAssertions {
                     challenger: address(0)
                 })
             )
+        });
+
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        IOPContractsManagerV2.UpgradeInput memory inp = IOPContractsManagerV2.UpgradeInput({
+            systemConfigProxy: systemConfig,
+            disputeGameConfigs: disputeGameConfigs
         });
 
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
@@ -254,9 +258,7 @@ contract ForkLive is Deployer, StdAssertions {
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Upgrade the chain.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeV2, (inp))
-        );
+        DelegateCaller(_delegateCaller).dcForward(address(_opcm), abi.encodeCall(IOPContractsManager.upgradeV2, (inp)));
 
         // Reset the upgrader to the original code.
         vm.etch(_delegateCaller, upgraderCode);
@@ -354,19 +356,18 @@ contract ForkLive is Deployer, StdAssertions {
             artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
         }
 
-        IAnchorStateRegistry newAnchorStateRegistry =
-            IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
-        artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
+        IOptimismPortal2 portal = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
+        IAnchorStateRegistry anchorStateRegistry = portal.anchorStateRegistry();
+        artifacts.save("AnchorStateRegistryProxy", address(anchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
-        IOptimismPortal2 portal = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
         address lockboxAddress = address(portal.ethLockbox());
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        IDelayedWETH newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
-        artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
-        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
+        IDelayedWETH delayedWeth = IDelayedWETH(payable(systemConfig.delayedWETH()));
+        artifacts.save("DelayedWETHProxy", address(delayedWeth));
+        artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(delayedWeth)));
     }
 
     /// @notice Saves the proxy and implementation addresses for a contract name

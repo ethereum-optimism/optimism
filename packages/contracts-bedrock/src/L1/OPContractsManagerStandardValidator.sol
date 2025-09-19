@@ -587,9 +587,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
         );
-        _errors = internalRequire(
-            Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
-        );
         _errors = internalRequire(_game.l2SequenceNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             Duration.unwrap(_game.clockExtension()) == 10800, string.concat(_errorPrefix, "-80"), _errors
@@ -601,6 +598,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
 
         // TODO: Get rid of the backwards compatibility and support V2 games only.
+
+        // Grab absolute prestate from contract or initialization data if using V2.
+        {
+            bytes32 absolutePrestate = _game.absolutePrestate().raw();
+            if (absolutePrestate == bytes32(0)) {
+                absolutePrestate = _getBytes32FromGameArgs(_factory, _gameType, 0);
+            }
+
+            _errors = internalRequire(absolutePrestate == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors);
+        }
 
         // Grab L2 chain ID from contract or initialization data if using V2.
         {
@@ -880,5 +887,18 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         bytes memory argBytes = _getBytesFromGameArgs(_factory, _gameType, _offset, 32);
         return abi.decode(argBytes, (uint256));
+    }
+
+    function _getBytes32FromGameArgs(
+        IDisputeGameFactory _factory,
+        GameType _gameType,
+        uint256 _offset
+    )
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes memory argBytes = _getBytesFromGameArgs(_factory, _gameType, _offset, 32);
+        return abi.decode(argBytes, (bytes32));
     }
 }
