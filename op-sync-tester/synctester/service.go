@@ -148,7 +148,7 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	// middleware to initialize session
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r, err := parseSession(r)
-		if errors.Is(err, ErrInvalidSessionIDFormat) || errors.Is(err, ErrInvalidParams) {
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

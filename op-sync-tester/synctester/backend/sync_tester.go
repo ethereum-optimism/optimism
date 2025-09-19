@@ -88,6 +88,15 @@ func (s *SyncTester) DeleteSession(ctx context.Context) error {
 	return err
 }
 
+func (s *SyncTester) ResetSession(ctx context.Context) error {
+	_, err := session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (any, error) {
+		logger.Debug("ResetSession")
+		session.ResetSession()
+		return struct{}{}, nil
+	})
+	return err
+}
+
 func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 	ids := s.sessMgr.SessionIDs()
 	s.log.Debug("ListSessions", "count", len(ids))
@@ -351,8 +360,10 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		// Let CL backfill via newPayload
 		return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 	}
+	// Equivalent to SetCanonical
+	session.UpdateFCULatest(candLatest.NumberU64())
+	logger.Debug("Updated FCU State", "latest", session.CurrentState.Latest)
 	// Simulate db check for finalized head
-	var finalizedNum uint64
 	if state.FinalizedBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
@@ -360,13 +371,15 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not available"))
 		}
-		finalizedNum = candFinalized.NumberU64()
+		finalizedNum := candFinalized.NumberU64()
 		if session.CurrentState.Latest < finalizedNum {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not canonical"))
 		}
+		// Equivalent to SetFinalized
+		session.UpdateFCUFinalized(finalizedNum)
+		logger.Debug("Updated FCU State", "finalized", session.CurrentState.Finalized)
 	}
 	// Simulate db check for safe head
-	var safeNum uint64
 	if state.SafeBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
@@ -374,10 +387,13 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not available"))
 		}
-		safeNum = candSafe.NumberU64()
+		safeNum := candSafe.NumberU64()
 		if session.CurrentState.Latest < safeNum {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not canonical"))
 		}
+		// Equivalent to SetSafe
+		session.UpdateFCUSafe(safeNum)
+		logger.Debug("Updated FCU State", "safe", session.CurrentState.Safe)
 	}
 	var id *engine.PayloadID
 	if attr != nil {
@@ -436,8 +452,6 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		logger.Debug("Store payload", "payloadID", payloadID)
 		session.Payloads[payloadID] = payloadEnv
 	}
-	session.UpdateFCUState(candLatest.NumberU64(), safeNum, finalizedNum)
-	logger.Debug("Updated FCU State")
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 	// Spec: Client software MUST respond to this method call in the following way: {payloadStatus: {status: VALID, latestValidHash: forkchoiceState.headBlockHash, validationError: null}, payloadId: buildProcessId} if the payload is deemed VALID and the build process has begun
 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &state.HeadBlockHash}, PayloadID: id}, nil
@@ -557,6 +571,44 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 	})
 }
 
+func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool, block *types.Block, payload *eth.ExecutionPayload, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	// Already have the block locally or advance single block without setting the head
+	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
+	// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
+	blockHash := block.Hash()
+	config := &params.ChainConfig{}
+	if isCanyon {
+		config.CanyonTime = new(uint64)
+	}
+	if isIsthmus {
+		config.IsthmusTime = new(uint64)
+	}
+	correctPayload, err := eth.BlockAsPayload(block, config)
+	if err != nil {
+		// The failure is from the EL processing so consider as a server error and make CL retry
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))
+	}
+	// Sanity check parent beacon block root and block hash by recomputation
+	if !isIsthmus {
+		// Depopulate withdrawal root field for block hash recomputation
+		if payload.WithdrawalsRoot != nil {
+			logger.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
+		}
+		payload.WithdrawalsRoot = nil
+	}
+	// Check given payload matches the payload derived using the read only EL block
+	if err := correctPayload.CheckEqual(payload); err != nil {
+		// Consider as block hash validation error when payload mismatch
+		return s.newPayloadInvalid(fmt.Errorf("payload check mismatch: %w", err), nil), nil
+	}
+	execEnvelope := eth.ExecutionPayloadEnvelope{ParentBeaconBlockRoot: beaconRoot, ExecutionPayload: payload}
+	actual, ok := execEnvelope.CheckBlockHash()
+	if blockHash != payload.BlockHash || !ok {
+		return s.newPayloadInvalid(fmt.Errorf("block hash check from execution envelope failed. %s != %s", blockHash, actual), nil), nil
+	}
+	return nil, nil
+}
+
 // newPayload validates and processes a new execution payload according to the
 // Engine API rules to simulate consensus-layer to execution-layer interactions
 // without advancing canonical chain state.
@@ -642,51 +694,43 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
 		}
 	}
-
 	blockHash := block.Hash()
+	blockNumber := block.NumberU64()
 	// We only attempt to advance non-canonical view of the chain, following the read only EL
-	if block.NumberU64() <= session.Validated+1 {
-		// Already have the block locally or advance single block without setting the head
-		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
-		// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
-		config := &params.ChainConfig{}
-		if isCanyon {
-			config.CanyonTime = new(uint64)
+	if blockNumber <= session.Validated+1 {
+		if status, err := s.validatePayload(logger, isCanyon, isIsthmus, block, payload, beaconRoot); status != nil {
+			return status, err
 		}
-		if isIsthmus {
-			config.IsthmusTime = new(uint64)
-		}
-		correctPayload, err := eth.BlockAsPayload(block, config)
-		if err != nil {
-			// The failure is from the EL processing so consider as a server error and make CL retry
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))
-		}
-		// Sanity check parent beacon block root and block hash by recomputation
-		if !isIsthmus {
-			// Depopulate withdrawal root field for block hash recomputation
-			if payload.WithdrawalsRoot != nil {
-				logger.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
-			}
-			payload.WithdrawalsRoot = nil
-		}
-		// Check given payload matches the payload derived using the read only EL block
-		if err := correctPayload.CheckEqual(payload); err != nil {
-			// Consider as block hash validation error when payload mismatch
-			return s.newPayloadInvalid(fmt.Errorf("payload check mismatch: %w", err), nil), nil
-		}
-		execEnvelope := eth.ExecutionPayloadEnvelope{ParentBeaconBlockRoot: beaconRoot, ExecutionPayload: payload}
-		actual, ok := execEnvelope.CheckBlockHash()
-		if blockHash != payload.BlockHash || !ok {
-			return s.newPayloadInvalid(fmt.Errorf("block hash check from execution envelope failed. %s != %s", blockHash, actual), nil), nil
-		}
-		if block.NumberU64() == session.Validated+1 {
+		if blockNumber == session.Validated+1 {
 			// Advance single block without setting the head, equivalent to geth InsertBlockWithoutSetHead
 			session.Validated += 1
 			logger.Debug("Advanced non canonical chain", "validated", session.Validated)
 		}
+		if !session.IsELSyncFinished() && session.Validated == session.ELSyncTarget {
+			// Can reach here when not doing EL Sync on CL side but session is configured for EL Sync
+			logger.Debug("Non canonical chain reached EL Sync target", "validated", session.Validated)
+			session.FinishELSync(session.Validated)
+		}
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#payload-validation
 		// Spec: If validation succeeds, the response MUST contain {status: VALID, latestValidHash: payload.blockHash}
 		return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &blockHash}, nil
+	} else if !session.IsELSyncFinished() {
+		if blockNumber == session.ELSyncTarget {
+			logger.Debug("Attempting to finish EL Sync on non canonical chain", "target", session.ELSyncTarget)
+			if status, err := s.validatePayload(logger, isCanyon, isIsthmus, block, payload, beaconRoot); status != nil {
+				return status, err
+			}
+			session.FinishELSync(blockNumber)
+			logger.Debug("Finished EL Sync by advancing non canonical chain", "validated", session.Validated)
+			// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#payload-validation
+			// Spec: If validation succeeds, the response MUST contain {status: VALID, latestValidHash: payload.blockHash}
+			return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &blockHash}, nil
+		} else if blockNumber < session.ELSyncTarget {
+			logger.Trace("EL Sync on progress", "target", blockNumber)
+		} else if blockNumber > session.ELSyncTarget {
+			// L2CL may never reach the EL Sync Target because the current number may keep increasing
+			logger.Warn("Received payload which has larger block number than EL Sync target", "current", blockNumber, "target", session.ELSyncTarget)
+		}
 	}
 	// Block not available so mark as syncing
 	return &eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, nil
