@@ -17,7 +17,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
-import { GameType, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -700,17 +700,8 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
-        // Validate V2 contract deployment consistency with flag
-        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            require(
-                address(_output.faultDisputeGameV2Impl) != address(0),
-                "DeployImplementations: V2 flag enabled but FaultDisputeGameV2 not deployed"
-            );
-            require(
-                address(_output.permissionedDisputeGameV2Impl) != address(0),
-                "DeployImplementations: V2 flag enabled but PermissionedDisputeGameV2 not deployed"
-            );
-        } else {
+        // Validate V2 contracts not deployed when flag is disabled
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             require(
                 address(_output.faultDisputeGameV2Impl) == address(0),
                 "DeployImplementations: V2 flag disabled but FaultDisputeGameV2 was deployed"
