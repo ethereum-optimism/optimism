@@ -33,6 +33,8 @@ import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault, IFeeVaultConstructor } from "interfaces/L2/IFeeVault.sol";
+import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
+import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -84,7 +86,7 @@ contract L2Genesis is Script {
     uint256 internal constant PRECOMPILE_COUNT = 256;
 
     uint80 internal constant DEV_ACCOUNT_FUND_AMT = 10_000 ether;
-    uint256 internal constant WITHDRAWAL_MIN_GAS_LIMIT = 300_000;
+    uint96 internal constant WITHDRAWAL_MIN_GAS_LIMIT = 300_000;
     uint256 internal constant MIN_WITHDRAWAL_AMOUNT_THRESHOLD = 10 ether;
 
     /// @notice Default Anvil dev accounts. Only funded if `cfg.fundDevAccounts == true`.
@@ -661,7 +663,10 @@ contract L2Genesis is Script {
             address l1Withdrawer = DeployUtils.create2({
                 _name: "L1Withdrawer.sol:L1Withdrawer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encode(MIN_WITHDRAWAL_AMOUNT_THRESHOLD, _input.l1FeesDepositor, WITHDRAWAL_MIN_GAS_LIMIT)
+                    abi.encodeCall(
+                        IL1Withdrawer.__constructor__,
+                        (MIN_WITHDRAWAL_AMOUNT_THRESHOLD, _input.l1FeesDepositor, WITHDRAWAL_MIN_GAS_LIMIT)
+                    )
                 ),
                 _salt: l1WithdrawerSalt
             });
@@ -670,7 +675,12 @@ contract L2Genesis is Script {
             bytes32 calcSalt = keccak256("SuperchainRevSharesCalculator");
             revSharesCalculator = DeployUtils.create2({
                 _name: "SuperchainRevSharesCalculator.sol:SuperchainRevSharesCalculator",
-                _args: DeployUtils.encodeConstructor(abi.encode(payable(l1Withdrawer), payable(_input.chainFeesRecipient))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISuperchainRevSharesCalculator.__constructor__,
+                        (payable(l1Withdrawer), payable(_input.chainFeesRecipient))
+                    )
+                ),
                 _salt: calcSalt
             });
         }
