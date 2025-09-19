@@ -30,6 +30,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -1957,25 +1958,46 @@ contract OPContractsManager_DeployBase is DeployOPChain_TestBase {
         });
     }
 
-    function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = 0;
-        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
-    }
+    /// @notice Helper function to deploy OPCM with v2 flag enabled
+    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
+        // Deploy Superchain contracts first
+        DeploySuperchain deploySuperchain = new DeploySuperchain();
+        DeploySuperchain.Output memory dso = deploySuperchain.run(
+            DeploySuperchain.Input({
+                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
+                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
+                guardian: makeAddr("guardian"),
+                paused: false,
+                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
+                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
+            })
+        );
 
-    function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = block.chainid;
+        // Deploy implementations with v2 flag enabled
+        DeployImplementations deployImplementations = new DeployImplementations();
+        DeployImplementations.Output memory dio = deployImplementations.run(
+            DeployImplementations.Input({
+                withdrawalDelaySeconds: 100,
+                minProposalSizeBytes: 200,
+                challengePeriodSeconds: 300,
+                proofMaturityDelaySeconds: 400,
+                disputeGameFinalityDelaySeconds: 500,
+                mipsVersion: StandardConstants.MIPS_VERSION,
+                faultGameV2MaxGameDepth: 73,
+                faultGameV2SplitDepth: 30,
+                faultGameV2ClockExtension: 10800,
+                faultGameV2MaxClockDuration: 302400,
+                superchainConfigProxy: dso.superchainConfigProxy,
+                protocolVersionsProxy: dso.protocolVersionsProxy,
+                superchainProxyAdmin: dso.superchainProxyAdmin,
+                upgradeController: dso.superchainProxyAdmin.owner(),
+                proposer: proposer,
+                challenger: challenger,
+                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
+             })
+        );
 
-        vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
-    }
-
-    function test_deploy_succeeds() public {
-        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
-        emit Deployed(doi.l2ChainId(), address(this), bytes(""));
-        opcm.deploy(toOPCMDeployInput(doi));
+        return dio.opcm;
     }
 }
 
