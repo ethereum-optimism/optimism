@@ -151,9 +151,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.1.0
     function version() public pure virtual returns (string memory) {
-        return "2.0.0";
+        return "2.1.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -268,20 +268,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
-        //
-        // Expected length: 246 bytes
-        // - 4 bytes: selector
-        // - 2 bytes: CWIA length prefix
-        // - 20 bytes: creator address
-        // - 32 bytes: root claim
-        // - 32 bytes: l1 head
-        // - 32 bytes: extraData
-        // - 32 bytes: absolutePrestate
-        // - 20 bytes: vm address
-        // - 20 bytes: anchorStateRegistry address
-        // - 20 bytes: weth address
-        // - 32 bytes: l2ChainId
-        if (msg.data.length != 246) revert BadExtraData();
+        if (msg.data.length != expectedInitCallDataLength()) revert BadExtraData();
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
@@ -338,6 +325,30 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // Set whether the game type was respected when the game was created.
         wasRespectedGameTypeWhenCreated =
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(GAME_TYPE);
+    }
+
+    /// @notice Returns the expected calldata length for the initialize method
+    function expectedInitCallDataLength() internal pure returns (uint256) {
+        // Expected length: 6 bytes + immutable args byte count
+        // - 4 bytes: selector
+        // - 2 bytes: CWIA length prefix
+        // - n bytes: Immutable args data
+        return 6 + immutableArgsByteCount();
+    }
+
+    /// @notice Returns the byte count of the immutable args for this contract.
+    function immutableArgsByteCount() internal pure virtual returns (uint256) {
+        // Expected length: 240 bytes
+        // - 20 bytes: creator address
+        // - 32 bytes: root claim
+        // - 32 bytes: l1 head
+        // - 32 bytes: extraData
+        // - 32 bytes: absolutePrestate
+        // - 20 bytes: vm address
+        // - 20 bytes: anchorStateRegistry address
+        // - 20 bytes: weth address
+        // - 32 bytes: l2ChainId
+        return 240;
     }
 
     ////////////////////////////////////////////////////////////////
