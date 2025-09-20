@@ -129,6 +129,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
+        fieldNameOverrides["opcmV2"] = "OPContractsManagerV2";
         fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
 
         // Overrides for situations where contracts have differently named source files.
@@ -136,7 +137,6 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
@@ -156,6 +156,7 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmV2"] = "SKIP"; // Address verified via bytecode comparison
 
         // Getters that don't need any sort of verification
         expectedGetters["devFeatureBitmap"] = "SKIP";

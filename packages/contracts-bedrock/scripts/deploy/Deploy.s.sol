@@ -296,6 +296,9 @@ contract Deploy is Deployer {
         if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
         }
+        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+            artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
+        }
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -360,6 +363,7 @@ contract Deploy is Deployer {
         // Fault Proof contracts
         artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
+        artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
@@ -367,24 +371,26 @@ contract Deploy is Deployer {
             artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         }
 
-        // Check if the permissionless game implementation is already set
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
+        if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+            // Check if the permissionless game implementation is already set
+            IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+            address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
 
-        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
-        // If the following require statement is hit, you can delete the block of code after it.
-        require(
-            permissionlessGameImpl == address(0),
-            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
-        );
-        address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy =
-            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
-        vm.broadcast(address(deployOutput.opChainProxyAdmin));
-        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
-            _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
-        });
+            // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
+            // If the following require statement is hit, you can delete the block of code after it.
+            require(
+                permissionlessGameImpl == address(0),
+                "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
+            );
+            address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
+            address delayedWETHPermissionlessGameProxy =
+                deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
+            vm.broadcast(address(deployOutput.opChainProxyAdmin));
+            IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
+                _implementation: delayedWETHImpl,
+                _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
+            });
+        }
     }
 
     ////////////////////////////////////////////////////////////////

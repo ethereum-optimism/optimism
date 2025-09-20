@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
 // Contracts
-import { OPContractsManager, OPContractsManagerContractsContainer } from "src/L1/OPContractsManager.sol";
+import { OPContractsManagerContractsContainer } from "src/L1/opcm/OPContractsManagerContractsContainer.sol";
 
 /// @title OPContractsManagerContractsContainer_Constructor_Test
 /// @notice Tests the constructor of the `OPContractsManagerContractsContainer` contract.
@@ -16,13 +16,14 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Etch into the magic testing address.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Convert to proper OPCM type for construction.
-        OPContractsManager opcm2 = OPContractsManager(address(opcm));
+        // Create empty blueprints and implementations.
+        OPContractsManagerContractsContainer.Blueprints memory blueprints;
+        OPContractsManagerContractsContainer.Implementations memory implementations;
 
         // Should not revert.
         OPContractsManagerContractsContainer container = new OPContractsManagerContractsContainer({
-            _blueprints: opcm2.blueprints(),
-            _implementations: opcm2.implementations(),
+            _blueprints: blueprints,
+            _implementations: implementations,
             _devFeatureBitmap: _devFeatureBitmap
         });
 
@@ -39,15 +40,12 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Make sure magic address has no code.
         vm.etch(address(0xbeefcafe), bytes(""));
 
-        // Convert to proper OPCM type for construction.
-        OPContractsManager opcm2 = OPContractsManager(address(opcm));
-
         // Set the chain ID to 1.
         vm.chainId(1);
 
-        // Fetch ahead of time to avoid expectRevert applying to these functions by accident.
-        OPContractsManager.Blueprints memory blueprints = opcm2.blueprints();
-        OPContractsManager.Implementations memory implementations = opcm2.implementations();
+        // Create empty blueprints and implementations.
+        OPContractsManagerContractsContainer.Blueprints memory blueprints;
+        OPContractsManagerContractsContainer.Implementations memory implementations;
 
         // Should revert.
         vm.expectRevert(
@@ -71,16 +69,17 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
         // Make sure magic address has code.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Convert to proper OPCM type for construction.
-        OPContractsManager opcm2 = OPContractsManager(address(opcm));
+        // Create empty blueprints and implementations.
+        OPContractsManagerContractsContainer.Blueprints memory blueprints;
+        OPContractsManagerContractsContainer.Implementations memory implementations;
 
         // Set the chain ID to 1.
         vm.chainId(1);
 
         // Should not revert.
         OPContractsManagerContractsContainer container = new OPContractsManagerContractsContainer({
-            _blueprints: opcm2.blueprints(),
-            _implementations: opcm2.implementations(),
+            _blueprints: blueprints,
+            _implementations: implementations,
             _devFeatureBitmap: _devFeatureBitmap
         });
 

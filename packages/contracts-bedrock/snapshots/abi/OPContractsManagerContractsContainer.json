@@ -49,7 +49,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManager.Blueprints",
+        "internalType": "struct OPContractsManagerContractsContainer.Blueprints",
         "name": "_blueprints",
         "type": "tuple"
       },
@@ -144,9 +144,14 @@
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "storageSetterImpl",
+            "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManager.Implementations",
+        "internalType": "struct OPContractsManagerContractsContainer.Implementations",
         "name": "_implementations",
         "type": "tuple"
       },
@@ -158,19 +163,6 @@
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "_isTestingEnvironment",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [],
@@ -224,7 +216,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManager.Blueprints",
+        "internalType": "struct OPContractsManagerContractsContainer.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -340,9 +332,14 @@
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "storageSetterImpl",
+            "type": "address"
           }
         ],
-        "internalType": "struct OPContractsManager.Implementations",
+        "internalType": "struct OPContractsManagerContractsContainer.Implementations",
         "name": "",
         "type": "tuple"
       }

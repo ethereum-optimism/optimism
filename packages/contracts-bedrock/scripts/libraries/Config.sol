@@ -255,4 +255,9 @@ library Config {
     function devFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__CUSTOM_GAS_TOKEN", false);
     }
+
+    /// @notice Returns true if the development feature opcm_v2 is enabled.
+    function devFeatureOpcmV2() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OPCM_V2", false);
+    }
 }

@@ -48,6 +48,15 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__CUSTOM_GAS_TOKEN is enabled");
             devFeatureBitmap |= DevFeatures.CUSTOM_GAS_TOKEN;
         }
+        if (Config.devFeatureOpcmV2()) {
+            // WARNING: OPCMv2 also automatically implies DEPLOY_V2_DISPUTE_GAMES and CANNON_KONA.
+            console.log("Setup: DEV_FEATURE__OPCM_V2 is enabled");
+            console.log("Setup: DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES is enabled");
+            console.log("Setup: DEV_FEATURE__CANNON_KONA is enabled");
+            devFeatureBitmap |= DevFeatures.OPCM_V2;
+            devFeatureBitmap |= DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
+            devFeatureBitmap |= DevFeatures.CANNON_KONA;
+        }
     }
 
     /// @notice Enables a feature.

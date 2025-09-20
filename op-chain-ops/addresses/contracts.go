@@ -49,6 +49,7 @@ type ImplementationsContracts struct {
 	AnchorStateRegistryImpl          common.Address
 	FaultDisputeGameV2Impl           common.Address
 	PermissionedDisputeGameV2Impl    common.Address
+	StorageSetterImpl                common.Address
 }
 
 // OpChainContracts struct contains all the contracts for a specific L2 OpChain

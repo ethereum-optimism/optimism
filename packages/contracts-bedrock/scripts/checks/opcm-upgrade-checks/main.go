@@ -36,7 +36,7 @@ func main() {
 	// Process.
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{"forge-artifacts/OPContractsManager.sol/*.json"},
+		[]string{"forge-artifacts/OPContractsManager.sol/*.json", "forge-artifacts/OPContractsManagerV2.sol/*.json", "forge-artifacts/opcm/OPContractsManagerV2.sol/*.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("error: %v\n", err)

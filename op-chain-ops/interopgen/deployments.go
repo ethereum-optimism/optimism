@@ -17,6 +17,7 @@ type Implementations struct {
 	OpcmUpgrader                     common.Address `json:"OPCMUpgrader"`
 	OpcmInteropMigrator              common.Address `json:"OPCMInteropMigrator"`
 	OpcmStandardValidator            common.Address `json:"OPCMStandardValidator"`
+	OpcmV2                           common.Address `json:"OPCMV2"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
 	OptimismPortalInteropImpl        common.Address `json:"OptimismPortalInteropImpl"`
@@ -36,6 +37,7 @@ type Implementations struct {
 	PermissionedDisputeGameV2Impl    common.Address `json:"PermissionedDisputeGameV2Impl"`
 	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
+	StorageSetterImpl                common.Address `json:"StorageSetterImpl"`
 }
 
 type SuperchainDeployment struct {
