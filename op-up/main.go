@@ -138,8 +138,8 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 	fmt.Fprintf(stderr, "L1 ProxyAdmin Owner Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(l1ProxyAdminPrivKeyAny.(*ecdsa.PrivateKey))))
 	fmt.Fprintf(stderr, "L2 ProxyAdmin Owner Address: %s\n", l2ProxyAdminOwner)
 	fmt.Fprintf(stderr, "L2 ProxyAdmin Owner Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(l2ProxyAdminPrivKeyAny.(*ecdsa.PrivateKey))))
-	fmt.Fprintf(stderr, "L1 Node URL: %s\n", "http://localhost:8544")
-	fmt.Fprintf(stderr, "L2 Node URL: %s\n", "http://localhost:8545")
+	fmt.Fprintf(stderr, "L1 Node URL: %s\n", "http://127.0.0.1:8544")
+	fmt.Fprintf(stderr, "L2 Node URL: %s\n", "http://127.0.0.1:8545")
 
 	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
 	opts := stack.Combine(
