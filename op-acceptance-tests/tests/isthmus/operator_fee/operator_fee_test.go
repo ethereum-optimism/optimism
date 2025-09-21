@@ -29,7 +29,8 @@ func TestOperatorFee(gt *testing.T) {
 
 	operatorFee.CheckCompatibility()
 	systemOwner := operatorFee.GetSystemOwner()
-	sys.FunderL1.FundAtLeast(systemOwner, fundAmount)
+	// Use 1 ETH for L1 system owner to ensure sufficient funds for gas costs
+	sys.FunderL1.FundAtLeast(systemOwner, eth.Ether(1))
 
 	// First, ensure L2 is synced with current L1 state before starting tests
 	t.Log("Ensuring L2 is synced with current L1 state...")
