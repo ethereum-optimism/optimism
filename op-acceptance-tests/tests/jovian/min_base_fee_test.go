@@ -129,7 +129,8 @@ func TestMinBaseFee(gt *testing.T) {
 	minBaseFee.checkCompatibility(t)
 
 	systemOwner := minBaseFee.getSystemConfigOwner(t)
-	sys.FunderL1.FundAtLeast(systemOwner, eth.OneTenthEther)
+	// Use 1 ETH for L1 system owner to ensure sufficient funds for gas costs
+	sys.FunderL1.FundAtLeast(systemOwner, eth.Ether(1))
 
 	testCases := []struct {
 		name       string
