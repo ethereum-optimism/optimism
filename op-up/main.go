@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -115,6 +116,31 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 	p := newP(ctx, stderr)
 	defer p.Close()
 
+	// Get ProxyAdmin owner addresses
+	l1ProxyAdminOwner, l1ProxyAdminPrivKeyAny, err := getActor(10001)
+	if err != nil {
+		return fmt.Errorf("get L1 proxy admin owner: %w", err)
+	}
+	l2ProxyAdminOwner, l2ProxyAdminPrivKeyAny, err := getActor(10002)
+	if err != nil {
+		return fmt.Errorf("get L2 proxy admin owner: %w", err)
+	}
+	// Get funder address for logging
+	funderAddress, funderPrivKeyAny, err := getActor(10000)
+	if err != nil {
+		return fmt.Errorf("get funder actor: %w", err)
+	}
+
+	// Print all addresses and private keys
+	fmt.Fprintf(stderr, "Test Account Address: %s\n", funderAddress)
+	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKeyAny.(*ecdsa.PrivateKey))))
+	fmt.Fprintf(stderr, "L1 ProxyAdmin Owner Address: %s\n", l1ProxyAdminOwner)
+	fmt.Fprintf(stderr, "L1 ProxyAdmin Owner Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(l1ProxyAdminPrivKeyAny.(*ecdsa.PrivateKey))))
+	fmt.Fprintf(stderr, "L2 ProxyAdmin Owner Address: %s\n", l2ProxyAdminOwner)
+	fmt.Fprintf(stderr, "L2 ProxyAdmin Owner Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(l2ProxyAdminPrivKeyAny.(*ecdsa.PrivateKey))))
+	fmt.Fprintf(stderr, "L1 Node URL: %s\n", "http://localhost:8544")
+	fmt.Fprintf(stderr, "L2 Node URL: %s\n", "http://localhost:8545")
+
 	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
 	opts := stack.Combine(
 		sysgo.WithMnemonicKeys(devkeys.TestMnemonic),
@@ -124,6 +150,8 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 			sysgo.WithEmbeddedContractSources(),
 			sysgo.WithCommons(ids.L1.ChainID()),
 			sysgo.WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+			sysgo.WithL1ProxyAdminOwner(l1ProxyAdminOwner),
+			sysgo.WithL2ProxyAdminOwner(l2ProxyAdminOwner),
 		),
 		sysgo.WithDeployerPipelineOption(sysgo.WithDeployerCacheDir(deployerCacheDir)),
 
@@ -168,26 +196,25 @@ func newP(ctx context.Context, stderr io.Writer) devtest.P {
 	return p
 }
 
-func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) error {
-	// Print available account.
+// getActor returns the address and private key for a given actor index
+func getActor(index uint32) (common.Address, any, error) {
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
-		return fmt.Errorf("new mnemonic dev keys: %w", err)
+		return common.Address{}, nil, fmt.Errorf("new mnemonic dev keys: %w", err)
 	}
-	const funderIndex = 10_000 // see sysgo/deployer.go.
-	funderUserKey := devkeys.UserKey(funderIndex)
-	funderAddress, err := hd.Address(funderUserKey)
+	userKey := devkeys.UserKey(index)
+	address, err := hd.Address(userKey)
 	if err != nil {
-		return fmt.Errorf("address: %w", err)
+		return common.Address{}, nil, fmt.Errorf("address: %w", err)
 	}
-	funderPrivKey, err := hd.Secret(funderUserKey)
+	privKey, err := hd.Secret(userKey)
 	if err != nil {
-		return fmt.Errorf("secret: %w", err)
+		return common.Address{}, nil, fmt.Errorf("secret: %w", err)
 	}
+	return address, privKey, nil
+}
 
-	fmt.Fprintf(stderr, "Test Account Address: %s\n", funderAddress)
-	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
-	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
+func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) error {
 
 	t := &testingT{
 		ctx:      ctx,

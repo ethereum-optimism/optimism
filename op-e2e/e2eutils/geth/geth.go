@@ -47,7 +47,7 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",
 		HTTPHost:    "127.0.0.1",
-		HTTPPort:    0,
+		HTTPPort:    8544,
 		WSHost:      "127.0.0.1",
 		WSPort:      0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine", "miner"},
