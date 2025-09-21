@@ -121,7 +121,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 	if err != nil {
 		return fmt.Errorf("get L1 proxy admin owner: %w", err)
 	}
-	l2ProxyAdminOwner, l2ProxyAdminPrivKeyAny, err := getActor(10002)
+	l2ProxyAdminOwner, l2ProxyAdminPrivKeyAny, err := getActor(10001)
 	if err != nil {
 		return fmt.Errorf("get L2 proxy admin owner: %w", err)
 	}
