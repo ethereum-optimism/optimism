@@ -89,6 +89,8 @@ func TestValidateL1Config(t *testing.T) {
 	config.L1ChainID = big.NewInt(100)
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
+	config.L1ChainConfig = params.MainnetChainConfig
+	config.L1ChainConfig.ChainID = big.NewInt(100)
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
 	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.NoError(t, err)

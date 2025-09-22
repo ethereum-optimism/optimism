@@ -57,7 +57,6 @@ type BatcherService struct {
 	Log              log.Logger
 	Metrics          metrics.Metricer
 	L1Client         *ethclient.Client
-	L1ChainConfig    *opgethparams.ChainConfig
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        txmgr.TxManager
 	AltDA            *altda.DAClient
@@ -167,7 +166,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	if err := bs.initTxManager(cfg, bs.L1ChainConfig); err != nil {
+	if err := bs.initTxManager(cfg, bs.RollupConfig.L1ChainConfig); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
 	// must be init before driver and channel config

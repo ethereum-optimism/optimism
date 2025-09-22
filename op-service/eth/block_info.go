@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -20,7 +21,7 @@ type BlockInfo interface {
 	BaseFee() *big.Int
 	// BlobBaseFee returns the result of computing the blob fee from excessDataGas, or nil if the
 	// block isn't a Dencun (4844 capable) block
-	BlobBaseFee() *big.Int
+	BlobBaseFee(l1ChainConfig *params.ChainConfig) *big.Int
 	ExcessBlobGas() *uint64
 	ReceiptHash() common.Hash
 	GasUsed() uint64
@@ -57,12 +58,12 @@ func ToBlockID(b NumberAndHash) BlockID {
 // blockInfo is a conversion type of types.Block turning it into a BlockInfo
 type blockInfo struct{ *types.Block }
 
-func (b blockInfo) BlobBaseFee() *big.Int {
+func (b blockInfo) BlobBaseFee(l1ChainConfig *params.ChainConfig) *big.Int {
 	ebg := b.ExcessBlobGas()
 	if ebg == nil {
 		return nil
 	}
-	return CalcBlobFeeCancun(*ebg) // TODO use eth.CalcBlobFeeDefault and pass in the l1 chain config
+	return CalcBlobFeeDefault(b.Header(), l1ChainConfig)
 }
 
 func (b blockInfo) HeaderRLP() ([]byte, error) {
@@ -124,11 +125,11 @@ func (h *headerBlockInfo) BaseFee() *big.Int {
 	return h.header.BaseFee
 }
 
-func (h *headerBlockInfo) BlobBaseFee() *big.Int {
+func (h *headerBlockInfo) BlobBaseFee(l1ChainConfig *params.ChainConfig) *big.Int {
 	if h.header.ExcessBlobGas == nil {
 		return nil
 	}
-	return CalcBlobFeeCancun(*h.header.ExcessBlobGas) // TODO use eth.CalcBlobFeeDefault and pass in the l1 chain config
+	return CalcBlobFeeDefault(h.header, l1ChainConfig)
 }
 
 func (h *headerBlockInfo) ExcessBlobGas() *uint64 {

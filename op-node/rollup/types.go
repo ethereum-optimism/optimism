@@ -37,6 +37,7 @@ var (
 	ErrChainIDsSame                  = errors.New("L1 and L2 chain IDs must be different")
 	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
 	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
+	ErrMissingL1ChainConfig          = errors.New("L1 chain config must be set")
 )
 
 type Genesis struct {
@@ -163,6 +164,9 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// L1 Chain Config
+	L1ChainConfig *params.ChainConfig `json:"l1_chain_config,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -175,6 +179,14 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, clie
 	// Validate the Rollup L1 Genesis Blockhash
 	if err := cfg.CheckL1GenesisBlockHash(ctx, logger, client); err != nil {
 		return err
+	}
+
+	if cfg.L1ChainConfig == nil {
+		// TODO we could allow the L1ChainConfig to be auto-filled if the chainID is recognized (Mainnet, Sepolia, Holesky)
+		return ErrMissingL1ChainConfig
+	}
+	if cfg.L1ChainConfig.ChainID.Cmp(cfg.L1ChainID) != 0 {
+		return fmt.Errorf("L1 chain config chain ID %d does not match L1 chain ID %d", cfg.L1ChainConfig.ChainID, cfg.L1ChainID)
 	}
 
 	return nil
@@ -809,6 +821,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l2_block_number", c.Genesis.L2.Number,
 		"l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number,
+		"l1_blob_schedule_config", c.L1ChainConfig.BlobScheduleConfig,
 	}
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))

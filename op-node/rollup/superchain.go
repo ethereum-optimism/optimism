@@ -87,6 +87,19 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 	applyHardforks(cfg, chConfig.Hardforks)
 
+	switch cfg.L1ChainID.Uint64() {
+	case 1:
+		cfg.L1ChainConfig = params.MainnetChainConfig
+	case 11155111:
+		cfg.L1ChainConfig = params.SepoliaChainConfig
+	case 17000:
+		cfg.L1ChainConfig = params.HoleskyChainConfig
+	case 560048:
+		cfg.L1ChainConfig = params.HoodiChainConfig
+	default:
+		panic(fmt.Sprintf("unsupported L1 chain ID: %d", cfg.L1ChainID.Uint64()))
+	}
+
 	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
 	return cfg, nil
 }
