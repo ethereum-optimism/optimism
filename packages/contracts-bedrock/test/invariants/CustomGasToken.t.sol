@@ -10,12 +10,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Contracts
-import { LiquidityController } from "src/L2/LiquidityController.sol";
-import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @title CGT_Minter
