@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -192,6 +193,13 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 		L2:           dsl.NewL2Network(l2, orch.ControlPlane()),
 	}
 	require := t.Require()
+
+	// just in case bootstrap
+	for range 5 {
+		l2CLSyncStatus := sys.L2CL.SyncStatus()
+		l.Info("info", "ww", l2CLSyncStatus)
+		time.Sleep(time.Second * 2)
+	}
 
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus

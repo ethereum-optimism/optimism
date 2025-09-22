@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	gosync "sync"
 	"time"
 
@@ -205,7 +206,12 @@ func (e *EngineController) IsEngineSyncing() bool {
 // SetFinalizedHead implements LocalEngineControl.
 func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
+	fmt.Printf("Set finalized %d\n", r.Number)
+	// If i do this, every time err
+	debug.PrintStack()
+
 	e.finalizedHead = r
+	fmt.Printf("Set finalized DONE%d\n", r.Number)
 	e.needFCUCall = true
 }
 
@@ -345,6 +351,7 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 // Post-interop, the op-supervisor may diff the forkchoice state against the supervisor DB,
 // to determine where to perform the initial reset to.
 func (e *EngineController) initializeUnknowns(ctx context.Context) error {
+	fmt.Printf("initializeUnknowns: unsafe %s, finalized %s\n", e.unsafeHead, e.finalizedHead)
 	if e.unsafeHead == (eth.L2BlockRef{}) {
 		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
 		if err != nil {
@@ -355,12 +362,19 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	}
 	var finalizedRef eth.L2BlockRef
 	if e.finalizedHead == (eth.L2BlockRef{}) {
+		for range 30 {
+			fmt.Printf("### e.finalizedHead %s\n", e.finalizedHead)
+			time.Sleep(time.Microsecond * 1)
+		}
+		debug.PrintStack()
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
 			return fmt.Errorf("failed to load finalized head: %w", err)
 		}
+		fmt.Println("### initializeUnknowns SetFinalizedHead")
 		e.SetFinalizedHead(finalizedRef)
+		fmt.Println("### initializeUnknowns SetFinalizedHead DONE")
 		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
 	}
 	if e.safeHead == (eth.L2BlockRef{}) {
@@ -386,6 +400,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		e.SetLocalSafeHead(e.safeHead)
 		e.log.Info("Set initial local-safe block ref to match cross-safe", "local_safe", e.safeHead)
 	}
+	fmt.Printf("initializeUnknowns done")
 	return nil
 }
 
@@ -489,15 +504,31 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
 		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
 		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
+		// ROOT CAUSE: read empty value and reverted to genesis
+		// TOC TOU
+		fmt.Println("#### First UnsafeUpdateEvent")
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+		// sends fcu inside tryUpdateEngine, using e.{unsafe, safe, finalized}
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
 		e.onSafeUpdate(ctx, ref, ref)
-		e.SetFinalizedHead(ref)
+		e.SetFinalizedHead(ref) // finalized gets updated here
 	}
 	logFn := e.logSyncProgressMaybe()
 	defer logFn()
+	// finalized changed to 102de6..09887d:0 (genesis). was empty
+	// so timeline is
+	// 1. e.SetFinalizedHead(ref)
+	// 2. initializeUnknowns called, e.finalizedhead was empty, setting to geneesis
+	// We are sure that between logFn and the return of this function, finalized changed to genesis
+	// - Why?
+	// unsafe is also zero
+
+	// Problem: EL finalized is set to zero again...
+	//  OR finalized never updated yet.
+	// op-node somehow sent fcu as zero, and starts l1sync
 	fcu2Start := time.Now()
+	// fcu {ref,ref,ref}
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var rpcErr rpc.Error
@@ -520,6 +551,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	fcu2Finish := time.Now()
 	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
+	fmt.Println("#### Second UnsafeUpdateEvent")
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
