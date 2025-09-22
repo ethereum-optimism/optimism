@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -142,6 +143,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				// Need to set finalized to genesis to unskip EL Sync
 				Finalized: chainCfg.Genesis.L2.Number,
 			}),
+			presets.WithPkgLogFilter(logfilter.DefaultShow(logfilter.Level(log.LevelDebug).Show())),
 		)
 	} else {
 		opt = stack.Combine(opt,
@@ -150,6 +152,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				Safe:      blk,
 				Finalized: blk,
 			}),
+			presets.WithPkgLogFilter(logfilter.DefaultShow(logfilter.Level(log.LevelDebug).Show())),
 		)
 	}
 
