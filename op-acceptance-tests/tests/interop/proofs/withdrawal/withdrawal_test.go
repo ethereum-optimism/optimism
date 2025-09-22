@@ -10,7 +10,6 @@ import (
 )
 
 func TestSuperRootWithdrawal(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	sys.L1Network.WaitForOnline()
