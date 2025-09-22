@@ -4,4 +4,4 @@
 
 # Run the contract test ranking script
 rank:
-    cd contracts-test-maintenance/tests_ranker && python3 main.py
+    cd contracts-test-maintenance/tests_ranker && python3 test_ranker.py
