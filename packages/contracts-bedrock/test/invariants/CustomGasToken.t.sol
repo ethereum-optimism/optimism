@@ -116,12 +116,17 @@ contract NativeAssetLiquidity_Fundooor is StdUtils {
 ///         keeping a closed loop (no vm.deal). It receive() function always revert, to insure mint()/safeSend is
 ///         always successfully sending the CGT.
 contract RandomActor is StdUtils {
-    Vm internal vm;
     address internal liquidityController_Minter;
     address internal nativeAssetLiquidity_Fundooor;
 
     /// @notice Flag to indicate if the actor has been called via receive()
     bool public hasBeenCalled = false;
+
+    /// @notice Error thrown when sending CGT to minter fails.
+    error RandomActor_SendCGTtoMinterFailed();
+
+    /// @notice Error thrown when sending CGT to funder fails.
+    error RandomActor_SendCGTtoFunderFailed();
 
     /// @notice Initialize the addresses of the minter and funder actors.
     /// @param _liquidityController_Minter The address of the minter actor.
@@ -143,7 +148,7 @@ contract RandomActor is StdUtils {
         (bool success,) = payable(address(liquidityController_Minter)).call{ value: _amountToSend }("");
 
         // postcondition: the call must succeed (test suite sanity check)
-        require(success);
+        if (!success) revert RandomActor_SendCGTtoMinterFailed();
     }
 
     /// @notice Send CGT to the funder actor.
@@ -157,7 +162,7 @@ contract RandomActor is StdUtils {
         (bool success,) = payable(address(nativeAssetLiquidity_Fundooor)).call{ value: _amountToSend }("");
 
         // postcondition: the call must succeed (test suite sanity check)
-        require(success);
+        if (!success) revert RandomActor_SendCGTtoFunderFailed();
     }
 
     /// @dev We track if the SafeSend triggers a logic on the receiver via a ghost variable
@@ -174,7 +179,7 @@ contract RandomActor is StdUtils {
 /// @notice Invariant that checks that the NativeAssetLiquidity contract's balance is always equal
 ///         to the sum of the initial supply, the deposits, the funds, and minus the withdrawals.
 ///         NAL Balance = Initial Supply + Deposits + Funds - Withdrawals
-contract CustomGasToken_Invariants is CommonTest {
+contract CustomGasToken_Invariants_Test is CommonTest {
     /// @notice Starting balance of the contract - arbitrary value (cf Config change)
     uint256 internal constant STARTING_BALANCE = type(uint248).max / 5;
 
