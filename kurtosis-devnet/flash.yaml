@@ -27,7 +27,7 @@ optimism_package:
             admin: true
             proxy: true
             websocket_enabled: true
-            
+
         node1:
           sequencer: true
           el:
@@ -61,7 +61,7 @@ optimism_package:
         granite_time_offset: 0
         holocene_time_offset: 0
         fund_dev_accounts: true
-        
+
       flashblocks_websocket_proxy_params:
         enabled: true
       flashblocks_rpc_params:
@@ -95,7 +95,6 @@ ethereum_package:
   participants:
     - el_type: geth
       cl_type: teku
-      cl_image: consensys/teku:25.7.1
   network_params:
     preset: minimal
     genesis_delay: 5
