@@ -112,7 +112,7 @@ type ReadImplementationAddressesOutput struct {
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
 
-// NewDeployReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
+// NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
 func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
 	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
 }
