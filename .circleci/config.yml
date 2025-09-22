@@ -1228,6 +1228,10 @@ jobs:
         description: Network preset
         type: string
         default: ""
+      l2_cl_syncmode:
+        description: L2 CL Sync mode - can be EL Sync or CL Sync
+        type: string
+        default: ""
     resource_class: xlarge
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1261,6 +1265,7 @@ jobs:
             GOGC: "0"
             # Optional sync test configuration environment variables (only set if parameters are provided)
             NETWORK_PRESET: "<<parameters.network_preset>>"
+            L2_CL_SYNCMODE: "<<parameters.l2_cl_syncmode>>"
           command: |
             # Run the tests
             LOG_LEVEL=debug just acceptance-test "" "<<parameters.gate>>"
@@ -2602,63 +2607,20 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      # Sync tests for multiple networks (runs in parallel)
       - op-acceptance-sync-tests-docker:
-          name: sync-test-op-sepolia-daily
+          name: "sync-test-<<matrix.network_preset>>-daily-<<matrix.l2_cl_syncmode>>"
           gate: sync-test-op-node
           no_output_timeout: 30m
-          network_preset: "op-sepolia"
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      - op-acceptance-sync-tests-docker:
-          name: sync-test-base-sepolia-daily
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          network_preset: "base-sepolia"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      - op-acceptance-sync-tests-docker:
-          name: sync-test-unichain-sepolia-daily
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          network_preset: "unichain-sepolia"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      - op-acceptance-sync-tests-docker:
-          name: sync-test-op-mainnet-daily
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          network_preset: "op-mainnet"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      - op-acceptance-sync-tests-docker:
-          name: sync-test-base-mainnet-daily
-          gate: sync-test-op-node
-          no_output_timeout: 30m
-          network_preset: "base-mainnet"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-
+          matrix:
+            parameters:
+              network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
+              l2_cl_syncmode: ["consensus-layer", "execution-layer"]
   # Acceptance tests (post-merge to develop)
   acceptance-tests:
     when:
