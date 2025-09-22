@@ -133,10 +133,6 @@ library TransactionBuilder {
         // Get only the number of signatures required for the cancellation transaction
         uint256 cancellationThreshold = _timelockGuard.cancellationThreshold(_tx.safeInstance.safe);
 
-        // Set the signatures. We do not update the hash, as it is the same as the transaction
-        // being cancelled.
-        // cancellation.setSignatures(cancellationThreshold);
-
         cancellation.updateTransaction(cancellationThreshold);
         return cancellation;
     }
@@ -797,7 +793,7 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
 
     /// @notice Test that the guard can be disabled while still configured, and then can be
     ///         deconfigured
-    function test_integration_disablThenResetGuard_succeeds() external {
+    function test_integration_disableThenResetGuard_succeeds() external {
         TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
         disableGuardTx.params.to = address(disableGuardTx.safeInstance.safe);
         disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
@@ -839,5 +835,27 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
         disableGuardTx.executeTransaction();
+    }
+
+    /// @notice Test that the max cancellation threshold is not exceeded
+    function test_integration_maxCancellationThresholdNotExceeded_succeeds() external {
+        uint256 maxThreshold = timelockGuard.maxCancellationThreshold(safeInstance.safe);
+
+        // Schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+
+        // schedule and cancel the transaction maxThreshold + 1 times
+        for (uint256 i = 0; i < maxThreshold + 1; i++) {
+            // modify the calldata slightly to make the txHash different
+            dummyTx.params.data = bytes.concat(dummyTx.params.data, abi.encodePacked(i));
+            dummyTx.updateTransaction();
+            dummyTx.scheduleTransaction(timelockGuard);
+
+            // Cancel the transaction
+            TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
+            timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
+        }
+
+        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), maxThreshold);
     }
 }

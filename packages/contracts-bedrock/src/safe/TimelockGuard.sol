@@ -167,6 +167,15 @@ contract TimelockGuard is IGuard, ISemver {
         }
     }
 
+    /// @notice Returns the blocking threshold threshold for a given safe
+    /// @dev MUST NOT revert
+    /// @return The current blocking threshold
+    function _blockingThreshold(Safe _safe) internal view returns (uint256) {
+        // The blocking threshold is the number of owners who can coordinate to block a transaction
+        // from being executed by refusing to sign.
+        return _safe.getOwners().length - _safe.getThreshold() + 1;
+    }
+
     /// @notice Returns the cancellation threshold for a given safe
     /// @dev MUST NOT revert
     /// @dev MUST return 0 if the contract is not enabled as a guard for the safe
@@ -181,13 +190,13 @@ contract TimelockGuard is IGuard, ISemver {
         return _safeCancellationThreshold[_safe];
     }
 
-    /// @notice Returns the blocking threshold threshold for a given safe
-    /// @dev MUST NOT revert
-    /// @return The current blocking threshold
-    function blockingThreshold(Safe /* _safe */ ) public pure returns (uint256) {
-        // TODO: Implement this
-        return 10;
-        // return min(quorum, total_owners - quorum + 1) for _safe;
+    /// @notice Returns the maximum cancellation threshold for a given safe
+    /// @return The maximum cancellation threshold
+    function maxCancellationThreshold(Safe _safe) public view returns (uint256) {
+        uint256 blockingThreshold = _blockingThreshold(_safe);
+        uint256 quorum = _safe.getThreshold();
+        // Return the minimum of the blocking threshold and the quorum
+        return (blockingThreshold < quorum ? blockingThreshold : quorum) - 1;
     }
 
     /// @notice Internal helper to get the guard address from a Safe
@@ -318,15 +327,15 @@ contract TimelockGuard is IGuard, ISemver {
 
         _scheduledTransactions[_safe][_txHash].cancelled = true;
         _safePendingTxHashes[_safe].remove(_txHash);
-        increaseCancellationThreshold(_safe);
+        _increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash);
     }
 
     /// @notice Increase the cancellation threshold for a safe
-    /// @dev This function must be caled only once and only when calling cancel
-    function increaseCancellationThreshold(Safe _safe) internal {
-        if (_safeCancellationThreshold[_safe] < blockingThreshold(_safe)) {
+    /// @dev This function must be called only once and only when calling cancel
+    function _increaseCancellationThreshold(Safe _safe) internal {
+        if (_safeCancellationThreshold[_safe] < maxCancellationThreshold(_safe)) {
             uint256 oldThreshold = _safeCancellationThreshold[_safe];
             _safeCancellationThreshold[_safe]++;
             emit CancellationThresholdUpdated(_safe, oldThreshold, _safeCancellationThreshold[_safe]);
@@ -335,7 +344,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
-    function resetCancellationThreshold(Safe _safe) internal {
+    function _resetCancellationThreshold(Safe _safe) internal {
         uint256 oldThreshold = _safeCancellationThreshold[_safe];
         _safeCancellationThreshold[_safe] = 1;
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
@@ -409,7 +418,7 @@ contract TimelockGuard is IGuard, ISemver {
         _safePendingTxHashes[callingSafe].remove(txHash);
 
         // Reset the cancellation threshold
-        resetCancellationThreshold(callingSafe);
+        _resetCancellationThreshold(callingSafe);
 
         emit TransactionExecuted(callingSafe, nonce, txHash);
     }
