@@ -203,9 +203,13 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 	}
 
-	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
+	attempts := 1000
+	if l2CLSyncMode == sync.ELSync {
+		attempts = 20
+	}
+	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, attempts)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
-	sys.L2CL.Reached(types.LocalSafe, targetBlock, 1000)
+	sys.L2CL.Reached(types.LocalSafe, targetBlock, attempts)
 	l.Info("L2CL safe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
