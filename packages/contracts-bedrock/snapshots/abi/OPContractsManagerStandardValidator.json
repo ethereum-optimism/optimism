@@ -62,6 +62,16 @@
             "internalType": "address",
             "name": "mipsImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "faultDisputeGameV2Impl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGameV2Impl",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.Implementations",
