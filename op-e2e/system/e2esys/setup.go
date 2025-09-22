@@ -722,7 +722,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
 				EIP1559DenominatorCanyon: &cfg.DeployConfig.EIP1559DenominatorCanyon,
 			},
-			L1ChainConfig: MainnetL1ChainConfigWithChainID(cfg.L1ChainIDBig()),
+			L1ChainConfig: e2eutils.MainnetL1ChainConfigWithChainID(cfg.L1ChainIDBig()),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -1173,10 +1173,4 @@ func EnvRPCPreference() endpoint.RPCPreference {
 		return endpoint.PreferHttpRPC
 	}
 	return endpoint.PreferAnyRPC
-}
-
-func MainnetL1ChainConfigWithChainID(chainID *big.Int) *params.ChainConfig {
-	cfg := params.MainnetChainConfig
-	cfg.ChainID = chainID
-	return cfg
 }

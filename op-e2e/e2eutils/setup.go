@@ -226,6 +226,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 			EIP1559Denominator:       deployConf.EIP1559Denominator,
 			EIP1559DenominatorCanyon: &deployConf.EIP1559DenominatorCanyon,
 		},
+		L1ChainConfig: MainnetL1ChainConfigWithChainID(new(big.Int).SetUint64(deployConf.L1ChainID)),
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -282,4 +283,10 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 	// Activated by default, contracts depend on it
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
+}
+
+func MainnetL1ChainConfigWithChainID(chainID *big.Int) *params.ChainConfig {
+	cfg := params.MainnetChainConfig
+	cfg.ChainID = chainID
+	return cfg
 }
