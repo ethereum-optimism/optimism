@@ -316,6 +316,20 @@ func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 	cl.require.NoError(err, "failed to connect peer")
 }
 
+func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
+	myInfo := cl.PeerInfo()
+	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	err := retry.Do0(cl.ctx, 5, strategy, func() error {
+		for _, p := range peer.Peers().Peers {
+			if p.PeerID == myInfo.PeerID {
+				return nil
+			}
+		}
+		return errors.New("peer not connected yet")
+	})
+	cl.require.NoError(err, "peer not connected")
+}
+
 type safeHeadDbMatchOpts struct {
 	minRequiredL2Block *uint64
 }

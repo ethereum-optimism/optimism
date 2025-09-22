@@ -38,8 +38,8 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 1.16.0
-    string public constant version = "1.16.0";
+    /// @custom:semver 1.17.0
+    string public constant version = "1.17.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;

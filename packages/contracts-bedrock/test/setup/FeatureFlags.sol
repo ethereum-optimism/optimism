@@ -36,6 +36,14 @@ contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
         }
+        if (Config.devFeatureCannonKona()) {
+            console.log("Setup: DEV_FEATURE__CANNON_KONA is enabled");
+            devFeatureBitmap |= DevFeatures.CANNON_KONA;
+        }
+        if (Config.devFeatureCustomGasToken()) {
+            console.log("Setup: DEV_FEATURE__CUSTOM_GAS_TOKEN is enabled");
+            devFeatureBitmap |= DevFeatures.CUSTOM_GAS_TOKEN;
+        }
     }
 
     /// @notice Enables a feature.

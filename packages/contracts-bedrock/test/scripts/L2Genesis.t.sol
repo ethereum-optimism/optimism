@@ -30,7 +30,17 @@ contract L2Genesis_TestInit is Test {
     }
 
     function testProxyAdmin() internal view {
+        // Verify owner in the proxy
         assertEq(input.opChainProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+
+        // Verify owner in the implementation to catch storage shifting issues
+        // The implementation is stored in the code namespace
+        address proxyAdminImpl = Predeploys.predeployToCodeNamespace(Predeploys.PROXY_ADMIN);
+        assertEq(
+            input.opChainProxyAdminOwner,
+            IProxyAdmin(proxyAdminImpl).owner(),
+            "ProxyAdmin implementation owner should match expected"
+        );
     }
 
     function testPredeploys() internal view {
@@ -83,7 +93,14 @@ contract L2Genesis_TestInit is Test {
 
     function testGovernance() internal view {
         IGovernanceToken token = IGovernanceToken(payable(Predeploys.GOVERNANCE_TOKEN));
+
+        // Verify owner (existing check)
         assertEq(token.owner(), input.governanceTokenOwner);
+
+        // Verify name and symbol to catch storage shifting issues
+        // These should match the values hardcoded in GovernanceToken constructor
+        assertEq(token.name(), "Optimism", "GovernanceToken name should be 'Optimism'");
+        assertEq(token.symbol(), "OP", "GovernanceToken symbol should be 'OP'");
     }
 
     function testFactories() internal view {
@@ -227,5 +244,14 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.l1FeeVaultWithdrawalNetwork = 0;
         vm.expectRevert("L1FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
+        // Reset l1FeeVaultWithdrawalNetwork input to L2
+        input.l1FeeVaultWithdrawalNetwork = 1;
+
+        // Expect revert when nativeAssetLiquidityAmount is greater than type(uint248).max
+        input.nativeAssetLiquidityAmount += 1;
+        vm.expectRevert("L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max");
+        genesis.run(input);
+        // Reset nativeAssetLiquidityAmount input to type(uint248).max
+        input.nativeAssetLiquidityAmount = type(uint248).max;
     }
 }

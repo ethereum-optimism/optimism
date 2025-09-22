@@ -8,6 +8,16 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 
+/// @title L2ToL1MessagePasser_Version_Test
+/// @notice Tests the `version` function of the `L2ToL1MessagePasser` contract.
+contract L2ToL1MessagePasser_Version_Test is CommonTest {
+    /// @notice Tests that the `version` function returns the correct string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() external view {
+        assert(bytes(l2ToL1MessagePasser.version()).length > 0);
+    }
+}
+
 /// @title L2ToL1MessagePasser_InitiateWithdrawal_Test
 /// @notice Tests the `initiateWithdrawal` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {

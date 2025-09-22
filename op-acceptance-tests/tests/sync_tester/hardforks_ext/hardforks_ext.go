@@ -114,9 +114,17 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	l.Info("L1_EL_ENDPOINT", "value", l1ELEndpoint)
 	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
 
+	config := stack.ExtNetworkConfig{
+		L2NetworkName:      L2NetworkName,
+		L1ChainID:          L1ChainID,
+		L2ELEndpoint:       L2ELEndpoint,
+		L1CLBeaconEndpoint: L1CLBeaconEndpoint,
+		L1ELEndpoint:       L1ELEndpoint,
+	}
+
 	// Create orchestrator with the same configuration that was in TestMain
 	opt := stack.Combine(
-		presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName),
+		presets.WithExternalELWithSuperchainRegistry(config),
 		presets.WithSyncTesterELInitialState(eth.FCUState{
 			Latest:    blk,
 			Safe:      blk,

@@ -154,8 +154,9 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 		}
 	}
 
-	if thisIntent.CustomGasToken == nil {
-		thisIntent.CustomGasToken = &state.CustomGasToken{
+	// If CustomGasToken is not enabled, update it with override values
+	if !thisIntent.CustomGasToken.Enabled {
+		thisIntent.CustomGasToken = state.CustomGasToken{
 			Enabled:                    overrides.UseCustomGasToken,
 			Name:                       overrides.GasPayingTokenName,
 			Symbol:                     overrides.GasPayingTokenSymbol,

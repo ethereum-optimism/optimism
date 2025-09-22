@@ -168,7 +168,7 @@ contract LiquidityController_Mint_Test is LiquidityController_TestInit {
 
     /// @notice Tests that the mint function reverts when called by unauthorized address.
     function testFuzz_mint_fromUnauthorizedCaller_fails(address _caller, address _to, uint256 _amount) public {
-        _amount = bound(_amount, 1, type(uint248).max);
+        _amount = bound(_amount, 1, address(nativeAssetLiquidity).balance);
 
         uint256 nativeAssetBalanceBefore = address(nativeAssetLiquidity).balance;
         uint256 toBalanceBefore = _to.balance;
@@ -208,7 +208,7 @@ contract LiquidityController_Burn_Test is LiquidityController_TestInit {
 
     /// @notice Tests that the burn function can be called by an authorized minter.
     function testFuzz_burn_fromAuthorizedMinter_succeeds(uint256 _amount) public isAuthorizedMinter(authorizedMinter) {
-        _amount = bound(_amount, 0, type(uint248).max);
+        _amount = bound(_amount, 0, address(nativeAssetLiquidity).balance);
 
         // Deal the authorized minter with the amount to burn
         vm.deal(authorizedMinter, _amount);
@@ -238,7 +238,7 @@ contract LiquidityController_Burn_Test is LiquidityController_TestInit {
         isAuthorizedMinter(authorizedMinter)
     {
         vm.assume(_caller != authorizedMinter);
-        _amount = bound(_amount, 0, type(uint248).max);
+        _amount = bound(_amount, 0, address(nativeAssetLiquidity).balance);
 
         // Deal the unauthorized caller with the amount to burn
         vm.deal(_caller, _amount);

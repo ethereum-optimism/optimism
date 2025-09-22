@@ -31,6 +31,26 @@ contract L1BlockCGT_TestInit is CommonTest {
     }
 }
 
+/// @title L1BlockCGT_Version_Test
+/// @notice Test contract for L1BlockCGT `version` function.
+contract L1BlockCGT_Version_Test is L1BlockCGT_TestInit {
+    /// @notice Tests that the version function returns a valid string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() external view {
+        assert(bytes(l1BlockCGT.version()).length > 0);
+    }
+}
+
+/// @title L1BlockCGT_GasPayingToken_Test
+/// @notice Tests the `gasPayingToken` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_GasPayingToken_Test is L1BlockCGT_TestInit {
+    /// @notice Tests that the `gasPayingToken` function reverts.
+    function test_gasPayingToken_deprecated_reverts() external {
+        vm.expectRevert("L1BlockCGT: deprecated");
+        l1BlockCGT.gasPayingToken();
+    }
+}
+
 /// @title L1BlockCGT_GasPayingTokenName_Test
 /// @notice Tests the `gasPayingTokenName` function of the `L1Block` contract with custom gas
 ///         token enabled.

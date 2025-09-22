@@ -55,7 +55,6 @@ contract DeployOPChainInput is BaseDeployIO {
     Duration internal _disputeClockExtension;
     Duration internal _disputeMaxClockDuration;
     bool internal _allowCustomDisputeParameters;
-    bool internal _useCustomGasToken;
 
     uint32 internal _operatorFeeScalar;
     uint64 internal _operatorFeeConstant;
@@ -118,8 +117,6 @@ contract DeployOPChainInput is BaseDeployIO {
     function set(bytes4 _sel, bool _value) public {
         if (_sel == this.allowCustomDisputeParameters.selector) {
             _allowCustomDisputeParameters = _value;
-        } else if (_sel == this.useCustomGasToken.selector) {
-            _useCustomGasToken = _value;
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -169,10 +166,6 @@ contract DeployOPChainInput is BaseDeployIO {
         require(_l2ChainId != 0, "DeployOPChainInput: not set");
         require(_l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
         return _l2ChainId;
-    }
-
-    function useCustomGasToken() public view returns (bool) {
-        return _useCustomGasToken;
     }
 
     function startingAnchorRoot() public pure returns (bytes memory) {
@@ -394,8 +387,7 @@ contract DeployOPChain is Script {
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
             disputeSplitDepth: _doi.disputeSplitDepth(),
             disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration(),
-            useCustomGasToken: _doi.useCustomGasToken()
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
         });
 
         vm.broadcast(msg.sender);

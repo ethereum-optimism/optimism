@@ -9,7 +9,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -166,7 +165,7 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
     function isUsingCustomGasToken() public view returns (bool) {
-        return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        return isDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Enables the ETHLockbox feature if not enabled.
@@ -240,9 +239,9 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
             assertEq(address(optimismPortal2.ethLockbox()), address(0));
         }
         if (isUsingCustomGasToken()) {
-            assertTrue(OptimismPortal2(payable(address(optimismPortal2))).isCustomGasToken());
+            assertTrue(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         } else if (!isUsingLockbox()) {
-            assertFalse(OptimismPortal2(payable(address(optimismPortal2))).isCustomGasToken());
+            assertFalse(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         }
 
         returnIfForkTest(
@@ -270,6 +269,56 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
 
         // Assert that the initializer value matches the expected value.
         assertEq(val, optimismPortal2.initVersion());
+    }
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+
+    function testFuzz_initialize_interopNotProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        IOptimismPortalInterop(payable(optimismPortal2)).initialize(systemConfig, anchorStateRegistry, ethLockbox);
+    }
+
+    /// @notice Tests that the initialize function reverts when lockbox state is invalid.
+    function test_initialize_invalidLockboxState_reverts() external {
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
+
+        // Enable ETH_LOCKBOX feature but clear the lockbox address to create invalid state.
+        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+            vm.prank(address(proxyAdmin));
+            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        }
+
+        // Clear the lockbox address.
+        StorageSlot memory lockboxSlot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
+        vm.store(address(optimismPortal2), bytes32(lockboxSlot.slot), bytes32(0));
+
+        // Expect the revert with `OptimismPortal_InvalidLockboxState` selector.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_InvalidLockboxState.selector);
+
+        // Call the `initialize` function
+        vm.prank(address(proxyAdmin));
+        optimismPortal2.initialize(systemConfig, anchorStateRegistry);
     }
 
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
@@ -590,7 +639,7 @@ contract OptimismPortal2_NumProofSubmitters_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `receive` successfully deposits ETH.
     function testFuzz_receive_succeeds(uint256 _value) external {
-        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         // Prevent overflow on an upgrade context
         _value = bound(_value, 0, type(uint256).max - address(ethLockbox).balance);
         uint256 balanceBefore = address(optimismPortal2).balance;
@@ -629,7 +678,7 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
     }
 
     function testFuzz_receive_withLockbox_succeeds(uint256 _value) external {
-        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         // Prevent overflow on an upgrade context.
         // We use a dummy lockbox here because the real one won't work for upgrade tests.
         address dummyLockbox = address(0xdeadbeef);
@@ -668,7 +717,7 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that `receive` reverts when custom gas token is enabled
     function testFuzz_receive_customGasToken_reverts(uint256 _value) external virtual {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         _value = bound(_value, 1, type(uint128).max);
         vm.deal(alice, _value);
 
@@ -1353,6 +1402,26 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
             _withdrawalProof: _withdrawalProof
         });
     }
+
+    /// @notice Tests that `proveWithdrawalTransaction` reverts when the custom gas token mode
+    ///         is enabled and the withdrawal transaction has a value.
+    function test_proveWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfForkTest(
+            "OptimismPortal2_ProveWithdrawalTransaction_Test: isCustomGasToken() not available on forked networks"
+        );
+        // Set the withdrawal transaction value to a non-zero value.
+        _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
+
+        // Prove the withdrawal transaction. This should revert.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_NotAllowedOnCGTMode.selector);
+        optimismPortal2.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _disputeGameIndex: _proposedGameIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
 }
 
 /// @title OptimismPortal2_FinalizeWithdrawalTransaction_Test
@@ -1842,7 +1911,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_finalizeWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         skipIfForkTest(
             "OptimismPortal2_FinalizeWithdrawalTransaction_Test: isCustomGasToken() not available on forked networks"
         );
@@ -2450,7 +2519,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `depositTransaction` reverts when the value is greater than 0 and the
     ///         custom gas token is active.
     function test_depositTransaction_withCustomGasTokenAndValue_reverts(bytes memory _data, uint256 _value) external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         skipIfForkTest("OptimismPortal2_DepositTransaction_Test: isCustomGasToken() not available on forked networks");
 
         // Prevent overflow on an upgrade context
