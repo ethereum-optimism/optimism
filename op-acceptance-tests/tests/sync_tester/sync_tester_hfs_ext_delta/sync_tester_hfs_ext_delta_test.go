@@ -12,6 +12,6 @@ func TestSyncTesterHFS_Delta_CLSync(gt *testing.T) {
 	hardforks_ext.SyncTesterHFSExt(gt, rollup.Delta, sync.CLSync)
 }
 
-func TestSyncTesterHFS_Canyon_ELSync(gt *testing.T) {
+func TestSyncTesterHFS_Delta_ELSync(gt *testing.T) {
 	hardforks_ext.SyncTesterHFSExt(gt, rollup.Delta, sync.ELSync)
 }
