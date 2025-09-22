@@ -362,8 +362,8 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	}
 	var finalizedRef eth.L2BlockRef
 	if e.finalizedHead == (eth.L2BlockRef{}) {
-		for range 30 {
-			fmt.Printf("### e.finalizedHead %s\n", e.finalizedHead)
+		for i := range 30 {
+			fmt.Printf("### %d e.finalizedHead %s\n", i, e.finalizedHead)
 			time.Sleep(time.Microsecond * 1)
 		}
 		debug.PrintStack()
