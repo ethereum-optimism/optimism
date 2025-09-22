@@ -145,7 +145,6 @@ interface IOPContractsManager {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
-        bool useCustomGasToken;
         // The correct type is OutputRoot memory but OP Deployer does not yet support structs.
         bytes startingAnchorRoot;
         // The salt mixer is used as part of making the resulting salt unique.

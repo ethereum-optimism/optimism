@@ -29,3 +29,7 @@ func (s *SyncFrontend) DeleteSession(ctx context.Context) error {
 func (s *SyncFrontend) ListSessions(ctx context.Context) ([]string, error) {
 	return s.b.ListSessions(ctx)
 }
+
+func (s *SyncFrontend) ResetSession(ctx context.Context) error {
+	return s.b.ResetSession(ctx)
+}

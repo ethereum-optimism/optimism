@@ -390,7 +390,7 @@ func (c *l2Configurator) WithEIP1559Denominator(value uint64) {
 }
 
 func (c *l2Configurator) WithCustomGasToken(enabled bool, name, symbol string, nativeAssetLiquidityAmount *big.Int) {
-	c.builder.intent.Chains[c.chainIndex].CustomGasToken = &state.CustomGasToken{
+	c.builder.intent.Chains[c.chainIndex].CustomGasToken = state.CustomGasToken{
 		Enabled:                    enabled,
 		Name:                       name,
 		Symbol:                     symbol,

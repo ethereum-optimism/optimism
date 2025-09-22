@@ -304,11 +304,6 @@
             "type": "uint256"
           },
           {
-            "internalType": "bool",
-            "name": "useCustomGasToken",
-            "type": "bool"
-          },
-          {
             "internalType": "bytes",
             "name": "startingAnchorRoot",
             "type": "bytes"

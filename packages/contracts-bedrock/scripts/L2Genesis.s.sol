@@ -124,6 +124,7 @@ contract L2Genesis is Script {
         if (_input.fundDevAccounts) {
             fundDevAccounts();
         }
+
         vm.stopPrank();
         vm.deal(deployer, 0);
         vm.resetNonce(deployer);
@@ -599,6 +600,11 @@ contract L2Genesis is Script {
     ///         This contract has no initializer.
     function setNativeAssetLiquidity(Input memory _input) internal {
         _setImplementationCode(Predeploys.NATIVE_ASSET_LIQUIDITY);
+
+        require(
+            _input.nativeAssetLiquidityAmount <= type(uint248).max,
+            "L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max"
+        );
 
         // Pre-fund the liquidity contract with the specified amount
         vm.deal(Predeploys.NATIVE_ASSET_LIQUIDITY, _input.nativeAssetLiquidityAmount);

@@ -208,9 +208,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidLockboxState();
 
     /// @notice Semantic version.
-    /// @custom:semver 5.1.1
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.1.1";
+        return "5.2.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -236,6 +236,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
 
+        // Assert that the lockbox state is valid.
+        _assertValidLockboxState();
+
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
         if (l2Sender == address(0)) {
@@ -244,12 +247,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Initialize the ResourceMetering contract.
         __ResourceMetering_init();
-    }
-
-    /// @notice Returns whether the custom gas token feature is enabled.
-    /// @return bool True if the custom gas token feature is enabled, false otherwise.
-    function isCustomGasToken() public view returns (bool) {
-        return _isUsingCustomGasToken();
     }
 
     /// @notice Getter for the current paused status.
@@ -349,13 +346,18 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Cannot prove withdrawal transactions while the system is paused.
         _assertNotPaused();
 
-        // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
-        (,, IDisputeGame disputeGameProxy) = disputeGameFactory().gameAtIndex(_disputeGameIndex);
-
         // Make sure that the target address is safe.
         if (_isUnsafeTarget(_tx.target)) {
             revert OptimismPortal_BadTarget();
         }
+
+        // Cannot prove withdrawal with value when custom gas token mode is enabled.
+        if (_isUsingCustomGasToken()) {
+            if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
+        }
+
+        // Fetch the dispute game proxy from the `DisputeGameFactory` contract.
+        (,, IDisputeGame disputeGameProxy) = disputeGameFactory().gameAtIndex(_disputeGameIndex);
 
         // Game must be a Proper Game.
         if (!anchorStateRegistry.isGameProper(disputeGameProxy)) {
@@ -442,13 +444,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         public
     {
+        // Cannot finalize withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Cannot finalize withdrawal with value when custom gas token mode is enabled.
         if (_isUsingCustomGasToken()) {
             if (_tx.value > 0) revert OptimismPortal_NotAllowedOnCGTMode();
         }
-
-        // Cannot finalize withdrawal transactions while the system is paused.
-        _assertNotPaused();
 
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
@@ -633,6 +635,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
     function _isUsingCustomGasToken() internal view returns (bool) {
+        // NOTE: Chains are not supposed to enable Custom Gas Token (CGT) mode after initial deployment.
+        //       Enabling CGT post-deployment is strongly discouraged and may lead to unexpected behavior.
         return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 

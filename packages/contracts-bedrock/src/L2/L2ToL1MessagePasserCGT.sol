@@ -18,9 +18,9 @@ contract L2ToL1MessagePasserCGT is L2ToL1MessagePasser {
     /// @notice The error thrown when a withdrawal is initiated with value and custom gas token is used.
     error L2ToL1MessagePasserCGT_NotAllowedOnCGTMode();
 
-    /// @custom:semver +custom-gas-token
+    /// @custom:semver +custom-gas-token.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+custom-gas-token");
+        return string.concat(super.version(), "+custom-gas-token.1");
     }
 
     /// @notice Sends a message from L2 to L1.

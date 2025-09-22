@@ -240,4 +240,14 @@ library Config {
     function devFeatureInterop() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
     }
+
+    /// @notice Returns true if the development feature cannon_kona is enabled.
+    function devFeatureCannonKona() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
+    }
+
+    /// @notice Returns true if the development feature custom gas token is enabled.
+    function devFeatureCustomGasToken() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__CUSTOM_GAS_TOKEN", false);
+    }
 }
