@@ -4,7 +4,7 @@
 use crate::transaction::OpTransaction;
 use alloc::vec::Vec;
 use alloy_consensus::{
-    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx, SignerRecoverable},
+    transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx, SignerRecoverable, TxHashRef},
     Sealed, SignableTransaction, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy,
     Typed2718,
 };
@@ -142,11 +142,13 @@ impl SignerRecoverable for OpTransactionSigned {
     }
 }
 
-impl SignedTransaction for OpTransactionSigned {
+impl TxHashRef for OpTransactionSigned {
     fn tx_hash(&self) -> &TxHash {
         self.hash.get_or_init(|| self.recalculate_hash())
     }
+}
 
+impl SignedTransaction for OpTransactionSigned {
     fn recalculate_hash(&self) -> B256 {
         keccak256(self.encoded_2718())
     }
