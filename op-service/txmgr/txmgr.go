@@ -821,7 +821,10 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	}
 
 	m.metr.RecordBaseFee(tip.BaseFee)
-	if tip.ExcessBlobGas != nil {
+	if m.chainCfg == nil {
+		m.l.Warn("chain config is nil, skipping blob base fee metric recording")
+	}
+	if tip.ExcessBlobGas != nil && m.chainCfg != nil {
 		blobFee := eth.CalcBlobFeeDefault(tip, m.chainCfg)
 		m.metr.RecordBlobBaseFee(blobFee)
 	}

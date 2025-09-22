@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -35,11 +36,12 @@ type KeyedBroadcaster struct {
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger  log.Logger
-	ChainID *big.Int
-	Client  *ethclient.Client
-	Signer  opcrypto.SignerFn
-	From    common.Address
+	Logger        log.Logger
+	ChainID       *big.Int
+	Client        *ethclient.Client
+	Signer        opcrypto.SignerFn
+	From          common.Address
+	L1ChainConfig *params.ChainConfig
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
@@ -78,7 +80,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		cfg.Logger,
 		&metrics.NoopTxMetrics{},
 		mgrCfg,
-		nil, // the l1ChainConfig is only needed to price blob txs
+		nil, // the l1ChainConfig is only needed to price blob txs and record blob base fee metrics
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx manager: %w", err)
