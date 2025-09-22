@@ -11,10 +11,12 @@ The AI Contract Test Maintenance System is designed to continuously reduce techn
 ### Current Implementation Status (v0.1.0)
 
 **✅ Currently Available:**
+
 - **Test Ranking System** - Intelligent test selection based on staleness metrics
 - **Manual Operation** - Command-line interface for generating rankings
 
 **🚧 Planned Components (MVP):**
+
 - Prompt renderer with template processing
 - Devin API client integration
 - CI scaffolding and testing framework
@@ -226,10 +228,12 @@ legacy_tests = [
 ### 8.1 Basic Troubleshooting
 
 **If ranking.json is not generated:**
+
 - Verify you're running from the correct directory (Optimism monorepo root)
 - Ensure `packages/contracts-bedrock/test/` directory exists with `*.t.sol` files
 
 **If git errors occur:**
+
 - Ensure full git history is available: `git fetch --unshallow`
 
 ### 8.2 Runbook Evolution
@@ -243,21 +247,25 @@ This runbook focuses on the current v0.1.0 implementation (test ranker). Compreh
 ### 9.1 MVP Roadmap
 
 **v0.2.0 - Prompt Renderer**
+
 - Template processing system for AI prompts
 - Context injection (test paths, contract paths, run metadata)
 - Text format output for Devin API consumption
 
 **v0.3.0 - Devin API Integration**
+
 - API client for Devin session management
 - Automated instruction sending and status polling
 - Response handling and error management
 
 **v0.4.0 - CI Scaffolding**
+
 - CI pipeline testing framework
 - Devin integration validation
 - Local testing capabilities
 
 **v0.5.0 - MVP Release**
+
 - Scheduled CI workflow
 - End-to-end automated test maintenance pipeline
 - Basic monitoring and error handling
@@ -265,6 +273,7 @@ This runbook focuses on the current v0.1.0 implementation (test ranker). Compreh
 ### 9.2 Integration Points
 
 The current test ranker serves as the foundation for:
+
 - **AI Agent Selection** - Provides ranked inputs for automated improvements
 - **Pipeline Orchestration** - Enables targeted maintenance scheduling
 - **Quality Metrics** - Tracks technical debt over time
