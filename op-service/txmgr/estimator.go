@@ -11,6 +11,8 @@ import (
 
 type GasPriceEstimatorFn func(ctx context.Context, backend ETHBackend, chainCfg *params.ChainConfig) (*big.Int, *big.Int, *big.Int, error)
 
+// DefaultGasPriceEstimatorFn is the default gas price estimator function that uses the backend to suggest a gas price and the chain config to calculate the blob fee.
+// If the chain config is nil, the blob fee will be nil.
 func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend, chainCfg *params.ChainConfig) (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := backend.SuggestGasTipCap(ctx)
 	if err != nil {
@@ -26,7 +28,7 @@ func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend, chainCf
 	}
 
 	var blobFee *big.Int
-	if head.ExcessBlobGas != nil {
+	if head.ExcessBlobGas != nil && chainCfg != nil {
 		blobFee = eth.CalcBlobFeeDefault(head, chainCfg)
 	}
 
