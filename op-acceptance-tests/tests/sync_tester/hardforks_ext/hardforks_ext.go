@@ -193,21 +193,14 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 	}
 	require := t.Require()
 
-	if l2CLSyncMode == sync.ELSync {
-		// Signal L2CL for starting EL Sync
-		signalTarget := networkUpgradeBlocks[upgradeName] - 1
-		sys.L2CL.SignalTarget(sys.L2ELReadOnly, signalTarget)
-		// EL Sync is still progressing at this point
-	}
-
-	l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
-
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
-	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
-
+	var l2CLSyncStatus *eth.SyncStatus
 	if l2CLSyncMode == sync.ELSync {
 		// Signal L2CL for finishing EL Sync
 		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+	} else {
+		l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
+		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 	}
 
 	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
