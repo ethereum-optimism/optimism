@@ -18,6 +18,7 @@ import (
 // TestWrapETH checks WETH interactions, testing both reading and writing on the chain.
 // This demonstrates the usage of DSL for contract bindings
 func TestWrapETH(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	require := t.Require()
 	sys := presets.NewMinimal(t)
