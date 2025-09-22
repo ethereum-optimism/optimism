@@ -7,7 +7,7 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::{
     config_cmd, db, dump_genesis, init_cmd,
     node::{self, NoArgs},
-    p2p, prune, re_execute, recover, stage,
+    p2p, prune, re_execute, stage,
 };
 use std::{fmt, sync::Arc};
 
@@ -51,9 +51,6 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     /// Write config to stdout
     #[command(name = "config")]
     Config(config_cmd::Command),
-    /// Scripts for node recovery
-    #[command(name = "recover")]
-    Recover(recover::Command<Spec>),
     /// Prune according to the configuration without any limits
     #[command(name = "prune")]
     Prune(prune::PruneCommand<Spec>),
@@ -82,7 +79,6 @@ impl<
             Self::Stage(cmd) => cmd.chain_spec(),
             Self::P2P(cmd) => cmd.chain_spec(),
             Self::Config(_) => None,
-            Self::Recover(cmd) => cmd.chain_spec(),
             Self::Prune(cmd) => cmd.chain_spec(),
             Self::ImportOp(cmd) => cmd.chain_spec(),
             Self::ImportReceiptsOp(cmd) => cmd.chain_spec(),
