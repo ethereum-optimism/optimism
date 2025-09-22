@@ -463,7 +463,8 @@ contract TimelockGuard_GetScheduledTransactions_Test is TimelockGuard_TestInit {
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
 
-        TimelockGuard.ScheduledTransaction memory scheduledTransaction = timelockGuard.getScheduledTransaction(safe, dummyTx.hash);
+        TimelockGuard.ScheduledTransaction memory scheduledTransaction =
+            timelockGuard.getScheduledTransaction(safe, dummyTx.hash);
         assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
         assertEq(scheduledTransaction.cancelled, false);
         assertEq(scheduledTransaction.executed, false);
