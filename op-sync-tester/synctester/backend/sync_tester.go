@@ -75,14 +75,14 @@ func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTeste
 
 func (s *SyncTester) GetSession(ctx context.Context) (*eth.SyncTesterSession, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.SyncTesterSession, error) {
-		logger.Debug("GetSession")
+		logger.Info("GetSession")
 		return session, nil
 	})
 }
 
 func (s *SyncTester) DeleteSession(ctx context.Context) error {
 	_, err := session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (any, error) {
-		logger.Debug("DeleteSession")
+		logger.Info("DeleteSession")
 		return struct{}{}, s.sessMgr.DeleteSession(session.SessionID)
 	})
 	return err
@@ -90,7 +90,7 @@ func (s *SyncTester) DeleteSession(ctx context.Context) error {
 
 func (s *SyncTester) ResetSession(ctx context.Context) error {
 	_, err := session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (any, error) {
-		logger.Debug("ResetSession")
+		logger.Info("ResetSession")
 		session.ResetSession()
 		return struct{}{}, nil
 	})
@@ -105,7 +105,7 @@ func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 
 func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) ([]*types.Receipt, error) {
-		logger.Debug("GetBlockReceipts", "blockNrOrHash", blockNrOrHash)
+		logger.Info("GetBlockReceipts", "blockNrOrHash", blockNrOrHash)
 		number, isNumber := blockNrOrHash.Number()
 		var err error
 		var receipts []*types.Receipt
@@ -141,7 +141,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 
 func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (json.RawMessage, error) {
-		logger.Debug("GetBlockByHash", "hash", hash, "fullTx", fullTx)
+		logger.Info("GetBlockByHash", "hash", hash, "fullTx", fullTx)
 		var err error
 		var raw json.RawMessage
 		if raw, err = s.elReader.GetBlockByHashJSON(ctx, hash, fullTx); err != nil {
@@ -189,7 +189,7 @@ func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *eth.SyncT
 
 func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (json.RawMessage, error) {
-		logger.Debug("GetBlockByNumber", "number", number, "fullTx", fullTx)
+		logger.Info("GetBlockByNumber", "number", number, "fullTx", fullTx)
 		var err error
 		var target uint64
 		if target, err = s.checkBlockNumber(number, session, logger); err != nil {
@@ -205,7 +205,7 @@ func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumbe
 
 func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (hexutil.Big, error) {
-		logger.Debug("ChainId")
+		logger.Info("ChainId")
 		chainID, err := s.elReader.ChainId(ctx)
 		if err != nil {
 			return hexutil.Big{}, err
@@ -221,7 +221,7 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 // GetPayloadV1 only supports V1 payloads.
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-		logger.Debug("GetPayloadV1", "payloadID", payloadID)
+		logger.Info("GetPayloadV1", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV1) {
 			return nil, engine.UnsupportedFork
 		}
@@ -232,7 +232,7 @@ func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) 
 // GetPayloadV2 supports V1, V2 payloads.
 func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-		logger.Debug("GetPayloadV2", "payloadID", payloadID)
+		logger.Info("GetPayloadV2", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV1, engine.PayloadV2) {
 			return nil, engine.UnsupportedFork
 		}
@@ -243,7 +243,7 @@ func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) 
 // GetPayloadV3 must be only called when Ecotone activated.
 func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-		logger.Debug("GetPayloadV3", "payloadID", payloadID)
+		logger.Info("GetPayloadV3", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}
@@ -254,7 +254,7 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 // GetPayloadV4 must be only called when Isthmus activated.
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-		logger.Debug("GetPayloadV4", "payloadID", payloadID)
+		logger.Info("GetPayloadV4", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}
@@ -273,14 +273,14 @@ func (s *SyncTester) getPayload(session *eth.SyncTesterSession, logger log.Logge
 	}
 	// Clean up payload
 	delete(session.Payloads, payloadID)
-	logger.Trace("Deleted payload", "payloadID", payloadID)
+	logger.Info("Deleted payload", "payloadID", payloadID)
 	return payloadEnv, nil
 }
 
 // ForkchoiceUpdatedV1 is called for processing V1 attributes
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV1", "state", state, "attr", attr)
+		logger.Info("ForkchoiceUpdatedV1", "state", state, "attr", attr)
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV1, false, false)
 	})
 }
@@ -288,7 +288,7 @@ func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkcho
 // ForkchoiceUpdatedV2 is called for processing V2 attributes
 func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV2", "state", state, "attr", attr)
+		logger.Info("ForkchoiceUpdatedV2", "state", state, "attr", attr)
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV2, true, false)
 	})
 }
@@ -296,7 +296,7 @@ func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkcho
 // ForkchoiceUpdatedV3 must be only called with Ecotone attributes
 func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV3", "state", state, "attr", attr)
+		logger.Info("ForkchoiceUpdatedV3", "state", state, "attr", attr)
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true)
 	})
 }
@@ -362,7 +362,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	}
 	// Equivalent to SetCanonical
 	session.UpdateFCULatest(candLatest.NumberU64())
-	logger.Debug("Updated FCU State", "latest", session.CurrentState.Latest)
+	logger.Info("Updated FCU State", "latest", session.CurrentState.Latest)
 	// Simulate db check for finalized head
 	if state.FinalizedBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
@@ -377,7 +377,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		// Equivalent to SetFinalized
 		session.UpdateFCUFinalized(finalizedNum)
-		logger.Debug("Updated FCU State", "finalized", session.CurrentState.Finalized)
+		logger.Info("Updated FCU State", "finalized", session.CurrentState.Finalized)
 	}
 	// Simulate db check for safe head
 	if state.SafeBlockHash != (common.Hash{}) {
@@ -393,7 +393,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		// Equivalent to SetSafe
 		session.UpdateFCUSafe(safeNum)
-		logger.Debug("Updated FCU State", "safe", session.CurrentState.Safe)
+		logger.Info("Updated FCU State", "safe", session.CurrentState.Safe)
 	}
 	var id *engine.PayloadID
 	if attr != nil {
@@ -449,7 +449,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.GenericServerError.With(err)
 		}
 		// Store payload and payloadID. This will be processed using GetPayload engine API
-		logger.Debug("Store payload", "payloadID", payloadID)
+		logger.Info("Store payload", "payloadID", payloadID)
 		session.Payloads[payloadID] = payloadEnv
 	}
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
@@ -542,7 +542,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 // NewPayloadV1 must be only called with Bedrock Payload
 func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV1", "payload", payload)
+		logger.Info("NewPayloadV1", "payload", payload)
 		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
 	})
 }
@@ -550,7 +550,7 @@ func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV2 must be only called with Bedrock, Canyon, Delta Payload
 func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV2", "payload", payload)
+		logger.Info("NewPayloadV2", "payload", payload)
 		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
 	})
 }
@@ -558,7 +558,7 @@ func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV3 must be only called with Ecotone Payload
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV3", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot)
+		logger.Info("NewPayloadV3", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot)
 		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, nil, true, false)
 	})
 }
@@ -566,7 +566,7 @@ func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV4 must be only called with Isthmus payload
 func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV4", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests)
+		logger.Info("NewPayloadV4", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests)
 		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true)
 	})
 }
@@ -704,11 +704,11 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 		if blockNumber == session.Validated+1 {
 			// Advance single block without setting the head, equivalent to geth InsertBlockWithoutSetHead
 			session.Validated += 1
-			logger.Debug("Advanced non canonical chain", "validated", session.Validated)
+			logger.Info("Advanced non canonical chain", "validated", session.Validated)
 		}
 		if !session.IsELSyncFinished() && session.Validated == session.ELSyncTarget {
 			// Can reach here when not doing EL Sync on CL side but session is configured for EL Sync
-			logger.Debug("Non canonical chain reached EL Sync target", "validated", session.Validated)
+			logger.Info("Non canonical chain reached EL Sync target", "validated", session.Validated)
 			session.FinishELSync(session.Validated)
 		}
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#payload-validation
@@ -716,17 +716,17 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 		return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &blockHash}, nil
 	} else if !session.IsELSyncFinished() {
 		if blockNumber == session.ELSyncTarget {
-			logger.Debug("Attempting to finish EL Sync on non canonical chain", "target", session.ELSyncTarget)
+			logger.Info("Attempting to finish EL Sync on non canonical chain", "target", session.ELSyncTarget)
 			if status, err := s.validatePayload(logger, isCanyon, isIsthmus, block, payload, beaconRoot); status != nil {
 				return status, err
 			}
 			session.FinishELSync(blockNumber)
-			logger.Debug("Finished EL Sync by advancing non canonical chain", "validated", session.Validated)
+			logger.Info("Finished EL Sync by advancing non canonical chain", "validated", session.Validated)
 			// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#payload-validation
 			// Spec: If validation succeeds, the response MUST contain {status: VALID, latestValidHash: payload.blockHash}
 			return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &blockHash}, nil
 		} else if blockNumber < session.ELSyncTarget {
-			logger.Trace("EL Sync on progress", "target", blockNumber)
+			logger.Info("EL Sync on progress", "target", blockNumber)
 		} else if blockNumber > session.ELSyncTarget {
 			// L2CL may never reach the EL Sync Target because the current number may keep increasing
 			logger.Warn("Received payload which has larger block number than EL Sync target", "current", blockNumber, "target", session.ELSyncTarget)
