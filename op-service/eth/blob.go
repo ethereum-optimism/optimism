@@ -286,6 +286,9 @@ func (b *Blob) Clear() {
 // CalcBlobFeeDefault calculates the blob fee for the given header using eip4844.CalcBlobFee
 // and the chain config of the L1 chain.
 func CalcBlobFeeDefault(header *types.Header, chainCfg *params.ChainConfig) *big.Int {
+	if chainCfg == nil {
+		panic("CalcBlobFeeDefault: chainCfg is nil")
+	}
 	return eip4844.CalcBlobFee(chainCfg, header)
 }
 
