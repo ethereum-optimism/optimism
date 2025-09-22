@@ -79,6 +79,7 @@ var mainnetCfg = rollup.Config{
 	IsthmusTime:             u64Ptr(1746806401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 	ChainOpConfig:           defaultOpConfig,
+	L1ChainConfig:           params.MainnetChainConfig,
 }
 
 var sepoliaCfg = rollup.Config{
@@ -119,6 +120,7 @@ var sepoliaCfg = rollup.Config{
 	IsthmusTime:             u64Ptr(1744905600),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 	ChainOpConfig:           defaultOpConfig,
+	L1ChainConfig:           params.SepoliaChainConfig,
 }
 
 var sepoliaDev0Cfg = rollup.Config{
@@ -159,6 +161,7 @@ var sepoliaDev0Cfg = rollup.Config{
 	IsthmusTime:             u64Ptr(1744300800),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
 	ChainOpConfig:           defaultOpConfig,
+	L1ChainConfig:           params.SepoliaChainConfig,
 }
 
 func u64Ptr(v uint64) *uint64 {
