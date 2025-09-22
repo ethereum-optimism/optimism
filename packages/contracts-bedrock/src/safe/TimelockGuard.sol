@@ -102,7 +102,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function viewTimelockGuardConfiguration(Safe _safe) public view returns (GuardConfig memory) {
+    function timelockSafeConfiguration(Safe _safe) public view returns (GuardConfig memory) {
         return _timelockSafeConfiguration[_safe];
     }
 
