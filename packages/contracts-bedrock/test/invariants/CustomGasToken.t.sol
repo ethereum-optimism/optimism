@@ -123,7 +123,7 @@ contract RandomActor is StdUtils {
     bool public hasBeenCalled = false;
 
     /// @notice Error thrown when sending CGT to minter fails.
-    error RandomActor_SendCGTtoMinterFailed();
+    error RandomActor_SendCGTToMinterFailed();
 
     /// @notice Error thrown when sending CGT to funder fails.
     error RandomActor_SendCGTtoFunderFailed();
@@ -148,7 +148,7 @@ contract RandomActor is StdUtils {
         (bool success,) = payable(address(liquidityController_Minter)).call{ value: _amountToSend }("");
 
         // postcondition: the call must succeed (test suite sanity check)
-        if (!success) revert RandomActor_SendCGTtoMinterFailed();
+        if (!success) revert RandomActor_SendCGTToMinterFailed();
     }
 
     /// @notice Send CGT to the funder actor.
