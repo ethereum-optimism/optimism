@@ -137,7 +137,10 @@ contract DeployImplementations is Script {
             disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
-            mipsImpl: address(_output.mipsSingleton)
+            mipsImpl: address(_output.mipsSingleton),
+            // TODO(#17257): Deploy the v2 contracts
+            faultDisputeGameV2Impl: address(0),
+            permissionedDisputeGameV2Impl: address(0)
         });
 
         deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
