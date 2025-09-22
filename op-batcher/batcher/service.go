@@ -166,7 +166,8 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
-	if err := bs.initTxManager(cfg, bs.RollupConfig.L1ChainConfig); err != nil {
+	l1ChainConfig := bs.RollupConfig.L1ChainConfig()
+	if err := bs.initTxManager(cfg, &l1ChainConfig); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
 	// must be init before driver and channel config

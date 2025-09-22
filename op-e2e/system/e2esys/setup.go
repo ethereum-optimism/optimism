@@ -722,7 +722,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 				EIP1559Denominator:       cfg.DeployConfig.EIP1559Denominator,
 				EIP1559DenominatorCanyon: &cfg.DeployConfig.EIP1559DenominatorCanyon,
 			},
-			L1ChainConfig: e2eutils.MainnetL1ChainConfigWithChainID(cfg.L1ChainIDBig()),
 		}
 	}
 	defaultConfig := makeRollupConfig()

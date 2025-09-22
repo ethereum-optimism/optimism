@@ -166,7 +166,25 @@ type Config struct {
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
 
 	// L1 Chain Config
-	L1ChainConfig *params.ChainConfig `json:"l1_chain_config,omitempty"`
+	l1ChainConfig *params.ChainConfig
+}
+
+func (cf *Config) L1ChainConfig() params.ChainConfig {
+	if cf.l1ChainConfig != nil {
+		return *cf.l1ChainConfig
+	} else {
+		switch cf.L1ChainID {
+		case params.MainnetChainConfig.ChainID:
+			cf.l1ChainConfig = params.MainnetChainConfig
+		case params.SepoliaChainConfig.ChainID:
+			cf.l1ChainConfig = params.SepoliaChainConfig
+		case params.HoleskyChainConfig.ChainID:
+			cf.l1ChainConfig = params.HoleskyChainConfig
+		case params.HoodiChainConfig.ChainID:
+			cf.l1ChainConfig = params.HoodiChainConfig
+		}
+	}
+	panic(fmt.Sprintf("L1 chain config not found for chain ID %d", cf.L1ChainID))
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -185,8 +203,8 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, logger log.Logger, clie
 		// TODO we could allow the L1ChainConfig to be auto-filled if the chainID is recognized (Mainnet, Sepolia, Holesky)
 		return ErrMissingL1ChainConfig
 	}
-	if cfg.L1ChainConfig.ChainID.Cmp(cfg.L1ChainID) != 0 {
-		return fmt.Errorf("L1 chain config chain ID %d does not match L1 chain ID %d", cfg.L1ChainConfig.ChainID, cfg.L1ChainID)
+	if cfg.L1ChainConfig().ChainID.Cmp(cfg.L1ChainID) != 0 {
+		return fmt.Errorf("L1 chain config chain ID %d does not match L1 chain ID %d", cfg.L1ChainConfig().ChainID, cfg.L1ChainID)
 	}
 
 	return nil
@@ -821,7 +839,7 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l2_block_number", c.Genesis.L2.Number,
 		"l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number,
-		"l1_blob_schedule_config", c.L1ChainConfig.BlobScheduleConfig,
+		"l1_blob_schedule_config", c.L1ChainConfig().BlobScheduleConfig,
 	}
 	c.forEachFork(func(_ string, logName string, time *uint64) {
 		ctx = append(ctx, logName, fmtForkTimeOrUnset(time))

@@ -125,7 +125,7 @@ func (h *headerBlockInfo) BaseFee() *big.Int {
 	return h.header.BaseFee
 }
 
-func (h *headerBlockInfo) BlobBaseFee(l1ChainConfig *params.ChainConfig) *big.Int {
+func (h *headerBlockInfo) BlobBaseFee(l1ChainConfig params.ChainConfig) *big.Int {
 	if h.header.ExcessBlobGas == nil {
 		return nil
 	}

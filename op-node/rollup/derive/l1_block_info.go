@@ -416,7 +416,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 	var data []byte
 	if isEcotoneButNotFirstBlock(rollupCfg, l2Timestamp) {
 		isIsthmusActivated := isIsthmusButNotFirstBlock(rollupCfg, l2Timestamp)
-		l1BlockInfo.BlobBaseFee = block.BlobBaseFee(rollupCfg.L1ChainConfig)
+		l1ChainConfig := rollupCfg.L1ChainConfig()
+		l1BlockInfo.BlobBaseFee = block.BlobBaseFee(&l1ChainConfig)
 
 		// Apply Cancun blob base fee calculation if this chain needs the L1 Pectra
 		// blob schedule fix (mostly Holesky and Sepolia OP-Stack chains).
