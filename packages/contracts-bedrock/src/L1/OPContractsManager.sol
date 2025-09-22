@@ -1766,6 +1766,8 @@ contract OPContractsManager is ISemver {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
     }
 
     /// @notice The input required to identify a chain for upgrading, along with new prestate hashes
@@ -1798,9 +1800,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.5.0
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.5.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
