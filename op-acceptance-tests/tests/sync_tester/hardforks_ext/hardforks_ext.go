@@ -2,6 +2,7 @@ package hardforks_ext
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -127,6 +129,10 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 	// Create orchestrator with the same configuration that was in TestMain
 	opt := presets.WithExternalELWithSuperchainRegistry(config)
 	if l2CLSyncMode == sync.ELSync {
+		chainCfg := chaincfg.ChainByName(config.L2NetworkName)
+		if chainCfg == nil {
+			panic(fmt.Sprintf("network %s not found in superchain registry", config.L2NetworkName))
+		}
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
 			presets.WithELSyncTarget(targetBlock),
@@ -134,7 +140,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				Latest: blk,
 				Safe:   0,
 				// Need to set finalized to genesis to unskip EL Sync
-				Finalized: 0,
+				Finalized: chainCfg.Genesis.L2.Number,
 			}),
 		)
 	} else {
