@@ -8,6 +8,7 @@ library Enum {
 library TimelockGuard {
     struct GuardConfig {
         uint256 timelockDelay;
+        uint256 safetyDelay;
     }
 
     struct ScheduledTransaction {
@@ -34,12 +35,13 @@ interface Interface {
     error TimelockGuard_GuardNotEnabled();
     error TimelockGuard_GuardStillEnabled();
     error TimelockGuard_InvalidTimelockDelay();
+    error TimelockGuard_InvalidSafetyDelay();
     error TimelockGuard_TransactionAlreadyCancelled();
     error TimelockGuard_TransactionAlreadyScheduled();
     error TimelockGuard_TransactionNotScheduled();
 
     event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event GuardConfigured(address indexed safe, uint256 timelockDelay);
+    event GuardConfigured(address indexed safe, uint256 timelockDelay, uint256 safetyDelay);
     event TransactionCancelled(address indexed safe, bytes32 indexed txId);
     event TransactionScheduled(address indexed safe, bytes32 indexed txId, uint256 when);
 
@@ -61,12 +63,12 @@ interface Interface {
         bytes memory,
         address
     ) external;
-    function configureTimelockGuard(uint256 _timelockDelay) external;
+    function configureTimelockGuard(uint256 _timelockDelay, uint256 _safetyDelay) external;
     function scheduledTransactionForSafe(address _safe, bytes32 _txHash)
         external
         view
         returns (TimelockGuard.ScheduledTransaction memory);
-    function safeConfigs(address) external view returns (uint256 timelockDelay);
+    function safeConfigs(address) external view returns (uint256 timelockDelay, uint256 safetyDelay);
     function scheduleTransaction(
         address _safe,
         uint256 _nonce,

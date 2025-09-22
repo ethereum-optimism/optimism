@@ -142,7 +142,7 @@ library TransactionBuilder {
 /// @notice Reusable test initialization for `TimelockGuard` tests.
 contract TimelockGuard_TestInit is Test, SafeTestTools {
     // Events
-    event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
+    event GuardConfigured(Safe indexed safe, uint256 timelockDelay, uint256 safetyDelay);
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
@@ -150,6 +150,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
+    uint256 constant SAFETY_DELAY = 5 days;
     uint256 constant NUM_OWNERS = 5;
     uint256 constant THRESHOLD = 3;
     uint256 constant ONE_YEAR = 365 days;
@@ -213,9 +214,12 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Helper to configure the TimelockGuard for a Safe
-    function _configureGuard(SafeInstance memory _safe, uint256 _delay) internal {
+    function _configureGuard(SafeInstance memory _safe, uint256 _timelockDelay, uint256 _safetyDelay) internal {
         SafeTestLib.execTransaction(
-            _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.configureTimelockGuard, (_delay))
+            _safe,
+            address(timelockGuard),
+            0,
+            abi.encodeCall(TimelockGuard.configureTimelockGuard, (_timelockDelay, _safetyDelay))
         );
     }
 
@@ -234,15 +238,17 @@ contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_Test
     function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
         TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
         assertEq(config.timelockDelay, 0);
+        assertEq(config.safetyDelay, 0);
         // configured is now determined by timelockDelay == 0
         assertEq(config.timelockDelay == 0, true);
     }
 
     /// @notice Validates the configuration view reflects the stored timelock delay.
     function test_viewTimelockGuardConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
         TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
+        assertEq(config.safetyDelay, SAFETY_DELAY);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
     }
@@ -254,12 +260,13 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     /// @notice Verifies the guard can be configured with a standard delay.
     function test_configureTimelockGuard_succeeds() external {
         vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, TIMELOCK_DELAY);
+        emit GuardConfigured(safe, TIMELOCK_DELAY, SAFETY_DELAY);
 
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
 
         TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
+        assertEq(config.safetyDelay, SAFETY_DELAY);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
     }
@@ -268,7 +275,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     function test_configureTimelockGuard_revertsIfGuardNotEnabled_reverts() external {
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
         vm.prank(address(unguardedSafe.safe));
-        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     /// @notice Confirms delays above the maximum revert during configuration.
@@ -277,18 +284,27 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(tooLongDelay);
+        timelockGuard.configureTimelockGuard(tooLongDelay, SAFETY_DELAY);
+    }
+
+    function test_configureTimelockGuard_revertsIfSafetyDelayTooLong_reverts() external {
+        uint256 tooLongDelay = ONE_YEAR + 1;
+
+        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidSafetyDelay.selector);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY, tooLongDelay);
     }
 
     /// @notice Asserts the maximum valid delay configures successfully.
     function test_configureTimelockGuard_acceptsMaxValidDelay_succeeds() external {
         vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, ONE_YEAR);
+        emit GuardConfigured(safe, ONE_YEAR, SAFETY_DELAY);
 
-        _configureGuard(safeInstance, ONE_YEAR);
+        _configureGuard(safeInstance, ONE_YEAR, SAFETY_DELAY);
 
         TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
         assertEq(config.timelockDelay, ONE_YEAR);
+        assertEq(config.safetyDelay, SAFETY_DELAY);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
     }
@@ -296,15 +312,17 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     /// @notice Demonstrates the guard can be reconfigured to a new delay.
     function test_configureTimelockGuard_allowsReconfiguration_succeeds() external {
         // Initial configuration
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
+        TimelockGuard.GuardConfig memory initialConfig = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(initialConfig.timelockDelay, TIMELOCK_DELAY);
+        assertEq(initialConfig.safetyDelay, SAFETY_DELAY);
 
         uint256 newDelay = TIMELOCK_DELAY + 1;
 
         // Setup and schedule the reconfiguration transaction
         TransactionBuilder.Transaction memory reconfigureGuardTx = _createEmptyTransaction(safeInstance);
         reconfigureGuardTx.params.to = address(timelockGuard);
-        reconfigureGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (newDelay));
+        reconfigureGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (newDelay, SAFETY_DELAY));
         reconfigureGuardTx.updateTransaction();
         reconfigureGuardTx.scheduleTransaction(timelockGuard);
 
@@ -312,37 +330,43 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         // Reconfigure with different delay
         vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, newDelay);
+        emit GuardConfigured(safe, newDelay, SAFETY_DELAY);
 
-        _configureGuard(safeInstance, newDelay);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, newDelay);
+        _configureGuard(safeInstance, newDelay, SAFETY_DELAY);
+        TimelockGuard.GuardConfig memory updatedConfig = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(updatedConfig.timelockDelay, newDelay);
+        assertEq(updatedConfig.safetyDelay, SAFETY_DELAY);
     }
 
     /// @notice Ensures setting delay to zero clears the configuration.
     function test_configureTimelockGuard_clearConfiguration_succeeds() external {
         // First configure the guard
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
+        TimelockGuard.GuardConfig memory configured = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(configured.timelockDelay, TIMELOCK_DELAY);
+        assertEq(configured.safetyDelay, SAFETY_DELAY);
 
         // Configure timelock delay to 0 should succeed and emit event
         vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, 0);
+        emit GuardConfigured(safe, 0, 0);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(0);
+        timelockGuard.configureTimelockGuard(0, 0);
 
-        // Timelock delay should be set to 0
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, 0);
-        // Cancellation threshold should be reset to 0
-        assertEq(timelockGuard.cancellationThresholdForSafe(safe), 0);
+        // Timelock & safety delays should be reset to 0
+        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(config.timelockDelay, 0);
+        assertEq(config.safetyDelay, 0);
+        // Cancellation threshold should reset to 1 per spec
+        assertEq(timelockGuard.cancellationThresholdForSafe(safe), 1);
     }
 
     /// @notice Checks clearing succeeds even if the guard was never configured.
     function test_configureTimelockGuard_notConfigured_succeeds() external {
         // Try to clear - should succeed even if not yet configured
         vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, 0);
+        emit GuardConfigured(safe, 0, 0);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(0);
+        timelockGuard.configureTimelockGuard(0, 0);
     }
 }
 
@@ -365,7 +389,7 @@ contract TimelockGuard_CancellationThresholdForSafe_Test is TimelockGuard_TestIn
     /// @notice Confirms the default threshold becomes one after configuration.
     function test_cancellationThreshold_returnsOneAfterConfiguration_succeeds() external {
         // Configure the guard
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
 
         // Should default to 1 after configuration
         uint256 threshold = timelockGuard.cancellationThresholdForSafe(safe);
@@ -382,7 +406,7 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     /// @notice Configures the guard before each scheduleTransaction test.
     function setUp() public override {
         super.setUp();
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     /// @notice Ensures scheduling emits the expected event and stores state.
@@ -451,7 +475,7 @@ contract TimelockGuard_ScheduledTransactionForSafe_Test is TimelockGuard_TestIni
     /// @notice Configures the guard before each scheduleTransaction test.
     function setUp() public override {
         super.setUp();
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     function test_scheduledTransactionForSafe_succeeds() external {
@@ -473,7 +497,7 @@ contract TimelockGuard_ScheduledTransactionForSafe_Test is TimelockGuard_TestIni
 contract TimelockGuard_PendingTransactionsForSafe_Test is TimelockGuard_TestInit {
     function setUp() public override {
         super.setUp();
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     function test_pendingTransactionsForSafe_succeeds() external {
@@ -526,7 +550,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         super.setUp();
 
         // Configure the guard and schedule a transaction
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     /// @notice Ensures cancellations succeed using owner signatures.
@@ -601,7 +625,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     /// @notice Establishes the configured guard before checkTransaction tests.
     function setUp() public override {
         super.setUp();
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     /// @notice Test that scheduled transactions can execute after the delay period
@@ -741,7 +765,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
 contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
     function setUp() public override {
         super.setUp();
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
     }
 
     /// @notice Test that scheduling a transaction and then executing it succeeds
@@ -809,7 +833,7 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
 
         TransactionBuilder.Transaction memory resetGuardConfigTx = _createEmptyTransaction(safeInstance);
         resetGuardConfigTx.params.to = address(timelockGuard);
-        resetGuardConfigTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
+        resetGuardConfigTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0, 0));
         resetGuardConfigTx.updateTransaction();
         resetGuardConfigTx.scheduleTransaction(timelockGuard);
 
@@ -821,7 +845,7 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
     function test_integration_resetThenDisableGuard_succeeds() external {
         TransactionBuilder.Transaction memory resetGuardTx = _createEmptyTransaction(safeInstance);
         resetGuardTx.params.to = address(timelockGuard);
-        resetGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
+        resetGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0, 0));
         resetGuardTx.updateTransaction();
         resetGuardTx.scheduleTransaction(timelockGuard);
 

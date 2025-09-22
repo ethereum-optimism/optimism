@@ -24,6 +24,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Configuration for a Safe's timelock guard
     struct GuardConfig {
         uint256 timelockDelay;
+        uint256 safetyDelay;
     }
 
     /// @notice Scheduled transaction
@@ -56,6 +57,9 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Error for invalid timelock delay
     error TimelockGuard_InvalidTimelockDelay();
 
+    /// @notice Error for invalid safety delay
+    error TimelockGuard_InvalidSafetyDelay();
+
     /// @notice Error for when a transaction is already scheduled
     error TimelockGuard_TransactionAlreadyScheduled();
 
@@ -72,7 +76,7 @@ contract TimelockGuard is IGuard, ISemver {
     error TimelockGuard_TransactionAlreadyExecuted();
 
     /// @notice Emitted when a Safe configures the guard
-    event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
+    event GuardConfigured(Safe indexed safe, uint256 timelockDelay, uint256 safetyDelay);
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
@@ -139,7 +143,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
-    function configureTimelockGuard(uint256 _timelockDelay) external {
+    function configureTimelockGuard(uint256 _timelockDelay, uint256 _safetyDelay) external {
         Safe callingSafe = Safe(payable(msg.sender));
 
         // Check that this guard is enabled on the calling Safe
@@ -147,23 +151,23 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_GuardNotEnabled();
         }
 
-        // Validate timelock delay - must not be longer than 1 year
+        // Check that the timelock delay is not longer than 1 year
         if (_timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
-        // Store the configuration for this safe
-        _timelockSafeConfiguration[callingSafe].timelockDelay = _timelockDelay;
-
-        emit GuardConfigured(callingSafe, _timelockDelay);
-
-        // If timelock delay is 0, ensure the cancellation threshold is deleted
-        if (_timelockDelay == 0) {
-            delete _safeCancellationThreshold[callingSafe];
-        } else {
-            // Initialize cancellation threshold to 1
-            _safeCancellationThreshold[callingSafe] = 1;
+        // Check that the safety delay is not longer than 1 year
+        if (_safetyDelay > 365 days) {
+            revert TimelockGuard_InvalidSafetyDelay();
         }
+
+        GuardConfig storage config = _timelockSafeConfiguration[callingSafe];
+        config.timelockDelay = _timelockDelay;
+        config.safetyDelay = _safetyDelay;
+
+        _safeCancellationThreshold[callingSafe] = 1;
+
+        emit GuardConfigured(callingSafe, _timelockDelay, _safetyDelay);
     }
 
     /// @notice Returns the blocking threshold threshold for a given safe
