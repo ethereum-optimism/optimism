@@ -1,0 +1,21 @@
+name: Deploy to BuildBear
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to BuildBear
+        uses: BuildBearLabs/buildbear_x_action@v1.7.0
+        with:
+          network: |
+            [
+              {
+                "chainId": 1
+              }
+            ]
+
+          deploy-command: "deploy-buildbear.sh"
+          buildbear-api-key: {{ secrets.BUILDBEAR_API_KEY }}
