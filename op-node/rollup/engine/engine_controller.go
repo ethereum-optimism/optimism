@@ -357,6 +357,11 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	}
 	var finalizedRef eth.L2BlockRef
 	if e.finalizedHead == (eth.L2BlockRef{}) {
+		for i := range 20 {
+			fmt.Printf("### %d initializeUnknowns finalizedRef %s\n", i, e.finalizedHead)
+			time.Sleep(time.Microsecond)
+		}
+
 		var err error
 		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
 		if err != nil {
