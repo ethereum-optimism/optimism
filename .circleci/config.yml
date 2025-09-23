@@ -71,6 +71,15 @@ parameters:
   devnet-metrics-collect:
     type: boolean
     default: false
+  flake-shake-dispatch:
+    type: boolean
+    default: false
+  flake-shake-iterations:
+    type: integer
+    default: 100
+  flake-shake-workers:
+    type: integer
+    default: 10
 
 orbs:
   go: circleci/go@1.8.0
@@ -226,6 +235,11 @@ commands:
               # Add mentions if provided
               if [ ! -z "<< parameters.mentions >>" ]; then
                 DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
+              fi
+
+              # Add extra mentions from environment (e.g. owners from flake-shake)
+              if [ -n "${EXTRA_DISCORD_MENTIONS:-}" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Owners:** ${EXTRA_DISCORD_MENTIONS}"
               fi
 
               # Post to Discord webhook
@@ -1577,6 +1591,158 @@ jobs:
                 mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>>"
 
+  op-acceptance-tests-flake-shake:
+    parameters:
+      gate:
+        type: string
+        default: "flake-shake"
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    parallelism: << pipeline.parameters.flake-shake-workers >>
+    steps:
+      - checkout-from-workspace
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      - run:
+          name: Download Go dependencies
+          working_directory: op-acceptance-tests
+          command: go mod download
+      - run:
+          name: Calculate iterations for worker
+          command: |
+            # Get total iterations and worker info from CircleCI parallelism
+            TOTAL_ITER=<< pipeline.parameters.flake-shake-iterations >>
+            WORKERS=${CIRCLE_NODE_TOTAL}
+            WORKER_ID=$((CIRCLE_NODE_INDEX + 1))
+
+            # Calculate how many iterations each worker should run
+            ITER_PER_WORKER=$((TOTAL_ITER / WORKERS))
+            REMAINDER=$((TOTAL_ITER % WORKERS))
+
+            # Distribute the remainder (first $REMAINDER workers get one extra iteration)
+            if [ $WORKER_ID -le $REMAINDER ]; then
+              ITER_COUNT=$((ITER_PER_WORKER + 1))
+            else
+              ITER_COUNT=$ITER_PER_WORKER
+            fi
+
+            echo "Worker $WORKER_ID running $ITER_COUNT of $TOTAL_ITER iterations"
+            echo "export FLAKE_SHAKE_ITERATIONS=$ITER_COUNT" >> $BASH_ENV
+            echo "export FLAKE_SHAKE_WORKER_ID=$WORKER_ID" >> $BASH_ENV
+      - run:
+          name: Run flake-shake iterations
+          no_output_timeout: 2h
+          working_directory: op-acceptance-tests
+          command: |
+            OUTPUT_DIR="logs/flake-shake-results-worker-${FLAKE_SHAKE_WORKER_ID}"
+            mkdir -p "$OUTPUT_DIR"
+
+            op-acceptor \
+              --validators ./acceptance-tests.yaml \
+              --gate << parameters.gate >> \
+              --testdir tests \
+              --flake-shake \
+              --flake-shake-iterations "$FLAKE_SHAKE_ITERATIONS" \
+              --orchestrator sysgo \
+              --logdir "./$OUTPUT_DIR"
+      - persist_to_workspace:
+          root: op-acceptance-tests
+          paths:
+            - logs/flake-shake-results-worker-*/
+      - store_artifacts:
+          path: ./op-acceptance-tests/logs/flake-shake-results-worker-*
+          destination: flake-shake-workers
+
+  op-acceptance-tests-flake-shake-report:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: large
+    steps:
+      - checkout-from-workspace
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build flake-shake aggregator
+          working_directory: op-acceptance-tests
+          command: |
+            go mod download
+            go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
+      - run:
+          name: Aggregate results
+          command: |
+            mkdir -p final-report
+            ./flake-shake-aggregator \
+              --input-pattern "logs/flake-shake-results-worker-*/testrun-*/flake-shake-report.json" \
+              --output-dir final-report \
+              --verbose
+      - run:
+          name: Generate summary
+          command: |
+            if [ -f final-report/flake-shake-report.json ]; then
+              echo "=== Flake-Shake Results ==="
+              STABLE=$(jq '[.tests[] | select(.recommendation == "STABLE")] | length' final-report/flake-shake-report.json)
+              UNSTABLE=$(jq '[.tests[] | select(.recommendation == "UNSTABLE")] | length' final-report/flake-shake-report.json)
+              echo "✅ STABLE: $STABLE tests"
+              echo "⚠️ UNSTABLE: $UNSTABLE tests"
+              if [ "$UNSTABLE" -gt 0 ]; then
+                echo "Unstable tests:"
+                jq -r '.tests[] | select(.recommendation == "UNSTABLE") | "  - \(.test_name) (\(.pass_rate)%)"' final-report/flake-shake-report.json
+              fi
+              # Write daily summary (include stable and unstable tests)
+              jq '{date, gate, total_runs, iterations,
+                   totals: {
+                     stable: ([.tests[] | select(.recommendation=="STABLE")] | length),
+                     unstable: ([.tests[] | select(.recommendation=="UNSTABLE")] | length)
+                   },
+                   stable_tests: [
+                     .tests[] | select(.recommendation=="STABLE") |
+                     {test_name, package, total_runs, pass_rate}
+                   ],
+                   unstable_tests: [
+                     .tests[] | select(.recommendation=="UNSTABLE") |
+                     {test_name, package, total_runs, passes, failures, pass_rate}
+                   ]
+                 }' final-report/flake-shake-report.json > final-report/daily-summary.json
+
+              # Write promotion readiness (100% pass)
+              jq '{ready: [.tests[] | select(.recommendation=="STABLE") | {test_name, package, total_runs, pass_rate, avg_duration, min_duration, max_duration}]}' final-report/flake-shake-report.json > final-report/promotion-ready.json
+
+              # Export UNSTABLE_COUNT for later steps
+              echo "export UNSTABLE_COUNT=$UNSTABLE" >> $BASH_ENV
+            else
+              echo "ERROR: No report found"
+              exit 1
+            fi
+      - run:
+          name: Prepare Discord owner mentions
+          command: |
+            # Build owner mentions for unstable tests
+            OWNERS_FILE=$(mktemp)
+            # Iterate over unstable tests and resolve owners from YAML metadata
+            jq -r '.tests[] | select(.recommendation=="UNSTABLE") | [.package, .test_name] | @tsv' final-report/flake-shake-report.json | while IFS=$'\t' read -r PKG NAME; do
+              OWNER=$(yq -r \
+                ".gates[] | select(.id==\"flake-shake\") | .tests[] | select(.package==\"${PKG}\" and ((.name // \"\")==\"${NAME}\")) | (.metadata.owner // \"\")" \
+                op-acceptance-tests/acceptance-tests.yaml)
+              if [ -n "$OWNER" ]; then echo "$OWNER" >> "$OWNERS_FILE"; fi
+            done
+            if [ -s "$OWNERS_FILE" ]; then
+              # unique list and prefix with @ for readability
+              OWNERS=$(sort -u "$OWNERS_FILE" | sed 's/^/@/')
+              echo "Resolved owners:" $OWNERS
+              echo "export EXTRA_DISCORD_MENTIONS=\"$OWNERS\"" >> $BASH_ENV
+            else
+              echo "No owners resolved"
+            fi
+      - discord-notification-failures-on-develop:
+          message: "Flake-Shake report is ready. See artifacts for details."
+          mentions: "$EXTRA_DISCORD_MENTIONS"
+      - store_artifacts:
+          path: ./final-report
+          destination: flake-shake-report
+
   sanitize-op-program:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -2731,6 +2897,38 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
+  scheduled-flake-shake:
+    when:
+      or:
+        - equal: [build_daily, << pipeline.schedule.name >>]
+        - and:
+            - equal: [true, << pipeline.parameters.flake-shake-dispatch >>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - cannon-prestate-quick:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - op-acceptance-tests-flake-shake:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      - op-acceptance-tests-flake-shake-report:
+          requires:
+            - op-acceptance-tests-flake-shake
+
   scheduled-preimage-reproducibility:
     when:
       or:
@@ -2841,13 +3039,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      # Generate flaky test report
-      - generate-flaky-report:
-          name: generate-flaky-tests-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
