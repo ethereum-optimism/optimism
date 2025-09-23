@@ -85,7 +85,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 
 	daMgr := altda.NewAltDAWithStorage(log, altDACfg, storage, &altda.NoopMetrics{})
 
-	sequencer := helpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, sd.DependencySet, 0)
+	sequencer := helpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, sd.DependencySet, 0, sd.L1Cfg.Config)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 

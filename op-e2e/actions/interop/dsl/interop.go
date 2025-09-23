@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -204,8 +205,8 @@ func (is *InteropSetup) CreateActors() *InteropActors {
 	is.T.Cleanup(func() {
 		require.NoError(is.T, supervisorAPI.backend.Stop(context.Background()))
 	})
-	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"], is.CfgSet)
-	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"], is.CfgSet)
+	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"], is.CfgSet, is.Out.L1.Genesis.Config)
+	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"], is.CfgSet, is.Out.L1.Genesis.Config)
 	// Hook up L2 RPCs to supervisor, to fetch event data from
 	srcA := chainA.Sequencer.InteropSyncNode(is.T)
 	srcB := chainB.Sequencer.InteropSyncNode(is.T)
@@ -292,6 +293,7 @@ func createL2Services(
 	keys devkeys.Keys,
 	output *interopgen.L2Output,
 	depSet depset.DependencySet,
+	l1ChainConfig *params.ChainConfig,
 ) *Chain {
 	logger = logger.New("chain", output.Genesis.Config.ChainID)
 
@@ -308,7 +310,7 @@ func createL2Services(
 
 	seq := helpers.NewL2Sequencer(t, logger.New("role", "sequencer"), l1F,
 		l1Miner.BlobStore(), altda.Disabled, seqCl, output.RollupCfg, depSet,
-		0)
+		0, l1ChainConfig)
 
 	batcherKey, err := keys.Secret(devkeys.ChainOperatorKey{
 		ChainID: output.Genesis.Config.ChainID,

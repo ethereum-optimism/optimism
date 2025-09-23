@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,7 +118,7 @@ func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch)
 	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:  uint64(batch.EpochNum),
 		InfoHash: batch.EpochHash,
-	}, batch.Timestamp)
+	}, batch.Timestamp, params.MergedTestChainConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not build L1 Info transaction: %w", err)
 	}

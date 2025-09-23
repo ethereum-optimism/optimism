@@ -29,7 +29,7 @@ func SetupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger, opts 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, sd.DependencySet, 0)
+	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, sd.DependencySet, 0, sd.L1Cfg.Config)
 	return miner, engine, sequencer
 }
 
