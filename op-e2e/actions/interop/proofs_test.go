@@ -1550,7 +1550,8 @@ func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *h
 		chain.RollupCfg,
 		chain.DependencySet,
 		&sync2.Config{},
-		safedb.Disabled)
+		safedb.Disabled,
+		l1Miner.L1Chain().Config())
 	return verifier, canonicalOnlyEngine
 }
 

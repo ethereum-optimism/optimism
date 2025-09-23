@@ -155,5 +155,6 @@ func createVerifier(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv) (*ac
 		env.Sd.DependencySet,
 		&sync.Config{},
 		safedb.Disabled,
+		env.Sd.L1Cfg.Config,
 	), engine
 }

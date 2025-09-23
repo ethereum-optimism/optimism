@@ -143,7 +143,7 @@ func (a *L2AltDA) NewVerifier(t helpers.Testing) *helpers.L2Verifier {
 
 	daMgr := altda.NewAltDAWithStorage(a.log, a.altDACfg, a.storage, &altda.NoopMetrics{})
 
-	verifier := helpers.NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, a.sd.DependencySet, &sync.Config{}, safedb.Disabled)
+	verifier := helpers.NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, a.sd.DependencySet, &sync.Config{}, safedb.Disabled, a.sd.L1Cfg.Config)
 
 	return verifier
 }
