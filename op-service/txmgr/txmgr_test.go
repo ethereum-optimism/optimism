@@ -131,7 +131,7 @@ type gasPricer struct {
 	mineAtEpoch   int64
 	baseGasTipFee *big.Int
 	baseBaseFee   *big.Int
-	excessBlobGas uint64
+	blobBaseFee   *big.Int
 	err           error
 	mu            sync.Mutex
 }
@@ -146,9 +146,7 @@ func newGasPricer(mineAtEpoch int64) *gasPricer {
 		mineAtEpoch:   mineAtEpoch,
 		baseGasTipFee: big.NewInt(baseGasTipFee),
 		baseBaseFee:   big.NewInt(baseBaseFee),
-		// Simulate 100 excess blobs, which results in a blobBaseFee of 50 wei.  This default means
-		// blob txs will be subject to the geth minimum blobgas fee of 1 gwei.
-		excessBlobGas: 100 * (params.BlobTxBlobGasPerBlob),
+		blobBaseFee:   big.NewInt(50),
 	}
 }
 
@@ -158,9 +156,8 @@ func (g *gasPricer) expGasFeeCap() *big.Int {
 }
 
 func (g *gasPricer) expBlobFeeCap() *big.Int {
-	_, _, excessBlobGas := g.feesForEpoch(g.mineAtEpoch)
-	// Needs to be adjusted when Prague gas pricing is needed.
-	return eth.CalcBlobFeeCancun(excessBlobGas)
+	_, _, blobBaseFee := g.feesForEpoch(g.mineAtEpoch)
+	return blobBaseFee
 }
 
 func (g *gasPricer) shouldMine(gasFeeCap *big.Int) bool {
@@ -171,13 +168,14 @@ func (g *gasPricer) shouldMineBlobTx(gasFeeCap, blobFeeCap *big.Int) bool {
 	return g.shouldMine(gasFeeCap) && g.expBlobFeeCap().Cmp(blobFeeCap) <= 0
 }
 
-func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int, uint64) {
+func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int, *big.Int) {
 	e := big.NewInt(epoch)
 	epochBaseFee := new(big.Int).Mul(g.baseBaseFee, e)
 	epochGasTipCap := new(big.Int).Mul(g.baseGasTipFee, e)
 	epochGasFeeCap := calcGasFeeCap(epochBaseFee, epochGasTipCap)
-	epochExcessBlobGas := g.excessBlobGas * uint64(epoch)
-	return epochGasTipCap, epochGasFeeCap, epochExcessBlobGas
+	epochBlobBaseFee := new(big.Int).Mul(g.blobBaseFee, new(big.Int).Exp(big.NewInt(2), e, nil))
+
+	return epochGasTipCap, epochGasFeeCap, epochBlobBaseFee
 }
 
 func (g *gasPricer) baseFee() *big.Int {
@@ -186,20 +184,14 @@ func (g *gasPricer) baseFee() *big.Int {
 	return new(big.Int).Mul(g.baseBaseFee, big.NewInt(g.epoch))
 }
 
-func (g *gasPricer) excessblobgas() uint64 {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.excessBlobGas * uint64(g.epoch)
-}
-
-func (g *gasPricer) sample() (*big.Int, *big.Int, uint64) {
+func (g *gasPricer) sample() (*big.Int, *big.Int, *big.Int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	g.epoch++
-	epochGasTipCap, epochGasFeeCap, epochExcessBlobGas := g.feesForEpoch(g.epoch)
+	epochGasTipCap, epochGasFeeCap, epochBlobBaseFee := g.feesForEpoch(g.epoch)
 
-	return epochGasTipCap, epochGasFeeCap, epochExcessBlobGas
+	return epochGasTipCap, epochGasFeeCap, epochBlobBaseFee
 }
 
 type minedTxInfo struct {
@@ -274,11 +266,9 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	if number != nil {
 		num.Set(number)
 	}
-	bg := b.g.excessblobgas()
 	return &types.Header{
-		Number:        num,
-		BaseFee:       b.g.baseFee(),
-		ExcessBlobGas: &bg,
+		Number:  num,
+		BaseFee: b.g.baseFee(),
 	}, nil
 }
 
@@ -515,9 +505,7 @@ func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 
 	h := newTestHarness(t)
 
-	gasTipCap, gasFeeCap, excessBlobGas := h.gasPricer.sample()
-	// Needs to be adjusted when testing with Prague activated on L1.
-	blobFeeCap := eth.CalcBlobFeeCancun(excessBlobGas)
+	gasTipCap, gasFeeCap, blobFeeCap := h.gasPricer.sample()
 	t.Log("Blob fee cap:", blobFeeCap, "gasFeeCap:", gasFeeCap)
 
 	tx := types.NewTx(&types.BlobTx{
