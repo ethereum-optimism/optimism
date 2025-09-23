@@ -211,7 +211,7 @@ func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	debug.PrintStack()
 
 	e.finalizedHead = r
-	fmt.Printf("Set finalized DONE%d\n", r.Number)
+	fmt.Printf("Set finalized DONE %d\n", r.Number)
 	e.needFCUCall = true
 }
 
@@ -362,6 +362,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	}
 	var finalizedRef eth.L2BlockRef
 	if e.finalizedHead == (eth.L2BlockRef{}) {
+		// Comment this out and race
 		for i := range 30 {
 			fmt.Printf("### %d e.finalizedHead %s\n", i, e.finalizedHead)
 			time.Sleep(time.Microsecond * 1)
@@ -372,7 +373,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to load finalized head: %w", err)
 		}
-		fmt.Println("### initializeUnknowns SetFinalizedHead")
+		fmt.Printf("### initializeUnknowns SetFinalizedHead with %s\n", finalizedRef)
 		e.SetFinalizedHead(finalizedRef)
 		fmt.Println("### initializeUnknowns SetFinalizedHead DONE")
 		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
@@ -512,6 +513,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
 		e.onSafeUpdate(ctx, ref, ref)
+		fmt.Printf("### InsertUnsafePayload SetFinalizedHead with %s\n", ref)
 		e.SetFinalizedHead(ref) // finalized gets updated here
 	}
 	logFn := e.logSyncProgressMaybe()

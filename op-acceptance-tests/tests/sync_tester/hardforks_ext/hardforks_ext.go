@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -194,12 +193,12 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 	}
 	require := t.Require()
 
-	// just in case bootstrap
-	for range 5 {
-		l2CLSyncStatus := sys.L2CL.SyncStatus()
-		l.Info("info", "ww", l2CLSyncStatus)
-		time.Sleep(time.Second * 2)
-	}
+	// // just in case bootstrap
+	// for range 5 {
+	// 	l2CLSyncStatus := sys.L2CL.SyncStatus()
+	// 	l.Info("info", "ww", l2CLSyncStatus)
+	// 	time.Sleep(time.Second * 2)
+	// }
 
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus
@@ -213,7 +212,7 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 
 	attempts := 1000
 	if l2CLSyncMode == sync.ELSync {
-		attempts = 20
+		attempts = 10
 	}
 	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, attempts)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)

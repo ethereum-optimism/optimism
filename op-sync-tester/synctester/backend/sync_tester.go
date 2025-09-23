@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/google/uuid"
 
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
@@ -296,6 +297,7 @@ func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkcho
 // ForkchoiceUpdatedV3 must be only called with Ecotone attributes
 func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
+		logger = logger.With("uuid", uuid.New().String())
 		logger.Info("ForkchoiceUpdatedV3", "state", state, "attr", attr)
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true)
 	})
