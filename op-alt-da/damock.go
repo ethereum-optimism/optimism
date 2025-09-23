@@ -40,7 +40,10 @@ func (c *MockDAClient) GetInput(ctx context.Context, key CommitmentData) ([]byte
 }
 
 func (c *MockDAClient) SetInput(ctx context.Context, data []byte) (CommitmentData, error) {
-	key := NewCommitmentData(c.CommitmentType, data)
+	key, err := NewCommitmentData(c.CommitmentType, data)
+	if err != nil {
+		return nil, err
+	}
 	return key, c.store.Put(key.Encode(), data)
 }
 

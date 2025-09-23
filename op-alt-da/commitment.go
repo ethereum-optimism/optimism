@@ -56,14 +56,15 @@ type Keccak256Commitment []byte
 type GenericCommitment []byte
 
 // NewCommitmentData creates a new commitment from the given input and desired type.
-func NewCommitmentData(t CommitmentType, input []byte) CommitmentData {
+// Returns an error only if the commitment type is unsupported.
+func NewCommitmentData(t CommitmentType, input []byte) (CommitmentData, error) {
 	switch t {
 	case Keccak256CommitmentType:
-		return NewKeccak256Commitment(input)
+		return NewKeccak256Commitment(input), nil
 	case GenericCommitmentType:
-		return NewGenericCommitment(input)
+		return NewGenericCommitment(input), nil
 	default:
-		return nil
+		return nil, fmt.Errorf("unsupported commitment type: %d", t)
 	}
 }
 
