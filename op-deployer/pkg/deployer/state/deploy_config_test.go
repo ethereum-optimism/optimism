@@ -35,10 +35,10 @@ func TestCombineDeployConfig(t *testing.T) {
 			Batcher:           common.HexToAddress("0xdef"),
 		},
 		CustomGasToken: CustomGasToken{
-			Enabled:                    false,
-			Name:                       "",
-			Symbol:                     "",
-			NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)),
+			Enabled:          false,
+			Name:             "",
+			Symbol:           "",
+			InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
 		},
 	}
 	state := State{

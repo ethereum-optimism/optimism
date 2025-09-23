@@ -164,10 +164,10 @@ func TestBuilder(t *testing.T) {
 				OperatorFeeScalar:        100,
 				OperatorFeeConstant:      200,
 				CustomGasToken: state.CustomGasToken{
-					Enabled:                    false,
-					Name:                       "",
-					Symbol:                     "",
-					NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)),
+					Enabled:          false,
+					Name:             "",
+					Symbol:           "",
+					InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
 				},
 				DeployOverrides: map[string]any{
 					"l2BlockTime":                 uint64(2),

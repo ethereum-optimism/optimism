@@ -68,10 +68,10 @@ func TestValidateStandardValues(t *testing.T) {
 			"CustomGasToken",
 			func(intent *Intent) {
 				intent.Chains[0].CustomGasToken = CustomGasToken{
-					Enabled:                    true,
-					Name:                       "Custom Gas Token",
-					Symbol:                     "CGT",
-					NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(1000)),
+					Enabled:          true,
+					Name:             "Custom Gas Token",
+					Symbol:           "CGT",
+					InitialLiquidity: (*hexutil.Big)(big.NewInt(1000)),
 				}
 			},
 			ErrNonStandardValue,
@@ -258,9 +258,9 @@ func setCustomGasToken(intent *Intent) {
 	amount.SetString("1000000000000000000000", 10)
 
 	intent.Chains[0].CustomGasToken = CustomGasToken{
-		Enabled:                    true,
-		Name:                       "Custom Gas Token",
-		Symbol:                     "CGT",
-		NativeAssetLiquidityAmount: (*hexutil.Big)(amount),
+		Enabled:          true,
+		Name:             "Custom Gas Token",
+		Symbol:           "CGT",
+		InitialLiquidity: (*hexutil.Big)(amount),
 	}
 }

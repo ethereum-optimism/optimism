@@ -70,7 +70,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"useCustomGasToken":                        false,
 					"gasPayingTokenName":                       "",
 					"gasPayingTokenSymbol":                     "",
-					"nativeAssetLiquidityAmount":               "0x0",
+					"initialLiquidity":                         "0x0",
 				},
 			},
 			chainIntent: &state.ChainIntent{},
@@ -86,7 +86,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				defaults.SequencerFeeVaultWithdrawalNetwork = "remote"
 				defaults.EnableGovernance = true
 				defaults.GovernanceTokenOwner = common.HexToAddress("0x1111111111111111111111111111111111111111")
-				defaults.NativeAssetLiquidityAmount = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
+				defaults.InitialLiquidity = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
 				return defaults
 			}(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
@@ -118,7 +118,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"useCustomGasToken":                        false,
 					"gasPayingTokenName":                       "",
 					"gasPayingTokenSymbol":                     "",
-					"nativeAssetLiquidityAmount":               "0x0",
+					"initialLiquidity":                         "0x0",
 				},
 			},
 			expectError: false,
@@ -133,7 +133,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				defaults.SequencerFeeVaultWithdrawalNetwork = "remote"
 				defaults.EnableGovernance = true
 				defaults.GovernanceTokenOwner = common.HexToAddress("0x1111111111111111111111111111111111111111")
-				defaults.NativeAssetLiquidityAmount = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
+				defaults.InitialLiquidity = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
 				return defaults
 			}(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
@@ -148,7 +148,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				L1ContractsLocator: &artifacts.Locator{},
 				GlobalDeployOverrides: map[string]any{
 					"l2GenesisInteropTimeOffset": "0x0",
-					"nativeAssetLiquidityAmount": "0x0",
+					"initialLiquidity":           "0x0",
 				},
 			},
 			chainIntent: &state.ChainIntent{},
@@ -156,7 +156,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectedOverrides: func() l2GenesisOverrides {
 				defaults := defaultOverrides()
 				// Override with the same value that comes from JSON merge to match internal representation
-				defaults.NativeAssetLiquidityAmount = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
+				defaults.InitialLiquidity = (*hexutil.Big)(hexutil.MustDecodeBig("0x0"))
 				return defaults
 			}(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
