@@ -241,6 +241,11 @@ reinitializer-check: build-source reinitializer-check-no-build
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer
 
+# Checks that the comment length is within the 100 character limit.
+comment-check:
+  ./scripts/checks/comment-length-check.sh
+
+
 # Checks that the size of the contracts is within the limit.
 size-check:
   forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
@@ -357,6 +362,7 @@ pre-pr *ARGS:
   just build-source
   just check
   just update-selectors
+  just comment-check
 
 
   # Restore build artifacts after running checks.
