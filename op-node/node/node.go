@@ -461,7 +461,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	}
 
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
-		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
+		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode, cfg.L1ChainConfig)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
 	if n.interopSys != nil {

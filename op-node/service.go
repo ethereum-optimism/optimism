@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -41,6 +44,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	l1ChainConfig, err := NewL1ChainConfig(rollupConfig.L1ChainID, ctx, log)
 
 	depSet, err := NewDependencySetFromCLI(ctx)
 	if err != nil {
@@ -92,6 +97,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	cfg := &config.Config{
 		L1:                          l1Endpoint,
 		L2:                          l2Endpoint,
+		L1ChainConfig:               l1ChainConfig,
 		Rollup:                      *rollupConfig,
 		DependencySet:               depSet,
 		Driver:                      *driverConfig,
@@ -288,6 +294,44 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
 		rollupConfig.InteropTime = &interop
 	}
+}
+
+func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*params.ChainConfig, error) {
+	switch chainId {
+	case params.MainnetChainConfig.ChainID:
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			log.Warn("L1 chain config is set, but it is not necessary for mainnet")
+		}
+		return params.MainnetChainConfig, nil
+	case params.SepoliaChainConfig.ChainID:
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			log.Warn("L1 chain config is set, but it is not necessary for sepolia")
+		}
+		return params.SepoliaChainConfig, nil
+	default:
+		return NewL1ChainConfigFromCLI(log, ctx)
+	}
+}
+
+func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainConfig, error) {
+	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
+	file, err := os.Open(l1ChainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
+	}
+	defer file.Close()
+
+	// Attempt to decode directly as a ChainConfig
+	var chainConfig params.ChainConfig
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&chainConfig); err == nil {
+		return &chainConfig, nil
+	}
+
+	// If that fails, try to load the config from the .config property.
+	// This should work if the provided file is a genesis file / chainspec
+	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
 func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {

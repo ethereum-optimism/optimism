@@ -16,13 +16,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
@@ -381,16 +381,11 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 }
 
 func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read l2 genesis file: %w", err)
-	}
-	var genesis core.Genesis
-	err = json.Unmarshal(data, &genesis)
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](path, "config")
 	if err != nil {
 		return nil, fmt.Errorf("parse l2 genesis file: %w", err)
 	}
-	return genesis.Config, nil
+	return cfg, nil
 }
 
 func loadRollupConfig(rollupConfigPath string) (*rollup.Config, error) {

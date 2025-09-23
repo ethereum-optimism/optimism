@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
@@ -47,6 +48,7 @@ func NewDriver(
 	sequencerConductor conductor.SequencerConductor,
 	altDA AltDAIface,
 	indexingMode bool,
+	l1ChainConfig *params.ChainConfig,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
@@ -117,7 +119,7 @@ func NewDriver(
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, depSet, l1, l2)
+		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, depSet, l1, l2, l1ChainConfig)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
