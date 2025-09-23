@@ -11,20 +11,16 @@ import (
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -165,58 +161,17 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	lgr := cfg.Logger
 
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
+	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(cfg.CacheDir)
 	if err != nil {
-		return dio, fmt.Errorf("failed to download artifacts: %w", err)
+		return dio, fmt.Errorf("failed to extract embedded artifacts: %w", err)
 	}
 
-	l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
 	if err != nil {
-		return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		return dio, fmt.Errorf("failed to create forge client: %w", err)
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return dio, fmt.Errorf("failed to get chain ID: %w", err)
-	}
-
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
-	chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
-
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  lgr,
-		ChainID: chainID,
-		Client:  l1Client,
-		Signer:  signer,
-		From:    chainDeployer,
-	})
-	if err != nil {
-		return dio, fmt.Errorf("failed to create broadcaster: %w", err)
-	}
-
-	l1RPC, err := rpc.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return dio, fmt.Errorf("failed to connect to L1 RPC: %w", err)
-	}
-
-	l1Host, err := env.DefaultForkedScriptHost(
-		ctx,
-		bcaster,
-		lgr,
-		chainDeployer,
-		artifactsFS,
-		l1RPC,
-	)
-	if err != nil {
-		return dio, fmt.Errorf("failed to create script host: %w", err)
-	}
-
-	opcmScripts, err := opcm.NewScripts(l1Host)
-	if err != nil {
-		return dio, fmt.Errorf("failed to load OPCM scripts: %w", err)
-	}
-
-	if dio, err = opcmScripts.DeployImplementations.Run(
+	dio, _, err = opcm.NewDeployImplementationsForgeCaller(forgeClient)(ctx,
 		opcm.DeployImplementationsInput{
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
 			MinProposalSizeBytes:            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
@@ -235,12 +190,9 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			UpgradeController:               cfg.UpgradeController,
 			Challenger:                      cfg.Challenger,
 		},
-	); err != nil {
+	)
+	if err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)
-	}
-
-	if _, err := bcaster.Broadcast(ctx); err != nil {
-		return dio, fmt.Errorf("failed to broadcast: %w", err)
 	}
 
 	lgr.Info("deployed implementations")

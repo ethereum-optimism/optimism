@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -27,6 +28,22 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
+}
+
+func NewStandardClient(workdir string) (*Client, error) {
+	forgeBinary, err := NewStandardBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
+	}
+	if err := forgeBinary.Ensure(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ensure forge binary: %w", err)
+	}
+
+	forgeClient := NewClient(forgeBinary)
+	forgeClient.Wd = filepath.Dir(workdir)
+	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
+
+	return forgeClient, nil
 }
 
 func NewClient(binary Binary) *Client {
@@ -65,7 +82,8 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	buf := new(bytes.Buffer)
 	cliOpts := []string{"script"}
 	cliOpts = append(cliOpts, opts...)
-	cliOpts = append(cliOpts, "--sig", sig, script, "0x"+hex.EncodeToString(args))
+	// Order: forge script <opts> <script> --sig <sig> <encoded-arg>
+	cliOpts = append(cliOpts, script, "--sig", sig, "0x"+hex.EncodeToString(args))
 	if err := c.execCmd(ctx, buf, io.Discard, cliOpts...); err != nil {
 		return "", fmt.Errorf("failed to execute forge script: %w", err)
 	}

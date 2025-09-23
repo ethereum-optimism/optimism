@@ -168,3 +168,23 @@ func (d *BytesScriptDecoder[T]) Decode(rawOutput []byte) (T, error) {
 
 	return ConvertAnonStructToTyped[T](unpacked[0])
 }
+
+// SimpleAddressDecoder decodes a single address from ABI bytes
+type SimpleAddressDecoder struct{}
+
+func (d *SimpleAddressDecoder) Decode(rawOutput []byte) (common.Address, error) {
+	addressType, _ := abi.NewType("address", "", nil)
+	args := abi.Arguments{{Type: addressType}}
+	unpacked, err := args.Unpack(rawOutput)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to unpack address: %w", err)
+	}
+	if len(unpacked) != 1 {
+		return common.Address{}, fmt.Errorf("expected 1 unpacked value, got %d", len(unpacked))
+	}
+	addr, ok := unpacked[0].(common.Address)
+	if !ok {
+		return common.Address{}, fmt.Errorf("unpacked value is not an address")
+	}
+	return addr, nil
+}

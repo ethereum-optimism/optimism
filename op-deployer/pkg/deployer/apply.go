@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -302,6 +303,16 @@ func ApplyPipeline(
 		return fmt.Errorf("failed to load OPCM script: %w", err)
 	}
 
+	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(opts.CacheDir)
+	if err != nil {
+		return fmt.Errorf("failed to extract embedded artifacts: %w", err)
+	}
+
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
+	if err != nil {
+		return fmt.Errorf("failed to create forge client: %w", err)
+	}
+
 	pEnv := &pipeline.Env{
 		StateWriter:  opts.StateWriter,
 		L1ScriptHost: l1Host,
@@ -310,6 +321,8 @@ func ApplyPipeline(
 		Broadcaster:  bcaster,
 		Deployer:     deployer,
 		Scripts:      opcmScripts,
+		ForgeClient:  forgeClient,
+		Context:      ctx,
 	}
 
 	pline := []pipelineStage{

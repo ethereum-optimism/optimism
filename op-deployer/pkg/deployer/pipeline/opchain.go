@@ -34,7 +34,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	dco, err = env.Scripts.DeployOPChain.Run(dci)
+	dco, _, err = opcm.NewDeployOPChainForgeCaller(env.ForgeClient)(env.Context, dci)
 	if err != nil {
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}

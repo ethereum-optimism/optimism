@@ -39,7 +39,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	dio, err := env.Scripts.DeployImplementations.Run(
+	dio, _, err := opcm.NewDeployImplementationsForgeCaller(env.ForgeClient)(env.Context,
 		opcm.DeployImplementationsInput{
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 			MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
