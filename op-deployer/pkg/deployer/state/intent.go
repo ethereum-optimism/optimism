@@ -159,7 +159,7 @@ func (c *Intent) validateStandardValues() error {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
 		if chain.CustomGasToken.Enabled {
-			return fmt.Errorf("%w: chainId=%s custom gas token must be nil for standard chains", ErrNonStandardValue, chain.ID)
+			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
 
