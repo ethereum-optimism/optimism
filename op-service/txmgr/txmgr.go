@@ -817,13 +817,12 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 
 	m.metr.RecordBaseFee(tip.BaseFee)
 
-	blobFee, err := m.backend.BlobBaseFee(ctx)
-	if err != nil {
+	if blobFee, err := m.backend.BlobBaseFee(ctx); err != nil {
 		m.metr.RPCError()
-		m.l.Error("Unable to fetch blob base fee", "err", err)
-		return nil
+		m.l.Warn("Unable to fetch blob base fee", "err", err)
+	} else {
+		m.metr.RecordBlobBaseFee(blobFee)
 	}
-	m.metr.RecordBlobBaseFee(blobFee)
 
 	m.l.Debug("Transaction mined, checking confirmations", "tx", txHash,
 		"block", eth.ReceiptBlockID(receipt), "tip", eth.HeaderBlockID(tip),
