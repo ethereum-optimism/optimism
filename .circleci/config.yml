@@ -968,6 +968,18 @@ jobs:
           when: on_fail
       - notify-failures-on-develop
 
+  contracts-bedrock-upload:
+    machine: true
+    resource_class: ethereum-optimism/latitude-1
+    steps:
+      - checkout-from-workspace
+      - check-changed:
+          patterns: contracts-bedrock
+      - get-target-branch
+      - run:
+          name: upload selectors
+          command: update-selectors
+
   contracts-bedrock-checks:
     machine: true
     resource_class: ethereum-optimism/latitude-1
@@ -1007,8 +1019,6 @@ jobs:
           command: validate-spacers-no-build
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
-      - run-contracts-check:
-          command: update-selectors
 
   todo-issues:
     parameters:
@@ -2019,6 +2029,11 @@ workflows:
           requires:
             - initialize
       - contracts-bedrock-checks:
+          requires:
+            - contracts-bedrock-build
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-upload:
           requires:
             - contracts-bedrock-build
           context:
