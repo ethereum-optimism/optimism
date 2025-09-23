@@ -129,9 +129,9 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	for idx, result := range results {
 		if result.err != nil {
 			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
-			// Record the endpoint that had an error (excluding "not found" errors)
 			endpointID := fmt.Sprintf("client-%d", idx)
 			game.RollupEndpointErrors[endpointID] = true
+			game.RollupEndpointErrorCount++
 			continue
 		}
 		if result.gameL1HeadUnprocessed {

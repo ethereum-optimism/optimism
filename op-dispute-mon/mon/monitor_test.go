@@ -205,3 +205,57 @@ func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
 		require.Equal(t, 3, nodeEndpointErrorsMetrics.recordedCount)
 	})
 }
+
+func TestMonitor_NodeEndpointErrorCountMonitorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NodeEndpointErrorCountMonitorCalledWithGamesData", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games with endpoint error counts
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointErrorCount: 5, // First game has 5 errors
+			},
+			{
+				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointErrorCount: 3, // Second game has 3 errors
+			},
+			{
+				GameMetadata:             types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointErrorCount: 0, // Third game has no errors
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		nodeEndpointErrorCountMetrics := &mockNodeEndpointErrorCountMetrics{}
+		nodeEndpointErrorCountMonitor := NewNodeEndpointErrorCountMonitor(logger, nodeEndpointErrorCountMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that NodeEndpointErrorCountMonitor was called and recorded the correct total
+		// Should sum all error counts: 5 + 3 + 0 = 8 total errors
+		require.Equal(t, 8, nodeEndpointErrorCountMetrics.recordedCount)
+	})
+}
+
+// mockNodeEndpointErrorCountMetrics for integration test
+type mockNodeEndpointErrorCountMetrics struct {
+	recordedCount int
+}
+
+func (m *mockNodeEndpointErrorCountMetrics) RecordNodeEndpointErrorCount(count int) {
+	m.recordedCount = count
+}

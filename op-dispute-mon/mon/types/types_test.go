@@ -30,3 +30,8 @@ func TestEnrichedGameData_UsesOutputRoots(t *testing.T) {
 		})
 	}
 }
+
+func TestEnrichedGameData_RollupEndpointErrorCountInitialization(t *testing.T) {
+	data := EnrichedGameData{}
+	require.Equal(t, 0, data.RollupEndpointErrorCount, "RollupEndpointErrorCount should default to 0")
+}

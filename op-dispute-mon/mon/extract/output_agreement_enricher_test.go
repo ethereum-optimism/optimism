@@ -409,6 +409,91 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		})
 
 	})
+
+	t.Run("RecordEndpointErrorCounts", func(t *testing.T) {
+		t.Run("SingleNodeErrorCount", func(t *testing.T) {
+			validator, client, _ := setupOutputValidatorTest(t)
+			client.outputErr = errors.New("connection failed")
+			game := &types.EnrichedGameData{
+				GameMetadata: challengerTypes.GameMetadata{
+					GameType: 0,
+				},
+				L1HeadNum:                200,
+				L2BlockNumber:            100,
+				RootClaim:                mockRootClaim,
+				RollupEndpointErrors:     make(map[string]bool),
+				RollupEndpointErrorCount: 0,
+			}
+			err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+			require.ErrorIs(t, err, ErrAllNodesUnavailable)
+			require.Equal(t, 1, game.RollupEndpointErrorCount)
+		})
+
+		t.Run("MultiNodeErrorCount", func(t *testing.T) {
+			validator, clients, _ := setupMultiNodeTest(t, 4)
+			clients[0].outputErr = errors.New("connection timeout")
+			clients[1].outputErr = errors.New("server error")
+			clients[2].outputErr = errors.New("another error")
+			// clients[3] will succeed
+
+			game := &types.EnrichedGameData{
+				GameMetadata: challengerTypes.GameMetadata{
+					GameType: 0,
+				},
+				L1HeadNum:                200,
+				L2BlockNumber:            100,
+				RootClaim:                mockRootClaim,
+				RollupEndpointErrors:     make(map[string]bool),
+				RollupEndpointErrorCount: 0,
+			}
+			err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+			require.NoError(t, err)
+			require.Equal(t, 3, game.RollupEndpointErrorCount)
+		})
+
+		t.Run("NotFoundErrorsNotCounted", func(t *testing.T) {
+			validator, clients, _ := setupMultiNodeTest(t, 3)
+			clients[0].outputErr = errors.New("not found")
+			clients[1].outputErr = errors.New("not found")
+			// clients[2] will succeed
+
+			game := &types.EnrichedGameData{
+				GameMetadata: challengerTypes.GameMetadata{
+					GameType: 0,
+				},
+				L1HeadNum:                200,
+				L2BlockNumber:            100,
+				RootClaim:                mockRootClaim,
+				RollupEndpointErrors:     make(map[string]bool),
+				RollupEndpointErrorCount: 0,
+			}
+			err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+			require.NoError(t, err)
+			require.Equal(t, 0, game.RollupEndpointErrorCount)
+		})
+
+		t.Run("MixedErrorTypes", func(t *testing.T) {
+			validator, clients, _ := setupMultiNodeTest(t, 4)
+			clients[0].outputErr = errors.New("not found")        // Should not be counted
+			clients[1].outputErr = errors.New("connection error") // Should be counted
+			clients[2].outputErr = errors.New("server error")     // Should be counted
+			// clients[3] will succeed
+
+			game := &types.EnrichedGameData{
+				GameMetadata: challengerTypes.GameMetadata{
+					GameType: 0,
+				},
+				L1HeadNum:                200,
+				L2BlockNumber:            100,
+				RootClaim:                mockRootClaim,
+				RollupEndpointErrors:     make(map[string]bool),
+				RollupEndpointErrorCount: 0,
+			}
+			err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+			require.NoError(t, err)
+			require.Equal(t, 2, game.RollupEndpointErrorCount)
+		})
+	})
 }
 
 // mockNotFoundRPCError creates a minimal rpc.Error that reports a "not found" message

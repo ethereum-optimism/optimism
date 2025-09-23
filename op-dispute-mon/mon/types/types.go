@@ -62,6 +62,9 @@ type EnrichedGameData struct {
 
 	// RollupEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
 	RollupEndpointErrors map[string]bool
+
+	// RollupEndpointErrorCount tracks the total number of errors for this game across all endpoints.
+	RollupEndpointErrorCount int
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
