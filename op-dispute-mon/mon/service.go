@@ -45,6 +45,7 @@ type Service struct {
 	resolutions       *ResolutionMonitor
 	claims            *ClaimMonitor
 	withdrawals       *WithdrawalMonitor
+	mixedAvailability *MixedAvailability
 	rollupClients     []*sources.RollupClient
 	supervisorClients []*sources.SupervisorClient
 
@@ -97,6 +98,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initClaimMonitor(cfg)
 	s.initResolutionMonitor()
 	s.initWithdrawalMonitor()
+	s.initMixedAvailabilityMonitor()
 
 	s.initGameCallerCreator() // Must be called before initForecast
 
@@ -123,6 +125,10 @@ func (s *Service) initResolutionMonitor() {
 
 func (s *Service) initWithdrawalMonitor() {
 	s.withdrawals = NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)
+}
+
+func (s *Service) initMixedAvailabilityMonitor() {
+	s.mixedAvailability = NewMixedAvailability(s.logger, s.metrics)
 }
 
 func (s *Service) initGameCallerCreator() {
@@ -281,7 +287,8 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		l2ChallengesMonitor.CheckL2Challenges,
 		updateTimeMonitor.CheckUpdateTimes,
 		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
-		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount)
+		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+		s.mixedAvailability.CheckMixedAvailability)
 }
 
 func (s *Service) Start(ctx context.Context) error {

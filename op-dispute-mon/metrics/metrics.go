@@ -183,6 +183,8 @@ type Metricer interface {
 
 	RecordNodeEndpointErrorCount(count int)
 
+	RecordMixedAvailabilityGames(count int)
+
 	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
@@ -234,9 +236,10 @@ type Metrics struct {
 	l2Challenges               prometheus.GaugeVec
 
 	requiredCollateral     prometheus.GaugeVec
+	availableCollateral    prometheus.GaugeVec
 	nodeEndpointErrors     prometheus.Gauge
 	nodeEndpointErrorCount prometheus.Gauge
-	availableCollateral    prometheus.GaugeVec
+	mixedAvailabilityGames prometheus.Gauge
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -414,6 +417,11 @@ func NewMetrics() *Metrics {
 			Name:      "node_endpoint_error_count",
 			Help:      "Total number of individual endpoint error occurrences (other than \"not found\") across all rollup node endpoints in the last update cycle",
 		}),
+		mixedAvailabilityGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "mixed_availability_games",
+			Help:      "Number of games where some rollup nodes reported \"not found\" while others successfully retrieved the block in the last update cycle",
+		}),
 	}
 }
 
@@ -557,6 +565,10 @@ func (m *Metrics) RecordNodeEndpointErrors(count int) {
 
 func (m *Metrics) RecordNodeEndpointErrorCount(count int) {
 	m.nodeEndpointErrorCount.Set(float64(count))
+}
+
+func (m *Metrics) RecordMixedAvailabilityGames(count int) {
+	m.mixedAvailabilityGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {

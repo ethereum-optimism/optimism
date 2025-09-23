@@ -259,3 +259,69 @@ type mockNodeEndpointErrorCountMetrics struct {
 func (m *mockNodeEndpointErrorCountMetrics) RecordNodeEndpointErrorCount(count int) {
 	m.recordedCount = count
 }
+
+func TestMonitor_MixedAvailabilityMonitorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MixedAvailabilityMonitorCalledWithGamesData", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games with mixed availability scenarios
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointTotalCount:    3,
+				RollupEndpointNotFoundCount: 1, // Mixed availability: some found, some not found
+				RollupEndpointErrorCount:    0,
+			},
+			{
+				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointTotalCount:    2,
+				RollupEndpointNotFoundCount: 2, // All endpoints not found - not mixed availability
+				RollupEndpointErrorCount:    0,
+			},
+			{
+				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointTotalCount:    4,
+				RollupEndpointNotFoundCount: 2, // Mixed availability: some found, some not found
+				RollupEndpointErrorCount:    0,
+			},
+			{
+				GameMetadata:                types.GameMetadata{Proxy: common.Address{0x44}},
+				RollupEndpointTotalCount:    3,
+				RollupEndpointNotFoundCount: 0, // All endpoints found - not mixed availability
+				RollupEndpointErrorCount:    0,
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		mixedAvailabilityMetrics := &mockMixedAvailabilityMetrics{}
+		mixedAvailabilityMonitor := NewMixedAvailability(logger, mixedAvailabilityMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, mixedAvailabilityMonitor.CheckMixedAvailability)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that MixedAvailabilityMonitor was called and recorded the correct count
+		// Should count games with mixed availability: game 0x11 and 0x33 = 2 total
+		require.Equal(t, 2, mixedAvailabilityMetrics.recordedCount)
+	})
+}
+
+// mockMixedAvailabilityMetrics for integration test
+type mockMixedAvailabilityMetrics struct {
+	recordedCount int
+}
+
+func (m *mockMixedAvailabilityMetrics) RecordMixedAvailabilityGames(count int) {
+	m.recordedCount = count
+}

@@ -65,11 +65,28 @@ type EnrichedGameData struct {
 
 	// RollupEndpointErrorCount tracks the total number of errors for this game across all endpoints.
 	RollupEndpointErrorCount int
+
+	// RollupEndpointNotFoundCount tracks the number of endpoints that returned "not found" for this game.
+	RollupEndpointNotFoundCount int
+
+	// RollupEndpointTotalCount tracks the total number of rollup endpoints attempted for this game.
+	RollupEndpointTotalCount int
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
 func (g EnrichedGameData) UsesOutputRoots() bool {
 	return slices.Contains(outputRootGameTypes, g.GameType)
+}
+
+// HasMixedAvailability returns true if some rollup endpoints returned "not found" while others succeeded
+// for this game. This indicates inconsistent block availability across the rollup node network.
+func (g EnrichedGameData) HasMixedAvailability() bool {
+	if g.RollupEndpointTotalCount == 0 {
+		return false
+	}
+
+	successfulEndpoints := g.RollupEndpointTotalCount - g.RollupEndpointErrorCount - g.RollupEndpointNotFoundCount
+	return g.RollupEndpointNotFoundCount > 0 && successfulEndpoints > 0
 }
 
 // BidirectionalTree is a tree of claims represented as a flat list of claims.
