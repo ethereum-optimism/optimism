@@ -7,7 +7,7 @@
         "type": "address"
       }
     ],
-    "name": "blockingThreshold",
+    "name": "blockingThresholdForSafe",
     "outputs": [
       {
         "internalType": "uint256",
@@ -15,7 +15,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -54,7 +54,7 @@
         "type": "address"
       }
     ],
-    "name": "cancellationThreshold",
+    "name": "cancellationThresholdForSafe",
     "outputs": [
       {
         "internalType": "uint256",
@@ -91,7 +91,7 @@
         "type": "address"
       }
     ],
-    "name": "checkPendingTransactions",
+    "name": "pendingTransactionsForSafe",
     "outputs": [
       {
         "internalType": "bytes32[]",
@@ -198,7 +198,7 @@
         "type": "bytes32"
       }
     ],
-    "name": "getScheduledTransaction",
+    "name": "scheduledTransactionForSafe",
     "outputs": [
       {
         "components": [
@@ -346,7 +346,7 @@
         "type": "address"
       }
     ],
-    "name": "viewTimelockGuardConfiguration",
+    "name": "timelockConfigurationForSafe",
     "outputs": [
       {
         "components": [

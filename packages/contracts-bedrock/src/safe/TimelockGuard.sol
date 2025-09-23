@@ -102,14 +102,21 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockSafeConfiguration(Safe _safe) public view returns (GuardConfig memory) {
+    function timelockConfigurationForSafe(Safe _safe) public view returns (GuardConfig memory) {
         return _timelockSafeConfiguration[_safe];
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
     /// @dev This function is necessary to properly expose the scheduledTransactions mapping, as
     ///      simply making the mapping public will return a tuple instead of a struct.
-    function getScheduledTransaction(Safe _safe, bytes32 _txHash) public view returns (ScheduledTransaction memory) {
+    function scheduledTransactionForSafe(
+        Safe _safe,
+        bytes32 _txHash
+    )
+        public
+        view
+        returns (ScheduledTransaction memory)
+    {
         return _scheduledTransactions[_safe][_txHash];
     }
 
@@ -122,7 +129,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// uncallable if the set grows to a point where copying to memory consumes too much gas to fit
     /// in a block.
     /// @return List of pending transaction hashes
-    function getPendingTransactions(Safe _safe) external view returns (ScheduledTransaction[] memory) {
+    function pendingTransactionsForSafe(Safe _safe) external view returns (ScheduledTransaction[] memory) {
         bytes32[] memory hashes = _safePendingTxHashes[_safe].values();
         ScheduledTransaction[] memory scheduled = new ScheduledTransaction[](hashes.length);
         for (uint256 i = 0; i < hashes.length; i++) {
@@ -181,7 +188,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @dev MUST return 0 if the contract is not enabled as a guard for the safe
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
-    function cancellationThreshold(Safe _safe) public view returns (uint256) {
+    function cancellationThresholdForSafe(Safe _safe) public view returns (uint256) {
         // Return 0 if guard is not enabled
         if (!_isGuardEnabled(_safe)) {
             return 0;

@@ -43,11 +43,11 @@ interface Interface {
     event TransactionCancelled(address indexed safe, bytes32 indexed txId);
     event TransactionScheduled(address indexed safe, bytes32 indexed txId, uint256 when);
 
-    function blockingThreshold(address) external pure returns (uint256);
+    function blockingThresholdForSafe(address) external pure returns (uint256);
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
-    function cancellationThreshold(address _safe) external view returns (uint256);
+    function cancellationThresholdForSafe(address _safe) external view returns (uint256);
     function checkAfterExecution(bytes32, bool) external;
-    function checkPendingTransactions(address) external pure returns (bytes32[] memory);
+    function pendingTransactionsForSafe(address) external pure returns (bytes32[] memory);
     function checkTransaction(
         address,
         uint256 _value,
@@ -62,7 +62,7 @@ interface Interface {
         address
     ) external;
     function configureTimelockGuard(uint256 _timelockDelay) external;
-    function getScheduledTransaction(address _safe, bytes32 _txHash)
+    function scheduledTransactionForSafe(address _safe, bytes32 _txHash)
         external
         view
         returns (TimelockGuard.ScheduledTransaction memory);
@@ -74,5 +74,5 @@ interface Interface {
         bytes memory _signatures
     ) external;
     function version() external view returns (string memory);
-    function viewTimelockGuardConfiguration(address _safe) external view returns (TimelockGuard.GuardConfig memory);
+    function timelockConfigurationForSafe(address _safe) external view returns (TimelockGuard.GuardConfig memory);
 }

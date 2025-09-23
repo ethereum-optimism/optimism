@@ -131,7 +131,7 @@ library TransactionBuilder {
         cancellation.params.data = abi.encodeWithSignature("cancelTransaction(bytes32)", _tx.hash);
 
         // Get only the number of signatures required for the cancellation transaction
-        uint256 cancellationThreshold = _timelockGuard.cancellationThreshold(_tx.safeInstance.safe);
+        uint256 cancellationThreshold = _timelockGuard.cancellationThresholdForSafe(_tx.safeInstance.safe);
 
         cancellation.updateTransaction(cancellationThreshold);
         return cancellation;
@@ -232,7 +232,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_TestInit {
     /// @notice Ensures an unconfigured Safe reports a zero timelock delay.
     function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockSafeConfiguration(safeInstance.safe);
+        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
         assertEq(config.timelockDelay, 0);
         // configured is now determined by timelockDelay == 0
         assertEq(config.timelockDelay == 0, true);
@@ -241,7 +241,7 @@ contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_Test
     /// @notice Validates the configuration view reflects the stored timelock delay.
     function test_viewTimelockGuardConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockSafeConfiguration(safeInstance.safe);
+        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
@@ -258,7 +258,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockSafeConfiguration(safe);
+        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
         assertEq(config.timelockDelay, TIMELOCK_DELAY);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
@@ -287,7 +287,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         _configureGuard(safeInstance, ONE_YEAR);
 
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockSafeConfiguration(safe);
+        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
         assertEq(config.timelockDelay, ONE_YEAR);
         // configured is now determined by timelockDelay != 0
         assertEq(config.timelockDelay != 0, true);
@@ -297,7 +297,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     function test_configureTimelockGuard_allowsReconfiguration_succeeds() external {
         // Initial configuration
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockSafeConfiguration(safe).timelockDelay, TIMELOCK_DELAY);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
 
         uint256 newDelay = TIMELOCK_DELAY + 1;
 
@@ -315,14 +315,14 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         emit GuardConfigured(safe, newDelay);
 
         _configureGuard(safeInstance, newDelay);
-        assertEq(timelockGuard.timelockSafeConfiguration(safe).timelockDelay, newDelay);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, newDelay);
     }
 
     /// @notice Ensures setting delay to zero clears the configuration.
     function test_configureTimelockGuard_clearConfiguration_succeeds() external {
         // First configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockSafeConfiguration(safe).timelockDelay, TIMELOCK_DELAY);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
 
         // Configure timelock delay to 0 should succeed and emit event
         vm.expectEmit(true, true, true, true);
@@ -331,9 +331,9 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(0);
 
         // Timelock delay should be set to 0
-        assertEq(timelockGuard.timelockSafeConfiguration(safe).timelockDelay, 0);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, 0);
         // Cancellation threshold should be reset to 0
-        assertEq(timelockGuard.cancellationThreshold(safe), 0);
+        assertEq(timelockGuard.cancellationThresholdForSafe(safe), 0);
     }
 
     /// @notice Checks clearing succeeds even if the guard was never configured.
@@ -346,19 +346,19 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     }
 }
 
-/// @title TimelockGuard_CancellationThreshold_Test
-/// @notice Tests for cancellationThreshold function
-contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
+/// @title TimelockGuard_CancellationThresholdForSafe_Test
+/// @notice Tests for cancellationThresholdForSafe function
+contract TimelockGuard_CancellationThresholdForSafe_Test is TimelockGuard_TestInit {
     /// @notice Validates cancellation threshold is zero when the guard is disabled.
     function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external view {
-        uint256 threshold = timelockGuard.cancellationThreshold(Safe(payable(unguardedSafe.safe)));
+        uint256 threshold = timelockGuard.cancellationThresholdForSafe(Safe(payable(unguardedSafe.safe)));
         assertEq(threshold, 0);
     }
 
     /// @notice Ensures an enabled but unconfigured guard yields a zero threshold.
     function test_cancellationThreshold_returnsZeroIfGuardNotConfigured_succeeds() external view {
         // Safe with guard enabled but not configured should return 0
-        uint256 threshold = timelockGuard.cancellationThreshold(safe);
+        uint256 threshold = timelockGuard.cancellationThresholdForSafe(safe);
         assertEq(threshold, 0);
     }
 
@@ -368,7 +368,7 @@ contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
         // Should default to 1 after configuration
-        uint256 threshold = timelockGuard.cancellationThreshold(safe);
+        uint256 threshold = timelockGuard.cancellationThresholdForSafe(safe);
         assertEq(threshold, 1);
     }
 
@@ -400,7 +400,7 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     function test_scheduleTransaction_guardNotConfigured_reverts() external {
         // Enable the guard on the unguarded Safe, but don't configure it
         _enableGuard(unguardedSafe);
-        assertEq(timelockGuard.timelockSafeConfiguration(unguardedSafe.safe).timelockDelay, 0);
+        assertEq(timelockGuard.timelockConfigurationForSafe(unguardedSafe.safe).timelockDelay, 0);
 
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(unguardedSafe);
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
@@ -445,22 +445,22 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
-/// @title TimelockGuard_GetScheduledTransactions_Test
-/// @notice Tests for getScheduledTransactions function
-contract TimelockGuard_GetScheduledTransactions_Test is TimelockGuard_TestInit {
+/// @title TimelockGuard_ScheduledTransactionForSafe_Test
+/// @notice Tests for scheduledTransactionForSafe function
+contract TimelockGuard_ScheduledTransactionForSafe_Test is TimelockGuard_TestInit {
     /// @notice Configures the guard before each scheduleTransaction test.
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
     }
 
-    function test_getScheduledTransaction_succeeds() external {
+    function test_scheduledTransactionForSafe_succeeds() external {
         // schedule a transaction
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
 
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
-            timelockGuard.getScheduledTransaction(safe, dummyTx.hash);
+            timelockGuard.scheduledTransactionForSafe(safe, dummyTx.hash);
         assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
         assertEq(scheduledTransaction.cancelled, false);
         assertEq(scheduledTransaction.executed, false);
@@ -468,27 +468,27 @@ contract TimelockGuard_GetScheduledTransactions_Test is TimelockGuard_TestInit {
     }
 }
 
-/// @title TimelockGuard_GetPendingTransactions_Test
-/// @notice Tests for getPendingTransactions function
-contract TimelockGuard_GetPendingTransactions_Test is TimelockGuard_TestInit {
+/// @title TimelockGuard_PendingTransactionsForSafe_Test
+/// @notice Tests for pendingTransactionsForSafe function
+contract TimelockGuard_PendingTransactionsForSafe_Test is TimelockGuard_TestInit {
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
     }
 
-    function test_getPendingTransactions_succeeds() external {
+    function test_pendingTransactionsForSafe_succeeds() external {
         // schedule a transaction
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
 
-        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.pendingTransactionsForSafe(safe);
         assertEq(pendingTransactions.length, 1);
         // ensure the hash of the transaction params are the same
         assertEq(pendingTransactions[0].params.to, dummyTx.params.to);
         assertEq(keccak256(abi.encode(pendingTransactions[0].params)), keccak256(abi.encode(dummyTx.params)));
     }
 
-    function test_getPendingTransactions_removeTransactionAfterCancellation_succeeds() external {
+    function test_pendingTransactionsForSafe_removeTransactionAfterCancellation_succeeds() external {
         // schedule a transaction
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
@@ -498,11 +498,11 @@ contract TimelockGuard_GetPendingTransactions_Test is TimelockGuard_TestInit {
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
 
         // get the pending transactions
-        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.pendingTransactionsForSafe(safe);
         assertEq(pendingTransactions.length, 0);
     }
 
-    function test_getPendingTransactions_removeTransactionAfterExecution_succeeds() external {
+    function test_pendingTransactionsForSafe_removeTransactionAfterExecution_succeeds() external {
         // schedule a transaction
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
@@ -513,7 +513,7 @@ contract TimelockGuard_GetPendingTransactions_Test is TimelockGuard_TestInit {
         dummyTx.executeTransaction();
 
         // get the pending transactions
-        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.getPendingTransactions(safe);
+        TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.pendingTransactionsForSafe(safe);
         assertEq(pendingTransactions.length, 0);
     }
 }
@@ -536,7 +536,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Get the cancellation transaction
         TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
-        uint256 cancellationThreshold = timelockGuard.cancellationThreshold(dummyTx.safeInstance.safe);
+        uint256 cancellationThreshold = timelockGuard.cancellationThresholdForSafe(dummyTx.safeInstance.safe);
 
         // Cancel the transaction
         vm.expectEmit(true, true, true, true);
@@ -545,7 +545,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         emit TransactionCancelled(safeInstance.safe, dummyTx.hash);
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
 
-        assertEq(timelockGuard.getScheduledTransaction(safeInstance.safe, dummyTx.hash).cancelled, true);
+        assertEq(timelockGuard.scheduledTransactionForSafe(safeInstance.safe, dummyTx.hash).cancelled, true);
     }
 
     /// @notice Confirms pre-approved hashes can authorise cancellations.
@@ -567,7 +567,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         bytes memory cancellationSignatures = abi.encodePacked(bytes32(uint256(uint160(owner))), bytes32(0), uint8(1));
 
         // Get the cancellation threshold
-        uint256 cancellationThreshold = timelockGuard.cancellationThreshold(dummyTx.safeInstance.safe);
+        uint256 cancellationThreshold = timelockGuard.cancellationThresholdForSafe(dummyTx.safeInstance.safe);
 
         // Cancel the transaction
         vm.expectEmit(true, true, true, true);
@@ -578,7 +578,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 
         // Confirm that the transaction is cancelled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
-            timelockGuard.getScheduledTransaction(dummyTx.safeInstance.safe, dummyTx.hash);
+            timelockGuard.scheduledTransactionForSafe(dummyTx.safeInstance.safe, dummyTx.hash);
         assertEq(scheduledTransaction.cancelled, true);
     }
 
@@ -617,13 +617,13 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(nonce + 1)));
 
         // increment the cancellation threshold so that we can test that it is reset
-        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
+        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThresholdForSafe(address)").with_key(
             address(safeInstance.safe)
         ).find();
         vm.store(
             address(timelockGuard),
             bytes32(slot),
-            bytes32(uint256(timelockGuard.cancellationThreshold(safeInstance.safe) + 1))
+            bytes32(uint256(timelockGuard.cancellationThresholdForSafe(safeInstance.safe) + 1))
         );
 
         vm.prank(address(safeInstance.safe));
@@ -645,11 +645,11 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
 
         // Confirm that the transaction is executed
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
-            timelockGuard.getScheduledTransaction(safeInstance.safe, dummyTx.hash);
+            timelockGuard.scheduledTransactionForSafe(safeInstance.safe, dummyTx.hash);
         assertEq(scheduledTransaction.executed, true);
 
         // Confirm that the cancellation threshold is reset
-        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
+        assertEq(timelockGuard.cancellationThresholdForSafe(safeInstance.safe), 1);
     }
 
     /// @notice Test that checkTransaction reverts when scheduled transaction delay hasn't passed
@@ -752,7 +752,7 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
         vm.warp(block.timestamp + TIMELOCK_DELAY);
         dummyTx.executeTransaction();
 
-        assertEq(timelockGuard.getScheduledTransaction(safeInstance.safe, dummyTx.hash).executed, true);
+        assertEq(timelockGuard.scheduledTransactionForSafe(safeInstance.safe, dummyTx.hash).executed, true);
     }
 
     /// @notice Test that scheduling a transaction and then executing it twice reverts
@@ -856,6 +856,6 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
             timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
         }
 
-        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), maxThreshold);
+        assertEq(timelockGuard.cancellationThresholdForSafe(safeInstance.safe), maxThreshold);
     }
 }
