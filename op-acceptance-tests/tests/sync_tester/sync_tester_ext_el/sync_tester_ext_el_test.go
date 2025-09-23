@@ -3,7 +3,6 @@ package sync_tester_ext_el
 import (
 	"fmt"
 	"os"
-	"runtime"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -232,7 +231,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blocksToSync uint64) (*sysgo.
 		// To temporarily mitigate and stabilize tests, restrict runtime
 		// parallelism to 1 (no true concurrency). This masks the race;
 		// remove once the underlying issue is fixed.
-		runtime.GOMAXPROCS(1)
+		// runtime.GOMAXPROCS(1)
 	} else {
 		opt = stack.Combine(opt,
 			presets.WithSyncTesterELInitialState(eth.FCUState{

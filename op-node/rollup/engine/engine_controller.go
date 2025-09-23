@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"runtime/debug"
 	gosync "sync"
 	"time"
 
@@ -493,6 +495,10 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
 		e.onSafeUpdate(ctx, ref, ref)
+
+		// This must be placed before e.SetFinalizedHead
+		fmt.Fprintln(io.Discard, string(debug.Stack()))
+
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
