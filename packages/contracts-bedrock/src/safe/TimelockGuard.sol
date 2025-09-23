@@ -34,18 +34,16 @@ contract TimelockGuard is IGuard, ISemver {
         ExecTransactionParams params;
     }
 
-    /// @notice Mapping from Safe address to its guard configuration
-    mapping(Safe => GuardConfig) internal _timelockSafeConfiguration;
+    /// @notice Aggregated state for each Safe using this guard.
+    struct SafeState {
+        GuardConfig config;
+        uint256 cancellationThreshold;
+        mapping(bytes32 => ScheduledTransaction) scheduledTransactions;
+        EnumerableSet.Bytes32Set pendingTxHashes;
+    }
 
-    /// @notice Mapping from Safe and tx id to scheduled transaction.
-    mapping(Safe => mapping(bytes32 => ScheduledTransaction)) internal _scheduledTransactions;
-
-    /// @notice Mapping from a Safe to an enumerable set of tx hashes used to store the list of tx
-    ///         hashes which have been scheduled, but not yet exeuted or cancelled.
-    mapping(Safe => EnumerableSet.Bytes32Set) internal _safePendingTxHashes;
-
-    /// @notice Mapping from Safe to cancellation threshold.
-    mapping(Safe => uint256) internal _safeCancellationThreshold;
+    /// @notice Mapping from Safe address to its timelock guard state.
+    mapping(Safe => SafeState) internal _safeState;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -102,7 +100,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
     function timelockConfigurationForSafe(Safe _safe) public view returns (GuardConfig memory) {
-        return _timelockSafeConfiguration[_safe];
+        return _safeState[_safe].config;
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
@@ -116,7 +114,7 @@ contract TimelockGuard is IGuard, ISemver {
         view
         returns (ScheduledTransaction memory)
     {
-        return _scheduledTransactions[_safe][_txHash];
+        return _safeState[_safe].scheduledTransactions[_txHash];
     }
 
     /// @notice Returns the list of all scheduled but not cancelled or executed transactions for
@@ -129,10 +127,12 @@ contract TimelockGuard is IGuard, ISemver {
     /// in a block.
     /// @return List of pending transaction hashes
     function pendingTransactionsForSafe(Safe _safe) external view returns (ScheduledTransaction[] memory) {
-        bytes32[] memory hashes = _safePendingTxHashes[_safe].values();
+        SafeState storage safeState = _safeState[_safe];
+
+        bytes32[] memory hashes = safeState.pendingTxHashes.values();
         ScheduledTransaction[] memory scheduled = new ScheduledTransaction[](hashes.length);
         for (uint256 i = 0; i < hashes.length; i++) {
-            scheduled[i] = _scheduledTransactions[_safe][hashes[i]];
+            scheduled[i] = safeState.scheduledTransactions[hashes[i]];
         }
         return scheduled;
     }
@@ -164,12 +164,20 @@ contract TimelockGuard is IGuard, ISemver {
         _safe.checkSignatures(configureTxHash, configureTxData, _signatures);
 
         // Store the configuration for this safe
-        _timelockSafeConfiguration[_safe].timelockDelay = _timelockDelay;
+        SafeState storage safeState = _safeState[_safe];
+        safeState.config.timelockDelay = _timelockDelay;
 
         // Initialize cancellation threshold to 1
-        _safeCancellationThreshold[_safe] = 1;
+        safeState.cancellationThreshold = 1;
 
         emit GuardConfigured(_safe, _timelockDelay);
+        // If timelock delay is 0, ensure the cancellation threshold is deleted
+        if (_timelockDelay == 0) {
+            delete _safeCancellationThreshold[_safe];
+        } else {
+            // Initialize cancellation threshold to 1
+            _safeCancellationThreshold[_safe] = 1;
+        }
     }
 
     /// @notice Returns the blocking threshold threshold for a given safe
@@ -189,7 +197,7 @@ contract TimelockGuard is IGuard, ISemver {
             return 0;
         }
 
-        return _safeCancellationThreshold[_safe];
+        return _safeState[_safe].cancellationThreshold;
     }
 
     /// @notice Returns the maximum cancellation threshold for a given safe
@@ -226,7 +234,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that the guard has been configured for the Safe
-        if (_timelockSafeConfiguration[_safe].timelockDelay == 0) {
+        if (_safeState[_safe].config.timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -264,7 +272,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Check if the transaction exists
         // A transaction can only be scheduled once, regardless of whether it has been cancelled or not.
-        if (_scheduledTransactions[_safe][txHash].executionTime != 0) {
+        if (_safeState[_safe].scheduledTransactions[txHash].executionTime != 0) {
             revert TimelockGuard_TransactionAlreadyScheduled();
         }
 
@@ -273,12 +281,12 @@ contract TimelockGuard is IGuard, ISemver {
         _safe.checkSignatures(txHash, txHashData, _signatures);
 
         // Calculate the execution time
-        uint256 executionTime = block.timestamp + _timelockSafeConfiguration[_safe].timelockDelay;
+        uint256 executionTime = block.timestamp + _safeState[_safe].config.timelockDelay;
 
         // Schedule the transaction
-        _scheduledTransactions[_safe][txHash] =
+        _safeState[_safe].scheduledTransactions[txHash] =
             ScheduledTransaction({ executionTime: executionTime, cancelled: false, executed: false, params: _params });
-        _safePendingTxHashes[_safe].add(txHash);
+        _safeState[_safe].pendingTxHashes.add(txHash);
 
         emit TransactionScheduled(_safe, txHash, executionTime);
     }
@@ -291,36 +299,42 @@ contract TimelockGuard is IGuard, ISemver {
     ///      and hash of the transaction being cancelled. This is necessary to ensure that the cancellation transaction
     ///      is unique and cannot be used to cancel another transaction at the same nonce.
     ///
-    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures required
+    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures
+    /// required
     ///      can be set by the Safe's current cancellation threshold. Another benefit of checkNSignatures is that owners
     ///      can use any method to sign the cancellation transaction inputs, including signing with a private key,
     ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
     function cancelTransaction(Safe _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external {
-        if (_scheduledTransactions[_safe][_txHash].cancelled) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
-        if (_scheduledTransactions[_safe][_txHash].executed) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].executed) {
             revert TimelockGuard_TransactionAlreadyExecuted();
         }
-        if (_scheduledTransactions[_safe][_txHash].executionTime == 0) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].executionTime == 0) {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
-        // Generate the cancellation transaction data
-        bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
-        bytes memory cancellationTxData = _safe.encodeTransactionData(
-            address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
-        );
-        bytes32 cancellationTxHash = _safe.getTransactionHash(
-            address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
-        );
-
+        bytes memory cancellationTxData;
+        bytes32 cancellationTxHash;
+        // New scope for the compiler error that must not be named
+        {
+            // Generate the cancellation transaction data
+            bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
+            cancellationTxData = _safe.encodeTransactionData(
+                address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+            );
+            cancellationTxHash = _safe.getTransactionHash(
+                address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+            );
+        }
         // Verify signatures using the Safe's signature checking logic
         // This function call reverts if the signatures are invalid.
-        _safe.checkNSignatures(cancellationTxHash, cancellationTxData, _signatures, _safeCancellationThreshold[_safe]);
-
-        _scheduledTransactions[_safe][_txHash].cancelled = true;
-        _safePendingTxHashes[_safe].remove(_txHash);
+        _safe.checkNSignatures(
+            cancellationTxHash, cancellationTxData, _signatures, _safeState[_safe].cancellationThreshold
+        );
+        _safeState[_safe].scheduledTransactions[_txHash].cancelled = true;
+        _safeState[_safe].pendingTxHashes.remove(_txHash);
         _increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash);
@@ -329,18 +343,21 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Increase the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling cancel
     function _increaseCancellationThreshold(Safe _safe) internal {
-        if (_safeCancellationThreshold[_safe] < maxCancellationThreshold(_safe)) {
-            uint256 oldThreshold = _safeCancellationThreshold[_safe];
-            _safeCancellationThreshold[_safe]++;
-            emit CancellationThresholdUpdated(_safe, oldThreshold, _safeCancellationThreshold[_safe]);
+        SafeState storage safeState = _safeState[_safe];
+
+        if (safeState.cancellationThreshold < maxCancellationThreshold(_safe)) {
+            uint256 oldThreshold = safeState.cancellationThreshold;
+            safeState.cancellationThreshold++;
+            emit CancellationThresholdUpdated(_safe, oldThreshold, safeState.cancellationThreshold);
         }
     }
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
     function _resetCancellationThreshold(Safe _safe) internal {
-        uint256 oldThreshold = _safeCancellationThreshold[_safe];
-        _safeCancellationThreshold[_safe] = 1;
+        SafeState storage safeState = _safeState[_safe];
+        uint256 oldThreshold = safeState.cancellationThreshold;
+        safeState.cancellationThreshold = 1;
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
     }
 
@@ -364,7 +381,7 @@ contract TimelockGuard is IGuard, ISemver {
     {
         Safe callingSafe = Safe(payable(msg.sender));
 
-        if (_timelockSafeConfiguration[callingSafe].timelockDelay == 0) {
+        if (_safeState[callingSafe].config.timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
             // guard set, but not configured to complete the setup process.
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a
@@ -383,7 +400,7 @@ contract TimelockGuard is IGuard, ISemver {
         );
 
         // Get the scheduled transaction
-        ScheduledTransaction storage scheduledTx = _scheduledTransactions[callingSafe][txHash];
+        ScheduledTransaction storage scheduledTx = _safeState[callingSafe].scheduledTransactions[txHash];
 
         // Check if the transaction was cancelled
         if (scheduledTx.cancelled) {
@@ -409,7 +426,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Set the transaction as executed
         scheduledTx.executed = true;
-        _safePendingTxHashes[callingSafe].remove(txHash);
+        _safeState[callingSafe].pendingTxHashes.remove(txHash);
 
         // Reset the cancellation threshold
         _resetCancellationThreshold(callingSafe);
