@@ -16,6 +16,7 @@ from typing import Optional
 
 # === Git Utilities ===
 
+
 def get_file_commit_timestamp(file_path: Path, repo_root: Path) -> Optional[int]:
     """Get the timestamp of the last commit that modified a file.
 
@@ -49,6 +50,7 @@ def get_file_commit_timestamp(file_path: Path, repo_root: Path) -> Optional[int]
 
 
 # === Scoring Utilities ===
+
 
 def calculate_staleness_days(
     test_commit_ts: Optional[int], contract_commit_ts: Optional[int]
@@ -97,6 +99,7 @@ def calculate_test_score(
 
 # === Contract Mapping Utilities ===
 
+
 def get_base_paths() -> tuple[Path, Path, Path]:
     """Get base paths for repository, contracts, and output directory.
 
@@ -144,6 +147,7 @@ def find_source_contract(
 
 # === Exclusion Utilities ===
 
+
 def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
     """Load and normalize exclusion paths from TOML configuration.
 
@@ -157,9 +161,7 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
         FileNotFoundError: If exclusions.toml file is not found.
         tomllib.TOMLDecodeError: If TOML file is malformed.
     """
-    exclusions_file = (
-        contracts_bedrock / "scripts" / "checks" / "test-validation" / "exclusions.toml"
-    )
+    exclusions_file = Path(__file__).parent.parent / "exclusion.toml"
 
     with exclusions_file.open("rb") as f:
         exclusions = tomllib.load(f)
@@ -167,18 +169,20 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
     excluded_dirs: list[Path] = []
     excluded_files: set[Path] = set()
 
-    # Flatten all exclusion paths from different categories
-    all_excluded_paths = [
-        path for paths in exclusions["excluded_paths"].values() for path in paths
-    ]
+    # Get exclusion directories and files
+    exclusion_config = exclusions.get("exclusions", {})
+    exclusion_directories = exclusion_config.get("directories", [])
+    exclusion_files = exclusion_config.get("files", [])
 
-    for path in all_excluded_paths:
-        if path.endswith("/"):
-            # Directory exclusion - store as Path object without trailing slash
-            excluded_dirs.append(Path(path.rstrip("/")))
-        else:
-            # File exclusion - store as Path object in set for O(1) lookup
-            excluded_files.add(Path(path))
+    # Process directory exclusions
+    for directory in exclusion_directories:
+        # Directory exclusion - store as Path object without trailing slash
+        excluded_dirs.append(Path(directory.rstrip("/")))
+
+    # Process file exclusions
+    for file_path in exclusion_files:
+        # File exclusion - store as Path object in set for O(1) lookup
+        excluded_files.add(Path(file_path))
 
     return excluded_dirs, excluded_files
 
@@ -202,6 +206,7 @@ def is_path_excluded(
 
 
 # === File Discovery Utilities ===
+
 
 def find_test_files(contracts_bedrock: Path) -> list[Path]:
     """Find all test files in the contracts-bedrock test directory.
@@ -242,6 +247,7 @@ def filter_excluded_files(
 
 # === Output Generation Utilities ===
 
+
 def generate_ranking_json(
     entries: list[dict[str, str | int | float | None]], output_dir: Path
 ) -> Path:
@@ -278,6 +284,7 @@ def generate_ranking_json(
 
 # === Main Application Logic ===
 
+
 def create_test_entry(
     test_file: Path,
     source_contract: Path,
@@ -303,9 +310,7 @@ def create_test_entry(
     contract_commit_ts = get_file_commit_timestamp(source_contract, repo_root)
 
     # Calculate metrics
-    staleness_days = calculate_staleness_days(
-        test_commit_ts, contract_commit_ts
-    )
+    staleness_days = calculate_staleness_days(test_commit_ts, contract_commit_ts)
     score = calculate_test_score(staleness_days, test_commit_ts)
 
     return {
@@ -344,9 +349,7 @@ def collect_test_entries(
     entries = []
     for test_file in filtered_files:
         # Find corresponding source contract
-        source_contract = find_source_contract(
-            test_file, contracts_bedrock
-        )
+        source_contract = find_source_contract(test_file, contracts_bedrock)
 
         if source_contract:
             entry = create_test_entry(
