@@ -150,7 +150,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 		// Check if Jovian is active to determine which formula to use
 		isJovian, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
 		of.require.NoError(err)
-		
+
 		operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))
 		if isJovian {
 			// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
