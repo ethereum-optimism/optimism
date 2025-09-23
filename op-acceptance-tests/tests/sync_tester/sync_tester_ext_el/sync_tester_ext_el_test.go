@@ -3,6 +3,7 @@ package sync_tester_ext_el
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -93,7 +94,10 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	blocksToSync := uint64(20)
 	sys, target := setupSystem(gt, t, blocksToSync)
 
+	attempts := 50
 	if L2CLSyncMode == sync.ELSync {
+		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
+		attempts = 5
 		// Signal L2CL for triggering EL Sync
 		sys.L2CL.SignalTarget(sys.L2ELReadOnly, target)
 	}
@@ -102,7 +106,7 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	l2CLSyncStatus := sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
 
-	sys.L2CL.Reached(types.LocalUnsafe, target, 500)
+	sys.L2CL.Reached(types.LocalUnsafe, target, attempts)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
 	require.NotNil(l2CLSyncStatus, "L2CL should have sync status")
@@ -224,6 +228,11 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blocksToSync uint64) (*sysgo.
 				Finalized: chainCfg.Genesis.L2.Number,
 			}),
 		)
+		// TODO(#17564): op-node has a suspected race during EL Sync.
+		// To temporarily mitigate and stabilize tests, restrict runtime
+		// parallelism to 1 (no true concurrency). This masks the race;
+		// remove once the underlying issue is fixed.
+		runtime.GOMAXPROCS(1)
 	} else {
 		opt = stack.Combine(opt,
 			presets.WithSyncTesterELInitialState(eth.FCUState{

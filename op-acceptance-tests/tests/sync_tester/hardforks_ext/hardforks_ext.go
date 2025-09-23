@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -143,6 +144,11 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				Finalized: chainCfg.Genesis.L2.Number,
 			}),
 		)
+		// TODO(#17564): op-node has a suspected race during EL Sync.
+		// To temporarily mitigate and stabilize tests, restrict runtime
+		// parallelism to 1 (no true concurrency). This masks the race;
+		// remove once the underlying issue is fixed.
+		runtime.GOMAXPROCS(1)
 	} else {
 		opt = stack.Combine(opt,
 			presets.WithSyncTesterELInitialState(eth.FCUState{
@@ -195,7 +201,10 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus
+	attempts := 1000
 	if l2CLSyncMode == sync.ELSync {
+		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
+		attempts = 5
 		// Signal L2CL for finishing EL Sync
 		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
 	} else {
@@ -203,9 +212,9 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode s
 		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
 	}
 
-	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
+	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, attempts)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
-	sys.L2CL.Reached(types.LocalSafe, targetBlock, 1000)
+	sys.L2CL.Reached(types.LocalSafe, targetBlock, attempts)
 	l.Info("L2CL safe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()
