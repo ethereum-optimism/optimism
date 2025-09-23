@@ -45,6 +45,7 @@ type taskExecutor interface {
 		claimedBlockNumber uint64,
 		l1Oracle l1.Oracle,
 		l2Oracle l2.Oracle,
+		l1ChainConfig *params.ChainConfig,
 	) (tasks.DerivationResult, error)
 
 	BuildDepositOnlyBlock(
@@ -155,6 +156,10 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	if err != nil {
 		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
+	l1ChainConfig, err := bootInfo.Configs.ChainConfig(eth.ChainIDFromBig(rollupCfg.L1ChainID))
+	if err != nil {
+		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
+	}
 	depSet, err := bootInfo.Configs.DependencySet(chainAgreedPrestate.ChainID)
 	if err != nil {
 		return types.OptimisticBlock{}, fmt.Errorf("no dependency set available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
@@ -173,6 +178,7 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 		claimedBlockNumber,
 		l1PreimageOracle,
 		l2PreimageOracle,
+		l1ChainConfig,
 	)
 	if err != nil {
 		return types.OptimisticBlock{}, err
@@ -201,6 +207,7 @@ func (t *interopTaskExecutor) RunDerivation(
 	claimedBlockNumber uint64,
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
+	l1ChainConfig *params.ChainConfig,
 ) (tasks.DerivationResult, error) {
 	return tasks.RunDerivation(
 		logger,
@@ -214,6 +221,7 @@ func (t *interopTaskExecutor) RunDerivation(
 		l2Oracle,
 		memorydb.New(),
 		tasks.DerivationOptions{StoreBlockData: true},
+		l1ChainConfig,
 	)
 }
 

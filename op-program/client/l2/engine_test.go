@@ -193,7 +193,7 @@ func createL2Block(t *testing.T, number int, setWithdrawalsRoot bool) *types.Blo
 	tx, err := derive.L1InfoDeposit(chaincfg.OPSepolia(), eth.SystemConfig{}, uint64(1), eth.HeaderBlockInfo(&types.Header{
 		Number:  big.NewInt(32),
 		BaseFee: big.NewInt(7),
-	}), 0)
+	}), 0, params.MergedTestChainConfig)
 	require.NoError(t, err)
 	header := &types.Header{
 		Number:  big.NewInt(int64(number)),

@@ -53,7 +53,8 @@ func RunDerivation(
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
 	db l2.KeyValueStore,
-	options DerivationOptions) (DerivationResult, error) {
+	options DerivationOptions,
+	l1ChainConfig *params.ChainConfig) (DerivationResult, error) {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	l1BlobsSource := l1.NewBlobFetcher(logger, l1Oracle)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, l2OutputRoot, db)
@@ -63,7 +64,7 @@ func RunDerivation(
 	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend, l2Oracle.Hinter())
 
 	logger.Info("Starting derivation", "chainID", cfg.L2ChainID)
-	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum, l1ChainConfig)
 	result, err := d.RunComplete()
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to run program to completion: %w", err)

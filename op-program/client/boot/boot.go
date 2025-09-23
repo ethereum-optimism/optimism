@@ -24,6 +24,7 @@ type BootInfo struct {
 
 	L2ChainConfig *params.ChainConfig
 	RollupConfig  *rollup.Config
+	L1ChainConfig *params.ChainConfig
 }
 
 type BootstrapClient struct {

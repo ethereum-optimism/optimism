@@ -31,6 +31,7 @@ func RunPreInteropProgram(
 		l2PreimageOracle,
 		db,
 		opts,
+		bootInfo.L1ChainConfig,
 	)
 	if err != nil {
 		return err

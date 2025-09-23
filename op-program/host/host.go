@@ -145,6 +145,13 @@ func (p *programExecutor) RunProgram(
 		return fmt.Errorf("could not find rollup config in the host for chain ID %v", chainID)
 	}
 
+	var l1ChainConfig *params.ChainConfig
+	for _, c := range p.cfg.L1ChainConfigs {
+		if eth.ChainIDFromBig(c.ChainID).Cmp(eth.ChainIDFromBig(rollupConfig.L1ChainID)) == 0 {
+			l1ChainConfig = c
+			break
+		}
+	}
 	prefetcherCreator := func(context.Context, log.Logger, kvstore.KV, *config.Config) (hostcommon.Prefetcher, error) {
 		// TODO(#13663): prevent recursive block execution
 		return prefetcher, nil
@@ -174,6 +181,7 @@ func (p *programExecutor) RunProgram(
 		l2PreimageOracle,
 		db,
 		opts,
+		l1ChainConfig,
 	)
 	if err != nil {
 		return err

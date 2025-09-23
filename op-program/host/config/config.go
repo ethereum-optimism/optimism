@@ -86,6 +86,8 @@ type Config struct {
 	// L2ChainConfigs are the op-geth chain config for the L2 execution engines
 	// Must have one chain config for each rollup config
 	L2ChainConfigs []*params.ChainConfig
+	// L1ChainConfigs are the op-geth chain config for the L1 execution engine
+	L1ChainConfigs []*params.ChainConfig
 	// ExecCmd specifies the client program to execute in a separate process.
 	// If unset, the fault proof client is run in the same process.
 	ExecCmd string
