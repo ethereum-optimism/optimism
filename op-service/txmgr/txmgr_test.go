@@ -1020,11 +1020,10 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 // first call but a success on the second call. This allows us to test that the
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
-	returnSuccessBlockNumber bool
-	returnSuccessHeader      bool
-	returnSuccessReceipt     bool
-	baseFee, gasTip          *big.Int
-	excessBlobGas            *uint64
+	returnSuccessBlockNumber     bool
+	returnSuccessHeader          bool
+	returnSuccessReceipt         bool
+	baseFee, gasTip, blobBaseFee *big.Int
 }
 
 // BlockNumber for the failingBackend returns errRpcFailure on the first
@@ -1061,9 +1060,8 @@ func (b *failingBackend) HeaderByNumber(ctx context.Context, _ *big.Int) (*types
 	}
 
 	return &types.Header{
-		Number:        big.NewInt(1),
-		BaseFee:       b.baseFee,
-		ExcessBlobGas: b.excessBlobGas,
+		Number:  big.NewInt(1),
+		BaseFee: b.baseFee,
 	}, nil
 }
 
@@ -1099,7 +1097,7 @@ func (b *failingBackend) Close() {
 }
 
 func (b *failingBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
-	return nil, errors.New("unimplemented")
+	return b.blobBaseFee, nil
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to
@@ -1323,12 +1321,10 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 
 	borkedTip := int64(10)
 	borkedFee := int64(45)
-	// simulate 100 excess blobs which yields a 50 wei blob base fee
-	borkedExcessBlobGas := uint64(100 * params.BlobTxBlobGasPerBlob)
 	borkedBackend := failingBackend{
 		gasTip:              big.NewInt(borkedTip),
 		baseFee:             big.NewInt(borkedFee),
-		excessBlobGas:       &borkedExcessBlobGas,
+		blobBaseFee:         big.NewInt(50),
 		returnSuccessHeader: true,
 	}
 
