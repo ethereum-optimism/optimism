@@ -20,6 +20,9 @@ jovian:
 interop:
     @just acceptance-test "" interop
 
+cgt:
+    @just acceptance-test "" cgt
+
 
 # Run acceptance tests with mise-managed binary
 # Usage: just acceptance-test [devnet] [gate]

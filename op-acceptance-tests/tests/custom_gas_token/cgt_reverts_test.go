@@ -2,7 +2,6 @@ package custom_gas_token
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/lmittmann/w3"
 )
 
 // TestCGT_MessengerRejectsValue ensures that sending native value to the
@@ -48,22 +47,11 @@ func TestCGT_L2StandardBridge_LegacyWithdrawReverts(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
 	defer cancel()
 
-	bridgeABIJSON := `[
-		{"inputs":[
-			{"internalType":"address","name":"_l2Token","type":"address"},
-			{"internalType":"uint256","name":"_amount","type":"uint256"},
-			{"internalType":"uint32","name":"_minGasLimit","type":"uint32"},
-			{"internalType":"bytes","name":"_extraData","type":"bytes"}
-		],
-		"name":"withdraw","outputs":[],"stateMutability":"payable","type":"function"}
-	]`
-	bridgeABI, err := abi.JSON(strings.NewReader(bridgeABIJSON))
-	if err != nil {
-		t.Require().Fail("%v", err)
-	}
+	withdrawFunc := w3.MustNewFunc("withdraw(address,uint256,uint32,bytes)", "")
+
 	// Any address is fine; the ETH-specific legacy path should be disabled under CGT.
 	anyAddress := l2XDMAddr
-	data, err := bridgeABI.Pack("withdraw", anyAddress, big.NewInt(1), uint32(100_000), []byte{})
+	data, err := withdrawFunc.EncodeArgs(anyAddress, big.NewInt(1), uint32(100_000), []byte{})
 	if err != nil {
 		t.Require().Fail("%v", err)
 	}

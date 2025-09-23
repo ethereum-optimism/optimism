@@ -2,7 +2,6 @@ package custom_gas_token
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -10,9 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 )
 
 // TestCGT_L1PortalIntrospection checks that the L1 OptimismPortal exposes
@@ -31,24 +30,23 @@ func TestCGT_L1PortalIntrospection(gt *testing.T) {
 	defer cancel()
 
 	// Portal exposes systemConfig() -> address
-	const portalABI = `[
-	  {"inputs":[],"name":"systemConfig","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}
-	]`
-	pa, err := abi.JSON(strings.NewReader(portalABI))
+	systemConfigFunc := w3.MustNewFunc("systemConfig()", "address")
+
+	data, err := systemConfigFunc.EncodeArgs()
 	if err != nil {
-		t.Require().Fail("parse portal ABI: %v", err)
+		t.Require().Fail("encode systemConfig() args: %v", err)
 	}
 
-	data, _ := pa.Pack("systemConfig")
 	out, err := l1c.Call(ctx, ethereum.CallMsg{To: &portal, Data: data}, rpc.LatestBlockNumber)
 	if err != nil {
 		t.Require().Fail("portal.systemConfig() call failed: %v", err)
 	}
-	vals, err := pa.Unpack("systemConfig", out)
-	if err != nil {
-		t.Require().Fail("unpack portal.systemConfig() failed: %v", err)
+
+	var sysCfg common.Address
+	if err := systemConfigFunc.DecodeReturns(out, &sysCfg); err != nil {
+		t.Require().Fail("decode portal.systemConfig() returns: %v", err)
 	}
-	sysCfg := vals[0].(common.Address)
+
 	if sysCfg == (common.Address{}) {
 		t.Require().Fail("portal.systemConfig() returned zero address")
 	}

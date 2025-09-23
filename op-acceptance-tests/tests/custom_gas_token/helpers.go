@@ -3,16 +3,15 @@ package custom_gas_token
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/lmittmann/w3"
 )
 
 var (
@@ -24,49 +23,48 @@ var (
 	l2BridgeAddr = common.HexToAddress("0x4200000000000000000000000000000000000010")
 )
 
-const igasTokenABI = `[
-  {"inputs":[],"name":"isCustomGasToken","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},
-  {"inputs":[],"name":"gasPayingTokenName","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
-  {"inputs":[],"name":"gasPayingTokenSymbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"}
-]`
-
 // ensureCGTOrSkip probes L2 L1Block for CGT mode. If not enabled, the test is skipped.
 // Returns (name, symbol).
 func ensureCGTOrSkip(t devtest.T, sys *presets.Minimal) (string, string) {
 	l2 := sys.L2EL.Escape().L2EthClient()
 
-	abiGT, err := abi.JSON(strings.NewReader(igasTokenABI))
-	t.Require().NoError(err)
+	isCustomGasTokenFunc := w3.MustNewFunc("isCustomGasToken()", "bool")
+	gasPayingTokenNameFunc := w3.MustNewFunc("gasPayingTokenName()", "string")
+	gasPayingTokenSymbolFunc := w3.MustNewFunc("gasPayingTokenSymbol()", "string")
 
 	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
 	defer cancel()
 
 	// isCustomGasToken()
-	data, _ := abiGT.Pack("isCustomGasToken")
+	data, _ := isCustomGasTokenFunc.EncodeArgs()
 	out, err := l2.Call(ctx, ethereum.CallMsg{To: &l1BlockAddr, Data: data}, rpc.LatestBlockNumber)
 	if err != nil {
 		t.Skipf("CGT not enabled (isCustomGasToken() call failed): %v", err)
 	}
-	vals, err := abiGT.Unpack("isCustomGasToken", out)
-	t.Require().NoError(err)
-	if !vals[0].(bool) {
+	var isCustom bool
+	if err := isCustomGasTokenFunc.DecodeReturns(out, &isCustom); err != nil {
+		t.Require().NoError(err)
+	}
+	if !isCustom {
 		t.Skip("CGT disabled on this devnet (native ETH mode detected)")
 	}
 
 	// Read metadata (name/symbol)
-	data, _ = abiGT.Pack("gasPayingTokenName")
+	data, _ = gasPayingTokenNameFunc.EncodeArgs()
 	out, err = l2.Call(ctx, ethereum.CallMsg{To: &l1BlockAddr, Data: data}, rpc.LatestBlockNumber)
 	t.Require().NoError(err)
-	vn, err := abiGT.Unpack("gasPayingTokenName", out)
-	t.Require().NoError(err)
-	name := vn[0].(string)
+	var name string
+	if err := gasPayingTokenNameFunc.DecodeReturns(out, &name); err != nil {
+		t.Require().NoError(err)
+	}
 
-	data, _ = abiGT.Pack("gasPayingTokenSymbol")
+	data, _ = gasPayingTokenSymbolFunc.EncodeArgs()
 	out, err = l2.Call(ctx, ethereum.CallMsg{To: &l1BlockAddr, Data: data}, rpc.LatestBlockNumber)
 	t.Require().NoError(err)
-	vs, err := abiGT.Unpack("gasPayingTokenSymbol", out)
-	t.Require().NoError(err)
-	symbol := vs[0].(string)
+	var symbol string
+	if err := gasPayingTokenSymbolFunc.DecodeReturns(out, &symbol); err != nil {
+		t.Require().NoError(err)
+	}
 
 	return name, symbol
 }
