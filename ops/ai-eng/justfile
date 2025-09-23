@@ -5,3 +5,12 @@
 # Run the contract test ranking script
 rank:
     cd contracts-test-maintenance/tests_ranker && python3 test_ranker.py
+
+# Render prompt with the first ranked test and contract
+render:
+    cd contracts-test-maintenance/prompt-renderer && python3 render.py
+
+# Run ranking and render prompt in one command
+prompt:
+    just rank
+    just render

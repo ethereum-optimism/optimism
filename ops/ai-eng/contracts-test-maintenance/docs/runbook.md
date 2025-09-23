@@ -10,12 +10,23 @@ The system uses a two-branch scoring algorithm: tests whose contracts have moved
 
 ```bash
 # From the ai-eng directory
+
+# Option 1: Run both steps in one command (recommended)
+just prompt
+
+# Option 2: Run steps individually
+# Step 1: Rank tests by staleness
 just rank
+
+# Step 2: Generate AI prompt for the highest-priority test
+just render
 ```
 
 ## Output
 
-The tool generates `tests_ranker/output/ranking.json`:
+### Test Ranking Output
+
+The `just rank` command generates `tests_ranker/output/ranking.json`:
 
 ```json
 {
@@ -40,3 +51,9 @@ The tool generates `tests_ranker/output/ranking.json`:
 - `contract_commit_ts` - Unix timestamp of contract file's last commit
 - `staleness_days` - Calculated staleness (positive = contract newer)
 - `score` - Priority score (higher = more urgent)
+
+### Prompt Renderer Output
+
+The `just render` command generates a markdown file in `prompt-renderer/output/` with the name format `{ContractName}_prompt.md`. This file contains the AI prompt template with the highest-priority test and contract paths filled in, ready to be used for test maintenance analysis.
+
+For example, if the top-ranked test is `ProtocolVersions.t.sol`, the output file will be `ProtocolVersions_prompt.md`.
