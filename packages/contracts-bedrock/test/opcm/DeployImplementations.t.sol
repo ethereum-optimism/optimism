@@ -88,7 +88,11 @@ contract DeployImplementations_Test is Test {
         uint64 _challengePeriodSeconds,
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds,
-        address _superchainConfigImpl
+        address _superchainConfigImpl,
+        uint256 _faultGameV2MaxGameDepth,
+        uint256 _faultGameV2SplitDepth,
+        uint64 _faultGameV2ClockExtension,
+        uint64 _faultGameV2MaxClockDuration
     )
         public
     {
@@ -98,6 +102,12 @@ contract DeployImplementations_Test is Test {
         vm.assume(_proofMaturityDelaySeconds != 0);
         vm.assume(_disputeGameFinalityDelaySeconds != 0);
         vm.assume(_superchainConfigImpl != address(0));
+
+        // Bound V2 game parameters to realistic ranges
+        _faultGameV2MaxGameDepth = bound(_faultGameV2MaxGameDepth, 4, 125);
+        _faultGameV2SplitDepth = bound(_faultGameV2SplitDepth, 2, _faultGameV2MaxGameDepth - 1);
+        _faultGameV2ClockExtension = uint64(bound(_faultGameV2ClockExtension, 1, 7 days));
+        _faultGameV2MaxClockDuration = uint64(bound(_faultGameV2MaxClockDuration, 1, 30 days));
 
         // Must configure the ProxyAdmin contract.
         superchainProxyAdmin = IProxyAdmin(
@@ -127,10 +137,10 @@ contract DeployImplementations_Test is Test {
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
-            73, // faultGameV2MaxGameDepth
-            30, // faultGameV2SplitDepth
-            10800, // faultGameV2ClockExtension
-            302400, // faultGameV2MaxClockDuration
+            _faultGameV2MaxGameDepth, // faultGameV2MaxGameDepth
+            _faultGameV2SplitDepth, // faultGameV2SplitDepth
+            _faultGameV2ClockExtension, // faultGameV2ClockExtension
+            _faultGameV2MaxClockDuration, // faultGameV2MaxClockDuration
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
