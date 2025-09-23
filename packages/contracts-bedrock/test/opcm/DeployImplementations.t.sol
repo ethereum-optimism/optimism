@@ -9,6 +9,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -265,6 +266,48 @@ contract DeployImplementations_Test is Test {
         assertNotEq(
             address(output.permissionedDisputeGameV2Impl), address(0), "PermissionedDisputeGameV2 should be deployed"
         );
+
+        // Validate constructor args for FaultDisputeGameV2
+        assertEq(
+            uint256(output.faultDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.CANNON.raw()),
+            "FaultDisputeGameV2 gameType incorrect"
+        );
+        assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
+        assertEq(output.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
+        assertEq(
+            output.faultDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "FaultDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output.faultDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "FaultDisputeGameV2 maxClockDuration incorrect"
+        );
+
+        // Validate constructor args for PermissionedDisputeGameV2
+        assertEq(
+            uint256(output.permissionedDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
+            "PermissionedDisputeGameV2 gameType incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGameV2 splitDepth incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "PermissionedDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "PermissionedDisputeGameV2 maxClockDuration incorrect"
+        );
     }
 
     function test_deployImplementation_withV2Disabled_succeeds() public {
@@ -301,6 +344,48 @@ contract DeployImplementations_Test is Test {
         assertTrue(
             address(output1.permissionedDisputeGameV2Impl) != address(output2.permissionedDisputeGameV2Impl),
             "V2 addresses should differ between enabled/disabled"
+        );
+
+        // Validate constructor args for FaultDisputeGameV2
+        assertEq(
+            uint256(output1.faultDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.CANNON.raw()),
+            "FaultDisputeGameV2 gameType incorrect"
+        );
+        assertEq(output1.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
+        assertEq(output1.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
+        assertEq(
+            output1.faultDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "FaultDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output1.faultDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "FaultDisputeGameV2 maxClockDuration incorrect"
+        );
+
+        // Validate constructor args for PermissionedDisputeGameV2
+        assertEq(
+            uint256(output1.permissionedDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
+            "PermissionedDisputeGameV2 gameType incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGameV2 splitDepth incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "PermissionedDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "PermissionedDisputeGameV2 maxClockDuration incorrect"
         );
 
         // Other contracts should remain the same
