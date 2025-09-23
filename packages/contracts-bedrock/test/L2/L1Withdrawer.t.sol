@@ -6,24 +6,31 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 
-/// @title L1Withdrawer_Uncategorized_Test
-/// @notice Tests all functionality of L1Withdrawer including receive, withdrawal, and setters.
-contract L1Withdrawer_Uncategorized_Test is CommonTest {
-    uint256 minWithdrawalAmount = 10 ether;
-    uint96 withdrawalGasLimit = 300_000;
-
+/// @title L1Withdrawer_TestInit
+/// @notice Base test contract with initialization for `L1Withdrawer` tests.
+contract L1Withdrawer_TestInit is CommonTest {
+    // Events
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
     event RecipientUpdated(address oldRecipient, address newRecipient);
     event WithdrawalGasLimitUpdated(uint96 oldWithdrawalGasLimit, uint96 newWithdrawalGasLimit);
 
-    function setUp() public override {
+    // Test state
+    uint256 minWithdrawalAmount = 10 ether;
+    uint96 withdrawalGasLimit = 300_000;
+
+    /// @notice Test setup.
+    function setUp() public virtual override {
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
     }
+}
 
+/// @title L1Withdrawer_Receive_Test
+/// @notice Tests the receive function of the `L1Withdrawer` contract.
+contract L1Withdrawer_Receive_Test is L1Withdrawer_TestInit {
     function testFuzz_receive_belowThreshold_succeeds(uint256 _amount) external {
         _amount = bound(_amount, 0, minWithdrawalAmount - 1);
 
@@ -105,7 +112,11 @@ contract L1Withdrawer_Uncategorized_Test is CommonTest {
         assertEq(address(l1Withdrawer).balance, 0);
         assertEq(address(Predeploys.L2_TO_L1_MESSAGE_PASSER).balance, totalAmount);
     }
+}
 
+/// @title L1Withdrawer_SetMinWithdrawalAmount_Test
+/// @notice Tests the setMinWithdrawalAmount function of the `L1Withdrawer` contract.
+contract L1Withdrawer_SetMinWithdrawalAmount_Test is L1Withdrawer_TestInit {
     function testFuzz_setMinWithdrawalAmount_asOwner_succeeds(uint256 _newMinWithdrawalAmount) external {
         address owner = proxyAdmin.owner();
 
@@ -130,7 +141,11 @@ contract L1Withdrawer_Uncategorized_Test is CommonTest {
 
         assertEq(l1Withdrawer.minWithdrawalAmount(), minWithdrawalAmount);
     }
+}
 
+/// @title L1Withdrawer_SetRecipient_Test
+/// @notice Tests the setRecipient function of the `L1Withdrawer` contract.
+contract L1Withdrawer_SetRecipient_Test is L1Withdrawer_TestInit {
     function testFuzz_setRecipient_asOwner_succeeds(address _newRecipient) external {
         address owner = proxyAdmin.owner();
 
@@ -155,7 +170,11 @@ contract L1Withdrawer_Uncategorized_Test is CommonTest {
 
         assertEq(l1Withdrawer.recipient(), l1FeesDepositor);
     }
+}
 
+/// @title L1Withdrawer_SetWithdrawalGasLimit_Test
+/// @notice Tests the setWithdrawalGasLimit function of the `L1Withdrawer` contract.
+contract L1Withdrawer_SetWithdrawalGasLimit_Test is L1Withdrawer_TestInit {
     function testFuzz_setWithdrawalGasLimit_asOwner_succeeds(uint96 _newWithdrawalGasLimit) external {
         address owner = proxyAdmin.owner();
 
