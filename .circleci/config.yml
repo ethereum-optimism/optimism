@@ -978,7 +978,8 @@ jobs:
       - get-target-branch
       - run:
           name: upload selectors
-          command: update-selectors
+          command: just update-selectors
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-checks:
     machine: true
