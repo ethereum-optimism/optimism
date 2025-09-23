@@ -7,9 +7,12 @@ import (
 	"io"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type KurtosisRunner struct {
@@ -17,6 +20,7 @@ type KurtosisRunner struct {
 	enclave     string
 	kurtosisCtx interfaces.KurtosisContextInterface
 	runHandlers []MessageHandler
+	tracer      trace.Tracer
 }
 
 type KurtosisRunnerOptions func(*KurtosisRunner)
@@ -46,7 +50,9 @@ func WithKurtosisRunnerRunHandlers(runHandlers ...MessageHandler) KurtosisRunner
 }
 
 func NewKurtosisRunner(opts ...KurtosisRunnerOptions) (*KurtosisRunner, error) {
-	r := &KurtosisRunner{}
+	r := &KurtosisRunner{
+		tracer: otel.Tracer("kurtosis-run"),
+	}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -62,6 +68,9 @@ func NewKurtosisRunner(opts ...KurtosisRunnerOptions) (*KurtosisRunner, error) {
 }
 
 func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Reader) error {
+	ctx, span := r.tracer.Start(ctx, fmt.Sprintf("run package %s", packageName))
+	defer span.End()
+
 	if r.dryRun {
 		fmt.Printf("Dry run mode enabled, would run kurtosis package %s in enclave %s\n",
 			packageName, r.enclave)
@@ -75,22 +84,20 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 		return nil
 	}
 
-	// Try to get existing enclave first
-	enclaveCtx, err := r.kurtosisCtx.GetEnclave(ctx, r.enclave)
+	mgr, err := enclave.NewKurtosisEnclaveManager(
+		enclave.WithKurtosisContext(r.kurtosisCtx),
+	)
 	if err != nil {
-		// If enclave doesn't exist, create a new one
-		fmt.Printf("Creating a new enclave for Starlark to run inside...\n")
-		enclaveCtx, err = r.kurtosisCtx.CreateEnclave(ctx, r.enclave)
-		if err != nil {
-			return fmt.Errorf("failed to create enclave: %w", err)
-		}
-		fmt.Printf("Enclave '%s' created successfully\n\n", r.enclave)
-	} else {
-		fmt.Printf("Using existing enclave '%s'\n\n", r.enclave)
+		return fmt.Errorf("failed to create Kurtosis enclave manager: %w", err)
+	}
+	// Try to get existing enclave first
+	enclaveCtx, err := mgr.GetEnclave(ctx, r.enclave)
+	if err != nil {
+		return fmt.Errorf("failed to get enclave: %w", err)
 	}
 
 	// Set up run config with args if provided
-	var serializedParams string
+	serializedParams := "{}"
 	if args != nil {
 		argsBytes, err := io.ReadAll(args)
 		if err != nil {
@@ -113,7 +120,7 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 	runFinishedHandler := makeRunFinishedHandler(&isRunSuccessful)
 
 	// Combine custom handlers with default handler and run finished handler
-	handler := AllHandlers(append(r.runHandlers, defaultHandler, runFinishedHandler)...)
+	handler := AllHandlers(append(r.runHandlers, newDefaultHandler(), runFinishedHandler)...)
 
 	// Process the output stream
 	for responseLine := range stream {
@@ -127,5 +134,21 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 	}
 
 	return nil
+}
 
+func (r *KurtosisRunner) RunScript(ctx context.Context, script string) error {
+	if r.dryRun {
+		fmt.Printf("Dry run mode enabled, would run following script in enclave %s\n%s\n",
+			r.enclave, script)
+		return nil
+	}
+
+	enclaveCtx, err := r.kurtosisCtx.GetEnclave(ctx, r.enclave)
+	if err != nil {
+		return fmt.Errorf("failed to get enclave: %w", err)
+	}
+
+	return enclaveCtx.RunStarlarkScript(ctx, script, &starlark_run_config.StarlarkRunConfig{
+		SerializedParams: "{}",
+	})
 }

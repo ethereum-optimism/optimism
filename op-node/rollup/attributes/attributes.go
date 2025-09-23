@@ -13,9 +13,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
+
+// EngineController provides direct calls into the EngineController that
+// external components can use instead of emitting events.
+type EngineController interface {
+	// TryUpdatePendingSafe updates the pending safe head if the new reference is newer
+	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
+	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	// RequestForkchoiceUpdate requests a forkchoice update
+	RequestForkchoiceUpdate(ctx context.Context)
+	RequestPendingSafeUpdate(ctx context.Context)
+}
 
 type L2 interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
@@ -36,15 +48,21 @@ type AttributesHandler struct {
 
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
+
+	engineController EngineController
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController) *AttributesHandler {
+	if engController == nil {
+		panic("engController cannot be nil")
+	}
 	return &AttributesHandler{
-		log:        log,
-		cfg:        cfg,
-		ctx:        ctx,
-		l2:         l2,
-		attributes: nil,
+		log:              log,
+		cfg:              cfg,
+		ctx:              ctx,
+		l2:               l2,
+		engineController: engController,
+		attributes:       nil,
 	}
 }
 
@@ -52,23 +70,33 @@ func (eq *AttributesHandler) AttachEmitter(em event.Emitter) {
 	eq.emitter = em
 }
 
-func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
+func (eq *AttributesHandler) forceResetLocked() {
+	eq.sentAttributes = false
+	eq.attributes = nil
+}
+
+func (eq *AttributesHandler) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	eq.mu.Lock()
+	defer eq.mu.Unlock()
+	eq.forceResetLocked()
+}
+
+func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the attributes.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
 
 	switch x := ev.(type) {
 	case engine.PendingSafeUpdateEvent:
-		eq.onPendingSafeUpdate(x)
+		eq.onPendingSafeUpdate(ctx, x)
 	case derive.DerivedAttributesEvent:
 		eq.attributes = x.Attributes
 		eq.sentAttributes = false
-		eq.emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
+		eq.emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
-		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
-	case rollup.ResetEvent, rollup.ForceResetEvent:
-		eq.sentAttributes = false
-		eq.attributes = nil
+		eq.engineController.RequestPendingSafeUpdate(ctx)
+	case rollup.ResetEvent:
+		eq.forceResetLocked()
 	case rollup.EngineTemporaryErrorEvent:
 		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:
@@ -81,7 +109,7 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 		eq.attributes = nil
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
-		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+		eq.engineController.RequestPendingSafeUpdate(ctx)
 	case engine.PayloadSealExpiredErrorEvent:
 		if x.DerivedFrom == (eth.L1BlockRef{}) {
 			return true // from sequencing
@@ -98,7 +126,7 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 		eq.sentAttributes = false
 		eq.attributes = nil
-		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+		eq.engineController.RequestPendingSafeUpdate(ctx)
 	default:
 		return false
 	}
@@ -108,10 +136,12 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 // onPendingSafeUpdate applies the queued-up block attributes, if any, on top of the signaled pending state.
 // The event is also used to clear the queued-up attributes, when successfully processed.
 // On processing failure this may emit a temporary, reset, or critical error like other derivers.
-func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent) {
+func (eq *AttributesHandler) onPendingSafeUpdate(ctx context.Context, x engine.PendingSafeUpdateEvent) {
 	if x.Unsafe.Number < x.PendingSafe.Number {
 		// invalid chain state, reset to try and fix it
-		eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("pending-safe label (%d) may not be ahead of unsafe head label (%d)", x.PendingSafe.Number, x.Unsafe.Number)})
+		eq.emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("pending-safe label (%d) may not be ahead of unsafe head label (%d)", x.PendingSafe.Number, x.Unsafe.Number),
+		})
 		return
 	}
 
@@ -120,7 +150,7 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 		// Request new attributes to be generated, only if we don't currently have attributes that have yet to be processed.
 		// It is safe to request the pipeline, the attributes-handler is the only user of it,
 		// and the pipeline will not generate another set of attributes until the last set is recognized.
-		eq.emitter.Emit(derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
+		eq.emitter.Emit(ctx, derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
 		return
 	}
 
@@ -131,7 +161,7 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 			"pending", x.PendingSafe, "attributes_parent", eq.attributes.Parent)
 		eq.attributes = nil
 		eq.sentAttributes = false
-		eq.emitter.Emit(derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
+		eq.emitter.Emit(ctx, derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
 		return
 	}
 
@@ -147,8 +177,10 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 		// Until the reset is complete we don't clear the attributes state,
 		// so we can re-emit the ResetEvent until the reset actually happens.
 
-		eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("pending safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
-			x.PendingSafe, x.PendingSafe.ParentID(), eq.attributes.Parent)})
+		eq.emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("pending safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
+				x.PendingSafe, x.PendingSafe.ParentID(), eq.attributes.Parent),
+		})
 	} else {
 		// if there already exists a block we can just consolidate it
 		if x.PendingSafe.Number < x.Unsafe.Number {
@@ -156,7 +188,7 @@ func (eq *AttributesHandler) onPendingSafeUpdate(x engine.PendingSafeUpdateEvent
 		} else {
 			// append to tip otherwise
 			eq.sentAttributes = true
-			eq.emitter.Emit(engine.BuildStartEvent{Attributes: eq.attributes})
+			eq.emitter.Emit(ctx, engine.BuildStartEvent{Attributes: eq.attributes})
 		}
 	}
 }
@@ -172,10 +204,14 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			// engine may have restarted, or inconsistent safe head. We need to reset
-			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err)})
+			eq.emitter.Emit(eq.ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err),
+			})
 			return
 		}
-		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err)})
+		eq.emitter.Emit(eq.ctx, rollup.EngineTemporaryErrorEvent{
+			Err: fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err),
+		})
 		return
 	}
 	if err := AttributesMatchBlock(eq.cfg, attributes.Attributes, onto.Hash, envelope, eq.log); err != nil {
@@ -184,7 +220,7 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 
 		eq.sentAttributes = true
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
-		eq.emitter.Emit(engine.BuildStartEvent{Attributes: attributes})
+		eq.emitter.Emit(eq.ctx, engine.BuildStartEvent{Attributes: attributes})
 		return
 	} else {
 		ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
@@ -192,11 +228,8 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			eq.log.Error("Failed to compute block-ref from execution payload")
 			return
 		}
-		eq.emitter.Emit(engine.PromotePendingSafeEvent{
-			Ref:        ref,
-			Concluding: attributes.Concluding,
-			Source:     attributes.DerivedFrom,
-		})
+		eq.engineController.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+		eq.engineController.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
 	}
 
 	// unsafe head stays the same, we did not reorg the chain.

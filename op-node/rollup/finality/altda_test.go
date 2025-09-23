@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -34,6 +34,16 @@ func (b *fakeAltDABackend) OnFinalizedHeadSignal(f altda.HeadSignalFn) {
 }
 
 var _ AltDABackend = (*fakeAltDABackend)(nil)
+
+type fakeEngineController struct {
+	finalizedL2 eth.L2BlockRef
+}
+
+var _ EngineController = (*fakeEngineController)(nil)
+
+func (f *fakeEngineController) PromoteFinalized(_ context.Context, ref eth.L2BlockRef) {
+	f.finalizedL2 = ref
+}
 
 func TestAltDAFinalityData(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
@@ -70,7 +80,7 @@ func TestAltDAFinalityData(t *testing.T) {
 		DAChallengeWindow: 90,
 		DAResolveWindow:   90,
 	}
-	// shoud return l1 finality if altda is not enabled
+	// should return l1 finality if altda is not enabled
 	require.Equal(t, uint64(defaultFinalityLookback), calcFinalityLookback(cfg))
 
 	cfg.AltDAConfig = altDACfg
@@ -97,7 +107,8 @@ func TestAltDAFinalityData(t *testing.T) {
 	}
 
 	emitter := &testutils.MockEmitter{}
-	fi := NewAltDAFinalizer(context.Background(), logger, cfg, l1F, altDABackend)
+	ec := new(fakeEngineController)
+	fi := NewAltDAFinalizer(context.Background(), logger, cfg, l1F, altDABackend, ec)
 	fi.AttachEmitter(emitter)
 	require.NotNil(t, altDABackend.forwardTo, "altda backend must have access to underlying standard finalizer")
 
@@ -110,7 +121,7 @@ func TestAltDAFinalityData(t *testing.T) {
 	// and post processing.
 	for i := uint64(0); i < 200; i++ {
 		if i == 10 { // finalize a L1 commitment
-			fi.OnEvent(FinalizeL1Event{FinalizedL1: l1parent})
+			fi.OnL1Finalized(l1parent)
 			emitter.AssertExpectations(t) // no events emitted upon L1 finality
 			require.Equal(t, l1parent, commitmentInclusionFinalized, "altda backend received L1 signal")
 		}
@@ -132,20 +143,20 @@ func TestAltDAFinalityData(t *testing.T) {
 				L1Origin:       previous.ID(), // reference previous origin, not the block the batch was included in
 				SequenceNumber: j,
 			}
-			fi.OnEvent(engine.SafeDerivedEvent{Safe: l2parent, Source: l1parent})
+			fi.OnEvent(context.Background(), engine.SafeDerivedEvent{Safe: l2parent, Source: l1parent})
 			emitter.AssertExpectations(t)
 		}
 		// might trigger finalization attempt, if expired finality delay
 		emitter.ExpectMaybeRun(func(ev event.Event) {
 			require.IsType(t, TryFinalizeEvent{}, ev)
 		})
-		fi.OnEvent(derive.DeriverIdleEvent{})
+		fi.OnEvent(context.Background(), derive.DeriverIdleEvent{})
 		emitter.AssertExpectations(t)
 		// clear expectations
 		emitter.Mock.ExpectedCalls = nil
 
 		// no L2 finalize event, as no L1 finality signal has been forwarded by altda backend yet
-		fi.OnEvent(TryFinalizeEvent{})
+		fi.OnEvent(context.Background(), TryFinalizeEvent{})
 		emitter.AssertExpectations(t)
 
 		// Pretend to be the altda backend,
@@ -167,20 +178,12 @@ func TestAltDAFinalityData(t *testing.T) {
 			// of the safe block matches that of the finalized L1 block.
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
 			l1F.ExpectL1BlockRefByNumber(commitmentInclusionFinalized.Number, commitmentInclusionFinalized, nil)
-			var finalizedL2 eth.L2BlockRef
-			emitter.ExpectOnceRun(func(ev event.Event) {
-				if x, ok := ev.(engine.PromoteFinalizedEvent); ok {
-					finalizedL2 = x.Ref
-				} else {
-					t.Fatalf("expected L2 finalization, but got: %s", ev)
-				}
-			})
-			fi.OnEvent(TryFinalizeEvent{})
+			fi.OnEvent(context.Background(), TryFinalizeEvent{})
 			l1F.AssertExpectations(t)
 			emitter.AssertExpectations(t)
-			require.Equal(t, commitmentInclusionFinalized.Number, finalizedL2.L1Origin.Number+1)
+			require.Equal(t, commitmentInclusionFinalized.Number, ec.finalizedL2.L1Origin.Number+1)
 			// Confirm finalization, so there will be no repeats of the PromoteFinalizedEvent
-			fi.OnEvent(engine.ForkchoiceUpdateEvent{FinalizedL2Head: finalizedL2})
+			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{FinalizedL2Head: ec.finalizedL2})
 			emitter.AssertExpectations(t)
 		}
 	}

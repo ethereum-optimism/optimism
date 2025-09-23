@@ -10,10 +10,11 @@ import (
 )
 
 func run(ctx *cli.Context) error {
-	devnetFile := ctx.String("devnet")
+	devnetURL := ctx.String("devnet")
 	chainName := ctx.String("chain")
+	nodeIndex := ctx.Int("node-index")
 
-	devnetEnv, err := env.LoadDevnetEnv(devnetFile)
+	devnetEnv, err := env.LoadDevnetFromURL(devnetURL)
 	if err != nil {
 		return err
 	}
@@ -23,20 +24,19 @@ func run(ctx *cli.Context) error {
 		return err
 	}
 
-	chainEnv, err := chain.GetEnv()
+	chainEnv, err := chain.GetEnv(
+		env.WithCastIntegration(true, nodeIndex),
+	)
 	if err != nil {
 		return err
 	}
 
-	if motd := chainEnv.Motd; motd != "" {
+	if motd := chainEnv.GetMotd(); motd != "" {
 		fmt.Println(motd)
 	}
 
 	// Get current environment and append chain-specific vars
-	env := os.Environ()
-	for key, value := range chainEnv.EnvVars {
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
-	}
+	env := chainEnv.ApplyToEnv(os.Environ())
 
 	// Get current shell
 	shell := os.Getenv("SHELL")
@@ -65,8 +65,8 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "devnet",
-				Usage:    "Path to devnet JSON file",
-				EnvVars:  []string{env.EnvFileVar},
+				Usage:    "URL to devnet JSON file",
+				EnvVars:  []string{env.EnvURLVar},
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -74,6 +74,13 @@ func main() {
 				Usage:    "Name of the chain to connect to",
 				EnvVars:  []string{env.ChainNameVar},
 				Required: true,
+			},
+			&cli.IntFlag{
+				Name:     "node-index",
+				Usage:    "Index of the node to connect to (default: 0)",
+				EnvVars:  []string{env.NodeIndexVar},
+				Required: false,
+				Value:    0,
 			},
 		},
 		Action: run,

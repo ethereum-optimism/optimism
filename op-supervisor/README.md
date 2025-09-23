@@ -98,12 +98,12 @@ flowchart TD
 
 Op-nodes, or any compatible consensus-layer L2 node can interact with op-supervisor in two modes:
 
-#### Managed Mode
+#### Indexing Mode
 
-In managed mode, nodes cede control over aspects of the derivation process to the supervisor, which maintains the node's sync status.
+In indexing mode, nodes cede control over aspects of the derivation process to the supervisor, which maintains the node's sync status.
 This is done to give the supervisor a clear picture of the data across multiple chains, and to ensure the supervisor can recover/reset as needed.
 
-Managed nodes can be thought of integral to the supervisor. There must be *at least* one managed node per chain connected
+Indexing nodes can be thought of integral to the supervisor. There must be *at least* one indexing node per chain connected
 to a supervisor for it to supply accurate data.
 
 The Supervisor subscribes to events from the op-node in order to react appropriately.
@@ -123,17 +123,17 @@ Additionally, the supervisor sends control signals to the op-node triggered by *
 | New cross-safe head  | Supervisor sends the head to the node, where it is recorded as the cross-safe head |
 | New finalized head  | Supervisor sends the head to the node, where it is recorded as the finalized head |
 
-Nodes in managed mode *do not* discover their own L1 blocks.
+Nodes in indexing mode *do not* discover their own L1 blocks.
 Instead, the supervisor watches the L1 and sends the block hash to the node, which is used instead of L1 traversal.
-In this way, all managed nodes are guaranteed to share the same L1 chain, and their data can be aggregated consistently.
+In this way, all indexing nodes are guaranteed to share the same L1 chain, and their data can be aggregated consistently.
 
-#### Standard Mode
-(Standard mode is in development)
+#### Following Mode
+(Following mode is in development)
 
-In standard mode, an `op-node` continues to handle derivation and L1 discovery as it would without a supervisor.
-However, it calls out to the supervisor periodically to update its cross-heads. Standard nodes do not affect the supervisor's data in any way.
+In following mode, an `op-node` continues to handle derivation and L1 discovery as it would without a supervisor.
+However, it calls out to the supervisor periodically to update its cross-heads. Following nodes do not affect the supervisor's data in any way.
 
-In this way, standard nodes can optimistically follow cross-safety without requiring the larger infrastructure of multiple nodes and a supervisor.
+In this way, following nodes can optimistically follow cross-safety without requiring the larger infrastructure of multiple nodes and a supervisor.
 
 ### Data Flow Visualization
 
@@ -143,7 +143,7 @@ sequenceDiagram
 autonumber
 
 participant super as op-supervisor
-participant node as op-node (managed)
+participant node as op-node (indexing)
 participant geth as op-geth
 
 super ->> node: RPC connection established
@@ -169,7 +169,7 @@ sequenceDiagram
 autonumber
 
 participant super as op-supervisor
-participant node as op-node (managed)
+participant node as op-node (indexing)
 participant p2p as p2p
 
 p2p ->> node: New unsafe block from gossip network
@@ -285,9 +285,6 @@ follow up with asynchronous full verification of the safety.
 The `op-supervisor` is actively changing.
 The most immediate changes are that to the architecture and data flow, as outlined in [design-doc 171].
 
-Full support for chain reorgs (detecting them, and resolving them) is the
-next priority after the above architecture and data changes.
-
 Further background on the design-choices of op-supervisor can be found in the
 [superchain backend design-doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/superchain-backend.md).
 
@@ -309,6 +306,45 @@ such that a chain which does not take on new interop dependencies, can continue 
 I.e. safety must be guaranteed at all times,
 but a minimal level of liveness can be maintained by holding off on cross-chain message acceptance
 while allowing regular single-chain functionality to proceed.
+
+### Failsafe feature
+The supervisor may be put into a failsafe state by:
+* calling the `admin_setFailsafeEnabled` API method
+* an automatic reaction to certain events if configured appropriately (e.g. if the `failsafe-on-invalidation` CLI flag is set)
+
+When failsafe is active, the supervisor will reject all `CheckAccessList` requests. This allows the various components along the ingress route of a transaction to choose to drop that transaction (by making transaction ingress conditional on a successful `CheckAccessList` call):
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant proxyd
+  participant mempool (node)
+  participant mempool (builder)
+  participant supervisor
+  actor admin
+    User->>proxyd: tx
+    proxyd->>supervisor: checkAccessList
+    supervisor->>proxyd:
+    break invalid / failSafe
+      note over proxyd: drop tx
+    end
+    proxyd->>mempool (node): tx
+    mempool (node)->>supervisor: checkAccessList
+    supervisor->>mempool (node):
+    break invalid / failsafe
+      note over mempool (node): drop tx
+    end
+    admin->>supervisor: admin_setFailsafeEnabled(true)
+    activate supervisor
+    mempool (node)->>mempool (builder): tx
+    mempool (builder)->>supervisor: checkAccessList
+    supervisor->>mempool (builder):
+    break invalid / failsafe
+      note over mempool (builder): drop tx
+    end
+    admin->>supervisor: admin_setFailsafeEnabled(false)
+    deactivate supervisor
+```
 
 ## Testing
 

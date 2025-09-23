@@ -1,0 +1,108 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_factory",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationRangeStart",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationRangeEnd",
+        "type": "uint256"
+      }
+    ],
+    "name": "getUnresolvedGames",
+    "outputs": [
+      {
+        "internalType": "contract IDisputeGame[]",
+        "name": "unresolvedGames_",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_factory",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameRegistered",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isValid_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_factory",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_targetTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum DisputeMonitorHelper.SearchDirection",
+        "name": "_direction",
+        "type": "uint8"
+      }
+    ],
+    "name": "search",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "index_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      }
+    ],
+    "name": "toRpcHexString",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "hexString_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "DisputeMonitorHelper_InvalidSearchRange",
+    "type": "error"
+  }
+]

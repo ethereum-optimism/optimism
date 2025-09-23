@@ -18,10 +18,10 @@ type DSLUser struct {
 	keys  devkeys.Keys
 }
 
-func (u *DSLUser) TransactOpts(chain *Chain) (*bind.TransactOpts, common.Address) {
-	privKey, err := u.keys.Secret(devkeys.ChainUserKeys(chain.ChainID.ToBig())(u.index))
+func (u *DSLUser) TransactOpts(chainID *big.Int) (*bind.TransactOpts, common.Address) {
+	privKey, err := u.keys.Secret(devkeys.ChainUserKeys(chainID)(u.index))
 	require.NoError(u.t, err)
-	opts, err := bind.NewKeyedTransactorWithChainID(privKey, chain.ChainID.ToBig())
+	opts, err := bind.NewKeyedTransactorWithChainID(privKey, chainID)
 	require.NoError(u.t, err)
 	opts.GasTipCap = big.NewInt(params.GWei)
 

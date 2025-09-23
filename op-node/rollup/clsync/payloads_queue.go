@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -156,4 +157,42 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
 	// remove the key from the block hashes map
 	delete(upq.blockHashes, ps.envelope.ExecutionPayload.BlockHash)
 	return ps.envelope
+}
+
+func (pq *PayloadsQueue) DropInapplicableUnsafePayloads(event engine.ForkchoiceUpdateEvent) {
+	for {
+		if pq.Len() == 0 {
+			return
+		}
+
+		nextEnvelope := pq.Peek()
+		nextPayload := nextEnvelope.ExecutionPayload
+
+		if nextPayload.BlockHash == event.UnsafeL2Head.Hash {
+			pq.log.Debug("successfully processed payload, removing it from the payloads queue now")
+			pq.Pop()
+			continue
+		}
+
+		if uint64(nextPayload.BlockNumber) <= event.SafeL2Head.Number {
+			pq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", event.SafeL2Head.ID(), "unsafe", event.UnsafeL2Head.ID(), "unsafe_payload", nextPayload.ID())
+			pq.Pop()
+			continue
+		}
+
+		if uint64(nextPayload.BlockNumber) <= event.UnsafeL2Head.Number {
+			pq.log.Info("skipping unsafe payload, since it is older than unsafe head", "safe", event.SafeL2Head.ID(), "unsafe", event.UnsafeL2Head.ID(), "unsafe_payload", nextPayload.ID())
+			pq.Pop()
+			continue
+		}
+
+		// Ensure that the unsafe payload builds upon the current unsafe head
+		if uint64(nextPayload.BlockNumber) == event.UnsafeL2Head.Number+1 && nextPayload.ParentHash != event.UnsafeL2Head.Hash {
+			pq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", event.SafeL2Head.ID(), "unsafe", event.UnsafeL2Head.ID(), "unsafe_payload", nextPayload.ID())
+			pq.Pop()
+			continue
+		}
+
+		break
+	}
 }

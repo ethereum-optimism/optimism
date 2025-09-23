@@ -1,17 +1,20 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+var mockErr = errors.New("mock error")
 
 type fakeEnd struct {
 	closing bool
@@ -34,7 +37,7 @@ func TestDriver(t *testing.T) {
 			logger: logger,
 			end:    end,
 		}
-		d.deriver = event.DeriverFunc(func(ev event.Event) bool {
+		d.deriver = event.DeriverFunc(func(ctx context.Context, ev event.Event) bool {
 			onEvent(d, end, ev)
 			return true
 		})
@@ -50,7 +53,6 @@ func TestDriver(t *testing.T) {
 	})
 
 	t.Run("insta error", func(t *testing.T) {
-		mockErr := errors.New("mock error")
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			end.closing = true
 			end.result = mockErr
@@ -67,7 +69,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(TestEvent{})
+			d.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.NoError(t, err)
@@ -75,7 +77,6 @@ func TestDriver(t *testing.T) {
 
 	t.Run("error after a few events", func(t *testing.T) {
 		count := 0
-		mockErr := errors.New("mock error")
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count > 3 {
 				end.closing = true
@@ -83,7 +84,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(TestEvent{})
+			d.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.ErrorIs(t, mockErr, err)
@@ -93,7 +94,7 @@ func TestDriver(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 { // stop generating events after a while, without changing end condition
-				d.Emit(TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
 			}
 			count += 1
 		})
@@ -106,8 +107,8 @@ func TestDriver(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 {
-				d.Emit(TestEvent{})
-				d.Emit(TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
 			}
 			count += 1
 		})

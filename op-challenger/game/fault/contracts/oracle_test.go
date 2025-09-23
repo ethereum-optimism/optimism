@@ -83,7 +83,7 @@ func TestPreimageOracleContract_AddGlobalDataTx(t *testing.T) {
 				fieldData := testutils.RandomData(rand.New(rand.NewSource(23)), 32)
 				data := types.NewPreimageOracleData(common.Hash{byte(preimage.BlobKeyType), 0xcc}.Bytes(), fieldData, uint32(545))
 				stubRpc.SetResponse(oracleAddr, methodLoadBlobPreimagePart, rpcblock.Latest, []interface{}{
-					new(big.Int).SetUint64(data.BlobFieldIndex),
+					new(big.Int).SetBytes(data.ZPoint[:]),
 					new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
 					data.BlobCommitment,
 					data.BlobProof,
@@ -213,6 +213,27 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 				require.NoError(t, err)
 				require.False(t, exists)
 			})
+		})
+	}
+}
+
+func TestPreimageOracleContract_GetGlobalData(t *testing.T) {
+	preimageDataBytes := common.Hex2BytesFixed("0x112233445566778899", 32)
+	var preimageData [32]byte
+	copy(preimageData[:], preimageDataBytes)
+
+	for _, version := range oracleVersions {
+		version := version
+		t.Run(version.version, func(t *testing.T) {
+			stubRpc, oracle := setupPreimageOracleTest(t, version)
+			data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), preimageData[:], 0)
+			stubRpc.SetResponse(oracleAddr, methodPreimageParts, rpcblock.Latest,
+				[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
+				[]interface{}{preimageData},
+			)
+			actual, err := oracle.GetGlobalData(context.Background(), data)
+			require.NoError(t, err)
+			require.Equal(t, preimageData, actual)
 		})
 	}
 }
@@ -559,9 +580,11 @@ func TestGetInputDataBlocks(t *testing.T) {
 				methodProposalBlocksLen,
 				block,
 				[]interface{}{preimage.Claimant, preimage.UUID},
-				[]interface{}{big.NewInt(3)})
+				[]interface{}{big.NewInt(6)})
 
-			blockNums := []uint64{10, 35, 67}
+			blockNums := []uint64{10, 35, 35, 35, 67, 67}
+			// Returned block numbers should be deduplicated.
+			expectedBlockNums := []uint64{10, 35, 67}
 
 			for i, blockNum := range blockNums {
 				stubRpc.SetResponse(
@@ -575,7 +598,7 @@ func TestGetInputDataBlocks(t *testing.T) {
 			actual, err := oracle.GetInputDataBlocks(context.Background(), block, preimage)
 			require.NoError(t, err)
 			require.Len(t, actual, 3)
-			require.Equal(t, blockNums, actual)
+			require.Equal(t, expectedBlockNums, actual)
 		})
 	}
 }

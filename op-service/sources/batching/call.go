@@ -20,6 +20,12 @@ type CallResult struct {
 	out []interface{}
 }
 
+func NewCallResult(out []any) *CallResult {
+	return &CallResult{
+		out: out,
+	}
+}
+
 func (c *CallResult) GetUint8(i int) uint8 {
 	return *abi.ConvertType(c.out[i], new(uint8)).(*uint8)
 }
@@ -66,4 +72,8 @@ func (c *CallResult) GetBytes32Slice(i int) [][32]byte {
 
 func (c *CallResult) GetString(i int) string {
 	return *abi.ConvertType(c.out[i], new(string)).(*string)
+}
+
+func (c *CallResult) Get(i int) interface{} {
+	return c.out[i]
 }

@@ -9,8 +9,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,6 +17,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
@@ -223,7 +224,8 @@ func TestFetchL1Blob(t *testing.T) {
 		fieldElemKey := make([]byte, 80)
 		copy(fieldElemKey[:48], commitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+			root := l1.RootsOfUnity[i].Bytes()
+			copy(fieldElemKey[48:], root[:])
 			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
 			actual, err := prefetcher.kvStore.Get(key)
 			require.NoError(t, err)
@@ -639,6 +641,12 @@ func TestFetchL2BlockData(t *testing.T) {
 		}
 		if !isCanonical {
 			l2Client.ExpectInfoAndTxsByHash(block.Hash(), eth.BlockToInfo(block), block.Transactions(), nil)
+			output := &eth.OutputV0{
+				BlockHash:                block.Hash(),
+				StateRoot:                eth.Bytes32(block.Root()),
+				MessagePasserStorageRoot: eth.Bytes32{},
+			}
+			l2Client.ExpectOutputByRoot(block.Hash(), output, nil)
 		}
 
 		defer l2Client.MockDebugClient.AssertExpectations(t)
@@ -771,6 +779,34 @@ func TestBadHints(t *testing.T) {
 	})
 }
 
+func TestFallbackWhenExperimentalFails(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+	node := testutils.RandomData(rng, 30)
+	hash := crypto.Keccak256Hash(node)
+
+	key := preimage.Keccak256Key(hash)
+
+	_, l1Source, l1BlobSource, l2Cls, kv := createPrefetcher(t)
+
+	cl := l2Cls.sources[defaultChainID]
+	cl.experimental = true
+
+	l2Sources := &l2Clients{sources: make(map[eth.ChainID]*l2Client)}
+	l2Sources.sources[defaultChainID] = cl
+
+	prefetcher := NewPrefetcher(testlog.Logger(t, log.LevelInfo), l1Source, l1BlobSource, defaultChainID, l2Sources, kv, nil, common.Hash{}, nil)
+
+	defer l2Cls.sources[defaultChainID].AssertExpectations(t)
+	l2Cls.sources[defaultChainID].ExpectNodeByHash(hash, node, nil)
+	_ = prefetcher.Hint(l2.PayloadWitnessHint{ParentBlockHash: common.Hash{0x1}, PayloadAttributes: &eth.PayloadAttributes{}}.Hint())
+
+	// first should fail, but should succeed after retry
+	_ = prefetcher.Hint(l2.StateNodeHint{Hash: hash, ChainID: defaultChainID}.Hint())
+	result, err := prefetcher.GetPreimage(context.Background(), key.PreimageKey())
+	require.NoError(t, err)
+	require.Equal(t, node, result)
+}
+
 func TestRetryWhenNotAvailableAfterPrefetching(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 	node := testutils.RandomData(rng, 30)
@@ -828,7 +864,8 @@ func (l *l2Clients) ForChainIDWithoutRetries(id eth.ChainID) (hostTypes.L2Source
 type l2Client struct {
 	*testutils.MockL2Client
 	*testutils.MockDebugClient
-	rollupCfg *rollup.Config
+	rollupCfg    *rollup.Config
+	experimental bool
 }
 
 func (m *l2Client) RollupConfig() *rollup.Config {
@@ -836,7 +873,11 @@ func (m *l2Client) RollupConfig() *rollup.Config {
 }
 
 func (m *l2Client) ExperimentalEnabled() bool {
-	panic("implement me")
+	return m.experimental
+}
+
+func (m *l2Client) PayloadExecutionWitness(ctx context.Context, parentHash common.Hash, payloadAttributes eth.PayloadAttributes) (*eth.ExecutionWitness, error) {
+	return nil, hostcommon.ErrExperimentalPrefetchFailed
 }
 
 func (m *l2Client) OutputByRoot(ctx context.Context, blockHash common.Hash) (eth.Output, error) {
@@ -923,7 +964,8 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
+		root := l1.RootsOfUnity[i].Bytes()
+		copy(blobKeyBuf[48:], root[:])
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
 		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
@@ -997,7 +1039,7 @@ type mockExecutor struct {
 }
 
 func (m *mockExecutor) RunProgram(
-	ctx context.Context, prefetcher hostcommon.Prefetcher, blockNumber uint64, chainID eth.ChainID, db l2.KeyValueStore) error {
+	_ context.Context, _ hostcommon.Prefetcher, blockNumber uint64, _ eth.Output, chainID eth.ChainID, _ l2.KeyValueStore) error {
 	m.invoked = true
 	m.blockNumber = blockNumber
 	m.chainID = chainID

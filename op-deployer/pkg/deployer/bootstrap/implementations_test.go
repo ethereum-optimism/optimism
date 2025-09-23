@@ -8,28 +8,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
 
+var networks = []string{"mainnet", "sepolia"}
+
 func TestImplementations(t *testing.T) {
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
 	for _, network := range networks {
 		t.Run(network, func(t *testing.T) {
 			envVar := strings.ToUpper(network) + "_RPC_URL"
 			rpcURL := os.Getenv(envVar)
 			require.NotEmpty(t, rpcURL, "must specify RPC url via %s env var", envVar)
-			testImplementations(t, rpcURL)
+			testImplementations(t, rpcURL, testCacheDir)
 		})
 	}
 }
 
-func testImplementations(t *testing.T, forkRPCURL string) {
+func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 	t.Parallel()
 
 	if forkRPCURL == "" {
@@ -67,17 +73,19 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 			PrivateKey:                      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 			ArtifactsLocator:                loc,
 			Logger:                          lgr,
-			L1ContractsRelease:              "dev",
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			MIPSVersion:                     1,
+			MIPSVersion:                     int(standard.MIPSVersion),
+			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
-			UseInterop:                      false,
+			Challenger:                      common.Address{'C'},
+			CacheDir:                        cacheDir,
 		})
 		require.NoError(t, err)
 		return out

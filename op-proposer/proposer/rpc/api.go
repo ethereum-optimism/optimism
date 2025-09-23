@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -20,9 +20,11 @@ type adminAPI struct {
 	b ProposerDriver
 }
 
-func NewAdminAPI(dr ProposerDriver, m metrics.RPCMetricer, log log.Logger) *adminAPI {
+var _ apis.ProposerAdminServer = (*adminAPI)(nil)
+
+func NewAdminAPI(dr ProposerDriver, log log.Logger) *adminAPI {
 	return &adminAPI{
-		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		CommonAdminAPI: rpc.NewCommonAdminAPI(log),
 		b:              dr,
 	}
 }

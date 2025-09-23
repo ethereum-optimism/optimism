@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/params"
@@ -48,7 +47,11 @@ func OpenGethRawDB(dataDirPath string, readOnly bool) (ethdb.Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
-	db, err := rawdb.NewDatabaseWithFreezer(kvs, filepath.Join(dataDirPath, "ancient"), "", readOnly)
+	db, err := rawdb.Open(kvs, rawdb.OpenOptions{
+		Ancient:          filepath.Join(dataDirPath, "ancient"),
+		MetricsNamespace: "",
+		ReadOnly:         readOnly,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db with freezer: %w", err)
 	}
@@ -61,8 +64,7 @@ func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
 	if err != nil {
 		return nil, err
 	}
-	ch, err := core.NewBlockChain(db, nil, nil, nil,
-		beacon.New(ethash.NewFullFaker()), vm.Config{}, nil)
+	ch, err := core.NewBlockChain(db, nil, beacon.New(ethash.NewFullFaker()), nil)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to open blockchain around chain db: %w", err)
@@ -133,11 +135,6 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// not keyed by blockhash, and we didn't remove any txs, so we just leave this one as-is.
 	// rawdb.WriteTxLookupEntriesByBlock(batch, block)
 	rawdb.WriteHeadBlockHash(batch, blockHash)
-
-	// Geth stores the TD for each block separately from the block itself. We must update this
-	// manually, otherwise Geth thinks we haven't reached TTD yet and tries to build a block
-	// using pre-merge consensus, which causes a panic.
-	rawdb.WriteTd(batch, blockHash, preID.Number, ch.Blockchain.GetTd(preID.Hash, preID.Number))
 
 	// Need to copy over receipts since they are keyed by block hash.
 	receipts := rawdb.ReadReceipts(ch.DB, preID.Hash, preID.Number, preHeader.Time, ch.Blockchain.Config())
@@ -351,7 +348,7 @@ func SetCode(addr common.Address, code hexutil.Bytes) HeadFn {
 
 func SetNonce(addr common.Address, nonce uint64) HeadFn {
 	return func(_ *types.Header, headState *state.StateDB) error {
-		headState.SetNonce(addr, nonce)
+		headState.SetNonce(addr, nonce, tracing.NonceChangeEoACall)
 		return nil
 	}
 }

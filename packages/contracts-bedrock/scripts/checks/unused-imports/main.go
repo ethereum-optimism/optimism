@@ -80,6 +80,10 @@ func isImportUsed(imp, content string) bool {
 		if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "/*") || strings.HasPrefix(strings.TrimSpace(line), "*") || strings.HasPrefix(strings.TrimSpace(line), "*/") {
 			continue
 		}
+		// Split the line at any comment markers and only process the code part
+		line = strings.Split(line, "//")[0]
+		line = strings.Split(line, "/*")[0]
+
 		if importOpen {
 			if strings.Contains(line, "}") {
 				importOpen = false
@@ -94,6 +98,21 @@ func isImportUsed(imp, content string) bool {
 		}
 
 		if matched, _ := regexp.MatchString(wordPattern, line); matched {
+			// Check if all occurrences of imp are within quotes
+			allWithinQuotes := true
+			inQuotes := false
+			for i := 0; i < len(line); i++ {
+				if line[i] == '"' || line[i] == '\'' {
+					inQuotes = !inQuotes
+				} else if !inQuotes && i+len(imp) <= len(line) && line[i:i+len(imp)] == imp {
+					// Found imp outside quotes
+					allWithinQuotes = false
+					break
+				}
+			}
+			if allWithinQuotes {
+				continue
+			}
 			return true
 		}
 	}

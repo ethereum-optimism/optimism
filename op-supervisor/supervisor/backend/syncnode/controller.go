@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -49,7 +48,7 @@ func (snc *SyncNodesController) AttachEmitter(em event.Emitter) {
 	snc.emitter = em
 }
 
-func (snc *SyncNodesController) OnEvent(ev event.Event) bool {
+func (snc *SyncNodesController) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 
@@ -71,25 +70,21 @@ func (snc *SyncNodesController) AttachNodeController(chainID eth.ChainID, ctrl S
 		return nil, fmt.Errorf("chain %v not in dependency set: %w", chainID, types.ErrUnknownChain)
 	}
 	// lazy init the controllers map for this chain
-	snc.controllers.Default(chainID, func() *locks.RWMap[*ManagedNode, struct{}] {
+	snc.controllers.CreateIfMissing(chainID, func() *locks.RWMap[*ManagedNode, struct{}] {
 		return &locks.RWMap[*ManagedNode, struct{}]{}
 	})
 	controllersForChain, _ := snc.controllers.Get(chainID)
-	node := NewManagedNode(snc.logger, chainID, ctrl, snc.backend, noSubscribe)
 
 	nodeID := snc.id.Add(1)
 	name := fmt.Sprintf("syncnode-%s-%d", chainID, nodeID)
-	snc.eventSys.Register(name, node, event.DefaultRegisterOpts())
+	logger := snc.logger.New("syncnode", name, "endpoint", ctrl.String())
 
+	logger.Info("Attaching node", "chain", chainID, "passive", noSubscribe)
+
+	// create the managed node, register and return
+	node := NewManagedNode(logger, chainID, ctrl, snc.backend, noSubscribe)
+	snc.eventSys.Register(name, node)
 	controllersForChain.Set(node, struct{}{})
-	anchor, err := ctrl.AnchorPoint(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get anchor point: %w", err)
-	}
-	snc.emitter.Emit(superevents.AnchorEvent{
-		ChainID: chainID,
-		Anchor:  anchor,
-	})
 	node.Start()
 	return node, nil
 }

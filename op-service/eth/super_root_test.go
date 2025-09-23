@@ -17,6 +17,32 @@ func TestUnmarshalSuperRoot_TooShortForVersion(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidSuperRoot)
 }
 
+func TestSuperRootVersionV1MinLen(t *testing.T) {
+	minSuperRoot := SuperV1{
+		Timestamp: 7000,
+		Chains:    []ChainIDAndOutput{{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}},
+	}
+	require.Equal(t, len(minSuperRoot.Marshal()), SuperRootVersionV1MinLen)
+}
+
+func TestUnmarshalSuperRoot_MissingOutput(t *testing.T) {
+	chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}
+	chainB := ChainIDAndOutput{ChainID: ChainIDFromUInt64(12), Output: Bytes32{0x02}}
+	superRoot := SuperV1{
+		Timestamp: 7000,
+		Chains:    []ChainIDAndOutput{chainA, chainB},
+	}
+	marshaled := superRoot.Marshal()
+	// Trim the last 32 bytes which is the output root
+	// This reproduces an actual bug where %32 was used instead of %64 when checking chain outputs were complete
+	// Copy to an array that's actually shorter to avoid production code just creating a new view that re-includes the
+	// "truncated" data.
+	truncated := make([]byte, len(marshaled)-32)
+	copy(truncated, marshaled)
+	_, err := UnmarshalSuperRoot(truncated)
+	require.ErrorIs(t, err, ErrInvalidSuperRoot)
+}
+
 func TestSuperRootV1Codec(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}
@@ -48,5 +74,83 @@ func TestSuperRootV1Codec(t *testing.T) {
 		input = append(input, 0x01, 0x02, 0x03)
 		_, err := UnmarshalSuperRoot(input)
 		require.ErrorIs(t, err, ErrInvalidSuperRoot)
+	})
+}
+
+func TestResponseToSuper(t *testing.T) {
+	t.Run("SingleChain", func(t *testing.T) {
+		input := SuperRootResponse{
+			Timestamp: 4978924,
+			SuperRoot: Bytes32{0x65},
+			Version:   SuperRootVersionV1,
+			Chains: []ChainRootInfo{
+				{
+					ChainID:   ChainID{2987},
+					Canonical: Bytes32{0x88},
+					Pending:   []byte{1, 2, 3, 4, 5},
+				},
+			},
+		}
+		expected := &SuperV1{
+			Timestamp: 4978924,
+			Chains: []ChainIDAndOutput{
+				{ChainID: ChainIDFromUInt64(2987), Output: Bytes32{0x88}},
+			},
+		}
+		actual, err := input.ToSuper()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("SortChainsByChainID", func(t *testing.T) {
+		input := SuperRootResponse{
+			Timestamp: 4978924,
+			SuperRoot: Bytes32{0x65},
+			Version:   SuperRootVersionV1,
+			Chains: []ChainRootInfo{
+				{
+					ChainID:   ChainID{2987},
+					Canonical: Bytes32{0x88},
+					Pending:   []byte{1, 2, 3, 4, 5},
+				},
+				{
+					ChainID:   ChainID{100},
+					Canonical: Bytes32{0x10},
+					Pending:   []byte{1, 2, 3, 4, 5},
+				},
+			},
+		}
+		expected := &SuperV1{
+			Timestamp: 4978924,
+			Chains: []ChainIDAndOutput{
+				{ChainID: ChainIDFromUInt64(100), Output: Bytes32{0x10}},
+				{ChainID: ChainIDFromUInt64(2987), Output: Bytes32{0x88}},
+			},
+		}
+		actual, err := input.ToSuper()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("InvalidVersion", func(t *testing.T) {
+		input := SuperRootResponse{
+			Timestamp: 4978924,
+			SuperRoot: Bytes32{0x65},
+			Version:   0,
+			Chains: []ChainRootInfo{
+				{
+					ChainID:   ChainID{2987},
+					Canonical: Bytes32{0x88},
+					Pending:   []byte{1, 2, 3, 4, 5},
+				},
+				{
+					ChainID:   ChainID{100},
+					Canonical: Bytes32{0x10},
+					Pending:   []byte{1, 2, 3, 4, 5},
+				},
+			},
+		}
+		_, err := input.ToSuper()
+		require.ErrorIs(t, err, ErrInvalidSuperRootVersion)
 	})
 }

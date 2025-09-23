@@ -1,7 +1,6 @@
 package config
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,15 +16,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -48,12 +50,11 @@ const (
 type AllocType string
 
 const (
-	AllocTypeStandard AllocType = "standard"
-	AllocTypeAltDA    AllocType = "alt-da"
-	AllocTypeL2OO     AllocType = "l2oo"
-	AllocTypeMTCannon AllocType = "mt-cannon"
+	AllocTypeAltDA        AllocType = "alt-da"
+	AllocTypeMTCannon     AllocType = "mt-cannon"
+	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
 
-	DefaultAllocType = AllocTypeStandard
+	DefaultAllocType = AllocTypeMTCannon
 )
 
 func (a AllocType) Check() error {
@@ -65,14 +66,14 @@ func (a AllocType) Check() error {
 
 func (a AllocType) UsesProofs() bool {
 	switch a {
-	case AllocTypeStandard, AllocTypeMTCannon, AllocTypeAltDA:
+	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
 		return true
 	default:
 		return false
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext}
 
 var (
 	// All of the following variables are set in the init function
@@ -142,6 +143,10 @@ func DeployConfig(allocType AllocType) *genesis.DeployConfig {
 }
 
 func init() {
+	// Used by the rust team, to skip legacy op-e2e init. Not used by devstack acceptance tests.
+	if os.Getenv("DISABLE_OP_E2E_LEGACY") == "true" {
+		return
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -183,49 +188,8 @@ func init() {
 	oplog.SetGlobalLogHandler(errHandler)
 
 	for _, allocType := range allocTypes {
-		if allocType == AllocTypeL2OO {
-			continue
-		}
-
 		initAllocType(root, allocType)
 	}
-
-	configPath := path.Join(root, "op-e2e", "config")
-	forks := []genesis.L2AllocsMode{
-		genesis.L2AllocsIsthmus,
-		genesis.L2AllocsHolocene,
-		genesis.L2AllocsGranite,
-		genesis.L2AllocsFjord,
-		genesis.L2AllocsEcotone,
-		genesis.L2AllocsDelta,
-	}
-
-	var l2OOAllocsL1 foundry.ForgeAllocs
-	decompressGzipJSON(path.Join(configPath, "allocs-l1.json.gz"), &l2OOAllocsL1)
-	l1AllocsByType[AllocTypeL2OO] = &l2OOAllocsL1
-
-	var l2OOAddresses genesis.L1Deployments
-	decompressGzipJSON(path.Join(configPath, "addresses.json.gz"), &l2OOAddresses)
-	l1DeploymentsByType[AllocTypeL2OO] = &l2OOAddresses
-
-	l2OODC := DeployConfig(AllocTypeStandard)
-	l2OODC.SetDeployments(&l2OOAddresses)
-	deployConfigsByType[AllocTypeL2OO] = l2OODC
-
-	l2AllocsByType[AllocTypeL2OO] = genesis.L2AllocsModeMap{}
-	var wg sync.WaitGroup
-	for _, fork := range forks {
-		wg.Add(1)
-		go func(fork genesis.L2AllocsMode) {
-			defer wg.Done()
-			var l2OOAllocsL2 foundry.ForgeAllocs
-			decompressGzipJSON(path.Join(configPath, fmt.Sprintf("allocs-l2-%s.json.gz", fork)), &l2OOAllocsL2)
-			mtx.Lock()
-			l2AllocsByType[AllocTypeL2OO][fork] = &l2OOAllocsL2
-			mtx.Unlock()
-		}(fork)
-	}
-	wg.Wait()
 
 	// Use regular level going forward.
 	oplog.SetGlobalLogHandler(handler)
@@ -245,6 +209,8 @@ func initAllocType(root string, allocType AllocType) {
 	lgr := log.New()
 
 	allocModes := []genesis.L2AllocsMode{
+		genesis.L2AllocsInterop,
+		genesis.L2AllocsJovian,
 		genesis.L2AllocsIsthmus,
 		genesis.L2AllocsHolocene,
 		genesis.L2AllocsGranite,
@@ -256,11 +222,7 @@ func initAllocType(root string, allocType AllocType) {
 	l2Alloc := make(map[genesis.L2AllocsMode]*foundry.ForgeAllocs)
 	var wg sync.WaitGroup
 
-	// Corresponds with the Deployer address in cfg.secrets
-	pk, err := crypto.HexToECDSA("7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6")
-	if err != nil {
-		panic(fmt.Errorf("failed to parse private key: %w", err))
-	}
+	pk := secrets.DefaultSecrets.Deployer
 	deployerAddr := crypto.PubkeyToAddress(pk.PublicKey)
 	lgr.Info("deployer address", "address", deployerAddr.Hex())
 
@@ -290,6 +252,7 @@ func initAllocType(root string, allocType AllocType) {
 				"l2GenesisGraniteTimeOffset":  nil,
 				"l2GenesisHoloceneTimeOffset": nil,
 				"l2GenesisIsthmusTimeOffset":  nil,
+				"l2GenesisJovianTimeOffset":   nil,
 			}
 
 			upgradeSchedule := new(genesis.UpgradeScheduleDeployConfig)
@@ -339,7 +302,6 @@ func initAllocType(root string, allocType AllocType) {
 				if err != nil {
 					panic(fmt.Errorf("failed to inspect L1: %w", err))
 				}
-				l1Deployments := l1Contracts.AsL1Deployments()
 
 				// Set the L1 genesis block timestamp to now
 				dc.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
@@ -347,10 +309,12 @@ func initAllocType(root string, allocType AllocType) {
 				// Speed up the in memory tests
 				dc.L1BlockTime = 2
 				dc.L2BlockTime = 1
-				dc.SetDeployments(l1Deployments)
+				dc.SetContracts(l1Contracts)
 				mtx.Lock()
 				deployConfigsByType[allocType] = dc
 				l1AllocsByType[allocType] = st.L1StateDump.Data
+
+				l1Deployments := genesis.CreateL1DeploymentsFromContracts(l1Contracts)
 				l1DeploymentsByType[allocType] = l1Deployments
 				mtx.Unlock()
 			}
@@ -361,15 +325,18 @@ func initAllocType(root string, allocType AllocType) {
 }
 
 func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address, allocType AllocType) *state.Intent {
+	secrets := secrets.DefaultSecrets
+	addrs := secrets.Addresses()
 	defaultPrestate := common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98")
 	genesisOutputRoot := common.HexToHash("0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF")
 	return &state.Intent{
-		ConfigType: state.IntentConfigTypeCustom,
+		ConfigType: state.IntentTypeCustom,
 		L1ChainID:  900,
-		SuperchainRoles: &state.SuperchainRoles{
-			ProxyAdminOwner:       deployer,
-			ProtocolVersionsOwner: deployer,
-			Guardian:              deployer,
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: deployer,
+			ProtocolVersionsOwner:     deployer,
+			SuperchainGuardian:        deployer,
+			Challenger:                common.HexToAddress("0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"),
 		},
 		FundDevAccounts:    true,
 		L1ContractsLocator: loc,
@@ -380,7 +347,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"channelTimeout":                           120,
 			"l2OutputOracleSubmissionInterval":         10,
 			"l2OutputOracleStartingTimestamp":          0,
-			"l2OutputOracleProposer":                   "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+			"l2OutputOracleProposer":                   addrs.Proposer,
 			"l2OutputOracleChallenger":                 "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
 			"l2GenesisBlockGasLimit":                   "0x1c9c380",
 			"l1BlockTime":                              6,
@@ -395,7 +362,9 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"gasPriceOracleOverhead":                   2100,
 			"gasPriceOracleScalar":                     1000000,
 			"gasPriceOracleBaseFeeScalar":              1368,
-			"gasPriceOracleBlobBaseFeeScalar":          810949,
+			"gasPriceOracleBlobBaseFeeScalar":          801949,
+			"gasPriceOracleOperatorFeeScalar":          0,
+			"gasPriceOracleOperatorFeeConstant":        0,
 			"l1CancunTimeOffset":                       "0x0",
 			"faultGameAbsolutePrestate":                defaultPrestate.Hex(),
 			"faultGameMaxDepth":                        50,
@@ -420,14 +389,15 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 				Eip1559Denominator:         250,
 				Eip1559DenominatorCanyon:   250,
 				Eip1559Elasticity:          6,
+				GasLimit:                   standard.GasLimit,
 				Roles: state.ChainRoles{
 					// Use deployer as L1PAO to deploy additional dispute impls
 					L1ProxyAdminOwner: deployer,
 					L2ProxyAdminOwner: deployer,
 					SystemConfigOwner: deployer,
 					UnsafeBlockSigner: common.HexToAddress("0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"),
-					Batcher:           common.HexToAddress("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"),
-					Proposer:          common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+					Batcher:           addrs.Batcher,
+					Proposer:          addrs.Proposer,
 					Challenger:        common.HexToAddress("0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"),
 				},
 				AdditionalDisputeGames: []state.AdditionalDisputeGame{
@@ -487,28 +457,15 @@ func ensureDir(dirPath string) error {
 	return nil
 }
 
-func decompressGzipJSON(p string, thing any) {
-	f, err := os.Open(p)
-	if err != nil {
-		panic(fmt.Errorf("failed to open file: %w", err))
+func cannonVMType(allocType AllocType) state.VMType {
+	if allocType == AllocTypeMTCannonNext {
+		return state.VMTypeCannonNext
 	}
-	defer f.Close()
-
-	gzr, err := gzip.NewReader(f)
-	if err != nil {
-		panic(fmt.Errorf("failed to create gzip reader: %w", err))
-	}
-	defer gzr.Close()
-	if err := json.NewDecoder(gzr).Decode(thing); err != nil {
-		panic(fmt.Errorf("failed to read gzip data: %w", err))
-	}
+	return state.VMTypeCannon
 }
 
-func cannonVMType(allocType AllocType) state.VMType {
-	if allocType == AllocTypeMTCannon {
-		return state.VMTypeCannon2
-	}
-	return state.VMTypeCannon1
+func IsCannonInDevelopment() bool {
+	return cannonVMType(AllocTypeMTCannonNext).MipsVersion() != cannonVMType(AllocTypeMTCannon).MipsVersion()
 }
 
 type prestateFile struct {
@@ -516,23 +473,26 @@ type prestateFile struct {
 }
 
 var cannonPrestateMT common.Hash
-var cannonPrestateST common.Hash
+var cannonPrestateMTNext common.Hash
 var cannonPrestateMTOnce sync.Once
-var cannonPrestateSTOnce sync.Once
+var cannonPrestateMTNextOnce sync.Once
 
 func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var filename string
 
 	var once *sync.Once
 	var cacheVar *common.Hash
-	if cannonVMType(allocType) == state.VMTypeCannon1 {
-		filename = "prestate-proof.json"
-		once = &cannonPrestateSTOnce
-		cacheVar = &cannonPrestateST
-	} else {
+	cannonVmType := cannonVMType(allocType)
+	if cannonVmType == state.VMTypeCannon {
 		filename = "prestate-proof-mt64.json"
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT
+	} else if cannonVmType == state.VMTypeCannonNext {
+		filename = "prestate-proof-mt64Next.json"
+		once = &cannonPrestateMTNextOnce
+		cacheVar = &cannonPrestateMTNext
+	} else {
+		panic("Unsupported cannon VM type: " + cannonVmType)
 	}
 
 	once.Do(func() {

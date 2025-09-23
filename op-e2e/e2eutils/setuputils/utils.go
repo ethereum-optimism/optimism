@@ -24,6 +24,7 @@ func NewTxMgrConfig(l1Addr endpoint.RPC, privKey *ecdsa.PrivateKey) txmgr.CLICon
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
 		FeeLimitMultiplier:        5,
+		RebroadcastInterval:       2 * time.Second,
 		ResubmissionTimeout:       3 * time.Second,
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NetworkTimeout:            2 * time.Second,

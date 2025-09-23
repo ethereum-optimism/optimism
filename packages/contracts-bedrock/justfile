@@ -16,32 +16,32 @@ dep-status:
 ########################################################
 
 # Core forge build command.
-forge-build:
-  forge build
+forge-build *ARGS:
+  forge build {{ARGS}}
 
 # Developer build command (faster).
-forge-build-dev:
-  FOUNDRY_PROFILE=lite forge build
+forge-build-dev *ARGS:
+  FOUNDRY_PROFILE=lite forge build {{ARGS}}
 
 # Builds source contracts only.
 build-source:
   forge build --skip "/**/test/**" --skip "/**/scripts/**"
 
+# Builds source contracts and scripts, skipping tests.
+build-no-tests:
+  forge build --skip "/**/test/**"
+
 # Builds the contracts.
-build: lint-fix-no-fail forge-build interfaces-check-no-build
+build *ARGS: lint-fix-no-fail
+  just forge-build {{ARGS}}
 
 # Builds the contracts (developer mode).
-build-dev: lint-fix-no-fail forge-build-dev interfaces-check-no-build
+build-dev *ARGS: lint-fix-no-fail
+  just forge-build-dev {{ARGS}}
 
 # Builds the go-ffi tool for contract tests.
-build-go-ffi-default:
+build-go-ffi:
   cd ./scripts/go-ffi && go build
-
-# Builds the go-ffi tool for MIPS64 contract tests.
-build-go-ffi-cannon64:
-  cd ./scripts/go-ffi && go build -tags=cannon64 -o ./go-ffi-cannon64
-
-build-go-ffi: build-go-ffi-default build-go-ffi-cannon64
 
 # Cleans build artifacts and deployments.
 clean:
@@ -61,7 +61,18 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
-export pinnedBlockNumber := env_var_or_default('FORK_BLOCK_NUMBER', '21387830')
+
+export sepoliaBlockNumber := "9118951"
+export mainnetBlockNumber := "23327678"
+
+export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
+    mainnetBlockNumber
+} else if env_var_or_default("FORK_BASE_CHAIN", "") == "sepolia" {
+    sepoliaBlockNumber
+} else {
+    mainnetBlockNumber
+}
+
 print-pinned-block-number:
   echo $pinnedBlockNumber
 
@@ -72,24 +83,24 @@ print-pinned-block-number:
 #   Reusing the default block number greatly speeds up the test execution time by caching the
 #   rpc call responses in ~/.foundry/cache/rpc. The default block will need to be updated
 #   when the L1 chain is upgraded.
-# TODO(opcm upgrades): unskip the "NMC" tests which fail on the forked upgrade path with "UnexpectedRootClaim" errors.
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
-  echo "Running upgrade tests at block $pinnedBlockNumber"
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
-  export NO_MATCH_CONTRACTS="OptimismPortal2WithMockERC20_Test|OptimismPortal2_FinalizeWithdrawal_Test|AnchorStateRegistry_*|FaultDisputeGame_Test|PermissionedDisputeGame_Test|FaultDispute_1v1_Actors_Test|DelayedWETH_Hold_Test"
+  echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
+  export FORK_RETRIES=10
+  export FORK_BACKOFF=1000
   export FORK_TEST=true
+  export USE_MT_CANNON=true
   {{ARGS}} \
-  --match-path "test/{L1,dispute,cannon}/**" \
-  --no-match-contract "$NO_MATCH_CONTRACTS"
+  --match-path "test/{L1,dispute,cannon}/**"
 
 # Runs upgrade path variant of contract tests.
 test-upgrade *ARGS:
   just prepare-upgrade-env "forge test {{ARGS}}"
 
 test-upgrade-rerun *ARGS: build-go-ffi
-  just test-upgrade {{ARGS}} --rerun -vvv
+  just test-upgrade {{ARGS}} --rerun -vvvv
 
 # Starts a local anvil node with a mainnet fork and sends it to the background
 # Requires ETH_RPC_URL to be set to a production (Sepolia or Mainnet) RPC URL.
@@ -102,12 +113,10 @@ test-upgrade-against-anvil *ARGS: build-go-ffi
   #!/bin/bash
   echo "Running upgrade tests at block $pinnedBlockNumber"
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
-  export NO_MATCH_CONTRACTS="OptimismPortal2WithMockERC20_Test|OptimismPortal2_FinalizeWithdrawal_Test|AnchorStateRegistry_*|FaultDisputeGame_Test|PermissionedDisputeGame_Test|FaultDispute_1v1_Actors_Test|DelayedWETH_Hold_Test"
   export FORK_RPC_URL=http://127.0.0.1:8545
   export FORK_TEST=true
   forge test {{ARGS}} \
-  --match-path "test/{L1,dispute,cannon}/**" \
-  --no-match-contract "$NO_MATCH_CONTRACTS"
+  --match-path "test/{L1,dispute,cannon}/**"
 
 # Runs standard contract tests with rerun flag.
 test-rerun: build-go-ffi
@@ -209,10 +218,28 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+# Build the contracts first.
+opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
+
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+opcm-upgrade-checks-no-build:
+  go run ./scripts/checks/opcm-upgrade-checks/
+
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
 interfaces-check: clean build interfaces-check-no-build
+
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
+reinitializer-check: build-source reinitializer-check-no-build
+
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
+# Does not build contracts.
+reinitializer-check-no-build:
+  go run ./scripts/checks/reinitializer
 
 # Checks that the size of the contracts is within the limit.
 size-check:
@@ -230,11 +257,11 @@ semver-diff-check: build semver-diff-check-no-build
 semgrep-test-validity-check:
   forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
 
-# Checks that forge test names are correctly formatted. Does not build contracts.
+# Validates forge test conventions and structure. Does not build contracts.
 lint-forge-tests-check-no-build:
-  go run ./scripts/checks/test-names
+  go run ./scripts/checks/test-validation
 
-# Checks that forge test names are correctly formatted.
+# Validates forge test conventions and structure.
 lint-forge-tests-check: build lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.
@@ -273,19 +300,17 @@ semgrep:
 semgrep-test:
   cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Checks that the frozen code has not been modified.
-check-frozen-code:
-  ./scripts/checks/check-frozen-files.sh
-
 # Runs all checks.
 check:
   @just semgrep-test-validity-check \
+  semgrep \
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
+  reinitializer-check-no-build \
   interfaces-check-no-build \
   lint-forge-tests-check-no-build
 
@@ -335,6 +360,18 @@ pre-pr *ARGS:
     cp -r "$TEMP_BUILD_DIR/cache" ./
   fi
 
+twrap:
+    #!/usr/bin/env sh
+    if [ -z "$WRAP_DISABLED" ]; then
+        tput rmam
+        export WRAP_DISABLED=1
+        echo "Terminal line wrapping disabled"
+    else
+        tput smam
+        unset WRAP_DISABLED
+        echo "Terminal line wrapping enabled"
+    fi
+
 # Fixes linting errors.
 lint-fix:
   forge fmt
@@ -347,3 +384,12 @@ lint-fix-no-fail:
 
 # Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check
+
+
+########################################################
+#                         DOCS                         #
+########################################################
+
+# Generates a table of contents for the POLICY.md file.
+toc:
+  md_toc -p github meta/POLICY.md

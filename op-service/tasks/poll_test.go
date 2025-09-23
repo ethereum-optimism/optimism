@@ -28,7 +28,7 @@ func TestPoller(t *testing.T) {
 		return counter.Load() == 1
 	}, eventualTimeout, time.Millisecond*100)
 
-	cl.AdvanceTime(time.Second * 3) // no hit yet, 9 seconds have passsed now
+	cl.AdvanceTime(time.Second * 3) // no hit yet, 9 seconds have passed now
 
 	require.Never(t, func() bool {
 		return counter.Load() == 2

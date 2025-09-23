@@ -5,9 +5,9 @@ cache
 venv
 .idea
 *.log
-testdata/example/bin
 contracts/out
 *.pprof
 *.out
 bin
+testdata/**/bin/
 multicannon/embeds/cannon*

@@ -39,7 +39,7 @@ func (d *CalldataBroadcaster) Dump() ([]CalldataDump, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	var out []CalldataDump
+	out := make([]CalldataDump, 0, len(d.txs))
 	for _, tx := range d.txs {
 		out = append(out, CalldataDump{
 			To:    tx.To,

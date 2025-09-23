@@ -2,7 +2,8 @@ package deployer
 
 import (
 	"fmt"
-	"os"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
@@ -14,46 +15,40 @@ import (
 const (
 	EnvVarPrefix             = "DEPLOYER"
 	L1RPCURLFlagName         = "l1-rpc-url"
+	CacheDirFlagName         = "cache-dir"
 	L1ChainIDFlagName        = "l1-chain-id"
+	ArtifactsLocatorFlagName = "artifacts-locator"
 	L2ChainIDsFlagName       = "l2-chain-ids"
 	WorkdirFlagName          = "workdir"
 	OutdirFlagName           = "outdir"
 	PrivateKeyFlagName       = "private-key"
-	IntentConfigTypeFlagName = "intent-config-type"
+	IntentTypeFlagName       = "intent-type"
+	EtherscanAPIKeyFlagName  = "etherscan-api-key"
+	InputFileFlagName        = "input-file"
+	ContractNameFlagName     = "contract-name"
 )
-
-type DeploymentTarget string
-
-const (
-	DeploymentTargetLive     DeploymentTarget = "live"
-	DeploymentTargetGenesis  DeploymentTarget = "genesis"
-	DeploymentTargetCalldata DeploymentTarget = "calldata"
-	DeploymentTargetNoop     DeploymentTarget = "noop"
-)
-
-func NewDeploymentTarget(s string) (DeploymentTarget, error) {
-	switch s {
-	case string(DeploymentTargetLive):
-		return DeploymentTargetLive, nil
-	case string(DeploymentTargetGenesis):
-		return DeploymentTargetGenesis, nil
-	case string(DeploymentTargetCalldata):
-		return DeploymentTargetCalldata, nil
-	case string(DeploymentTargetNoop):
-		return DeploymentTargetNoop, nil
-	default:
-		return "", fmt.Errorf("invalid deployment target: %s", s)
-	}
-}
 
 var (
 	L1RPCURLFlag = &cli.StringFlag{
 		Name: L1RPCURLFlagName,
 		Usage: "RPC URL for the L1 chain. Must be set for live chains. " +
-			"Can be blank for chains deploying to local allocs files.",
+			"Must be blank for chains deploying to local allocs files.",
 		EnvVars: []string{
 			"L1_RPC_URL",
 		},
+	}
+	ArtifactsLocatorFlag = &cli.StringFlag{
+		Name:    ArtifactsLocatorFlagName,
+		Usage:   "Locator for artifacts.",
+		EnvVars: PrefixEnvVar("ARTIFACTS_LOCATOR"),
+		Value:   artifacts.EmbeddedLocatorString,
+	}
+	CacheDirFlag = &cli.StringFlag{
+		Name: CacheDirFlagName,
+		Usage: "Cache directory. " +
+			"If set, the deployer will attempt to cache downloaded artifacts in the specified directory.",
+		EnvVars: PrefixEnvVar("CACHE_DIR"),
+		Value:   EnsureDefaultCacheDir(),
 	}
 	L1ChainIDFlag = &cli.Uint64Flag{
 		Name:    L1ChainIDFlagName,
@@ -86,26 +81,48 @@ var (
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
 	}
-	IntentConfigTypeFlag = &cli.StringFlag{
-		Name: IntentConfigTypeFlagName,
-		Usage: fmt.Sprintf("Intent config type to use. Options: %s (default), %s, %s, %s, %s",
-			state.IntentConfigTypeStandard,
-			state.IntentConfigTypeCustom,
-			state.IntentConfigTypeStrict,
-			state.IntentConfigTypeStandardOverrides,
-			state.IntentConfigTypeStrictOverrides),
-		EnvVars: PrefixEnvVar("INTENT_CONFIG_TYPE"),
-		Value:   string(state.IntentConfigTypeStandard),
+	OpProgramSvcUrlFlag = &cli.StringFlag{
+		Name:    "op-program-svc-url",
+		Usage:   "URL of the OP Program SVC",
+		EnvVars: PrefixEnvVar("OP_PROGRAM_SVC_URL"),
+	}
+	IntentTypeFlag = &cli.StringFlag{
+		Name: IntentTypeFlagName,
+		Usage: fmt.Sprintf("Intent config type to use. Options: %s (default), %s, %s",
+			state.IntentTypeStandard,
+			state.IntentTypeCustom,
+			state.IntentTypeStandardOverrides),
+		EnvVars: PrefixEnvVar("INTENT_TYPE"),
+		Value:   string(state.IntentTypeStandard),
+		Aliases: []string{
+			"intent-config-type",
+		},
+	}
+	EtherscanAPIKeyFlag = &cli.StringFlag{
+		Name:     EtherscanAPIKeyFlagName,
+		Usage:    "etherscan API key for contract verification.",
+		EnvVars:  PrefixEnvVar("ETHERSCAN_API_KEY"),
+		Required: true,
+	}
+	InputFileFlag = &cli.StringFlag{
+		Name:    InputFileFlagName,
+		Usage:   "filepath of input file for command",
+		EnvVars: PrefixEnvVar("INPUT_FILE"),
+	}
+	ContractNameFlag = &cli.StringFlag{
+		Name:    ContractNameFlagName,
+		Usage:   "(optional) contract name matching a field within the input file",
+		EnvVars: PrefixEnvVar("CONTRACT_NAME"),
 	}
 )
 
-var GlobalFlags = append([]cli.Flag{}, oplog.CLIFlags(EnvVarPrefix)...)
+var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
 
 var InitFlags = []cli.Flag{
 	L1ChainIDFlag,
 	L2ChainIDsFlag,
 	WorkdirFlag,
-	IntentConfigTypeFlag,
+	IntentTypeFlag,
 }
 
 var ApplyFlags = []cli.Flag{
@@ -113,6 +130,7 @@ var ApplyFlags = []cli.Flag{
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
+	OpProgramSvcUrlFlag,
 }
 
 var UpgradeFlags = []cli.Flag{
@@ -121,14 +139,14 @@ var UpgradeFlags = []cli.Flag{
 	DeploymentTargetFlag,
 }
 
-func PrefixEnvVar(name string) []string {
-	return op_service.PrefixEnvVar(EnvVarPrefix, name)
+var VerifyFlags = []cli.Flag{
+	L1RPCURLFlag,
+	ArtifactsLocatorFlag,
+	EtherscanAPIKeyFlag,
+	InputFileFlag,
+	ContractNameFlag,
 }
 
-func cwd() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return dir
+func PrefixEnvVar(name string) []string {
+	return op_service.PrefixEnvVar(EnvVarPrefix, name)
 }

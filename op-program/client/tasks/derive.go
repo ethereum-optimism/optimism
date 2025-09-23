@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -43,6 +45,7 @@ type DerivationOptions struct {
 func RunDerivation(
 	logger log.Logger,
 	cfg *rollup.Config,
+	depSet derive.DependencySet,
 	l2Cfg *params.ChainConfig,
 	l1Head common.Hash,
 	l2OutputRoot common.Hash,
@@ -50,18 +53,17 @@ func RunDerivation(
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
 	db l2.KeyValueStore,
-	options DerivationOptions,
-) (DerivationResult, error) {
+	options DerivationOptions) (DerivationResult, error) {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	l1BlobsSource := l1.NewBlobFetcher(logger, l1Oracle)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, l2OutputRoot, db)
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}
-	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend)
+	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend, l2Oracle.Hinter())
 
 	logger.Info("Starting derivation", "chainID", cfg.L2ChainID)
-	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
 	result, err := d.RunComplete()
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to run program to completion: %w", err)
@@ -69,7 +71,7 @@ func RunDerivation(
 	logger.Info("Derivation complete", "head", result)
 
 	if options.StoreBlockData {
-		if err := storeBlockData(result, db, engineBackend); err != nil {
+		if err := storeBlockData(result.Hash, db, engineBackend); err != nil {
 			return DerivationResult{}, fmt.Errorf("failed to write trie nodes: %w", err)
 		}
 		logger.Info("Trie nodes written")
@@ -89,16 +91,16 @@ func loadOutputRoot(l2ClaimBlockNum uint64, head eth.L2BlockRef, src L2Source) (
 	}, nil
 }
 
-func storeBlockData(derived eth.L2BlockRef, db l2.KeyValueStore, backend engineapi.CachingEngineBackend) error {
-	block := backend.GetBlockByHash(derived.Hash)
+func storeBlockData(derivedBlockHash common.Hash, db l2.KeyValueStore, backend engineapi.CachingEngineBackend) error {
+	block := backend.GetBlockByHash(derivedBlockHash)
 	if block == nil {
-		return fmt.Errorf("derived block %v is missing", derived.Hash)
+		return fmt.Errorf("%w: derived block %v is missing", ethereum.NotFound, derivedBlockHash)
 	}
 	headerRLP, err := rlp.EncodeToBytes(block.Header())
 	if err != nil {
 		return fmt.Errorf("failed to encode block header: %w", err)
 	}
-	blockHashKey := preimage.Keccak256Key(derived.Hash).PreimageKey()
+	blockHashKey := preimage.Keccak256Key(derivedBlockHash).PreimageKey()
 	if err := db.Put(blockHashKey[:], headerRLP); err != nil {
 		return fmt.Errorf("failed to store block header: %w", err)
 	}
@@ -112,7 +114,7 @@ func storeBlockData(derived eth.L2BlockRef, db l2.KeyValueStore, backend enginea
 	}
 	receipts := backend.GetReceiptsByBlockHash(block.Hash())
 	if receipts == nil {
-		return fmt.Errorf("receipts for block %v are missing", block.Hash())
+		return fmt.Errorf("%w: receipts for block %v are missing", ethereum.NotFound, block.Hash())
 	}
 	opaqueReceipts, err := eth.EncodeReceipts(receipts)
 	if err != nil {

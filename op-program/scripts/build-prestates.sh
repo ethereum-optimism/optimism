@@ -22,35 +22,60 @@ VERSIONS_FILE="${STATES_DIR}/versions.json"
 
 mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 
-
 cd "${REPO_DIR}"
 
 VERSIONS_JSON="[]"
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
-for VERSION in ${VERSIONS}
+for VERSION in "${VERSIONS[@]}"
 do
     SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
-    git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    # use --force to overwrite any mise.toml changes
+    git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
+    if [ -f mise.toml ]
+    then
+      echo "Install dependencies with mise" >> "${LOG_FILE}"
+      # we rely only on go and jq for the reproducible-prestate build.
+      # The mise cache should already have jq preinstalled
+      # But we need to ensure that this ${VERSION} has the correct go version
+      # So we replace the mise.toml with a minimal one that only specifies go
+      # Otherwise, `mise install` fails as it conflicts with other preinstalled dependencies
+      GO_VERSION=$(mise config get tools.go)
+      cat >mise.toml <<EOF
+[tools]
+go = "${GO_VERSION}"
+EOF
+      mise install -v -y >> "${LOG_FILE}" 2>&1
+    fi
     rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
-    HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
-    if [ -f "${BIN_DIR}/prestate.bin.gz" ]
-    then
-      cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
-    else
-      cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+
+    if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
+      HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
+      if [ -f "${BIN_DIR}/prestate.bin.gz" ]
+      then
+        cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
+      else
+        cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+      fi
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
+      echo "Built cannon32 ${VERSION}: ${HASH}"
     fi
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\"}]")
-    echo "Built ${VERSION}: ${HASH}"
 
     if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
       HASH=$(cat "${BIN_DIR}/prestate-proof-mt64.json" | jq -r .pre)
       cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${HASH}.mt64.bin.gz"
       VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon64\"}]")
       echo "Built cannon64 ${VERSION}: ${HASH}"
+    fi
+
+    if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
+      HASH=$(cat "${BIN_DIR}/prestate-proof-interop.json" | jq -r .pre)
+      cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${HASH}.interop.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"interop\"}]")
+      echo "Built cannon-interop ${VERSION}: ${HASH}"
     fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"

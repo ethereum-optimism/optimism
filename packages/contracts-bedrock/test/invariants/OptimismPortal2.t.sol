@@ -6,6 +6,7 @@ import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Contracts
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -14,7 +15,6 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
-import "src/libraries/PortalErrors.sol";
 
 // Interfaces
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -82,7 +82,7 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     }
 }
 
-contract OptimismPortal2_Invariant_Harness is CommonTest {
+contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -119,14 +119,16 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         });
 
         // Warp forward in time to ensure that the game is created after the retirement timestamp.
-        vm.warp(optimismPortal2.respectedGameTypeUpdatedAt() + 1 seconds);
+        vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
+
+        setupFaultDisputeGame(Claim.wrap(bytes32(0)));
 
         // Create a dispute game with the output root we've proposed.
         _proposedBlockNumber = 0xFF;
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
                 address(
-                    disputeGameFactory.create(
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType()) }(
                         optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
                     )
                 )
@@ -140,6 +142,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         game.resolve();
 
         // Fund the portal so that we can withdraw ETH.
+        vm.deal(address(ethLockbox), 0xFFFFFFFF);
         vm.deal(address(optimismPortal2), 0xFFFFFFFF);
     }
 }
@@ -188,7 +191,7 @@ contract OptimismPortal2_CannotTimeTravel is OptimismPortal2_Invariant_Harness {
     ///                   A withdrawal that has been proven should not be able to be finalized
     ///                   until after the proof maturity period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
-        vm.expectRevert("OptimismPortal: proven withdrawal has not matured yet");
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_ProofNotOldEnough.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
@@ -217,7 +220,7 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
     ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
     ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert(AlreadyFinalized.selector);
+        vm.expectRevert(IOptimismPortal2.OptimismPortal_AlreadyFinalized.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }

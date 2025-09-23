@@ -5,45 +5,61 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect/flags"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+)
+
+var (
+	Version   = "v0.1.0"
+	GitCommit = ""
+	GitDate   = ""
 )
 
 func main() {
+	app := cli.NewApp()
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
+	app.Name = "kurtosis-inspect"
+	app.Usage = "Inspect Kurtosis enclaves and extract configurations"
+	app.Description = "Tool to inspect running Kurtosis enclaves and extract conductor configurations and environment data"
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
+	app.Action = cliapp.LifecycleCmd(run)
+	app.ArgsUsage = "<enclave-id>"
+
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(cliCtx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	// Parse configuration
+	cfg, err := inspect.NewConfig(cliCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup logging
+	log := oplog.NewLogger(oplog.AppOut(cliCtx), oplog.ReadCLIConfig(cliCtx))
+	oplog.SetGlobalLogHandler(log.Handler())
+
+	// Create service
+	service := inspect.NewInspectService(cfg, log)
+
+	// Create background context for operations
 	ctx := context.Background()
 
-	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <enclave-id>\n", os.Args[0])
-		os.Exit(1)
+	// Run the service
+	if err := service.Run(ctx); err != nil {
+		return nil, err
 	}
 
-	enclaveID := flag.Arg(0)
-	inspector := inspect.NewInspector(enclaveID)
-
-	data, err := inspector.ExtractData(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error inspecting enclave: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("File Artifacts:")
-	for _, artifact := range data.FileArtifacts {
-		fmt.Printf("  %s\n", artifact)
-	}
-
-	fmt.Println("\nServices:")
-	for svc, ports := range data.UserServices {
-		fmt.Printf("  %s:\n", svc)
-		for portName, portInfo := range ports {
-			host := portInfo.Host
-			if host == "" {
-				host = "localhost"
-			}
-			fmt.Printf("    %s: %s:%d\n", portName, host, portInfo.Port)
-		}
-	}
+	return nil, nil
 }

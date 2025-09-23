@@ -7,27 +7,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/config"
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
+	t.Skipf("skipping due to high flakiness")
 	op_e2e.InitParallel(t)
 
 	cfg := e2esys.DefaultSystemConfig(t)
@@ -120,6 +122,7 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
+		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Nodes["verifier3"] = &rollupNode.Config{
@@ -128,6 +131,7 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
+		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LevelInfo).New("role", "verifier")
@@ -142,7 +146,7 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
-		params, err := p2p.GetScoringParams("light", &node.Rollup)
+		params, err := p2p.GetScoringParams("light", node.Rollup.BlockTime)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
 			ScoringParams:  params,

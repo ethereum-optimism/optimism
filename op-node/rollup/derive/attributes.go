@@ -13,6 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
+type DependencySet interface {
+	// Chains returns the number of chains in the dependency set
+	Chains() []eth.ChainID
+}
+
 // L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
 type L1ReceiptsFetcher interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
@@ -26,15 +31,20 @@ type SystemConfigL2Fetcher interface {
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
 	rollupCfg *rollup.Config
+	depSet    DependencySet
 	l1        L1ReceiptsFetcher
 	l2        SystemConfigL2Fetcher
 	// whether to skip the L1 origin timestamp check - only for testing purposes
 	testSkipL1OriginCheck bool
 }
 
-func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+	if rollupCfg.InteropTime != nil && depSet == nil {
+		panic("FetchingAttributesBuilder requires a dependency set when interop fork is scheduled")
+	}
 	return &FetchingAttributesBuilder{
 		rollupCfg: rollupCfg,
+		depSet:    depSet,
 		l1:        l1,
 		l2:        l2,
 	}
@@ -132,19 +142,28 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeTxs = append(upgradeTxs, isthmus...)
 	}
 
+	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) {
+		interop, err := InteropNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build interop network upgrade txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, interop...)
+
+		if len(ba.depSet.Chains()) > 1 {
+			txs, err := InteropActivateCrossL2InboxTransactions()
+			if err != nil {
+				return nil, NewCriticalError(fmt.Errorf("failed to build interop cross l2 inbox txs: %w", err))
+			}
+			upgradeTxs = append(upgradeTxs, txs...)
+		}
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
 	var afterForceIncludeTxs []hexutil.Bytes
-	if ba.rollupCfg.IsInterop(nextL2Time) {
-		depositsCompleteTx, err := DepositsCompleteBytes(seqNumber, l1Info)
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to create depositsCompleteTx: %w", err))
-		}
-		afterForceIncludeTxs = append(afterForceIncludeTxs, depositsCompleteTx)
-	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(afterForceIncludeTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
@@ -179,6 +198,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
-
+	if ba.rollupCfg.IsMinBaseFee(nextL2Time) {
+		r.MinBaseFee = &sysConfig.MinBaseFee
+	}
 	return r, nil
 }

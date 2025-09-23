@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,7 +24,7 @@ var (
 )
 
 const (
-	StepsPerTimestamp = 1024
+	StepsPerTimestamp = 128
 )
 
 type PreimagePrestateProvider interface {
@@ -73,21 +74,31 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("Getting claim", "pos", pos.ToGIndex(), "timestamp", timestamp, "step", step)
+	s.logger.Trace("Getting claim", "pos", pos.ToGIndex(), "timestamp", timestamp, "step", step)
 	if step == 0 {
 		root, err := s.rootProvider.SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
-		if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// No block at this timestamp so it must be invalid
+			return InvalidTransition, nil
+		} else if err != nil {
 			return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
 		}
 		if root.CrossSafeDerivedFrom.Number > s.l1Head.Number {
 			return InvalidTransition, nil
 		}
-		return responseToSuper(root).Marshal(), nil
+		super, err := root.ToSuper()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create super root at timestamp %v: %w", timestamp, err)
+		}
+		return super.Marshal(), nil
 	}
 	// Fetch the super root at the next timestamp since we are part way through the transition to it
 	prevRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", timestamp, err)
+	if errors.Is(err, ethereum.NotFound) {
+		// No block at this timestamp so it must be invalid
+		return InvalidTransition, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to retrieve previous super root at timestamp %v: %w", timestamp, err)
 	}
 	if prevRoot.CrossSafeDerivedFrom.Number > s.l1Head.Number {
 		// The previous root was not safe at the game L1 head so we must have already transitioned to the invalid hash
@@ -96,8 +107,11 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 	}
 	nextTimestamp := timestamp + 1
 	nextRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, hexutil.Uint64(nextTimestamp))
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve super root at timestamp %v: %w", nextTimestamp, err)
+	if errors.Is(err, ethereum.NotFound) {
+		// No block at this timestamp so it must be invalid
+		return InvalidTransition, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to retrieve next super root at timestamp %v: %w", nextTimestamp, err)
 	}
 
 	var safeHeads map[eth.ChainID]eth.BlockID
@@ -108,9 +122,12 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 			return nil, fmt.Errorf("failed to retrieve safe derived blocks at L1 head %v: %w", s.l1Head, err)
 		}
 	}
-	superV1 := responseToSuper(prevRoot)
+	prevSuper, err := prevRoot.ToSuper()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create super root at timestamp %v: %w", timestamp, err)
+	}
 	expectedState := interopTypes.TransitionState{
-		SuperRoot:       superV1.Marshal(),
+		SuperRoot:       prevSuper.Marshal(),
 		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
 		Step:            step,
 	}

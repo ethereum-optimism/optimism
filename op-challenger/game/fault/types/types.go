@@ -9,6 +9,8 @@ import (
 	"math/big"
 	"time"
 
+	"slices"
+
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,16 +27,20 @@ var (
 type GameType uint32
 
 const (
-	CannonGameType       GameType = 0
-	PermissionedGameType GameType = 1
-	AsteriscGameType     GameType = 2
-	AsteriscKonaGameType GameType = 3
-	SuperCannonGameType  GameType = 4
-	OPSuccinctGameType   GameType = 6
-	FastGameType         GameType = 254
-	AlphabetGameType     GameType = 255
-	KailuaGameType       GameType = 1337
-	UnknownGameType      GameType = math.MaxUint32
+	CannonGameType            GameType = 0
+	PermissionedGameType      GameType = 1
+	AsteriscGameType          GameType = 2
+	AsteriscKonaGameType      GameType = 3
+	SuperCannonGameType       GameType = 4
+	SuperPermissionedGameType GameType = 5
+	OPSuccinctGameType        GameType = 6
+	SuperAsteriscKonaGameType GameType = 7
+	CannonKonaGameType        GameType = 8
+	SuperCannonKonaGameType   GameType = 9
+	FastGameType              GameType = 254
+	AlphabetGameType          GameType = 255
+	KailuaGameType            GameType = 1337
+	UnknownGameType           GameType = math.MaxUint32
 )
 
 func (t GameType) MarshalText() ([]byte, error) {
@@ -53,8 +59,16 @@ func (t GameType) String() string {
 		return "asterisc-kona"
 	case SuperCannonGameType:
 		return "super-cannon"
+	case SuperPermissionedGameType:
+		return "super-permissioned"
 	case OPSuccinctGameType:
 		return "op-succinct"
+	case SuperAsteriscKonaGameType:
+		return "super-asterisc-kona"
+	case CannonKonaGameType:
+		return "cannon-kona"
+	case SuperCannonKonaGameType:
+		return "super-cannon-kona"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
@@ -69,16 +83,19 @@ func (t GameType) String() string {
 type TraceType string
 
 const (
-	TraceTypeAlphabet     TraceType = "alphabet"
-	TraceTypeFast         TraceType = "fast"
-	TraceTypeCannon       TraceType = "cannon"
-	TraceTypeAsterisc     TraceType = "asterisc"
-	TraceTypeAsteriscKona TraceType = "asterisc-kona"
-	TraceTypePermissioned TraceType = "permissioned"
-	TraceTypeSuperCannon  TraceType = "super-cannon"
+	TraceTypeAlphabet          TraceType = "alphabet"
+	TraceTypeFast              TraceType = "fast"
+	TraceTypeCannon            TraceType = "cannon"
+	TraceTypeCannonKona        TraceType = "cannon-kona"
+	TraceTypeAsterisc          TraceType = "asterisc"
+	TraceTypeAsteriscKona      TraceType = "asterisc-kona"
+	TraceTypePermissioned      TraceType = "permissioned"
+	TraceTypeSuperCannon       TraceType = "super-cannon"
+	TraceTypeSuperPermissioned TraceType = "super-permissioned"
+	TraceTypeSuperAsteriscKona TraceType = "super-asterisc-kona"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeCannonKona, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon, TraceTypeSuperPermissioned, TraceTypeSuperAsteriscKona}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -99,18 +116,15 @@ func (t *TraceType) Clone() any {
 }
 
 func ValidTraceType(value TraceType) bool {
-	for _, t := range TraceTypes {
-		if t == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(TraceTypes, value)
 }
 
 func (t TraceType) GameType() GameType {
 	switch t {
 	case TraceTypeCannon:
 		return CannonGameType
+	case TraceTypeCannonKona:
+		return CannonKonaGameType
 	case TraceTypePermissioned:
 		return PermissionedGameType
 	case TraceTypeAsterisc:
@@ -123,6 +137,10 @@ func (t TraceType) GameType() GameType {
 		return AlphabetGameType
 	case TraceTypeSuperCannon:
 		return SuperCannonGameType
+	case TraceTypeSuperPermissioned:
+		return SuperPermissionedGameType
+	case TraceTypeSuperAsteriscKona:
+		return SuperAsteriscKonaGameType
 	default:
 		return UnknownGameType
 	}
@@ -141,7 +159,7 @@ type PreimageOracleData struct {
 	OracleOffset uint32
 
 	// 4844 blob data
-	BlobFieldIndex uint64
+	ZPoint         [32]byte
 	BlobCommitment []byte
 	BlobProof      []byte
 }
@@ -183,13 +201,13 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 	}
 }
 
-func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, zPoint [32]byte, commitment []byte, proof []byte) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:        false,
 		OracleKey:      key,
 		oracleData:     data,
 		OracleOffset:   offset,
-		BlobFieldIndex: fieldIndex,
+		ZPoint:         zPoint,
 		BlobCommitment: commitment,
 		BlobProof:      proof,
 	}
@@ -301,6 +319,14 @@ type Clock struct {
 	Timestamp time.Time
 }
 
+// DecodeClock decodes a uint128 into a Clock duration and timestamp.
+func DecodeClock(clock *big.Int) Clock {
+	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	remainder := new(big.Int)
+	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
+	return NewClock(time.Duration(quotient.Int64())*time.Second, time.Unix(remainder.Int64(), 0))
+}
+
 // NewClock creates a new Clock instance.
 func NewClock(duration time.Duration, timestamp time.Time) Clock {
 	return Clock{
@@ -320,3 +346,14 @@ func NewInvalidL2BlockNumberProof(output *eth.OutputResponse, header *ethTypes.H
 		Header: header,
 	}
 }
+
+type BondDistributionMode uint8
+
+const (
+	UndecidedDistributionMode BondDistributionMode = iota
+	NormalDistributionMode
+	RefundDistributionMode
+
+	// LegacyDistributionMode is used for contract versions that do not implement bond distribution modes.
+	LegacyDistributionMode BondDistributionMode = 255
+)

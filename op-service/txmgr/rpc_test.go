@@ -15,6 +15,7 @@ func TestTxmgrRPC(t *testing.T) {
 	minPriorityFeeInit := big.NewInt(2000)
 	minBlobFeeInit := big.NewInt(3000)
 	feeThresholdInit := big.NewInt(4000)
+	rebroadcastIntervalInit := int64(25)
 	bumpFeeRetryTimeInit := int64(100)
 
 	cfg := Config{}
@@ -22,6 +23,7 @@ func TestTxmgrRPC(t *testing.T) {
 	cfg.MinTipCap.Store(minPriorityFeeInit)
 	cfg.MinBlobTxFee.Store(minBlobFeeInit)
 	cfg.FeeLimitThreshold.Store(feeThresholdInit)
+	cfg.RebroadcastInterval.Store(rebroadcastIntervalInit)
 	cfg.ResubmissionTimeout.Store(bumpFeeRetryTimeInit)
 
 	h := newTestHarnessWithConfig(t, &cfg)
@@ -31,10 +33,8 @@ func TestTxmgrRPC(t *testing.T) {
 		"127.0.0.1",
 		0,
 		appVersion,
-		oprpc.WithAPIs([]rpc.API{
-			h.mgr.API(),
-		}),
 	)
+	server.AddAPI(h.mgr.API())
 	require.NoError(t, server.Start())
 	defer func() {
 		_ = server.Stop()
@@ -53,6 +53,7 @@ func TestTxmgrRPC(t *testing.T) {
 		{"MinPriorityFee", minPriorityFeeInit},
 		{"MinBlobFee", minBlobFeeInit},
 		{"FeeThreshold", feeThresholdInit},
+		{"RebroadcastInterval", big.NewInt(rebroadcastIntervalInit)},
 		{"BumpFeeRetryTime", big.NewInt(bumpFeeRetryTimeInit)},
 	}
 

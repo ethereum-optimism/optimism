@@ -41,7 +41,7 @@ func (o *CanonicalBlockHeaderOracle) GetHeaderByNumber(n uint64) *types.Header {
 		// guaranteed to be cached during lookup
 		hash, ok := o.hashByNum[n]
 		if !ok {
-			panic(fmt.Errorf("block %v was not indexed when earliest block number is %v", n, o.earliestIndexedBlock.Number))
+			panic(fmt.Sprintf("block %v was not indexed when earliest block number is %v", n, o.earliestIndexedBlock.Number))
 		}
 		return o.blockByHashFn(hash).Header()
 	}
@@ -77,6 +77,10 @@ func (o *CanonicalBlockHeaderOracle) SetCanonical(head *types.Header) common.Has
 			break
 		}
 		o.hashByNum[h.Number.Uint64()] = newHash
+		if h.Number.Uint64() == 0 {
+			// Reachable if there aren't any cached blocks at or before the common ancestor
+			break
+		}
 		h = o.blockByHashFn(h.ParentHash).Header()
 	}
 	o.earliestIndexedBlock = h

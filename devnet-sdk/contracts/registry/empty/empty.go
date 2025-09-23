@@ -10,9 +10,16 @@ type EmptyRegistry struct{}
 
 var _ interfaces.ContractsRegistry = (*EmptyRegistry)(nil)
 
-func (r *EmptyRegistry) SuperchainWETH(address types.Address) (interfaces.SuperchainWETH, error) {
+func (r *EmptyRegistry) WETH(address types.Address) (interfaces.WETH, error) {
 	return nil, &interfaces.ErrContractNotFound{
-		ContractType: "SuperchainWETH",
+		ContractType: "WETH",
+		Address:      address,
+	}
+}
+
+func (r *EmptyRegistry) L2ToL2CrossDomainMessenger(address types.Address) (interfaces.L2ToL2CrossDomainMessenger, error) {
+	return nil, &interfaces.ErrContractNotFound{
+		ContractType: "L2ToL2CrossDomainMessenger",
 		Address:      address,
 	}
 }

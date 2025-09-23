@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,12 +16,7 @@ func TestReset(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-
-	// get both sequencers set up
-	// sync the supervisor, handle initial events emitted by the nodes
-	actors.ChainA.Sequencer.ActL2PipelineFull(t)
-	actors.ChainA.Sequencer.SyncSupervisor(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	// No blocks yet
 	status := actors.ChainA.Sequencer.SyncStatus()
 	require.Equal(t, uint64(0), status.UnsafeL2.Number)
@@ -74,7 +69,7 @@ func TestReset(gt *testing.T) {
 		actors.Supervisor.SignalLatestL1(t)          // supervisor will be aware of latest L1
 		actors.ChainA.Sequencer.SyncSupervisor(t)    // supervisor to react to exhaust-L1
 		actors.ChainA.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
-		// TODO(#13972): two sources of L1 head
+		// Theoretically shouldn't require this ActL1HeadSignal in managed mode, but currently it is required.
 		actors.ChainA.Sequencer.ActL1HeadSignal(t)
 		status = actors.ChainA.Sequencer.SyncStatus()
 		if expect {

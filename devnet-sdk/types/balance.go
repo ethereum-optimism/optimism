@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"log/slog"
 	"math/big"
 )
 
@@ -35,23 +34,41 @@ func (b Balance) Mul(f float64) Balance {
 
 // GreaterThan returns true if this balance is greater than other
 func (b Balance) GreaterThan(other Balance) bool {
+	if b.Int == nil {
+		return false
+	}
+	if other.Int == nil {
+		return true
+	}
 	return b.Int.Cmp(other.Int) > 0
 }
 
 // LessThan returns true if this balance is less than other
 func (b Balance) LessThan(other Balance) bool {
+	if b.Int == nil {
+		return other.Int != nil
+	}
+	if other.Int == nil {
+		return false
+	}
 	return b.Int.Cmp(other.Int) < 0
 }
 
 // Equal returns true if this balance equals other
 func (b Balance) Equal(other Balance) bool {
+	if b.Int == nil {
+		return other.Int == nil
+	}
+	if other.Int == nil {
+		return false
+	}
 	return b.Int.Cmp(other.Int) == 0
 }
 
-// LogValue implements slog.LogValuer to format Balance in the most readable unit
-func (b Balance) LogValue() slog.Value {
+// String implements fmt.Stringer to format Balance in the most readable unit
+func (b Balance) String() string {
 	if b.Int == nil {
-		return slog.StringValue("0 ETH")
+		return "0 ETH"
 	}
 
 	val := new(big.Float).SetInt(b.Int)
@@ -59,17 +76,17 @@ func (b Balance) LogValue() slog.Value {
 
 	// 1 ETH = 1e18 Wei
 	if eth.Cmp(new(big.Float).SetFloat64(0.001)) >= 0 {
-		str := eth.Text('g', 3)
-		return slog.StringValue(fmt.Sprintf("%s ETH", str))
+		str := eth.Text('f', 0)
+		return fmt.Sprintf("%s ETH", str)
 	}
 
 	// 1 Gwei = 1e9 Wei
 	gwei := new(big.Float).Quo(val, new(big.Float).SetInt64(1e9))
 	if gwei.Cmp(new(big.Float).SetFloat64(0.001)) >= 0 {
 		str := gwei.Text('g', 3)
-		return slog.StringValue(fmt.Sprintf("%s Gwei", str))
+		return fmt.Sprintf("%s Gwei", str)
 	}
 
 	// Wei
-	return slog.StringValue(fmt.Sprintf("%s Wei", b.Text(10)))
+	return fmt.Sprintf("%s Wei", b.Text(10))
 }

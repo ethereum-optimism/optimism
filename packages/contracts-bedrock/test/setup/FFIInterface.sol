@@ -188,6 +188,28 @@ contract FFIInterface {
         return abi.decode(result, (bytes));
     }
 
+    function encodeSuperRootProof(Types.SuperRootProof calldata proof) external returns (bytes memory) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "encodeSuperRootProof";
+        cmds[3] = vm.toString(abi.encode(proof));
+
+        bytes memory result = Process.run(cmds);
+        return abi.decode(result, (bytes));
+    }
+
+    function hashSuperRootProof(Types.SuperRootProof calldata proof) external returns (bytes32) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "hashSuperRootProof";
+        cmds[3] = vm.toString(abi.encode(proof));
+
+        bytes memory result = Process.run(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
     function decodeVersionedNonce(uint256 nonce) external returns (uint256, uint256) {
         string[] memory cmds = new string[](4);
         cmds[0] = "scripts/go-ffi/go-ffi";
@@ -203,7 +225,7 @@ contract FFIInterface {
         external
         returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {
-        string[] memory cmds = new string[](6);
+        string[] memory cmds = new string[](3);
         cmds[0] = "./scripts/go-ffi/go-ffi";
         cmds[1] = "trie";
         cmds[2] = variant;
@@ -319,7 +341,7 @@ contract FFIInterface {
 
     function getCannonMemory64Proof(uint64 addr, uint64 value) external returns (bytes32, bytes memory) {
         string[] memory cmds = new string[](5);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr);
@@ -339,7 +361,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](7);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr0);
@@ -363,7 +385,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](9);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr0);
@@ -388,7 +410,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof2";
         cmds[3] = vm.toString(addr0);

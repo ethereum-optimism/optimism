@@ -10,6 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+const (
+	defaultUnsaltedAccount = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+)
+
 func TestMnemonicDevKeys(t *testing.T) {
 	m, err := NewMnemonicDevKeys(TestMnemonic)
 	require.NoError(t, err)
@@ -19,7 +23,7 @@ func TestMnemonicDevKeys(t *testing.T) {
 		require.NoError(t, err)
 		// Sanity check against a well-known dev account address,
 		// to ensure the mnemonic path is formatted with the right hardening at each path segment.
-		require.Equal(t, common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), defaultAccount)
+		require.Equal(t, common.HexToAddress(defaultUnsaltedAccount), defaultAccount)
 
 		// Check that we can localize users to a chain
 		chain1UserKey0, err := m.Address(ChainUserKeys(big.NewInt(1))(0))
@@ -65,4 +69,27 @@ func TestMnemonicDevKeys(t *testing.T) {
 		require.Len(t, names, 20, "unique name for each account")
 	})
 
+}
+
+func TestSaltedDevKeys(t *testing.T) {
+	data := []struct {
+		salt           string
+		defaultAccount string
+	}{
+		// empty password should yield the same address as the default mnemonic alone.
+		{salt: "", defaultAccount: defaultUnsaltedAccount},
+		{salt: "test", defaultAccount: "0x8fB0f07c3Bfcd9C0ef31fa19B90f05D67d55f81F"},
+	}
+
+	for _, d := range data {
+		t.Run(d.salt, func(t *testing.T) {
+			// Create a new salted mnemonic dev keys instance
+			m, err := NewSaltedDevKeys(TestMnemonic, d.salt)
+			require.NoError(t, err)
+			// Check that the default account address is the same as the expected address
+			defaultAccount, err := m.Address(DefaultKey)
+			require.NoError(t, err)
+			require.Equal(t, common.HexToAddress(d.defaultAccount), defaultAccount)
+		})
+	}
 }

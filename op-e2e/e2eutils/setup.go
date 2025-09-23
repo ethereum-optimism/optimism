@@ -6,10 +6,13 @@ import (
 	"path"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +29,7 @@ var testingJWTSecret = [32]byte{123}
 func WriteDefaultJWT(t TestingBase) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
-	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
@@ -35,9 +38,9 @@ func WriteDefaultJWT(t TestingBase) string {
 // DeployParams bundles the deployment parameters to generate further testing inputs with.
 type DeployParams struct {
 	DeployConfig   *genesis.DeployConfig
-	MnemonicConfig *MnemonicConfig
-	Secrets        *Secrets
-	Addresses      *Addresses
+	MnemonicConfig *secrets.MnemonicConfig
+	Secrets        *secrets.Secrets
+	Addresses      *secrets.Addresses
 	AllocType      config.AllocType
 }
 
@@ -52,9 +55,8 @@ type TestParams struct {
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
-	mnemonicCfg := DefaultMnemonicConfig
-	secrets, err := mnemonicCfg.Secrets()
-	require.NoError(t, err)
+	mnemonicCfg := secrets.DefaultMnemonicConfig
+	secrets := secrets.DefaultSecrets
 	addresses := secrets.Addresses()
 
 	deployConfig := config.DeployConfig(tp.AllocType)
@@ -85,6 +87,7 @@ type SetupData struct {
 	L1Cfg         *core.Genesis
 	L2Cfg         *core.Genesis
 	RollupCfg     *rollup.Config
+	DependencySet depset.DependencySet
 	ChainSpec     *rollup.ChainSpec
 	DeploymentsL1 *genesis.L1Deployments
 }
@@ -106,6 +109,12 @@ func Ether(v uint64) *big.Int {
 }
 
 func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
+	if fork := dc.JovianTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsJovian
+	}
+	if fork := dc.InteropTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsInterop
+	}
 	if fork := dc.IsthmusTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsIsthmus
 	}
@@ -155,7 +164,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	allocsMode := GetL2AllocsMode(deployConf, l1Block.Time())
 	l2Allocs := config.L2Allocs(deployParams.AllocType, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block.Header())
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -207,9 +216,16 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		HoloceneTime:           deployConf.HoloceneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		AltDAConfig:            pcfg,
+		ChainOpConfig: &params.OptimismConfig{
+			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
+			EIP1559Denominator:       deployConf.EIP1559Denominator,
+			EIP1559DenominatorCanyon: &deployConf.EIP1559DenominatorCanyon,
+		},
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -233,7 +249,8 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 }
 
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isIsthmus := os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
+	isJovian := os.Getenv("OP_E2E_USE_JOVIAN") == "true"
+	isIsthmus := isJovian || os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
 	isHolocene := isIsthmus || os.Getenv("OP_E2E_USE_HOLOCENE") == "true"
 	isGranite := isHolocene || os.Getenv("OP_E2E_USE_GRANITE") == "true"
 	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
@@ -257,7 +274,12 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	if isIsthmus {
 		deployConfig.L2GenesisIsthmusTimeOffset = new(hexutil.Uint64)
 	}
+	if isJovian {
+		deployConfig.L2GenesisJovianTimeOffset = new(hexutil.Uint64)
+	}
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+	// Activated by default, contracts depend on it
+	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
 }

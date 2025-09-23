@@ -23,7 +23,7 @@ import { IOptimismMintableERC20Full } from "interfaces/universal/IOptimismMintab
 import { ILegacyMintableERC20Full } from "interfaces/legacy/ILegacyMintableERC20Full.sol";
 
 /// @title CommonTest
-/// @dev An extenstion to `Test` that sets up the optimism smart contracts.
+/// @dev An extension to `Test` that sets up the optimism smart contracts.
 contract CommonTest is Test, Setup, Events {
     address alice;
     address bob;
@@ -53,6 +53,11 @@ contract CommonTest is Test, Setup, Events {
         // state modifying cheatcodes must be run after Setup.setup(), otherwise the
         // changes will not be persisted into the new network.
         Setup.setUp();
+
+        // Set the code for 0xbeefcafe to a single non-zero byte. We use this address as a signal
+        // that something is running in the testing environment and not production, useful for
+        // forked tests.
+        vm.etch(address(0xbeefcafe), bytes(hex"01"));
 
         alice = makeAddr("alice");
         bob = makeAddr("bob");

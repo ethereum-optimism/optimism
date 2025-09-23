@@ -1,6 +1,8 @@
 package log
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +16,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
 const (
@@ -21,6 +24,14 @@ const (
 	FormatFlagName = "log.format"
 	ColorFlagName  = "log.color"
 	PidFlagName    = "log.pid"
+)
+
+// These flag configurations are used during testing, where level is set to trace.
+var (
+	flLevel  = flag.String(LevelFlagName, "trace", "Lowest log level that will be output")
+	flFormat = flag.String(FormatFlagName, "text", "Log format: text|terminal|logfmt|logfmtms|json|jsonms|json-pretty")
+	flColor  = flag.Bool(ColorFlagName, false, "Color the log output if in terminal mode: true|false")
+	flPID    = flag.Bool(PidFlagName, false, "Show pid in the log")
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -127,7 +138,9 @@ const (
 	FormatText     FormatType = "text"
 	FormatTerminal FormatType = "terminal"
 	FormatLogFmt   FormatType = "logfmt"
+	FormatLogFmtMs FormatType = "logfmtms"
 	FormatJSON     FormatType = "json"
+	FormatJSONMs   FormatType = "jsonms"
 )
 
 // FormatHandler returns the correct slog handler factory for the provided format.
@@ -136,9 +149,12 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 		return log.NewTerminalHandler(w, color)
 	}
 	logfmtHandler := func(w io.Writer) slog.Handler { return log.LogfmtHandlerWithLevel(w, log.LevelTrace) }
+	logfmtMsHandler := func(w io.Writer) slog.Handler { return LogfmtMsHandlerWithLevel(w, log.LevelTrace) }
 	switch ft {
 	case FormatJSON:
 		return log.JSONHandler
+	case FormatJSONMs:
+		return JSONMsHandler
 	case FormatText:
 		if color {
 			return termColorHandler
@@ -149,6 +165,8 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 		return termColorHandler
 	case FormatLogFmt:
 		return logfmtHandler
+	case FormatLogFmtMs:
+		return logfmtMsHandler
 	default:
 		panic(fmt.Errorf("failed to create slog.Handler factory for format-type=%q and color=%v", ft, color))
 	}
@@ -167,7 +185,7 @@ func NewFormatFlagValue(fmtType FormatType) *FormatFlagValue {
 
 func (fv *FormatFlagValue) Set(value string) error {
 	switch FormatType(value) {
-	case FormatText, FormatTerminal, FormatLogFmt, FormatJSON:
+	case FormatText, FormatTerminal, FormatLogFmt, FormatLogFmtMs, FormatJSON, FormatJSONMs:
 		*fv = FormatFlagValue(value)
 		return nil
 	default:
@@ -229,7 +247,10 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // Geth and other components may use the global logger however,
 // and it is thus recommended to set the global log handler to catch these logs.
 func SetGlobalLogHandler(h slog.Handler) {
-	log.SetDefault(log.NewLogger(h))
+	l := log.NewLogger(h)
+	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", true)
+	l.SetContext(ctx)
+	log.SetDefault(l)
 }
 
 // DefaultCLIConfig creates a default log configuration.
@@ -251,4 +272,34 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 	cfg.Pid = ctx.Bool(PidFlagName)
 	return cfg
+}
+
+// ReadTestCLIConfig reads the CLI config from flags and environment variables into a CLIConfig.
+// flag.Parse() must be called before calling this function.
+func ReadTestCLIConfig() CLIConfig {
+	*flFormat = "logfmtms" // override the default cli format of text
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		*flLevel = v
+	}
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		*flFormat = v
+	}
+	if v := os.Getenv("LOG_COLOR"); v != "" {
+		*flColor = v == "true"
+	}
+	if v := os.Getenv("LOG_PID"); v != "" {
+		*flPID = v == "true"
+	}
+
+	lvl, err := LevelFromString(*flLevel)
+	if err != nil {
+		panic(fmt.Errorf("failed to parse log level: %w", err))
+	}
+
+	return CLIConfig{
+		Level:  lvl,
+		Format: FormatType(*flFormat),
+		Color:  term.IsTerminal(int(os.Stdout.Fd())) || *flColor,
+		Pid:    *flPID,
+	}
 }

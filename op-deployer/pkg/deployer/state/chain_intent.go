@@ -2,19 +2,34 @@ package state
 
 import (
 	"fmt"
-	"reflect"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
 type VMType string
 
 const (
-	VMTypeAlphabet = "ALPHABET"
-	VMTypeCannon1  = "CANNON1"
-	VMTypeCannon2  = "CANNON2"
+	VMTypeAlphabet   = "ALPHABET"
+	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
+	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 )
+
+func (v VMType) MipsVersion() uint64 {
+	switch v {
+	case VMTypeCannon:
+		return uint64(versions.GetCurrentVersion())
+	case VMTypeCannonNext:
+		return uint64(versions.GetExperimentalVersion())
+	default:
+		// Not a mips VM - return empty value
+		return 0
+	}
+}
 
 type ChainProofParams struct {
 	DisputeGameType                         uint32      `json:"respectedGameType" toml:"respectedGameType"`
@@ -35,6 +50,12 @@ type AdditionalDisputeGame struct {
 	MakeRespected                bool
 }
 
+type L2DevGenesisParams struct {
+	// Prefund is a map of addresses to balances (in wei), to prefund in the L2 dev genesis state.
+	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
+	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
+}
+
 type ChainIntent struct {
 	ID                         common.Hash               `json:"id" toml:"id"`
 	BaseFeeVaultRecipient      common.Address            `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
@@ -43,10 +64,18 @@ type ChainIntent struct {
 	Eip1559DenominatorCanyon   uint64                    `json:"eip1559DenominatorCanyon" toml:"eip1559DenominatorCanyon"`
 	Eip1559Denominator         uint64                    `json:"eip1559Denominator" toml:"eip1559Denominator"`
 	Eip1559Elasticity          uint64                    `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
+	GasLimit                   uint64                    `json:"gasLimit" toml:"gasLimit"`
 	Roles                      ChainRoles                `json:"roles" toml:"roles"`
 	DeployOverrides            map[string]any            `json:"deployOverrides" toml:"deployOverrides"`
 	DangerousAltDAConfig       genesis.AltDADeployConfig `json:"dangerousAltDAConfig,omitempty" toml:"dangerousAltDAConfig,omitempty"`
 	AdditionalDisputeGames     []AdditionalDisputeGame   `json:"dangerousAdditionalDisputeGames" toml:"dangerousAdditionalDisputeGames,omitempty"`
+	OperatorFeeScalar          uint32                    `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
+	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
+	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
+	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+
+	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
+	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
 }
 
 type ChainRoles struct {
@@ -59,17 +88,18 @@ type ChainRoles struct {
 	Challenger        common.Address `json:"challenger" toml:"challenger"`
 }
 
-var ErrChainRoleZeroAddress = fmt.Errorf("ChainRole is set to zero address")
 var ErrFeeVaultZeroAddress = fmt.Errorf("chain has a fee vault set to zero address")
+var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
+var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
 		return fmt.Errorf("id must be set")
 	}
 
-	if err := c.Roles.CheckNoZeroAddresses(); err != nil {
+	if err := addresses.CheckNoZeroAddresses(c.Roles); err != nil {
 		return err
 	}
 
@@ -78,6 +108,11 @@ func (c *ChainIntent) Check() error {
 		c.Eip1559Elasticity == 0 {
 		return fmt.Errorf("%w: chainId=%s", ErrEip1559ZeroValue, c.ID)
 	}
+
+	if c.GasLimit == 0 {
+		return fmt.Errorf("%w: chainId=%s", ErrGasLimitZeroValue, c.ID)
+	}
+
 	if c.BaseFeeVaultRecipient == emptyAddress ||
 		c.L1FeeVaultRecipient == emptyAddress ||
 		c.SequencerFeeVaultRecipient == emptyAddress {
@@ -86,24 +121,6 @@ func (c *ChainIntent) Check() error {
 
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
-	}
-
-	return nil
-}
-
-// Returns an error if any fields in ChainRoles is set to common.Address{}
-func (cr *ChainRoles) CheckNoZeroAddresses() error {
-	val := reflect.ValueOf(*cr)
-	typ := reflect.TypeOf(*cr)
-
-	// Iterate through all the fields
-	for i := 0; i < val.NumField(); i++ {
-		fieldValue := val.Field(i)
-		fieldName := typ.Field(i).Name
-
-		if fieldValue.Interface() == (common.Address{}) {
-			return fmt.Errorf("%w: %s", ErrChainRoleZeroAddress, fieldName)
-		}
 	}
 
 	return nil

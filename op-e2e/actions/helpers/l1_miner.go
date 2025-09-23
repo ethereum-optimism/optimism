@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -26,7 +26,7 @@ import (
 type L1Miner struct {
 	L1Replica
 
-	blobStore *e2eutils.BlobsStore
+	blobStore *blobstore.Store
 
 	// L1 block building preferences
 	prefCoinbase common.Address
@@ -49,7 +49,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	rep := NewL1Replica(t, log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
-		blobStore: e2eutils.NewBlobStore(),
+		blobStore: blobstore.New(),
 	}
 }
 
@@ -57,7 +57,7 @@ func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
 	return s.blobStore
 }
 
-func (s *L1Miner) BlobStore() *e2eutils.BlobsStore {
+func (s *L1Miner) BlobStore() *blobstore.Store {
 	return s.blobStore
 }
 
@@ -103,7 +103,8 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
 			header.BlobGasUsed = new(uint64)
-			header.ExcessBlobGas = new(uint64)
+			excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, header.Time)
+			header.ExcessBlobGas = &excessBlobGas
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
@@ -119,6 +120,10 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			}
 			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
+
+			if s.l1Chain.Config().IsPrague(header.Number, header.Time) {
+				core.ProcessParentBlockHash(header.ParentHash, vmenv)
+			}
 		}
 
 		s.l1Building = true
@@ -140,6 +145,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
+		require.NoError(t, s.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
@@ -165,7 +171,7 @@ func (s *L1Miner) ActL1IncludeTxByHash(txHash common.Hash) Action {
 	}
 }
 
-func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
+func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	from, err := s.l1Signer.Sender(tx)
 	require.NoError(t, err)
 	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from, "to", tx.To())
@@ -174,7 +180,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	}
 	if tx.Gas() > uint64(*s.L1GasPool) {
 		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.L1GasPool))
-		return
+		return nil
 	}
 	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
 	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil, s.l1Cfg.Config, s.l1BuildingState)
@@ -195,6 +201,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 		}
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
+	return receipt
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
@@ -206,6 +213,7 @@ func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
 
 // ActL1EndBlock finishes the new L1 block, and applies it to the chain as unsafe block
 func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
+	t.Helper()
 	if !s.l1Building {
 		t.InvalidAction("cannot end L1 block when not building block")
 		return nil
@@ -220,27 +228,20 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		withdrawals = make([]*types.Withdrawal, 0)
 	}
 
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
-	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
-	if isCancun {
-		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
-		var (
-			parentExcessBlobGas uint64
-			parentBlobGasUsed   uint64
-		)
-		if parent.ExcessBlobGas != nil {
-			parentExcessBlobGas = *parent.ExcessBlobGas
-			parentBlobGasUsed = *parent.BlobGasUsed
-		}
-		excessBlobGas := eip4844.CalcExcessBlobGas(parentExcessBlobGas, parentBlobGasUsed)
-		s.l1BuildingHeader.ExcessBlobGas = &excessBlobGas
+	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
+		// Don't process requests for now.
+		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
+	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
 	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}
+	require.Equal(t, s.l1BuildingHeader.Root, root, "no unexpected change in state-root")
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+
 	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		t.Fatalf("l1 trie write error: %v", err)
 	}
@@ -254,12 +255,13 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 	}
 	_, err = s.l1Chain.InsertChain(types.Blocks{block})
 	if err != nil {
-		t.Fatalf("failed to insert block into l1 chain")
+		t.Fatalf("failed to insert block into l1 chain: %v", err)
 	}
 	return block
 }
 
 func (s *L1Miner) ActEmptyBlock(t Testing) *types.Block {
+	t.Helper()
 	s.ActL1StartBlock(12)(t)
 	return s.ActL1EndBlock(t)
 }

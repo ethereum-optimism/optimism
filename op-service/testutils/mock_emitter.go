@@ -1,7 +1,9 @@
 package testutils
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"context"
+
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -9,7 +11,7 @@ type MockEmitter struct {
 	mock.Mock
 }
 
-func (m *MockEmitter) Emit(ev event.Event) {
+func (m *MockEmitter) Emit(ctx context.Context, ev event.Event) {
 	m.Mock.MethodCalled("Emit", ev)
 }
 

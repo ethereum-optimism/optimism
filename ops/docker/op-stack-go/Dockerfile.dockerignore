@@ -3,6 +3,7 @@
 *
 
 !/cannon
+!/devnet-sdk
 !/op-batcher
 !/op-chain-ops
 !/op-deployer
@@ -17,9 +18,16 @@
 !/op-proposer
 !/op-service
 !/op-supervisor
+!/op-test-sequencer
 !/op-wheel
 !/op-alt-da
+!/op-faucet
+!/op-interop-mon
 !/go.mod
 !/go.sum
 !/justfiles
 !/mise.toml
+
+**/bin
+**/testdata
+**/tests

@@ -112,7 +112,7 @@ func Test_ProgramAction_HoloceneFrames(gt *testing.T) {
 		testCfg.Custom.RequireExpectedProgressAndLogs(t, l2SafeHead, isHolocene, env.Engine, env.Logs)
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
-		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()

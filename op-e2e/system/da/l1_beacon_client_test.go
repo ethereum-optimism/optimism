@@ -6,7 +6,7 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -22,7 +22,7 @@ func TestGetVersion(t *testing.T) {
 
 	l := testlog.Logger(t, log.LevelInfo)
 
-	blobStore := e2eutils.NewBlobStore()
+	blobStore := blobstore.New()
 	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(0))
 	t.Cleanup(func() {
 		_ = beaconApi.Close()
@@ -42,7 +42,7 @@ func Test404NotFound(t *testing.T) {
 
 	l := testlog.Logger(t, log.LevelInfo)
 
-	blobStore := e2eutils.NewBlobStore()
+	blobStore := blobstore.New()
 	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(12))
 	t.Cleanup(func() {
 		_ = beaconApi.Close()

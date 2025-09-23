@@ -4,30 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -77,6 +76,7 @@ func setupSequencerFailoverTest(t *testing.T) (*e2esys.System, map[string]*condu
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer2Name, c2.ConsensusEndpoint(), 0))
 	require.NoError(t, c1.client.AddServerAsVoter(ctx, Sequencer3Name, c3.ConsensusEndpoint(), 0))
 	require.True(t, leader(t, ctx, c1))
+	require.False(t, conductorResumed(t, ctx, c1))
 	require.False(t, leader(t, ctx, c2))
 	require.False(t, leader(t, ctx, c3))
 
@@ -176,21 +176,22 @@ func setupHAInfra(t *testing.T, ctx context.Context) (*e2esys.System, map[string
 	out := make(map[string]*conductor)
 
 	// 3 conductors that connects to 1 sequencer each.
-	// initialize all conductors in paused mode
+	// initialize non-leader conductors in paused mode (later we test that bootstrap node is paused implicitly)
 	conductorCfgs := []struct {
 		name      string
 		bootstrap bool
+		paused    bool
 	}{
-		{Sequencer1Name, true}, // one in bootstrap mode so that we can form a cluster.
-		{Sequencer2Name, false},
-		{Sequencer3Name, false},
+		{Sequencer1Name, true, false}, // one in bootstrap mode so that we can form a cluster.
+		{Sequencer2Name, false, true},
+		{Sequencer3Name, false, true},
 	}
 	for _, cfg := range conductorCfgs {
 		cfg := cfg
 		nodePRC := sys.RollupNodes[cfg.name].UserRPC().RPC()
 		engineRPC := sys.EthInstances[cfg.name].UserRPC().RPC()
 
-		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, *sys.RollupConfig)
+		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, cfg.paused, *sys.RollupConfig)
 		require.NoError(t, err, "failed to set up conductor %s", cfg.name)
 		out[cfg.name] = conduc
 		// Signal that the conductor RPC endpoint is ready
@@ -203,7 +204,7 @@ func setupHAInfra(t *testing.T, ctx context.Context) (*e2esys.System, map[string
 func setupConductor(
 	t *testing.T,
 	serverID, dir, nodeRPC, engineRPC string,
-	bootstrap bool,
+	bootstrap bool, paused bool,
 	rollupCfg rollup.Config,
 ) (*conductor, error) {
 	cfg := con.Config{
@@ -211,15 +212,17 @@ func setupConductor(
 		ConsensusPort:           0,  // let the system select a port, avoid conflicts
 		ConsensusAdvertisedAddr: "", // use the local address we bind to
 
-		RaftServerID:          serverID,
-		RaftStorageDir:        dir,
-		RaftBootstrap:         bootstrap,
-		RaftSnapshotInterval:  120 * time.Second,
-		RaftSnapshotThreshold: 8192,
-		RaftTrailingLogs:      10240,
-		NodeRPC:               nodeRPC,
-		ExecutionRPC:          engineRPC,
-		Paused:                true,
+		RaftServerID:           serverID,
+		RaftStorageDir:         dir,
+		RaftBootstrap:          bootstrap,
+		RaftSnapshotInterval:   120 * time.Second,
+		RaftSnapshotThreshold:  8192,
+		RaftTrailingLogs:       10240,
+		RaftHeartbeatTimeout:   1000 * time.Millisecond,
+		RaftLeaderLeaseTimeout: 500 * time.Millisecond,
+		NodeRPC:                nodeRPC,
+		ExecutionRPC:           engineRPC,
+		Paused:                 paused,
 		HealthCheck: con.HealthCheckConfig{
 			Interval:     1, // per test setup, l2 block time is 1s.
 			MinPeerCount: 2, // per test setup, each sequencer has 2 peers
@@ -272,16 +275,16 @@ func setupBatcher(t *testing.T, sys *e2esys.System, conductors map[string]*condu
 	// enable active sequencer follow mode.
 	// in sequencer HA, all batcher / proposer requests will be proxied by conductor so that we can make sure
 	// that requests are always handled by leader.
-	l2EthRpc := strings.Join([]string{
+	l2EthRpc := []string{
 		conductors[Sequencer1Name].RPCEndpoint(),
 		conductors[Sequencer2Name].RPCEndpoint(),
 		conductors[Sequencer3Name].RPCEndpoint(),
-	}, ",")
-	rollupRpc := strings.Join([]string{
+	}
+	rollupRpc := []string{
 		conductors[Sequencer1Name].RPCEndpoint(),
 		conductors[Sequencer2Name].RPCEndpoint(),
 		conductors[Sequencer3Name].RPCEndpoint(),
-	}, ",")
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].UserRPC().RPC(),
 		L2EthRpc:               l2EthRpc,
@@ -340,8 +343,8 @@ func sequencerFailoverSystemConfig(t *testing.T, conductorRPCEndpoints func(ctx 
 	return cfg
 }
 
-func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.Config {
-	return &rollupNode.Config{
+func sequencerCfg(conductorRPCEndpoint config.ConductorRPCFunc) *config.Config {
+	return &config.Config{
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,
@@ -349,14 +352,15 @@ func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.
 			SequencerStopped:   true,
 		},
 		// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-		RPC: rollupNode.RPCConfig{
+		RPC: oprpc.CLIConfig{
 			ListenAddr:  localhost,
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
+		InteropConfig:               &interop.Config{},
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: time.Minute * 10,
-		ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
+		ConfigPersistence:           &config.DisabledConfigPersistence{},
 		Sync:                        sync.Config{SyncMode: sync.CLSync},
 		ConductorEnabled:            true,
 		ConductorRpc:                conductorRPCEndpoint,

@@ -8,6 +8,8 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
@@ -48,7 +50,7 @@ var (
 )
 
 type Config struct {
-	L2ChainID eth.ChainID // TODO: Forbid for interop
+	L2ChainID eth.ChainID
 	Rollups   []*rollup.Config
 	// DataDir is the directory to read/write pre-image data from/to.
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
@@ -65,7 +67,7 @@ type Config struct {
 	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot for pre-interop mode
-	L2Head common.Hash // TODO: Forbid for interop
+	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
 	// L2URLs are the URLs of the L2 nodes to fetch L2 data from, these are the canonical URL for L2 data
@@ -96,6 +98,8 @@ type Config struct {
 	InteropEnabled bool
 	// AgreedPrestate is the preimage of the agreed prestate claim. Required for interop.
 	AgreedPrestate []byte
+	// DependencySet is the dependency set for the interop host. Required for interop.
+	DependencySet depset.DependencySet
 }
 
 func (c *Config) Check() error {
@@ -273,6 +277,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	var rollupCfgs []*rollup.Config
 	var l2ChainConfigs []*params.ChainConfig
 	var l2ChainID eth.ChainID
+	var dependencySet depset.DependencySet
 	networkNames := ctx.StringSlice(flags.Network.Name)
 	for _, networkName := range networkNames {
 		var chainID eth.ChainID
@@ -294,6 +299,15 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("failed to load rollup config for chain %d: %w", chainID, err)
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
+
+		if interopEnabled {
+			depSet, err := depset.FromRegistry(chainID)
+			if err != nil && !errors.Is(err, superchain.ErrUnknownChain) {
+				return nil, fmt.Errorf("failed to load dependency set for chain %d: %w", chainID, err)
+			} else if depSet != nil {
+				dependencySet = depSet
+			}
+		}
 		l2ChainID = chainID
 	}
 
@@ -328,6 +342,19 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if !slices.Contains(types.SupportedDataFormats, dbFormat) {
 		return nil, fmt.Errorf("invalid %w: %v", ErrInvalidDataFormat, dbFormat)
 	}
+
+	if interopEnabled {
+		depsetConfigPath := ctx.Path(flags.DepsetConfig.Name)
+		if depsetConfigPath != "" {
+			dependencySet, err = loadDepsetConfig(depsetConfigPath)
+			if err != nil {
+				return nil, fmt.Errorf("invalid depset config: %w", err)
+			}
+		} else if dependencySet == nil { // Error if dep set not provided via a named network already
+			return nil, fmt.Errorf("empty depset config path")
+		}
+	}
+
 	return &Config{
 		L2ChainID:          l2ChainID,
 		Rollups:            rollupCfgs,
@@ -339,6 +366,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		L2Head:             l2Head,
 		L2OutputRoot:       l2OutputRoot,
 		AgreedPrestate:     agreedPrestate,
+		DependencySet:      dependencySet,
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNum,
 		L1Head:             l1Head,
@@ -374,4 +402,17 @@ func loadRollupConfig(rollupConfigPath string) (*rollup.Config, error) {
 
 	var rollupConfig rollup.Config
 	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
+}
+
+func loadDepsetConfig(path string) (*depset.StaticConfigDependencySet, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read depset config: %w", err)
+	}
+	var depsetConfig depset.StaticConfigDependencySet
+	err = json.Unmarshal(data, &depsetConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse depset config: %w", err)
+	}
+	return &depsetConfig, nil
 }

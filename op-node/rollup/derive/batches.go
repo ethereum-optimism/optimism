@@ -133,6 +133,12 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 		return BatchDrop
 	}
 
+	// Future forks that contain upgrade transactions must be added here.
+	if (cfg.IsInteropActivationBlock(batch.Timestamp)) && len(batch.Transactions) > 0 {
+		log.Warn("dropping batch with user transactions in fork activation block")
+		return BatchDrop
+	}
+
 	spec := rollup.NewChainSpec(cfg)
 	// Check if we ran out of sequencer time drift
 	if max := batchOrigin.Time + spec.MaxSequencerDrift(batchOrigin.Time); batch.Timestamp > max {
@@ -161,6 +167,8 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 		}
 	}
 
+	isIsthmus := cfg.IsIsthmus(batch.Timestamp)
+
 	// We can do this check earlier, but it's a more intensive one, so we do this last.
 	for i, txBytes := range batch.Transactions {
 		if len(txBytes) == 0 {
@@ -169,6 +177,10 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 		}
 		if txBytes[0] == types.DepositTxType {
 			log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
+			return BatchDrop
+		}
+		if !isIsthmus && txBytes[0] == types.SetCodeTxType {
+			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", i)
 			return BatchDrop
 		}
 	}

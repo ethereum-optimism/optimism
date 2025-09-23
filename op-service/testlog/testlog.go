@@ -21,13 +21,19 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"path"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -44,6 +50,9 @@ func init() {
 type Testing interface {
 	Logf(format string, args ...any)
 	Helper()
+	FailNow()
+	Name() string
+	Cleanup(func())
 }
 
 // logger implements log.Logger such that all output goes to the unit test log via
@@ -54,24 +63,153 @@ type logger struct {
 	t   Testing
 	l   log.Logger
 	mu  *sync.Mutex
-	buf *bytes.Buffer
+	buf *syncBuffer
 }
+
+// This implements the full geth logger interface
+var _ log.Logger = (*logger)(nil)
 
 // Logger returns a logger which logs to the unit test log of t.
 func Logger(t Testing, level slog.Level) log.Logger {
-	return LoggerWithHandlerMod(t, level, func(h slog.Handler) slog.Handler { return h })
+	return LoggerWithHandlerMod(t, level)
 }
 
-func LoggerWithHandlerMod(t Testing, level slog.Level, handlerMod func(slog.Handler) slog.Handler) log.Logger {
-	l := &logger{t: t, mu: new(sync.Mutex), buf: new(bytes.Buffer)}
-	var handler slog.Handler = log.NewTerminalHandlerWithLevel(l.buf, level, useColorInTestLog)
-	handler = handlerMod(handler)
+func LoggerWithHandlerMod(t Testing, level slog.Level, handlerMods ...logmods.HandlerMod) log.Logger {
+	// We use a sync wrapper around the buffer because it potentially gets passed into a handler later which can then
+	// be retrieved using `Handler()` so it isn't guaranteed to always be guarded by the logger mutex.
+	l := &logger{t: t, mu: new(sync.Mutex), buf: newSyncBuffer(new(bytes.Buffer))}
+
+	var handler slog.Handler
+	if outdir := os.Getenv("OP_TESTLOG_FILE_LOGGER_OUTDIR"); outdir != "" {
+		handler = fileHandler(t, outdir, level)
+	}
+
+	// Check if handler is nil here because setupFileLogger will return nil if it fails to
+	// create the logfile.
+	if handler == nil {
+		handler = log.NewTerminalHandlerWithLevel(l.buf, level, useColorInTestLog)
+	}
+
+	for _, mod := range handlerMods {
+		handler = mod(handler)
+	}
 	l.l = log.NewLogger(handler)
+
 	return l
+}
+
+var (
+	alnumRegexp = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	flMtx       sync.Mutex
+	flHandlers  = make(map[string]slog.Handler)
+	rootSetup   sync.Once
+)
+
+func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
+	var rootLoggerName string
+
+	rootSetup.Do(func() {
+		f, err := os.OpenFile(path.Join(outdir, fmt.Sprintf("root-%d.log", os.Getpid())), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			t.Logf("failed to open root log file: %v", err)
+			return
+		}
+
+		// The writer needs to be thread safe as it might be passed through to a different TerminalHandler instance
+		// if rootHdlr.WithAttrs ever winds up being called.
+		writer := newSyncWriter(bufio.NewWriter(f))
+		rootHdlr := log.NewTerminalHandlerWithLevel(writer, level, false)
+		oplog.SetGlobalLogHandler(rootHdlr)
+		t.Logf("redirecting root logger to %s", f.Name())
+		rootLoggerName = f.Name()
+	})
+
+	testName := fmt.Sprintf(
+		"%s-%d.log",
+		alnumRegexp.ReplaceAllString(strings.ReplaceAll(t.Name(), "/", "-"), ""),
+		os.Getpid(),
+	)
+
+	flMtx.Lock()
+	defer flMtx.Unlock()
+
+	if h, ok := flHandlers[testName]; ok {
+		return h
+	}
+
+	logPath := path.Join(outdir, testName)
+	dw := newDeferredWriter(logPath)
+	t.Cleanup(func() {
+		if err := dw.Close(); err != nil {
+			t.Logf("failed to close log file %s: %v", logPath, err)
+		}
+
+		flMtx.Lock()
+		delete(flHandlers, testName)
+		flMtx.Unlock()
+	})
+	t.Logf("writing test log to %s", logPath)
+	t.Logf("some tests may have written to the root logger")
+	t.Logf("logs from the root logger have been written to %s", rootLoggerName)
+	h := log.NewTerminalHandlerWithLevel(dw, level, false)
+	flHandlers[testName] = h
+	return h
 }
 
 func (l *logger) Handler() slog.Handler {
 	return l.l.Handler()
+}
+
+func (l *logger) SetContext(ctx context.Context) {
+	// no-op: test-logger does not use default contexts.
+}
+
+func (l *logger) LogAttrs(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.LogAttrs(ctx, level, msg, attrs...)
+	l.flush()
+}
+
+func (l *logger) TraceContext(ctx context.Context, msg string, args ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.TraceContext(ctx, msg, args...)
+	l.flush()
+}
+
+func (l *logger) DebugContext(ctx context.Context, msg string, args ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.DebugContext(ctx, msg, args...)
+	l.flush()
+}
+
+func (l *logger) InfoContext(ctx context.Context, msg string, args ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.InfoContext(ctx, msg, args...)
+	l.flush()
+}
+
+func (l *logger) WarnContext(ctx context.Context, msg string, args ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.WarnContext(ctx, msg, args...)
+	l.flush()
+}
+
+func (l *logger) ErrorContext(ctx context.Context, msg string, args ...any) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.ErrorContext(ctx, msg, args...)
+	l.flush()
 }
 
 func (l *logger) Trace(msg string, ctx ...any) {
@@ -118,8 +256,10 @@ func (l *logger) Crit(msg string, ctx ...any) {
 	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.l.Crit(msg, ctx...)
+	// We can't use l.l.Crit because that will exit the program before we can flush the buffer.
+	l.l.Write(log.LevelCrit, msg, ctx...)
 	l.flush()
+	l.t.FailNow()
 }
 
 func (l *logger) Log(level slog.Level, msg string, ctx ...any) {
@@ -131,7 +271,19 @@ func (l *logger) Log(level slog.Level, msg string, ctx ...any) {
 }
 
 func (l *logger) Write(level slog.Level, msg string, ctx ...any) {
-	l.Log(level, msg, ctx...)
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.Log(level, msg, ctx...)
+	l.flush()
+}
+
+func (l *logger) WriteCtx(ctx context.Context, level slog.Level, msg string, args ...interface{}) {
+	l.t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.l.WriteCtx(ctx, level, msg, args...)
+	l.flush()
 }
 
 func (l *logger) New(ctx ...any) log.Logger {
@@ -201,4 +353,88 @@ func estimateInfoLen(frameSkip int) int {
 	} else {
 		return 8
 	}
+}
+
+type deferredWriter struct {
+	name  string
+	w     *bufio.Writer
+	close func() error
+	mtx   sync.Mutex
+}
+
+func newDeferredWriter(name string) *deferredWriter {
+	return &deferredWriter{name: name}
+}
+
+func (w *deferredWriter) Write(p []byte) (n int, err error) {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+
+	if w.w == nil {
+		f, err := os.OpenFile(w.name, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return 0, err
+		}
+		w.w = bufio.NewWriter(f)
+		w.close = f.Close
+	}
+
+	return w.w.Write(p)
+}
+
+func (w *deferredWriter) Close() error {
+	w.mtx.Lock()
+	defer w.mtx.Unlock()
+	if w.w == nil {
+		return nil
+	}
+	if err := w.w.Flush(); err != nil {
+		return err
+	}
+	return w.close()
+}
+
+type buffer interface {
+	io.Writer
+	io.Reader
+	Reset()
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func newSyncWriter(w io.Writer) *syncWriter {
+	return &syncWriter{w: w}
+}
+
+func (w *syncWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(p)
+}
+
+type syncBuffer struct {
+	syncWriter
+	b buffer
+}
+
+func newSyncBuffer(b buffer) *syncBuffer {
+	return &syncBuffer{
+		syncWriter: syncWriter{w: b},
+		b:          b,
+	}
+}
+
+func (b *syncBuffer) Read(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Read(p)
+}
+
+func (b *syncBuffer) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.b.Reset()
 }

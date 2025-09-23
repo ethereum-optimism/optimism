@@ -2,10 +2,12 @@ package helpers
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -25,25 +27,34 @@ func firstValidTx(
 	var txs []*types.Transaction
 	var q []*types.Transaction
 	// Wait for the tx to be in the pending tx queue
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 31*time.Second)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+
+	err := retry.Do0(ctx, 10, retry.Exponential(), func() error {
 		i = pendingIndices(from)
 		txs, q = contentFrom(from)
 		// Remove any transactions that have already been included in the head block
 		// The tx pool only prunes included transactions async so they may still be in the list
-		nonce, err := nonceAt(ctx, from, nil)
+
+		subCtx, subCancel := context.WithTimeout(ctx, time.Second)
+		defer subCancel()
+
+		nonce, err := nonceAt(subCtx, from, nil)
 		if err != nil {
-			return false, err
+			return err
 		}
 		for len(txs) > 0 && txs[0].Nonce() < nonce {
 			t.Logf("Removing already included transaction from list of length %v", len(txs))
 			txs = txs[1:]
 		}
-		return uint64(len(txs)) > i, nil
+
+		if uint64(len(txs)) <= i {
+			return fmt.Errorf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
+		}
+
+		return nil
 	})
-	require.NoError(t, err,
-		"no pending txs from %s, and have %d unprocessable queued txs from this account: %w", from, len(q), err)
+	require.NoError(t, err)
 
 	return txs[i]
 }

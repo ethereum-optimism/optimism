@@ -45,6 +45,14 @@ func (a *SimpleTxmgrAPI) SetFeeThreshold(_ context.Context, val *big.Int) {
 	a.mgr.SetFeeThreshold(val)
 }
 
+func (a *SimpleTxmgrAPI) GetRebroadcastInterval(_ context.Context) time.Duration {
+	return a.mgr.GetRebroadcastInterval()
+}
+
+func (a *SimpleTxmgrAPI) SetRebroadcastInterval(_ context.Context, val time.Duration) {
+	a.mgr.SetRebroadcastInterval(val)
+}
+
 func (a *SimpleTxmgrAPI) GetBumpFeeRetryTime(_ context.Context) time.Duration {
 	return a.mgr.GetBumpFeeRetryTime()
 }

@@ -35,13 +35,7 @@ type SuperFaultProofConfig struct {
 }
 
 type OPCMImplementationsConfig struct {
-	L1ContractsRelease string
-
 	FaultProof SuperFaultProofConfig
-
-	UseInterop bool // to deploy Interop implementation contracts, instead of the regular ones.
-
-	StandardVersionsToml string // serialized string of superchain-registry 'standard-versions-mainnet.toml' file
 }
 
 type SuperchainConfig struct {
@@ -49,6 +43,7 @@ type SuperchainConfig struct {
 
 	ProxyAdminOwner       common.Address
 	ProtocolVersionsOwner common.Address
+	Challenger            common.Address
 
 	Paused bool
 

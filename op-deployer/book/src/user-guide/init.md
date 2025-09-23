@@ -1,6 +1,6 @@
 # The Init Command
 
-The `init` command is used to create a new intent and state file in the specified directory. This command is the 
+The `init` command is used to create a new intent and state file in the specified directory. This command is the
 starting point of each new deployment.
 
 The `init` command is used like this:
@@ -8,9 +8,9 @@ The `init` command is used like this:
 ```shell
 op-deployer init \
   --l1-chain-id <chain ID of your L1> \
-  --l2-chain-ids <comman separated list of chain IDs for your L2s> \
-  --output-dir <directory to write the intent and state files> \
-  --intent-config-type <standard/custom/strict/standard-overrides/strict-overrides>
+  --l2-chain-ids <comma separated list of chain IDs for your L2s> \
+  --outdir <directory to write the intent and state files> \
+  --intent-type <standard/custom/standard-overrides>
 ```
 
 You should then see the following files appear in your output directory:
@@ -21,7 +21,7 @@ outdir
 └── state.json
 ```
 
-The `intent.toml` file is where you specify the configuration for your deployment. The `state.json` file is where OP 
+The `intent.toml` file is where you specify the configuration for your deployment. The `state.json` file is where OP
 Deployer will output the current state of the deployment after each [stage][stages] of the deployment.
 
 Your intent should look something like this:
@@ -32,7 +32,7 @@ l1ChainID = 11155420
 fundDevAccounts = false
 useInterop = false
 l1ContractsLocator = "tag://op-contracts/v1.8.0-rc.4"
-l2ContractsLocator = "op-contracts/v1.7.0-beta.1+l2-contracts"
+l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
 
 [superchainRoles]
   proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
@@ -57,7 +57,23 @@ l2ContractsLocator = "op-contracts/v1.7.0-beta.1+l2-contracts"
     challenger = "0x0000000000000000000000000000000000000000"
 ```
 
-Before you can use your intent file for a deployment, you will need to update all zero values to whatever is 
-appropriate for your chain.
+Before you can use your intent file for a deployment, you will need to update all zero values to whatever is
+appropriate for your chain. For dev environments, it is ok to use all EOAs/hot-wallets.
+
+## Production Setup
+In production environments, you should use a more secure setup with cold-wallet multisigs (e.g. Gnosis Safes) for the following:
+* `baseFeeVaultRecipient`
+* `l1FeeVaultRecipient`
+* `sequencerFeeVaultRecipient`
+* `l1ProxyAdminOwner`
+* `l2ProxyAdminOwner`
+* `systemConfigOwner`
+
+HSMs (hardware security modules) are recommended for the following hot-wallets:
+* `unsafeBlockSigner`
+* `batcher`
+* `proposer`
+* `challenger`
+
 
 [stages]: ../architecture/pipeline.md

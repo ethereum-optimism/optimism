@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -32,6 +33,8 @@ var (
 	ErrMissingRollupConfig = errors.New("missing network or rollup config path")
 	ErrMissingL2Genesis    = errors.New("missing network or l2 genesis path")
 	ErrNetworkUnknown      = errors.New("unknown network")
+
+	ErrVMPanic = errors.New("vm exited with exit code 2 (panic)")
 )
 
 type Metricer = metrics.TypedVmMetricer
@@ -49,11 +52,13 @@ type Config struct {
 	L1                string
 	L1Beacon          string
 	L2s               []string
+	L2Experimental    string
 	Server            string // Path to the executable that provides the pre-image oracle server
 	Networks          []string
 	L2Custom          bool
 	RollupConfigPaths []string
 	L2GenesisPaths    []string
+	DepsetConfigPath  string
 }
 
 func (c *Config) Check() error {
@@ -177,6 +182,14 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	e.logger.Info("Generating trace", "proof", end, "cmd", e.cfg.VmBin, "args", strings.Join(args, ", "))
 	execStart := time.Now()
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		e.logger.Error("VM command exited with non-zero exit code", "exit_code", exitErr.ExitCode())
+		if exitErr.ExitCode() == 2 {
+			// Handle panics specially
+			err = ErrVMPanic
+		}
+	}
 	execTime := time.Since(execStart)
 	memoryUsed := "unknown"
 	e.metrics.RecordExecutionTime(execTime)
@@ -187,6 +200,7 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 			memoryUsed = fmt.Sprintf("%d", uint64(info.MemoryUsed))
 			e.metrics.RecordMemoryUsed(uint64(info.MemoryUsed))
 			e.metrics.RecordSteps(info.Steps)
+			e.metrics.RecordInstructionCacheMissCount(info.InstructionCacheMissCount)
 			e.metrics.RecordRmwSuccessCount(info.RmwSuccessCount)
 			e.metrics.RecordRmwFailCount(info.RmwFailCount)
 			e.metrics.RecordMaxStepsBetweenLLAndSC(info.MaxStepsBetweenLLAndSC)
@@ -202,6 +216,7 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 type debugInfo struct {
 	MemoryUsed                   hexutil.Uint64 `json:"memory_used"`
 	Steps                        uint64         `json:"total_steps"`
+	InstructionCacheMissCount    uint64         `json:"instruction_cache_miss_count"`
 	RmwSuccessCount              uint64         `json:"rmw_success_count"`
 	RmwFailCount                 uint64         `json:"rmw_fail_count"`
 	MaxStepsBetweenLLAndSC       uint64         `json:"max_steps_between_ll_and_sc"`

@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type DeriverIdleEvent struct {
@@ -48,7 +48,8 @@ func (d DeriverL1StatusEvent) String() string {
 	return "deriver-l1-status"
 }
 
-type DeriverMoreEvent struct{}
+type DeriverMoreEvent struct {
+}
 
 func (d DeriverMoreEvent) String() string {
 	return "deriver-more"
@@ -56,13 +57,15 @@ func (d DeriverMoreEvent) String() string {
 
 // ConfirmReceivedAttributesEvent signals that the derivation pipeline may generate new attributes.
 // After emitting DerivedAttributesEvent, no new attributes will be generated until a confirmation of reception.
-type ConfirmReceivedAttributesEvent struct{}
+type ConfirmReceivedAttributesEvent struct {
+}
 
 func (d ConfirmReceivedAttributesEvent) String() string {
 	return "confirm-received-attributes"
 }
 
-type ConfirmPipelineResetEvent struct{}
+type ConfirmPipelineResetEvent struct {
+}
 
 func (d ConfirmPipelineResetEvent) String() string {
 	return "confirm-pipeline-reset"
@@ -118,10 +121,12 @@ func (d *PipelineDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
-func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
+func (d *PipelineDeriver) ResetPipeline() {
+	d.pipeline.Reset()
+}
+
+func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
-	case rollup.ForceResetEvent:
-		d.pipeline.Reset()
 	case PipelineStepEvent:
 		// Don't generate attributes if there are already attributes in-flight
 		if d.needAttributesConfirmation {
@@ -133,32 +138,37 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 		attrib, err := d.pipeline.Step(d.ctx, x.PendingSafe)
 		postOrigin := d.pipeline.Origin()
 		if preOrigin != postOrigin {
-			d.emitter.Emit(DeriverL1StatusEvent{Origin: postOrigin, LastL2: x.PendingSafe})
+			d.emitter.Emit(ctx, DeriverL1StatusEvent{Origin: postOrigin, LastL2: x.PendingSafe})
 		}
 		if err == io.EOF {
 			d.pipeline.log.Debug("Derivation process went idle", "progress", d.pipeline.Origin(), "err", err)
-			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})
-			d.emitter.Emit(ExhaustedL1Event{L1Ref: d.pipeline.Origin(), LastL2: x.PendingSafe})
+			if d.pipeline.Origin() != d.pipeline.attrib.Origin() {
+				d.pipeline.log.Warn("Inconsistent derivation L1 traversal",
+					"progress", d.pipeline.Origin(),
+					"attribOrigin", d.pipeline.attrib.Origin())
+			}
+			d.emitter.Emit(ctx, DeriverIdleEvent{Origin: d.pipeline.Origin()})
+			d.emitter.Emit(ctx, ExhaustedL1Event{L1Ref: d.pipeline.Origin(), LastL2: x.PendingSafe})
 		} else if err != nil && errors.Is(err, EngineELSyncing) {
 			d.pipeline.log.Debug("Derivation process went idle because the engine is syncing", "progress", d.pipeline.Origin(), "err", err)
-			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})
+			d.emitter.Emit(ctx, DeriverIdleEvent{Origin: d.pipeline.Origin()})
 		} else if err != nil && errors.Is(err, ErrReset) {
-			d.emitter.Emit(rollup.ResetEvent{Err: err})
+			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
 		} else if err != nil && errors.Is(err, ErrTemporary) {
-			d.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 		} else if err != nil && errors.Is(err, ErrCritical) {
-			d.emitter.Emit(rollup.CriticalErrorEvent{Err: err})
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
 		} else if err != nil && errors.Is(err, NotEnoughData) {
 			// don't do a backoff for this error
-			d.emitter.Emit(DeriverMoreEvent{})
+			d.emitter.Emit(ctx, DeriverMoreEvent{})
 		} else if err != nil {
 			d.pipeline.log.Error("Derivation process error", "err", err)
-			d.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 		} else {
 			if attrib != nil {
-				d.emitDerivedAttributesEvent(attrib)
+				d.emitDerivedAttributesEvent(ctx, attrib)
 			} else {
-				d.emitter.Emit(DeriverMoreEvent{}) // continue with the next step if we can
+				d.emitter.Emit(ctx, DeriverMoreEvent{}) // continue with the next step if we can
 			}
 		}
 	case ConfirmPipelineResetEvent:
@@ -169,21 +179,23 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 		d.pipeline.log.Warn("Deriving deposits-only attributes", "origin", d.pipeline.Origin())
 		attrib, err := d.pipeline.DepositsOnlyAttributes(x.Parent, x.DerivedFrom)
 		if err != nil {
-			d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("deriving deposits-only attributes: %w", err)})
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("deriving deposits-only attributes: %w", err),
+			})
 			return true
 		}
-		d.emitDerivedAttributesEvent(attrib)
+		d.emitDerivedAttributesEvent(ctx, attrib)
 	case ProvideL1Traversal:
 		if l1t, ok := d.pipeline.traversal.(ManagedL1Traversal); ok {
 			if err := l1t.ProvideNextL1(d.ctx, x.NextL1); err != nil {
 				if err != nil && errors.Is(err, ErrReset) {
-					d.emitter.Emit(rollup.ResetEvent{Err: err})
+					d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
 				} else if err != nil && errors.Is(err, ErrTemporary) {
-					d.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: err})
+					d.emitter.Emit(ctx, rollup.L1TemporaryErrorEvent{Err: err})
 				} else if err != nil && errors.Is(err, ErrCritical) {
-					d.emitter.Emit(rollup.CriticalErrorEvent{Err: err})
+					d.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
 				} else {
-					d.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: err})
+					d.emitter.Emit(ctx, rollup.L1TemporaryErrorEvent{Err: err})
 				}
 			}
 		} else {
@@ -195,7 +207,7 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 	return true
 }
 
-func (d *PipelineDeriver) emitDerivedAttributesEvent(attrib *AttributesWithParent) {
+func (d *PipelineDeriver) emitDerivedAttributesEvent(ctx context.Context, attrib *AttributesWithParent) {
 	d.needAttributesConfirmation = true
-	d.emitter.Emit(DerivedAttributesEvent{Attributes: attrib})
+	d.emitter.Emit(ctx, DerivedAttributesEvent{Attributes: attrib})
 }

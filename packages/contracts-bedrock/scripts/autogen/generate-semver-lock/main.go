@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -21,8 +21,8 @@ type SemverLockOutput struct {
 }
 
 type SemverLockResult struct {
-	SemverLockOutput
-	SourceFilePath string
+	ContractKey      string
+	SemverLockOutput SemverLockOutput
 }
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 		processFile,
 	)
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		fmt.Printf("Failed to generate semver lock: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -42,7 +42,7 @@ func main() {
 		if result == nil {
 			continue
 		}
-		output[result.SourceFilePath] = result.SemverLockOutput
+		output[result.ContractKey] = result.SemverLockOutput
 	}
 
 	// Get and sort the keys
@@ -76,16 +76,60 @@ func processFile(file string) (*SemverLockResult, []error) {
 		return nil, []error{fmt.Errorf("failed to read artifact: %w", err)}
 	}
 
+	var sourceFilePath, contractName, contractKey string
+	for path, name := range artifact.Metadata.Settings.CompilationTarget {
+		sourceFilePath = path
+		contractName = name
+		contractKey = sourceFilePath + ":" + name
+		break
+	}
+
 	// Only apply to files in the src directory.
-	sourceFilePath := artifact.Ast.AbsolutePath
 	if !strings.HasPrefix(sourceFilePath, "src/") {
 		return nil, nil
 	}
 
-	// Check if the contract uses semver.
-	semverRegex := regexp.MustCompile(`custom:semver`)
-	semver := semverRegex.FindStringSubmatch(artifact.RawMetadata)
-	if len(semver) == 0 {
+	// Check if the contract has a version function or variable with @custom:semver tag
+	hasSemverTag := false
+	for _, node := range artifact.Ast.Nodes {
+		if node.NodeType != "ContractDefinition" || node.Name != contractName {
+			continue
+		}
+		// Check each node inside the contract
+		for _, subNode := range node.Nodes {
+			// Skip nodes that aren't version functions or variables
+			if (subNode.NodeType != "FunctionDefinition" &&
+				subNode.NodeType != "VariableDeclaration") ||
+				subNode.Name != "version" {
+				continue
+			}
+			if subNode.Documentation == nil {
+				continue
+			}
+			// Handle documentation based on its actual type
+			var docText string
+			switch doc := subNode.Documentation.(type) {
+			case string:
+				docText = doc
+			case map[string]interface{}:
+				if text, ok := doc["text"].(string); ok {
+					docText = text
+				}
+			case solc.AstDocumentation:
+				docText = doc.Text
+			case *solc.AstDocumentation:
+				docText = doc.Text
+			}
+			if strings.Contains(docText, "@custom:semver") {
+				hasSemverTag = true
+				break
+			}
+		}
+		if hasSemverTag {
+			break
+		}
+	}
+	if !hasSemverTag {
 		return nil, nil
 	}
 
@@ -101,13 +145,12 @@ func processFile(file string) (*SemverLockResult, []error) {
 		return nil, []error{fmt.Errorf("failed to read source file: %w", err)}
 	}
 
-	// Calculate hashes using Keccak256
 	trimmedSourceCode := []byte(strings.TrimSuffix(string(sourceCode), "\n"))
 	initCodeHash := fmt.Sprintf("0x%x", crypto.Keccak256Hash(initCodeBytes))
 	sourceCodeHash := fmt.Sprintf("0x%x", crypto.Keccak256Hash(trimmedSourceCode))
 
 	return &SemverLockResult{
-		SourceFilePath: sourceFilePath,
+		ContractKey: contractKey,
 		SemverLockOutput: SemverLockOutput{
 			InitCodeHash:   initCodeHash,
 			SourceCodeHash: sourceCodeHash,

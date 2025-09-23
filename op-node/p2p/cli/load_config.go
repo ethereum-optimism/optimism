@@ -11,7 +11,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -23,11 +22,12 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
-func NewConfig(ctx *cli.Context, rollupCfg *rollup.Config) (*p2p.Config, error) {
+func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.Bool(flags.DisableP2PName) {
@@ -57,7 +57,7 @@ func NewConfig(ctx *cli.Context, rollupCfg *rollup.Config) (*p2p.Config, error) 
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
-	if err := loadScoringParams(conf, ctx, rollupCfg); err != nil {
+	if err := loadScoringParams(conf, ctx, blockTime); err != nil {
 		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
 	}
 
@@ -86,7 +86,7 @@ func validatePort(p uint) (uint16, error) {
 }
 
 // loadScoringParams loads the peer scoring options from the CLI context.
-func loadScoringParams(conf *p2p.Config, ctx *cli.Context, rollupCfg *rollup.Config) error {
+func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
 	scoringLevel := ctx.String(flags.ScoringName)
 	// Check old names for backwards compatibility
 	if scoringLevel == "" {
@@ -96,7 +96,7 @@ func loadScoringParams(conf *p2p.Config, ctx *cli.Context, rollupCfg *rollup.Con
 		scoringLevel = ctx.String(flags.TopicScoringName)
 	}
 	if scoringLevel != "" {
-		params, err := p2p.GetScoringParams(scoringLevel, rollupCfg)
+		params, err := p2p.GetScoringParams(scoringLevel, blockTime)
 		if err != nil {
 			return err
 		}
@@ -178,8 +178,9 @@ func loadDiscoveryOpts(conf *p2p.Config, ctx *cli.Context) error {
 		return fmt.Errorf("failed to open discovery db: %w", err)
 	}
 
-	records := strings.Split(ctx.String(flags.BootnodesName), ",")
+	records := ctx.StringSlice(flags.BootnodesName)
 	if len(records) == 0 {
+		log.Info("Using default bootnodes, none provided.")
 		records = p2p.DefaultBootnodes
 	}
 
@@ -376,5 +377,6 @@ func loadGossipOptions(conf *p2p.Config, ctx *cli.Context) error {
 	conf.MeshDHi = ctx.Int(flags.GossipMeshDhiName)
 	conf.MeshDLazy = ctx.Int(flags.GossipMeshDlazyName)
 	conf.FloodPublish = ctx.Bool(flags.GossipFloodPublishName)
+	conf.GossipTimestampThreshold = ctx.Duration(flags.GossipTimestampThresholdName)
 	return nil
 }

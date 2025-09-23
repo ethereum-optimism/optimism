@@ -53,12 +53,14 @@ type RaftConsensusConfig struct {
 	// E.g. use 0.0.0.0 to bind to an external-facing network.
 	ListenAddr string
 
-	StorageDir        string
-	Bootstrap         bool
-	RollupCfg         *rollup.Config
-	SnapshotInterval  time.Duration
-	SnapshotThreshold uint64
-	TrailingLogs      uint64
+	StorageDir         string
+	Bootstrap          bool
+	RollupCfg          *rollup.Config
+	SnapshotInterval   time.Duration
+	SnapshotThreshold  uint64
+	TrailingLogs       uint64
+	HeartbeatTimeout   time.Duration
+	LeaderLeaseTimeout time.Duration
 }
 
 // checkTCPPortOpen attempts to connect to the specified address and returns an error if the connection fails.
@@ -77,6 +79,8 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	rc.SnapshotInterval = cfg.SnapshotInterval
 	rc.TrailingLogs = cfg.TrailingLogs
 	rc.SnapshotThreshold = cfg.SnapshotThreshold
+	rc.HeartbeatTimeout = cfg.HeartbeatTimeout
+	rc.LeaderLeaseTimeout = cfg.LeaderLeaseTimeout
 	rc.LocalID = raft.ServerID(cfg.ServerID)
 
 	baseDir := filepath.Join(cfg.StorageDir, cfg.ServerID)
@@ -160,8 +164,13 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		}
 
 		f := r.BootstrapCluster(raftCfg)
-		if err := f.Error(); err != nil {
-			return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
+		err = f.Error()
+		if err != nil {
+			if errors.Is(err, raft.ErrCantBootstrap) {
+				log.Warn("Raft cluster already exists, skipping bootstrap")
+			} else {
+				return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
+			}
 		}
 	}
 
@@ -172,7 +181,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		unsafeTracker: fsm,
 		rollupCfg:     cfg.RollupCfg,
 		transport:     transport,
-	}, nil
+	}, err
 }
 
 // Addr returns the address to contact this raft consensus server.

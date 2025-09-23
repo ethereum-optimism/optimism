@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -26,8 +25,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -43,9 +44,11 @@ var (
 )
 
 const (
-	cannonGameType       uint32 = 0
-	permissionedGameType uint32 = 1
-	alphabetGameType     uint32 = 255
+	cannonGameType            uint32 = 0
+	permissionedGameType      uint32 = 1
+	superCannonGameType       uint32 = 4
+	superPermissionedGameType uint32 = 5
+	alphabetGameType          uint32 = 255
 )
 
 type GameCfg struct {
@@ -75,15 +78,19 @@ func WithFutureProposal() GameOpt {
 
 type DisputeSystem interface {
 	L1BeaconEndpoint() endpoint.RestHTTP
+	SupervisorClient() *sources.SupervisorClient
 	NodeEndpoint(name string) endpoint.RPC
+	L2NodeEndpoints() []endpoint.RPC
 	NodeClient(name string) *ethclient.Client
 	RollupEndpoint(name string) endpoint.RPC
+	SupervisorEndpoint() endpoint.RPC
 	RollupClient(name string) *sources.RollupClient
-
-	L1Deployments() *genesis.L1Deployments
-	RollupCfg() *rollup.Config
-	L2Genesis() *core.Genesis
-	AllocType() config.AllocType
+	IsSupersystem() bool
+	DisputeGameFactoryAddr() common.Address
+	RollupCfgs() []*rollup.Config
+	DependencySet() *depset.StaticConfigDependencySet
+	L2Geneses() []*core.Genesis
+	PrestateVariant() shared.PrestateVariant
 
 	AdvanceTime(time.Duration)
 }
@@ -97,7 +104,6 @@ type FactoryHelper struct {
 	PrivKey     *ecdsa.PrivateKey
 	FactoryAddr common.Address
 	Factory     *bindings.DisputeGameFactory
-	AllocType   config.AllocType
 }
 
 type FactoryCfg struct {
@@ -118,9 +124,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 
-	allocType := system.AllocType()
-	require.True(allocType.UsesProofs(), "AllocType %v does not support proofs", allocType)
-
 	factoryCfg := &FactoryCfg{PrivKey: TestKey}
 	for _, opt := range opts {
 		opt(factoryCfg)
@@ -128,8 +131,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 	txOpts, err := bind.NewKeyedTransactorWithChainID(factoryCfg.PrivKey, chainID)
 	require.NoError(err)
 
-	l1Deployments := system.L1Deployments()
-	factoryAddr := l1Deployments.DisputeGameFactoryProxy
+	factoryAddr := system.DisputeGameFactoryAddr()
 	factory, err := bindings.NewDisputeGameFactory(factoryAddr, client)
 	require.NoError(err)
 
@@ -142,7 +144,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 		PrivKey:     factoryCfg.PrivKey,
 		Factory:     factory,
 		FactoryAddr: factoryAddr,
-		AllocType:   allocType,
 	}
 }
 
@@ -207,7 +208,7 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := game.GetGameRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
@@ -216,9 +217,74 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
-	return &OutputCannonGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System, h.AllocType),
-	}
+	return NewOutputCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
+}
+
+func (h *FactoryHelper) StartSuperCannonGameWithCorrectRoot(ctx context.Context, opts ...GameOpt) *SuperCannonGameHelper {
+	cfg := NewGameCfg(opts...)
+	b, err := wait.ForNextSafeBlock(ctx, h.Client)
+	require.NoError(h.T, err)
+	l2Timestamp := b.Time()
+	h.WaitForSuperTimestamp(l2Timestamp, cfg)
+	output, err := h.System.SupervisorClient().SuperRootAtTimestamp(ctx, hexutil.Uint64(l2Timestamp))
+	h.Require.NoErrorf(err, "Failed to get output at timestamp %v", l2Timestamp)
+	return h.startSuperCannonGameOfType(ctx, l2Timestamp, common.Hash(output.SuperRoot), superCannonGameType, opts...)
+}
+
+func (h *FactoryHelper) StartSuperCannonGameWithCorrectRootAtTimestamp(ctx context.Context, l2Timestamp uint64, opts ...GameOpt) *SuperCannonGameHelper {
+	cfg := NewGameCfg(opts...)
+	h.WaitForSuperTimestamp(l2Timestamp, cfg)
+	output, err := h.System.SupervisorClient().SuperRootAtTimestamp(ctx, hexutil.Uint64(l2Timestamp))
+	h.Require.NoErrorf(err, "Failed to get output at timestamp %v", l2Timestamp)
+	return h.startSuperCannonGameOfType(ctx, l2Timestamp, common.Hash(output.SuperRoot), superCannonGameType, opts...)
+}
+
+func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
+	// Can't create a game at L1 genesis!
+	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
+	b, err := h.Client.BlockByNumber(ctx, nil)
+	require.NoError(h.T, err)
+	return h.startSuperCannonGameOfType(ctx, b.Time(), rootClaim, superCannonGameType, opts...)
+}
+
+func (h *FactoryHelper) StartSuperCannonGameAtTimestamp(ctx context.Context, timestamp uint64, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
+	return h.startSuperCannonGameOfType(ctx, timestamp, rootClaim, superCannonGameType, opts...)
+}
+
+func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
+	cfg := NewGameCfg(opts...)
+	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "CannonGameHelper")
+	rootProvider := h.System.SupervisorClient()
+
+	extraData := h.CreateSuperGameExtraData(ctx, rootProvider, timestamp, cfg)
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.Factory.Create(opts, gameType, rootClaim, extraData)
+	})
+	h.Require.NoErrorf(err, "create fault dispute game at timestamp %v. extraData: %x", timestamp, extraData)
+	rcpt, err := wait.ForReceiptOK(ctx, h.Client, tx.Hash())
+	h.Require.NoError(err, "wait for create fault dispute game receipt to be OK")
+	h.Require.Len(rcpt.Logs, 2, "should have emitted a single DisputeGameCreated event")
+	createdEvent, err := h.Factory.ParseDisputeGameCreated(*rcpt.Logs[1])
+	h.Require.NoError(err)
+	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
+	h.Require.NoError(err)
+
+	prestateTimestamp, poststateTimestamp, err := game.GetGameRange(ctx)
+	h.Require.NoError(err, "Failed to load starting block number")
+	splitDepth, err := game.GetSplitDepth(ctx)
+	h.Require.NoError(err, "Failed to load split depth")
+	l1Head := h.GetL1Head(ctx, game)
+
+	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
+	rollupCfgs, err := super.NewRollupConfigsFromParsed(h.System.RollupCfgs()...)
+	require.NoError(h.T, err, "failed to create rollup configs")
+	provider := super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+
+	return NewSuperCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
 }
 
 func (h *FactoryHelper) GetL1Head(ctx context.Context, game contracts.FaultDisputeGameContract) eth.BlockID {
@@ -261,7 +327,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := game.GetGameRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
@@ -271,7 +337,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	provider := outputs.NewTraceProvider(logger, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 
 	return &OutputAlphabetGameHelper{
-		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System, h.AllocType),
+		OutputGameHelper: *NewOutputGameHelper(h.T, h.Require, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System),
 	}
 }
 
@@ -280,6 +346,25 @@ func (h *FactoryHelper) CreateBisectionGameExtraData(l2Node string, l2BlockNumbe
 	h.T.Logf("Creating game with l2 block number: %v", l2BlockNumber)
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
+	return extraData
+}
+
+func (h *FactoryHelper) CreateSuperGameExtraData(ctx context.Context, supervisor *sources.SupervisorClient, timestamp uint64, cfg *GameCfg) []byte {
+	if !cfg.allowFuture {
+		timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		err := wait.For(timedCtx, time.Second, func() (bool, error) {
+			status, err := supervisor.SyncStatus(ctx)
+			if err != nil {
+				return false, err
+			}
+			return status.SafeTimestamp >= timestamp, nil
+		})
+		require.NoError(h.T, err, "Safe head did not reach proposal timestamp")
+	}
+	h.T.Logf("Creating game with l2 timestamp: %v", timestamp)
+	extraData := make([]byte, 32)
+	binary.BigEndian.PutUint64(extraData[24:], timestamp)
 	return extraData
 }
 
@@ -297,6 +382,54 @@ func (h *FactoryHelper) WaitForBlock(l2Node string, l2BlockNumber uint64, cfg *G
 		_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
 		h.Require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
 	}
+}
+
+func (h *FactoryHelper) WaitForSuperTimestamp(l2Timestamp uint64, cfg *GameCfg) {
+	if cfg.allowFuture {
+		// Proposing a timestamp that doesn't exist yet, so don't perform any checks
+		return
+	}
+
+	client := h.System.SupervisorClient()
+	absoluteTimeout := 5 * time.Minute
+	ctx, cancel := context.WithTimeout(context.Background(), absoluteTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	lastLog := time.Now()
+	for {
+		select {
+		case <-ticker.C:
+			status, err := client.SyncStatus(ctx)
+			h.Require.NoError(err, "Failed to get sync status")
+			if cfg.allowUnsafe {
+				localUnsafeAtTimestamp := true
+				for _, chain := range status.Chains {
+					if chain.LocalUnsafe.Time < l2Timestamp {
+						localUnsafeAtTimestamp = false
+						break
+					}
+				}
+				if localUnsafeAtTimestamp {
+					return
+				}
+			} else {
+				if status.SafeTimestamp >= l2Timestamp {
+					return
+				}
+			}
+			// log every 30 seconds
+			if time.Since(lastLog) > 30*time.Second {
+				h.T.Logf("Waiting for super timestamp %v. Latest safe: %v", l2Timestamp, status.SafeTimestamp)
+				lastLog = time.Now()
+			}
+		case <-ctx.Done():
+			h.Require.NoError(ctx.Err(), "Safe head did not reach proposal timestamp")
+		}
+	}
+
 }
 
 func (h *FactoryHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {

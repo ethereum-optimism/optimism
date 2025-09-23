@@ -3,6 +3,7 @@ package mon
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		factory.games = []*monTypes.EnrichedGameData{}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 1, forecast.calls)
+		require.Equal(t, 1, forecast.Calls())
 		for _, m := range monitors {
 			require.Equal(t, 1, m.calls)
 		}
@@ -50,7 +51,7 @@ func TestMonitor_MonitorGames(t *testing.T) {
 		factory.games = []*monTypes.EnrichedGameData{{}, {}, {}}
 		err := monitor.monitorGames()
 		require.NoError(t, err)
-		require.Equal(t, 1, forecast.calls)
+		require.Equal(t, 1, forecast.Calls())
 		for _, m := range monitors {
 			require.Equal(t, 1, m.calls)
 		}
@@ -67,10 +68,10 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
-			return forecaster.calls >= 2
+			return forecaster.Calls() >= 2
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, len(factory.games), forecaster.calls) // Each game's status is recorded twice
+		require.Equal(t, len(factory.games), forecaster.Calls()) // Each game's status is recorded twice
 	})
 
 	t.Run("FailsToFetchGames", func(t *testing.T) {
@@ -82,7 +83,7 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 			return factory.calls > 0
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
-		require.Equal(t, 0, forecaster.calls)
+		require.Equal(t, 0, forecaster.Calls())
 	})
 }
 
@@ -123,11 +124,15 @@ func (m *mockMonitor) Check(games []*monTypes.EnrichedGameData) {
 }
 
 type mockForecast struct {
-	calls int
+	calls atomic.Int64
+}
+
+func (m *mockForecast) Calls() int {
+	return int(m.calls.Load())
 }
 
 func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
-	m.calls++
+	m.calls.Add(1)
 }
 
 type mockExtractor struct {

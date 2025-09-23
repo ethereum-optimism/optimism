@@ -1,18 +1,23 @@
 package cross
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type CrossUnsafeDeps interface {
+	reads.Acquirer
+
 	CrossUnsafe(chainID eth.ChainID) (types.BlockSeal, error)
 
 	UnsafeStartDeps
@@ -23,9 +28,11 @@ type CrossUnsafeDeps interface {
 	UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error
 }
 
-func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps) error {
+func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) error {
+	h := d.AcquireHandle()
+	defer h.Release()
+
 	var candidate types.BlockSeal
-	var execMsgs []*types.ExecutingMessage
 
 	// fetch cross-head to determine next cross-unsafe candidate
 	if crossUnsafe, err := d.CrossUnsafe(chainID); err != nil {
@@ -39,7 +46,7 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 	} else {
 		// Open block N+1: this is a local-unsafe block,
 		// just after cross-safe, that can be promoted if it passes the dependency checks.
-		bl, _, msgs, err := d.OpenBlock(chainID, crossUnsafe.Number+1)
+		bl, _, _, err := d.OpenBlock(chainID, crossUnsafe.Number+1)
 		if err != nil {
 			return fmt.Errorf("failed to open block %d: %w", crossUnsafe.Number+1, err)
 		}
@@ -47,22 +54,24 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 			return fmt.Errorf("cannot use block %s, it does not build on cross-unsafe block %s: %w", bl, crossUnsafe, types.ErrConflict)
 		}
 		candidate = types.BlockSealFromRef(bl)
-		execMsgs = sliceOfExecMsgs(msgs)
 	}
+	h.DependOnDerivedTime(candidate.Timestamp)
 
-	hazards, err := CrossUnsafeHazards(d, chainID, candidate, execMsgs)
+	hazards, err := CrossUnsafeHazards(d, linker, logger, chainID, candidate)
 	if err != nil {
-		// TODO(#11693): reorgs can be detected by checking if the error is ErrConflict,
-		// missing data is identified by ErrFuture,
-		// and other errors (e.g. DB issues) are identifier by remaining error kinds.
 		return fmt.Errorf("failed to check for cross-chain hazards: %w", err)
 	}
 
 	if err := HazardUnsafeFrontierChecks(d, hazards); err != nil {
 		return fmt.Errorf("failed to verify block %s in cross-unsafe frontier: %w", candidate, err)
 	}
-	if err := HazardCycleChecks(d.DependencySet(), d, candidate.Timestamp, hazards); err != nil {
+	if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 		return fmt.Errorf("failed to verify block %s in cross-unsafe check for cycle hazards: %w", candidate, err)
+	}
+
+	if !h.IsValid() {
+		logger.Warn("Reads were inconsistent, aborting cross-unsafe update", "aborted", candidate)
+		return types.ErrInvalidatedRead
 	}
 
 	// promote the candidate block to cross-unsafe
@@ -76,12 +85,13 @@ type CrossUnsafeWorker struct {
 	logger  log.Logger
 	chainID eth.ChainID
 	d       CrossUnsafeDeps
+	linker  depset.LinkChecker
 }
 
-func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
+func (c *CrossUnsafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.UpdateCrossUnsafeRequestEvent:
-		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d); err != nil {
+		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d, c.linker); err != nil {
 			if errors.Is(err, types.ErrFuture) {
 				c.logger.Debug("Worker awaits additional blocks", "err", err)
 			} else {
@@ -96,11 +106,12 @@ func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
 
 var _ event.Deriver = (*CrossUnsafeWorker)(nil)
 
-func NewCrossUnsafeWorker(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps) *CrossUnsafeWorker {
-	logger = logger.New("chain", chainID)
+func NewCrossUnsafeWorker(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) *CrossUnsafeWorker {
+	logger = logger.New("chain", chainID, "worker", "cross-unsafe")
 	return &CrossUnsafeWorker{
 		logger:  logger,
 		chainID: chainID,
 		d:       d,
+		linker:  linker,
 	}
 }

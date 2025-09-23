@@ -9,7 +9,7 @@ import (
 )
 
 func TestCaptureLogger(t *testing.T) {
-	lgr, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	lgr, logs := testlog.CaptureLogger(t, log.LevelTrace)
 	msg := "foo bar"
 	lgr.Info(msg, "a", 1)
 	msgFilter := testlog.NewMessageFilter(msg)

@@ -3,8 +3,6 @@ package p2p
 import (
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -16,7 +14,6 @@ type scorer struct {
 	metricer  ScoreMetrics
 	appScorer ApplicationScorer
 	log       log.Logger
-	cfg       *rollup.Config
 }
 
 // Peerstore is a subset of the libp2p peerstore.Peerstore interface.
@@ -46,13 +43,12 @@ type ScoreMetrics interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(cfg *rollup.Config, peerStore Peerstore, metricer ScoreMetrics, appScorer ApplicationScorer, log log.Logger) Scorer {
+func NewScorer(peerStore Peerstore, metricer ScoreMetrics, appScorer ApplicationScorer, log log.Logger) Scorer {
 	return &scorer{
 		peerStore: peerStore,
 		metricer:  metricer,
 		appScorer: appScorer,
 		log:       log,
-		cfg:       cfg,
 	}
 }
 
@@ -61,7 +57,6 @@ func NewScorer(cfg *rollup.Config, peerStore Peerstore, metricer ScoreMetrics, a
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
 // The incoming peer score snapshots only contain gossip-score components.
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
-	blocksTopicName := blocksTopicV1(s.cfg)
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		allScores := make([]store.PeerScores, 0, len(m))
 		// Now set the new scores.
@@ -72,11 +67,15 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 				IPColocationFactor: snap.IPColocationFactor,
 				BehavioralPenalty:  snap.BehaviourPenalty,
 			}
-			if topSnap, ok := snap.Topics[blocksTopicName]; ok {
-				diff.Blocks.TimeInMesh = float64(topSnap.TimeInMesh) / float64(time.Second)
-				diff.Blocks.MeshMessageDeliveries = topSnap.MeshMessageDeliveries
-				diff.Blocks.FirstMessageDeliveries = topSnap.FirstMessageDeliveries
-				diff.Blocks.InvalidMessageDeliveries = topSnap.InvalidMessageDeliveries
+			// All allow-listed topics are block-topics,
+			// And the total performance is what we care about, regardless of number of past forks.
+			// So add up the data. And consider the time-in-mesh of the most used topic:
+			// alt CL implementations may choose to not stay on legacy topics.
+			for _, topSnap := range snap.Topics {
+				diff.Blocks.TimeInMesh = max(diff.Blocks.TimeInMesh, float64(topSnap.TimeInMesh)/float64(time.Second))
+				diff.Blocks.MeshMessageDeliveries += topSnap.MeshMessageDeliveries
+				diff.Blocks.FirstMessageDeliveries += topSnap.FirstMessageDeliveries
+				diff.Blocks.InvalidMessageDeliveries += topSnap.InvalidMessageDeliveries
 			}
 			if peerScores, err := s.peerStore.SetScore(id, &diff); err != nil {
 				s.log.Warn("Unable to update peer gossip score", "err", err)

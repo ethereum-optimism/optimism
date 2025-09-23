@@ -51,21 +51,6 @@ func TestL1InfoDepositSource(t *testing.T) {
 	assert.Equal(t, expected, actual.Hex())
 }
 
-// TestAfterForceIncludeSourceHash
-// cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000003 $(cast keccak $(cast concat-hex 0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77 0x0000000000000000000000000000000000000000000000000000000000000004)))
-// # 0x0d165c391384b29c29f655e3f32315755b8c1e4c1147d1824d1243420dda5ec3
-func TestAfterForceIncludeSource(t *testing.T) {
-	source := AfterForceIncludeSource{
-		L1BlockHash: common.HexToHash("0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77"),
-		SeqNumber:   4,
-	}
-
-	actual := source.SourceHash()
-	expected := "0x0d165c391384b29c29f655e3f32315755b8c1e4c1147d1824d1243420dda5ec3"
-
-	assert.Equal(t, expected, actual.Hex())
-}
-
 // TestInvalidatedBlockSource
 // cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000004 0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8)
 // # 0x4a62bcfa03cf778234ae28fa39c9e0748f11099997b19fef9bb3fffc154fe456

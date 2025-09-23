@@ -30,6 +30,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
 
     error AlreadyInitialized();
     error AnchorRootNotFound();
+    error BadExtraData();
     error BlockNumberMatches();
     error BondTransferFailed();
     error CannotDefendRootClaim();
@@ -67,7 +68,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     error GameNotFinalized();
     error GameNotResolved();
     error ReservedGameType();
-
+    error GamePaused();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
 
@@ -118,7 +119,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     function resolvedSubgames(uint256) external view returns (bool);
     function splitDepth() external view returns (uint256 splitDepth_);
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_);
-    function startingOutputRoot() external view returns (Hash root, uint256 l2BlockNumber); // nosemgrep
+    function startingOutputRoot() external view returns (Hash root, uint256 l2SequenceNumber); // nosemgrep
     function startingRootHash() external view returns (Hash startingRootHash_);
     function step(uint256 _claimIndex, bool _isAttack, bytes memory _stateData, bytes memory _proof) external;
     function subgames(uint256, uint256) external view returns (uint256);

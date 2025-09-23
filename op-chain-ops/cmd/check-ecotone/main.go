@@ -17,7 +17,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -177,7 +176,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
-		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, time.Second*20, logger, c.String(EndpointRollup.Name))
+		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, logger, c.String(EndpointRollup.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup node RPC: %w", err)
 		}
@@ -512,7 +511,8 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	if latestHeader.ExcessBlobGas == nil {
 		return fmt.Errorf("the L1 block %s (time %d) is not ecotone yet", latestHeader.Hash(), latestHeader.Time)
 	}
-	blobBaseFee := eip4844.CalcBlobFee(*latestHeader.ExcessBlobGas)
+
+	blobBaseFee := eth.CalcBlobFeeDefault(latestHeader)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)
@@ -786,7 +786,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		Data:       []byte("hello"),
 		AccessList: nil,
 	}
-	tx, err := types.SignNewTx(env.key, types.NewLondonSigner(txData.ChainID), txData)
+	tx, err := types.SignNewTx(env.key, types.NewIsthmusSigner(txData.ChainID), txData)
 	if err != nil {
 		return fmt.Errorf("failed to sign test tx: %w", err)
 	}

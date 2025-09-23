@@ -3,7 +3,6 @@ package p2p
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -24,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -70,152 +67,36 @@ func TestVerifyBlockSignature(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
 	t.Run("WrongSigner", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
-		sig := make([]byte, 65)
+		sig := eth.Bytes65{}
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("NoSequencer", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
-		require.Equal(t, pubsub.ValidationIgnore, result)
-	})
-}
-
-type mockRemoteSigner struct {
-	priv *ecdsa.PrivateKey
-}
-
-func (t *mockRemoteSigner) SignBlockPayload(args opsigner.BlockPayloadArgs) (hexutil.Bytes, error) {
-	signingHash, err := args.ToSigningHash()
-	if err != nil {
-		return nil, err
-	}
-	signature, err := crypto.Sign(signingHash[:], t.priv)
-	if err != nil {
-		return nil, err
-	}
-	return signature, nil
-}
-
-func TestVerifyBlockSignatureWithRemoteSigner(t *testing.T) {
-	secrets, err := crypto.GenerateKey()
-	require.NoError(t, err)
-
-	remoteSigner := &mockRemoteSigner{secrets}
-	server := oprpc.NewServer(
-		"127.0.0.1",
-		0,
-		"test",
-		oprpc.WithAPIs([]rpc.API{
-			{
-				Namespace: "opsigner",
-				Service:   remoteSigner,
-			},
-		}),
-	)
-
-	require.NoError(t, server.Start())
-	defer func() {
-		_ = server.Stop()
-	}()
-
-	logger := testlog.Logger(t, log.LevelCrit)
-	cfg := &rollup.Config{
-		L2ChainID: big.NewInt(100),
-	}
-
-	peerId := peer.ID("foo")
-	msg := []byte("any msg")
-
-	signerCfg := opsigner.NewCLIConfig()
-	signerCfg.Endpoint = fmt.Sprintf("http://%s", server.Endpoint())
-	signerCfg.TLSConfig.TLSKey = ""
-	signerCfg.TLSConfig.TLSCert = ""
-	signerCfg.TLSConfig.TLSCaCert = ""
-	signerCfg.TLSConfig.Enabled = false
-
-	t.Run("Valid", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
-		remoteSigner, err := NewRemoteSigner(logger, signerCfg)
-		require.NoError(t, err)
-		signer := &PreparedSigner{Signer: remoteSigner}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
-		require.Equal(t, pubsub.ValidationAccept, result)
-	})
-
-	t.Run("WrongSigner", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
-		remoteSigner, err := NewRemoteSigner(logger, signerCfg)
-		require.NoError(t, err)
-		signer := &PreparedSigner{Signer: remoteSigner}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
-		require.Equal(t, pubsub.ValidationReject, result)
-	})
-
-	t.Run("InvalidSignature", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
-		sig := make([]byte, 65)
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
-		require.Equal(t, pubsub.ValidationReject, result)
-	})
-
-	t.Run("NoSequencer", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{}
-		remoteSigner, err := NewRemoteSigner(logger, signerCfg)
-		require.NoError(t, err)
-		signer := &PreparedSigner{Signer: remoteSigner}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:], msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
-	})
-
-	t.Run("RemoteSignerNoTLS", func(t *testing.T) {
-		signerCfg := opsigner.NewCLIConfig()
-		signerCfg.Endpoint = fmt.Sprintf("http://%s", server.Endpoint())
-		signerCfg.TLSConfig.TLSKey = "invalid"
-		signerCfg.TLSConfig.TLSCert = "invalid"
-		signerCfg.TLSConfig.TLSCaCert = "invalid"
-		signerCfg.TLSConfig.Enabled = true
-
-		_, err := NewRemoteSigner(logger, signerCfg)
-		require.Error(t, err)
-	})
-
-	t.Run("RemoteSignerInvalidEndpoint", func(t *testing.T) {
-		signerCfg := opsigner.NewCLIConfig()
-		signerCfg.Endpoint = "Invalid"
-		signerCfg.TLSConfig.TLSKey = ""
-		signerCfg.TLSConfig.TLSCert = ""
-		signerCfg.TLSConfig.TLSCaCert = ""
-		_, err := NewRemoteSigner(logger, signerCfg)
-		require.Error(t, err)
 	})
 }
 
@@ -231,7 +112,7 @@ func createSignedP2Payload(payload MarshalSSZ, signer Signer, l2ChainID *big.Int
 	}
 	data := buf.Bytes()
 	payloadData := data[65:]
-	sig, err := signer.Sign(context.TODO(), SigningDomainBlocksV1, l2ChainID, payloadData)
+	sig, err := signer.SignBlockV1(context.TODO(), eth.ChainIDFromBig(l2ChainID), opsigner.PayloadHash(payloadData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
@@ -268,13 +149,15 @@ func TestBlockValidator(t *testing.T) {
 	secrets, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
-	signer := &PreparedSigner{Signer: NewLocalSigner(secrets)}
+	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4)
+	// Create a mock gossip configuration for testing
+	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4, mockGossipConf)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
@@ -312,7 +195,6 @@ func TestBlockValidator(t *testing.T) {
 	}{
 		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &one, &zero)},
 		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &one)},
-		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &one)},
 		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
 		{"V4Valid", v4Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &zero)},
 		{"V4RejectNoWithdrawalRoot", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
@@ -329,4 +211,87 @@ func TestBlockValidator(t *testing.T) {
 			require.Equal(t, res, test.result)
 		})
 	}
+}
+
+// TestGossipTimestampThreshold tests that the configurable timestamp threshold works correctly
+func TestGossipTimestampThreshold(t *testing.T) {
+	cfg := &rollup.Config{
+		L2ChainID: big.NewInt(100),
+	}
+	secrets, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+	peerID := peer.ID("foo")
+
+	// Test with different threshold values
+	testCases := []struct {
+		name           string
+		threshold      time.Duration
+		payloadTime    time.Time
+		expectedResult pubsub.ValidationResult
+	}{
+		{
+			name:           "AcceptWithinThreshold",
+			threshold:      30 * time.Second,
+			payloadTime:    time.Now().Add(-15 * time.Second), // 15 seconds ago
+			expectedResult: pubsub.ValidationAccept,
+		},
+		{
+			name:           "RejectOutsideThreshold",
+			threshold:      30 * time.Second,
+			payloadTime:    time.Now().Add(-45 * time.Second), // 45 seconds ago
+			expectedResult: pubsub.ValidationReject,
+		},
+		{
+			name:           "AcceptWithLongerThreshold",
+			threshold:      120 * time.Second,
+			payloadTime:    time.Now().Add(-90 * time.Second), // 90 seconds ago
+			expectedResult: pubsub.ValidationAccept,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock config with the specific threshold
+			mockConfig := &mockGossipSetupConfigurablesWithThreshold{threshold: tc.threshold}
+
+			// Create validator with the mock config
+			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockConfig)
+
+			// Create payload with the specific timestamp
+			payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)
+			payload.Timestamp = hexutil.Uint64(tc.payloadTime.Unix())
+			// Set block number to avoid duplicate block validation issues
+			payload.BlockNumber = hexutil.Uint64(time.Now().Unix())
+			// Set a valid block hash for the payload
+			payload.BlockHash, _ = (&eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}).CheckBlockHash()
+
+			// Create signed message
+			data, err := createSignedP2Payload(payload, signer, cfg.L2ChainID)
+			require.NoError(t, err)
+			message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
+
+			// Test validation
+			result := validator(context.Background(), peerID, message)
+			require.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+// mockGossipSetupConfigurablesWithThreshold implements GossipSetupConfigurables with configurable threshold
+type mockGossipSetupConfigurablesWithThreshold struct {
+	threshold time.Duration
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) PeerScoringParams() *ScoringParams {
+	return nil
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	return nil
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) GetGossipTimestampThreshold() time.Duration {
+	return m.threshold
 }

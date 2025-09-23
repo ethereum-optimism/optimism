@@ -94,10 +94,18 @@ func (id L1BlockRef) ParentID() BlockID {
 	}
 }
 
-// BlockRef is a Block Ref indepdendent of L1 or L2
+// BlockRef is a Block Ref independent of L1 or L2
 // Because L1BlockRefs are strict subsets of L2BlockRefs, BlockRef is a direct alias of L1BlockRef
 type BlockRef = L1BlockRef
 
+func BlockRefFromHeader(h *types.Header) *BlockRef {
+	return &BlockRef{
+		Hash:       h.Hash(),
+		Number:     h.Number.Uint64(),
+		ParentHash: h.ParentHash,
+		Time:       h.Time,
+	}
+}
 func (id L2BlockRef) ID() BlockID {
 	return BlockID{
 		Hash:   id.Hash,

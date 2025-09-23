@@ -45,6 +45,7 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 		blobBaseFee  int64
 		wantCalldata bool
 		isL1Pectra   bool
+		isThrottling bool
 	}{
 		{
 			name:        "much-cheaper-blobs",
@@ -102,6 +103,14 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			wantCalldata: true,
 			isL1Pectra:   true,
 		},
+		{
+			// blobs should be chosen even though calldata is cheaper.
+			name:         "throttling-is-enabled",
+			tipCap:       1e3,
+			baseFee:      1e6,
+			blobBaseFee:  1e9,
+			isThrottling: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,7 +121,7 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 				blobBaseFee: tt.blobBaseFee,
 			}
 			dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
-			cc := dec.ChannelConfig(tt.isL1Pectra)
+			cc := dec.ChannelConfig(tt.isL1Pectra, tt.isThrottling)
 			if tt.wantCalldata {
 				require.Equal(t, cc, calldataCfg)
 				require.NotNil(t, ch.FindLog(testlog.NewMessageContainsFilter("calldata")))
@@ -134,21 +143,21 @@ func TestDynamicEthChannelConfig_ChannelConfig(t *testing.T) {
 			err:         errors.New("gp-error"),
 		}
 		dec := NewDynamicEthChannelConfig(lgr, 1*time.Second, gp, blobCfg, calldataCfg)
-		require.Equal(t, dec.ChannelConfig(false), blobCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), blobCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),
 		))
 
 		gp.err = nil
-		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelInfo),
 			testlog.NewMessageContainsFilter("calldata"),
 		))
 
 		gp.err = errors.New("gp-error-2")
-		require.Equal(t, dec.ChannelConfig(false), calldataCfg)
+		require.Equal(t, dec.ChannelConfig(false, false), calldataCfg)
 		require.NotNil(t, ch.FindLog(
 			testlog.NewLevelFilter(slog.LevelWarn),
 			testlog.NewMessageContainsFilter("returning last config"),

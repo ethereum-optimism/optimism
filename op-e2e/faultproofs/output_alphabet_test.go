@@ -122,7 +122,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	// Wait for the game to have bond mode set
-	game.WaitForBondModeSet(ctx)
+	game.WaitForBondModeDecided(ctx)
 
 	// Expect Alice's credit to be non-zero
 	// But it can't be claimed right now since there is a delay on the weth unlock
@@ -176,7 +176,11 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.IsSlow)
+	op_e2e.InitParallel(t)
+
+	if testing.Short() {
+		t.Skip("Skipping exhaustive test during short run")
+	}
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()

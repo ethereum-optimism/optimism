@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,9 +19,10 @@ var (
 )
 
 const (
+	chainIDAndOutputLen = 64
 	// SuperRootVersionV1MinLen is the minimum length of a V1 super root prior to hashing
 	// Must contain a 1 byte version, uint64 timestamp and at least one chain's output root hash
-	SuperRootVersionV1MinLen = 1 + 8 + 32
+	SuperRootVersionV1MinLen = 1 + 8 + chainIDAndOutputLen
 )
 
 type Super interface {
@@ -39,7 +41,7 @@ type ChainIDAndOutput struct {
 }
 
 func (c *ChainIDAndOutput) Marshal() []byte {
-	d := make([]byte, 64)
+	d := make([]byte, chainIDAndOutputLen)
 	chainID := c.ChainID.Bytes32()
 	copy(d[0:32], chainID[:])
 	copy(d[32:], c.Output[:])
@@ -66,7 +68,7 @@ func (o *SuperV1) Version() byte {
 }
 
 func (o *SuperV1) Marshal() []byte {
-	buf := make([]byte, 0, 9+len(o.Chains)*64)
+	buf := make([]byte, 0, 9+len(o.Chains)*chainIDAndOutputLen)
 	version := o.Version()
 	buf = append(buf, version)
 	buf = binary.BigEndian.AppendUint64(buf, o.Timestamp)
@@ -95,7 +97,7 @@ func unmarshalSuperRootV1(data []byte) (*SuperV1, error) {
 		return nil, ErrInvalidSuperRoot
 	}
 	// Must contain complete chain output roots
-	if (len(data)-9)%32 != 0 {
+	if (len(data)-9)%chainIDAndOutputLen != 0 {
 		return nil, ErrInvalidSuperRoot
 	}
 	var output SuperV1
@@ -151,15 +153,29 @@ type SuperRootResponse struct {
 	CrossSafeDerivedFrom BlockID `json:"crossSafeDerivedFrom"`
 	Timestamp            uint64  `json:"timestamp"`
 	SuperRoot            Bytes32 `json:"superRoot"`
+	Version              byte    `json:"version"`
 	// Chains is the list of ChainRootInfo for each chain in the dependency set.
 	// It represents the state of the chain at or before the Timestamp.
 	Chains []ChainRootInfo `json:"chains"`
+}
+
+func (s SuperRootResponse) ToSuper() (Super, error) {
+	if s.Version != SuperRootVersionV1 {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidSuperRootVersion, s.Version)
+	}
+	prevChainOutputs := make([]ChainIDAndOutput, 0, len(s.Chains))
+	for _, chain := range s.Chains {
+		prevChainOutputs = append(prevChainOutputs, ChainIDAndOutput{ChainID: chain.ChainID, Output: chain.Canonical})
+	}
+	superV1 := NewSuperV1(s.Timestamp, prevChainOutputs...)
+	return superV1, nil
 }
 
 type superRootResponseMarshalling struct {
 	CrossSafeDerivedFrom BlockID         `json:"crossSafeDerivedFrom"`
 	Timestamp            hexutil.Uint64  `json:"timestamp"`
 	SuperRoot            common.Hash     `json:"superRoot"`
+	Version              hexutil.Bytes   `json:"version"`
 	Chains               []ChainRootInfo `json:"chains"`
 }
 
@@ -168,6 +184,7 @@ func (r SuperRootResponse) MarshalJSON() ([]byte, error) {
 		CrossSafeDerivedFrom: r.CrossSafeDerivedFrom,
 		Timestamp:            hexutil.Uint64(r.Timestamp),
 		SuperRoot:            common.Hash(r.SuperRoot),
+		Version:              hexutil.Bytes{r.Version},
 		Chains:               r.Chains,
 	})
 }
@@ -180,6 +197,10 @@ func (r *SuperRootResponse) UnmarshalJSON(input []byte) error {
 	r.CrossSafeDerivedFrom = dec.CrossSafeDerivedFrom
 	r.Timestamp = uint64(dec.Timestamp)
 	r.SuperRoot = Bytes32(dec.SuperRoot)
+	if len(dec.Version) != 1 {
+		return ErrInvalidSuperRootVersion
+	}
+	r.Version = dec.Version[0]
 	r.Chains = dec.Chains
 	return nil
 }

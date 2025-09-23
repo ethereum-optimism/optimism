@@ -18,10 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -58,12 +56,12 @@ type OpGeth struct {
 func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.AllocTypeStandard), config.L1Deployments(config.AllocTypeStandard))
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.DefaultAllocType), config.L1Deployments(config.DefaultAllocType))
 	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
 	allocsMode := e2eutils.GetL2AllocsMode(cfg.DeployConfig, l1Block.Time())
-	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
+	l2Allocs := config.L2Allocs(config.DefaultAllocType, allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -91,7 +89,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	require.NoError(t, err)
 
 	// Finally create the engine client
-	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	rollupCfg, err := cfg.DeployConfig.RollupConfig(eth.BlockRefFromHeader(l1Block.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 	require.NoError(t, err)
 	rollupCfg.Genesis = rollupGenesis
 	l2Engine, err := sources.NewEngineClient(
@@ -154,21 +152,6 @@ func (d *OpGeth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	}
 	if !reflect.DeepEqual(payload.Transactions, attrs.Transactions) {
 		return nil, errors.New("required transactions were not included")
-	}
-
-	// if we are at Isthmus, set the withdrawalsRoot in the execution payload to the storage root of the message passer contract
-	if d.L2ChainConfig.IsIsthmus(uint64(payload.Timestamp)) {
-		var getProofResponse *eth.AccountResult
-		rpcClient := d.l2Engine.RPC
-		err := rpcClient.CallContext(ctx, &getProofResponse, "eth_getProof", predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, payload.BlockHash.String())
-		if err != nil {
-			return nil, err
-		}
-		if getProofResponse == nil {
-			return nil, ethereum.NotFound
-		}
-		storageHash := getProofResponse.StorageHash
-		payload.WithdrawalsRoot = &storageHash
 	}
 
 	status, err := d.l2Engine.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
@@ -255,6 +238,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+	}
+	if d.L2ChainConfig.IsJovian(uint64(timestamp)) {
+		attrs.MinBaseFee = new(uint64)
+		*attrs.MinBaseFee = d.SystemConfig.MinBaseFee
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
 		attrs.EIP1559Params = new(eth.Bytes8)

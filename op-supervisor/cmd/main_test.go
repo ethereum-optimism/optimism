@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -42,8 +43,10 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	depSet := &depset.JsonDependencySetLoader{Path: "test"}
-	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, depSet, ValidDatadir)
+	depSet := &depset.JSONDependencySetLoader{Path: "test-dep-set"}
+	rollupCfgSet := &depset.JSONRollupConfigSetLoader{Path: "test-rollup-set"}
+	fullCfgSet := &depset.FullConfigSetSourceMerged{RollupConfigSetSource: rollupCfgSet, DependencySetSource: depSet}
+	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, fullCfgSet, ValidDatadir)
 	defaultCfg := *defaultCfgTempl
 	defaultCfg.Version = Version
 	// Sync sources may be attached later via RPC. These are thus not strictly required.
@@ -64,7 +67,7 @@ func TestL2ConsensusNodes(t *testing.T) {
 
 func TestDatadir(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept("--datadir"))
+		verifyArgsInvalid(t, "required flag is missing: datadir", addRequiredArgsExcept("--datadir"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -78,6 +81,58 @@ func TestMockRun(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs("--mock-run"))
 		require.Equal(t, true, cfg.MockRun)
+	})
+}
+
+func TestConfig(t *testing.T) {
+	t.Run("SingleNetwork", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--network", "op-mainnet"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("MultipleNetworks", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--network", "op-mainnet,unichain-mainnet"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("UnknownNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			superchain.ErrUnknownChain.Error(),
+			addRequiredArgsExceptConfig(
+				"--network", "unknown-chain"))
+	})
+
+	t.Run("RollupConfigRequiredWhenNoNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			addRequiredArgsExcept("--rollup-config-set"))
+	})
+
+	t.Run("DependencySetRequiredWhenNoNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			addRequiredArgsExcept("--dependency-set"))
+	})
+
+	t.Run("DependencySetAndRollupConfigPaths", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--dependency-set", "depset.json", "--rollup-config-paths", "test-paths"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("DependencySetAndRollupConfigSet", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--dependency-set", "depset.json", "--rollup-config-set", "test-set"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("MustNotSetRollupConfigSetAndRollupConfigPathsTogether", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"conflicting flags: only one of rollup-config-paths, rollup-config-set can be set",
+			addRequiredArgsExceptConfig(
+				"--dependency-set", "depset.json", "--rollup-config-set", "test-set", "--rollup-config-paths", "test-paths"))
 	})
 }
 
@@ -120,6 +175,18 @@ func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 	return append(toArgList(req), optionalArgs...)
 }
 
+func addRequiredArgsExceptConfig(optionalArgs ...string) []string {
+	return addRequiredArgsExceptMultiple([]string{"--rollup-config-set", "--dependency-set"}, optionalArgs...)
+}
+
+func addRequiredArgsExceptMultiple(names []string, optionalArgs ...string) []string {
+	req := requiredArgs()
+	for _, name := range names {
+		delete(req, name)
+	}
+	return append(toArgList(req), optionalArgs...)
+}
+
 func toArgList(req map[string]string) []string {
 	var combined []string
 	for name, value := range req {
@@ -133,7 +200,8 @@ func requiredArgs() map[string]string {
 		"--l1-rpc":                  ValidL1RPC,
 		"--l2-consensus.nodes":      strings.Join(ValidL2RPCs.Endpoints, ","),
 		"--l2-consensus.jwt-secret": strings.Join(ValidL2RPCs.JWTSecretPaths, ","),
-		"--dependency-set":          "test",
+		"--dependency-set":          "test-dep-set",
+		"--rollup-config-set":       "test-rollup-set",
 		"--datadir":                 ValidDatadir,
 	}
 	return args

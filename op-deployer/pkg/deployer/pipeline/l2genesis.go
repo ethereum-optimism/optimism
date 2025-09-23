@@ -2,6 +2,12 @@ package pipeline
 
 import (
 	"fmt"
+	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
@@ -14,6 +20,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+type l2GenesisOverrides struct {
+	FundDevAccounts                          bool                      `json:"fundDevAccounts"`
+	BaseFeeVaultMinimumWithdrawalAmount      *hexutil.Big              `json:"baseFeeVaultMinimumWithdrawalAmount"`
+	L1FeeVaultMinimumWithdrawalAmount        *hexutil.Big              `json:"l1FeeVaultMinimumWithdrawalAmount"`
+	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big              `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	BaseFeeVaultWithdrawalNetwork            genesis.WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
+	L1FeeVaultWithdrawalNetwork              genesis.WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
+	SequencerFeeVaultWithdrawalNetwork       genesis.WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	EnableGovernance                         bool                      `json:"enableGovernance"`
+	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
+}
 
 func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
@@ -35,11 +53,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
-	initCfg, err := state.CombineDeployConfig(intent, thisIntent, st, thisChainState)
-	if err != nil {
-		return fmt.Errorf("failed to combine L2 init config: %w", err)
-	}
-
 	host, err := env.DefaultScriptHost(
 		broadcaster.NoopBroadcaster(),
 		pEnv.Logger,
@@ -50,23 +63,37 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		return fmt.Errorf("failed to create L2 script host: %w", err)
 	}
 
-	// This is an ugly hack to support holocene. The v1.7.0 predeploy contracts do not support setting the allocs
-	// mode as Holocene, even though there are no predeploy changes in Holocene. The v1.7.0 changes are the "official"
-	// release of the predeploy contracts, so we need to set the allocs mode to "granite" to avoid having to backport
-	// Holocene support into the predeploy contracts.
-	var overrideAllocsMode string
-	if intent.L2ContractsLocator.IsTag() && intent.L2ContractsLocator.Tag == standard.ContractsV170Beta1L2Tag {
-		overrideAllocsMode = "granite"
+	script, err := opcm.NewL2GenesisScript(host)
+	if err != nil {
+		return fmt.Errorf("failed to create L2Genesis script: %w", err)
 	}
 
-	if err := opcm.L2Genesis(host, &opcm.L2GenesisInput{
-		L1Deployments: opcm.L1Deployments{
-			L1CrossDomainMessengerProxy: thisChainState.L1CrossDomainMessengerProxyAddress,
-			L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxyAddress,
-			L1ERC721BridgeProxy:         thisChainState.L1ERC721BridgeProxyAddress,
-		},
-		L2Config:           initCfg.L2InitializationConfig,
-		OverrideAllocsMode: overrideAllocsMode,
+	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
+	if err != nil {
+		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
+	}
+
+	if err := script.Run(opcm.L2GenesisInput{
+		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
+		L2ChainID:                                chainID.Big(),
+		L1CrossDomainMessengerProxy:              thisChainState.L1CrossDomainMessengerProxy,
+		L1StandardBridgeProxy:                    thisChainState.L1StandardBridgeProxy,
+		L1ERC721BridgeProxy:                      thisChainState.L1Erc721BridgeProxy,
+		OpChainProxyAdminOwner:                   thisIntent.Roles.L2ProxyAdminOwner,
+		BaseFeeVaultWithdrawalNetwork:            wdNetworkToBig(overrides.BaseFeeVaultWithdrawalNetwork),
+		L1FeeVaultWithdrawalNetwork:              wdNetworkToBig(overrides.L1FeeVaultWithdrawalNetwork),
+		SequencerFeeVaultWithdrawalNetwork:       wdNetworkToBig(overrides.SequencerFeeVaultWithdrawalNetwork),
+		SequencerFeeVaultMinimumWithdrawalAmount: overrides.SequencerFeeVaultMinimumWithdrawalAmount.ToInt(),
+		BaseFeeVaultMinimumWithdrawalAmount:      overrides.BaseFeeVaultMinimumWithdrawalAmount.ToInt(),
+		L1FeeVaultMinimumWithdrawalAmount:        overrides.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
+		BaseFeeVaultRecipient:                    thisIntent.BaseFeeVaultRecipient,
+		L1FeeVaultRecipient:                      thisIntent.L1FeeVaultRecipient,
+		SequencerFeeVaultRecipient:               thisIntent.SequencerFeeVaultRecipient,
+		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
+		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
+		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
+		EnableGovernance:                         overrides.EnableGovernance,
+		FundDevAccounts:                          overrides.FundDevAccounts,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -85,6 +112,58 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	return nil
 }
 
+func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
+	schedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
+
+	overrides := defaultOverrides()
+	// Special case for FundDevAccounts since it's both an intent value and an override.
+	overrides.FundDevAccounts = intent.FundDevAccounts
+
+	var err error
+	if len(intent.GlobalDeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, intent.GlobalDeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+		overrides, err = jsonutil.MergeJSON(overrides, intent.GlobalDeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+	}
+
+	if len(thisIntent.DeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, thisIntent.DeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge L2 deploy overrides: %w", err)
+		}
+		overrides, err = jsonutil.MergeJSON(overrides, thisIntent.DeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+	}
+
+	return overrides, schedule, nil
+}
+
 func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {
 	return thisChainState.Allocs == nil
+}
+
+func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
+	n := wd.ToUint8()
+	return big.NewInt(int64(n))
+}
+
+func defaultOverrides() l2GenesisOverrides {
+	return l2GenesisOverrides{
+		FundDevAccounts:                          false,
+		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
+		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
+		SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount,
+		BaseFeeVaultWithdrawalNetwork:            "local",
+		L1FeeVaultWithdrawalNetwork:              "local",
+		SequencerFeeVaultWithdrawalNetwork:       "local",
+		EnableGovernance:                         false,
+		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
+	}
 }

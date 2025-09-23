@@ -38,14 +38,15 @@ type Service struct {
 
 	cl clock.Clock
 
-	extractor    *extract.Extractor
-	forecast     *Forecast
-	bonds        *bonds.Bonds
-	game         *extract.GameCallerCreator
-	resolutions  *ResolutionMonitor
-	claims       *ClaimMonitor
-	withdrawals  *WithdrawalMonitor
-	rollupClient *sources.RollupClient
+	extractor         *extract.Extractor
+	forecast          *Forecast
+	bonds             *bonds.Bonds
+	game              *extract.GameCallerCreator
+	resolutions       *ResolutionMonitor
+	claims            *ClaimMonitor
+	withdrawals       *WithdrawalMonitor
+	rollupClients     []*sources.RollupClient
+	supervisorClients []*sources.SupervisorClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
@@ -89,6 +90,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
+	if err := s.initSupervisorClients(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init supervisor clients: %w", err)
+	}
 
 	s.initClaimMonitor(cfg)
 	s.initResolutionMonitor()
@@ -125,6 +129,22 @@ func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, s.l1Caller)
 }
 
+func (s *Service) outputRollupClients() []extract.OutputRollupClient {
+	clients := make([]extract.OutputRollupClient, len(s.rollupClients))
+	for i, client := range s.rollupClients {
+		clients[i] = client
+	}
+	return clients
+}
+
+func (s *Service) asSuperRootProviders() []extract.SuperRootProvider {
+	clients := make([]extract.SuperRootProvider, len(s.supervisorClients))
+	for i, client := range s.supervisorClients {
+		clients[i] = client
+	}
+	return clients
+}
+
 func (s *Service) initExtractor(cfg *config.Config) {
 	s.extractor = extract.NewExtractor(
 		s.logger,
@@ -139,7 +159,8 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		extract.NewBondEnricher(),
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
-		extract.NewAgreementEnricher(s.logger, s.metrics, s.rollupClient),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
 	)
 }
 
@@ -152,16 +173,35 @@ func (s *Service) initBonds() {
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
-	outputRollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
-	if err != nil {
-		return fmt.Errorf("failed to dial rollup client: %w", err)
+	if len(cfg.RollupRpcs) == 0 {
+		return nil
 	}
-	s.rollupClient = outputRollupClient
+	for _, rpc := range cfg.RollupRpcs {
+		client, err := dial.DialRollupClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
+		if err != nil {
+			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
+		}
+		s.rollupClients = append(s.rollupClients, client)
+	}
+	return nil
+}
+
+func (s *Service) initSupervisorClients(ctx context.Context, cfg *config.Config) error {
+	if len(cfg.SupervisorRpcs) == 0 {
+		return nil
+	}
+	for _, rpc := range cfg.SupervisorRpcs {
+		client, err := dial.DialSupervisorClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
+		if err != nil {
+			return fmt.Errorf("failed to dial supervisor client %s: %w", rpc, err)
+		}
+		s.supervisorClients = append(s.supervisorClients, client)
+	}
 	return nil
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
-	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.L1EthRpc)
+	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, s.logger, cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
 	}

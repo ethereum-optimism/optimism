@@ -81,7 +81,7 @@ func SetupEnv(t Testing, opts ...EnvOpt) (env Env) {
 	env.Batcher = NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		rollupSeqCl, env.Miner.EthClient(), env.SeqEngine.EthClient(), env.SeqEngine.EngineClient(t, sd.RollupCfg))
 
-	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.AllocTypeStandard)
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.DefaultAllocType)
 	alice.L1.SetUserEnv(env.L1UserEnv(t))
 	alice.L2.SetUserEnv(env.L2UserEnv(t))
 	env.Alice = alice
@@ -95,7 +95,7 @@ func (env Env) L1UserEnv(t Testing) *BasicUserEnv[*L1Bindings] {
 		EthCl:          l1EthCl,
 		Signer:         types.LatestSigner(env.SetupData.L1Cfg.Config),
 		AddressCorpora: env.AddressCorpora,
-		Bindings:       NewL1Bindings(t, l1EthCl, e2ecfg.AllocTypeStandard),
+		Bindings:       NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
 	}
 }
 

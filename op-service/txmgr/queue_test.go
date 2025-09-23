@@ -172,7 +172,8 @@ func TestQueue_Send(t *testing.T) {
 
 			conf := configWithNumConfs(1)
 			conf.ReceiptQueryInterval = 1 * time.Second            // simulate a network send
-			conf.ResubmissionTimeout.Store(int64(2 * time.Second)) // resubmit to detect errors
+			conf.RebroadcastInterval.Store(int64(2 * time.Second)) // possibly rebroadcast once before resubmission if unconfirmed
+			conf.ResubmissionTimeout.Store(int64(3 * time.Second)) // resubmit to detect errors
 			conf.SafeAbortNonceTooLowCount = 1
 			backend := newMockBackendWithNonce(newGasPricer(3))
 			mgr := &SimpleTxManager{

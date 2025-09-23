@@ -20,11 +20,11 @@ func TestKonaFillHostCommand(t *testing.T) {
 		Networks: []string{"op-mainnet"},
 	}
 	inputs := utils.LocalGameInputs{
-		L1Head:        common.Hash{0x11},
-		L2Head:        common.Hash{0x22},
-		L2OutputRoot:  common.Hash{0x33},
-		L2Claim:       common.Hash{0x44},
-		L2BlockNumber: big.NewInt(3333),
+		L1Head:           common.Hash{0x11},
+		L2Head:           common.Hash{0x22},
+		L2OutputRoot:     common.Hash{0x33},
+		L2Claim:          common.Hash{0x44},
+		L2SequenceNumber: big.NewInt(3333),
 	}
 	vmConfig := NewKonaExecutor()
 
@@ -39,8 +39,8 @@ func TestKonaFillHostCommand(t *testing.T) {
 	require.True(t, slices.Contains(args, "--data-dir"))
 	require.True(t, slices.Contains(args, "--l2-chain-id"))
 	require.True(t, slices.Contains(args, "--l1-head"))
-	require.True(t, slices.Contains(args, "--l2-head"))
-	require.True(t, slices.Contains(args, "--l2-output-root"))
-	require.True(t, slices.Contains(args, "--l2-claim"))
-	require.True(t, slices.Contains(args, "--l2-block-number"))
+	require.True(t, slices.Contains(args, "--agreed-l2-head-hash"))
+	require.True(t, slices.Contains(args, "--agreed-l2-output-root"))
+	require.True(t, slices.Contains(args, "--claimed-l2-output-root"))
+	require.True(t, slices.Contains(args, "--claimed-l2-block-number"))
 }

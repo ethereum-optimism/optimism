@@ -38,6 +38,10 @@ func (h *RandHelper) Intn(n int) int {
 	return h.r.Intn(n)
 }
 
+func (h *RandHelper) Int64(n int) int64 {
+	return int64(h.r.Intn(n))
+}
+
 func (h *RandHelper) RandHash() common.Hash {
 	var bytes [32]byte
 	_, err := h.r.Read(bytes[:])
@@ -68,7 +72,8 @@ func (h *RandHelper) RandHint() []byte {
 
 func (h *RandHelper) RandRegisters() *[32]arch.Word {
 	registers := new([32]arch.Word)
-	for i := 0; i < 32; i++ {
+	// Start from 1 as register 0 is the "zero" register (always 0)
+	for i := 1; i < 32; i++ {
 		registers[i] = h.Word()
 	}
 	return registers
@@ -83,9 +88,27 @@ func (h *RandHelper) RandomBytes(t require.TestingT, length int) []byte {
 }
 
 func (h *RandHelper) RandPC() arch.Word {
-	return AlignPC(h.Word())
+	return alignPC(h.Word())
 }
 
 func (h *RandHelper) RandStep() uint64 {
-	return BoundStep(h.r.Uint64())
+	return boundStep(h.r.Uint64())
+}
+
+func alignPC(pc arch.Word) arch.Word {
+	// Memory-align random pc and leave room for nextPC
+	pc = pc & arch.AddressMask // Align address
+	if pc >= arch.AddressMask {
+		// Leave room to set and then increment nextPC
+		pc = arch.AddressMask - 8
+	}
+	return pc
+}
+
+func boundStep(step uint64) uint64 {
+	// Leave room to increment step at least once
+	if step == ^uint64(0) {
+		step -= 1
+	}
+	return step
 }

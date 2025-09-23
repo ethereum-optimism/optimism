@@ -52,6 +52,7 @@ library MIPS64Syscalls {
     uint64 internal constant PAGE_SIZE = 4096;
 
     uint32 internal constant SYS_MMAP = 5009;
+    uint32 internal constant SYS_MPROTECT = 5010;
     uint32 internal constant SYS_BRK = 5012;
     uint32 internal constant SYS_CLONE = 5055;
     uint32 internal constant SYS_EXIT_GROUP = 5205;
@@ -66,6 +67,7 @@ library MIPS64Syscalls {
     uint32 internal constant SYS_NANOSLEEP = 5034;
     uint32 internal constant SYS_CLOCKGETTIME = 5222;
     uint32 internal constant SYS_GETPID = 5038;
+    uint32 internal constant SYS_GETRANDOM = 5313;
     // no-op syscalls
     uint32 internal constant SYS_MUNMAP = 5011;
     uint32 internal constant SYS_GETAFFINITY = 5196;
@@ -87,7 +89,6 @@ library MIPS64Syscalls {
     uint32 internal constant SYS_PIPE2 = 5287;
     uint32 internal constant SYS_EPOLLCTL = 5208;
     uint32 internal constant SYS_EPOLLPWAIT = 5272;
-    uint32 internal constant SYS_GETRANDOM = 5313;
     uint32 internal constant SYS_UNAME = 5061;
     //uint32 internal constant SYS_STAT64 = 0xFFFFFFFF;  // UndefinedSysNr - not supported by MIPS64
     uint32 internal constant SYS_GETUID = 5100;
@@ -97,6 +98,7 @@ library MIPS64Syscalls {
     uint32 internal constant SYS_TGKILL = 5225;
     uint32 internal constant SYS_GETRLIMIT = 5095;
     uint32 internal constant SYS_LSEEK = 5008;
+    uint32 internal constant SYS_EVENTFD2 = 5284;
     // profiling-related syscalls - ignored
     uint32 internal constant SYS_SETITIMER = 5036;
     uint32 internal constant SYS_TIMERCREATE = 5216;
@@ -110,6 +112,7 @@ library MIPS64Syscalls {
     uint32 internal constant FD_HINT_WRITE = 4;
     uint32 internal constant FD_PREIMAGE_READ = 5;
     uint32 internal constant FD_PREIMAGE_WRITE = 6;
+    uint64 internal constant FD_EVENTFD = 100;
 
     uint64 internal constant SYS_ERROR_SIGNAL = U64_MASK;
     uint64 internal constant EBADF = 0x9;
@@ -149,6 +152,11 @@ library MIPS64Syscalls {
     uint64 internal constant CLONE_NEWIPC = 0x8000000;
     uint64 internal constant VALID_SYS_CLONE_FLAGS =
         CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
+
+    // eventfd flags
+    // From:
+    // https://github.com/golang/go/blob/7a2cfb70b01f069c2125adcf7126d7f3376cb8b7/src/internal/runtime/syscall/defs_linux_mips64x.go#L18-L18
+    uint64 internal constant EFD_NONBLOCK = 0x80;
 
     // FYI: https://en.wikibooks.org/wiki/MIPS_Assembly/Register_File
     //      https://refspecs.linuxfoundation.org/elf/mipsabi.pdf
@@ -196,8 +204,8 @@ library MIPS64Syscalls {
     /// @param _a0 The address for the new mapping
     /// @param _a1 The size of the new mapping
     /// @param _heap The current value of the heap pointer
-    /// @return v0_ The address of the new mapping
-    /// @return v1_ Unused error code (0)
+    /// @return v0_ The address of the new mapping or error code on error
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newHeap_ The new value for the heap, may be unchanged
     function handleSysMmap(
         uint64 _a0,
@@ -222,8 +230,8 @@ library MIPS64Syscalls {
                 newHeap_ += sz;
                 // Fail if new heap exceeds memory limit, newHeap overflows to low memory, or sz overflows
                 if (newHeap_ > HEAP_END || newHeap_ < _heap || sz < _a1) {
-                    v0_ = SYS_ERROR_SIGNAL;
-                    v1_ = EINVAL;
+                    v0_ = EINVAL;
+                    v1_ = SYS_ERROR_SIGNAL;
                     return (v0_, v1_, _heap);
                 }
             } else {
@@ -236,8 +244,8 @@ library MIPS64Syscalls {
 
     /// @notice Like a Linux read syscall. Splits unaligned reads into aligned reads.
     ///         Args are provided as a struct to reduce stack pressure.
-    /// @return v0_ The number of bytes read, -1 on error.
-    /// @return v1_ The error code, 0 if there is no error.
+    /// @return v0_ The number of bytes read, error code on error.
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newPreimageOffset_ The new value for the preimage offset.
     /// @return newMemRoot_ The new memory root.
     function handleSysRead(SysReadParams memory _args)
@@ -310,9 +318,13 @@ library MIPS64Syscalls {
                 // Don't read into memory, just say we read it all
                 // The result is ignored anyway
                 v0_ = _args.a2;
+            } else if (_args.a0 == FD_EVENTFD) {
+                // Always act in non blocking mode as if the counter has not been signalled
+                v0_ = EAGAIN;
+                v1_ = SYS_ERROR_SIGNAL;
             } else {
-                v0_ = U64_MASK;
-                v1_ = EBADF;
+                v0_ = EBADF;
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_, newPreimageOffset_, newMemRoot_, memUpdated_, memAddr_);
@@ -320,8 +332,8 @@ library MIPS64Syscalls {
     }
 
     /// @notice Like a Linux write syscall. Splits unaligned writes into aligned writes.
-    /// @return v0_ The number of bytes written, or -1 on error.
-    /// @return v1_ The error code, or 0 if empty.
+    /// @return v0_ The number of bytes written, or error code on error.
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newPreimageKey_ The new preimageKey.
     /// @return newPreimageOffset_ The new preimageOffset.
     function handleSysWrite(SysWriteParams memory _args)
@@ -365,9 +377,14 @@ library MIPS64Syscalls {
                 newPreimageKey_ = key;
                 newPreimageOffset_ = 0; // reset offset, to read new pre-image data from the start
                 v0_ = _args._a2;
+            } else if (_args._a0 == FD_EVENTFD) {
+                // Always report that the write could not be completed
+                // This acts as if the counter has already reached the maximum value
+                v0_ = EAGAIN;
+                v1_ = SYS_ERROR_SIGNAL;
             } else {
-                v0_ = U64_MASK;
-                v1_ = EBADF;
+                v0_ = EBADF;
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_, newPreimageKey_, newPreimageOffset_);
@@ -378,8 +395,8 @@ library MIPS64Syscalls {
     /// retrieve the file-descriptor R/W flags.
     /// @param _a0 The file descriptor.
     /// @param _a1 The control command.
-    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or -1 on error.
-    /// @param v1_ An error number, or 0 if there is no error.
+    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or error code on error.
+    /// @param v1_ 0 if there is no error, non-zero on error
     function handleSysFcntl(uint64 _a0, uint64 _a1) internal pure returns (uint64 v0_, uint64 v1_) {
         unchecked {
             v0_ = uint64(0);
@@ -394,8 +411,8 @@ library MIPS64Syscalls {
                 ) {
                     v0_ = 0; // No flags set
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = SYS_ERROR_SIGNAL;
                 }
             } else if (_a1 == 3) {
                 // F_GETFL: get file status flags
@@ -404,12 +421,12 @@ library MIPS64Syscalls {
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {
                     v0_ = 1; // O_WRONLY
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = SYS_ERROR_SIGNAL;
                 }
             } else {
-                v0_ = U64_MASK;
-                v1_ = EINVAL; // cmd not recognized by this kernel
+                v0_ = EINVAL; // cmd not recognized by this kernel
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_);

@@ -3,32 +3,42 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ISemver {
+contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value FEE_SCALARS          Represents an update to l1 data fee scalars.
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value EIP_1559_PARAMS     Represents an update to EIP-1559 parameters.
+    /// @custom:value OPERATOR_FEE_PARAMS Represents an update to operator fee parameters.
+    /// @custom:value MIN_BASE_FEE        Represents an update to the minimum base fee.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
-        EIP_1559_PARAMS
+        EIP_1559_PARAMS,
+        OPERATOR_FEE_PARAMS,
+        MIN_BASE_FEE
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -38,7 +48,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
-        address disputeGameFactory;
         address optimismPortal;
         address optimismMintableERC20Factory;
     }
@@ -79,14 +88,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 
-    /// @notice Storage slot for the DisputeGameFactory address.
-    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
-    uint64 internal constant MAX_GAS_LIMIT = 200_000_000;
+    uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     ///         Deprecated since the Ecotone network upgrade
@@ -122,22 +127,49 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice The EIP-1559 elasticity multiplier.
     uint32 public eip1559Elasticity;
 
+    /// @notice The operator fee scalar.
+    uint32 public operatorFeeScalar;
+
+    /// @notice The operator fee constant.
+    uint64 public operatorFeeConstant;
+
+    /// @notice The L2 chain ID that this SystemConfig configures.
+    uint256 public l2ChainId;
+
+    /// @notice The SuperchainConfig contract that manages the pause state.
+    ISuperchainConfig public superchainConfig;
+
+    /// @notice The minimum base fee, in wei.
+    uint64 public minBaseFee;
+
+    /// @notice Bytes32 feature flag name to boolean enabled value.
+    mapping(bytes32 => bool) public isFeatureEnabled;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Emitted when a feature is set.
+    /// @param feature Feature that was set.
+    /// @param enabled Whether the feature is enabled.
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
+    ///         respectively.
+    error SystemConfig_InvalidFeatureState();
+
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
+    /// @custom:semver 3.9.0
     function version() public pure virtual returns (string memory) {
-        return "2.4.0";
+        return "3.9.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton.
-    constructor() {
+    constructor() ReinitializableBase(3) {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         _disableInitializers();
     }
@@ -154,6 +186,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
+    /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
+    /// @param _superchainConfig  The SuperchainConfig contract address.
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
@@ -163,11 +197,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
-        SystemConfig.Addresses memory _addresses
+        SystemConfig.Addresses memory _addresses,
+        uint256 _l2ChainId,
+        ISuperchainConfig _superchainConfig
     )
         public
-        initializer
+        reinitializer(initVersion())
     {
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Now perform initialization logic.
         __Ownable_init();
         transferOwnership(_owner);
 
@@ -181,13 +221,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
         _setStartBlock();
 
         _setResourceConfig(_config);
+
+        l2ChainId = _l2ChainId;
+        superchainConfig = _superchainConfig;
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -233,7 +275,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Getter for the DisputeGameFactory address.
     function disputeGameFactory() public view returns (address addr_) {
-        addr_ = Storage.getAddress(DISPUTE_GAME_FACTORY_SLOT);
+        IOptimismPortal2 portal = IOptimismPortal2(payable(optimismPortal()));
+        addr_ = address(portal.disputeGameFactory());
     }
 
     /// @notice Getter for the OptimismPortal address.
@@ -252,7 +295,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             l1CrossDomainMessenger: l1CrossDomainMessenger(),
             l1ERC721Bridge: l1ERC721Bridge(),
             l1StandardBridge: l1StandardBridge(),
-            disputeGameFactory: disputeGameFactory(),
             optimismPortal: optimismPortal(),
             optimismMintableERC20Factory: optimismMintableERC20Factory()
         });
@@ -375,6 +417,37 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
+    /// @notice Updates the minimum base fee. Can only be called by the owner.
+    ///         Setting this value to 0 is equivalent to disabling the min base fee feature
+    /// @param _minBaseFee New minimum base fee.
+    function setMinBaseFee(uint64 _minBaseFee) external onlyOwner {
+        _setMinBaseFee(_minBaseFee);
+    }
+
+    /// @notice Internal function for updating the minimum base fee.
+    function _setMinBaseFee(uint64 _minBaseFee) internal {
+        minBaseFee = _minBaseFee;
+
+        bytes memory data = abi.encode(_minBaseFee);
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE, data);
+    }
+
+    /// @notice Updates the operator fee parameters. Can only be called by the owner.
+    /// @param _operatorFeeScalar operator fee scalar.
+    /// @param _operatorFeeConstant  operator fee constant.
+    function setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external onlyOwner {
+        _setOperatorFeeScalars(_operatorFeeScalar, _operatorFeeConstant);
+    }
+
+    /// @notice Internal function for updating the operator fee parameters.
+    function _setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) internal {
+        operatorFeeScalar = _operatorFeeScalar;
+        operatorFeeConstant = _operatorFeeConstant;
+
+        bytes memory data = abi.encode(uint256(_operatorFeeScalar) << 64 | _operatorFeeConstant);
+        emit ConfigUpdate(VERSION, UpdateType.OPERATOR_FEE_PARAMS, data);
+    }
+
     /// @notice Sets the start block in a backwards compatible way. Proxies
     ///         that were initialized before the startBlock existed in storage
     ///         can have their start block set by a user provided override.
@@ -422,5 +495,48 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Sets a feature flag enabled or disabled. Can only be called by the ProxyAdmin or
+    ///         its owner.
+    /// @param _feature Feature to set.
+    /// @param _enabled Whether the feature should be enabled or disabled.
+    function setFeature(bytes32 _feature, bool _enabled) external {
+        // Features can only be set by the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // As a sanity check, prevent users from enabling the feature if already enabled or
+        // disabling the feature if already disabled. This helps to prevent accidental misuse.
+        if (_enabled == isFeatureEnabled[_feature]) {
+            revert SystemConfig_InvalidFeatureState();
+        }
+
+        // Set the feature.
+        isFeatureEnabled[_feature] = _enabled;
+
+        // Emit an event.
+        emit FeatureSet(_feature, _enabled);
+    }
+
+    /// @notice Returns the current pause state for this network. If the network is using
+    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
+    ///         is active where the ETHLockbox address is used as the identifier. If the network is
+    ///         not using ETHLockbox, the system is paused if either the global pause is active or
+    ///         the pause is active where the OptimismPortal address is used as the identifier.
+    /// @return bool True if the system is paused, false otherwise.
+    function paused() public view returns (bool) {
+        // Determine the appropriate chain identifier based on the feature flags.
+        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
+            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
+            : address(optimismPortal());
+
+        // Check if either global or local pause is active.
+        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
+    }
+
+    /// @notice Returns the guardian address of the SuperchainConfig.
+    /// @return address The guardian address.
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
     }
 }

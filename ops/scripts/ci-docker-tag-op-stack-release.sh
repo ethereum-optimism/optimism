@@ -6,7 +6,7 @@ DOCKER_REPO=$1
 GIT_TAG=$2
 GIT_SHA=$3
 
-IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^(da-server|proofs-tools|holocene-deployer|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)' || true)
+IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^(da-server|holocene-deployer|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)' || true)
 if [ -z "$IMAGE_NAME" ]; then
   echo "image name could not be parsed from git tag '$GIT_TAG'"
   exit 1
@@ -35,8 +35,8 @@ fi
 echo "Tagging $SOURCE_IMAGE_TAG with '$IMAGE_TAG'"
 gcloud container images add-tag -q "$SOURCE_IMAGE_TAG" "$TARGET_IMAGE_TAG"
 
-# Do not tag with latest if the release is a release candidate.
-if [[ "$IMAGE_TAG" == *"rc"* ]]; then
+# Only tag finalized releases with 'latest'
+if ! [[ "$IMAGE_TAG" =~ v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Not tagging with 'latest' because the release is a release candidate."
   exit 0
 fi

@@ -26,6 +26,7 @@ func TestAbsolutePreState(t *testing.T) {
 		response := eth.SuperRootResponse{
 			Timestamp: 100,
 			SuperRoot: eth.Bytes32{0x11},
+			Version:   eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainID{2987},
@@ -39,7 +40,8 @@ func TestAbsolutePreState(t *testing.T) {
 				},
 			},
 		}
-		expectedPreimage := responseToSuper(response)
+		expectedPreimage, err := response.ToSuper()
+		require.NoError(t, err)
 		rootProvider := &stubRootProvider{
 			rootsByTimestamp: map[uint64]eth.SuperRootResponse{
 				100: response,

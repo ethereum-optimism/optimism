@@ -9,8 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +41,30 @@ func (m *mockDeployerForTest) Deploy(ctx context.Context, input io.Reader) (*spe
 
 func (m *mockDeployerForTest) GetEnvironmentInfo(ctx context.Context, spec *spec.EnclaveSpec) (*kurtosis.KurtosisEnvironment, error) {
 	return &kurtosis.KurtosisEnvironment{}, nil
+}
+
+// mockEnclaveContext implements EnclaveContextIface for testing
+type mockEnclaveContext struct {
+	artifacts []string
+}
+
+func (m *mockEnclaveContext) GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error) {
+	result := make([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, len(m.artifacts))
+	for i, name := range m.artifacts {
+		result[i] = &kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid{
+			FileName: name,
+			FileUuid: "test-uuid",
+		}
+	}
+	return result, nil
+}
+
+func (m *mockEnclaveContext) DownloadFilesArtifact(ctx context.Context, name string) ([]byte, error) {
+	return nil, nil
+}
+
+func (m *mockEnclaveContext) UploadFiles(pathToUpload string, artifactName string) (services.FilesArtifactUUID, services.FileArtifactName, error) {
+	return "", "", nil
 }
 
 func TestDeploy(t *testing.T) {
@@ -68,13 +95,26 @@ func TestDeploy(t *testing.T) {
 		return &mockDeployerForTest{baseDir: tmpDir}, nil
 	}
 
-	d := NewDeployer(
+	// Create a mock EnclaveFS function
+	mockEnclaveFSFunc := func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error) {
+		mockCtx := &mockEnclaveContext{
+			artifacts: []string{
+				"devnet-descriptor-1",
+				"devnet-descriptor-2",
+			},
+		}
+		return ktfs.NewEnclaveFS(ctx, enclave, ktfs.WithEnclaveCtx(mockCtx))
+	}
+
+	d, err := NewDeployer(
 		WithBaseDir(tmpDir),
 		WithKurtosisDeployer(mockDeployerFunc),
 		WithDryRun(true),
 		WithTemplateFile(templatePath),
 		WithDataFile(dataPath),
+		WithNewEnclaveFSFunc(mockEnclaveFSFunc),
 	)
+	require.NoError(t, err)
 
 	env, err := d.Deploy(ctx, deployConfig)
 	require.NoError(t, err)
@@ -91,4 +131,13 @@ func TestDeploy(t *testing.T) {
 	err = json.Unmarshal(content, &envData)
 	require.NoError(t, err)
 	assert.Equal(t, "value", envData["test"])
+}
+
+func TestNewDeployer_DryRun(t *testing.T) {
+	// In dry run mode, we should not create an enclave manager
+	deployer, err := NewDeployer(
+		WithDryRun(true),
+	)
+	require.NoError(t, err)
+	assert.Nil(t, deployer.enclaveManager)
 }

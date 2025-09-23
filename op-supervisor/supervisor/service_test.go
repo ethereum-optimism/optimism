@@ -5,13 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/dial"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -24,6 +26,9 @@ import (
 
 func TestSupervisorService(t *testing.T) {
 	depSet, err := depset.NewStaticConfigDependencySet(make(map[eth.ChainID]*depset.StaticConfigDependency))
+	require.NoError(t, err)
+	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), depset.StaticTimestamp(0))
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
 	require.NoError(t, err)
 
 	cfg := &config.Config{
@@ -51,7 +56,7 @@ func TestSupervisorService(t *testing.T) {
 			ListenPort:  0, // pick a port automatically
 			EnableAdmin: true,
 		},
-		DependencySetSource: depSet,
+		FullConfigSetSource: fullCfgSet,
 		MockRun:             true,
 	}
 	logger := testlog.Logger(t, log.LevelError)
@@ -62,21 +67,14 @@ func TestSupervisorService(t *testing.T) {
 	{
 		endpoint := "http://" + supervisor.rpcServer.Endpoint()
 		t.Logf("dialing %s", endpoint)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), time.Second*5, logger, endpoint)
+		cl, err := opclient.NewRPC(context.Background(), logger, endpoint, opclient.WithConnectTimeout(5*time.Second))
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		var dest types.SafetyLevel
-		err = cl.CallContext(ctx, &dest, "supervisor_checkMessage",
-			types.Identifier{
-				Origin:      common.Address{0xaa},
-				BlockNumber: 123,
-				LogIndex:    42,
-				Timestamp:   1234567,
-				ChainID:     eth.ChainID{0xbb},
-			}, common.Hash{0xcc})
+		err = cl.CallContext(ctx, nil, "supervisor_checkAccessList",
+			[]common.Hash{}, types.CrossUnsafe, types.ExecutingDescriptor{
+				Timestamp: 1234568, ChainID: eth.ChainIDFromUInt64(123)})
 		cancel()
 		require.NoError(t, err)
-		require.Equal(t, types.CrossUnsafe, dest, "expecting mock to return cross-unsafe")
 		cl.Close()
 	}
 	require.NoError(t, supervisor.Stop(context.Background()), "stop service")

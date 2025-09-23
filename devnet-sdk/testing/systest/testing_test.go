@@ -2,33 +2,50 @@ package systest
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/constraints"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	_ system.Chain   = (*mockChain[system.Node])(nil)
+	_ system.L2Chain = (*mockL2Chain[system.Node])(nil)
 )
 
 // mockTB implements a minimal testing.TB for testing
 type mockTB struct {
 	testing.TB
-	name string
+	name      string
+	failed    bool
+	lastError string
 }
 
-func (m *mockTB) Helper()                  {}
-func (m *mockTB) Name() string             { return m.name }
-func (m *mockTB) Cleanup(func())           {}
-func (m *mockTB) Error(args ...any)        {}
-func (m *mockTB) Errorf(string, ...any)    {}
-func (m *mockTB) Fail()                    {}
-func (m *mockTB) FailNow()                 {}
-func (m *mockTB) Failed() bool             { return false }
-func (m *mockTB) Fatal(args ...any)        {}
-func (m *mockTB) Fatalf(string, ...any)    {}
+func (m *mockTB) Helper()               {}
+func (m *mockTB) Name() string          { return m.name }
+func (m *mockTB) Cleanup(func())        {}
+func (m *mockTB) Error(args ...any)     {}
+func (m *mockTB) Errorf(string, ...any) {}
+func (m *mockTB) Fail()                 {}
+func (m *mockTB) FailNow()              {}
+func (m *mockTB) Failed() bool          { return false }
+func (m *mockTB) Fatal(args ...any) {
+	m.failed = true
+	m.lastError = fmt.Sprint(args...)
+}
+func (m *mockTB) Fatalf(format string, args ...any) {
+	m.failed = true
+	m.lastError = fmt.Sprintf(format, args...)
+}
 func (m *mockTB) Log(args ...any)          {}
 func (m *mockTB) Logf(string, ...any)      {}
 func (m *mockTB) Skip(args ...any)         {}
@@ -38,28 +55,118 @@ func (m *mockTB) Skipped() bool            { return false }
 func (m *mockTB) TempDir() string          { return "" }
 func (m *mockTB) Setenv(key, value string) {}
 
-// mockChain implements a minimal system.Chain for testing
-type mockChain struct{}
+// mockTBRecorder extends mockTB to record test outcomes
+type mockTBRecorder struct {
+	mockTB
+	skipped  bool
+	failed   bool
+	skipMsg  string
+	fatalMsg string
+}
 
-func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
-func (m *mockChain) ID() types.ChainID                               { return types.ChainID(1) }
-func (m *mockChain) ContractsRegistry() interfaces.ContractsRegistry { return nil }
-func (m *mockChain) Wallet(ctx context.Context, constraints ...constraints.WalletConstraint) (types.Wallet, error) {
-	return nil, nil
+func (m *mockTBRecorder) Skip(args ...any) { m.skipped = true }
+func (m *mockTBRecorder) Skipf(f string, args ...any) {
+	m.skipped = true
+	m.skipMsg = fmt.Sprintf(f, args...)
+}
+func (m *mockTBRecorder) Fatal(args ...any) { m.failed = true }
+func (m *mockTBRecorder) Fatalf(f string, args ...any) {
+	m.failed = true
+	m.fatalMsg = fmt.Sprintf(f, args...)
+}
+func (m *mockTBRecorder) Failed() bool  { return m.failed }
+func (m *mockTBRecorder) Skipped() bool { return m.skipped }
+
+// mockChain implements a minimal system.Chain for testing
+type mockChain[T system.Node] struct {
+	nodes []T
+}
+
+func (m *mockChain[T]) ID() types.ChainID { return types.ChainID(big.NewInt(1)) }
+func (m *mockChain[T]) Wallets() system.WalletMap {
+	return nil
+}
+func (m *mockChain[T]) Config() (*params.ChainConfig, error) {
+	return nil, fmt.Errorf("not implemented on lowLevelMockChain")
+}
+func (m *mockChain[T]) Addresses() system.AddressMap {
+	return system.AddressMap{}
+}
+func (m *mockChain[T]) Nodes() []T {
+	return m.nodes
+}
+
+// mockL2Chain implements a minimal system.L2Chain for testing
+type mockL2Chain[T system.Node] struct {
+	mockChain[T]
+}
+
+func (m *mockL2Chain[T]) L1Addresses() system.AddressMap {
+	return system.AddressMap{}
+}
+func (m *mockL2Chain[T]) L1Wallets() system.WalletMap {
+	return system.WalletMap{}
 }
 
 // mockSystem implements a minimal system.System for testing
 type mockSystem struct{}
 
-func (m *mockSystem) Identifier() string     { return "mock" }
-func (m *mockSystem) L1() system.Chain       { return &mockChain{} }
-func (m *mockSystem) L2(uint64) system.Chain { return &mockChain{} }
-func (m *mockSystem) Close() error           { return nil }
+func (m *mockSystem) Identifier() string { return "mock" }
+func (m *mockSystem) L1() system.Chain   { return &mockChain[system.Node]{} }
+func (m *mockSystem) L2s() []system.L2Chain {
+	return []system.L2Chain{&mockL2Chain[system.Node]{}}
+}
+func (m *mockSystem) Close() error { return nil }
 
 // mockInteropSet implements a minimal system.InteropSet for testing
 type mockInteropSet struct{}
 
-func (m *mockInteropSet) L2(uint64) system.Chain { return &mockChain{} }
+func (m *mockInteropSet) L2s() []system.L2Chain {
+	return []system.L2Chain{&mockL2Chain[system.Node]{}}
+}
+
+// mockSupervisor implements the system.Supervisor interface for testing
+type mockSupervisor struct{}
+
+func (m *mockSupervisor) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockSupervisor) CrossSafe(ctx context.Context, chainID eth.ChainID) (supervisorTypes.DerivedIDPair, error) {
+	return supervisorTypes.DerivedIDPair{}, nil
+}
+
+func (m *mockSupervisor) Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockSupervisor) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
+}
+
+func (m *mockSupervisor) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
+}
+
+func (m *mockSupervisor) UpdateLocalUnsafe(ctx context.Context, chainID eth.ChainID, blockRef eth.BlockRef) error {
+	return nil
+}
+
+func (m *mockSupervisor) UpdateLocalSafe(ctx context.Context, chainID eth.ChainID, l1BlockRef eth.L1BlockRef, blockRef eth.BlockRef) error {
+	return nil
+}
+
+func (m *mockSupervisor) SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error) {
+	return eth.SuperRootResponse{}, nil
+}
+
+func (m *mockSupervisor) AllSafeDerivedAt(ctx context.Context, blockID eth.BlockID) (map[eth.ChainID]eth.BlockID, error) {
+	return nil, nil
+}
+
+func (m *mockSupervisor) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
+	return eth.SupervisorSyncStatus{}, nil
+}
 
 // mockInteropSystem implements a minimal system.InteropSystem for testing
 type mockInteropSystem struct {
@@ -67,6 +174,11 @@ type mockInteropSystem struct {
 }
 
 func (m *mockInteropSystem) InteropSet() system.InteropSet { return &mockInteropSet{} }
+
+// Supervisor implements the system.InteropSystem interface
+func (m *mockInteropSystem) Supervisor(ctx context.Context) (system.Supervisor, error) {
+	return &mockSupervisor{}, nil
+}
 
 // newMockSystem creates a new mock system for testing
 func newMockSystem() system.System {
@@ -86,28 +198,8 @@ type testPackage struct {
 	creator testSystemCreator
 }
 
-func (p *testPackage) NewSystemFromEnv(string) (system.System, error) {
+func (p *testPackage) NewSystemFromURL(string) (system.System, error) {
 	return p.creator()
-}
-
-// withTestSystem runs a test with a custom system creator
-func withTestSystem(t *testing.T, creator testSystemCreator, f func(t *testing.T)) {
-	// Save original env var
-	origEnvFile := os.Getenv(env.EnvFileVar)
-	defer os.Setenv(env.EnvFileVar, origEnvFile)
-
-	// Set empty env var for testing
-	os.Setenv(env.EnvFileVar, "")
-
-	// Create a test-specific package
-	pkg := &testPackage{creator: creator}
-	origPkg := currentPackage
-	currentPackage = pkg
-	defer func() {
-		currentPackage = origPkg
-	}()
-
-	f(t)
 }
 
 // TestNewT tests the creation and basic functionality of the test wrapper
@@ -179,75 +271,256 @@ func TestTWrapper(t *testing.T) {
 	})
 }
 
-// TestSystemTest tests the main SystemTest function
-func TestSystemTest(t *testing.T) {
-	withTestSystem(t, func() (system.System, error) {
-		return newMockSystem(), nil
-	}, func(t *testing.T) {
-		t.Run("basic system test", func(t *testing.T) {
-			called := false
-			SystemTest(t, func(t T, sys system.System) {
-				called = true
-				require.NotNil(t, sys)
-			})
-			require.True(t, called)
-		})
+// mockAcquirer creates a SystemAcquirer that returns the given system and error
+func mockAcquirer(sys system.System, err error) SystemAcquirer {
+	return func(t BasicT) (system.System, error) {
+		return sys, err
+	}
+}
 
-		t.Run("with validator", func(t *testing.T) {
-			validatorCalled := false
-			testCalled := false
+// TestTryAcquirers tests the tryAcquirers helper function directly
+func TestTryAcquirers(t *testing.T) {
+	t.Run("empty acquirers list", func(t *testing.T) {
+		sys, err := tryAcquirers(t, nil)
+		require.EqualError(t, err, "no acquirer was able to create a system")
+		require.Nil(t, sys)
+	})
 
-			validator := func(t T, sys system.System) (context.Context, error) {
-				validatorCalled = true
-				return t.Context(), nil
-			}
+	t.Run("skips nil,nil results", func(t *testing.T) {
+		sys1 := newMockSystem()
+		acquirers := []SystemAcquirer{
+			mockAcquirer(nil, nil),  // skipped
+			mockAcquirer(nil, nil),  // skipped
+			mockAcquirer(sys1, nil), // selected and succeeds
+		}
+		sys, err := tryAcquirers(t, acquirers)
+		require.NoError(t, err)
+		require.Equal(t, sys1, sys)
+	})
 
-			SystemTest(t, func(t T, sys system.System) {
-				testCalled = true
-			}, validator)
+	t.Run("returns first non-skip result (success)", func(t *testing.T) {
+		sys1, sys2 := newMockSystem(), newMockSystem()
+		acquirers := []SystemAcquirer{
+			mockAcquirer(nil, nil),  // skipped
+			mockAcquirer(sys1, nil), // selected and succeeds
+			mockAcquirer(sys2, nil), // not reached
+		}
+		sys, err := tryAcquirers(t, acquirers)
+		require.NoError(t, err)
+		require.Equal(t, sys1, sys)
+	})
 
-			require.True(t, validatorCalled)
-			require.True(t, testCalled)
-		})
+	t.Run("returns first non-skip result (failure)", func(t *testing.T) {
+		expectedErr := fmt.Errorf("selected acquirer failed")
+		sys1 := newMockSystem()
+		acquirers := []SystemAcquirer{
+			mockAcquirer(nil, nil),         // skipped
+			mockAcquirer(nil, expectedErr), // selected and fails
+			mockAcquirer(sys1, nil),        // not reached
+		}
+		sys, err := tryAcquirers(t, acquirers)
+		require.ErrorIs(t, err, expectedErr)
+		require.Nil(t, sys)
+	})
 
-		t.Run("multiple validators", func(t *testing.T) {
-			validatorCount := 0
-
-			validator := func(t T, sys system.System) (context.Context, error) {
-				validatorCount++
-				return t.Context(), nil
-			}
-
-			SystemTest(t, func(t T, sys system.System) {}, validator, validator, validator)
-			require.Equal(t, 3, validatorCount)
-		})
+	t.Run("all acquirers skip", func(t *testing.T) {
+		acquirers := []SystemAcquirer{
+			mockAcquirer(nil, nil),
+			mockAcquirer(nil, nil),
+		}
+		sys, err := tryAcquirers(t, acquirers)
+		require.EqualError(t, err, "no acquirer was able to create a system")
+		require.Nil(t, sys)
 	})
 }
 
-// TestInteropSystemTest tests the InteropSystemTest function
-func TestInteropSystemTest(t *testing.T) {
-	t.Run("skips non-interop system", func(t *testing.T) {
-		withTestSystem(t, func() (system.System, error) {
-			return newMockSystem(), nil
-		}, func(t *testing.T) {
-			called := false
-			InteropSystemTest(t, func(t T, sys system.InteropSystem) {
-				called = true
-			})
-			require.False(t, called)
+// TestSystemAcquisition tests the system acquisition functionality
+func TestSystemAcquisition(t *testing.T) {
+	t.Run("uses first non-skip acquirer (success)", func(t *testing.T) {
+		sys1, sys2 := newMockSystem(), newMockSystem()
+		acquirers := []SystemAcquirer{
+			mockAcquirer(nil, nil),  // skipped
+			mockAcquirer(sys1, nil), // selected and succeeds
+			mockAcquirer(sys2, nil), // not reached
+		}
+
+		helper := newBasicSystemTestHelper(&mockEnvGetter{}).
+			WithAcquirers(acquirers)
+
+		var acquiredSys system.System
+		helper.SystemTest(t, func(t T, sys system.System) {
+			acquiredSys = sys
 		})
+		require.Equal(t, sys1, acquiredSys)
 	})
 
-	t.Run("runs with interop system", func(t *testing.T) {
-		withTestSystem(t, func() (system.System, error) {
-			return newMockInteropSystem(), nil
-		}, func(t *testing.T) {
-			called := false
-			InteropSystemTest(t, func(t T, sys system.InteropSystem) {
-				called = true
-				require.NotNil(t, sys.InteropSet())
+	t.Run("fails when selected acquirer fails", func(t *testing.T) {
+		testCases := []struct {
+			name        string
+			expectMet   bool
+			expectSkip  bool
+			expectFatal bool
+		}{
+			{
+				name:        "preconditions not expected skips test",
+				expectMet:   false,
+				expectSkip:  true,
+				expectFatal: false,
+			},
+			{
+				name:        "preconditions expected fails test",
+				expectMet:   true,
+				expectSkip:  false,
+				expectFatal: true,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				expectedErr := fmt.Errorf("selected acquirer failed")
+				acquirers := []SystemAcquirer{
+					mockAcquirer(nil, nil),         // skipped
+					mockAcquirer(nil, expectedErr), // selected and fails
+				}
+
+				// Create a new helper with the right configuration
+				helper := newBasicSystemTestHelper(&mockEnvGetter{}).
+					WithAcquirers(acquirers)
+				helper.expectPreconditionsMet = tc.expectMet
+
+				recorder := &mockTBRecorder{mockTB: mockTB{name: "test"}}
+				helper.SystemTest(recorder, func(t T, sys system.System) {
+					require.Fail(t, "should not reach here")
+				})
+
+				require.Equal(t, tc.expectSkip, recorder.skipped, "unexpected skip state")
+				require.Equal(t, tc.expectFatal, recorder.failed, "unexpected fatal state")
+				if tc.expectSkip {
+					require.Contains(t, recorder.skipMsg, expectedErr.Error())
+				}
+				if tc.expectFatal {
+					require.Contains(t, recorder.fatalMsg, expectedErr.Error())
+				}
 			})
-			require.True(t, called)
+		}
+	})
+
+	t.Run("fails when all acquirers skip", func(t *testing.T) {
+		testCases := []struct {
+			name        string
+			expectMet   bool
+			expectSkip  bool
+			expectFatal bool
+		}{
+			{
+				name:        "preconditions not expected skips test",
+				expectMet:   false,
+				expectSkip:  true,
+				expectFatal: false,
+			},
+			{
+				name:        "preconditions expected fails test",
+				expectMet:   true,
+				expectSkip:  false,
+				expectFatal: true,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				acquirers := []SystemAcquirer{
+					mockAcquirer(nil, nil),
+					mockAcquirer(nil, nil),
+				}
+
+				// Create a new helper with the right configuration
+				helper := newBasicSystemTestHelper(&mockEnvGetter{}).
+					WithAcquirers(acquirers)
+				helper.expectPreconditionsMet = tc.expectMet
+
+				recorder := &mockTBRecorder{mockTB: mockTB{name: "test"}}
+				helper.SystemTest(recorder, func(t T, sys system.System) {
+					require.Fail(t, "should not reach here")
+				})
+
+				require.Equal(t, tc.expectSkip, recorder.skipped, "unexpected skip state")
+				require.Equal(t, tc.expectFatal, recorder.failed, "unexpected fatal state")
+				if tc.expectSkip {
+					require.Contains(t, recorder.skipMsg, "no acquirer was able to create a system")
+				}
+				if tc.expectFatal {
+					require.Contains(t, recorder.fatalMsg, "no acquirer was able to create a system")
+				}
+			})
+		}
+	})
+
+	t.Run("acquireFromEnvURL behavior", func(t *testing.T) {
+		// Create a mockEnvGetter with the original env value
+		origEnv := &mockEnvGetter{
+			values: map[string]string{
+				env.EnvURLVar: os.Getenv(env.EnvURLVar),
+			},
+		}
+
+		t.Run("skips when env var not set", func(t *testing.T) {
+			helper := newBasicSystemTestHelper(&mockEnvGetter{
+				values: make(map[string]string),
+			})
+			sys, err := helper.acquireFromEnvURL(t)
+			require.NoError(t, err)
+			require.Nil(t, sys)
+		})
+
+		t.Run("fails with error for invalid URL", func(t *testing.T) {
+			helper := newBasicSystemTestHelper(&mockEnvGetter{
+				values: map[string]string{
+					env.EnvURLVar: "invalid://url",
+				},
+			}).WithProvider(&testPackage{
+				creator: func() (system.System, error) {
+					return nil, fmt.Errorf("invalid URL")
+				},
+			})
+			sys, err := helper.acquireFromEnvURL(t)
+			require.Error(t, err)
+			require.Nil(t, sys)
+		})
+
+		t.Run("succeeds with valid URL", func(t *testing.T) {
+			mockSys := newMockSystem()
+			helper := newBasicSystemTestHelper(&mockEnvGetter{
+				values: map[string]string{
+					env.EnvURLVar: "file:///valid/url",
+				},
+			}).WithProvider(&testPackage{
+				creator: func() (system.System, error) {
+					return mockSys, nil
+				},
+			})
+			sys, err := helper.acquireFromEnvURL(t)
+			require.NoError(t, err)
+			require.Equal(t, mockSys, sys)
+		})
+
+		// Verify original environment is preserved by running a test with the original env
+		t.Run("preserves original environment", func(t *testing.T) {
+			helper := newBasicSystemTestHelper(origEnv)
+			sys, err := helper.acquireFromEnvURL(t)
+			if origEnv.values[env.EnvURLVar] == "" {
+				require.NoError(t, err)
+				require.Nil(t, sys)
+			} else {
+				// If there was a value, we'd need a provider to handle it properly
+				helper = helper.WithProvider(&testPackage{
+					creator: func() (system.System, error) {
+						return newMockSystem(), nil
+					},
+				})
+				sys, err = helper.acquireFromEnvURL(t)
+				require.NoError(t, err)
+				require.NotNil(t, sys)
+			}
 		})
 	})
 }

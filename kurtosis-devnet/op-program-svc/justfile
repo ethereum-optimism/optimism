@@ -1,0 +1,5 @@
+op-program-base TAG='op-program-base:latest':
+    docker buildx build -f ../../op-program/Dockerfile.repro --target=src -t {{TAG}} ../..
+
+op-program-svc TAG='op-program-svc:latest': op-program-base
+    docker buildx build -f Dockerfile -t {{TAG}} .

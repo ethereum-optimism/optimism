@@ -34,19 +34,21 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 		totalblockTxCounts += blockTxCount
 	}
-	londonSigner := types.NewLondonSigner(chainId)
+	signer := types.NewIsthmusSigner(chainId)
 	var txs [][]byte
 	for i := 0; i < int(totalblockTxCounts); i++ {
 		var tx *types.Transaction
-		switch i % 4 {
+		switch i % 5 {
 		case 0:
 			tx = testutils.RandomLegacyTx(rng, types.HomesteadSigner{})
 		case 1:
-			tx = testutils.RandomLegacyTx(rng, londonSigner)
+			tx = testutils.RandomLegacyTx(rng, signer)
 		case 2:
-			tx = testutils.RandomAccessListTx(rng, londonSigner)
+			tx = testutils.RandomAccessListTx(rng, signer)
 		case 3:
-			tx = testutils.RandomDynamicFeeTx(rng, londonSigner)
+			tx = testutils.RandomDynamicFeeTx(rng, signer)
+		case 4:
+			tx = testutils.RandomSetCodeTx(rng, signer)
 		}
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {

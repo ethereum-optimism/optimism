@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -44,36 +44,23 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	log, logs := testlog.CaptureLogger(t, log.LevelDebug)
 
 	dp := NewDeployParams(t, tp, func(dp *e2eutils.DeployParams) {
-		genesisBlock := hexutil.Uint64(0)
-
-		// Enable cancun always
-		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
-
 		// Enable L2 feature.
-		switch testCfg.Hardfork {
-		case Regolith:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Regolith)
-		case Canyon:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Canyon)
-		case Delta:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Delta)
-		case Ecotone:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Ecotone)
-		case Fjord:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Fjord)
-		case Granite:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Granite)
-		case Holocene:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Holocene)
-		case Isthmus:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
+		if testCfg.Hardfork == nil {
+			t.Fatalf("HF not set")
 		}
+		dp.DeployConfig.ActivateForkAtGenesis(rollup.ForkName(testCfg.Hardfork.Name))
 
 		for _, override := range deployConfigOverrides {
 			override(dp.DeployConfig)
 		}
 	})
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+
+	genesisAlloc := testCfg.Allocs
+	if genesisAlloc == nil {
+		genesisAlloc = helpers.DefaultAlloc
+	}
+
+	sd := e2eutils.Setup(t, dp, genesisAlloc)
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
@@ -85,7 +72,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, 0)
+	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.DependencySet, 0)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
@@ -101,7 +88,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		EthCl:          l1EthCl,
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       helpers.NewL1Bindings(t, l1EthCl, e2ecfg.AllocTypeStandard),
+		Bindings:       helpers.NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
 	}
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          l2EthCl,
@@ -109,10 +96,10 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, l2EthCl, engine.GethClient()),
 	}
-	alice := helpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.AllocTypeStandard)
+	alice := helpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), e2ecfg.DefaultAllocType)
 	alice.L1.SetUserEnv(l1UserEnv)
 	alice.L2.SetUserEnv(l2UserEnv)
-	bob := helpers.NewCrossLayerUser(log, dp.Secrets.Bob, rand.New(rand.NewSource(0xbeef)), e2ecfg.AllocTypeStandard)
+	bob := helpers.NewCrossLayerUser(log, dp.Secrets.Bob, rand.New(rand.NewSource(0xbeef)), e2ecfg.DefaultAllocType)
 	bob.L1.SetUserEnv(l1UserEnv)
 	bob.L2.SetUserEnv(l2UserEnv)
 
@@ -165,6 +152,19 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
+// RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
+func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	l2ClaimBlockNum := uint64(0)
+	for l2ClaimBlockNum <= finalL2BlockNum { // l2ClaimBlockNum = 0, finalL2BlockNum = 0 is a valid case
+		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
+		combinedParams := []FixtureInputParam{defaultParam}
+		combinedParams = append(combinedParams, fixtureInputParams...)
+		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
+		l2ClaimBlockNum++
+	}
+}
+
+// RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
@@ -222,5 +222,34 @@ func NewOpProgramCfg(
 		dfault.AgreedPrestate = fi.AgreedPrestate
 	}
 	dfault.InteropEnabled = fi.InteropEnabled
+	dfault.DependencySet = fi.DependencySet
 	return dfault
+}
+
+// BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
+// batcher transaction.
+func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
+	t.Helper()
+	env.Batcher.ActSubmitAll(t)
+	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	env.Miner.ActL1EndBlock(t)
+}
+
+// BatchMineAndSync calls env.BatchAndMine and then has the sequencer derive up to the l1 head.
+// Returns the L2 Safe Block Reference
+func (env *L2FaultProofEnv) BatchMineAndSync(t helpers.Testing) eth.L2BlockRef {
+	t.Helper()
+	id := env.Miner.UnsafeID()
+	env.BatchAndMine(t)
+	env.Sequencer.ActL1HeadSignal(t)
+	env.Sequencer.ActL2PipelineFull(t)
+
+	// Assertions
+
+	syncStatus := env.Sequencer.SyncStatus()
+	require.Equal(t, syncStatus.UnsafeL2.L1Origin, id, "UnsafeL2.L1Origin should equal L1 Unsafe ID before batch submitted")
+	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2, "UnsafeL2 should equal SafeL2")
+
+	return syncStatus.SafeL2
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,6 +16,11 @@ type channelStatuser interface {
 }
 
 type inclusiveBlockRange struct{ start, end uint64 }
+
+func (r *inclusiveBlockRange) TerminalString() string {
+	return fmt.Sprintf("[%d, %d]", r.start, r.end)
+}
+
 type syncActions struct {
 	clearState      *eth.BlockID
 	blocksToPrune   int
@@ -25,32 +29,65 @@ type syncActions struct {
 	// NOTE this range is inclusive on both ends, which is a change to previous behaviour.
 }
 
-func (s syncActions) String() string {
+func (s syncActions) TerminalString() string {
+	cs := "nil"
+	if s.clearState != nil {
+		cs = s.clearState.TerminalString()
+	}
+	btl := "nil"
+	if s.blocksToLoad != nil {
+		btl = s.blocksToLoad.TerminalString()
+	}
 	return fmt.Sprintf(
-		"SyncActions{blocksToPrune: %d, channelsToPrune: %d, clearState: %v, blocksToLoad: %v}", s.blocksToPrune, s.channelsToPrune, s.clearState, s.blocksToLoad)
+		"SyncActions{blocksToPrune: %d, channelsToPrune: %d, clearState: %v, blocksToLoad: %v}", s.blocksToPrune, s.channelsToPrune, cs, btl)
+}
+
+func isZero[T comparable](x T) bool {
+	var y T
+	return (x == y)
 }
 
 // computeSyncActions determines the actions that should be taken based on the inputs provided. The inputs are the current
 // state of the batcher (blocks and channels), the new sync status, and the previous current L1 block. The actions are returned
 // in a struct specifying the number of blocks to prune, the number of channels to prune, whether to wait for node sync, the block
-// range to load into the local state, and whether to clear the state entirely. Returns an boolean indicating if the sequencer is out of sync.
-func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCurrentL1 eth.L1BlockRef, blocks queue.Queue[*types.Block], channels []T, l log.Logger) (syncActions, bool) {
+// range to load into the local state, and whether to clear the state entirely. Returns a boolean indicating if the sequencer is out of sync.
+func computeSyncActions[T channelStatuser](
+	newSyncStatus eth.SyncStatus,
+	prevCurrentL1 eth.L1BlockRef,
+	blocks queue.Queue[SizedBlock],
+	channels []T,
+	l log.Logger,
+) (syncActions, bool) {
 
-	// PART 1: Initial checks on the sync status
-	if newSyncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		l.Warn("empty sync status")
+	m := l.With(
+		"syncStatus.headL1", newSyncStatus.HeadL1.TerminalString(),
+		"syncStatus.currentL1", newSyncStatus.CurrentL1.TerminalString(),
+		"syncStatus.localSafeL2", newSyncStatus.LocalSafeL2.TerminalString(),
+		"syncStatus.safeL2", newSyncStatus.SafeL2.TerminalString(),
+		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2.TerminalString(),
+	)
+
+	// We do _not_ want to use the SafeL2 (aka Cross Safe) field,
+	// since that introduces extra dependencies post interop.
+	safeL2 := newSyncStatus.LocalSafeL2
+
+	// PART 1: Initial checks on the sync status (on fields which should never be empty)
+	if isZero(safeL2) ||
+		isZero(newSyncStatus.UnsafeL2) ||
+		isZero(newSyncStatus.HeadL1) {
+		m.Warn("empty BlockRef in sync status")
 		return syncActions{}, true
 	}
 
 	if newSyncStatus.CurrentL1.Number < prevCurrentL1.Number {
 		// This can happen when the sequencer restarts
-		l.Warn("sequencer currentL1 reversed")
+		m.Warn("sequencer currentL1 reversed", "prevCurrentL1", prevCurrentL1.TerminalString())
 		return syncActions{}, true
 	}
 
 	var allUnsafeBlocks *inclusiveBlockRange
-	if newSyncStatus.UnsafeL2.Number > newSyncStatus.SafeL2.Number {
-		allUnsafeBlocks = &inclusiveBlockRange{newSyncStatus.SafeL2.Number + 1, newSyncStatus.UnsafeL2.Number}
+	if newSyncStatus.UnsafeL2.Number > safeL2.Number {
+		allUnsafeBlocks = &inclusiveBlockRange{safeL2.Number + 1, newSyncStatus.UnsafeL2.Number}
 	}
 
 	// PART 2: checks involving only the oldest block in the state
@@ -60,7 +97,7 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 		s := syncActions{
 			blocksToLoad: allUnsafeBlocks,
 		}
-		l.Info("no blocks in state", "syncActions", s)
+		m.Info("no blocks in state", "syncActions", s.TerminalString())
 		return s, false
 	}
 
@@ -69,18 +106,17 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 	// and we need to start over, loading all unsafe blocks
 	// from the sequencer.
 	startAfresh := syncActions{
-		clearState:   &newSyncStatus.SafeL2.L1Origin,
+		clearState:   &safeL2.L1Origin,
 		blocksToLoad: allUnsafeBlocks,
 	}
 
 	oldestBlockInStateNum := oldestBlockInState.NumberU64()
-	nextSafeBlockNum := newSyncStatus.SafeL2.Number + 1
+	nextSafeBlockNum := safeL2.Number + 1
 
 	if nextSafeBlockNum < oldestBlockInStateNum {
-		l.Warn("next safe block is below oldest block in state",
-			"syncActions", startAfresh,
-			"oldestBlockInState", oldestBlockInState,
-			"safeL2", newSyncStatus.SafeL2)
+		m.Warn("next safe block is below oldest block in state",
+			"syncActions", startAfresh.TerminalString(),
+			"oldestBlockInStateNum", oldestBlockInStateNum)
 		return startAfresh, false
 	}
 
@@ -94,19 +130,17 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 		// This could happen if the batcher restarted.
 		// The sequencer may have derived the safe chain
 		// from channels sent by a previous batcher instance.
-		l.Warn("safe head above newest block in state, clearing channel manager state",
-			"syncActions", startAfresh,
-			"safeL2", newSyncStatus.SafeL2,
-			"newestBlockInState", eth.ToBlockID(newestBlockInState),
+		m.Warn("safe head above newest block in state, clearing channel manager state",
+			"syncActions", startAfresh.TerminalString(),
+			"newestBlockInState", eth.ToBlockID(newestBlockInState).TerminalString(),
 		)
 		return startAfresh, false
 	}
 
-	if numBlocksToDequeue > 0 && blocks[numBlocksToDequeue-1].Hash() != newSyncStatus.SafeL2.Hash {
-		l.Warn("safe chain reorg, clearing channel manager state",
-			"syncActions", startAfresh,
-			"existingBlock", eth.ToBlockID(blocks[numBlocksToDequeue-1]),
-			"safeL2", newSyncStatus.SafeL2)
+	if numBlocksToDequeue > 0 && blocks[numBlocksToDequeue-1].Hash() != safeL2.Hash {
+		m.Warn("safe chain reorg, clearing channel manager state",
+			"syncActions", startAfresh.TerminalString(),
+			"existingBlock", eth.ToBlockID(blocks[numBlocksToDequeue-1]).TerminalString())
 		return startAfresh, false
 	}
 
@@ -115,15 +149,14 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 		if ch.isFullySubmitted() &&
 			!ch.isTimedOut() &&
 			newSyncStatus.CurrentL1.Number > ch.MaxInclusionBlock() &&
-			newSyncStatus.SafeL2.Number < ch.LatestL2().Number {
+			safeL2.Number < ch.LatestL2().Number {
 			// Safe head did not make the expected progress
 			// for a fully submitted channel. This indicates
 			// that the derivation pipeline may have stalled
 			// e.g. because of Holocene strict ordering rules.
-			l.Warn("sequencer did not make expected progress",
-				"syncActions", startAfresh,
-				"existingBlock", ch.LatestL2(),
-				"safeL2", newSyncStatus.SafeL2)
+			m.Warn("sequencer did not make expected progress",
+				"syncActions", startAfresh.TerminalString(),
+				"existingBlock", ch.LatestL2().TerminalString())
 			return startAfresh, false
 		}
 	}
@@ -131,7 +164,7 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 	// PART 5: happy path
 	numChannelsToPrune := 0
 	for _, ch := range channels {
-		if ch.LatestL2().Number > newSyncStatus.SafeL2.Number {
+		if ch.LatestL2().Number > safeL2.Number {
 			// If the channel has blocks which are not yet safe
 			// we do not want to prune it.
 			break
@@ -144,9 +177,11 @@ func computeSyncActions[T channelStatuser](newSyncStatus eth.SyncStatus, prevCur
 		allUnsafeBlocksAboveState = &inclusiveBlockRange{newestBlockInStateNum + 1, newSyncStatus.UnsafeL2.Number}
 	}
 
-	return syncActions{
+	a := syncActions{
 		blocksToPrune:   int(numBlocksToDequeue),
 		channelsToPrune: numChannelsToPrune,
 		blocksToLoad:    allUnsafeBlocksAboveState,
-	}, false
+	}
+	m.Debug("computed sync actions", "syncActions", a.TerminalString())
+	return a, false
 }

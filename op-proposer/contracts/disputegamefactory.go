@@ -41,6 +41,9 @@ type DisputeGameFactory struct {
 
 func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, networkTimeout time.Duration) *DisputeGameFactory {
 	factoryABI := snapshots.LoadDisputeGameFactoryABI()
+	// Note: Games might have different ABIs (eg SuperFaultDisputeGame) but since only a very small part of the ABI
+	// is actually needed, proposer always uses the latest FaultDisputeGameABI. Compatibility with other ABIs is tested
+	// in disputegamefactory_test.go
 	gameABI := snapshots.LoadFaultDisputeGameABI()
 	return &DisputeGameFactory{
 		caller:         caller,

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,11 +28,18 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 
 	for name, expectedCfg := range configsByName {
-		gotCfg, err := GetRollupConfig(name)
-		require.NoError(t, err)
-
-		require.Equalf(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match for %v", name)
+		t.Run(name, func(t *testing.T) {
+			gotCfg, err := GetRollupConfig(name)
+			require.NoError(t, err)
+			require.Equalf(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match for %v", name)
+		})
 	}
+}
+
+var defaultOpConfig = &params.OptimismConfig{
+	EIP1559Elasticity:        6,
+	EIP1559Denominator:       50,
+	EIP1559DenominatorCanyon: u64Ptr(250),
 }
 
 var mainnetCfg = rollup.Config{
@@ -68,7 +76,9 @@ var mainnetCfg = rollup.Config{
 	FjordTime:               u64Ptr(1720627201),
 	GraniteTime:             u64Ptr(1726070401),
 	HoloceneTime:            u64Ptr(1736445601),
+	IsthmusTime:             u64Ptr(1746806401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var sepoliaCfg = rollup.Config{
@@ -105,7 +115,10 @@ var sepoliaCfg = rollup.Config{
 	FjordTime:               u64Ptr(1716998400),
 	GraniteTime:             u64Ptr(1723478400),
 	HoloceneTime:            u64Ptr(1732633200),
+	PectraBlobScheduleTime:  u64Ptr(1742486400),
+	IsthmusTime:             u64Ptr(1744905600),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var sepoliaDev0Cfg = rollup.Config{
@@ -142,7 +155,10 @@ var sepoliaDev0Cfg = rollup.Config{
 	FjordTime:               u64Ptr(1715961600),
 	GraniteTime:             u64Ptr(1723046400),
 	HoloceneTime:            u64Ptr(1731682800),
+	PectraBlobScheduleTime:  u64Ptr(1741687200),
+	IsthmusTime:             u64Ptr(1744300800),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 func u64Ptr(v uint64) *uint64 {

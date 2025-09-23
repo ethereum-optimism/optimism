@@ -18,13 +18,16 @@ type Metrics struct {
 	factory  opmetrics.Factory
 	*contractMetrics.ContractMetrics
 	*metrics.VmMetrics
+	opmetrics.RPCMetrics
 
-	up                  prometheus.Gauge
-	vmLastExecutionTime *prometheus.GaugeVec
-	vmLastMemoryUsed    *prometheus.GaugeVec
-	successTotal        *prometheus.CounterVec
-	failuresTotal       *prometheus.CounterVec
-	invalidTotal        *prometheus.CounterVec
+	up                         prometheus.Gauge
+	vmLastExecutionTime        *prometheus.GaugeVec
+	vmLastMemoryUsed           *prometheus.GaugeVec
+	successTotal               *prometheus.CounterVec
+	failuresTotal              *prometheus.CounterVec
+	consecutiveFailuresCurrent *prometheus.GaugeVec
+	panicsTotal                *prometheus.CounterVec
+	invalidTotal               *prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -43,6 +46,7 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 
 		ContractMetrics: contractMetrics.MakeContractMetrics(Namespace, factory),
 		VmMetrics:       metrics.NewVmMetrics(Namespace, factory),
+		RPCMetrics:      opmetrics.MakeRPCMetrics(Namespace, factory),
 
 		up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -69,6 +73,16 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 			Name:      "failures_total",
 			Help:      "Number of failures to execute a VM",
 		}, []string{"type"}),
+		consecutiveFailuresCurrent: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "consecutive_failures_current",
+			Help:      "Number of consecutive setup failures by VM type. Resets to 0 on any complete run.",
+		}, []string{"type"}),
+		panicsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "panics_total",
+			Help:      "Number of times the VM panicked",
+		}, []string{"type"}),
 		invalidTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "invalid_total",
@@ -79,6 +93,8 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 	for _, runConfig := range runConfigs {
 		metrics.successTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.failuresTotal.WithLabelValues(runConfig.Name).Add(0)
+		metrics.consecutiveFailuresCurrent.WithLabelValues(runConfig.Name).Set(0)
+		metrics.panicsTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.invalidTotal.WithLabelValues(runConfig.Name).Add(0)
 		metrics.RecordUp()
 	}
@@ -107,12 +123,22 @@ func (m *Metrics) RecordVmMemoryUsed(vmType string, memoryUsed uint64) {
 
 func (m *Metrics) RecordSuccess(vmType string) {
 	m.successTotal.WithLabelValues(vmType).Inc()
+	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Set(0)
 }
 
 func (m *Metrics) RecordFailure(vmType string) {
 	m.failuresTotal.WithLabelValues(vmType).Inc()
+	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Inc()
+}
+
+func (m *Metrics) RecordPanic(vmType string) {
+	m.panicsTotal.WithLabelValues(vmType).Inc()
+	// The result was bad, but we still completed setup successfully
+	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Set(0)
 }
 
 func (m *Metrics) RecordInvalid(vmType string) {
 	m.invalidTotal.WithLabelValues(vmType).Inc()
+	// The result was bad, but we still completed setup successfully
+	m.consecutiveFailuresCurrent.WithLabelValues(vmType).Set(0)
 }

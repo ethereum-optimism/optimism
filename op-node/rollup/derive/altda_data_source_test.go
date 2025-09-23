@@ -80,6 +80,7 @@ func TestAltDADataSource(t *testing.T) {
 	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 	batcherInbox := common.Address{42}
 	cfg := &rollup.Config{
+		L1ChainID: big.NewInt(42), // any, for L1Signer
 		Genesis: rollup.Genesis{
 			L1:     refA.ID(),
 			L2:     refA0.ID(),
@@ -323,6 +324,7 @@ func TestAltDADataSourceStall(t *testing.T) {
 	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 	batcherInbox := common.Address{42}
 	cfg := &rollup.Config{
+		L1ChainID: big.NewInt(42), // any, for L1Signer
 		Genesis: rollup.Genesis{
 			L1:     refA.ID(),
 			L2:     refA0.ID(),
@@ -445,6 +447,7 @@ func TestAltDADataSourceInvalidData(t *testing.T) {
 	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 	batcherInbox := common.Address{42}
 	cfg := &rollup.Config{
+		L1ChainID: big.NewInt(42), // any, for L1Signer
 		Genesis: rollup.Genesis{
 			L1:     refA.ID(),
 			L2:     refA0.ID(),

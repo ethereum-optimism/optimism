@@ -3,58 +3,44 @@ package frontend
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type AdminBackend interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error
-}
-
-type QueryBackend interface {
-	CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error)
-	CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error
-	CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
-	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
-	CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error)
-	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
-	FinalizedL1() eth.BlockRef
-	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
-	SyncStatus() (eth.SupervisorSyncStatus, error)
-	AllSafeDerivedAt(ctx context.Context, derivedFrom eth.BlockID) (derived map[eth.ChainID]eth.BlockID, err error)
-}
-
 type Backend interface {
-	AdminBackend
-	QueryBackend
+	apis.SupervisorAdminAPI
+	apis.SupervisorQueryAPI
 }
 
 type QueryFrontend struct {
-	Supervisor QueryBackend
+	Supervisor apis.SupervisorQueryAPI
 }
 
-var _ QueryBackend = (*QueryFrontend)(nil)
+var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
-// CheckMessage checks the safety-level of an individual message.
-// The payloadHash references the hash of the message-payload of the message.
-func (q *QueryFrontend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
-	return q.Supervisor.CheckMessage(identifier, payloadHash)
-}
-
-// CheckMessages checks the safety-level of a collection of messages,
-// and returns if the minimum safety-level is met for all messages.
-func (q *QueryFrontend) CheckMessages(
-	messages []types.Message,
-	minSafety types.SafetyLevel) error {
-	return q.Supervisor.CheckMessages(messages, minSafety)
+func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
+	if err != nil {
+		return &rpc.JsonError{
+			Code:    types.GetErrorCode(err),
+			Message: err.Error(),
+		}
+	}
+	return nil
 }
 
 func (q *QueryFrontend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
 	return q.Supervisor.LocalUnsafe(ctx, chainID)
+}
+
+func (q *QueryFrontend) LocalSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
+	return q.Supervisor.LocalSafe(ctx, chainID)
 }
 
 func (q *QueryFrontend) CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
@@ -65,14 +51,8 @@ func (q *QueryFrontend) Finalized(ctx context.Context, chainID eth.ChainID) (eth
 	return q.Supervisor.Finalized(ctx, chainID)
 }
 
-func (q *QueryFrontend) FinalizedL1() eth.BlockRef {
-	return q.Supervisor.FinalizedL1()
-}
-
-// CrossDerivedFrom is deprecated, but remains for backwards compatibility to callers
-// it is equivalent to CrossDerivedToSource
-func (q *QueryFrontend) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error) {
-	return q.Supervisor.CrossDerivedToSource(ctx, chainID, derived)
+func (q *QueryFrontend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	return q.Supervisor.FinalizedL1(ctx)
 }
 
 func (q *QueryFrontend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error) {
@@ -87,15 +67,15 @@ func (q *QueryFrontend) AllSafeDerivedAt(ctx context.Context, derivedFrom eth.Bl
 	return q.Supervisor.AllSafeDerivedAt(ctx, derivedFrom)
 }
 
-func (q *QueryFrontend) SyncStatus() (eth.SupervisorSyncStatus, error) {
-	return q.Supervisor.SyncStatus()
+func (q *QueryFrontend) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
+	return q.Supervisor.SyncStatus(ctx)
 }
 
 type AdminFrontend struct {
 	Supervisor Backend
 }
 
-var _ AdminBackend = (*AdminFrontend)(nil)
+var _ apis.SupervisorAdminAPI = (*AdminFrontend)(nil)
 
 // Start starts the service, if it was previously stopped.
 func (a *AdminFrontend) Start(ctx context.Context) error {
@@ -110,4 +90,20 @@ func (a *AdminFrontend) Stop(ctx context.Context) error {
 // AddL2RPC adds a new L2 chain to the supervisor backend
 func (a *AdminFrontend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error {
 	return a.Supervisor.AddL2RPC(ctx, rpc, jwtSecret)
+}
+
+// Rewind removes some L2 chain data from the supervisor backend, starting from the given block.
+func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
+	// TODO(#15665) add logging here to track when rewinds are requested
+	return a.Supervisor.Rewind(ctx, chain, block)
+}
+
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	return a.Supervisor.SetFailsafeEnabled(ctx, enabled)
+}
+
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return a.Supervisor.GetFailsafeEnabled(ctx)
 }

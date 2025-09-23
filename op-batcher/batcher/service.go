@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -26,6 +26,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/slices"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -46,9 +47,7 @@ type BatcherConfig struct {
 	CheckRecentTxsDepth int
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
-	ThrottleThreshold, ThrottleTxSize          uint64
-	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-	ThrottleInterval                           time.Duration
+	ThrottleParams config.ThrottleParams
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -107,15 +106,62 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
-	bs.ThrottleThreshold = cfg.ThrottleThreshold
-	bs.ThrottleTxSize = cfg.ThrottleTxSize
-	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
-	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
-	bs.ThrottleInterval = cfg.ThrottleInterval
+	bs.ThrottleParams = config.ThrottleParams{
+		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
+		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
+		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
+		ControllerType:      cfg.ThrottleConfig.ControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
+	}
+
+	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
+		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
+		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
+
+		// Validate PID configuration parameters
+		if cfg.ThrottleConfig.PidKp < 0 {
+			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottleConfig.PidKp)
+		}
+		if cfg.ThrottleConfig.PidKi < 0 {
+			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottleConfig.PidKi)
+		}
+		if cfg.ThrottleConfig.PidKd < 0 {
+			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottleConfig.PidKd)
+		}
+		if cfg.ThrottleConfig.PidIntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottleConfig.PidIntegralMax)
+		}
+		if cfg.ThrottleConfig.PidOutputMax <= 0 || cfg.ThrottleConfig.PidOutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottleConfig.PidOutputMax)
+		}
+		if cfg.ThrottleConfig.PidSampleTime <= 0 {
+			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottleConfig.PidSampleTime)
+		}
+
+		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
+			Kp:          cfg.ThrottleConfig.PidKp,
+			Ki:          cfg.ThrottleConfig.PidKi,
+			Kd:          cfg.ThrottleConfig.PidKd,
+			IntegralMax: cfg.ThrottleConfig.PidIntegralMax,
+			OutputMax:   cfg.ThrottleConfig.PidOutputMax,
+			SampleTime:  cfg.ThrottleConfig.PidSampleTime,
+		}
+		bs.Log.Info("Initialized PID throttle controller",
+			"kp", bs.ThrottleParams.PIDConfig.Kp,
+			"ki", bs.ThrottleParams.PIDConfig.Ki,
+			"kd", bs.ThrottleParams.PIDConfig.Kd,
+			"integral_max", bs.ThrottleParams.PIDConfig.IntegralMax,
+			"output_max", bs.ThrottleParams.PIDConfig.OutputMax,
+			"sample_time", bs.ThrottleParams.PIDConfig.SampleTime)
+	}
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
+
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
@@ -154,15 +200,17 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 	bs.L1Client = l1Client
 
 	var endpointProvider dial.L2EndpointProvider
-	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
-		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		ethUrls := strings.Split(cfg.L2EthRpc, ",")
-		endpointProvider, err = dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+	if len(cfg.RollupRpc) > 1 && len(cfg.L2EthRpc) > 1 {
+		provider, err := dial.NewActiveL2EndpointProvider(ctx, cfg.L2EthRpc, cfg.RollupRpc, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+		if err != nil {
+			return fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
+		}
+		endpointProvider = provider
 	} else {
-		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
+		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc[0], cfg.RollupRpc[0])
+		if err != nil {
+			return fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
+		}
 	}
 	bs.EndpointProvider = endpointProvider
 
@@ -230,6 +278,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	case flags.CalldataType: // do nothing
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
+	}
+
+	if bs.UseAltDA && cc.UseBlobs {
+		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
 	}
 
 	if bs.UseAltDA && cc.MaxFrameSize > altda.MaxInputSize {
@@ -353,9 +405,10 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPC.ListenPort,
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
+		oprpc.WithRPCRecorder(bs.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPC.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
+		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(bs.TxManager.API())
 		bs.Log.Info("Admin RPC enabled")
@@ -424,7 +477,6 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 
 	if bs.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := bs.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
@@ -478,4 +530,11 @@ func (bs *BatcherService) ThrottlingTestDriver() *TestBatchSubmitter {
 	}
 	tbs.BatchSubmitter.channelMgr.metr = new(metrics.ThrottlingMetrics)
 	return tbs
+}
+
+func (bs *BatcherService) HTTPEndpoint() string {
+	if bs.rpcServer == nil {
+		return ""
+	}
+	return "http://" + bs.rpcServer.Endpoint()
 }

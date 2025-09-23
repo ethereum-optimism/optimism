@@ -30,6 +30,7 @@ type SuperchainConfig struct {
 	PrivateKey       string
 	Logger           log.Logger
 	ArtifactsLocator *artifacts.Locator
+	CacheDir         string
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -86,7 +87,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
-	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)
@@ -99,27 +100,37 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
 	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
-
+	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
 		Logger:                    l,
 		ArtifactsLocator:          artifactsLocator,
+		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
 		Paused:                    paused,
 	}
 
-	if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
-		return fmt.Errorf("failed to parse required protocol version: %w", err)
+	// Default to op-geth params.OPStackSupport if not specified for required and recommended protocolversions
+	if requiredVersionStr != "" {
+		if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
+			return fmt.Errorf("failed to parse required protocol version: %w", err)
+		}
+	} else {
+		cfg.RequiredProtocolVersion = params.OPStackSupport
 	}
-	if err := cfg.RecommendedProtocolVersion.UnmarshalText([]byte(recommendedVersionStr)); err != nil {
-		return fmt.Errorf("failed to parse required protocol version: %w", err)
+
+	if recommendedVersionStr != "" {
+		if err := cfg.RecommendedProtocolVersion.UnmarshalText([]byte(recommendedVersionStr)); err != nil {
+			return fmt.Errorf("failed to parse recommended protocol version: %w", err)
+		}
+	} else {
+		cfg.RecommendedProtocolVersion = params.OPStackSupport
 	}
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
-
 	dso, err := Superchain(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to deploy superchain: %w", err)
@@ -139,7 +150,8 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	}
 
 	lgr := cfg.Logger
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor())
+	cacheDir := cfg.CacheDir
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cacheDir)
 	if err != nil {
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}
@@ -185,8 +197,12 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		return dso, fmt.Errorf("failed to create script host: %w", err)
 	}
 
-	dso, err = opcm.DeploySuperchain(
-		l1Host,
+	opcmScripts, err := opcm.NewScripts(l1Host)
+	if err != nil {
+		return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
+	}
+
+	dso, err = opcmScripts.DeploySuperchain.Run(
 		opcm.DeploySuperchainInput{
 			SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
 			ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,

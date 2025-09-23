@@ -8,15 +8,16 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-// ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
-// to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
-type ExpectedMTState struct {
+// ExpectedState is a test utility that basically stores a copy of a state that can be explicitly mutated
+// to define an expected post-state.  The post-state is then validated with ExpectedState.Validate(t, postState)
+type ExpectedState struct {
 	PreimageKey         common.Hash
 	PreimageOffset      arch.Word
 	Heap                arch.Word
@@ -28,18 +29,10 @@ type ExpectedMTState struct {
 	Step                uint64
 	LastHint            hexutil.Bytes
 	MemoryRoot          common.Hash
+	threadExpectations  *threadExpectations
 	expectedMemory      *memory.Memory
-	// Threading-related expectations
-	StepsSinceLastContextSwitch uint64
-	TraverseRight               bool
-	NextThreadId                arch.Word
-	ThreadCount                 int
-	RightStackSize              int
-	LeftStackSize               int
-	prestateActiveThreadId      arch.Word
-	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
-	ActiveThreadId              arch.Word
-	threadExpectations          map[arch.Word]*ExpectedThreadState
+	// Remember some actions so we can analyze expectations
+	memoryWrites []arch.Word
 }
 
 type ExpectedThreadState struct {
@@ -54,15 +47,10 @@ type ExpectedThreadState struct {
 	Dropped   bool
 }
 
-func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
-	currentThread := fromState.GetCurrentThread()
+func NewExpectedState(t require.TestingT, state mipsevm.FPVMState) *ExpectedState {
+	fromState := ToMTState(t, state)
 
-	expectedThreads := make(map[arch.Word]*ExpectedThreadState)
-	for _, t := range GetAllThreads(fromState) {
-		expectedThreads[t.ThreadId] = newExpectedThreadState(t)
-	}
-
-	return &ExpectedMTState{
+	return &ExpectedState{
 		// General Fields
 		PreimageKey:         fromState.GetPreimageKey(),
 		PreimageOffset:      fromState.GetPreimageOffset(),
@@ -75,19 +63,8 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 		Step:                fromState.GetStep(),
 		LastHint:            fromState.GetLastHint(),
 		MemoryRoot:          fromState.GetMemory().MerkleRoot(),
-		// Thread-related global fields
-		StepsSinceLastContextSwitch: fromState.StepsSinceLastContextSwitch,
-		TraverseRight:               fromState.TraverseRight,
-		NextThreadId:                fromState.NextThreadId,
-		ThreadCount:                 fromState.ThreadCount(),
-		RightStackSize:              len(fromState.RightThreadStack),
-		LeftStackSize:               len(fromState.LeftThreadStack),
-		// ThreadState expectations
-		prestateActiveThreadId:   currentThread.ThreadId,
-		prestateActiveThreadOrig: *newExpectedThreadState(currentThread), // Cache prestate thread for internal use
-		ActiveThreadId:           currentThread.ThreadId,
-		threadExpectations:       expectedThreads,
-		expectedMemory:           fromState.Memory.Copy(),
+		threadExpectations:  newThreadExpectations(fromState),
+		expectedMemory:      fromState.Memory.Copy(),
 	}
 }
 
@@ -105,15 +82,28 @@ func newExpectedThreadState(fromThread *multithreaded.ThreadState) *ExpectedThre
 	}
 }
 
-func (e *ExpectedMTState) ExpectStep() {
+func (e *ExpectedState) ExpectedMemoryWrites() []arch.Word {
+	return e.memoryWrites
+}
+
+func (e *ExpectedState) ExpectStep() {
 	// Set some standard expectations for a normal step
 	e.Step += 1
 	e.PrestateActiveThread().PC += 4
 	e.PrestateActiveThread().NextPC += 4
-	e.StepsSinceLastContextSwitch += 1
+	e.threadExpectations.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+func (e *ExpectedState) ExpectMemoryReservationCleared() {
+	e.LLReservationStatus = multithreaded.LLStatusNone
+	e.LLAddress = 0
+	e.LLOwnerThread = 0
+}
+
+func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	// Align address to 4-byte boundaries
 	addr = addr & ^arch.Word(3)
 
@@ -125,53 +115,65 @@ func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val arch.Word) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	e.expectedMemory.SetWord(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectPreemption(preState *multithreaded.State) {
-	e.ActiveThreadId = FindNextThread(preState).ThreadId
-	e.StepsSinceLastContextSwitch = 0
-	if preState.TraverseRight {
-		e.TraverseRight = e.RightStackSize > 1
-		e.RightStackSize -= 1
-		e.LeftStackSize += 1
-	} else {
-		e.TraverseRight = e.LeftStackSize == 1
-		e.LeftStackSize -= 1
-		e.RightStackSize += 1
-	}
+func (e *ExpectedState) ExpectPreemption() {
+	e.threadExpectations.ExpectPreemption()
 }
 
-func (e *ExpectedMTState) ExpectNewThread() *ExpectedThreadState {
-	newThreadId := e.NextThreadId
-	e.NextThreadId += 1
-	e.ThreadCount += 1
-
-	// Clone expectations from prestate active thread's original state (bf changing any expectations)
-	newThread := &ExpectedThreadState{}
-	*newThread = e.prestateActiveThreadOrig
-
-	newThread.ThreadId = newThreadId
-	e.threadExpectations[newThreadId] = newThread
-
-	return newThread
+func (e *ExpectedState) ExpectNewThread() *ExpectedThreadState {
+	return e.threadExpectations.ExpectNewThread()
 }
 
-func (e *ExpectedMTState) ActiveThread() *ExpectedThreadState {
-	return e.threadExpectations[e.ActiveThreadId]
+func (e *ExpectedState) ExpectPoppedThread() {
+	e.threadExpectations.ExpectPop()
 }
 
-func (e *ExpectedMTState) PrestateActiveThread() *ExpectedThreadState {
-	return e.threadExpectations[e.prestateActiveThreadId]
+func (e *ExpectedState) ExpectTraverseRight(traverseRight bool) {
+	e.threadExpectations.ExpectTraverseRight(traverseRight)
 }
 
-func (e *ExpectedMTState) Thread(threadId arch.Word) *ExpectedThreadState {
-	return e.threadExpectations[threadId]
+func (e *ExpectedState) ExpectNoContextSwitch() {
+	e.threadExpectations.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreaded.State) {
+func (e *ExpectedState) ExpectContextSwitch() {
+	e.threadExpectations.StepsSinceLastContextSwitch = 0
+}
+
+func (e *ExpectedState) ActiveThread() *ExpectedThreadState {
+	return e.threadExpectations.activeThread()
+}
+
+func (e *ExpectedState) ActiveThreadId() arch.Word {
+	return e.threadExpectations.ActiveThreadId
+}
+
+func (e *ExpectedState) ExpectActiveThreadId(expected arch.Word) {
+	e.threadExpectations.ActiveThreadId = expected
+}
+
+func (e *ExpectedState) ExpectNextThreadId(expected arch.Word) {
+	e.threadExpectations.NextThreadId = expected
+}
+
+func (e *ExpectedState) PrestateActiveThread() *ExpectedThreadState {
+	return e.threadExpectations.PrestateActiveThread()
+}
+
+func (e *ExpectedState) Thread(threadId arch.Word) *ExpectedThreadState {
+	return e.threadExpectations.ThreadById(threadId)
+}
+
+func (e *ExpectedState) Validate(t require.TestingT, state mipsevm.FPVMState) {
+	actualState := ToMTState(t, state)
+
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)
@@ -184,40 +186,211 @@ func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreade
 	require.Equalf(t, e.LastHint, actualState.GetLastHint(), "Expect lastHint = %v", e.LastHint)
 	require.Equalf(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), "Expect memory root = %v", e.MemoryRoot)
 	// Thread-related global fields
-	require.Equalf(t, e.StepsSinceLastContextSwitch, actualState.StepsSinceLastContextSwitch, "Expect StepsSinceLastContextSwitch = %v", e.StepsSinceLastContextSwitch)
-	require.Equalf(t, e.TraverseRight, actualState.TraverseRight, "Expect TraverseRight = %v", e.TraverseRight)
-	require.Equalf(t, e.NextThreadId, actualState.NextThreadId, "Expect NextThreadId = %v", e.NextThreadId)
-	require.Equalf(t, e.ThreadCount, actualState.ThreadCount(), "Expect thread count = %v", e.ThreadCount)
-	require.Equalf(t, e.RightStackSize, len(actualState.RightThreadStack), "Expect right stack size = %v", e.RightStackSize)
-	require.Equalf(t, e.LeftStackSize, len(actualState.LeftThreadStack), "Expect right stack size = %v", e.LeftStackSize)
-
-	// Check active thread
-	activeThread := actualState.GetCurrentThread()
-	require.Equal(t, e.ActiveThreadId, activeThread.ThreadId)
-	// Check all threads
-	expectedThreadCount := 0
-	for tid, exp := range e.threadExpectations {
-		actualThread := FindThread(actualState, tid)
-		isActive := tid == activeThread.ThreadId
-		if exp.Dropped {
-			require.Nil(t, actualThread, "Thread %v should have been dropped", tid)
-		} else {
-			require.NotNil(t, actualThread, "Could not find thread matching expected thread with id %v", tid)
-			e.validateThread(t, exp, actualThread, isActive)
-			expectedThreadCount++
-		}
-	}
-	require.Equal(t, expectedThreadCount, actualState.ThreadCount(), "Thread expectations do not match thread count")
+	e.threadExpectations.Validate(t, actualState)
 }
 
-func (e *ExpectedMTState) validateThread(t require.TestingT, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
-	threadInfo := fmt.Sprintf("tid = %v, active = %v", actual.ThreadId, isActive)
-	require.Equalf(t, et.ThreadId, actual.ThreadId, "Expect ThreadId = 0x%x (%v)", et.ThreadId, threadInfo)
-	require.Equalf(t, et.PC, actual.Cpu.PC, "Expect PC = 0x%x (%v)", et.PC, threadInfo)
-	require.Equalf(t, et.NextPC, actual.Cpu.NextPC, "Expect nextPC = 0x%x (%v)", et.NextPC, threadInfo)
-	require.Equalf(t, et.HI, actual.Cpu.HI, "Expect HI = 0x%x (%v)", et.HI, threadInfo)
-	require.Equalf(t, et.LO, actual.Cpu.LO, "Expect LO = 0x%x (%v)", et.LO, threadInfo)
-	require.Equalf(t, et.Registers, actual.Registers, "Expect registers to match (%v)", threadInfo)
-	require.Equalf(t, et.ExitCode, actual.ExitCode, "Expect exitCode = %v (%v)", et.ExitCode, threadInfo)
-	require.Equalf(t, et.Exited, actual.Exited, "Expect exited = %v (%v)", et.Exited, threadInfo)
+type threadExpectations struct {
+	ActiveThreadId              arch.Word
+	StepsSinceLastContextSwitch uint64
+	NextThreadId                arch.Word
+	prestateActiveThread        *ExpectedThreadState
+	// Cache the original value of the prestate active thread, so we can keep the original values before any updates
+	prestateActiveThreadValue ExpectedThreadState
+	traverseRight             bool
+	left                      []*ExpectedThreadState
+	right                     []*ExpectedThreadState
+	popped                    []*ExpectedThreadState
+}
+
+func newThreadExpectations(state *multithreaded.State) *threadExpectations {
+	left := expectedThreadStack(state.LeftThreadStack)
+	right := expectedThreadStack(state.RightThreadStack)
+	var prestateActiveThread *ExpectedThreadState
+	if state.TraverseRight {
+		prestateActiveThread = right[len(right)-1]
+	} else {
+		prestateActiveThread = left[len(left)-1]
+	}
+
+	return &threadExpectations{
+		ActiveThreadId:              prestateActiveThread.ThreadId,
+		StepsSinceLastContextSwitch: state.StepsSinceLastContextSwitch,
+		NextThreadId:                state.NextThreadId,
+		prestateActiveThread:        prestateActiveThread,
+		prestateActiveThreadValue:   *prestateActiveThread,
+		traverseRight:               state.TraverseRight,
+		left:                        left,
+		right:                       right,
+		popped:                      make([]*ExpectedThreadState, 0),
+	}
+}
+
+func (e *threadExpectations) Validate(t require.TestingT, state *multithreaded.State) {
+	actualState := ToMTState(t, state)
+
+	require.Equalf(t, e.StepsSinceLastContextSwitch, actualState.StepsSinceLastContextSwitch, "Expect StepsSinceLastContextSwitch = %v", e.StepsSinceLastContextSwitch)
+	require.Equalf(t, e.traverseRight, actualState.TraverseRight, "Expect TraverseRight = %v", e.traverseRight)
+	require.Equalf(t, e.NextThreadId, actualState.NextThreadId, "Expect NextThreadId = %v", e.NextThreadId)
+	require.Equalf(t, e.threadCount(), actualState.ThreadCount(), "Expect thread count = %v", e.threadCount())
+
+	// Check active thread
+	activeThreadId := actualState.GetCurrentThread().ThreadId
+	require.Equal(t, e.ActiveThreadId, activeThreadId)
+
+	// Check stacks
+	e.assertStackMatchesExpectations(t, e.left, actualState.LeftThreadStack, "left", activeThreadId)
+	e.assertStackMatchesExpectations(t, e.right, actualState.RightThreadStack, "right", activeThreadId)
+}
+
+func (e *threadExpectations) assertStackMatchesExpectations(t require.TestingT, expectedStack []*ExpectedThreadState, actualStack []*multithreaded.ThreadState, label string, activeThreadId arch.Word) {
+	require.Equalf(t, len(expectedStack), len(actualStack), "Expect %v stack size = %v", label, len(expectedStack))
+	for i, expectedThread := range expectedStack {
+		if i >= len(actualStack) {
+			// Break to avoid unit test panics - should be unreachable for actual tests
+			require.FailNow(t, "Missing thread")
+			break
+		}
+		actualThread := actualStack[i]
+		e.validateThread(t, expectedThread, actualThread, activeThreadId)
+	}
+}
+
+func (e *threadExpectations) validateThread(t require.TestingT, expected *ExpectedThreadState, actual *multithreaded.ThreadState, activeThreadId arch.Word) {
+	threadInfo := fmt.Sprintf("tid = %v, active = %v", actual.ThreadId, actual.ThreadId == activeThreadId)
+	require.Equalf(t, expected.ThreadId, actual.ThreadId, "Expect ThreadId = 0x%x (%v)", expected.ThreadId, threadInfo)
+	require.Equalf(t, expected.PC, actual.Cpu.PC, "Expect PC = 0x%x (%v)", expected.PC, threadInfo)
+	require.Equalf(t, expected.NextPC, actual.Cpu.NextPC, "Expect nextPC = 0x%x (%v)", expected.NextPC, threadInfo)
+	require.Equalf(t, expected.HI, actual.Cpu.HI, "Expect HI = 0x%x (%v)", expected.HI, threadInfo)
+	require.Equalf(t, expected.LO, actual.Cpu.LO, "Expect LO = 0x%x (%v)", expected.LO, threadInfo)
+	require.Equalf(t, expected.Registers, actual.Registers, "Expect registers to match (%v)", threadInfo)
+	require.Equalf(t, expected.ExitCode, actual.ExitCode, "Expect exitCode = %v (%v)", expected.ExitCode, threadInfo)
+	require.Equalf(t, expected.Exited, actual.Exited, "Expect exited = %v (%v)", expected.Exited, threadInfo)
+	require.Equalf(t, expected.Dropped, false, "Thread should not be dropped")
+}
+
+func (e *threadExpectations) ExpectPreemption() {
+	e.StepsSinceLastContextSwitch = 0
+	if e.traverseRight {
+		lastEl := len(e.right) - 1
+		preempted := e.right[lastEl]
+		e.right = e.right[:lastEl]
+		e.left = append(e.left, preempted)
+		e.traverseRight = len(e.right) > 0
+	} else {
+		lastEl := len(e.left) - 1
+		preempted := e.left[lastEl]
+		e.left = e.left[:lastEl]
+		e.right = append(e.right, preempted)
+		e.traverseRight = len(e.left) == 0
+	}
+	e.updateActiveThreadId()
+}
+
+func (e *threadExpectations) ExpectNewThread() *ExpectedThreadState {
+	e.StepsSinceLastContextSwitch = 0
+	newThreadId := e.NextThreadId
+	e.NextThreadId += 1
+
+	// Copy expectations from prestate active thread's original value (before changing any expectations)
+	newThread := &ExpectedThreadState{}
+	*newThread = e.prestateActiveThreadValue
+
+	newThread.ThreadId = newThreadId
+	if e.traverseRight {
+		e.right = append(e.right, newThread)
+	} else {
+		e.left = append(e.left, newThread)
+	}
+
+	e.ActiveThreadId = newThreadId
+	return newThread
+}
+
+func (e *threadExpectations) ExpectPop() {
+	e.StepsSinceLastContextSwitch = 0
+	var popped *ExpectedThreadState
+	if e.traverseRight {
+		lastEl := len(e.right) - 1
+		popped = e.right[lastEl]
+		popped.Dropped = true
+		e.right = e.right[:lastEl]
+		e.traverseRight = len(e.right) > 0
+	} else {
+		lastEl := len(e.left) - 1
+		popped = e.left[lastEl]
+		popped.Dropped = true
+		e.left = e.left[:lastEl]
+		e.traverseRight = len(e.left) == 0
+	}
+	e.popped = append(e.popped, popped)
+
+	e.updateActiveThreadId()
+}
+
+func (e *threadExpectations) ExpectTraverseRight(traverseRight bool) {
+	e.traverseRight = traverseRight
+}
+
+func (e *threadExpectations) PrestateActiveThread() *ExpectedThreadState {
+	return e.prestateActiveThread
+}
+
+func (e *threadExpectations) ThreadById(threadId arch.Word) *ExpectedThreadState {
+	for _, thread := range e.allThreads() {
+		if thread.ThreadId == threadId {
+			return thread
+		}
+	}
+	return nil
+}
+
+func (e *threadExpectations) allThreads() []*ExpectedThreadState {
+	var allThreads []*ExpectedThreadState
+	allThreads = append(allThreads, e.right...)
+	allThreads = append(allThreads, e.left...)
+	allThreads = append(allThreads, e.popped...)
+
+	return allThreads
+}
+
+func (e *threadExpectations) updateActiveThreadId() {
+	activeStack := e.activeStack()
+	e.ActiveThreadId = activeStack[len(activeStack)-1].ThreadId
+}
+
+func (e *threadExpectations) threadCount() int {
+	return e.leftStackSize() + e.rightStackSize()
+}
+
+func (e *threadExpectations) rightStackSize() int {
+	return len(e.right)
+}
+
+func (e *threadExpectations) leftStackSize() int {
+	return len(e.left)
+}
+
+func (e *threadExpectations) activeStack() []*ExpectedThreadState {
+	if e.traverseRight {
+		return e.right
+	} else {
+		return e.left
+	}
+}
+
+func (e *threadExpectations) activeThread() *ExpectedThreadState {
+	lastEl := len(e.activeStack()) - 1
+	if lastEl < 0 {
+		return nil
+	}
+	return e.activeStack()[lastEl]
+}
+
+func expectedThreadStack(threadStack []*multithreaded.ThreadState) []*ExpectedThreadState {
+	expectedThreads := make([]*ExpectedThreadState, 0, len(threadStack))
+	for _, threadState := range threadStack {
+		expectedThreads = append(expectedThreads, newExpectedThreadState(threadState))
+	}
+
+	return expectedThreads
 }

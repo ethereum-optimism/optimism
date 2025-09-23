@@ -3,40 +3,45 @@ package syncnode
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/gorilla/websocket"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
 )
 
 type backend interface {
-	LocalSafe(ctx context.Context, chainID eth.ChainID) (pair types.DerivedIDPair, err error)
 	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
+	CrossUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
+	LocalSafe(ctx context.Context, chainID eth.ChainID) (pair types.DerivedIDPair, err error)
 	CrossSafe(ctx context.Context, chainID eth.ChainID) (pair types.DerivedIDPair, err error)
-	SafeDerivedAt(ctx context.Context, chainID eth.ChainID, derivedFrom eth.BlockID) (derived eth.BlockID, err error)
 	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
+
+	ActivationBlock(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error)
+
+	FindSealedBlock(ctx context.Context, chainID eth.ChainID, number uint64) (eth.BlockID, error)
+	IsLocalSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
+	IsCrossSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
+	IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
+	LocalSafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (derived eth.BlockID, err error)
 	L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error)
 }
 
 const (
-	internalTimeout            = time.Second * 30
-	nodeTimeout                = time.Second * 10
-	maxWalkBackAttempts        = 300
-	blockNotFoundRPCErrCode    = -39001
-	conflictingBlockRPCErrCode = -39002
+	internalTimeout     = time.Second * 30
+	nodeTimeout         = time.Second * 10
+	maxWalkBackAttempts = 300
 )
 
 type ManagedNode struct {
@@ -48,7 +53,7 @@ type ManagedNode struct {
 
 	// When the node has an update for us
 	// Nil when node events are pulled synchronously.
-	nodeEvents chan *types.ManagedEvent
+	nodeEvents chan *types.IndexingEvent
 
 	subscriptions []gethevent.Subscription
 
@@ -57,10 +62,19 @@ type ManagedNode struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	lastNodeLocalUnsafe eth.BlockID
+	lastNodeLocalSafe   eth.BlockID
+
+	resetMu      sync.Mutex
+	resetCancel  context.CancelFunc
+	resetTracker *resetTracker
 }
 
-var _ event.AttachEmitter = (*ManagedNode)(nil)
-var _ event.Deriver = (*ManagedNode)(nil)
+var (
+	_ event.AttachEmitter = (*ManagedNode)(nil)
+	_ event.Deriver       = (*ManagedNode)(nil)
+)
 
 func NewManagedNode(log log.Logger, id eth.ChainID, node SyncControl, backend backend, noSubscribe bool) *ManagedNode {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -72,6 +86,10 @@ func NewManagedNode(log log.Logger, id eth.ChainID, node SyncControl, backend ba
 		ctx:     ctx,
 		cancel:  cancel,
 	}
+	m.resetTracker = newResetTracker(
+		m.log.New("component", "resetTracker"),
+		m.resetBackend())
+
 	if !noSubscribe {
 		m.SubscribeToNodeEvents()
 	}
@@ -83,8 +101,22 @@ func (m *ManagedNode) AttachEmitter(em event.Emitter) {
 	m.emitter = em
 }
 
-func (m *ManagedNode) OnEvent(ev event.Event) bool {
+// OnEvent handles internal supervisor events and translates these into outgoing actions/signals for
+// the managed node.
+func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
+	// if we're resetting, ignore all events
+	if m.resetCancel != nil {
+		m.log.Debug("Ignoring event during ongoing reset", "event", ev)
+		return false
+	}
+
 	switch x := ev.(type) {
+	case superevents.UpdateLocalSafeFailedEvent:
+		if x.ChainID != m.chainID ||
+			x.NodeID != m.Node.String() {
+			return false
+		}
+		m.onUpdateLocalSafeFailed(x)
 	case superevents.InvalidateLocalSafeEvent:
 		if x.ChainID != m.chainID {
 			return false
@@ -105,16 +137,11 @@ func (m *ManagedNode) OnEvent(ev event.Event) bool {
 			return false
 		}
 		m.onFinalizedL2(x.FinalizedL2)
-	case superevents.LocalSafeOutOfSyncEvent:
+	case superevents.ResetPreInteropRequestEvent:
 		if x.ChainID != m.chainID {
 			return false
 		}
-		m.resetSignal(x.Err, x.L1Ref)
-	case superevents.ChainRewoundEvent:
-		if x.ChainID != m.chainID {
-			return false
-		}
-		m.sendReset()
+		m.onResetPreInteropRequest()
 	default:
 		return false
 	}
@@ -122,7 +149,7 @@ func (m *ManagedNode) OnEvent(ev event.Event) bool {
 }
 
 func (m *ManagedNode) SubscribeToNodeEvents() {
-	m.nodeEvents = make(chan *types.ManagedEvent, 10)
+	m.nodeEvents = make(chan *types.IndexingEvent, 10)
 
 	// Resubscribe, since the RPC subscription might fail intermittently.
 	// And fall back to polling, if RPC subscriptions are not supported.
@@ -130,14 +157,25 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 		func(ctx context.Context, prevErr error) (gethevent.Subscription, error) {
 			if prevErr != nil {
 				// This is the RPC runtime error, not the setup error we have logging for below.
-				m.log.Error("RPC subscription failed, restarting now", "err", prevErr)
+				m.log.Warn("RPC subscription failed, retrying", "err", prevErr)
+				var closeErr *websocket.CloseError
+				if errors.As(prevErr, &closeErr) {
+					m.log.Warn("RPC websocket connection closed")
+					if err := m.Node.ReconnectRPC(m.ctx); err != nil {
+						m.log.Warn("RPC websocket reconnection failed", "err", err)
+					} else {
+						m.log.Info("RPC websocket connection reopened")
+					}
+				}
+				// When the subscription fails, the channel may have been immediately closed
+				m.nodeEvents = make(chan *types.IndexingEvent, 10)
 			}
 			sub, err := m.Node.SubscribeEvents(ctx, m.nodeEvents)
 			if err != nil {
 				if errors.Is(err, gethrpc.ErrNotificationsUnsupported) {
 					m.log.Warn("No RPC notification support detected, falling back to polling")
 					// fallback to polling if subscriptions are not supported.
-					sub, err := rpc.StreamFallback[types.ManagedEvent](
+					sub, err := rpc.StreamFallback(
 						m.Node.PullEvent, time.Millisecond*100, m.nodeEvents)
 					if err != nil {
 						m.log.Error("Failed to start RPC stream fallback", "err", err)
@@ -177,7 +215,13 @@ func (m *ManagedNode) Start() {
 			case <-m.ctx.Done():
 				m.log.Info("Exiting node syncing")
 				return
-			case ev := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
+			case ev, ok := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
+				if !ok {
+					m.log.Info("Node events channel closed")
+					// indefinitely loop until node-event channel is reinitialized.
+					time.Sleep(500 * time.Millisecond)
+					continue
+				}
 				m.onNodeEvent(ev)
 			}
 		}
@@ -201,7 +245,12 @@ func (m *ManagedNode) PullEvents(ctx context.Context) (pulledAny bool, err error
 	}
 }
 
-func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
+// onNodeEvents handles the incoming events from the node.
+func (m *ManagedNode) onNodeEvent(ev *types.IndexingEvent) {
+	if m.resetCancel != nil {
+		m.log.Debug("Ignoring event during ongoing reset", "event", ev)
+		return
+	}
 	if ev == nil {
 		m.log.Warn("Received nil event")
 		return
@@ -226,15 +275,21 @@ func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
 	}
 }
 
+// onResetEvent handles a reset event from the node
 func (m *ManagedNode) onResetEvent(errStr string) {
 	m.log.Warn("Node sent us a reset error", "err", errStr)
-	if strings.Contains(errStr, "cannot continue derivation until Engine has been reset") {
-		// TODO
-		return
+	m.resetFullRange()
+}
+
+func (m *ManagedNode) onUpdateLocalSafeFailed(ev superevents.UpdateLocalSafeFailedEvent) {
+	switch {
+	case errors.Is(ev.Err, types.ErrConflict):
+		m.log.Warn("DB indicated a conflict with this node, checking if node is inconsistent")
+		m.resetIfInconsistent()
+	case errors.Is(ev.Err, types.ErrFuture):
+		m.log.Warn("DB indicated this node provided an update from the future, checking if node is ahead")
+		m.resetIfAhead()
 	}
-	// Try and restore the safe head of the op-supervisor.
-	// The node will abort the reset until we find a block that is known.
-	m.resetSignal(types.ErrFuture, eth.L1BlockRef{})
 }
 
 func (m *ManagedNode) onCrossUnsafeUpdate(seal types.BlockSeal) {
@@ -250,7 +305,7 @@ func (m *ManagedNode) onCrossUnsafeUpdate(seal types.BlockSeal) {
 }
 
 func (m *ManagedNode) onCrossSafeUpdate(pair types.DerivedBlockSealPair) {
-	m.log.Debug("updating cross safe", "derived", pair.Derived, "derivedFrom", pair.Source)
+	m.log.Debug("updating cross safe", "derived", pair.Derived, "source", pair.Source)
 	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
 	defer cancel()
 	pairIDs := pair.IDs()
@@ -268,173 +323,49 @@ func (m *ManagedNode) onFinalizedL2(seal types.BlockSeal) {
 	id := seal.ID()
 	err := m.Node.UpdateFinalized(ctx, id)
 	if err != nil {
-		m.log.Warn("Node failed finality updating", "err", err)
+		m.log.Warn("Node failed finality updating", "update", seal, "err", err)
+		return
+	}
+}
+
+func (m *ManagedNode) onResetPreInteropRequest() {
+	m.log.Info("Requesting node to reset pre-Interop")
+	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
+	defer cancel()
+	if err := m.Node.ResetPreInterop(ctx); err != nil {
+		m.log.Error("Node failed to send pre-Interop request", "err", err)
 		return
 	}
 }
 
 func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
 	m.log.Info("Node has new unsafe block", "unsafeBlock", unsafeRef)
-	m.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	m.emitter.Emit(m.ctx, superevents.LocalUnsafeReceivedEvent{
 		ChainID:        m.chainID,
 		NewLocalUnsafe: unsafeRef,
 	})
+	m.lastNodeLocalUnsafe = unsafeRef.ID()
+	m.resetIfInconsistent()
 }
 
 func (m *ManagedNode) onDerivationUpdate(pair types.DerivedBlockRefPair) {
 	m.log.Info("Node derived new block", "derived", pair.Derived,
-		"derivedParent", pair.Derived.ParentID(), "derivedFrom", pair.Source)
-	m.emitter.Emit(superevents.LocalDerivedEvent{
+		"derivedParent", pair.Derived.ParentID(), "source", pair.Source)
+	m.emitter.Emit(m.ctx, superevents.LocalDerivedEvent{
 		ChainID: m.chainID,
 		Derived: pair,
+		NodeID:  m.Node.String(),
 	})
+	m.lastNodeLocalSafe = pair.Derived.ID()
+	m.resetIfInconsistent()
 }
 
 func (m *ManagedNode) onDerivationOriginUpdate(origin eth.BlockRef) {
 	m.log.Info("Node derived new origin", "origin", origin)
-	m.emitter.Emit(superevents.LocalDerivedOriginUpdateEvent{
+	m.emitter.Emit(m.ctx, superevents.LocalDerivedOriginUpdateEvent{
 		ChainID: m.chainID,
 		Origin:  origin,
 	})
-}
-
-func (m *ManagedNode) resetSignal(errSignal error, l1Ref eth.BlockRef) {
-	// if conflict error -> send reset to drop
-	// if future error -> send reset to rewind
-	// if out of order -> warn, just old data
-	// TODO(#13971): When there are errors getting these blocks, we shouldn't always exit early.
-	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
-	defer cancel()
-	u, err := m.backend.LocalUnsafe(ctx, m.chainID)
-	if err != nil {
-		m.log.Warn("Failed to retrieve local-unsafe", "err", err)
-		return
-	}
-	f, err := m.backend.Finalized(ctx, m.chainID)
-	if err != nil {
-		m.log.Warn("Failed to retrieve finalized", "err", err)
-		return
-	}
-
-	// TODO: Lots of changes needed here
-	// Reset walkback exists via resolveConflict, so this error-type handling should be reconsidered.
-	switch {
-	case errors.Is(errSignal, types.ErrConflict):
-		if err := m.resolveConflict(ctx, l1Ref, u, f); err != nil {
-			m.log.Warn("Failed to resolve conflict", "unsafe", u, "finalized", f)
-			return
-		}
-	case errors.Is(errSignal, types.ErrFuture):
-		s, err := m.backend.LocalSafe(ctx, m.chainID)
-		if err != nil {
-			m.log.Warn("Failed to retrieve local-safe", "err", err)
-		}
-		m.log.Debug("Node detected future block, resetting", "unsafe", u, "safe", s, "finalized", f)
-		err = m.Node.Reset(ctx, u, s.Derived, f)
-		if err != nil {
-			m.log.Warn("Node failed to reset", "err", err)
-		}
-	case errors.Is(errSignal, types.ErrOutOfOrder):
-		s, err := m.backend.LocalSafe(ctx, m.chainID)
-		if err != nil {
-			m.log.Warn("Failed to retrieve local-safe", "err", err)
-			return
-		}
-		m.log.Warn("Node detected out of order block", "unsafe", u, "finalized", f)
-		err = m.Node.Reset(ctx, u, s.Derived, f)
-		if err != nil {
-			m.log.Warn("Node failed to reset", "err", err)
-		}
-	}
-}
-
-func (m *ManagedNode) sendReset() {
-	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
-	defer cancel()
-
-	u, err := m.backend.LocalUnsafe(ctx, m.chainID)
-	if err != nil {
-		m.log.Warn("Failed to retrieve local-unsafe", "err", err)
-		return
-	}
-	s, err := m.backend.CrossSafe(ctx, m.chainID)
-	if err != nil {
-		m.log.Warn("Failed to retrieve cross-safe", "err", err)
-		return
-	}
-	f, err := m.backend.Finalized(ctx, m.chainID)
-	if err != nil {
-		if errors.Is(err, types.ErrFuture) {
-			f = eth.BlockID{Number: 0}
-		} else {
-			m.log.Warn("Failed to retrieve finalized", "err", err)
-			return
-		}
-	}
-
-	if err := m.Node.Reset(ctx, u, s.Derived, f); err != nil {
-		m.log.Warn("Node failed to reset", "err", err)
-		return
-	}
-}
-
-// resolveConflict attempts to reset the node to a valid state when a conflict is detected.
-// It first tries using the latest safe block, and if that fails, walks back block by block
-// until it finds a common ancestor or reaches the finalized block.
-func (m *ManagedNode) resolveConflict(ctx context.Context, l1Ref eth.BlockRef, u eth.BlockID, f eth.BlockID) error {
-	// First try to reset to the last known safe block
-	s, err := m.backend.SafeDerivedAt(ctx, m.chainID, l1Ref.ID())
-	if err != nil {
-		return fmt.Errorf("failed to retrieve safe block for %v: %w", l1Ref.ID(), err)
-	}
-
-	// Helper to attempt a reset and classify the error
-	tryReset := func(safe eth.BlockID) (resolved bool, needsWalkback bool, err error) {
-		m.log.Debug("Attempting reset", "unsafe", u, "safe", safe, "finalized", f)
-		if err := m.Node.Reset(ctx, u, safe, f); err == nil {
-			return true, false, nil
-		} else {
-			var rpcErr *gethrpc.JsonError
-			if errors.As(err, &rpcErr) && (rpcErr.Code == blockNotFoundRPCErrCode || rpcErr.Code == conflictingBlockRPCErrCode) {
-				return false, true, err
-			}
-			return false, false, err
-		}
-	}
-
-	// Try initial reset
-	resolved, needsWalkback, err := tryReset(s)
-	if resolved {
-		return nil
-	}
-	if !needsWalkback {
-		return fmt.Errorf("error during reset: %w", err)
-	}
-
-	// Walk back one block at a time looking for a common ancestor
-	currentBlock := s.Number
-	for i := 0; i < maxWalkBackAttempts; i++ {
-		currentBlock--
-		if currentBlock <= f.Number {
-			return fmt.Errorf("reached finalized block %d without finding common ancestor", f.Number)
-		}
-
-		safe, err := m.backend.SafeDerivedAt(ctx, m.chainID, eth.BlockID{Number: currentBlock})
-		if err != nil {
-			return fmt.Errorf("failed to retrieve safe block %d: %w", currentBlock, err)
-		}
-
-		resolved, _, err := tryReset(safe)
-		if resolved {
-			return nil
-		}
-		// Continue walking back on walkable errors, otherwise return the error
-		var rpcErr *gethrpc.JsonError
-		if !errors.As(err, &rpcErr) || (rpcErr.Code != blockNotFoundRPCErrCode && rpcErr.Code != conflictingBlockRPCErrCode) {
-			return fmt.Errorf("error during reset at block %d: %w", currentBlock, err)
-		}
-	}
-	return fmt.Errorf("exceeded maximum walk-back attempts (%d)", maxWalkBackAttempts)
 }
 
 func (m *ManagedNode) onExhaustL1Event(completed types.DerivedBlockRefPair) {
@@ -481,10 +412,14 @@ func (m *ManagedNode) onInvalidateLocalSafe(invalidated types.DerivedBlockRefPai
 func (m *ManagedNode) onReplaceBlock(replacement types.BlockReplacement) {
 	m.log.Info("Node provided replacement block",
 		"ref", replacement.Replacement, "invalidated", replacement.Invalidated)
-	m.emitter.Emit(superevents.ReplaceBlockEvent{
+	m.emitter.Emit(m.ctx, superevents.ReplaceBlockEvent{
 		ChainID:     m.chainID,
 		Replacement: replacement,
 	})
+	// if the node replaced a block, both the unsafe and safe are reset to this point
+	m.lastNodeLocalSafe = replacement.Replacement.ID()
+	m.lastNodeLocalUnsafe = replacement.Replacement.ID()
+	m.resetIfInconsistent()
 }
 
 func (m *ManagedNode) Close() error {
@@ -496,4 +431,82 @@ func (m *ManagedNode) Close() error {
 		sub.Unsubscribe()
 	}
 	return nil
+}
+
+// resetIfInconsistent checks if the node is consistent with the logs db
+// and initiates a bisection based reset preparation if it is
+func (m *ManagedNode) resetIfInconsistent() {
+	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
+	defer cancel()
+	seenFromNode := m.lastNodeLocalSafe
+	name := "local-safe"
+	if seenFromNode == (eth.BlockID{}) {
+		return // if we haven't seen anything, then don't reset to it
+	}
+	m.log.Debug("Checking last seen block from node for consistency", "safety", name, "block", seenFromNode)
+	localSafeMatchErr := m.backend.IsLocalSafe(ctx, m.chainID, seenFromNode)
+	if localSafeMatchErr == nil {
+		return
+	}
+	if errors.Is(localSafeMatchErr, types.ErrFuture) {
+		m.log.Debug("node is ahead of op-supervisor local-safe data")
+		return // resetIfAhead will handle this
+	}
+	m.log.Warn("Last seen block from node is inconsistent with supervisor local-safe blocks",
+		"safety", name, "err", localSafeMatchErr)
+	// If there is a mismatch, we want to reset back no further than latest local-safe
+	localSafe, err := m.backend.LocalSafe(ctx, m.chainID)
+	if err != nil {
+		m.log.Debug("Cannot determine how to handle inconsistency, no local-safe data available",
+			"localSafeMatchErr", localSafeMatchErr, "err", err)
+		return
+	}
+	m.initiateReset(localSafe.Derived)
+}
+
+// resetIfAhead checks if the node is ahead of the local-safe db
+// and initiates a bisection based reset preparation if it is
+func (m *ManagedNode) resetIfAhead() {
+	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
+	defer cancel()
+
+	// get the last local safe block
+	lastDBLocalSafe, err := m.backend.LocalSafe(ctx, m.chainID)
+	if errors.Is(err, types.ErrFuture) {
+		m.log.Info("no activation block yet, initiating pre-Interop reset")
+		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
+		return
+	} else if err != nil {
+		m.log.Error("failed to get last local safe block", "err", err)
+		return
+	}
+	// if the node is ahead of the logs db, initiate a reset
+	// with the end of the range being the last safe block in the db
+	if m.lastNodeLocalSafe.Number > lastDBLocalSafe.Derived.Number {
+		m.log.Warn("local safe block on node is ahead of logs db. Initiating reset",
+			"lastNodeLocalSafe", m.lastNodeLocalSafe,
+			"lastDBLocalSafe", lastDBLocalSafe.Derived)
+		m.initiateReset(lastDBLocalSafe.Derived)
+	}
+}
+
+// resetFullRange resets the node using the last block in the db
+// as the end of the range to search for the last consistent local-safe block.
+// The reset can take care of preserving the unsafe chain that extends the local-safe chain.
+// We do not want to reset deeper than local-safe,
+// to maintain a local-safe block that reorgs out unsafe data.
+func (m *ManagedNode) resetFullRange() {
+	internalCtx, iCancel := context.WithTimeout(m.ctx, internalTimeout)
+	defer iCancel()
+	dbLast, err := m.backend.LocalSafe(internalCtx, m.chainID)
+	if errors.Is(err, types.ErrFuture) {
+		m.log.Info("no activation block yet, initiating pre-Interop reset")
+		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{
+			ChainID: m.chainID})
+		return
+	} else if err != nil {
+		m.log.Error("failed to get last local safe block", "err", err)
+		return
+	}
+	m.initiateReset(dbLast.Derived)
 }

@@ -17,7 +17,7 @@ import {
     Duration,
     Timestamp,
     Hash,
-    OutputRoot,
+    Proposal,
     LibClock,
     LocalPreimageKey,
     VMStatuses
@@ -56,7 +56,9 @@ import {
     GameNotFinalized,
     InvalidBondDistributionMode,
     GameNotResolved,
-    ReservedGameType
+    ReservedGameType,
+    GamePaused,
+    BadExtraData
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -170,9 +172,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
+    /// @custom:semver 1.8.0
     function version() public pure virtual returns (string memory) {
-        return "1.4.0";
+        return "1.8.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -213,7 +215,7 @@ contract FaultDisputeGame is Clone, ISemver {
     mapping(uint256 => ResolutionCheckpoint) public resolutionCheckpoints;
 
     /// @notice The latest finalized output root, serving as the anchor for output bisection.
-    OutputRoot public startingOutputRoot;
+    Proposal public startingOutputRoot;
 
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
@@ -302,8 +304,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // Should only happen if this is a new game type that hasn't been set up yet.
         if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
 
-        // Set the starting output root.
-        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
+        // Set the starting proposal.
+        startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
 
         // Revert if the calldata size is not the expected length.
         //
@@ -311,20 +313,14 @@ contract FaultDisputeGame is Clone, ISemver {
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
         //
-        // Expected length: 0x7A
-        // - 0x04 selector
-        // - 0x14 creator address
-        // - 0x20 root claim
-        // - 0x20 l1 head
-        // - 0x20 extraData
-        // - 0x02 CWIA bytes
-        assembly {
-            if iszero(eq(calldatasize(), 0x7A)) {
-                // Store the selector for `BadExtraData()` & revert
-                mstore(0x00, 0x9824bdab)
-                revert(0x1C, 0x04)
-            }
-        }
+        // Expected length: 122 bytes
+        // - 4 bytes selector
+        // - 20 bytes creator address
+        // - 32 bytes root claim
+        // - 32 bytes l1 head
+        // - 32 bytes extraData
+        // - 2 bytes CWIA length
+        if (msg.data.length != 122) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
@@ -616,7 +612,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
             // We add the index at depth + 1 to the starting block number to get the disputed L2
             // block number.
-            uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
+            uint256 l2Number = startingOutputRoot.l2SequenceNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             // Choose the minimum between the `l2BlockNumber` claim and the bisected-to L2 block number.
             l2Number = l2Number < l2BlockNumber() ? l2Number : l2BlockNumber();
@@ -644,12 +640,17 @@ contract FaultDisputeGame is Clone, ISemver {
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x54);
+        l2BlockNumber_ = _getArgUint256(84);
+    }
+
+    /// @notice The l2SequenceNumber of the disputed output root in the `L2OutputOracle` (in this case - block number).
+    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
+        l2SequenceNumber_ = l2BlockNumber();
     }
 
     /// @notice Only the starting block number of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
+        startingBlockNumber_ = startingOutputRoot.l2SequenceNumber;
     }
 
     /// @notice Starting output root and block number of the game.
@@ -854,21 +855,21 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @dev `clones-with-immutable-args` argument #1
     /// @return creator_ The creator of the dispute game.
     function gameCreator() public pure returns (address creator_) {
-        creator_ = _getArgAddress(0x00);
+        creator_ = _getArgAddress(0);
     }
 
     /// @notice Getter for the root claim.
     /// @dev `clones-with-immutable-args` argument #2
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
+        rootClaim_ = Claim.wrap(_getArgBytes32(20));
     }
 
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
     /// @dev `clones-with-immutable-args` argument #3
     /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
     function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgBytes32(0x34));
+        l1Head_ = Hash.wrap(_getArgBytes32(52));
     }
 
     /// @notice Getter for the extra data.
@@ -877,7 +878,7 @@ contract FaultDisputeGame is Clone, ISemver {
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgBytes(0x54, 0x20);
+        extraData_ = _getArgBytes(84, 32);
     }
 
     /// @notice A compliant implementation of this interface should return the components of the
@@ -1001,6 +1002,16 @@ contract FaultDisputeGame is Clone, ISemver {
             revert InvalidBondDistributionMode();
         }
 
+        // We won't close the game if the system is currently paused. Paused games are temporarily
+        // invalid which would cause the game to go into refund mode and potentially cause some
+        // confusion for honest challengers. By blocking the game from being closed while the
+        // system is paused, the game will only go into refund mode if it ends up being explicitly
+        // invalidated in the AnchorStateRegistry. If the game has already been closed and a refund
+        // mode has been selected, we'll already have returned and we won't hit this revert.
+        if (ANCHOR_STATE_REGISTRY.paused()) {
+            revert GamePaused();
+        }
+
         // Make sure that the game is resolved.
         // AnchorStateRegistry should be checking this but we're being defensive here.
         if (resolvedAt.raw() == 0) {
@@ -1015,6 +1026,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
         // Try to update the anchor game first. Won't always succeed because delays can lead
         // to situations in which this game might not be eligible to be a new anchor game.
+        // eip150-safe
         try ANCHOR_STATE_REGISTRY.setAnchorState(IDisputeGame(address(this))) { } catch { }
 
         // Check if the game is a proper game, which will determine the bond distribution mode.

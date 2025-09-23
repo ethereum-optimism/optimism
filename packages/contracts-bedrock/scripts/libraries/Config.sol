@@ -35,10 +35,12 @@ enum Fork {
     FJORD,
     GRANITE,
     HOLOCENE,
-    ISTHMUS
+    ISTHMUS,
+    JOVIAN,
+    INTEROP
 }
 
-Fork constant LATEST_FORK = Fork.ISTHMUS;
+Fork constant LATEST_FORK = Fork.INTEROP;
 
 library ForkUtils {
     function toString(Fork _fork) internal pure returns (string memory) {
@@ -56,6 +58,8 @@ library ForkUtils {
             return "holocene";
         } else if (_fork == Fork.ISTHMUS) {
             return "isthmus";
+        } else if (_fork == Fork.JOVIAN) {
+            return "jovian";
         } else {
             return "unknown";
         }
@@ -120,6 +124,11 @@ library Config {
         env_ = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
     }
 
+    /// @notice Returns the API key for the Etherscan API.
+    function etherscanApiKey() internal view returns (string memory env_) {
+        env_ = vm.envString("ETHERSCAN_API_KEY");
+    }
+
     /// @notice Returns the OutputMode for genesis allocs generation.
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.
@@ -135,11 +144,6 @@ library Config {
         } else {
             revert(string.concat("Config: unknown output mode: ", modeStr));
         }
-    }
-
-    /// @notice Returns true if multithreaded Cannon is used for the deployment.
-    function useMultithreadedCannon() internal view returns (bool enabled_) {
-        enabled_ = vm.envOr("USE_MT_CANNON", false);
     }
 
     /// @notice Returns the latest fork to use for genesis allocs generation.
@@ -166,8 +170,79 @@ library Config {
             return Fork.HOLOCENE;
         } else if (forkHash == keccak256(bytes("isthmus"))) {
             return Fork.ISTHMUS;
+        } else if (forkHash == keccak256(bytes("jovian"))) {
+            return Fork.JOVIAN;
         } else {
             revert(string.concat("Config: unknown fork: ", forkStr));
         }
+    }
+
+    /// @notice Returns the address of the L1CrossDomainMessengerProxy to use for the L2 genesis usage.
+    function l2Genesis_L1CrossDomainMessengerProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy"));
+    }
+
+    /// @notice Returns the address of the L1StandardBridgeProxy to use for the L2 genesis usage.
+    function l2Genesis_L1StandardBridgeProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy"));
+    }
+
+    /// @notice Returns the address of the L1ERC721BridgeProxy to use for the L2 genesis usage.
+    function l2Genesis_L1ERC721BridgeProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy"));
+    }
+
+    /// @notice Returns the string identifier of the OP chain use for forking.
+    ///         If not set, "op" is returned.
+    function forkOpChain() internal view returns (string memory) {
+        return vm.envOr("FORK_OP_CHAIN", string("op"));
+    }
+
+    /// @notice Returns the string identifier of the base chain to use for forking.
+    ///         if not set, "mainnet" is returned.
+    function forkBaseChain() internal view returns (string memory) {
+        return vm.envOr("FORK_BASE_CHAIN", string("mainnet"));
+    }
+
+    /// @notice Returns the RPC URL of the mainnet.
+    ///         If not set, an empty string is returned.
+    function mainnetRpcUrl() internal view returns (string memory) {
+        return vm.envOr("MAINNET_RPC_URL", string(""));
+    }
+
+    /// @notice Returns the RPC URL to use for forking.
+    function forkRpcUrl() internal view returns (string memory) {
+        return vm.envString("FORK_RPC_URL");
+    }
+
+    /// @notice Returns the block number to use for forking.
+    function forkBlockNumber() internal view returns (uint256) {
+        return vm.envUint("FORK_BLOCK_NUMBER");
+    }
+
+    /// @notice Returns the profile to use for the foundry commands.
+    ///         If not set, "default" is returned.
+    function foundryProfile() internal view returns (string memory) {
+        return vm.envOr("FOUNDRY_PROFILE", string("default"));
+    }
+
+    /// @notice Returns the path to the superchain ops allocs.
+    function superchainOpsAllocsPath() internal view returns (string memory) {
+        return vm.envOr("SUPERCHAIN_OPS_ALLOCS_PATH", string(""));
+    }
+
+    /// @notice Returns true if the fork is a test fork.
+    function forkTest() internal view returns (bool) {
+        return vm.envOr("FORK_TEST", false);
+    }
+
+    /// @notice Returns true if the development feature interop is enabled.
+    function devFeatureInterop() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", false);
+    }
+
+    /// @notice Returns true if the development feature cannon_kona is enabled.
+    function devFeatureCannonKona() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
     }
 }

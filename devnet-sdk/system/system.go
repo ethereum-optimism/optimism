@@ -1,46 +1,34 @@
 package system
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
 	"slices"
-	"strings"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
 type system struct {
 	identifier string
 	l1         Chain
-	l2s        []Chain
+	l2s        []L2Chain
 }
 
 // system implements System
 var _ System = (*system)(nil)
 
-func NewSystemFromEnv(envVar string) (System, error) {
-	devnetFile := os.Getenv(envVar)
-	if devnetFile == "" {
-		return nil, fmt.Errorf("env var '%s' is unset", envVar)
-	}
-	devnet, err := devnetFromFile(devnetFile)
+func NewSystemFromURL(url string) (System, error) {
+	devnetEnv, err := env.LoadDevnetFromURL(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse devnet file: %w", err)
+		return nil, fmt.Errorf("failed to load devnet from URL: %w", err)
 	}
 
-	// Extract basename without extension from devnetFile path
-	basename := devnetFile
-	if lastSlash := strings.LastIndex(basename, "/"); lastSlash >= 0 {
-		basename = basename[lastSlash+1:]
-	}
-	if lastDot := strings.LastIndex(basename, "."); lastDot >= 0 {
-		basename = basename[:lastDot]
-	}
-
-	sys, err := systemFromDevnet(*devnet, basename)
+	sys, err := systemFromDevnet(devnetEnv.Env)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create system from devnet file: %w", err)
+		return nil, fmt.Errorf("failed to create system from devnet: %w", err)
 	}
 	return sys, nil
 }
@@ -49,54 +37,53 @@ func (s *system) L1() Chain {
 	return s.l1
 }
 
-func (s *system) L2(chainID uint64) Chain {
-	return s.l2s[chainID]
+func (s *system) L2s() []L2Chain {
+	return s.l2s
 }
 
 func (s *system) Identifier() string {
 	return s.identifier
 }
 
-func (s *system) addChains(chains ...*descriptors.Chain) error {
-	for _, chainDesc := range chains {
-		if chainDesc.ID == "" {
-			s.l1 = chainFromDescriptor(chainDesc)
-		} else {
-			s.l2s = append(s.l2s, chainFromDescriptor(chainDesc))
+func systemFromDevnet(dn *descriptors.DevnetEnvironment) (System, error) {
+	l1, err := newChainFromDescriptor(dn.L1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add L1 chain: %w", err)
+	}
+
+	l2s := make([]L2Chain, len(dn.L2))
+	for i, l2 := range dn.L2 {
+		l2s[i], err = newL2ChainFromDescriptor(l2)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add L2 chain: %w", err)
 		}
 	}
-	return nil
-}
 
-// devnetFromFile reads a DevnetEnvironment from a JSON file.
-func devnetFromFile(devnetFile string) (*descriptors.DevnetEnvironment, error) {
-	data, err := os.ReadFile(devnetFile)
-	if err != nil {
-		return nil, fmt.Errorf("error reading devnet file: %w", err)
-	}
-
-	var config descriptors.DevnetEnvironment
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %w", err)
-	}
-	return &config, nil
-}
-
-func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (System, error) {
-	sys := &system{identifier: identifier}
-
-	if err := sys.addChains(append(dn.L2, dn.L1)...); err != nil {
-		return nil, err
+	sys := &system{
+		identifier: dn.Name,
+		l1:         l1,
+		l2s:        l2s,
 	}
 
 	if slices.Contains(dn.Features, "interop") {
-		return &interopSystem{system: sys}, nil
+		// TODO(14849): this will break as soon as we have a dependency set that
+		// doesn't include all L2s.
+		supervisorRPC := dn.L2[0].Services["supervisor"][0].Endpoints["rpc"]
+		return &interopSystem{
+			system:        sys,
+			supervisorRPC: fmt.Sprintf("http://%s:%d", supervisorRPC.Host, supervisorRPC.Port),
+		}, nil
 	}
+
 	return sys, nil
 }
 
 type interopSystem struct {
 	*system
+
+	supervisorRPC string
+	supervisor    Supervisor
+	mu            sync.Mutex
 }
 
 // interopSystem implements InteropSystem
@@ -104,4 +91,20 @@ var _ InteropSystem = (*interopSystem)(nil)
 
 func (i *interopSystem) InteropSet() InteropSet {
 	return i.system // TODO: the interop set might not contain all L2s
+}
+
+func (i *interopSystem) Supervisor(ctx context.Context) (Supervisor, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if i.supervisor != nil {
+		return i.supervisor, nil
+	}
+
+	supervisor, err := dial.DialSupervisorClientWithTimeout(ctx, nil, i.supervisorRPC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
+	}
+	i.supervisor = supervisor
+	return supervisor, nil
 }

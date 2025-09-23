@@ -61,7 +61,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 24,
 		ChannelTimeout:      20,
 		L1BlockTime:         12,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
@@ -366,7 +366,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 		SequencerWindowSize: 24,
 		ChannelTimeout:      20,
 		L1BlockTime:         12,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
@@ -423,7 +423,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 1000,
 		ChannelTimeout:      200, // give enough space to buffer large amounts of data before submitting it
 		L1BlockTime:         12,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)

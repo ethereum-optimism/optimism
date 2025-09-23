@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -11,20 +12,22 @@ func TestParseSpec(t *testing.T) {
 	yamlContent := `
 optimism_package:
   chains:
-    - participants:
-        - el_type: op-geth
+    op-rollup-one:
+      participants:
+        node0:
+          el:
+            type: op-geth
       network_params:
-        name: op-rollup-one
         network_id: "3151909"
-      additional_services:
-        - blockscout
-    - participants:
-        - el_type: op-geth
+      blockscout_params:
+        enabled: true
+    op-rollup-two:
+      participants:
+        node0:
+          el:
+            type: op-geth
       network_params:
-        name: op-rollup-two
         network_id: "3151910"
-      additional_services:
-        - blockscout
 ethereum_package:
   participants:
     - el_type: geth
@@ -49,6 +52,9 @@ ethereum_package:
 	}
 
 	require.Len(t, result.Chains, len(expectedChains))
+	sort.Slice(result.Chains, func(i, j int) bool {
+		return result.Chains[i].Name < result.Chains[j].Name
+	})
 
 	for i, expected := range expectedChains {
 		actual := result.Chains[i]
@@ -78,10 +84,13 @@ func TestParseSpecErrors(t *testing.T) {
 			yaml: `
 optimism_package:
   chains:
-    - participants:
-        - el_type: op-geth
-      additional_services:
-        - blockscout`,
+    op-kurtosis:
+      participants:
+        node0:
+          el:
+            type: op-geth
+      blockscout_params:
+        enabled: true`,
 		},
 		{
 			name: "missing chains",

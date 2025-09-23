@@ -66,6 +66,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		panic(err)
 	}
 
+	mgrCfg.RebroadcastInterval.Store(int64(12 * time.Second))
 	mgrCfg.ResubmissionTimeout.Store(int64(48 * time.Second))
 	mgrCfg.FeeLimitMultiplier.Store(5)
 	mgrCfg.FeeLimitThreshold.Store(big.NewInt(100))
@@ -78,7 +79,6 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		&metrics.NoopTxMetrics{},
 		mgrCfg,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx manager: %w", err)
 	}
@@ -236,7 +236,18 @@ func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint6
 		panic(err)
 	}
 
-	limit := uint64(float64(intrinsicGas+gasUsed) * GasPadFactor)
+	floorDataGas, err := core.FloorDataGas(data)
+	// We should never cause an overflow here.
+	if err != nil {
+		panic(err)
+	}
+
+	gas := intrinsicGas + gasUsed
+	if floorDataGas > gas {
+		gas = floorDataGas
+	}
+
+	limit := uint64(float64(gas) * GasPadFactor)
 	if limit > blockGasLimit {
 		return blockGasLimit
 	}

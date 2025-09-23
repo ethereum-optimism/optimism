@@ -1,0 +1,11 @@
+{
+  "forge": "v1.3.4",
+  "checksums": {
+    "darwin_amd64": "eae8534e21a1222bc2bcb89587589ebf7187e99886f5ac87b810acb228352297",
+    "darwin_arm64": "2c8c00f62f518cd2a20ff6af415396b7876a5357f046820620ff4cbf30ba08af",
+    "linux_amd64": "80c3b24b759357b574e7466e84fb056df121f0f642cc3cd0c36bd7c7f2226c59",
+    "linux_arm64": "27aea854519e8f00245a50b869d8e7dc69fcbe2087f600aefbac7793eb242d85",
+    "alpine_amd64": "d31c0c5b2a163b686a7c38bea62771f8c8c7c021d20368cc8e5b6f4f7b849f3c",
+    "alpine_arm64": "49f29f31da86211f146445161b6825df0c6f25bddba724d4cd475c95abb69984"
+  }
+}

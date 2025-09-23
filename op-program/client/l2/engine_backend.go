@@ -1,10 +1,12 @@
 package l2
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
+	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -20,6 +22,11 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
+var (
+	ErrUnsupportedL2Output = errors.New("unsupported l2 output version")
+	ErrUnexpectedBlockHash = errors.New("unexpected block hash")
+)
+
 type OracleBackedL2Chain struct {
 	log        log.Logger
 	oracle     Oracle
@@ -30,7 +37,7 @@ type OracleBackedL2Chain struct {
 	finalized  *types.Header
 	vmCfg      vm.Config
 
-	canon *CanonicalBlockHeaderOracle
+	canon *FastCanonicalBlockHeaderOracle
 
 	// Inserted blocks
 	blocks map[common.Hash]*types.Block
@@ -55,7 +62,7 @@ func NewOracleBackedL2Chain(
 	output := oracle.OutputByRoot(l2OutputRoot, chainID)
 	outputV0, ok := output.(*eth.OutputV0)
 	if !ok {
-		return nil, fmt.Errorf("unsupported L2 output version: %d", output.Version())
+		return nil, fmt.Errorf("%w: version: %d", ErrUnsupportedL2Output, output.Version())
 	}
 	head := oracle.BlockByHash(outputV0.BlockHash, chainID)
 	logger.Info("Loaded L2 head", "hash", head.Hash(), "number", head.Number())
@@ -92,7 +99,8 @@ func NewOracleBackedL2ChainFromHead(
 	blockByHash := func(hash common.Hash) *types.Block {
 		return chain.GetBlockByHash(hash)
 	}
-	chain.canon = NewCanonicalBlockHeaderOracle(head.Header(), blockByHash)
+	fallback := NewCanonicalBlockHeaderOracle(head.Header(), blockByHash)
+	chain.canon = NewFastCanonicalBlockHeaderOracle(head.Header(), blockByHash, chainCfg, oracle, db, fallback)
 	return chain
 }
 
@@ -102,6 +110,10 @@ func (o *OracleBackedL2Chain) CurrentHeader() *types.Header {
 
 func (o *OracleBackedL2Chain) GetHeaderByNumber(n uint64) *types.Header {
 	return o.canon.GetHeaderByNumber(n)
+}
+
+func (o *OracleBackedL2Chain) Hinter() l2Types.OracleHinter {
+	return o.oracle.Hinter()
 }
 
 func (o *OracleBackedL2Chain) GetTd(hash common.Hash, number uint64) *big.Int {
@@ -203,7 +215,7 @@ func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, make
 		return nil, err
 	}
 	for i, tx := range block.Transactions() {
-		err = processor.AddTx(tx)
+		_, err = processor.AddTx(tx)
 		if err != nil {
 			return nil, fmt.Errorf("invalid transaction (%d): %w", i, err)
 		}
@@ -213,7 +225,7 @@ func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, make
 		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	if expected.Hash() != block.Hash() {
-		return nil, fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
+		return nil, fmt.Errorf("%w: expected: %v, actual: %v", ErrUnexpectedBlockHash, expected.Hash(), block.Hash())
 	}
 	return nil, nil
 }

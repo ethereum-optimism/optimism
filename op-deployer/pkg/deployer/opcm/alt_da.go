@@ -1,7 +1,6 @@
 package opcm
 
 import (
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -23,41 +22,9 @@ type DeployAltDAOutput struct {
 	DataAvailabilityChallengeImpl  common.Address
 }
 
-type DeployAltDAScript struct {
-	Run func(input, output common.Address) error
-}
+type DeployAltDAScript script.DeployScriptWithOutput[DeployAltDAInput, DeployAltDAOutput]
 
-func DeployAltDA(
-	host *script.Host,
-	input DeployAltDAInput,
-) (DeployAltDAOutput, error) {
-	var output DeployAltDAOutput
-	inputAddr := host.NewScriptAddress()
-	outputAddr := host.NewScriptAddress()
-
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeployAltDAInput](host, inputAddr, &input)
-	if err != nil {
-		return output, fmt.Errorf("failed to insert DeployAltDAInput precompile: %w", err)
-	}
-	defer cleanupInput()
-
-	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployAltDAOutput](host, outputAddr, &output,
-		script.WithFieldSetter[*DeployAltDAOutput])
-	if err != nil {
-		return output, fmt.Errorf("failed to insert DeployAltDAOutput precompile: %w", err)
-	}
-	defer cleanupOutput()
-
-	implContract := "DeployAltDA"
-	deployScript, cleanupDeploy, err := script.WithScript[DeployAltDAScript](host, "DeployAltDA.s.sol", implContract)
-	if err != nil {
-		return output, fmt.Errorf("failed to load %s script: %w", implContract, err)
-	}
-	defer cleanupDeploy()
-
-	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
-		return output, fmt.Errorf("failed to run %s script: %w", implContract, err)
-	}
-
-	return output, nil
+// NewDeployAltDAScript loads and validates the DeployAltDA script contract
+func NewDeployAltDAScript(host *script.Host) (DeployAltDAScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployAltDAInput, DeployAltDAOutput](host, "DeployAltDA.s.sol", "DeployAltDA")
 }

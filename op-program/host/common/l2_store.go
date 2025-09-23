@@ -96,6 +96,11 @@ func (b *batch) Delete(key []byte) error {
 	return nil
 }
 
+func (b *batch) DeleteRange(start []byte, end []byte) error {
+	// ignore deletes
+	return nil
+}
+
 func (b *batch) ValueSize() int {
 	return b.size
 }

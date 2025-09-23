@@ -125,6 +125,6 @@ func (m MockFPVMState) EncodeWitness() (witness []byte, hash common.Hash) {
 	panic("not implemented")
 }
 
-func (m MockFPVMState) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+func (m MockFPVMState) CreateVM(_ log.Logger, _ mipsevm.PreimageOracle, _, _ io.Writer, _ mipsevm.Metadata, _ mipsevm.FeatureToggles) mipsevm.FPVM {
 	panic("not implemented")
 }

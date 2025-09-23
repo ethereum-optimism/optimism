@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+/// @title Constants_Constants_Test
+/// @notice Tests the constant values defined in the `Constants` library.
 contract Constants_Test is Test {
     /// @notice Check EIP1967 related constants.
     function test_eip1967Constants_succeeds() external pure {

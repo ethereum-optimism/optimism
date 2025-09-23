@@ -10,18 +10,19 @@ import (
 	"os"
 	"time"
 
-	optls "github.com/ethereum-optimism/optimism/op-service/tls"
-	"github.com/ethereum-optimism/optimism/op-service/tls/certman"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	optls "github.com/ethereum-optimism/optimism/op-service/tls"
+	"github.com/ethereum-optimism/optimism/op-service/tls/certman"
 )
 
 type SignerClient struct {
 	client *rpc.Client
-	status string
 	logger log.Logger
 }
 
@@ -74,7 +75,7 @@ func NewSignerClient(logger log.Logger, endpoint string, headers http.Header, tl
 	if err != nil {
 		return nil, err
 	}
-	signer.status = fmt.Sprintf("ok [version=%v]", version)
+	logger.Info("Connected to op-signer server", "version", version)
 	return signer, nil
 }
 
@@ -114,7 +115,7 @@ func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, fr
 	return &signed, nil
 }
 
-func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadArgs) ([65]byte, error) {
+func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadArgs) (eth.Bytes65, error) {
 	var result hexutil.Bytes
 
 	if err := s.client.CallContext(ctx, &result, "opsigner_signBlockPayload", args); err != nil {
@@ -128,4 +129,16 @@ func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadA
 	signature := [65]byte(result)
 
 	return signature, nil
+}
+
+func (s *SignerClient) SignBlockPayloadV2(ctx context.Context, args *BlockPayloadArgsV2) (eth.Bytes65, error) {
+	var result eth.Bytes65
+	if err := s.client.CallContext(ctx, &result, "opsigner_signBlockPayloadV2", args); err != nil {
+		return [65]byte{}, fmt.Errorf("opsigner_signBlockPayloadV2 failed: %w", err)
+	}
+	return result, nil
+}
+
+func (s *SignerClient) Close() {
+	s.client.Close()
 }

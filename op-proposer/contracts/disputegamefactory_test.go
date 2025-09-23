@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -21,168 +22,184 @@ var proposerAddr = common.Address{0xaa, 0xbb}
 func TestHasProposedSince(t *testing.T) {
 	cutOffTime := time.Unix(1000, 0)
 
-	t.Run("NoProposals", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		withClaims(stubRpc)
+	gameContractTypes := []struct {
+		name string
+		abi  *abi.ABI
+	}{
+		{"FaultDisputeGame", snapshots.LoadFaultDisputeGameABI()},
+		{"SuperFaultDisputeGame", snapshots.LoadSuperFaultDisputeGameABI()},
+	}
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.False(t, proposed)
-		require.Equal(t, time.Time{}, proposalTime)
-		require.Equal(t, common.Hash{}, claim)
-	})
+	for _, contractType := range gameContractTypes {
+		contractType := contractType
+		t.Run("NoProposals-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			withClaims(stubRpc, contractType.abi)
 
-	t.Run("NoMatchingProposal", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		withClaims(
-			stubRpc,
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1600, 0),
-				Address:   common.Address{0x22},
-				Proposer:  common.Address{0xee}, // Wrong proposer
-			},
-			gameMetadata{
-				GameType:  1, // Wrong game type
-				Timestamp: time.Unix(1700, 0),
-				Address:   common.Address{0x33},
-				Proposer:  proposerAddr,
-			},
-		)
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.False(t, proposed)
+			require.Equal(t, time.Time{}, proposalTime)
+			require.Equal(t, common.Hash{}, claim)
+		})
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.False(t, proposed)
-		require.Equal(t, time.Time{}, proposalTime)
-		require.Equal(t, common.Hash{}, claim)
-	})
+		t.Run("NoMatchingProposal-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			withClaims(
+				stubRpc,
+				contractType.abi,
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1600, 0),
+					Address:   common.Address{0x22},
+					Proposer:  common.Address{0xee}, // Wrong proposer
+				},
+				gameMetadata{
+					GameType:  1, // Wrong game type
+					Timestamp: time.Unix(1700, 0),
+					Address:   common.Address{0x33},
+					Proposer:  proposerAddr,
+				},
+			)
 
-	t.Run("MatchingProposalBeforeCutOff", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		withClaims(
-			stubRpc,
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(999, 0),
-				Address:   common.Address{0x11},
-				Proposer:  proposerAddr,
-			},
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1600, 0),
-				Address:   common.Address{0x22},
-				Proposer:  common.Address{0xee}, // Wrong proposer
-			},
-			gameMetadata{
-				GameType:  1, // Wrong game type
-				Timestamp: time.Unix(1700, 0),
-				Address:   common.Address{0x33},
-				Proposer:  proposerAddr,
-			},
-		)
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.False(t, proposed)
+			require.Equal(t, time.Time{}, proposalTime)
+			require.Equal(t, common.Hash{}, claim)
+		})
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.False(t, proposed)
-		require.Equal(t, time.Time{}, proposalTime)
-		require.Equal(t, common.Hash{}, claim)
-	})
+		t.Run("MatchingProposalBeforeCutOff-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			withClaims(
+				stubRpc,
+				contractType.abi,
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(999, 0),
+					Address:   common.Address{0x11},
+					Proposer:  proposerAddr,
+				},
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1600, 0),
+					Address:   common.Address{0x22},
+					Proposer:  common.Address{0xee}, // Wrong proposer
+				},
+				gameMetadata{
+					GameType:  1, // Wrong game type
+					Timestamp: time.Unix(1700, 0),
+					Address:   common.Address{0x33},
+					Proposer:  proposerAddr,
+				},
+			)
 
-	t.Run("MatchingProposalAtCutOff", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		withClaims(
-			stubRpc,
-			gameMetadata{
-				GameType:  0,
-				Timestamp: cutOffTime,
-				Address:   common.Address{0x11},
-				Proposer:  proposerAddr,
-			},
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1600, 0),
-				Address:   common.Address{0x22},
-				Proposer:  common.Address{0xee}, // Wrong proposer
-			},
-			gameMetadata{
-				GameType:  1, // Wrong game type
-				Timestamp: time.Unix(1700, 0),
-				Address:   common.Address{0x33},
-				Proposer:  proposerAddr,
-			},
-		)
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.False(t, proposed)
+			require.Equal(t, time.Time{}, proposalTime)
+			require.Equal(t, common.Hash{}, claim)
+		})
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.True(t, proposed)
-		require.Equal(t, cutOffTime, proposalTime)
-		require.Equal(t, common.Hash{0xdd}, claim)
-	})
+		t.Run("MatchingProposalAtCutOff-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			withClaims(
+				stubRpc,
+				contractType.abi,
+				gameMetadata{
+					GameType:  0,
+					Timestamp: cutOffTime,
+					Address:   common.Address{0x11},
+					Proposer:  proposerAddr,
+				},
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1600, 0),
+					Address:   common.Address{0x22},
+					Proposer:  common.Address{0xee}, // Wrong proposer
+				},
+				gameMetadata{
+					GameType:  1, // Wrong game type
+					Timestamp: time.Unix(1700, 0),
+					Address:   common.Address{0x33},
+					Proposer:  proposerAddr,
+				},
+			)
 
-	t.Run("MatchingProposalAfterCutOff", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		expectedProposalTime := time.Unix(1100, 0)
-		withClaims(
-			stubRpc,
-			gameMetadata{
-				GameType:  0,
-				Timestamp: expectedProposalTime,
-				Address:   common.Address{0x11},
-				Proposer:  proposerAddr,
-			},
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1600, 0),
-				Address:   common.Address{0x22},
-				Proposer:  common.Address{0xee}, // Wrong proposer
-			},
-			gameMetadata{
-				GameType:  1, // Wrong game type
-				Timestamp: time.Unix(1700, 0),
-				Address:   common.Address{0x33},
-				Proposer:  proposerAddr,
-			},
-		)
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.True(t, proposed)
+			require.Equal(t, cutOffTime, proposalTime)
+			require.Equal(t, common.Hash{0xdd}, claim)
+		})
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.True(t, proposed)
-		require.Equal(t, expectedProposalTime, proposalTime)
-		require.Equal(t, common.Hash{0xdd}, claim)
-	})
+		t.Run("MatchingProposalAfterCutOff-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			expectedProposalTime := time.Unix(1100, 0)
+			withClaims(
+				stubRpc,
+				contractType.abi,
+				gameMetadata{
+					GameType:  0,
+					Timestamp: expectedProposalTime,
+					Address:   common.Address{0x11},
+					Proposer:  proposerAddr,
+				},
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1600, 0),
+					Address:   common.Address{0x22},
+					Proposer:  common.Address{0xee}, // Wrong proposer
+				},
+				gameMetadata{
+					GameType:  1, // Wrong game type
+					Timestamp: time.Unix(1700, 0),
+					Address:   common.Address{0x33},
+					Proposer:  proposerAddr,
+				},
+			)
 
-	t.Run("MultipleMatchingProposalAfterCutOff", func(t *testing.T) {
-		stubRpc, factory := setupDisputeGameFactoryTest(t)
-		expectedProposalTime := time.Unix(1600, 0)
-		withClaims(
-			stubRpc,
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1400, 0),
-				Address:   common.Address{0x11},
-				Proposer:  proposerAddr,
-			},
-			gameMetadata{
-				GameType:  0,
-				Timestamp: time.Unix(1500, 0),
-				Address:   common.Address{0x22},
-				Proposer:  proposerAddr,
-			},
-			gameMetadata{
-				GameType:  0,
-				Timestamp: expectedProposalTime,
-				Address:   common.Address{0x33},
-				Proposer:  proposerAddr,
-			},
-		)
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.True(t, proposed)
+			require.Equal(t, expectedProposalTime, proposalTime)
+			require.Equal(t, common.Hash{0xdd}, claim)
+		})
 
-		proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
-		require.NoError(t, err)
-		require.True(t, proposed)
-		// Should find the most recent proposal
-		require.Equal(t, expectedProposalTime, proposalTime)
-		require.Equal(t, common.Hash{0xdd}, claim)
-	})
+		t.Run("MultipleMatchingProposalAfterCutOff-"+contractType.name, func(t *testing.T) {
+			stubRpc, factory := setupDisputeGameFactoryTest(t)
+			expectedProposalTime := time.Unix(1600, 0)
+			withClaims(
+				stubRpc,
+				contractType.abi,
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1400, 0),
+					Address:   common.Address{0x11},
+					Proposer:  proposerAddr,
+				},
+				gameMetadata{
+					GameType:  0,
+					Timestamp: time.Unix(1500, 0),
+					Address:   common.Address{0x22},
+					Proposer:  proposerAddr,
+				},
+				gameMetadata{
+					GameType:  0,
+					Timestamp: expectedProposalTime,
+					Address:   common.Address{0x33},
+					Proposer:  proposerAddr,
+				},
+			)
+
+			proposed, proposalTime, claim, err := factory.HasProposedSince(context.Background(), proposerAddr, cutOffTime, 0)
+			require.NoError(t, err)
+			require.True(t, proposed)
+			// Should find the most recent proposal
+			require.Equal(t, expectedProposalTime, proposalTime)
+			require.Equal(t, common.Hash{0xdd}, claim)
+		})
+	}
 }
 
 func TestProposalTx(t *testing.T) {
@@ -200,8 +217,7 @@ func TestProposalTx(t *testing.T) {
 	require.Truef(t, bond.Cmp(tx.Value) == 0, "Expected bond %v but was %v", bond, tx.Value)
 }
 
-func withClaims(stubRpc *batchingTest.AbiBasedRpc, games ...gameMetadata) {
-	gameAbi := snapshots.LoadFaultDisputeGameABI()
+func withClaims(stubRpc *batchingTest.AbiBasedRpc, gameAbi *abi.ABI, games ...gameMetadata) {
 	stubRpc.SetResponse(factoryAddr, methodGameCount, rpcblock.Latest, nil, []interface{}{big.NewInt(int64(len(games)))})
 	for i, game := range games {
 		stubRpc.SetResponse(factoryAddr, methodGameAtIndex, rpcblock.Latest, []interface{}{big.NewInt(int64(i))}, []interface{}{
@@ -210,6 +226,9 @@ func withClaims(stubRpc *batchingTest.AbiBasedRpc, games ...gameMetadata) {
 			game.Address,
 		})
 		stubRpc.AddContract(game.Address, gameAbi)
+		// Note: If this method ABI changes, the proposer will need to be updated to handle both the old and new versions
+		// since existing dispute games are never changed and the proposer may need to load a game using an old version
+		// to find its last proposal.
 		stubRpc.SetResponse(game.Address, methodClaim, rpcblock.Latest, []interface{}{big.NewInt(0)}, []interface{}{
 			uint32(math.MaxUint32), // Parent address (none for root claim)
 			common.Address{},       // Countered by

@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // Note: these types are used, instead of the geth types, to enable:
@@ -164,9 +165,11 @@ func (block *RPCBlock) Verify() error {
 		return fmt.Errorf("failed to verify transactions list: computed %s but RPC said %s", computed, block.TxHash)
 	}
 
-	// Withdrawals validation is different between L1 and L2. It is possible to determine that it is an L2 block
-	// if the first transaction is a deposit.
-	isL2 := len(block.Transactions) > 0 && block.Transactions[0].IsDepositTx()
+	// Withdrawals validation is different between L1 and L2.
+	// It is possible to determine that it is an L2 block if the first transaction is a deposit.
+	// The genesis block does not have transactions, but does have a known fee-recipient predeploy address.
+	isL2 := (len(block.Transactions) > 0 && block.Transactions[0].IsDepositTx()) ||
+		(block.Number == 0 && block.Coinbase == predeploys.SequencerFeeVaultAddr)
 	if isL2 {
 		if err := block.validateL2Withdrawals(block.Withdrawals, block.WithdrawalsRoot); err != nil {
 			return err
@@ -254,24 +257,30 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 	}
 
 	payload := &eth.ExecutionPayload{
-		ParentHash:      block.ParentHash,
-		FeeRecipient:    block.Coinbase,
-		StateRoot:       eth.Bytes32(block.Root),
-		ReceiptsRoot:    eth.Bytes32(block.ReceiptHash),
-		LogsBloom:       block.Bloom,
-		PrevRandao:      eth.Bytes32(block.MixDigest), // mix-digest field is used for prevRandao post-merge
-		BlockNumber:     block.Number,
-		GasLimit:        block.GasLimit,
-		GasUsed:         block.GasUsed,
-		Timestamp:       block.Time,
-		ExtraData:       eth.BytesMax32(block.Extra),
-		BaseFeePerGas:   eth.Uint256Quantity(baseFee),
-		BlockHash:       block.Hash,
-		Transactions:    opaqueTxs,
-		Withdrawals:     block.Withdrawals,
-		BlobGasUsed:     block.BlobGasUsed,
-		ExcessBlobGas:   block.ExcessBlobGas,
-		WithdrawalsRoot: block.WithdrawalsRoot,
+		ParentHash:    block.ParentHash,
+		FeeRecipient:  block.Coinbase,
+		StateRoot:     eth.Bytes32(block.Root),
+		ReceiptsRoot:  eth.Bytes32(block.ReceiptHash),
+		LogsBloom:     block.Bloom,
+		PrevRandao:    eth.Bytes32(block.MixDigest), // mix-digest field is used for prevRandao post-merge
+		BlockNumber:   block.Number,
+		GasLimit:      block.GasLimit,
+		GasUsed:       block.GasUsed,
+		Timestamp:     block.Time,
+		ExtraData:     eth.BytesMax32(block.Extra),
+		BaseFeePerGas: eth.Uint256Quantity(baseFee),
+		BlockHash:     block.Hash,
+		Transactions:  opaqueTxs,
+		Withdrawals:   block.Withdrawals,
+		BlobGasUsed:   block.BlobGasUsed,
+		ExcessBlobGas: block.ExcessBlobGas,
+	}
+
+	// Only Isthmus execution payloads must set the withdrawals root.
+	// They are guaranteed to not be the empty withdrawals hash, which is set pre-Isthmus (post-Canyon).
+	if wr := block.WithdrawalsRoot; wr != nil && *wr != types.EmptyWithdrawalsHash {
+		wr := *wr
+		payload.WithdrawalsRoot = &wr
 	}
 
 	return &eth.ExecutionPayloadEnvelope{
