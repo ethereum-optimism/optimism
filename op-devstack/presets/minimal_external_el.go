@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type MinimalExternalEL struct {
@@ -18,9 +17,10 @@ type MinimalExternalEL struct {
 	L1Network *dsl.L1Network
 	L1EL      *dsl.L1ELNode
 
-	L2Chain *dsl.L2Network
-	L2CL    *dsl.L2CLNode
-	L2EL    *dsl.L2ELNode
+	L2Chain      *dsl.L2Network
+	L2CL         *dsl.L2CLNode
+	L2EL         *dsl.L2ELNode
+	L2ELReadOnly *dsl.L2ELNode
 
 	SyncTester *dsl.SyncTester
 }
@@ -31,6 +31,6 @@ func (m *MinimalExternalEL) L2Networks() []*dsl.L2Network {
 	}
 }
 
-func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName))
+func WithExternalELWithSuperchainRegistry(networkPreset stack.ExtNetworkConfig) stack.CommonOption {
+	return stack.MakeCommon(sysgo.ExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, networkPreset))
 }

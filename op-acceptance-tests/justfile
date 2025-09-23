@@ -8,12 +8,6 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 default:
     @just acceptance-test "" base
 
-holocene:
-    @just acceptance-test "" holocene
-
-isthmus:
-    @just acceptance-test "" isthmus
-
 jovian:
     @just acceptance-test jovian jovian
 
@@ -28,7 +22,7 @@ interop:
 #   just acceptance-test "" ""           # In-process gateless mode (all tests)
 #   just acceptance-test "simple" base     # External devnet with specific gate
 #   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
-acceptance-test devnet="" gate="holocene":
+acceptance-test devnet="" gate="base":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -132,7 +126,7 @@ acceptance-test devnet="" gate="holocene":
 
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="holocene":
+acceptance-test-docker devnet="simple" gate="base":
     #!/usr/bin/env bash
     set -euo pipefail
 

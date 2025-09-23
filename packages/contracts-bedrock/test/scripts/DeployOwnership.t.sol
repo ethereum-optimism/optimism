@@ -12,8 +12,7 @@ import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
-import { LivenessGuard } from "src/safe/LivenessGuard.sol";
-import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
@@ -60,35 +59,22 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         _checkSafeConfig(exampleSecurityCouncilConfig.safeConfig, securityCouncilSafe);
 
-        // Guard Checks
-        address livenessGuard = artifacts.mustGetAddress("LivenessGuard");
-
-        // The Safe's getGuard method is internal, so we read directly from storage
-        // https://github.com/safe-global/safe-contracts/blob/v1.4.0/contracts/base/GuardManager.sol#L66-L72
-        assertEq(vm.load(address(securityCouncilSafe), GUARD_STORAGE_SLOT), bytes32(uint256(uint160(livenessGuard))));
-
-        // check that all the owners have a lastLive time in the Guard
-        address[] memory owners = exampleSecurityCouncilConfig.safeConfig.owners;
-        for (uint256 i = 0; i < owners.length; i++) {
-            assertEq(LivenessGuard(livenessGuard).lastLive(owners[i]), block.timestamp);
-        }
-
         // Module Checks
-        address livenessModule = artifacts.mustGetAddress("LivenessModule");
+        address livenessModule = artifacts.mustGetAddress("LivenessModule2");
         (address[] memory modules, address nextModule) =
             ModuleManager(securityCouncilSafe).getModulesPaginated(SENTINEL_MODULES, 2);
         assertEq(modules.length, 1);
         assertEq(modules[0], livenessModule);
         assertEq(nextModule, SENTINEL_MODULES); // ensures there are no more modules in the list
 
-        // LivenessModule checks
+        // LivenessModule2 checks
         LivenessModuleConfig memory lmConfig = exampleSecurityCouncilConfig.livenessModuleConfig;
-        assertEq(address(LivenessModule(livenessModule).livenessGuard()), livenessGuard);
-        assertEq(LivenessModule(livenessModule).livenessInterval(), lmConfig.livenessInterval);
-        assertEq(LivenessModule(livenessModule).thresholdPercentage(), lmConfig.thresholdPercentage);
-        assertEq(LivenessModule(livenessModule).minOwners(), lmConfig.minOwners);
+        (uint256 configuredPeriod, address configuredFallback) =
+            LivenessModule2(livenessModule).livenessSafeConfiguration(address(securityCouncilSafe));
+        assertEq(configuredPeriod, lmConfig.livenessInterval);
+        assertEq(configuredFallback, lmConfig.fallbackOwner);
 
-        // Ensure the threshold on the safe agrees with the LivenessModule's required threshold
-        assertEq(securityCouncilSafe.getThreshold(), LivenessModule(livenessModule).getRequiredThreshold(owners.length));
+        // Verify no active challenge exists initially
+        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(address(securityCouncilSafe)), 0);
     }
 }

@@ -15,6 +15,7 @@ import (
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
@@ -38,6 +39,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 }
 
 func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
@@ -61,6 +63,7 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 }
 
 func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,

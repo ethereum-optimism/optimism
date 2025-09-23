@@ -7,13 +7,11 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-import { LivenessGuard } from "src/safe/LivenessGuard.sol";
-import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
@@ -240,36 +238,14 @@ contract DeployOwnership is Deploy {
         });
     }
 
-    /// @notice Deploy a LivenessGuard for use on the Security Council Safe.
-    ///         Note this function does not have the broadcast modifier.
-    function deployLivenessGuard() public returns (address addr_) {
-        Safe councilSafe = Safe(payable(artifacts.mustGetAddress("SecurityCouncilSafe")));
-        addr_ = address(new LivenessGuard(councilSafe));
-
-        artifacts.save("LivenessGuard", address(addr_));
-        console.log("New LivenessGuard deployed at %s", address(addr_));
-    }
-
-    /// @notice Deploy a LivenessModule for use on the Security Council Safe
+    /// @notice Deploy a LivenessModule2 singleton for use on Security Council Safes
     ///         Note this function does not have the broadcast modifier.
     function deployLivenessModule() public returns (address addr_) {
-        Safe councilSafe = Safe(payable(artifacts.mustGetAddress("SecurityCouncilSafe")));
-        address guard = artifacts.mustGetAddress("LivenessGuard");
-        LivenessModuleConfig memory livenessModuleConfig = _getExampleCouncilConfig().livenessModuleConfig;
+        // Deploy the singleton LivenessModule2 (no parameters needed)
+        addr_ = address(new LivenessModule2());
 
-        addr_ = address(
-            new LivenessModule({
-                _safe: councilSafe,
-                _livenessGuard: LivenessGuard(guard),
-                _livenessInterval: livenessModuleConfig.livenessInterval,
-                _thresholdPercentage: livenessModuleConfig.thresholdPercentage,
-                _minOwners: livenessModuleConfig.minOwners,
-                _fallbackOwner: livenessModuleConfig.fallbackOwner
-            })
-        );
-
-        artifacts.save("LivenessModule", address(addr_));
-        console.log("New LivenessModule deployed at %s", address(addr_));
+        artifacts.save("LivenessModule2", address(addr_));
+        console.log("New LivenessModule2 deployed at %s", address(addr_));
     }
 
     /// @notice Deploy a Security Council Safe.
@@ -319,11 +295,6 @@ contract DeployOwnership is Deploy {
         SecurityCouncilConfig memory exampleCouncilConfig = _getExampleCouncilConfig();
         Safe safe = Safe(artifacts.mustGetAddress("SecurityCouncilSafe"));
 
-        // Deploy and add the Liveness Guard.
-        address guard = deployLivenessGuard();
-        _callViaSafe({ _safe: safe, _target: address(safe), _data: abi.encodeCall(GuardManager.setGuard, (guard)) });
-        console.log("LivenessGuard setup on SecurityCouncilSafe");
-
         // Deploy and add the Liveness Module.
         address livenessModule = deployLivenessModule();
         _callViaSafe({
@@ -332,13 +303,35 @@ contract DeployOwnership is Deploy {
             _data: abi.encodeCall(ModuleManager.enableModule, (livenessModule))
         });
 
+        // Configure the LivenessModule2 (second step of installation)
+        LivenessModuleConfig memory livenessModuleConfig = exampleCouncilConfig.livenessModuleConfig;
+        _callViaSafe({
+            _safe: safe,
+            _target: livenessModule,
+            _data: abi.encodeCall(
+                LivenessModule2.configureLivenessModule,
+                (
+                    LivenessModule2.ModuleConfig({
+                        livenessResponsePeriod: livenessModuleConfig.livenessInterval,
+                        fallbackOwner: livenessModuleConfig.fallbackOwner
+                    })
+                )
+            )
+        });
+
         // Finalize configuration by removing the additional deployer key.
         removeDeployerFromSafe({ _name: "SecurityCouncilSafe", _newThreshold: exampleCouncilConfig.safeConfig.threshold });
 
-        address[] memory owners = safe.getOwners();
+        // Verify the module was configured correctly
+        (uint256 configuredPeriod, address configuredFallback) =
+            LivenessModule2(livenessModule).livenessSafeConfiguration(address(safe));
         require(
-            safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
-            "DeployOwnership: safe threshold must be equal to the LivenessModule's required threshold"
+            configuredPeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
+            "DeployOwnership: configured liveness interval must match expected value"
+        );
+        require(
+            configuredFallback == exampleCouncilConfig.livenessModuleConfig.fallbackOwner,
+            "DeployOwnership: configured fallback owner must match expected value"
         );
 
         addr_ = address(safe);

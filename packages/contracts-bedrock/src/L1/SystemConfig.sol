@@ -161,9 +161,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.8.0
+    /// @custom:semver 3.9.0
     function version() public pure virtual returns (string memory) {
-        return "3.8.0";
+        return "3.9.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -507,7 +507,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         // As a sanity check, prevent users from enabling the feature if already enabled or
         // disabling the feature if already disabled. This helps to prevent accidental misuse.
-        if ((_enabled && isFeatureEnabled[_feature]) || (!_enabled && !isFeatureEnabled[_feature])) {
+        if (_enabled == isFeatureEnabled[_feature]) {
             revert SystemConfig_InvalidFeatureState();
         }
 

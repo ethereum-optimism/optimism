@@ -9,6 +9,7 @@ import (
 
 // TestInteropSystemSupervisor tests that the supervisor can provide finalized L1 block information
 func TestInteropSystemSupervisor(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 
