@@ -269,6 +269,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	}
 	l2ChallengesMonitor := NewL2ChallengesMonitor(s.logger, s.metrics)
 	updateTimeMonitor := NewUpdateTimeMonitor(s.cl, s.metrics)
+	nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(s.logger, s.metrics)
 	s.monitor = newGameMonitor(ctx, s.logger, s.cl, s.metrics, cfg.MonitorInterval, cfg.GameWindow, headBlockFetcher,
 		s.extractor.Extract,
 		s.forecast.Forecast,
@@ -277,7 +278,8 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		s.claims.CheckClaims,
 		s.withdrawals.CheckWithdrawals,
 		l2ChallengesMonitor.CheckL2Challenges,
-		updateTimeMonitor.CheckUpdateTimes)
+		updateTimeMonitor.CheckUpdateTimes,
+		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors)
 }
 
 func (s *Service) Start(ctx context.Context) error {

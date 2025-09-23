@@ -159,6 +159,7 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 		BlockNumberChallenged: meta.L2BlockNumberChallenged,
 		BlockNumberChallenger: meta.L2BlockNumberChallenger,
 		Claims:                enrichedClaims,
+		RollupEndpointErrors:  make(map[string]bool),
 	}
 	if err := e.applyEnrichers(ctx, blockHash, caller, enrichedGame); err != nil {
 		return nil, fmt.Errorf("failed to enrich game: %w", err)

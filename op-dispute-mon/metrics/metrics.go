@@ -179,6 +179,8 @@ type Metricer interface {
 
 	RecordIgnoredGames(count int)
 
+	RecordNodeEndpointErrors(count int)
+
 	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
@@ -230,6 +232,7 @@ type Metrics struct {
 	l2Challenges               prometheus.GaugeVec
 
 	requiredCollateral  prometheus.GaugeVec
+	nodeEndpointErrors  prometheus.Gauge
 	availableCollateral prometheus.GaugeVec
 }
 
@@ -398,6 +401,11 @@ func NewMetrics() *Metrics {
 			// An l2 block number challenge with an agreement means the challenge was invalid.
 			"root_agreement",
 		}),
+		nodeEndpointErrors: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "node_endpoint_errors",
+			Help:      "Number of rollup node RPC endpoints that returned at least one error other than \"not found\" in the last update cycle",
+		}),
 	}
 }
 
@@ -533,6 +541,10 @@ func (m *Metrics) RecordIgnoredGames(count int) {
 
 func (m *Metrics) RecordFailedGames(count int) {
 	m.failedGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordNodeEndpointErrors(count int) {
+	m.nodeEndpointErrors.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {

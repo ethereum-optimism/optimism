@@ -59,6 +59,9 @@ type EnrichedGameData struct {
 	// This ETH balance will be used to pay out any bonds required by the games
 	// that use the same DelayedWETH contract.
 	ETHCollateral *big.Int
+
+	// RollupEndpointErrors stores endpoint IDs that returned errors other than "not found" for this game.
+	RollupEndpointErrors map[string]bool
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.

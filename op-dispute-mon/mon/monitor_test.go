@@ -158,3 +158,50 @@ func (m *mockExtractor) Extract(
 	}
 	return m.games, m.ignoredCount, m.failedCount, nil
 }
+
+func TestMonitor_NodeEndpointErrorsMonitorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NodeEndpointErrorsMonitorCalledWithGamesData", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games with endpoint errors
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata: types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointErrors: map[string]bool{
+					"endpoint_1": true,
+					"endpoint_2": true,
+				},
+			},
+			{
+				GameMetadata: types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointErrors: map[string]bool{
+					"endpoint_2": true, // Overlapping with first game
+					"endpoint_3": true,
+				},
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		nodeEndpointErrorsMetrics := &stubNodeEndpointErrorsMetrics{}
+		nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(logger, nodeEndpointErrorsMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, nodeEndpointErrorsMonitor.CheckNodeEndpointErrors)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that NodeEndpointErrorsMonitor was called and recorded the correct count
+		// Should count unique endpoints: endpoint_1, endpoint_2, endpoint_3 = 3 total
+		require.Equal(t, 3, nodeEndpointErrorsMetrics.recordedCount)
+	})
+}
