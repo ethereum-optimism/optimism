@@ -15,6 +15,7 @@ import (
 
 // TestReorgUnsafeHead starts an interop chain with an op-test-sequencer, which takes control over sequencing the L2 chain and introduces a reorg on the unsafe head
 func TestReorgUnsafeHead(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 

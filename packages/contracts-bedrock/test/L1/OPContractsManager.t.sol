@@ -435,7 +435,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(true);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.PERMISSIONED_CANNON);
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
@@ -454,9 +454,9 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     /// @notice Tests that we can add a FaultDisputeGame implementation with addGameType.
-    function test_addGameType_permissionless_succeeds() public {
+    function test_addGameType_cannon_succeeds() public {
         // Create the input for the Permissionless game type.
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(false);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
@@ -476,7 +476,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     /// @notice Tests that we can add a SuperPermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissionedSuper_succeeds() public {
         // Create the input for the Super game type.
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(true);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
         input.disputeGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
 
         // Since OPCM will start with the standard Permissioned (non-Super) game type we won't have
@@ -515,10 +515,9 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     /// @notice Tests that we can add a SuperFaultDisputeGame implementation with addGameType.
-    function test_addGameType_permissionlessSuper_succeeds() public {
+    function test_addGameType_superCannon_succeeds() public {
         // Create the input for the Super game type.
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(false);
-        input.disputeGameType = GameTypes.SUPER_CANNON;
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON);
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
@@ -538,8 +537,31 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that addGameType will revert if the game type is not supported.
     function test_addGameType_unsupportedGameType_reverts() public {
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(false);
-        input.disputeGameType = GameType.wrap(2000);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameType.wrap(2000));
+
+        // Run the addGameType call, should revert.
+        IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
+        inputs[0] = input;
+        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (inputs)));
+        assertFalse(success, "addGameType should have failed");
+    }
+
+    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
+    function test_addGameType_cannonKonaGameTypeDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
+
+        // Run the addGameType call, should revert.
+        IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
+        inputs[0] = input;
+        (bool success,) = address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (inputs)));
+        assertFalse(success, "addGameType should have failed");
+    }
+
+    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
+    function test_addGameType_superCannonKonaGameTypeDisabled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
 
         // Run the addGameType call, should revert.
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
@@ -560,7 +582,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             )
         );
         vm.etch(address(delayedWETH), hex"01");
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(false);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         input.delayedWETH = delayedWETH;
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
         assertValidGameType(input, output);
@@ -568,10 +590,8 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     function test_addGameType_outOfOrderInputs_reverts() public {
-        IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(false);
-        input1.disputeGameType = GameType.wrap(2);
-        IOPContractsManager.AddGameInput memory input2 = newGameInputFactory(false);
-        input2.disputeGameType = GameType.wrap(1);
+        IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameType.wrap(2));
+        IOPContractsManager.AddGameInput memory input2 = newGameInputFactory(GameType.wrap(1));
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](2);
         inputs[0] = input1;
         inputs[1] = input2;
@@ -582,7 +602,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     function test_addGameType_duplicateGameType_reverts() public {
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(false);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](2);
         inputs[0] = input;
         inputs[1] = input;
@@ -604,7 +624,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     }
 
     function test_addGameType_notDelegateCall_reverts() public {
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(true);
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.PERMISSIONED_CANNON);
         IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
         inputs[0] = input;
 
@@ -637,13 +657,13 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         return addGameOutAll[0];
     }
 
-    function newGameInputFactory(bool permissioned) internal view returns (IOPContractsManager.AddGameInput memory) {
+    function newGameInputFactory(GameType _gameType) internal view returns (IOPContractsManager.AddGameInput memory) {
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: chainDeployOutput1.systemConfigProxy,
             proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             delayedWETH: IDelayedWETH(payable(address(0))),
-            disputeGameType: GameType.wrap(permissioned ? 1 : 0),
+            disputeGameType: _gameType,
             disputeAbsolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
             disputeMaxGameDepth: 73,
             disputeSplitDepth: 30,
@@ -651,7 +671,8 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             disputeMaxClockDuration: Duration.wrap(302400),
             initialBond: 1 ether,
             vm: IBigStepper(address(opcm.implementations().mipsImpl)),
-            permissioned: permissioned
+            permissioned: _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
     }
 
@@ -702,6 +723,56 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         assertEq(
             chainDeployOutput1.disputeGameFactoryProxy.initBonds(agi.disputeGameType), agi.initialBond, "bond mismatch"
         );
+    }
+}
+
+/// @title OPContractsManager_AddGameTypeCannonKonaEnabled_Test
+/// @notice Tests the `addGameType` function of the `OPContractsManager` contract with CANNON_KONA enabled.
+contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsManager_AddGameType_Test {
+    function setUp() public override {
+        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        super.setUp();
+    }
+
+    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
+    function test_addGameType_cannonKonaGameType_succeeds() public {
+        // Create the input for the cannon-kona game type.
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
+
+        // Run the addGameType call.
+        IOPContractsManager.AddGameOutput memory output = addGameType(input);
+        assertValidGameType(input, output);
+
+        // Check the values on the new game type.
+        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
+
+        // Proposer call should revert because this is a permissionless game.
+        vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
+        notPDG.proposer();
+
+        // L2 chain ID call should not revert because this is not a Super game.
+        assertNotEq(notPDG.l2ChainId(), 0, "l2ChainId should not be zero");
+    }
+
+    /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
+    function test_addGameType_superCannonKonaGameType_succeeds() public {
+        // Create the input for the cannon-kona game type.
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
+
+        // Run the addGameType call.
+        IOPContractsManager.AddGameOutput memory output = addGameType(input);
+        assertValidGameType(input, output);
+
+        // Grab the new game type.
+        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
+
+        // Proposer should fail, this is a permissionless game.
+        vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
+        notPDG.proposer();
+
+        // Super games don't have the l2ChainId function.
+        vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
+        notPDG.l2ChainId();
     }
 }
 

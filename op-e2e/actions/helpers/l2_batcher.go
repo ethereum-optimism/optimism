@@ -42,6 +42,7 @@ type L1TxAPI interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
+	BlobBaseFee(ctx context.Context) (*big.Int, error)
 }
 
 type AltDAInputSetter interface {
@@ -375,7 +376,8 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-		blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
+		blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
+		require.NoError(t, err, "need blob base fee")
 		blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 		if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 			blobFeeCap = uint256.NewInt(params.GWei)
@@ -458,8 +460,8 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 
 	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
 	require.NoError(t, err)
-	require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-	blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
+	blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
+	require.NoError(t, err, "need blob base fee")
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)

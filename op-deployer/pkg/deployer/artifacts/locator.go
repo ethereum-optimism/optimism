@@ -98,11 +98,29 @@ func (a *Locator) UnmarshalText(text []byte) error {
 }
 
 func (a *Locator) MarshalText() ([]byte, error) {
-	if a.URL.String() == embeddedURL.String() {
+	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
 		return []byte("embedded"), nil
 	}
 
 	return []byte(a.URL.String()), nil
+}
+
+func (a *Locator) MarshalTOML() ([]byte, error) {
+	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
+		return []byte(`"embedded"`), nil
+	}
+	return []byte(`"` + a.URL.String() + `"`), nil
+}
+
+func (a *Locator) UnmarshalTOML(i interface{}) error {
+	switch v := i.(type) {
+	case string:
+		return a.UnmarshalText([]byte(v))
+	case []byte:
+		return a.UnmarshalText(v)
+	default:
+		return fmt.Errorf("unsupported type for TOML unmarshaling: %T", i)
+	}
 }
 
 func (a *Locator) Equal(b *Locator) bool {

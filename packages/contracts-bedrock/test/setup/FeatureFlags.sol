@@ -36,6 +36,10 @@ contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
             devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
         }
+        if (Config.devFeatureCannonKona()) {
+            console.log("Setup: DEV_FEATURE__CANNON_KONA is enabled");
+            devFeatureBitmap |= DevFeatures.CANNON_KONA;
+        }
     }
 
     /// @notice Enables a feature.
