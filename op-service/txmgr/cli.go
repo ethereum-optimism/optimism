@@ -44,6 +44,7 @@ const (
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
+	EnableCellProofsFlagName           = "txmgr.enable-cell-proofs"
 )
 
 var (
@@ -238,6 +239,12 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Usage:   "List of custom RPC error messages that indicate that a transaction has already been published.",
 			EnvVars: prefixEnvVars("TXMGR_ALREADY_PUBLISHED_CUSTOM_ERRS"),
 		},
+		&cli.BoolFlag{
+			Name:    EnableCellProofsFlagName,
+			Usage:   "Enable cell proofs in blob transactions for Fusaka (EIP-7742) compatibility",
+			Value:   true,
+			EnvVars: prefixEnvVars("TXMGR_ENABLE_CELL_PROOFS"),
+		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -266,6 +273,7 @@ type CLIConfig struct {
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
+	EnableCellProofs           bool
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -285,6 +293,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		TxSendTimeout:             defaults.TxSendTimeout,
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
+		EnableCellProofs:          true, // Enable cell proofs by default for Fusaka compatibility
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
 	}
 }
@@ -460,6 +469,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MaxTipCap.Store(maxTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
+	res.EnableCellProofs.Store(cfg.EnableCellProofs)
 
 	return &res, nil
 }
@@ -497,6 +507,10 @@ type Config struct {
 	MaxTipCap atomic.Pointer[big.Int]
 
 	MinBlobTxFee atomic.Pointer[big.Int]
+
+	// EnableCellProofs determines whether to use cell proofs (Version1 sidecars)
+	// for Fusaka (EIP-7742) compatibility. If false, uses legacy blob proofs (Version0).
+	EnableCellProofs atomic.Bool
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int
