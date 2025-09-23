@@ -56,6 +56,10 @@ func (b *mockBackendWithNonce) NonceAt(ctx context.Context, account common.Addre
 	return uint64(len(b.minedTxs)), nil
 }
 
+func (b *mockBackendWithNonce) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
+}
+
 func TestQueue_Send(t *testing.T) {
 	testCases := []struct {
 		name   string      // name of the test
@@ -298,6 +302,10 @@ func (b *mockBackendWithConfirmationDelay) MineAll() {
 	for hash, tx := range b.cachedTxs {
 		b.mine(&hash, tx.GasFeeCap(), nil)
 	}
+}
+
+func (b *mockBackendWithConfirmationDelay) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
 }
 
 // Simple test that we can call q.Send() up to the maxPending limit without blocking.

@@ -346,6 +346,10 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 func (b *mockBackend) Close() {
 }
 
+func (b *mockBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
+}
+
 type testSendVariantsFn func(ctx context.Context, h *testHarness, tx TxCandidate) (*types.Receipt, error)
 
 func testSendVariants(t *testing.T, testFn func(t *testing.T, send testSendVariantsFn)) {
@@ -1092,6 +1096,10 @@ func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
 }
 
 func (b *failingBackend) Close() {
+}
+
+func (b *failingBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return nil, errors.New("unimplemented")
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to
