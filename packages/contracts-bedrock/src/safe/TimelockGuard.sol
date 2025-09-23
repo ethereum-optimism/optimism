@@ -99,7 +99,6 @@ contract TimelockGuard is IGuard, ISemver {
     string public constant version = "1.0.0";
 
     /// @notice Returns the timelock delay for a given Safe
-    /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
     function timelockConfigurationForSafe(Safe _safe) public view returns (GuardConfig memory) {
@@ -139,13 +138,6 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
-    /// @dev MUST allow an arbitrary number of Safe contracts to use the contract as a guard
-    /// @dev MUST revert if the contract is not enabled as a guard for the Safe
-    /// @dev MUST revert if timelock_delay is longer than 1 year
-    /// @dev MUST set the caller as a Safe
-    /// @dev MUST take timelock_delay as a parameter and store it as related to the Safe
-    /// @dev MUST emit a GuardConfigured event with at least timelock_delay as a parameter
-    /// @dev If _timelockDelay is 0, clears the configuration for the Safe
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
     function configureTimelockGuard(uint256 _timelockDelay) external {
         Safe callingSafe = Safe(payable(msg.sender));
@@ -175,7 +167,6 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Returns the blocking threshold threshold for a given safe
-    /// @dev MUST NOT revert
     /// @return The current blocking threshold
     function _blockingThreshold(Safe _safe) internal view returns (uint256) {
         // The blocking threshold is the number of owners who can coordinate to block a transaction
@@ -184,8 +175,6 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Returns the cancellation threshold for a given safe
-    /// @dev MUST NOT revert
-    /// @dev MUST return 0 if the contract is not enabled as a guard for the safe
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
     function cancellationThresholdForSafe(Safe _safe) public view returns (uint256) {
@@ -217,9 +206,6 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.
-    /// @dev Minimal implementation: checks enabled+configured, uniqueness, cancellation, stores execution time and
-    /// emits.
-    /// @dev The txId is computed independent of Safe nonce using all exec params (with keccak(data)).
     function scheduleTransaction(
         Safe _safe,
         uint256 _nonce,
@@ -293,20 +279,15 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Cancel a scheduled transaction if cancellation threshold is met
     /// @dev This function aims to mimic the approach which would be used by a quorum of signers to
-    ///      cancel a partially signed transaction, which would be to sign and execute an empty
+    ///      cancel a partially signed transaction, by signing and executing an empty
     ///      transaction at the same nonce.
-    ///      This enables us to deterministically generate the transaction inputs for a cancellation
-    ///      transaction from the transaction being cancelled.
-    ///      In this case however we cannot use a completely empty transaction (with all inputs other than the nonce
-    /// being null),
-    ///      as that would allow for the signatures used to cancel one transaction at nonce X to
-    ///      be used to cancel all transactions at nonce X.
+    ///      This enables us to define a standard "cancellation transaction" format using the Safe address, nonce,
+    ///      and hash of the transaction being cancelled. This is necessary to ensure that the cancellation transaction
+    ///      is unique and cannot be used to cancel another transaction at the same nonce.
     ///
-    ///      Therefore we define a custom set of inputs for a cancellation transaction, based on the
-    ///      Safe's address as well as the nonce and hash of the transaction being cancelled.
-    ///
-    ///      Since the Safe's checkNSignatures function is used, the owner can use any method
-    ///      to sign the cancellation transaction inputs, including signing with a private key,
+    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures required
+    ///      can be set by the Safe's current cancellation threshold. Another benefit of checkNSignatures is that owners
+    ///      can use any method to sign the cancellation transaction inputs, including signing with a private key,
     ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
     function cancelTransaction(Safe _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external {
         if (_scheduledTransactions[_safe][_txHash].cancelled) {
