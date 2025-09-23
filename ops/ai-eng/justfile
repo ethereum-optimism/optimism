@@ -1,0 +1,7 @@
+# AI Engineering Tools
+
+# Contract Test Maintenance
+
+# Run the contract test ranking script
+rank:
+    cd contracts-test-maintenance/tests_ranker && python3 test_ranker.py

@@ -17,22 +17,24 @@ type DefaultMinimalExternalELSystemIDs struct {
 	L1EL stack.L1ELNodeID
 	L1CL stack.L1CLNodeID
 
-	L2   stack.L2NetworkID
-	L2CL stack.L2CLNodeID
-	L2EL stack.L2ELNodeID
+	L2           stack.L2NetworkID
+	L2CL         stack.L2CLNodeID
+	L2EL         stack.L2ELNodeID
+	L2ELReadOnly stack.L2ELNodeID
 
 	SyncTester stack.SyncTesterID
 }
 
 func NewExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalExternalELSystemIDs {
 	ids := DefaultMinimalExternalELSystemIDs{
-		L1:         stack.L1NetworkID(l1ID),
-		L1EL:       stack.NewL1ELNodeID("l1", l1ID),
-		L1CL:       stack.NewL1CLNodeID("l1", l1ID),
-		L2:         stack.L2NetworkID(l2ID),
-		L2CL:       stack.NewL2CLNodeID("verifier", l2ID),
-		L2EL:       stack.NewL2ELNodeID("sync-tester-el", l2ID),
-		SyncTester: stack.NewSyncTesterID("sync-tester", l2ID),
+		L1:           stack.L1NetworkID(l1ID),
+		L1EL:         stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:         stack.NewL1CLNodeID("l1", l1ID),
+		L2:           stack.L2NetworkID(l2ID),
+		L2CL:         stack.NewL2CLNodeID("verifier", l2ID),
+		L2EL:         stack.NewL2ELNodeID("sync-tester-el", l2ID),
+		L2ELReadOnly: stack.NewL2ELNodeID("l2-el-readonly", l2ID),
+		SyncTester:   stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 	return ids
 }
@@ -85,6 +87,8 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
 	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2EL))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithExtL2Node(ids.L2ELReadOnly, networkPreset.L2ELEndpoint))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
