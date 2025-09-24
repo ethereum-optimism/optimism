@@ -28,6 +28,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     unless the transaction has first been scheduled by calling scheduleTransaction() on this contract. Because
 ///     scheduleTransaction() uses the Safe's own signature verification logic, the same signatures used
 ///     to execute a transaction can be used to schedule it.
+///     !Note: this guard does not apply a delay to transactions executed by modules which are installed on the Safe.
 /// Cancelling transactions:
 ///     Once a transaction has been scheduled, so long as it has not already been executed, it can be
 ///     cancelled by calling cancelTransaction() on this contract.
@@ -35,6 +36,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     As an 'anti-griefing' mechanism, the cancellation threshold (the number of signatures required to cancel a
 ///     transaction) starts at 1, and is automatically increased by 1 after each cancellation.
 ///     The cancellation threshold is reset to 1 after any transaction is executed successfully.
+/// Safe Version Compatibility:
+///     This guard is compatible with Safe versions 1.3.0 and higher. Earlier versions of the Safe do not expose
+///     the checkSignatures or checkNSignatures functions required by this guard.
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -113,6 +117,7 @@ contract TimelockGuard is IGuard, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Returns the blocking threshold threshold for a given safe
+    /// @param _safe The Safe address to query
     /// @return The current blocking threshold
     function _blockingThreshold(Safe _safe) internal view returns (uint256) {
         // The blocking threshold is the number of owners who can coordinate to block a transaction
@@ -133,6 +138,7 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Returns the maximum cancellation threshold for a given safe
+    /// @param _safe The Safe address to query
     /// @return The maximum cancellation threshold
     function maxCancellationThreshold(Safe _safe) public view returns (uint256) {
         uint256 blockingThreshold = _blockingThreshold(_safe);
@@ -188,7 +194,12 @@ contract TimelockGuard is IGuard, ISemver {
     function pendingTransactionsForSafe(Safe _safe) external view returns (ScheduledTransaction[] memory) {
         SafeState storage safeState = _safeState[_safe];
 
+        // Get the list of pending transaction hashes
         bytes32[] memory hashes = safeState.pendingTxHashes.values();
+
+        // We want to provide the caller with the full parameters of each pending transaction, but mappings are not
+        // iterable, so we use the enumerable set of pending transaction hashes to retrieve the ScheduledTransaction
+        // struct for each hash, and then return an array of the ScheduledTransaction structs.
         ScheduledTransaction[] memory scheduled = new ScheduledTransaction[](hashes.length);
         for (uint256 i = 0; i < hashes.length; i++) {
             scheduled[i] = safeState.scheduledTransactions[hashes[i]];
@@ -287,6 +298,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Increase the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling cancel
+    /// @param _safe The Safe address to increase the cancellation threshold for.
     function _increaseCancellationThreshold(Safe _safe) internal {
         SafeState storage safeState = _safeState[_safe];
 
@@ -299,6 +311,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Reset the cancellation threshold for a safe
     /// @dev This function must be called only once and only when calling checkAfterExecution
+    /// @param _safe The Safe address to reset the cancellation threshold for.
     function _resetCancellationThreshold(Safe _safe) internal {
         SafeState storage safeState = _safeState[_safe];
         uint256 oldThreshold = safeState.cancellationThreshold;
@@ -311,11 +324,19 @@ contract TimelockGuard is IGuard, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
+    /// @dev This function is only callable by the Safe itself, and will revert if the guard is not enabled on the Safe.
+    ///      Requiring a call from the Safe itself (rather than accepting signatures directly as in cancelTransaction())
+    ///      is important to ensure that maliciously gathered signatures will not be able to instantly reconfigure
+    ///      the delay to zero.
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
     function configureTimelockGuard(uint256 _timelockDelay) external {
+        // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
 
         // Check that this guard is enabled on the calling Safe
+        // There is nothing inherently wrong with configuring the guard on a safe that it is not enabled on,
+        // but we choose to revert here to avoid users from mistakenly believing that simply configuring the guard
+        // is enough to activate the delay.
         if (!_isGuardEnabled(callingSafe)) {
             revert TimelockGuard_GuardNotEnabled();
         }
@@ -325,16 +346,24 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
-        // Store the configuration for this safe
-        SafeState storage safeState = _safeState[callingSafe];
-        safeState.timelockDelay = _timelockDelay;
+        // Store the timelock delay for this safe
+        _safeState[callingSafe].timelockDelay = _timelockDelay;
 
-        // Initialize cancellation threshold to 1
+        // Initialize or reset the cancellation threshold to 1
         _resetCancellationThreshold(callingSafe);
         emit GuardConfigured(callingSafe, _timelockDelay);
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.
+    /// @dev This function validates signatures in the exact same way as the Safe's own execTransaction function,
+    ///      meaning that the same signatures used to schedule a transaction can be used to execute it later. This
+    ///      maintains compatibility with existing signature generation tools. Owners can use any method to sign the
+    ///      a transaction, including signing with a private key, calling the Safe's approveHash function, or EIP1271
+    ///      contract signatures.
+    /// @param _safe The Safe address to schedule the transaction for.
+    /// @param _nonce The nonce of the Safe for the transaction being scheduled.
+    /// @param _params The parameters of the transaction being scheduled.
+    /// @param _signatures The signatures of the owners who are scheduling the transaction.
     function scheduleTransaction(
         Safe _safe,
         uint256 _nonce,
@@ -398,7 +427,7 @@ contract TimelockGuard is IGuard, ISemver {
         // Calculate the execution time
         uint256 executionTime = block.timestamp + _safeState[_safe].timelockDelay;
 
-        // Schedule the transaction
+        // Schedule the transaction and add it to the pending transactions set
         _safeState[_safe].scheduledTransactions[txHash] =
             ScheduledTransaction({ executionTime: executionTime, cancelled: false, executed: false, params: _params });
         _safeState[_safe].pendingTxHashes.add(txHash);
@@ -415,11 +444,20 @@ contract TimelockGuard is IGuard, ISemver {
     ///      is unique and cannot be used to cancel another transaction at the same nonce.
     ///
     ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures
-    /// required
     ///      can be set by the Safe's current cancellation threshold. Another benefit of checkNSignatures is that owners
     ///      can use any method to sign the cancellation transaction inputs, including signing with a private key,
     ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
+    /// @param _safe The Safe address to cancel the transaction for.
+    /// @param _txHash The hash of the transaction being cancelled.
+    /// @param _nonce The nonce of the Safe for the transaction being cancelled.
+    /// @param _signatures The signatures of the owners who are cancelling the transaction.
     function cancelTransaction(Safe _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external {
+        // The following checks ensure that the transaction has:
+        // 1. Been scheduled
+        // 2. Not already been cancelled
+        // 3. Not already been executed
+        // There is nothing inherently wrong with cancelling a transaction a transaction that doesn't meet these criteria,
+        // but we revert in order to inform the user, and avoid emitting a misleading TransactionCancelled event.
         if (_safeState[_safe].scheduledTransactions[_txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
@@ -438,15 +476,23 @@ contract TimelockGuard is IGuard, ISemver {
         bytes32 cancellationTxHash = _safe.getTransactionHash(
             address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
+
+        // Verify signatures using the Safe's signature checking logic, with the cancellation threshold as
+        // the number of signatures required.
         _safe.checkNSignatures(
             cancellationTxHash, cancellationTxData, _signatures, _safeState[_safe].cancellationThreshold
         );
+
+        // Set the transaction as cancelled, and remove it from the pending transactions set
         _safeState[_safe].scheduledTransactions[_txHash].cancelled = true;
         _safeState[_safe].pendingTxHashes.remove(_txHash);
+
+        // Increase the cancellation threshold
         _increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash);
     }
+
     ////////////////////////////////////////////////////////////////
     //                      Dummy Functions                       //
     ////////////////////////////////////////////////////////////////
@@ -454,6 +500,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data
     /// @dev This function is not meant to be called, use cancelTransaction instead
     function cancelTransactionOnSafe(Safe, bytes32) public {
+        // Reverting here may cause issues for some signing tooling, but it is better to revert than for
+        // to silently fail, potentially allowing the caller to believe that the transaction has been cancelled.
         revert("This function is not meant to be called, use cancelTransaction instead");
     }
 }
