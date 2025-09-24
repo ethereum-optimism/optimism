@@ -26,7 +26,7 @@ just render
 
 ### Test Ranking Output
 
-The `just rank` command generates `tests_ranker/output/ranking.json`:
+The `just rank` command generates `components/tests_ranker/output/ranking.json`:
 
 ```json
 {
@@ -54,6 +54,6 @@ The `just rank` command generates `tests_ranker/output/ranking.json`:
 
 ### Prompt Renderer Output
 
-The `just render` command generates a markdown file in `prompt-renderer/output/` with the name format `{ContractName}_prompt.md`. This file contains the AI prompt template with the highest-priority test and contract paths filled in, ready to be used for test maintenance analysis.
+The `just render` command generates a markdown file in `components/prompt-renderer/output/` with the name format `{ContractName}_prompt.md`. This file contains the AI prompt template with the highest-priority test and contract paths filled in, ready to be used for test maintenance analysis.
 
 For example, if the top-ranked test is `ProtocolVersions.t.sol`, the output file will be `ProtocolVersions_prompt.md`.

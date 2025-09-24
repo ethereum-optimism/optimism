@@ -11,7 +11,7 @@ from pathlib import Path
 def load_ranking_data():
     """Load the ranking JSON file and return the first entry."""
     ranking_file = (
-        Path(__file__).parent.parent / "tests_ranker" / "output" / "ranking.json"
+        Path(__file__).parent / "../tests_ranker" / "output" / "ranking.json"
     )
 
     with open(ranking_file, "r") as f:
@@ -25,7 +25,7 @@ def load_ranking_data():
 
 def load_prompt_template():
     """Load the prompt template markdown file."""
-    prompt_file = Path(__file__).parent.parent / "prompt" / "prompt.md"
+    prompt_file = Path(__file__).parent.parent.parent / "prompt" / "prompt.md"
 
     with open(prompt_file, "r") as f:
         return f.read()

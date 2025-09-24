@@ -106,7 +106,7 @@ def get_base_paths() -> tuple[Path, Path, Path]:
     Returns:
         Tuple of (repo_root, contracts_bedrock, output_dir) paths.
     """
-    repo_root = Path(__file__).parent.parent.parent.parent.parent
+    repo_root = Path(__file__).parent.parents[4]
     contracts_bedrock = repo_root / "packages" / "contracts-bedrock"
     output_dir = Path(__file__).parent / "output"
     return repo_root, contracts_bedrock, output_dir
@@ -161,7 +161,7 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
         FileNotFoundError: If exclusions.toml file is not found.
         tomllib.TOMLDecodeError: If TOML file is malformed.
     """
-    exclusions_file = Path(__file__).parent.parent / "exclusion.toml"
+    exclusions_file = Path(__file__).parent.parent.parent / "exclusion.toml"
 
     with exclusions_file.open("rb") as f:
         exclusions = tomllib.load(f)
