@@ -26,7 +26,7 @@ func TestDefaultHardforkScheduleForTag(t *testing.T) {
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.Nil(t, sched.IsthmusTime(0))
 
-	sched = DefaultHardforkScheduleForTag(ContractsV300Tag)
+	sched = DefaultHardforkScheduleForTag(ContractsV301Tag)
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.Nil(t, sched.IsthmusTime(0))
 }
