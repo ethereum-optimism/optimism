@@ -358,9 +358,9 @@ type SystemConfig struct {
 type System struct {
 	Cfg SystemConfig
 
-	RollupConfig *rollup.Config
-
-	L2GenesisCfg *core.Genesis
+	RollupConfig  *rollup.Config
+	L1ChainConfig *params.ChainConfig
+	L2GenesisCfg  *core.Genesis
 
 	// Connections to running nodes
 	EthInstances      map[string]services.EthInstance
@@ -628,6 +628,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	if err != nil {
 		return nil, err
 	}
+
+	sys.L1ChainConfig = l1Genesis.Config
 
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l1Genesis.Alloc[addr]; ok {
