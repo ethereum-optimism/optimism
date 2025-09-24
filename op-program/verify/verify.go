@@ -36,6 +36,7 @@ type Runner struct {
 	dataDir      string
 	network      string
 	chainCfg     *params.ChainConfig
+	l1ChainCfg   *params.ChainConfig
 	l2Client     *sources.L2Client
 	logCfg       oplog.CLIConfig
 	setupLog     log.Logger
@@ -210,7 +211,7 @@ func (r *Runner) run(ctx context.Context, l1Head common.Hash, agreedBlockInfo et
 
 	if r.runInProcess {
 		offlineCfg := config.NewSingleChainConfig(
-			r.rollupCfg, r.chainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
+			r.rollupCfg, r.chainCfg, r.l1ChainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
 		offlineCfg.DataDir = r.dataDir
 
 		onlineCfg := *offlineCfg
