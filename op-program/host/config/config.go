@@ -282,6 +282,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	var err error
 	var rollupCfgs []*rollup.Config
 	var l2ChainConfigs []*params.ChainConfig
+	var l1ChainConfigs []*params.ChainConfig
 	var l2ChainID eth.ChainID
 	var dependencySet depset.DependencySet
 	networkNames := ctx.StringSlice(flags.Network.Name)
@@ -305,6 +306,13 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("failed to load rollup config for chain %d: %w", chainID, err)
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
+
+		switch {
+		case rollupCfg.L1ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
+			l1ChainConfigs = append(l1ChainConfigs, params.MainnetChainConfig)
+		case rollupCfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
+			l1ChainConfigs = append(l1ChainConfigs, params.SepoliaChainConfig)
+		}
 
 		if interopEnabled {
 			depSet, err := depset.FromRegistry(chainID)
@@ -334,8 +342,17 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			return nil, fmt.Errorf("invalid rollup config: %w", err)
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
-
 	}
+
+	l1ChainConfigPaths := ctx.StringSlice(flags.L1ChainConfig.Name)
+	for _, l1ChainConfigPath := range l1ChainConfigPaths {
+		l1ChainConfig, err := loadChainConfigFromGenesis(l1ChainConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid l1 chain config: %w", err)
+		}
+		l1ChainConfigs = append(l1ChainConfigs, l1ChainConfig)
+	}
+
 	if ctx.Bool(flags.L2Custom.Name) {
 		log.Warn("Using custom chain configuration via preimage oracle. This is not compatible with on-chain execution.")
 		l2ChainID = boot.CustomChainIDIndicator
@@ -364,6 +381,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	return &Config{
 		L2ChainID:          l2ChainID,
 		Rollups:            rollupCfgs,
+		L1ChainConfigs:     l1ChainConfigs,
 		DataDir:            ctx.String(flags.DataDir.Name),
 		DataFormat:         dbFormat,
 		L2URLs:             ctx.StringSlice(flags.L2NodeAddr.Name),
