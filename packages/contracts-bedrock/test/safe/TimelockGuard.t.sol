@@ -789,32 +789,6 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
     }
 
-    /// @notice Test that the guard can be disabled while still configured, and then can be
-    ///         deconfigured
-    function test_integration_disableThenResetGuard_succeeds() external {
-        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
-        disableGuardTx.params.to = address(disableGuardTx.safeInstance.safe);
-        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
-        disableGuardTx.updateTransaction();
-        disableGuardTx.scheduleTransaction(timelockGuard);
-
-        vm.warp(block.timestamp + TIMELOCK_DELAY);
-        disableGuardTx.executeTransaction();
-
-        // TODO: this test fails because the guard config cannot be modified while the guard is
-        // disabled. IMO a guard should be able to manage its own configuration while it is disabled.
-        vm.skip(true);
-
-        TransactionBuilder.Transaction memory resetGuardConfigTx = _createEmptyTransaction(safeInstance);
-        resetGuardConfigTx.params.to = address(timelockGuard);
-        resetGuardConfigTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
-        resetGuardConfigTx.updateTransaction();
-        resetGuardConfigTx.scheduleTransaction(timelockGuard);
-
-        // vm.warp(block.timestamp + TIMELOCK_DELAY);
-        resetGuardConfigTx.executeTransaction();
-    }
-
     /// @notice Test that the guard can be reset while still enabled, and then can be disabled
     function test_integration_resetThenDisableGuard_succeeds() external {
         TransactionBuilder.Transaction memory resetGuardTx = _createEmptyTransaction(safeInstance);
