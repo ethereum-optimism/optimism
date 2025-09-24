@@ -29,13 +29,30 @@ type ReadSuperchainDeploymentOutput struct {
 	RequiredProtocolVersion    [32]byte
 }
 
+type OpcmImplementationsOutput struct {
+	SuperchainConfigImpl             common.Address `abi:"superchainConfigImpl"`
+	ProtocolVersionsImpl             common.Address `abi:"protocolVersionsImpl"`
+	L1ERC721BridgeImpl               common.Address `abi:"l1ERC721BridgeImpl"`
+	OptimismPortalImpl               common.Address `abi:"optimismPortalImpl"`
+	SystemConfigImpl                 common.Address `abi:"systemConfigImpl"`
+	OptimismMintableERC20FactoryImpl common.Address `abi:"optimismMintableERC20FactoryImpl"`
+	L1CrossDomainMessengerImpl       common.Address `abi:"l1CrossDomainMessengerImpl"`
+	L1StandardBridgeImpl             common.Address `abi:"l1StandardBridgeImpl"`
+	DisputeGameFactoryImpl           common.Address `abi:"disputeGameFactoryImpl"`
+	AnchorStateRegistryImpl          common.Address `abi:"anchorStateRegistryImpl"`
+	DelayedWETHImpl                  common.Address `abi:"delayedWETHImpl"`
+	MipsImpl                         common.Address `abi:"mipsImpl"`
+}
+
 // Function signatures
 var (
 	// OPContractsManager functions
 	funcProtocolVersions     = w3.MustNewFunc("protocolVersions()", "address")
 	funcSuperchainConfig     = w3.MustNewFunc("superchainConfig()", "address")
 	funcSuperchainProxyAdmin = w3.MustNewFunc("superchainProxyAdmin()", "address")
-
+	funcImplementations      = w3.MustNewFunc("implementations()",
+		"(address superchainConfigImpl,address protocolVersionsImpl,address l1ERC721BridgeImpl,address optimismPortalImpl,address systemConfigImpl,address optimismMintableERC20FactoryImpl,address l1CrossDomainMessengerImpl,address l1StandardBridgeImpl,address disputeGameFactoryImpl,address anchorStateRegistryImpl,address delayedWETHImpl,address mipsImpl)",
+	)
 	// Proxy functions
 	funcImplementation = w3.MustNewFunc("implementation()", "address")
 
@@ -59,20 +76,23 @@ func ReadSuperchainDeployment(ctx context.Context, rpcClient *rpc.Client, input 
 	defer w3Client.Close()
 
 	output := &ReadSuperchainDeploymentOutput{}
+	opcmImplementations := OpcmImplementationsOutput{}
 
-	// Step 1: Get proxy addresses from OPCM
+	// Step 1: Get addresses from OPCM
 	if err := w3Client.Call(
 		eth.CallFunc(input.OPCMAddress, funcProtocolVersions).Returns(&output.ProtocolVersionsProxy),
 		eth.CallFunc(input.OPCMAddress, funcSuperchainConfig).Returns(&output.SuperchainConfigProxy),
 		eth.CallFunc(input.OPCMAddress, funcSuperchainProxyAdmin).Returns(&output.SuperchainProxyAdmin),
+		eth.CallFunc(input.OPCMAddress, funcImplementations).Returns(&opcmImplementations),
 	); err != nil {
-		return nil, fmt.Errorf("failed to get proxy addresses: %w", err)
+		return nil, fmt.Errorf("failed to get addresses from opcm: %w", err)
 	}
+
+	output.SuperchainConfigImpl = opcmImplementations.SuperchainConfigImpl
 
 	// Step 2: Get implementation addresses from proxies
 	if err := w3Client.Call(
 		eth.CallFunc(output.ProtocolVersionsProxy, funcImplementation).Returns(&output.ProtocolVersionsImpl),
-		eth.CallFunc(output.SuperchainConfigProxy, funcImplementation).Returns(&output.SuperchainConfigImpl),
 	); err != nil {
 		return nil, fmt.Errorf("failed to get implementation addresses: %w", err)
 	}
