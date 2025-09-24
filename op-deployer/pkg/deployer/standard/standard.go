@@ -88,7 +88,7 @@ var taggedReleases = map[string]TaggedRelease{
 		ContentHash:   common.HexToHash("147b9fae70608da2975a01be3d98948306f89ba1930af7c917eea41a54d87cdb"),
 	},
 	ContractsV301Tag: {
-		ArtifactsHash: common.HexToHash("33de11d9c1b60633b7b7603ca15bbc38d4fbdf4b5c79ccad5946f70240b06640"),
+		ArtifactsHash: common.HexToHash("b133236edd3828f245073b09c430cb471d7a7f42e6aa26f9ae265b94cdc2ef27"),
 		ContentHash:   common.HexToHash("1d87c33a13461b82baa1924c1a973521e350c65d3e19212caf262077695a2a1b"),
 	},
 }
