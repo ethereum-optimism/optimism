@@ -194,8 +194,8 @@ github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
 github.com/ethereum-optimism/op-geth v1.101503.0-rc.2 h1:CHIF+1pENaamq7jq8LZOTQ1FVJ+U2EzNM9iVAr9Lgi8=
 github.com/ethereum-optimism/op-geth v1.101503.0-rc.2/go.mod h1:QUo3fn+45vWqJWzJW+rIzRHUV7NmhhHLPdI87mAn1M8=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250924135138-9c0c4dcf8822 h1:PfgErRy/eB+205VgNzP7Fz+d96+BMVO+Qf6yXlTVbZ4=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250924135138-9c0c4dcf8822/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
+github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250924204602-df4e953b384b h1:Z74yoEcb/0iKCPj0Fyg5X522by0DsBLTF6ozoB3yTjM=
+github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250924204602-df4e953b384b/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum/c-kzg-4844 v1.0.0 h1:0X1LBXxaEtYD9xsyj9B9ctQEZIpnvVDeoBx8aHEwTNA=
 github.com/ethereum/c-kzg-4844 v1.0.0/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/ethereum/go-verkle v0.2.2 h1:I2W0WjnrFUIzzVPwm8ykY+7pL2d4VhlsePn4j7cnFk8=
