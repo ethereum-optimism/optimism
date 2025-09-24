@@ -138,32 +138,38 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
+    /// @dev This function does not check if the guard is enabled on the Safe. This provides the option to
+    ///      configure the guard prior to enabling it, or to reset the configuration to 0 after disabling.
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
-    function configureTimelockGuard(uint256 _timelockDelay) external {
-        Safe callingSafe = Safe(payable(msg.sender));
-
-        // Check that this guard is enabled on the calling Safe
-        if (!_isGuardEnabled(callingSafe)) {
-            revert TimelockGuard_GuardNotEnabled();
-        }
-
+    function configureTimelockGuard(Safe _safe, uint256 _timelockDelay, bytes memory _signatures) external {
         // Validate timelock delay - must not be longer than 1 year
         if (_timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
+        // Generate the configuration transaction data
+        bytes memory data = abi.encodeWithSignature("configureTimelockGuard(uint256)", _timelockDelay);
+
+        // Get the nonce of the Safe to be configured
+        uint256 nonce = _safe.nonce();
+        bytes memory configureTxData = _safe.encodeTransactionData(
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), nonce
+        );
+        bytes32 configureTxHash = _safe.getTransactionHash(
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), nonce
+        );
+
+        // Verify signatures using the Safe's signature checking logic
+        // This function call reverts if the signatures are invalid.
+        _safe.checkSignatures(configureTxHash, configureTxData, _signatures);
+
         // Store the configuration for this safe
-        _timelockSafeConfiguration[callingSafe].timelockDelay = _timelockDelay;
+        _timelockSafeConfiguration[_safe].timelockDelay = _timelockDelay;
 
-        emit GuardConfigured(callingSafe, _timelockDelay);
+        // Initialize cancellation threshold to 1
+        _safeCancellationThreshold[_safe] = 1;
 
-        // If timelock delay is 0, ensure the cancellation threshold is deleted
-        if (_timelockDelay == 0) {
-            delete _safeCancellationThreshold[callingSafe];
-        } else {
-            // Initialize cancellation threshold to 1
-            _safeCancellationThreshold[callingSafe] = 1;
-        }
+        emit GuardConfigured(_safe, _timelockDelay);
     }
 
     /// @notice Returns the blocking threshold threshold for a given safe
