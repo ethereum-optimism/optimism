@@ -30,6 +30,7 @@ type BootInfoInterop struct {
 type ConfigSource interface {
 	RollupConfig(chainID eth.ChainID) (*rollup.Config, error)
 	ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error)
+	L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error)
 	DependencySet(chainID eth.ChainID) (depset.DependencySet, error)
 }
 
@@ -38,6 +39,7 @@ type OracleConfigSource struct {
 
 	customConfigsLoaded bool
 
+	l1ChainConfigs map[eth.ChainID]*params.ChainConfig
 	l2ChainConfigs map[eth.ChainID]*params.ChainConfig
 	rollupConfigs  map[eth.ChainID]*rollup.Config
 	depset         depset.DependencySet
@@ -99,6 +101,19 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 	return c.depset, nil
 }
 
+func (c *OracleConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error) {
+
+	if cfg, ok := c.l1ChainConfigs[chainID]; ok {
+		return cfg, nil
+	}
+	cfg, err := chainconfig.ChainConfigByChainID(chainID)
+	if err != nil {
+		return nil, err
+	}
+	c.l1ChainConfigs[chainID] = cfg
+	return cfg, nil
+}
+
 func (c *OracleConfigSource) loadCustomConfigs() {
 	var rollupConfigs []*rollup.Config
 	err := json.Unmarshal(c.oracle.Get(RollupConfigLocalIndex), &rollupConfigs)
@@ -125,6 +140,15 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	}
 	c.depset = &depset
 	c.customConfigsLoaded = true
+
+	var l1ChainConfigs []*params.ChainConfig
+	err = json.Unmarshal(c.oracle.Get(L1ChainConfigLocalIndex), &l1ChainConfigs)
+	if err != nil {
+		panic("failed to bootstrap l1 chain configs")
+	}
+	for _, config := range l1ChainConfigs {
+		c.l1ChainConfigs[eth.ChainIDFromBig(config.ChainID)] = config
+	}
 }
 
 func BootstrapInterop(r oracleClient) *BootInfoInterop {
@@ -138,6 +162,7 @@ func BootstrapInterop(r oracleClient) *BootInfoInterop {
 			oracle:         r,
 			l2ChainConfigs: make(map[eth.ChainID]*params.ChainConfig),
 			rollupConfigs:  make(map[eth.ChainID]*rollup.Config),
+			l1ChainConfigs: make(map[eth.ChainID]*params.ChainConfig),
 		},
 		L1Head:         l1Head,
 		AgreedPrestate: agreedPrestate,
