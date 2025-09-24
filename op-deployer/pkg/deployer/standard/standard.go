@@ -50,6 +50,15 @@ var VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 
 var GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
 
+// DeployV2GamesFeatureFlag enables V2 dispute game deployment.
+// Corresponds to DEPLOY_V2_DISPUTE_GAMES in solidity DevFeatures library.
+// The flag is set at byte index 30 with value 0x01.
+var DeployV2GamesFeatureFlag = func() common.Hash {
+	var flag common.Hash
+	flag[30] = 0x01
+	return flag
+}()
+
 func L1VersionsFor(chainID uint64) (validation.Versions, error) {
 	switch chainID {
 	case 1:
