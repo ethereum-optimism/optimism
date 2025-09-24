@@ -171,13 +171,6 @@ contract TimelockGuard is IGuard, ISemver {
         safeState.cancellationThreshold = 1;
 
         emit GuardConfigured(_safe, _timelockDelay);
-        // If timelock delay is 0, ensure the cancellation threshold is deleted
-        if (_timelockDelay == 0) {
-            delete _safeCancellationThreshold[_safe];
-        } else {
-            // Initialize cancellation threshold to 1
-            _safeCancellationThreshold[_safe] = 1;
-        }
     }
 
     /// @notice Returns the blocking threshold threshold for a given safe
