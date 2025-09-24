@@ -870,6 +870,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		if err := c.LoadPersisted(cfg.Loggers[name]); err != nil {
 			return nil, err
 		}
+		c.L1ChainConfig = l1Genesis.Config
 
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
