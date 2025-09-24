@@ -249,19 +249,24 @@ def filter_excluded_files(
 
 
 def generate_ranking_json(
-    entries: list[dict[str, str | int | float | None]], output_dir: Path
+    entries: list[dict[str, str | int | float | None]], output_dir: Path, run_id: str
 ) -> Path:
     """Generate the ranking JSON file.
 
     Args:
         entries: List of test-to-contract mappings with scores.
         output_dir: Directory to write the output file.
+        run_id: Timestamp-based run identifier.
 
     Returns:
         Path to the generated JSON file.
     """
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove old ranking files
+    for old_file in output_dir.glob("*_ranking.json"):
+        old_file.unlink()
 
     # Sort entries by score (descending), with None scores at the end
     sorted_entries = sorted(
@@ -270,12 +275,13 @@ def generate_ranking_json(
 
     # Create ranking JSON
     ranking = {
+        "run_id": run_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "entries": sorted_entries,
     }
 
-    # Write to output file
-    output_file = output_dir / "ranking.json"
+    # Write to output file with run_id
+    output_file = output_dir / f"{run_id}_ranking.json"
     with output_file.open("w") as f:
         json.dump(ranking, f, indent=2)
 
@@ -363,6 +369,10 @@ def collect_test_entries(
 def main() -> None:
     """Main function to generate test ranking JSON."""
     try:
+        # Generate unique run ID
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        print(f"Starting ranking run: {run_id}")
+
         # Get base paths
         repo_root, contracts_bedrock, output_dir = get_base_paths()
 
@@ -374,10 +384,11 @@ def main() -> None:
             contracts_bedrock, excluded_dirs, excluded_files, repo_root
         )
 
-        # Generate ranking JSON
-        output_file = generate_ranking_json(entries, output_dir)
+        # Generate ranking JSON with run_id
+        output_file = generate_ranking_json(entries, output_dir, run_id)
 
         print(f"Generated {output_file} with {len(entries)} entries")
+        print(f"Run ID: {run_id}")
 
     except Exception as e:
         print(f"Error generating test ranking: {e}")
