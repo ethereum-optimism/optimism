@@ -78,7 +78,8 @@ type L2Verifier struct {
 	L2PipelineIdle bool
 	l2Building     bool
 
-	RollupCfg *rollup.Config
+	L1ChainConfig *params.ChainConfig
+	RollupCfg     *rollup.Config
 
 	rpc *rpc.Server
 
@@ -227,6 +228,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		syncStatus:        syncStatusTracker,
 		L2PipelineIdle:    true,
 		l2Building:        false,
+		L1ChainConfig:     l1ChainConfig,
 		RollupCfg:         cfg,
 		rpc:               rpc.NewServer(),
 		synchronousEvents: testActionEmitter,
