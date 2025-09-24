@@ -147,6 +147,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 		require := p.Require()
 
+		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		require.True(ok, "l1 network required")
+
 		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
 		require.True(ok, "l2 network required")
 
@@ -252,6 +255,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				MaxConcurrency:   10,
 				CacheSize:        0, // auto-adjust to sequence window
 			},
+			L1ChainConfig: l1Net.genesis.Config,
 			L2: &config.L2EndpointConfig{
 				L2EngineAddr:      l2EngineAddr,
 				L2EngineJWTSecret: jwtSecret,
