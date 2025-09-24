@@ -641,12 +641,7 @@
               },
               {
                 "internalType": "Claim",
-                "name": "cannonPrestate",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "Claim",
-                "name": "cannonKonaPrestate",
+                "name": "absolutePrestate",
                 "type": "bytes32"
               }
             ],
@@ -794,7 +789,7 @@
             "type": "bytes32"
           }
         ],
-        "internalType": "struct OPContractsManager.OpChainConfig[]",
+        "internalType": "struct OPContractsManager.UpdatePrestateInput[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
       }
@@ -820,12 +815,7 @@
           },
           {
             "internalType": "Claim",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "Claim",
-            "name": "cannonKonaPrestate",
+            "name": "absolutePrestate",
             "type": "bytes32"
           }
         ],
@@ -886,12 +876,7 @@
           },
           {
             "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "cannonKonaPrestate",
+            "name": "absolutePrestate",
             "type": "bytes32"
           },
           {
@@ -937,12 +922,7 @@
           },
           {
             "internalType": "bytes32",
-            "name": "cannonPrestate",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "cannonKonaPrestate",
+            "name": "absolutePrestate",
             "type": "bytes32"
           },
           {

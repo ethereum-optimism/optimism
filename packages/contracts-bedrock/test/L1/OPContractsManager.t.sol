@@ -998,7 +998,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     function test_updatePrestate_whenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts() public {
         skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
