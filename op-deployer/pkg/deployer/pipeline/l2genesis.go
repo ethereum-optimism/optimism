@@ -23,10 +23,10 @@ import (
 
 type l2GenesisOverrides struct {
 	// ===== CUSTOM GAS TOKEN (CGT) CONFIGURATION =====
-	UseCustomGasToken    bool         `json:"useCustomGasToken"`          // CGT: Enable custom gas token mode
-	GasPayingTokenName   string       `json:"gasPayingTokenName"`         // CGT: Name of the custom gas token
-	GasPayingTokenSymbol string       `json:"gasPayingTokenSymbol"`       // CGT: Symbol of the custom gas token
-	InitialLiquidity     *hexutil.Big `json:"nativeAssetLiquidityAmount"` // CGT: Liquidity amount for NativeAssetLiquidity contract
+	UseCustomGasToken          bool         `json:"useCustomGasToken"`          // CGT: Enable custom gas token mode
+	GasPayingTokenName         string       `json:"gasPayingTokenName"`         // CGT: Name of the custom gas token
+	GasPayingTokenSymbol       string       `json:"gasPayingTokenSymbol"`       // CGT: Symbol of the custom gas token
+	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"` // CGT: Liquidity amount for NativeAssetLiquidity contract
 
 	// ===== GENERAL L2 CONFIGURATION (NON-CGT) =====
 	FundDevAccounts                          bool                      `json:"fundDevAccounts"`
@@ -160,7 +160,7 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 			Enabled:          overrides.UseCustomGasToken,
 			Name:             overrides.GasPayingTokenName,
 			Symbol:           overrides.GasPayingTokenSymbol,
-			InitialLiquidity: overrides.InitialLiquidity,
+			InitialLiquidity: overrides.NativeAssetLiquidityAmount,
 		}
 	}
 
@@ -189,9 +189,9 @@ func defaultOverrides() l2GenesisOverrides {
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 		// ===== CGT DEFAULTS =====
-		UseCustomGasToken:    false,                         // CGT disabled by default
-		GasPayingTokenName:   "",                            // Empty when CGT disabled
-		GasPayingTokenSymbol: "",                            // Empty when CGT disabled
-		InitialLiquidity:     (*hexutil.Big)(big.NewInt(0)), // Default to 0 when CGT disabled (consistent with "" and false)
+		UseCustomGasToken:          false,                         // CGT disabled by default
+		GasPayingTokenName:         "",                            // Empty when CGT disabled
+		GasPayingTokenSymbol:       "",                            // Empty when CGT disabled
+		NativeAssetLiquidityAmount: (*hexutil.Big)(big.NewInt(0)), // Default to 0 when CGT disabled (consistent with "" and false)
 	}
 }

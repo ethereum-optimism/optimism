@@ -332,7 +332,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		UseCustomGasToken:                        cfg.UseCustomGasToken,
 		GasPayingTokenName:                       cfg.GasPayingTokenName,
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,
-		NativeAssetLiquidityAmount:               cfg.InitialLiquidity.ToInt(),
+		NativeAssetLiquidityAmount:               cfg.NativeAssetLiquidityAmount.ToInt(),
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

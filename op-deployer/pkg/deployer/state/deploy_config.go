@@ -72,10 +72,10 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			},
 
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
-				UseCustomGasToken:    chainIntent.CustomGasToken.Enabled,
-				GasPayingTokenName:   chainIntent.CustomGasToken.Name,
-				GasPayingTokenSymbol: chainIntent.CustomGasToken.Symbol,
-				InitialLiquidity:     chainIntent.CustomGasToken.InitialLiquidity,
+				UseCustomGasToken:          chainIntent.CustomGasToken.Enabled,
+				GasPayingTokenName:         chainIntent.CustomGasToken.Name,
+				GasPayingTokenSymbol:       chainIntent.CustomGasToken.Symbol,
+				NativeAssetLiquidityAmount: chainIntent.CustomGasToken.InitialLiquidity,
 			},
 
 			// STOP! This struct sets the _default_ upgrade schedule for all chains.
