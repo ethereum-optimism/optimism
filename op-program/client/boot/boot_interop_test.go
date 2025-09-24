@@ -146,10 +146,11 @@ func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInterop
 
 type mockInteropBootstrapOracle struct {
 	mockBootstrapOracle
-	rollupCfgs []*rollup.Config
-	chainCfgs  []*params.ChainConfig
-	depset     *depset.StaticConfigDependencySet
-	custom     bool
+	rollupCfgs  []*rollup.Config
+	chainCfgs   []*params.ChainConfig
+	l1ChainCfgs []*params.ChainConfig
+	depset      *depset.StaticConfigDependencySet
+	custom      bool
 }
 
 func (o *mockInteropBootstrapOracle) Get(key preimage.Key) []byte {
@@ -173,6 +174,12 @@ func (o *mockInteropBootstrapOracle) Get(key preimage.Key) []byte {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.depset)
+		return b
+	case L1ChainConfigLocalIndex.PreimageKey():
+		if !o.custom {
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
+		}
+		b, _ := json.Marshal(o.l1ChainCfgs)
 		return b
 	default:
 		return o.mockBootstrapOracle.Get(key)
