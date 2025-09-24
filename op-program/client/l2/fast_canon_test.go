@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +91,7 @@ func TestFastCanonBlockHeaderOracle_LargeWindow(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 	miner, backend := test.NewMiner(t, logger, 0)
 	stateOracle := &test.KvStateOracle{T: t, Source: backend.TrieDB().Disk()}
-	numBlocks := 16384 // params.HistoryServeWindow * 2
+	numBlocks := params.HistoryServeWindow*2 + 2 // 16384
 	for i := 0; i < numBlocks; i++ {
 		miner.Mine(t, nil)
 	}

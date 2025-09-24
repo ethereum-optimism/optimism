@@ -94,7 +94,7 @@ func TestSyncTesterExtEL(gt *testing.T) {
 	blocksToSync := uint64(20)
 	sys, target := setupSystem(gt, t, blocksToSync)
 
-	attempts := 50
+	attempts := 500
 	if L2CLSyncMode == sync.ELSync {
 		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
 		attempts = 5

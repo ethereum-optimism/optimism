@@ -110,6 +110,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/test
         - packages/contracts-bedrock/scripts
+        - ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]

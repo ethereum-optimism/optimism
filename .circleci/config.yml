@@ -1316,15 +1316,6 @@ jobs:
 
   op-acceptance-tests:
     parameters:
-      devnet:
-        description: |
-          The name of the pre-defined kurtosis devnet to run the acceptance tests against
-          (e.g. 'simple', 'isthmus', 'interop'). Empty string uses
-          in-process testing (sysgo orchestrator). Named devnets use
-          external testing (sysext orchestrator) and must have a
-          recipe defined in kurtosis-devnet/Justfile.
-        type: string
-        default: ""
       gate:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
@@ -1343,42 +1334,6 @@ jobs:
     resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
     steps:
       - checkout-from-workspace
-      - unless:
-          condition:
-            equal: ["", <<parameters.devnet>>]
-          steps:
-            - run:
-                name: Setup Kurtosis
-                command: |
-                  echo "Setting up Kurtosis for external devnet testing..."
-
-                  # Print Kurtosis version
-                  echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-                  kurtosis version
-
-                  # Start Kurtosis engine
-                  echo "Starting Kurtosis engine..."
-                  kurtosis engine start || true
-
-                  # Clean old instances
-                  echo "Cleaning old instances..."
-                  kurtosis clean -a || true
-
-                  # Check engine status
-                  kurtosis engine status || true
-
-                  echo "Kurtosis setup complete"
-      # Notify us of a setup failure
-      - when:
-          condition: on_fail
-          steps:
-            - discord-notification-failures-on-develop:
-                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
-                message: "Devnet <<parameters.devnet>>-devnet failed to start"
-      - run:
-          name: Stop the job if the devnet failed to start
-          command: circleci-agent step halt
-          when: on_fail
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1396,20 +1351,16 @@ jobs:
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
+          name: Run acceptance tests (gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
           no_output_timeout: 1h
-          environment:
-            GOFLAGS: "-mod=mod"
-            GO111MODULE: "on"
-            GOGC: "0"
           command: |
             if [[ "<<parameters.gate>>" == "" ]]; then
               echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
             else
               echo "Running in gate mode (gate=<<parameters.gate>>)"
             fi
-            LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+            LOG_LEVEL=info just acceptance-test "" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -1452,37 +1403,12 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Dump kurtosis logs if external devnet was used
-      - run:
-          name: Dump kurtosis logs (if external devnet was used)
-          when: on_fail
-          command: |
-            if [[ "<<parameters.devnet>>" != "" ]]; then
-              # Dump logs & specs
-              kurtosis dump ./.kurtosis-dump
-
-              # Remove spec.json files
-              rm -rf ./.kurtosis-dump/enclaves/**/*.json
-
-              # Remove all unnecessary logs
-              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
-              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
-              rm -rf ./.kurtosis-dump/enclaves/*/task-*
-            else
-              echo "In-process testing was used - no kurtosis logs to dump"
-            fi
-      - when:
-          condition: always
-          steps:
-            - store_artifacts:
-                path: ./.kurtosis-dump/enclaves
-                destination: op-acceptance-tests/kurtosis-logs
       - when:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
                 mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
-                message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
+                message: "Acceptance tests failed for gate <<parameters.gate>>"
 
   sanitize-op-program:
     docker:
@@ -2656,48 +2582,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      # KURTOSIS (Simple)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-simple
-          devnet: simple
-          gate: base
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
-      # KURTOSIS (Jovian)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-jovian
-          devnet: jovian
-          gate: jovian
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
-      # KURTOSIS (Interop)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-interop
-          devnet: interop
-          gate: interop
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
@@ -2735,48 +2619,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-      # KURTOSIS (Simple)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-simple
-          devnet: simple
-          gate: base
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
-      # KURTOSIS (Jovian)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-jovian
-          devnet: jovian
-          gate: jovian
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
-      # KURTOSIS (Interop)
-      - op-acceptance-tests:
-          # Acceptance Testing params
-          name: kurtosis-interop
-          devnet: interop
-          gate: interop
-          use_circleci_runner: true
-          # CircleCI params
-          no_output_timeout: 30m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - initialize
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report

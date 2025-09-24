@@ -35,6 +35,14 @@ func (f *ForkedAccountsTrie) Copy() *ForkedAccountsTrie {
 	}
 }
 
+func (f *ForkedAccountsTrie) PrefetchStorage(_ common.Address, _ [][]byte) error {
+	return nil
+}
+
+func (f *ForkedAccountsTrie) PrefetchAccount(accounts []common.Address) error {
+	return nil
+}
+
 func (f *ForkedAccountsTrie) ExportDiff() *ExportDiff {
 	return f.diff.Copy()
 }
@@ -207,7 +215,7 @@ func (f *ForkedAccountsTrie) Commit(collectLeaf bool) (common.Hash, *trienode.No
 	panic("cannot commit state-changes of a forked trie")
 }
 
-func (f *ForkedAccountsTrie) Witness() map[string]struct{} {
+func (f *ForkedAccountsTrie) Witness() map[string][]byte {
 	panic("witness generation of a ForkedAccountsTrie is not supported")
 }
 
