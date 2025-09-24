@@ -8,13 +8,6 @@
   },
   {
     "inputs": [],
-    "name": "fund",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "version",
     "outputs": [
       {
@@ -64,25 +57,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "funder",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      }
-    ],
-    "name": "LiquidityFunded",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "caller",
         "type": "address"
       },
@@ -95,11 +69,6 @@
     ],
     "name": "LiquidityWithdrawn",
     "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAmount",
-    "type": "error"
   },
   {
     "inputs": [],

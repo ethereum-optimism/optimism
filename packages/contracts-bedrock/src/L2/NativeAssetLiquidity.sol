@@ -11,7 +11,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Errors
-import { Unauthorized, InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
+import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000029
 /// @title NativeAssetLiquidity
@@ -22,9 +22,6 @@ contract NativeAssetLiquidity is ISemver {
 
     /// @notice Emitted when an address deposits native asset liquidity.
     event LiquidityDeposited(address indexed caller, uint256 value);
-
-    /// @notice Emitted when funds are received.
-    event LiquidityFunded(address indexed funder, uint256 value);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -45,13 +42,5 @@ contract NativeAssetLiquidity is ISemver {
         new SafeSend{ value: _amount }(payable(msg.sender));
 
         emit LiquidityWithdrawn(msg.sender, _amount);
-    }
-
-    /// @notice Fund the contract by sending native asset.
-    /// @dev The function is payable to accept native asset.
-    function fund() external payable {
-        if (msg.value == 0) revert InvalidAmount();
-
-        emit LiquidityFunded(msg.sender, msg.value);
     }
 }
