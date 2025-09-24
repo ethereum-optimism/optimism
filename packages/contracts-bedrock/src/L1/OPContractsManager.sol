@@ -364,8 +364,23 @@ abstract contract OPContractsManagerBase {
     }
 
     /// @notice Sets a game implementation on the dispute game factory
-    function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
-        _dgf.setImplementation(_gameType, _newGame);
+    /// @param _dgf The dispute game factory
+    /// @param _gameType The game type
+    /// @param _newGame The new game implementation
+    /// @param _gameArgs Optional game arguments. If empty, calls without gameArgs
+    function setDGFImplementation(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        IDisputeGame _newGame,
+        bytes memory _gameArgs
+    )
+        internal
+    {
+        if (_gameArgs.length > 0) {
+            _dgf.setImplementation(_gameType, _newGame, _gameArgs);
+        } else {
+            _dgf.setImplementation(_gameType, _newGame);
+        }
     }
 }
 
@@ -555,7 +570,9 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
-            setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)));
+            setDGFImplementation(
+                dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)), bytes("")
+            );
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
             // Emit event for the newly added game type with the new and old implementations.
@@ -942,7 +959,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
         // Set the new implementation.
-        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
+        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame), bytes(""));
     }
 }
 
@@ -1052,36 +1069,30 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             )
         );
 
-        // While not a proxy, we deploy the PermissionedDisputeGame here as well because it's bespoke per chain.
-        output.permissionedDisputeGame = IPermissionedDisputeGame(
-            Blueprint.deployFrom(
-                blueprint.permissionedDisputeGame1,
-                blueprint.permissionedDisputeGame2,
-                computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
-                encodePermissionedFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        absolutePrestate: _input.disputeAbsolutePrestate,
-                        maxGameDepth: _input.disputeMaxGameDepth,
-                        splitDepth: _input.disputeSplitDepth,
-                        clockExtension: _input.disputeClockExtension,
-                        maxClockDuration: _input.disputeMaxClockDuration,
-                        vm: IBigStepper(implementation.mipsImpl),
-                        weth: IDelayedWETH(payable(address(output.delayedWETHPermissionedGameProxy))),
-                        anchorStateRegistry: IAnchorStateRegistry(address(output.anchorStateRegistryProxy)),
-                        l2ChainId: _input.l2ChainId
-                    }),
-                    _input.roles.proposer,
-                    _input.roles.challenger
+        if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            output.permissionedDisputeGame = IPermissionedDisputeGame(
+                Blueprint.deployFrom(
+                    blueprint.permissionedDisputeGame1,
+                    blueprint.permissionedDisputeGame2,
+                    computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
+                    encodePermissionedFDGConstructor(
+                        IFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.PERMISSIONED_CANNON,
+                            absolutePrestate: _input.disputeAbsolutePrestate,
+                            maxGameDepth: _input.disputeMaxGameDepth,
+                            splitDepth: _input.disputeSplitDepth,
+                            clockExtension: _input.disputeClockExtension,
+                            maxClockDuration: _input.disputeMaxClockDuration,
+                            vm: IBigStepper(implementation.mipsImpl),
+                            weth: IDelayedWETH(payable(address(output.delayedWETHPermissionedGameProxy))),
+                            anchorStateRegistry: IAnchorStateRegistry(address(output.anchorStateRegistryProxy)),
+                            l2ChainId: _input.l2ChainId
+                        }),
+                        _input.roles.proposer,
+                        _input.roles.challenger
+                    )
                 )
-            )
-        );
-
-        // Store v2 implementation addresses if the feature flag is enabled
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Store v2 implementation addresses for later registration with DisputeGameFactory
-            output.permissionedDisputeGameV2 = IPermissionedDisputeGameV2(implementation.permissionedDisputeGameV2Impl);
-            output.faultDisputeGameV2 = IFaultDisputeGameV2(implementation.faultDisputeGameV2Impl);
+            );
         }
 
         // -------- Set and Initialize Proxy Implementations --------
@@ -1169,22 +1180,30 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             data
         );
         // Register the appropriate dispute game implementation based on the feature flag
-        if (
-            isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
-                && address(output.permissionedDisputeGameV2) != address(0)
-        ) {
-            // Register v2 implementation for PERMISSIONED_CANNON game type
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Register v2 implementation for PERMISSIONED_CANNON game type with CWIA args
+            bytes memory gameArgs = abi.encodePacked(
+                _input.disputeAbsolutePrestate, // 32 bytes
+                implementation.mipsImpl, // 20 bytes
+                address(output.anchorStateRegistryProxy), // 20 bytes
+                address(output.delayedWETHPermissionedGameProxy), // 20 bytes
+                _input.l2ChainId, // 32 bytes
+                _input.roles.proposer, // 20 bytes
+                _input.roles.challenger // 20 bytes
+            );
             setDGFImplementation(
                 output.disputeGameFactoryProxy,
                 GameTypes.PERMISSIONED_CANNON,
-                IDisputeGame(address(output.permissionedDisputeGameV2))
+                IDisputeGame(implementation.permissionedDisputeGameV2Impl),
+                gameArgs
             );
         } else {
             // Register v1 implementation for PERMISSIONED_CANNON game type
             setDGFImplementation(
                 output.disputeGameFactoryProxy,
                 GameTypes.PERMISSIONED_CANNON,
-                IDisputeGame(address(output.permissionedDisputeGame))
+                IDisputeGame(address(output.permissionedDisputeGame)),
+                bytes("")
             );
         }
 
