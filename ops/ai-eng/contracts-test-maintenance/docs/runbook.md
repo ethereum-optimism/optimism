@@ -10,16 +10,14 @@ The system uses a two-branch scoring algorithm: tests whose contracts have moved
 
 ```bash
 # From the ai-eng directory
+just ai-contracts-test
+```
 
-# Option 1: Run both steps in one command (recommended)
-just prompt
-
-# Option 2: Run steps individually
-# Step 1: Rank tests by staleness
-just rank
-
-# Step 2: Generate AI prompt for the highest-priority test
-just render
+Individual steps (for debugging):
+```bash
+just rank    # Rank tests by staleness
+just render  # Generate prompt for highest-priority test
+just devin   # Execute with Devin API
 ```
 
 ## Output
@@ -61,3 +59,42 @@ The `just rank` command generates `components/tests_ranker/output/{run_id}_ranki
 The `just render` command generates a markdown file in `components/prompt-renderer/output/` with the name format `{run_id}_prompt.md`. This file contains the AI prompt template with the highest-priority test and contract paths filled in, ready to be used for test maintenance analysis.
 
 For example, a run with ID `20250922_143052` will generate `20250922_143052_prompt.md`. The system automatically links prompts to their corresponding ranking runs through the shared run ID.
+
+### Devin API Client
+
+The Devin API client (`components/devin-api/devin_client.py`) automatically:
+
+1. **Finds the latest prompt** from the prompt renderer output
+2. **Creates a Devin session** with the generated prompt
+3. **Monitors the session** until completion ("blocked", "expired", or "finished")
+4. **Logs results** to `log.jsonl` in the project root
+
+#### Prerequisites
+
+Devin API credentials in `components/devin-api/.env`
+
+#### Session Logging
+
+All Devin sessions are automatically logged to `log.jsonl` with:
+
+```json
+{
+  "run_id": "20250924_160648",
+  "run_time": "2025-09-24 16:06:48",
+  "devin_session_id": "sess_abc123",
+  "selected_files": {
+    "test_path": "test/libraries/Storage.t.sol",
+    "contract_path": "src/libraries/Storage.sol"
+  },
+  "status": "finished",
+  "pull_request_url": "https://github.com/ethereum-optimism/optimism/pull/12345"
+}
+```
+
+**Log fields:**
+- `run_id` - Links to the ranking run that generated this session
+- `run_time` - Human-readable timestamp of the run
+- `devin_session_id` - Unique Devin session identifier
+- `selected_files` - The test-contract pair that was worked on
+- `status` - Final session status ("finished", "blocked", "expired")
+- `pull_request_url` - GitHub PR URL (only present if status is "finished")

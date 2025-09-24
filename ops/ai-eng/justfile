@@ -14,3 +14,18 @@ render:
 prompt:
     just rank
     just render
+
+# Run the Devin client
+devin:
+    cd contracts-test-maintenance/components/devin-api && python3 devin_client.py
+
+# Run the complete cycle: rank, render, and send to Devin
+ai-contracts-test:
+    # Step 1: Rank tests
+    just rank
+
+    # Step 2: Render prompt
+    just render
+
+    # Step 3: Send to Devin
+    just devin

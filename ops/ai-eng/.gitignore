@@ -4,6 +4,9 @@
 */output/
 output/
 
+# Log file
+contracts-test-maintenance/log.jsonl
+
 # Python cache
 __pycache__/
 *.pyc
