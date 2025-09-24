@@ -105,16 +105,6 @@ contract DeployImplementations_Test is Test {
         // Ensure superchainConfigImpl is not zero address
         vm.assume(_superchainConfigImpl != address(0));
 
-        // Constrain devFeatureBitmap to valid feature flags
-        // We allow any combination of the three defined feature flags
-        _devFeatureBitmap = bytes32(
-            uint256(_devFeatureBitmap)
-                & (
-                    uint256(DevFeatures.OPTIMISM_PORTAL_INTEROP) | uint256(DevFeatures.CANNON_KONA)
-                        | uint256(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
-                )
-        );
-
         _faultGameV2MaxGameDepth = bound(_faultGameV2MaxGameDepth, 4, 125);
         _faultGameV2SplitDepth =
             bound(_faultGameV2SplitDepth, 2, _faultGameV2MaxGameDepth > 3 ? _faultGameV2MaxGameDepth - 2 : 2);
