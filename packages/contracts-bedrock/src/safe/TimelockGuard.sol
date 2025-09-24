@@ -25,6 +25,7 @@ contract TimelockGuard is IGuard, ISemver {
     struct GuardConfig {
         uint256 timelockDelay;
         uint256 safetyDelay;
+        bool safetyDelayEnabled;
     }
 
     /// @notice Scheduled transaction
@@ -97,6 +98,11 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param nonce The nonce of the Safe for the transaction being executed.
     /// @param txHash The identifier of the executed transaction (nonce-independent).
     event TransactionExecuted(Safe indexed safe, uint256 indexed nonce, bytes32 txHash);
+
+    /// @notice Emitted when the safety delay is toggled for a Safe
+    /// @param safe The Safe whose safety delay is toggled.
+    /// @param enabled Whether the safety delay is enabled.
+    event SafetyDelayToggled(Safe indexed safe, bool enabled);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -305,12 +311,12 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Generate the cancellation transaction data
-        bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
+        bytes memory data = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
         bytes memory cancellationTxData = _safe.encodeTransactionData(
-            address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
         bytes32 cancellationTxHash = _safe.getTransactionHash(
-            address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
 
         // Verify signatures using the Safe's signature checking logic
@@ -322,6 +328,35 @@ contract TimelockGuard is IGuard, ISemver {
         _increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash);
+    }
+
+    /// @notice Toggle the safety delay for a Safe
+    /// @dev This function is used to add or remove a safety delay to all transactions executed by a Safe. Similar to
+    ///      cancelTransaction, it uses a custom format for the transaction data and uses the Safe's
+    ///      signature checking logic to verify the signatures. The current nonce of the Safe is used to
+    ///      ensure that the safety delay transaction is unique and cannot be replayed in the future.
+    /// @param _safe The Safe address
+    /// @param _signatures The signatures of the owners
+    function toggleSafetyDelay(Safe _safe, bool _enableSafetyDelay, bytes memory _signatures) external {
+        // Get the current Safe nonce
+        uint256 nonce = _safe.nonce();
+
+        // Generate the safety delay transaction data
+        bytes memory data = abi.encodeWithSignature("toggleSafetyDelay(bool)", _enableSafetyDelay);
+        bytes memory safetyDelayTxData = _safe.encodeTransactionData(
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), nonce
+        );
+        bytes32 safetyDelayTxHash = _safe.getTransactionHash(
+            address(_safe), 0, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), nonce
+        );
+
+        // Verify signatures using the Safe's signature checking logic
+        // This function call reverts if the signatures are invalid.
+        _safe.checkSignatures(safetyDelayTxHash, safetyDelayTxData, _signatures);
+
+        _timelockSafeConfiguration[_safe].safetyDelayEnabled = _enableSafetyDelay;
+
+        emit SafetyDelayToggled(_safe, _enableSafetyDelay);
     }
 
     /// @notice Increase the cancellation threshold for a safe

@@ -147,6 +147,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event TransactionExecuted(Safe indexed safe, uint256 indexed nonce, bytes32 txHash);
+    event SafetyDelayToggled(Safe indexed safe, bool enabled);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -757,6 +758,46 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             "",
             address(0)
         );
+    }
+}
+
+/// @title TimelockGuard_ToggleSafetyDelay_Test
+/// @notice Tests for toggleSafetyDelay function
+contract TimelockGuard_ToggleSafetyDelay_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY, SAFETY_DELAY);
+    }
+
+    function test_toggleSafetyDelayTrue_succeeds() public {
+        TransactionBuilder.Transaction memory toggleOnTx = _createEmptyTransaction(safeInstance);
+        toggleOnTx.params.data = abi.encodeWithSignature("toggleSafetyDelay(bool)", true);
+        toggleOnTx.params.to = address(safeInstance.safe);
+        toggleOnTx.nonce = safeInstance.safe.nonce();
+        toggleOnTx.updateTransaction();
+
+        vm.expectEmit(true, true, true, true);
+        emit SafetyDelayToggled(safeInstance.safe, true);
+        timelockGuard.toggleSafetyDelay(safeInstance.safe, true, toggleOnTx.signatures);
+
+        assertEq(timelockGuard.timelockConfigurationForSafe(safeInstance.safe).safetyDelayEnabled, true);
+    }
+
+    function test_toggleSafetyDelayFalse_succeeds() external {
+        // first toggle safety delay to true
+        test_toggleSafetyDelayTrue_succeeds();
+
+        TransactionBuilder.Transaction memory toggleOffTx = _createEmptyTransaction(safeInstance);
+        toggleOffTx.params.data = abi.encodeWithSignature("toggleSafetyDelay(bool)", false);
+        toggleOffTx.params.to = address(safeInstance.safe);
+        toggleOffTx.nonce = safeInstance.safe.nonce();
+        toggleOffTx.updateTransaction();
+
+        vm.expectEmit(true, true, true, true);
+        emit SafetyDelayToggled(safeInstance.safe, false);
+        timelockGuard.toggleSafetyDelay(safeInstance.safe, false, toggleOffTx.signatures);
+
+        assertEq(timelockGuard.timelockConfigurationForSafe(safeInstance.safe).safetyDelayEnabled, false);
     }
 }
 
