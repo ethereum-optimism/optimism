@@ -42,6 +42,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(L2ClaimBlockNumberLocalIndex))
 	l2ChainID := eth.ChainIDFromUInt64(binary.BigEndian.Uint64(br.r.Get(L2ChainIDLocalIndex)))
 
+	var l1ChainConfig *params.ChainConfig
 	var l2ChainConfig *params.ChainConfig
 	var rollupConfig *rollup.Config
 	if l2ChainID == CustomChainIDIndicator {
@@ -55,9 +56,18 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		if err != nil {
 			panic("failed to bootstrap rollup config")
 		}
+		l1ChainConfig = new(params.ChainConfig)
+		err = json.Unmarshal(br.r.Get(L1ChainConfigLocalIndex), l1ChainConfig)
+		if err != nil {
+			panic("failed to bootstrap l1ChainConfig")
+		}
 	} else {
 		var err error
 		rollupConfig, err = chainconfig.RollupConfigByChainID(l2ChainID)
+		if err != nil {
+			panic(err)
+		}
+		l1ChainConfig, err = chainconfig.ChainConfigByChainID(eth.ChainIDFromBig(rollupConfig.L1ChainID))
 		if err != nil {
 			panic(err)
 		}
@@ -75,5 +85,6 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		L2ChainID:          l2ChainID,
 		L2ChainConfig:      l2ChainConfig,
 		RollupConfig:       rollupConfig,
+		L1ChainConfig:      l1ChainConfig,
 	}
 }

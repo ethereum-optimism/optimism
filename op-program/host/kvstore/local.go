@@ -28,6 +28,7 @@ var (
 	l2ChainConfigKey      = boot.L2ChainConfigLocalIndex.PreimageKey()
 	rollupKey             = boot.RollupConfigLocalIndex.PreimageKey()
 	dependencySetKey      = boot.DependencySetLocalIndex.PreimageKey()
+	l1ChainConfigKey      = boot.L1ChainConfigLocalIndex.PreimageKey()
 )
 
 func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
@@ -63,6 +64,14 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 			return nil, errors.New("host is not configured to serve dependencySet local keys")
 		}
 		return json.Marshal(s.config.DependencySet)
+	case l1ChainConfigKey:
+		if s.config.L2ChainID != boot.CustomChainIDIndicator {
+			return nil, ErrNotFound
+		}
+		if s.config.InteropEnabled {
+			return json.Marshal(s.config.L1ChainConfigs)
+		}
+		return json.Marshal(s.config.L1ChainConfigs[0])
 	default:
 		return nil, ErrNotFound
 	}
