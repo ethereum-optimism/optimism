@@ -49,8 +49,8 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     Types.OutputRootProof internal _outputRootProof;
     GameType internal respectedGameType;
 
-    /// @dev Setup the system for a ready-to-use state.
-    function setUp() public virtual override {
+    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
+    constructor() {
         super.setUp();
 
         _defaultTx = Types.WithdrawalTransaction({
@@ -77,7 +77,10 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
+    }
 
+    /// @dev Setup the system for a ready-to-use state.
+    function setUp() public virtual override {
         if (isForkTest()) {
             // Set the proposed block number to be the next block number on the forked network
             (, _proposedBlockNumber) = anchorStateRegistry.getAnchorRoot();
@@ -716,18 +719,15 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
     }
 
     /// @notice Tests that `receive` reverts when custom gas token is enabled
-    function testFuzz_receive_customGasToken_reverts(uint256 _value) external virtual {
+    function testFuzz_receive_customGasToken_reverts(uint256 _value) external {
         skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         _value = bound(_value, 1, type(uint128).max);
         vm.deal(alice, _value);
 
-        address portal = address(optimismPortal2);
-
         vm.prank(alice);
         vm.expectRevert(IOptimismPortal.OptimismPortal_NotAllowedOnCGTMode.selector);
-        assembly {
-            pop(call(gas(), portal, _value, 0, 0, 0, 0))
-        }
+        (bool revertsAsExpected,) = address(optimismPortal2).call{ value: _value }(hex"");
+        assertTrue(revertsAsExpected, "expectRevert: call did not revert");
     }
 }
 
@@ -830,7 +830,7 @@ contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
 /// @title OptimismPortal2_MigrateToSuperRoots_Test
 /// @notice Test contract for OptimismPortal2 `migrateToSuperRoots` function.
 contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
-    function setUp() public virtual override {
+    function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
@@ -1429,7 +1429,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
 contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the target is the portal
     ///         contract or the lockbox.
-    function test_finalizeWithdrawalTransaction_badTarget_reverts() external virtual {
+    function test_finalizeWithdrawalTransaction_badTarget_reverts() external {
         _defaultTx.target = address(optimismPortal2);
         vm.expectRevert(IOptimismPortal.OptimismPortal_BadTarget.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -1932,7 +1932,6 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         bytes memory _data
     )
         external
-        virtual
     {
         skipIfForkTest("Skipping on forked tests because of the L2ToL1MessageParser call below");
         if (isUsingCustomGasToken()) {
@@ -2017,7 +2016,6 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         GameType _newGameType
     )
         external
-        virtual
     {
         skipIfForkTest("Skipping on forked tests because of the L2ToL1MessageParser call below");
         if (isUsingCustomGasToken()) {
@@ -2565,7 +2563,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         bytes memory _data
     )
         external
-        virtual
     {
         // Prevent overflow on an upgrade context
         if (isUsingLockbox()) {
@@ -2636,7 +2633,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         address _7702Target
     )
         external
-        virtual
     {
         assumeNotForgeAddress(_7702Target);
 
@@ -2703,7 +2699,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         bytes memory _data
     )
         external
-        virtual
     {
         // Prevent overflow on an upgrade context
         _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
