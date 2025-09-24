@@ -46,6 +46,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	}
 
 	l1ChainConfig, err := NewL1ChainConfig(rollupConfig.L1ChainID, ctx, log)
+	if err != nil {
+		return nil, err
+	}
 
 	depSet, err := NewDependencySetFromCLI(ctx)
 	if err != nil {
