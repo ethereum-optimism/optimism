@@ -3,6 +3,7 @@ package synctester
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -63,6 +64,31 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.Equal(t, session.InitialState, session.CurrentState)
 }
 
+func TestParseSession_ELSyncTarget(t *testing.T) {
+	id := uuid.New().String()
+	query := url.Values{}
+	elSyncTarget := uint64(4)
+	query.Set(ELSyncTargetKey, strconv.Itoa(int(elSyncTarget)))
+
+	req := newRequest("/chain/1/synctest/"+id, query)
+
+	newReq, err := parseSession(req)
+	require.NoError(t, err)
+	require.NotNil(t, newReq)
+
+	session, ok := session.SyncTesterSessionFromContext(newReq.Context())
+	require.True(t, ok)
+	require.NotNil(t, session)
+	require.Equal(t, id, session.SessionID)
+	require.Equal(t, uint64(0), session.InitialState.Latest)
+	require.Equal(t, uint64(0), session.InitialState.Safe)
+	require.Equal(t, uint64(0), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
+	require.Equal(t, session.InitialState, session.CurrentState)
+	require.True(t, session.ELSyncActive)
+	require.Equal(t, session.ELSyncTarget, elSyncTarget)
+}
+
 func TestParseSession_NoSessionInitialized(t *testing.T) {
 	req := newRequest("/chain/1/synctest", nil)
 
@@ -88,4 +114,17 @@ func TestParseSession_InvalidQueryParam(t *testing.T) {
 	req := newRequest("/chain/1/synctest/"+id, query)
 	_, err := parseSession(req)
 	require.ErrorIs(t, err, ErrInvalidParams)
+}
+
+func TestParseSession_InvalidELSyncTarget(t *testing.T) {
+	id := uuid.New().String()
+	query := url.Values{}
+	latest := 4
+	elSyncTarget := latest - 1
+	query.Set(eth.Unsafe, strconv.Itoa(latest))
+	query.Set(ELSyncTargetKey, strconv.Itoa(elSyncTarget))
+
+	req := newRequest("/chain/1/synctest/"+id, query)
+	_, err := parseSession(req)
+	require.ErrorIs(t, err, ErrInvalidELSyncTarget)
 }

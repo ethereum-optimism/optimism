@@ -129,6 +129,14 @@ contract BaseFaultDisputeGameV2_TestInit is DisputeGameFactory_TestInit {
     fallback() external payable { }
 
     receive() external payable { }
+
+    function copyBytes(bytes memory src, bytes memory dest) internal pure returns (bytes memory) {
+        uint256 byteCount = src.length < dest.length ? src.length : dest.length;
+        for (uint256 i = 0; i < byteCount; i++) {
+            dest[i] = src[i];
+        }
+        return dest;
+    }
 }
 
 /// @title FaultDisputeGameV2_TestInit
@@ -393,8 +401,8 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
     }
 
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
-    ///         (must be exactly 246 bytes)
-    function test_initialize_wrongCalldataLength_reverts(uint256 _extraDataLen) public {
+    ///         caused by extraData of the wrong length
+    function test_initialize_wrongExtradataLength_reverts(uint256 _extraDataLen) public {
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single
         // array, which is enforced to be at least 64 bytes long.
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the
@@ -418,6 +426,53 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
         vm.expectRevert(IFaultDisputeGameV2.BadExtraData.selector);
         gameProxy = IFaultDisputeGameV2(
             payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, _extraData)))
+        );
+    }
+
+    /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
+    ///         caused by additional immutable args data
+    function test_initialize_extraImmutableArgsBytes_reverts(uint256 _extraByteCount) public {
+        (bytes memory correctArgs,,) = getFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+
+        // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the
+        // contract size limit in this test, as CWIA proxies store the immutable args in their
+        // bytecode.
+        _extraByteCount = bound(_extraByteCount, 1, 23_500);
+        bytes memory immutableArgs = new bytes(_extraByteCount + correctArgs.length);
+        // Copy correct args into immutable args
+        copyBytes(correctArgs, immutableArgs);
+
+        // Set up dispute game implementation with target immutableArgs
+        setupFaultDisputeGameV2(immutableArgs);
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(IFaultDisputeGameV2.BadExtraData.selector);
+        gameProxy = IFaultDisputeGameV2(
+            payable(
+                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
+            )
+        );
+    }
+
+    /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
+    ///         caused by missing immutable args data
+    function test_initialize_missingImmutableArgsBytes_reverts(uint256 _truncatedByteCount) public {
+        (bytes memory correctArgs,,) = getFaultDisputeGameV2ImmutableArgs(absolutePrestate);
+
+        _truncatedByteCount = (_truncatedByteCount % correctArgs.length) + 1;
+        bytes memory immutableArgs = new bytes(correctArgs.length - _truncatedByteCount);
+        // Copy correct args into immutable args
+        copyBytes(correctArgs, immutableArgs);
+
+        // Set up dispute game implementation with target immutableArgs
+        setupFaultDisputeGameV2(immutableArgs);
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(IFaultDisputeGameV2.BadExtraData.selector);
+        gameProxy = IFaultDisputeGameV2(
+            payable(
+                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
+            )
         );
     }
 

@@ -131,6 +131,7 @@ timeout = 300
 
 [profile.lite]
 optimizer = false
+optimizer_runs = 0
 
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.

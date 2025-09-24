@@ -59,7 +59,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		// Build the activation block
 		env.Sequencer.ActL2EmptyBlock(t)
 		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		require.Equal(t, eip1559.EncodeJovianExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
+		require.Equal(t, eip1559.EncodeMinBaseFeeExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
 
 		// Set the minimum base fee
 		setMinBaseFeeViaSystemConfig(t, env, minBaseFee)
@@ -80,7 +80,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		// Block after the SystemConfig change
 		env.Sequencer.ActL2EmptyBlock(t)
 		blockAfterSystemConfigChange := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
-		expectedJovianExtraDataWithMinFee := eip1559.EncodeJovianExtraData(250, 6, minBaseFee)
+		expectedJovianExtraDataWithMinFee := eip1559.EncodeMinBaseFeeExtraData(250, 6, minBaseFee)
 		require.Equal(t, expectedJovianExtraDataWithMinFee, blockAfterSystemConfigChange.Extra(), "block should have updated Jovian extraData with min base fee")
 
 		// Verify base fee is clamped

@@ -2,7 +2,9 @@ package hardforks_ext
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -10,11 +12,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -75,7 +80,7 @@ func getEnvUint64OrDefault(envVar string, defaultValue uint64) uint64 {
 }
 
 // setupOrchestrator initializes and configures the orchestrator for the test
-func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrator {
+func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CLSyncMode sync.Mode) *sysgo.Orchestrator {
 	l := t.Logger()
 
 	// Override configuration with Tailscale endpoints if Tailscale networking is enabled
@@ -112,29 +117,66 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk uint64) *sysgo.Orchestrat
 	l.Info("L1_CL_BEACON_ENDPOINT", "value", l1CLBeaconEndpoint)
 	l.Info("L1_EL_ENDPOINT", "value", l1ELEndpoint)
 	l.Info("TAILSCALE_NETWORKING", "value", os.Getenv("TAILSCALE_NETWORKING"))
+	l.Info("L2_CL_SYNCMODE", "value", l2CLSyncMode)
+
+	config := stack.ExtNetworkConfig{
+		L2NetworkName:      L2NetworkName,
+		L1ChainID:          L1ChainID,
+		L2ELEndpoint:       L2ELEndpoint,
+		L1CLBeaconEndpoint: L1CLBeaconEndpoint,
+		L1ELEndpoint:       L1ELEndpoint,
+	}
 
 	// Create orchestrator with the same configuration that was in TestMain
-	opt := sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconEndpoint, l1ELEndpoint, l2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
-		Latest:    blk,
-		Safe:      blk,
-		Finalized: blk,
-	})
+	opt := presets.WithExternalELWithSuperchainRegistry(config)
+	if l2CLSyncMode == sync.ELSync {
+		chainCfg := chaincfg.ChainByName(config.L2NetworkName)
+		if chainCfg == nil {
+			panic(fmt.Sprintf("network %s not found in superchain registry", config.L2NetworkName))
+		}
+		opt = stack.Combine(opt,
+			presets.WithExecutionLayerSyncOnVerifiers(),
+			presets.WithELSyncTarget(targetBlock),
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest: blk,
+				Safe:   0,
+				// Need to set finalized to genesis to unskip EL Sync
+				Finalized: chainCfg.Genesis.L2.Number,
+			}),
+		)
+		// TODO(#17564): op-node has a suspected race during EL Sync.
+		// To temporarily mitigate and stabilize tests, restrict runtime
+		// parallelism to 1 (no true concurrency). This masks the race;
+		// remove once the underlying issue is fixed.
+		runtime.GOMAXPROCS(1)
+	} else {
+		opt = stack.Combine(opt,
+			presets.WithSyncTesterELInitialState(eth.FCUState{
+				Latest:    blk,
+				Safe:      blk,
+				Finalized: blk,
+			}),
+		)
+	}
 
-	orch := sysgo.NewOrchestrator(p, stack.SystemHook(opt))
-	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opt, orch)
+	var orch stack.Orchestrator = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
+	stack.ApplyOptionLifecycle(opt, orch)
 
-	return orch
+	return orch.(*sysgo.Orchestrator)
 }
 
-func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
+func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
 	t := devtest.SerialT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade
 	blk := networkUpgradeBlocks[upgradeName] - 5
 
+	blocksToSync := uint64(10)
+	targetBlock := blk + blocksToSync
 	// Initialize orchestrator
-	orch := setupOrchestrator(gt, t, blk)
+
+	orch := setupOrchestrator(gt, t, blk, targetBlock, l2CLSyncMode)
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
@@ -143,28 +185,36 @@ func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName) {
 	syncTester := l2.SyncTester(match.FirstSyncTester)
 
 	sys := &struct {
-		L2CL       *dsl.L2CLNode
-		L2EL       *dsl.L2ELNode
-		SyncTester *dsl.SyncTester
-		L2         *dsl.L2Network
+		L2CL         *dsl.L2CLNode
+		L2ELReadOnly *dsl.L2ELNode
+		L2EL         *dsl.L2ELNode
+		SyncTester   *dsl.SyncTester
+		L2           *dsl.L2Network
 	}{
-		L2CL:       dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
-		L2EL:       dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
-		SyncTester: dsl.NewSyncTester(syncTester),
-		L2:         dsl.NewL2Network(l2, orch.ControlPlane()),
+		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+		L2ELReadOnly: dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane()),
+		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.SecondL2EL), orch.ControlPlane()),
+		SyncTester:   dsl.NewSyncTester(syncTester),
+		L2:           dsl.NewL2Network(l2, orch.ControlPlane()),
 	}
 	require := t.Require()
 
-	l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
-
 	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
-	require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
+	var l2CLSyncStatus *eth.SyncStatus
+	attempts := 1000
+	if l2CLSyncMode == sync.ELSync {
+		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
+		attempts = 5
+		// Signal L2CL for finishing EL Sync
+		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+	} else {
+		l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
+		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")
+	}
 
-	blocksToSync := uint64(10)
-	targetBlock := blk + blocksToSync
-	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, 1000)
+	sys.L2CL.Reached(types.LocalUnsafe, targetBlock, attempts)
 	l.Info("L2CL unsafe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
-	sys.L2CL.Reached(types.LocalSafe, targetBlock, 1000)
+	sys.L2CL.Reached(types.LocalSafe, targetBlock, attempts)
 	l.Info("L2CL safe reached", "targetBlock", targetBlock, "upgrade_name", upgradeName)
 
 	l2CLSyncStatus = sys.L2CL.SyncStatus()

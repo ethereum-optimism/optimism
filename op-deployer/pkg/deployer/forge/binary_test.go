@@ -44,7 +44,7 @@ func TestStandardBinary_ForgeBins(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			require.NoError(t, bin.Ensure(ctx))
 		})

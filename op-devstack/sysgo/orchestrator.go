@@ -33,6 +33,7 @@ type Orchestrator struct {
 	proposerOptions         []ProposerOption
 	l2CLOptions             L2CLOptionBundle
 	l2ELOptions             L2ELOptionBundle
+	SyncTesterELOptions     SyncTesterELOptionBundle
 	deployerPipelineOptions []DeployerPipelineOption
 
 	superchains    locks.RWMap[stack.SuperchainID, *Superchain]

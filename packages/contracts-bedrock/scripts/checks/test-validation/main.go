@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
@@ -16,6 +17,18 @@ import (
 
 // Validates test function naming conventions and structure in Forge test artifacts
 func main() {
+	// Load exclusions from TOML file relative to script location
+	scriptDir := filepath.Dir(os.Args[0])
+	exclusionsPath := filepath.Join(scriptDir, "exclusions.toml")
+	// Fall back to local path if running with go run
+	if _, err := os.Stat(exclusionsPath); os.IsNotExist(err) {
+		exclusionsPath = "scripts/checks/test-validation/exclusions.toml"
+	}
+	if err := loadExclusions(exclusionsPath); err != nil {
+		fmt.Printf("error loading exclusions: %v\n", err)
+		os.Exit(1)
+	}
+
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.t.sol/*.json"},
 		[]string{},
@@ -161,23 +174,13 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 			// Pattern: <ContractName>_Harness
 			continue
 		} else if len(contractParts) == 3 && contractParts[2] == "Test" {
-			// Check for uncategorized test pattern
-			if contractParts[1] == "Uncategorized" || contractParts[1] == "Unclassified" {
-				// Pattern: <ContractName>_Uncategorized_Test
-				continue
-			} else {
-				// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
-				functionName := contractParts[1]
-				if !checkFunctionExists(artifact, functionName) {
-					// Convert to camelCase for error message
-					camelCaseFunctionName := strings.ToLower(functionName[:1]) + functionName[1:]
-					errors = append(errors, fmt.Errorf("contract '%s': function '%s' does not exist in source contract", contractName, camelCaseFunctionName))
-				}
-			}
+			errors = append(errors, checkTestMethodName(artifact, contractName, contractParts[1], "")...)
 		} else if len(contractParts) == 3 && contractParts[2] == "Harness" {
 			// Pattern: <ContractName>_<Descriptor>_Harness
 			// (e.g., OPContractsManager_Upgrade_Harness)
 			continue
+		} else if len(contractParts) == 4 && contractParts[3] == "Test" {
+			errors = append(errors, checkTestMethodName(artifact, contractName, contractParts[1], contractParts[2])...)
 		} else {
 			// Invalid naming pattern
 			errors = append(errors, fmt.Errorf("contract '%s': invalid naming pattern. Expected patterns: <ContractName>_TestInit, <ContractName>_<FunctionName>_Test, or <ContractName>_Uncategorized_Test", contractName))
@@ -185,6 +188,21 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 	}
 
 	return errors
+}
+
+func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, featureEnabledName string) []error {
+	// Check for uncategorized test pattern
+	if functionName == "Uncategorized" || functionName == "Unclassified" {
+		// Pattern: <ContractName>_Uncategorized_Test
+		return nil
+	}
+	// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
+	if !checkFunctionExists(artifact, functionName) {
+		// Convert to camelCase for error message
+		camelCaseFunctionName := strings.ToLower(functionName[:1]) + functionName[1:]
+		return []error{fmt.Errorf("contract '%s': function '%s' does not exist in source contract", contractName, camelCaseFunctionName)}
+	}
+	return nil
 }
 
 // Artifact and path validation helpers
@@ -303,6 +321,40 @@ func checkFunctionExists(artifact *solc.ForgeArtifact, functionName string) bool
 
 // Exclusion configuration
 
+// Variables to hold exclusion lists loaded from TOML
+var excludedPaths []string
+var excludedTests []string
+
+// Structure to match the TOML file format
+type ExclusionsConfig struct {
+	ExcludedPaths struct {
+		SrcValidation          []string `toml:"src_validation"`
+		ContractNameValidation []string `toml:"contract_name_validation"`
+		FunctionNameValidation []string `toml:"function_name_validation"`
+	} `toml:"excluded_paths"`
+	ExcludedTests struct {
+		Contracts []string `toml:"contracts"`
+	} `toml:"excluded_tests"`
+}
+
+// Loads exclusion lists from the TOML configuration file
+func loadExclusions(configPath string) error {
+	var config ExclusionsConfig
+	if _, err := toml.DecodeFile(configPath, &config); err != nil {
+		return fmt.Errorf("failed to decode TOML file: %w", err)
+	}
+
+	// Combine all excluded paths into a single list
+	excludedPaths = append(excludedPaths, config.ExcludedPaths.SrcValidation...)
+	excludedPaths = append(excludedPaths, config.ExcludedPaths.ContractNameValidation...)
+	excludedPaths = append(excludedPaths, config.ExcludedPaths.FunctionNameValidation...)
+
+	// Load excluded test contracts
+	excludedTests = config.ExcludedTests.Contracts
+
+	return nil
+}
+
 // Checks if a file path should be excluded from validation
 func isExcluded(filePath string) bool {
 	for _, excluded := range excludedPaths {
@@ -321,90 +373,6 @@ func isExcludedTest(contractName string) bool {
 		}
 	}
 	return false
-}
-
-// Defines the list of paths that should be excluded from validation
-var excludedPaths = []string{
-	// PATHS EXCLUDED FROM SRC VALIDATION:
-	// These paths are excluded because they don't follow the standard naming convention where test
-	// files (*.t.sol) have corresponding source files (*.sol) in the src/ directory. Instead, they
-	// follow alternative naming conventions or serve specialized purposes:
-	// - Some are utility/infrastructure tests that don't test specific contracts
-	// - Some test external libraries or vendor code that exists elsewhere
-	// - Some are integration tests that test multiple contracts together
-	// - Some are specialized test types (invariants, formal verification, etc.)
-	//
-	// Resolving these naming inconsistencies is outside the script's scope, but they are
-	// documented here to avoid false validation failures while maintaining the validation rules
-	// for standard contract tests.
-	"test/invariants/",                    // Invariant testing framework - no direct src counterpart
-	"test/opcm/",                          // OP Chain Manager tests - may have different structure
-	"test/scripts/",                       // Script tests - test deployment/utility scripts, not contracts
-	"test/integration/",                   // Integration tests - test multiple contracts together
-	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
-	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
-	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
-	"test/setup/DeployVariations.t.sol",   // Tests deployment variations
-	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
-	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
-	"test/vendor/Initializable.t.sol",     // Tests external vendor code
-	"test/vendor/InitializableOZv5.t.sol", // Tests external vendor code
-
-	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
-	// These paths are excluded because they don't follow the standard naming convention where the
-	// contract name matches the file name pattern: <FileName>_<Function>_Test. Instead, these
-	// files contain contracts with names like <AnotherName>_<Function>_Test, where the base
-	// contract name doesn't match the file name.
-	//
-	// This typically occurs when:
-	// - The test file contains helper contracts or alternative implementations
-	// - The test file tests multiple related contracts or contract variants
-	// - The test file uses a different naming strategy for organizational purposes
-	// - The contracts being tested have complex inheritance or composition patterns
-	//
-	// These naming inconsistencies may indicate the presence of specialized test
-	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/FaultDisputeGame.t.sol",                // Contains contracts not matching FaultDisputeGame base name
-	"test/dispute/v2/FaultDisputeGameV2.t.sol",           // Contains contracts not matching FaultDisputeGameV2 base name
-	"test/dispute/SuperFaultDisputeGame.t.sol",           // Contains contracts not matching SuperFaultDisputeGame base name
-	"test/L1/ResourceMetering.t.sol",                     // Contains contracts not matching ResourceMetering base name
-	"test/L1/OPContractsManagerStandardValidator.t.sol",  // Contains contracts not matching OPContractsManagerStandardValidator base name
-	"test/L2/CrossDomainOwnable.t.sol",                   // Contains contracts not matching CrossDomainOwnable base name
-	"test/L2/CrossDomainOwnable2.t.sol",                  // Contains contracts not matching CrossDomainOwnable2 base name
-	"test/L2/CrossDomainOwnable3.t.sol",                  // Contains contracts not matching CrossDomainOwnable3 base name
-	"test/L2/GasPriceOracle.t.sol",                       // Contains contracts not matching GasPriceOracle base name
-	"test/universal/StandardBridge.t.sol",                // Contains contracts not matching StandardBridge base name
-	"test/L1/OPContractsManagerContractsContainer.t.sol", // Contains contracts not matching OPContractsManagerContractsContainer base name
-
-	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
-	// These paths are excluded because they don't pass the function name validation, which checks
-	// that the function in the <FileName>_<Function>_Test pattern actually exists in the source
-	// contract's ABI.
-	//
-	// Common reasons for exclusion:
-	// - Libraries: Have different artifact structures that the validation system
-	//   doesn't currently support, making function name lookup impossible
-	// - Internal/Private functions: Some contracts test internal functions that
-	//   aren't exposed in the public ABI, so they can't be validated
-	// - Misspelled/Incorrect function names: Test contracts may have typos or
-	//   incorrect function names that don't match the actual source contract
-	//
-	// Resolving these issues requires either:
-	// - Enhancing the validation system to support libraries and complex structures
-	// - Fixing misspelled function names in test contracts
-	// - Restructuring tests to match actual function signatures
-	"test/libraries",                     // Libraries have different artifact structure, unsupported
-	"test/dispute/lib/LibPosition.t.sol", // Library testing - artifact structure issues
-	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
-	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
-	"test/safe/SafeSigners.t.sol",        // Function name validation issues
-}
-
-var excludedTests = []string{
-	// Interop tests hosted in the OptimismPortal2 test file.
-	"OptimismPortal2_MigrateLiquidity_Test",
-	"OptimismPortal2_MigrateToSuperRoots_Test",
-	"OptimismPortal2_UpgradeInterop_Test",
 }
 
 // Defines the signature for test name validation functions
