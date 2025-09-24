@@ -513,6 +513,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         // Handle feature-specific safety logic here.
         if (_feature == Features.ETH_LOCKBOX) {
+            // It would probably better to check that the ETHLockbox contract is set inside the
+            // OptimismPortal2 contract before you're allowed to enable the feature here, but the
+            // portal checks that the feature is set before allowing you to set the lockbox, so
+            // these checks are good enough.
+
             // Lockbox shouldn't be unset if the ethLockbox address is still configured in the
             // OptimismPortal2 contract. Doing so would cause the system to start keeping ETH in
             // the portal. This check means there's no way to stop using ETHLockbox at the moment
