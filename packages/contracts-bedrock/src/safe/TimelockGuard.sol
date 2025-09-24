@@ -21,11 +21,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
-    /// @notice Configuration for a Safe's timelock guard
-    struct GuardConfig {
-        uint256 timelockDelay;
-    }
-
     /// @notice Scheduled transaction
     struct ScheduledTransaction {
         uint256 executionTime;
@@ -36,7 +31,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Aggregated state for each Safe using this guard.
     struct SafeState {
-        GuardConfig config;
+        uint256 timelockDelay;
         uint256 cancellationThreshold;
         mapping(bytes32 => ScheduledTransaction) scheduledTransactions;
         EnumerableSet.Bytes32Set pendingTxHashes;
@@ -99,8 +94,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockConfigurationForSafe(Safe _safe) public view returns (GuardConfig memory) {
-        return _safeState[_safe].config;
+    function timelockConfigurationForSafe(Safe _safe) public view returns (uint256) {
+        return _safeState[_safe].timelockDelay;
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
@@ -154,7 +149,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Store the configuration for this safe
         SafeState storage safeState = _safeState[callingSafe];
-        safeState.config.timelockDelay = _timelockDelay;
+        safeState.timelockDelay = _timelockDelay;
 
         // Initialize cancellation threshold to 1
         _resetCancellationThreshold(callingSafe);
@@ -215,7 +210,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Check that the guard has been configured for the Safe
-        if (_safeState[_safe].config.timelockDelay == 0) {
+        if (_safeState[_safe].timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -262,7 +257,7 @@ contract TimelockGuard is IGuard, ISemver {
         _safe.checkSignatures(txHash, txHashData, _signatures);
 
         // Calculate the execution time
-        uint256 executionTime = block.timestamp + _safeState[_safe].config.timelockDelay;
+        uint256 executionTime = block.timestamp + _safeState[_safe].timelockDelay;
 
         // Schedule the transaction
         _safeState[_safe].scheduledTransactions[txHash] =
@@ -362,7 +357,7 @@ contract TimelockGuard is IGuard, ISemver {
     {
         Safe callingSafe = Safe(payable(msg.sender));
 
-        if (_safeState[callingSafe].config.timelockDelay == 0) {
+        if (_safeState[callingSafe].timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
             // guard set, but not configured to complete the setup process.
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a

@@ -232,19 +232,19 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 contract TimelockGuard_ViewTimelockGuardConfiguration_Test is TimelockGuard_TestInit {
     /// @notice Ensures an unconfigured Safe reports a zero timelock delay.
     function test_viewTimelockGuardConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
-        assertEq(config.timelockDelay, 0);
+        uint256 delay = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
+        assertEq(delay, 0);
         // configured is now determined by timelockDelay == 0
-        assertEq(config.timelockDelay == 0, true);
+        assertEq(delay == 0, true);
     }
 
     /// @notice Validates the configuration view reflects the stored timelock delay.
     function test_viewTimelockGuardConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
-        assertEq(config.timelockDelay, TIMELOCK_DELAY);
+        uint256 delay = timelockGuard.timelockConfigurationForSafe(safeInstance.safe);
+        assertEq(delay, TIMELOCK_DELAY);
         // configured is now determined by timelockDelay != 0
-        assertEq(config.timelockDelay != 0, true);
+        assertEq(delay != 0, true);
     }
 }
 
@@ -258,10 +258,10 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
-        assertEq(config.timelockDelay, TIMELOCK_DELAY);
+        uint256 delay = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(delay, TIMELOCK_DELAY);
         // configured is now determined by timelockDelay != 0
-        assertEq(config.timelockDelay != 0, true);
+        assertEq(delay != 0, true);
     }
 
     /// @notice Checks configuration reverts when the guard is not enabled.
@@ -287,17 +287,17 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         _configureGuard(safeInstance, ONE_YEAR);
 
-        TimelockGuard.GuardConfig memory config = timelockGuard.timelockConfigurationForSafe(safe);
-        assertEq(config.timelockDelay, ONE_YEAR);
+        uint256 delay = timelockGuard.timelockConfigurationForSafe(safe);
+        assertEq(delay, ONE_YEAR);
         // configured is now determined by timelockDelay != 0
-        assertEq(config.timelockDelay != 0, true);
+        assertEq(delay != 0, true);
     }
 
     /// @notice Demonstrates the guard can be reconfigured to a new delay.
     function test_configureTimelockGuard_allowsReconfiguration_succeeds() external {
         // Initial configuration
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe), TIMELOCK_DELAY);
 
         uint256 newDelay = TIMELOCK_DELAY + 1;
 
@@ -315,14 +315,14 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         emit GuardConfigured(safe, newDelay);
 
         _configureGuard(safeInstance, newDelay);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, newDelay);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe), newDelay);
     }
 
     /// @notice Ensures setting delay to zero clears the configuration.
     function test_configureTimelockGuard_clearConfiguration_succeeds() external {
         // First configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, TIMELOCK_DELAY);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe), TIMELOCK_DELAY);
 
         // Configure timelock delay to 0 should succeed and emit event
         vm.expectEmit(true, true, true, true);
@@ -331,7 +331,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(0);
 
         // Timelock delay should be set to 0
-        assertEq(timelockGuard.timelockConfigurationForSafe(safe).timelockDelay, 0);
+        assertEq(timelockGuard.timelockConfigurationForSafe(safe), 0);
     }
 
     /// @notice Checks clearing succeeds even if the guard was never configured.
@@ -398,7 +398,7 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
     function test_scheduleTransaction_guardNotConfigured_reverts() external {
         // Enable the guard on the unguarded Safe, but don't configure it
         _enableGuard(unguardedSafe);
-        assertEq(timelockGuard.timelockConfigurationForSafe(unguardedSafe.safe).timelockDelay, 0);
+        assertEq(timelockGuard.timelockConfigurationForSafe(unguardedSafe.safe), 0);
 
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(unguardedSafe);
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
