@@ -391,6 +391,17 @@ contract DeployImplementations_Test is Test {
         input.faultGameV2MaxGameDepth = 300; // > 200
         vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2MaxGameDepth out of range");
         deployImplementations.run(input);
+
+        // Reset and test invalid split depth (too large)
+        input.faultGameV2MaxGameDepth = 0;
+        input.faultGameV2SplitDepth = 250; // > 200
+        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range");
+        deployImplementations.run(input);
+
+        // Reset and test invalid split depth (too small, < 2)
+        input.faultGameV2SplitDepth = 1; // < 2
+        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range");
+        deployImplementations.run(input);
     }
 
     function test_deployImplementation_withV2Disabled_succeeds() public {

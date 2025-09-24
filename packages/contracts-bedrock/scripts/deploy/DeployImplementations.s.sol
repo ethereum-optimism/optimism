@@ -161,6 +161,10 @@ contract DeployImplementations is Script {
                 _input.faultGameV2MaxClockDuration == 0 || _input.faultGameV2MaxClockDuration <= type(uint64).max,
                 "DeployImplementations: V2 disabled but faultGameV2MaxClockDuration too large"
             );
+            require(
+                _input.faultGameV2SplitDepth == 0 || (_input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth <= 200),
+                "DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range"
+            );
         }
 
         // Deploy the OP Contracts Manager with the new implementations set.
