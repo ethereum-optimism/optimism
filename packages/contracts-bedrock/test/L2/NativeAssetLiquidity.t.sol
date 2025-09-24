@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
+// Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+
 // Error imports
 import { Unauthorized, InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 
@@ -21,8 +24,8 @@ contract NativeAssetLiquidity_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
-        enableCustomGasToken();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that contract is set up correctly.

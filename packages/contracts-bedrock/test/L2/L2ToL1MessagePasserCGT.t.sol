@@ -7,6 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL2ToL1MessagePasserCGT } from "interfaces/L2/IL2ToL1MessagePasserCGT.sol";
@@ -16,8 +17,8 @@ import { IL2ToL1MessagePasserCGT } from "interfaces/L2/IL2ToL1MessagePasserCGT.s
 contract L2ToL1MessagePasserCGT_TestInit is CommonTest {
     /// @notice Sets up the test suite with custom gas token enabled.
     function setUp() public override {
-        super.enableCustomGasToken();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 }
 

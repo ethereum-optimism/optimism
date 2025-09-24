@@ -12,6 +12,7 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
 // Libraries
 import "src/libraries/L1BlockErrors.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
@@ -24,8 +25,8 @@ contract L1BlockCGT_TestInit is CommonTest {
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
-        super.enableCustomGasToken();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         l1BlockCGT = IL1BlockCGT(address(l1Block));
         depositor = l1BlockCGT.DEPOSITOR_ACCOUNT();
     }
@@ -89,7 +90,6 @@ contract L1BlockCGT_SetL1BlockValues_Test is L1Block_SetL1BlockValues_Test {
     // Override setUp to enable custom gas token
     // Re-use the test from L1Block.t.sol
     function setUp() public override {
-        super.enableCustomGasToken();
         super.setUp();
     }
 }
@@ -101,7 +101,6 @@ contract L1BlockCGT_SetL1BlockValuesEcotone_Test is L1Block_SetL1BlockValuesEcot
     // Override setUp to enable custom gas token
     // Re-use the test from L1Block.t.sol
     function setUp() public override {
-        super.enableCustomGasToken();
         super.setUp();
     }
 }
@@ -113,7 +112,6 @@ contract L1BlockCGT_SetL1BlockValuesIsthmus_Test is L1Block_SetL1BlockValuesIsth
     // Override setUp to enable custom gas token
     // Re-use the test from L1Block.t.sol
     function setUp() public override {
-        super.enableCustomGasToken();
         super.setUp();
     }
 }

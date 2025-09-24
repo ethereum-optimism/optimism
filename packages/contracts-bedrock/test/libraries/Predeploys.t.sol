@@ -9,6 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
@@ -172,8 +173,8 @@ contract Predeploys_UnclassifiedInterop_Test is Predeploys_TestInit {
 contract Predeploys_CustomGasToken_Test is Predeploys_TestInit {
     /// @notice Test setup. Enabling custom gas token.
     function setUp() public virtual override {
-        super.enableCustomGasToken();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the

@@ -10,6 +10,7 @@ import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Contracts
 import { LiquidityController } from "src/L2/LiquidityController.sol";
@@ -42,8 +43,8 @@ contract LiquidityController_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
-        enableCustomGasToken();
         super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Tests that contract is set up correctly.

@@ -238,6 +238,16 @@ contract DeployConfig is Script {
         useCustomGasToken = _useCustomGasToken;
     }
 
+    /// @notice Allow the `gasPayingTokenName` config to be overridden in testing environments
+    function setGasPayingTokenName(string memory _gasPayingTokenName) public {
+        gasPayingTokenName = _gasPayingTokenName;
+    }
+
+    /// @notice Allow the `gasPayingTokenSymbol` config to be overridden in testing environments
+    function setGasPayingTokenSymbol(string memory _gasPayingTokenSymbol) public {
+        gasPayingTokenSymbol = _gasPayingTokenSymbol;
+    }
+
     /// @notice Allow the `nativeAssetLiquidityAmount` config to be overridden in testing environments
     function setNativeAssetLiquidityAmount(uint256 _nativeAssetLiquidityAmount) public {
         nativeAssetLiquidityAmount = _nativeAssetLiquidityAmount;
