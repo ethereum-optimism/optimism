@@ -81,7 +81,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Helper function to check if a contract name corresponds to a V2 implementation.
     /// @param _contractName The contract name to check.
     /// @return True if this is a V2 implementation, false otherwise.
-    function _isV2Implementation(string memory _contractName) internal pure returns (bool) {
+    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
         // V2 implementations are specifically the FaultDisputeGameV2 and PermissionedDisputeGameV2 contracts
         return (
             keccak256(bytes(_contractName)) == keccak256(bytes("FaultDisputeGameV2"))
@@ -138,7 +138,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 implementations (not yet deployed)
-            if (_isV2Implementation(ref.name)) {
+            if (_isV2DisputeGameImplementation(ref.name)) {
                 continue;
             }
 
@@ -203,7 +203,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 implementations (not yet deployed)
-            if (_isV2Implementation(ref.name)) {
+            if (_isV2DisputeGameImplementation(ref.name)) {
                 continue;
             }
 

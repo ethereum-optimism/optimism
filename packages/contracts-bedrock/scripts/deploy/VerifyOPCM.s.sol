@@ -402,7 +402,7 @@ contract VerifyOPCM is Script {
 
         // Skip verification for V2 implementations based on contract name
         // V2 implementations follow the pattern "*DisputeGameV2" or "*DisputeGameV2Impl"
-        if (_isV2Implementation(_target.name)) {
+        if (_isV2DisputeGameImplementation(_target.name)) {
             console.log("  Status: [SKIP] V2 implementation, not yet deployed");
             console.log(string.concat("  Status: [SKIP] Skipping verification for ", _target.name));
             return true;
@@ -821,10 +821,10 @@ contract VerifyOPCM is Script {
         return string(fieldBytes);
     }
 
-    /// @notice Checks if a contract name corresponds to a V2 implementation.
+    /// @notice Checks if a contract name corresponds to a V2 dispute game implementation.
     /// @param _contractName The contract name to check.
-    /// @return True if this is a V2 implementation, false otherwise.
-    function _isV2Implementation(string memory _contractName) internal pure returns (bool) {
+    /// @return True if this is a V2 dispute game implementation, false otherwise.
+    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
         // V2 implementations are specifically the FaultDisputeGameV2 and PermissionedDisputeGameV2 contracts
         return (
             keccak256(bytes(_contractName)) == keccak256(bytes("FaultDisputeGameV2"))
