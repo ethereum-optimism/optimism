@@ -377,6 +377,8 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
+	// When Fusaka activates. Relative to L1 genesis.
+	L1FusakaTimeOffset *hexutil.Uint64 `json:"l1FusakaTimeOffset,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)

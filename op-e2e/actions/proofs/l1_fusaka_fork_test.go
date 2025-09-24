@@ -28,8 +28,7 @@ func Test_ProgramAction_FusakaForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
-				// TODO: When Fusaka is implemented, change this to dp.L1FusakaTimeOffset
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second L1 block
+				dp.L1FusakaTimeOffset = ptr(hexutil.Uint64(24))
 			},
 		)
 
@@ -58,8 +57,8 @@ func Test_ProgramAction_FusakaForkAfterGenesis(gt *testing.T) {
 		miner.ActEmptyBlock(t) // block 1
 		miner.ActEmptyBlock(t) // block 2 - Fusaka activates here
 
-		// TODO: When Fusaka is implemented, add proper fork validation:
-		// require.True(t, env.Sd.L1Cfg.Config.IsFusaka(block.Number, block.Time))
+		block := miner.L1Chain().CurrentBlock()
+		require.True(t, env.Sd.L1Cfg.Config.IsOsaka(block.Number, block.Time))
 
 		// Build an empty L2 block which has a pre-Fusaka L1 origin, and check the blob fee is correct
 		sequencer.ActL2EmptyBlock(t)
