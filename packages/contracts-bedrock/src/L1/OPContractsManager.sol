@@ -185,11 +185,7 @@ abstract contract OPContractsManagerBase {
     /// provided salt mixer. This protects against a situation where multiple chains with the same
     /// L2 chain ID exist, which would otherwise result in address collisions.
     /// @param _systemConfigProxy The SystemConfig contract found in the OpChainConfig of the chain being deployed to.
-    function reusableSaltMixer(ISystemConfig _systemConfigProxy)
-        internal
-        pure
-        returns (string memory)
-    {
+    function reusableSaltMixer(ISystemConfig _systemConfigProxy) internal pure returns (string memory) {
         return string(bytes.concat(bytes32(uint256(uint160(address(_systemConfigProxy))))));
     }
 
@@ -577,12 +573,17 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             IDisputeGameFactory dgf =
                 IDisputeGameFactory(_prestateUpdateInputs[i].systemConfigProxy.disputeGameFactory());
 
+            uint256 numGameTypes = isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 6 : 4;
             // Create an array of all of the potential game types to update.
-            GameType[] memory gameTypes = new GameType[](4);
+            GameType[] memory gameTypes = new GameType[](numGameTypes);
             gameTypes[0] = GameTypes.CANNON;
             gameTypes[1] = GameTypes.PERMISSIONED_CANNON;
             gameTypes[2] = GameTypes.SUPER_CANNON;
             gameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                gameTypes[4] = GameTypes.CANNON_KONA;
+                gameTypes[5] = GameTypes.SUPER_CANNON_KONA;
+            }
 
             // Track if we have a legacy game, super game, or both. We will revert if this function
             // is ever called with a mix of legacy and super games. Should never happen in
@@ -606,6 +607,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 if (
                     gameType.raw() == GameTypes.SUPER_CANNON.raw()
                         || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                        || gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
                 ) {
                     hasSuperGame = true;
                 } else {
@@ -920,7 +922,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     bps.permissionedDisputeGame1,
                     bps.permissionedDisputeGame2,
-                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionedDisputeGame"),
+                    computeSalt(
+                        _l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionedDisputeGame"
+                    ),
                     encodePermissionedFDGConstructor(params, proposer, challenger)
                 )
             );
@@ -929,7 +933,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     bps.permissionlessDisputeGame1,
                     bps.permissionlessDisputeGame2,
-                    computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionlessDisputeGame"),
+                    computeSalt(
+                        _l2ChainId, reusableSaltMixer(_opChainConfig.systemConfigProxy), "PermissionlessDisputeGame"
+                    ),
                     encodePermissionlessFDGConstructor(params)
                 )
             );
@@ -1607,7 +1613,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     blueprints().superPermissionedDisputeGame1,
                     blueprints().superPermissionedDisputeGame2,
                     computeSalt(
-                        block.timestamp, reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy), "SuperPermissionedDisputeGame"
+                        block.timestamp,
+                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
+                        "SuperPermissionedDisputeGame"
                     ),
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
@@ -1662,7 +1670,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 Blueprint.deployFrom(
                     blueprints().superPermissionlessDisputeGame1,
                     blueprints().superPermissionlessDisputeGame2,
-                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy), "SuperFaultDisputeGame"),
+                    computeSalt(
+                        block.timestamp,
+                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
+                        "SuperFaultDisputeGame"
+                    ),
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
