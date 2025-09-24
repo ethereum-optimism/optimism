@@ -89,6 +89,15 @@ func ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
 }
 
 func chainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.ChainConfig, error) {
+
+	// Certain L1 Chain Configs are looked up directly from the op-geth library
+	if chainID == eth.ChainIDFromBig(params.MainnetChainConfig.ChainID) {
+		return params.MainnetChainConfig, nil
+	}
+	if chainID == eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID) {
+		return params.SepoliaChainConfig, nil
+	}
+
 	// Load from custom chain configs from embed FS
 	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%v-genesis-l2.json", chainID))
 	if errors.Is(err, os.ErrNotExist) {
