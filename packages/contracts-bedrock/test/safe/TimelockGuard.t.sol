@@ -127,8 +127,9 @@ library TransactionBuilder {
 
         // Empty out the params, then set based on the cancellation transaction format
         delete cancellation.params;
-        cancellation.params.to = address(_tx.safeInstance.safe);
-        cancellation.params.data = abi.encodeWithSignature("cancelTransaction(bytes32)", _tx.hash);
+        cancellation.params.to = address(_timelockGuard);
+        cancellation.params.data =
+            abi.encodeCall(TimelockGuard.cancelTransactionOnSafe, (Safe(payable(_tx.safeInstance.safe)), _tx.hash));
 
         // Get only the number of signatures required for the cancellation transaction
         uint256 cancellationThreshold = _timelockGuard.cancellationThresholdForSafe(_tx.safeInstance.safe);

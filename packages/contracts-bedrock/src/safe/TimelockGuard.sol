@@ -430,21 +430,14 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
-        bytes memory cancellationTxData;
-        bytes32 cancellationTxHash;
-        // New scope for the compiler error that must not be named
-        {
-            // Generate the cancellation transaction data
-            bytes memory txData = abi.encodeWithSignature("cancelTransaction(bytes32)", _txHash);
-            cancellationTxData = _safe.encodeTransactionData(
-                address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
-            );
-            cancellationTxHash = _safe.getTransactionHash(
-                address(_safe), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
-            );
-        }
-        // Verify signatures using the Safe's signature checking logic
-        // This function call reverts if the signatures are invalid.
+        // Generate the cancellation transaction data
+        bytes memory txData = abi.encodeCall(this.cancelTransactionOnSafe, (_safe, _txHash));
+        bytes memory cancellationTxData = _safe.encodeTransactionData(
+            address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+        );
+        bytes32 cancellationTxHash = _safe.getTransactionHash(
+            address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
+        );
         _safe.checkNSignatures(
             cancellationTxHash, cancellationTxData, _signatures, _safeState[_safe].cancellationThreshold
         );
@@ -453,5 +446,14 @@ contract TimelockGuard is IGuard, ISemver {
         _increaseCancellationThreshold(_safe);
 
         emit TransactionCancelled(_safe, _txHash);
+    }
+    ////////////////////////////////////////////////////////////////
+    //                      Dummy Functions                       //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data
+    /// @dev This function is not meant to be called, use cancelTransaction instead
+    function cancelTransactionOnSafe(Safe, bytes32) public {
+        revert("This function is not meant to be called, use cancelTransaction instead");
     }
 }
