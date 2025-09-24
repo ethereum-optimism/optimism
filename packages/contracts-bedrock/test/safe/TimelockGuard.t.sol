@@ -923,4 +923,36 @@ contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
 
         assertEq(timelockGuard.cancellationThresholdForSafe(safeInstance.safe), maxThreshold);
     }
+
+    /// @notice Test that a transaction scheduled with safety delay enabled but not executed within the safety delay reverts
+    function test_integration_executeTransactionWithSafetyDelay_works() external {
+        // Schedule a transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        // Toggle the safety delay on
+        TransactionBuilder.Transaction memory toggleOnTx = _createEmptyTransaction(safeInstance);
+        toggleOnTx.params.data = abi.encodeWithSignature("toggleSafetyDelay(bool)", true);
+        toggleOnTx.params.to = address(safeInstance.safe);
+        toggleOnTx.nonce = safeInstance.safe.nonce();
+        toggleOnTx.updateTransaction();
+        timelockGuard.toggleSafetyDelay(safeInstance.safe, true, toggleOnTx.signatures);
+
+        // Fast forward past the timelock delay but not the safety delay
+        vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        // Attempt to execute the transaction, it should revert
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionNotReady.selector);
+        dummyTx.executeTransaction();
+
+        // Fast forward past the timelock delay AND the safety delay
+        vm.warp(block.timestamp + TIMELOCK_DELAY + SAFETY_DELAY);
+
+        // Execute the transaction, it should succeed
+        vm.expectEmit(true, true, true, true);
+        emit TransactionExecuted(safeInstance.safe, dummyTx.nonce, dummyTx.hash);
+        dummyTx.executeTransaction();
+
+        assertEq(timelockGuard.scheduledTransactionForSafe(safeInstance.safe, dummyTx.hash).executed, true);
+    }
 }

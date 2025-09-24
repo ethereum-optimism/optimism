@@ -295,7 +295,8 @@ contract TimelockGuard is IGuard, ISemver {
     ///      and hash of the transaction being cancelled. This is necessary to ensure that the cancellation transaction
     ///      is unique and cannot be used to cancel another transaction at the same nonce.
     ///
-    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures required
+    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures
+    /// required
     ///      can be set by the Safe's current cancellation threshold. Another benefit of checkNSignatures is that owners
     ///      can use any method to sign the cancellation transaction inputs, including signing with a private key,
     ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
@@ -428,8 +429,15 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
+        // Calculate the execution time
+        uint256 executionTime = scheduledTx.executionTime;
+        if (_timelockSafeConfiguration[callingSafe].safetyDelayEnabled) {
+            // Add the safety delay to the execution time
+            executionTime += _timelockSafeConfiguration[callingSafe].safetyDelay;
+        }
+
         // Check if the timelock delay has passed
-        if (scheduledTx.executionTime > block.timestamp) {
+        if (executionTime > block.timestamp) {
             revert TimelockGuard_TransactionNotReady();
         }
 
