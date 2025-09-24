@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -28,15 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
-
-// isDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
-// It performs a bitwise AND operation between the bitmap and the feature flag to determine
-// if the feature is enabled. This follows the same pattern as the solidity DevFeatures library.
-func isDevFeatureEnabled(bitmap, flag common.Hash) bool {
-	b := new(big.Int).SetBytes(bitmap[:])
-	f := new(big.Int).SetBytes(flag[:])
-	return new(big.Int).And(b, f).BitLen() != 0
-}
 
 type ImplementationsConfig struct {
 	L1RPCUrl                        string             `cli:"l1-rpc-url"`
@@ -104,7 +94,7 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
 	// Check V2 fault game parameters only if V2 dispute games feature is enabled
-	deployV2Games := isDevFeatureEnabled(c.DevFeatureBitmap, standard.DeployV2GamesFeatureFlag)
+	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGames)
 	if deployV2Games {
 		if c.FaultGameMaxGameDepth == 0 {
 			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
