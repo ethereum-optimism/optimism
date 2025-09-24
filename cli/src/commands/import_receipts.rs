@@ -309,8 +309,9 @@ mod test {
         f.flush().await.unwrap();
         f.seek(SeekFrom::Start(0)).await.unwrap();
 
-        let reader =
-            ChunkedFileReader::from_file(f, DEFAULT_BYTE_LEN_CHUNK_CHAIN_FILE).await.unwrap();
+        let reader = ChunkedFileReader::from_file(f, DEFAULT_BYTE_LEN_CHUNK_CHAIN_FILE, false)
+            .await
+            .unwrap();
 
         let db = TestStageDB::default();
         init_genesis(&db.factory).unwrap();
