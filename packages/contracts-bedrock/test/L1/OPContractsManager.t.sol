@@ -1785,7 +1785,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
                 protocolVersionsProxy: dso.protocolVersionsProxy,
                 superchainProxyAdmin: dso.superchainProxyAdmin,
                 upgradeController: dso.superchainProxyAdmin.owner(),
-                proposer: proposer,
                 challenger: challenger,
                 devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
              })
