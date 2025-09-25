@@ -84,7 +84,7 @@ contract Storage_GetBytes32_Test is Storage_TestInit {
 
     /// @notice Test that multiple bytes32 values can be set and retrieved correctly.
     /// @param _slots Array of storage slots and values to test with.
-    function testFuzz_setGetBytes32Multi_succeeds(StorageSetter.Slot[] calldata _slots) external {
+    function testFuzz_getBytes32_multiSlot_succeeds(StorageSetter.Slot[] calldata _slots) external {
         for (uint256 i; i < _slots.length; i++) {
             if (keys[_slots[i].key]) {
                 continue;
@@ -136,11 +136,4 @@ contract Storage_GetBool_Test is Storage_TestInit {
         assertEq(setter.getBool(_slot), _value);
         assertEq(_value, vm.load(address(setter), _slot) == bytes32(uint256(1)));
     }
-}
-
-/// @title Storage_Uncategorized_Test
-/// @notice Tests multiple Storage functions working together.
-contract Storage_Uncategorized_Test is Storage_TestInit {
-// This contract is reserved for true multi-function integration tests
-// The multi-slot bytes32 test was moved to Storage_GetBytes32_Test
 }
