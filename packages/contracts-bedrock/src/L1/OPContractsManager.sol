@@ -311,6 +311,35 @@ abstract contract OPContractsManagerBase {
         return _disputeGame.challenger();
     }
 
+    /// @notice Helper function to register permissioned game V2 implementation
+    /// @dev Extracted to avoid stack too deep error
+    /// @param _input The deployment input data containing all necessary parameters
+    /// @param _implementation The implementation addresses struct
+    /// @param _output The deployment output containing proxy addresses
+    function _registerPermissionedGameV2(
+        OPContractsManager.DeployInput calldata _input,
+        OPContractsManager.Implementations memory _implementation,
+        OPContractsManager.DeployOutput memory _output
+    )
+        internal
+    {
+        bytes memory gameArgs = abi.encodePacked(
+            _input.disputeAbsolutePrestate, // 32 bytes
+            _implementation.mipsImpl, // 20 bytes
+            address(_output.anchorStateRegistryProxy), // 20 bytes
+            address(_output.delayedWETHPermissionedGameProxy), // 20 bytes
+            _input.l2ChainId, // 32 bytes
+            _input.roles.proposer, // 20 bytes
+            _input.roles.challenger // 20 bytes
+        );
+        setDGFImplementation(
+            _output.disputeGameFactoryProxy,
+            GameTypes.PERMISSIONED_CANNON,
+            IDisputeGame(_implementation.permissionedDisputeGameV2Impl),
+            gameArgs
+        );
+    }
+
     /// @notice Retrieves the DisputeGameFactory address for a given SystemConfig
     function getDisputeGameFactory(ISystemConfig _systemConfig) internal view returns (IDisputeGameFactory) {
         return IDisputeGameFactory(_systemConfig.disputeGameFactory());
@@ -1181,22 +1210,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         );
         // Register the appropriate dispute game implementation based on the feature flag
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Register v2 implementation for PERMISSIONED_CANNON game type with CWIA args
-            bytes memory gameArgs = abi.encodePacked(
-                _input.disputeAbsolutePrestate, // 32 bytes
-                implementation.mipsImpl, // 20 bytes
-                address(output.anchorStateRegistryProxy), // 20 bytes
-                address(output.delayedWETHPermissionedGameProxy), // 20 bytes
-                _input.l2ChainId, // 32 bytes
-                _input.roles.proposer, // 20 bytes
-                _input.roles.challenger // 20 bytes
-            );
-            setDGFImplementation(
-                output.disputeGameFactoryProxy,
-                GameTypes.PERMISSIONED_CANNON,
-                IDisputeGame(implementation.permissionedDisputeGameV2Impl),
-                gameArgs
-            );
+            // Extracted to helper function to avoid stack too deep error
+            _registerPermissionedGameV2(_input, implementation, output);
         } else {
             // Register v1 implementation for PERMISSIONED_CANNON game type
             setDGFImplementation(
