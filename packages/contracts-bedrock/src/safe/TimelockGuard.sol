@@ -120,12 +120,14 @@ contract TimelockGuard is IGuard, ISemver {
     error TimelockGuard_TransactionAlreadyExecuted();
 
     /// @notice Emitted when a Safe configures the guard
+    /// @param safe The Safe whose guard is configured.
+    /// @param timelockDelay The timelock delay in seconds.
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
     /// @param txHash The identifier of the scheduled transaction (nonce-independent).
-    /// @param when The timestamp when execution becomes valid.
+    /// @param executionTime The timestamp when execution becomes valid.
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txHash, uint256 executionTime);
 
     /// @notice Emitted when a transaction is cancelled for a Safe.
@@ -134,6 +136,9 @@ contract TimelockGuard is IGuard, ISemver {
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
 
     /// @notice Emitted when the cancellation threshold is updated
+    /// @param safe The Safe whose cancellation threshold is updated.
+    /// @param oldThreshold The old cancellation threshold.
+    /// @param newThreshold The new cancellation threshold.
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
 
     /// @notice Emitted when a transaction is executed for a Safe.
