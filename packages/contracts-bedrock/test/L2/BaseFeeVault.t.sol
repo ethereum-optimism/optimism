@@ -4,9 +4,6 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Libraries
-import { Types } from "src/libraries/Types.sol";
-
 /// @title BaseFeeVault_Constructor_Test
 /// @notice Tests the `constructor` of the `BaseFeeVault` contract.
 contract BaseFeeVault_Constructor_Test is CommonTest {
