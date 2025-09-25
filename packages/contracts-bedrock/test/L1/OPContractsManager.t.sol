@@ -1793,6 +1793,58 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         return dio.opcm;
     }
 
+    /// @notice Helper function to create a permissioned game v2 through the factory
+    function _createPermissionedGameV2(
+        IDisputeGameFactory factory,
+        IOPContractsManager.DeployOutput memory output,
+        address proposer
+    )
+        internal
+        returns (IFaultDisputeGame)
+    {
+        // Check if there's an init bond required for the game type
+        uint256 initBond = factory.initBonds(GameTypes.PERMISSIONED_CANNON);
+
+        // Fund the proposer if needed
+        if (initBond > 0) {
+            vm.deal(proposer, initBond);
+        }
+
+        // We use vm.startPrank to set both msg.sender and tx.origin to the proposer
+        vm.startPrank(proposer, proposer);
+
+        IDisputeGame gameProxy = factory.create{ value: initBond }(
+            GameTypes.PERMISSIONED_CANNON, Claim.wrap(bytes32(uint256(1))), abi.encode(bytes32(uint256(2)))
+        );
+
+        vm.stopPrank();
+
+        return IFaultDisputeGame(address(gameProxy));
+    }
+
+    /// @notice Helper function to create a fault dispute game v2 (non-permissioned) through the factory
+    function _createFaultDisputeGameV2(
+        IDisputeGameFactory factory,
+        IOPContractsManager.DeployOutput memory output
+    )
+        internal
+        returns (IFaultDisputeGame)
+    {
+        // Check if there's an init bond required for the game type
+        uint256 initBond = factory.initBonds(GameTypes.CANNON);
+
+        // Fund the test contract if needed
+        if (initBond > 0) {
+            vm.deal(address(this), initBond);
+        }
+
+        IDisputeGame gameProxy = factory.create{ value: initBond }(
+            GameTypes.CANNON, Claim.wrap(bytes32(uint256(1))), abi.encode(bytes32(uint256(2)))
+        );
+
+        return IFaultDisputeGame(address(gameProxy));
+    }
+
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
