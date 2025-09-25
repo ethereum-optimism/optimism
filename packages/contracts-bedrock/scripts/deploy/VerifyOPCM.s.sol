@@ -400,14 +400,6 @@ contract VerifyOPCM is Script {
         console.log(string.concat("  Contract: ", _target.name));
         console.log(string.concat("  Address: ", vm.toString(_target.addr)));
 
-        // Skip verification for V2 implementations based on contract name
-        // V2 implementations follow the pattern "*DisputeGameV2" or "*DisputeGameV2Impl"
-        if (_isV2DisputeGameImplementation(_target.name)) {
-            console.log("  Status: [SKIP] V2 implementation, not yet deployed");
-            console.log(string.concat("  Status: [SKIP] Skipping verification for ", _target.name));
-            return true;
-        }
-
         // Build the expected path to the artifact file.
         string memory artifactPath = _buildArtifactPath(_target.name);
         console.log(string.concat("  Expected Runtime Artifact: ", artifactPath));
@@ -819,17 +811,6 @@ contract VerifyOPCM is Script {
 
         // Return the field name with the first character uppercase
         return string(fieldBytes);
-    }
-
-    /// @notice Checks if a contract name corresponds to a V2 dispute game implementation.
-    /// @param _contractName The contract name to check.
-    /// @return True if this is a V2 dispute game implementation, false otherwise.
-    function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        // V2 implementations are specifically the FaultDisputeGameV2 and PermissionedDisputeGameV2 contracts
-        return (
-            keccak256(bytes(_contractName)) == keccak256(bytes("FaultDisputeGameV2"))
-                || keccak256(bytes(_contractName)) == keccak256(bytes("PermissionedDisputeGameV2"))
-        );
     }
 
     /// @notice Checks if a position is inside an immutable reference.
