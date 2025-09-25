@@ -39,6 +39,27 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// Safe Version Compatibility:
 ///     This guard is compatible with Safe versions 1.3.0 and higher. Earlier versions of the Safe do not expose
 ///     the checkSignatures or checkNSignatures functions required by this guard.
+/// Threats Mitigated and Integration With LivenessModule:
+///     This Guard is designed to protect against a number of well-defined scenarios, defined on
+///     the two axes of amount of keys compromised, and type of compromise.
+///     For scenarios where the keys compromised don't amount to a blocking threshold, regular transactions from the
+///     multisig for removal or rotation is the preferred solution.
+///     For scenarios where the keys compromised are at least a blocking threshold, but not as much as quorum, the
+///     LivenessModule would be used. If there is a quorum of absent keys, but no significant malicious control, the
+///     LivenessModule would also be used.
+///     The TimelockGuard acts when there is malicious control of a quorum of keys. If the control is temporary, for
+///     example by phishing a single set of signatures, then the TimelockGuard is enough to detect and stop the attack
+///     entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to execute
+///     remediations external to the compromised safe.
+///     +---------------------------------------------------------------------+
+///     |                     |      Absent Keys      |   Malicious Control   |
+///     +---------------------------------------------------------------------+
+///     | 1+                  | Detection and Removal | Detection and Removal |
+///     +---------------------------------------------------------------------+
+///     | Blocking Threshold+ | Liveness Module       | Liveness Module       |
+///     +---------------------------------------------------------------------+
+///     | Quorum+             | Liveness Module       | Timelock Guard        |
+///     +---------------------------------------------------------------------+
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -51,6 +72,15 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Aggregated state for each Safe using this guard.
+    /// @dev We have chosen for operational reasons to keep a list of pending transactions that can be easily retrieved
+    /// via a function call. There are several ways to accomplis this but we chose to maintain a separate EnumerableSet
+    /// with the txHashes of the pending transactions, that needs to be maintained in sync with the mapping that keeps
+    /// all the data about all the transactions, regardless of their state.
+    /// We chose this implementation because the set of pending transactions is independent of the core flow, and if
+    /// there would be a bug in it, it would only affect the `pendingTransactions` view function.
+    /// A notable alternative was to keen onlt the pending transactions in storage, and remove them as soon as they are
+    /// cancelled or executed, but that opens the Timelock to some low-risk griefing attackes that we nontheless prefer
+    /// to avoid.
     struct SafeState {
         uint256 timelockDelay;
         uint256 cancellationThreshold;
@@ -329,6 +359,8 @@ contract TimelockGuard is IGuard, ISemver {
     ///      is important to ensure that maliciously gathered signatures will not be able to instantly reconfigure
     ///      the delay to zero.
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
+    /// @dev We considered several implementations to allow for a pause mechanism of sorts, which could be used if the
+    /// on-call team needed more time. Ultimately, we rejected all of them in favour of better on-call processes.
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
