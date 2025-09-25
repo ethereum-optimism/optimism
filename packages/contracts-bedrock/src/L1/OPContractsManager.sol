@@ -719,8 +719,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
-    /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
-    ///      `_opChainConfigs`'s ProxyAdmin.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external virtual {
         // Grab the implementations.
@@ -888,7 +887,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         // Only upgrade the superchainConfig if the current version is less than the target version.
@@ -2011,8 +2010,7 @@ contract OPContractsManager is ISemver {
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
-    /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
-    ///      `_opChainConfigs`'s ProxyAdmin.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
@@ -2024,7 +2022,7 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
