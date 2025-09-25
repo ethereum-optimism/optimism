@@ -71,9 +71,22 @@ contract TimelockGuard is IGuard, ISemver {
         ExecTransactionParams params;
     }
 
+    /// @notice Parameters for the Safe's execTransaction function
+    struct ExecTransactionParams {
+        address to;
+        uint256 value;
+        bytes data;
+        Enum.Operation operation;
+        uint256 safeTxGas;
+        uint256 baseGas;
+        uint256 gasPrice;
+        address gasToken;
+        address payable refundReceiver;
+    }
+
     /// @notice Aggregated state for each Safe using this guard.
     /// @dev We have chosen for operational reasons to keep a list of pending transactions that can be easily retrieved
-    /// via a function call. There are several ways to accomplis this but we chose to maintain a separate EnumerableSet
+    /// via a function call. There are several ways to accomplish this but we chose to maintain a separate EnumerableSet
     /// with the txHashes of the pending transactions, that needs to be maintained in sync with the mapping that keeps
     /// all the data about all the transactions, regardless of their state.
     /// We chose this implementation because the set of pending transactions is independent of the core flow, and if
@@ -178,7 +191,7 @@ contract TimelockGuard is IGuard, ISemver {
         uint256 blockingThreshold = _blockingThreshold(_safe);
         uint256 quorum = _safe.getThreshold();
         // Return the minimum of the blocking threshold and the quorum
-        return (blockingThreshold < quorum ? blockingThreshold : quorum) - 1;
+        return (blockingThreshold < quorum ? blockingThreshold : quorum);
     }
 
     /// @notice Internal helper to get the guard address from a Safe
@@ -205,14 +218,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
     /// @dev This function is necessary to properly expose the scheduledTransactions mapping, as
     ///      simply making the mapping public will return a tuple instead of a struct.
-    function scheduledTransaction(
-        Safe _safe,
-        bytes32 _txHash
-    )
-        public
-        view
-        returns (ScheduledTransaction memory)
-    {
+    function scheduledTransaction(Safe _safe, bytes32 _txHash) public view returns (ScheduledTransaction memory) {
         return _safeState[_safe].scheduledTransactions[_txHash];
     }
 
@@ -480,7 +486,7 @@ contract TimelockGuard is IGuard, ISemver {
     ///      and hash of the transaction being cancelled. This is necessary to ensure that the cancellation transaction
     ///      is unique and cannot be used to cancel another transaction at the same nonce.
     ///
-    ///      Signature verificiation uses the Safe's checkNSignatures function, so that the number of signatures
+    ///      Signature verification uses the Safe's checkNSignatures function, so that the number of signatures
     ///      can be set by the Safe's current cancellation threshold. Another benefit of checkNSignatures is that owners
     ///      can use any method to sign the cancellation transaction inputs, including signing with a private key,
     ///      calling the Safe's approveHash function, or EIP1271 contract signatures.
@@ -537,7 +543,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data
     /// @dev This function is not meant to be called, use cancelTransaction instead
-    function cancelTransactionOnSafe(Safe, bytes32) public {
+    function cancelTransactionOnSafe(Safe, bytes32) public pure {
         // Reverting here may cause issues for some signing tooling, but it is better to revert than for
         // to silently fail, potentially allowing the caller to believe that the transaction has been cancelled.
         revert("This function is not meant to be called, use cancelTransaction instead");

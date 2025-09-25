@@ -5,7 +5,6 @@ import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { ExecTransactionParams } from "src/safe/Types.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
@@ -16,7 +15,7 @@ library TransactionBuilder {
     // A struct type used to construct a transaction for scheduling and execution
     struct Transaction {
         SafeInstance safeInstance;
-        ExecTransactionParams params;
+        TimelockGuard.ExecTransactionParams params;
         uint256 nonce;
         bytes32 hash;
         bytes signatures;
