@@ -72,7 +72,12 @@
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
+    "name": "NativeAssetLiquidity_InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NativeAssetLiquidity_Unauthorized",
     "type": "error"
   }
 ]

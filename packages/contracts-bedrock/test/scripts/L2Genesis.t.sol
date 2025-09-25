@@ -25,7 +25,7 @@ contract L2Genesis_TestInit is Test {
 
     L2Genesis internal genesis;
 
-    function setUp() public {
+    function setUp() public virtual {
         genesis = new L2Genesis();
     }
 
@@ -141,7 +141,9 @@ contract L2Genesis_TestInit is Test {
 /// @title L2Genesis_Run_Test
 /// @notice Tests the `run` function of the `L2Genesis` contract.
 contract L2Genesis_Run_Test is L2Genesis_TestInit {
-    function test_run_succeeds() external {
+    function setUp() public override {
+        super.setUp();
+        // Set up default input configuration
         input = L2Genesis.Input({
             l1ChainID: 1,
             l2ChainID: 2,
@@ -168,6 +170,9 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max
         });
+    }
+
+    function test_run_succeeds() external {
         genesis.run(input);
 
         testProxyAdmin();
@@ -178,40 +183,17 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testForks();
     }
 
-    /// @dev Modifier to set up the input for L2Genesis with CGT enabled.
-    modifier setInputCGTEnabled() {
-        input = L2Genesis.Input({
-            l1ChainID: 1,
-            l2ChainID: 2,
-            l1CrossDomainMessengerProxy: payable(address(0x0000000000000000000000000000000000000001)),
-            l1StandardBridgeProxy: payable(address(0x0000000000000000000000000000000000000002)),
-            l1ERC721BridgeProxy: payable(address(0x0000000000000000000000000000000000000003)),
-            opChainProxyAdminOwner: address(0x0000000000000000000000000000000000000004),
-            sequencerFeeVaultRecipient: address(0x0000000000000000000000000000000000000005),
-            sequencerFeeVaultMinimumWithdrawalAmount: 1,
-            sequencerFeeVaultWithdrawalNetwork: 1,
-            baseFeeVaultRecipient: address(0x0000000000000000000000000000000000000006),
-            baseFeeVaultMinimumWithdrawalAmount: 1,
-            baseFeeVaultWithdrawalNetwork: 1,
-            l1FeeVaultRecipient: address(0x0000000000000000000000000000000000000007),
-            l1FeeVaultMinimumWithdrawalAmount: 1,
-            l1FeeVaultWithdrawalNetwork: 1,
-            governanceTokenOwner: address(0x0000000000000000000000000000000000000008),
-            fork: uint256(LATEST_FORK),
-            deployCrossL2Inbox: true,
-            enableGovernance: true,
-            fundDevAccounts: true,
-            useCustomGasToken: true,
-            gasPayingTokenName: "Custom Gas Token",
-            gasPayingTokenSymbol: "CGT",
-            nativeAssetLiquidityAmount: type(uint248).max
-        });
-        _;
+    /// @notice Helper function to configure input for CGT enabled tests.
+    function _setInputCGTEnabled() internal {
+        input.useCustomGasToken = true;
+        input.gasPayingTokenName = "Custom Gas Token";
+        input.gasPayingTokenSymbol = "CGT";
     }
 
     /// @notice Tests that the run function succeeds when CGT is enabled.
     /// @dev Tests that LiquidityController and NativeAssetLiquidity are deployed.
-    function test_run_cgt_succeeds() external setInputCGTEnabled {
+    function test_run_cgt_succeeds() external {
+        _setInputCGTEnabled();
         genesis.run(input);
 
         testProxyAdmin();
@@ -223,35 +205,35 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testCGT();
     }
 
-    /// @notice Tests that the run function reverts when CGT is enabled and the withdrawal network type of the FeeVaults
-    /// is L1.
-    function test_run_cgt_reverts() external setInputCGTEnabled {
-        // Expect revert when sequencerFeeVaultWithdrawalNetwork is L1
+    /// @notice Tests that the run function reverts when CGT is enabled and sequencerFeeVault withdrawal network is L1.
+    function test_cgt_sequencerVault_reverts() external {
+        _setInputCGTEnabled();
         input.sequencerFeeVaultWithdrawalNetwork = 0;
         vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
-        // Reset sequencerFeeVaultWithdrawalNetwork input to L2
-        input.sequencerFeeVaultWithdrawalNetwork = 1;
+    }
 
-        // Expect revert when baseFeeVaultWithdrawalNetwork is L1
+    /// @notice Tests that the run function reverts when CGT is enabled and baseFeeVault withdrawal network is L1.
+    function test_cgt_baseFeeVault_reverts() external {
+        _setInputCGTEnabled();
         input.baseFeeVaultWithdrawalNetwork = 0;
         vm.expectRevert("BaseFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
-        // Reset baseFeeVaultWithdrawalNetwork input to L2
-        input.baseFeeVaultWithdrawalNetwork = 1;
+    }
 
-        // Expect revert when l1FeeVaultWithdrawalNetwork is L1
+    /// @notice Tests that the run function reverts when CGT is enabled and l1FeeVault withdrawal network is L1.
+    function test_cgt_l1FeeVault_reverts() external {
+        _setInputCGTEnabled();
         input.l1FeeVaultWithdrawalNetwork = 0;
         vm.expectRevert("L1FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
-        // Reset l1FeeVaultWithdrawalNetwork input to L2
-        input.l1FeeVaultWithdrawalNetwork = 1;
+    }
 
-        // Expect revert when nativeAssetLiquidityAmount is greater than type(uint248).max
-        input.nativeAssetLiquidityAmount += 1;
+    /// @notice Tests that the run function reverts when nativeAssetLiquidityAmount exceeds type(uint248).max.
+    function test_cgt_liquidityAmount_reverts() external {
+        _setInputCGTEnabled();
+        input.nativeAssetLiquidityAmount = uint256(type(uint248).max) + 1;
         vm.expectRevert("L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max");
         genesis.run(input);
-        // Reset nativeAssetLiquidityAmount input to type(uint248).max
-        input.nativeAssetLiquidityAmount = type(uint248).max;
     }
 }

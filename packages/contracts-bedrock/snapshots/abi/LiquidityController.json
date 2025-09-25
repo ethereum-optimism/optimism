@@ -216,7 +216,7 @@
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
+    "name": "LiquidityController_Unauthorized",
     "type": "error"
   }
 ]

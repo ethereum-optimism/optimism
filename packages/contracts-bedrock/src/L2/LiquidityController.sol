@@ -6,7 +6,6 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { SafeSend } from "src/universal/SafeSend.sol";
 
 // Libraries
-import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
@@ -39,6 +38,9 @@ contract LiquidityController is ISemver, Initializable {
     /// @param amount The amount of liquidity that was burned
     event LiquidityBurned(address indexed minter, uint256 amount);
 
+    /// @notice Error for when an address is unauthorized to perform liquidity control operations
+    error LiquidityController_Unauthorized();
+
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -67,7 +69,7 @@ contract LiquidityController is ISemver, Initializable {
     /// @notice Authorizes an address to perform liquidity control operations
     /// @param _minter The address to authorize as a minter
     function authorizeMinter(address _minter) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert Unauthorized();
+        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert LiquidityController_Unauthorized();
         minters[_minter] = true;
         emit MinterAuthorized(_minter);
     }
@@ -75,7 +77,7 @@ contract LiquidityController is ISemver, Initializable {
     /// @notice Deauthorizes an address from performing liquidity control operations
     /// @param _minter The address to deauthorize as a minter
     function deauthorizeMinter(address _minter) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert Unauthorized();
+        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert LiquidityController_Unauthorized();
         delete minters[_minter];
         emit MinterDeauthorized(_minter);
     }
@@ -84,7 +86,7 @@ contract LiquidityController is ISemver, Initializable {
     /// @param _to The address to receive the minted native asset
     /// @param _amount The amount of native asset to mint and send
     function mint(address _to, uint256 _amount) external {
-        if (!minters[msg.sender]) revert Unauthorized();
+        if (!minters[msg.sender]) revert LiquidityController_Unauthorized();
         INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY).withdraw(_amount);
 
         // This is a forced ETH send to the recipient, the recipient should NOT expect to be called
@@ -95,7 +97,7 @@ contract LiquidityController is ISemver, Initializable {
 
     /// @notice Burns native asset liquidity by sending ETH to the contract
     function burn() external payable {
-        if (!minters[msg.sender]) revert Unauthorized();
+        if (!minters[msg.sender]) revert LiquidityController_Unauthorized();
         INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY).deposit{ value: msg.value }();
 
         emit LiquidityBurned(msg.sender, msg.value);

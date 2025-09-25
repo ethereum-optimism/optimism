@@ -96,20 +96,20 @@
     "sourceCodeHash": "0xdc7bd63134eeab163a635950f2afd16b59f40f9cf1306f2ed33ad661cc7b4962"
   },
   "src/L2/L2ToL1MessagePasserCGT.sol:L2ToL1MessagePasserCGT": {
-    "initCodeHash": "0xe09e6219f705bc120b604f25997610f3107daef880f33e380da7ed618b45bb6e",
-    "sourceCodeHash": "0x1ba0f62d5101f3541fe074a39fd67ab6a06b5b72678a4f08d08366fbe4bef764"
+    "initCodeHash": "0xf36eab44c41249b4d8ea95a21b70f1eae55b1a555384870c2f4ca306fa9121b6",
+    "sourceCodeHash": "0xec1736e67134e22ad9ceb0b8b6c116fd169637aa6729c05d9f0f4b02547aaac0"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
     "initCodeHash": "0x975fd33a3a386310d54dbb01b56f3a6a8350f55a3b6bd7781e5ccc2166ddf2e6",
     "sourceCodeHash": "0xbea4229c5c6988243dbc7cf5a086ddd412fe1f2903b8e20d56699fec8de0c2c9"
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
-    "initCodeHash": "0x8a21d16da3377aa61375755d37010c0c37c99817fdce9d16f78f0ab9bc3a84c5",
-    "sourceCodeHash": "0xb4fca8d4532e88e0dd53d3643aa4022953e37c745753009b3c8f9bcca5806f57"
+    "initCodeHash": "0x19ce7a691d1f8631bfce9fea002c385c418fc69c2e9a9aa5d44ee0cf348c1026",
+    "sourceCodeHash": "0x9f452ed4a7ac159a8ffac2877ac79c00ab003f8843331c39af97c35d4e458476"
   },
   "src/L2/NativeAssetLiquidity.sol:NativeAssetLiquidity": {
-    "initCodeHash": "0x9e94f5271edad247ed8f9900aabc3fd3ce7404cc0512753a8fd10b7f1143476d",
-    "sourceCodeHash": "0xf991ff4d47c610778669721c68908beab4336f1eba52a7d8f6cdb8317707c481"
+    "initCodeHash": "0x04b176e5d484e54173a5644c833117c5fd9f055dce8678be9ec4cf07c0f01f00",
+    "sourceCodeHash": "0x286519aec9b3aa2bdc19aab180c4c2f73749f5ee973f05c9bd9fe33f17de36ee"
   },
   "src/L2/OperatorFeeVault.sol:OperatorFeeVault": {
     "initCodeHash": "0x3d8c0d7736e8767f2f797da1c20c5fe30bd7f48a4cf75f376290481ad7c0f91f",
