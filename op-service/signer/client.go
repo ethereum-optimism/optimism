@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -48,7 +49,9 @@ func NewSignerClient(logger log.Logger, endpoint string, headers http.Header, tl
 			return nil, err
 		}
 
+		// Configure HTTP client with sane timeouts to avoid indefinite hangs.
 		httpClient = &http.Client{
+			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					MinVersion: tls.VersionTLS13,
@@ -57,11 +60,28 @@ func NewSignerClient(logger log.Logger, endpoint string, headers http.Header, tl
 						return cm.GetCertificate(nil)
 					},
 				},
+				DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: 20 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				IdleConnTimeout:       90 * time.Second,
+				MaxIdleConns:          100,
 			},
 		}
 	} else {
 		logger.Info("no tlsConfig specified, using default http client")
-		httpClient = http.DefaultClient
+		// Avoid using http.DefaultClient to ensure explicit timeouts are always set.
+		httpClient = &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ResponseHeaderTimeout: 20 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				IdleConnTimeout:       90 * time.Second,
+				MaxIdleConns:          100,
+			},
+		}
 	}
 
 	rpcClient, err := rpc.DialOptions(context.Background(), endpoint, rpc.WithHTTPClient(httpClient), rpc.WithHeaders(headers))
