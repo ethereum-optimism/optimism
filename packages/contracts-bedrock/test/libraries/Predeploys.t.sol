@@ -143,6 +143,13 @@ contract Predeploys_Unclassified_Test is Predeploys_TestInit {
     function test_predeploys_succeeds() external {
         _test_predeploys(Fork.ISTHMUS, false, false);
     }
+
+    /// @notice Tests that the predeploy addresses are set correctly. They have code
+    ///         and the proxied accounts have the correct admin. Using custom gas token.
+    function test_predeploys_customGasToken_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        _test_predeploys(Fork.ISTHMUS, false, true);
+    }
 }
 
 /// @title Predeploys_Interop_Unclassified_Test
@@ -165,21 +172,5 @@ contract Predeploys_UnclassifiedInterop_Test is Predeploys_TestInit {
     ///         proxied accounts have the correct admin. Using interop without inbox.
     function test_predeploysWithoutInbox_succeeds() external {
         _test_predeploys(Fork.INTEROP, false, false);
-    }
-}
-
-/// @title Predeploys_CustomGasToken_Test
-/// @notice Tests the `Predeploys` contract with custom gas token.
-contract Predeploys_CustomGasToken_Test is Predeploys_TestInit {
-    /// @notice Test setup. Enabling custom gas token.
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
-    }
-
-    /// @notice Tests that the predeploy addresses are set correctly. They have code and the
-    ///         proxied accounts have the correct admin. Using custom gas token.
-    function test_predeploysWithCustomGasToken_succeeds() external {
-        _test_predeploys(Fork.ISTHMUS, false, true);
     }
 }
