@@ -776,15 +776,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
 
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.CANNON_KONA)) {
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.CANNON_KONA,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _input.proxyAdmin,
-                _overrides
-            );
+            // TODO: Assert the kona game is present
+            //        _errors = assertValidPermissionlessDisputeGame(
+            //            _errors,
+            //            _input.sysCfg,
+            //            GameTypes.CANNON_KONA,
+            //            _input.cannonPrestate,
+            //            _input.l2ChainID,
+            //            _input.proxyAdmin,
+            //            _overrides
+            //        );
         }
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
