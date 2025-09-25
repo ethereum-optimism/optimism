@@ -617,9 +617,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		c = sys.TimeTravelClock
 	}
 
-	// sanity-check the deploy config
-	require.Nil(t, cfg.DeployConfig.L2GenesisJovianTimeOffset, "Jovian is not supported in op-e2e tests yet")
-
 	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
 		return nil, err
 	}
