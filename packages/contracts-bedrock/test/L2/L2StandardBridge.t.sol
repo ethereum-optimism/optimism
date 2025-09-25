@@ -502,6 +502,7 @@ contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
 
     /// @notice Tests that bridging ETH to a different address succeeds.
     function testFuzz_bridgeETHTo_succeeds(uint256 _value, uint32 _minGasLimit, bytes calldata _extraData) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         vm.expectCall(
