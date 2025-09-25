@@ -11,9 +11,7 @@ library TimelockGuard {
         bool cancelled;
         bool executed;
     }
-}
 
-interface Interface {
     struct ExecTransactionParams {
         address to;
         uint256 value;
@@ -34,31 +32,35 @@ interface Interface {
     error TimelockGuard_TransactionAlreadyScheduled();
     error TimelockGuard_TransactionNotScheduled();
 
-    event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event GuardConfigured(address indexed safe, uint256 timelockDelay);
-    event TransactionCancelled(address indexed safe, bytes32 indexed txId);
-    event TransactionScheduled(address indexed safe, bytes32 indexed txId, uint256 when);
+    event CancellationThresholdUpdated(address indexed _safe, uint256 _oldThreshold, uint256 _newThreshold);
+    event GuardConfigured(address indexed _safe, uint256 _timelockDelay);
+    event TransactionCancelled(address indexed _safe, bytes32 indexed _txHash);
+    event TransactionScheduled(address indexed _safe, bytes32 indexed _txHash, uint256 when);
 
-    function blockingThresholdForSafe(address) external pure returns (uint256);
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
+    function cancelTransactionOnSafe(address _safe, bytes32 _txHash) external;
     function cancellationThresholdForSafe(address _safe) external view returns (uint256);
-    function checkAfterExecution(bytes32, bool) external;
     function pendingTransactionsForSafe(address) external pure returns (bytes32[] memory);
     function checkTransaction(
-        address,
+        address _to,
         uint256 _value,
-        bytes memory,
-        Enum.Operation,
-        uint256,
-        uint256,
-        uint256,
-        address,
-        address payable,
-        bytes memory,
-        address
-    ) external;
+        bytes memory _data,
+        Enum.Operation _operation,
+        uint256 _safeTxGas,
+        uint256 _baseGas,
+        uint256 _gasPrice,
+        address _gasToken,
+        address payable _refundReceiver,
+        bytes memory _signatures,
+        address _msgSender
+    )
+        external;
+    function checkAfterExecution(bytes32, bool) external;
     function configureTimelockGuard(uint256 _timelockDelay) external;
-    function scheduledTransactionForSafe(address _safe, bytes32 _txHash)
+    function scheduledTransactionForSafe(
+        address _safe,
+        bytes32 _txHash
+    )
         external
         view
         returns (TimelockGuard.ScheduledTransaction memory);
@@ -68,7 +70,13 @@ interface Interface {
         uint256 _nonce,
         ExecTransactionParams memory _params,
         bytes memory _signatures
-    ) external;
+    )
+        external;
     function version() external view returns (string memory);
     function timelockConfigurationForSafe(address _safe) external view returns (uint256 timelockDelay);
+    function maxCancellationThreshold(address _safe) external view returns (uint256);
+    function pendingTransactionsForSafe(address _safe)
+        external
+        view
+        returns (TimelockGuard.ScheduledTransaction[] memory);
 }

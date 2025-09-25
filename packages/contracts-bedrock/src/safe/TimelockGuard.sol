@@ -488,8 +488,9 @@ contract TimelockGuard is IGuard, ISemver {
         // 1. Been scheduled
         // 2. Not already been cancelled
         // 3. Not already been executed
-        // There is nothing inherently wrong with cancelling a transaction a transaction that doesn't meet these criteria,
-        // but we revert in order to inform the user, and avoid emitting a misleading TransactionCancelled event.
+        // There is nothing inherently wrong with cancelling a transaction a transaction that doesn't meet these
+        // criteria, but we revert in order to inform the user, and avoid emitting a misleading TransactionCancelled
+        // event.
         if (_safeState[_safe].scheduledTransactions[_txHash].cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
