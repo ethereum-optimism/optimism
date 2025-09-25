@@ -166,7 +166,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 }
 
 func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade
