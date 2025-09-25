@@ -371,36 +371,50 @@ contract DeployImplementations_Test is Test {
     }
 
     function test_v2ParamsValidation_withHugeValues_reverts() public {
-        // When V2 flag is disabled, huge V2 params should be rejected
+        // When V2 flag is enabled, huge V2 params should be rejected
         DeployImplementations.Input memory input = defaultInput();
-        input.devFeatureBitmap = bytes32(0); // V2 disabled
+        input.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES; // V2 enabled
 
         // Test that huge clock extension is rejected
         input.faultGameV2ClockExtension = type(uint256).max;
-        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2ClockExtension too large");
+        vm.expectRevert("DeployImplementations: faultGameV2ClockExtension too large for uint64");
         deployImplementations.run(input);
 
         // Reset and test huge max clock duration
-        input.faultGameV2ClockExtension = 0;
+        input.faultGameV2ClockExtension = 100;
         input.faultGameV2MaxClockDuration = type(uint256).max;
-        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2MaxClockDuration too large");
+        vm.expectRevert("DeployImplementations: faultGameV2MaxClockDuration too large for uint64");
         deployImplementations.run(input);
 
         // Reset and test huge max game depth
-        input.faultGameV2MaxClockDuration = 0;
+        input.faultGameV2MaxClockDuration = 200;
         input.faultGameV2MaxGameDepth = 300; // > 200
-        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2MaxGameDepth out of range");
+        vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-200)");
         deployImplementations.run(input);
 
-        // Reset and test invalid split depth (too large)
-        input.faultGameV2MaxGameDepth = 0;
-        input.faultGameV2SplitDepth = 250; // > 200
-        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range");
+        // Reset and test invalid split depth (too large, >= maxGameDepth)
+        input.faultGameV2MaxGameDepth = 50;
+        input.faultGameV2SplitDepth = 50; // splitDepth + 1 must be < maxGameDepth
+        vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
         deployImplementations.run(input);
 
         // Reset and test invalid split depth (too small, < 2)
+        input.faultGameV2MaxGameDepth = 50;
         input.faultGameV2SplitDepth = 1; // < 2
-        vm.expectRevert("DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range");
+        vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
+        deployImplementations.run(input);
+
+        // Reset and test clock extension = 0 (must be > 0 when V2 enabled)
+        input.faultGameV2SplitDepth = 10;
+        input.faultGameV2ClockExtension = 0;
+        input.faultGameV2MaxClockDuration = 1000;
+        vm.expectRevert("DeployImplementations: faultGameV2ClockExtension must be > 0");
+        deployImplementations.run(input);
+
+        // Reset and test maxClockDuration < clockExtension
+        input.faultGameV2ClockExtension = 1000;
+        input.faultGameV2MaxClockDuration = 500; // < clockExtension
+        vm.expectRevert("DeployImplementations: maxClockDuration must be >= clockExtension");
         deployImplementations.run(input);
     }
 

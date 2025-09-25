@@ -146,25 +146,6 @@ contract DeployImplementations is Script {
 
             deployFaultDisputeGameV2Impl(_input, output_);
             deployPermissionedDisputeGameV2Impl(_input, output_);
-        } else {
-            // When V2 is not enabled, ensure V2 parameters are either zero or within safe bounds
-            // to prevent issues if the flag is later enabled
-            require(
-                _input.faultGameV2MaxGameDepth == 0 || _input.faultGameV2MaxGameDepth <= 200,
-                "DeployImplementations: V2 disabled but faultGameV2MaxGameDepth out of range"
-            );
-            require(
-                _input.faultGameV2ClockExtension == 0 || _input.faultGameV2ClockExtension <= type(uint64).max,
-                "DeployImplementations: V2 disabled but faultGameV2ClockExtension too large"
-            );
-            require(
-                _input.faultGameV2MaxClockDuration == 0 || _input.faultGameV2MaxClockDuration <= type(uint64).max,
-                "DeployImplementations: V2 disabled but faultGameV2MaxClockDuration too large"
-            );
-            require(
-                _input.faultGameV2SplitDepth == 0 || (_input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth <= 200),
-                "DeployImplementations: V2 disabled but faultGameV2SplitDepth out of valid range"
-            );
         }
 
         // Deploy the OP Contracts Manager with the new implementations set.
