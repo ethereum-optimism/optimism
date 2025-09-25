@@ -16,7 +16,7 @@ contract BaseFeeVault_Constructor_Test is CommonTest {
         assertEq(baseFeeVault.recipient(), deploy.cfg().baseFeeVaultRecipient());
         assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().baseFeeVaultMinimumWithdrawalAmount());
         assertEq(baseFeeVault.minWithdrawalAmount(), deploy.cfg().baseFeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), deploy.cfg().baseFeeVaultWithdrawalNetwork());
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), deploy.cfg().baseFeeVaultWithdrawalNetwork());
     }
 }

@@ -105,11 +105,11 @@
   },
   "src/L2/LiquidityController.sol:LiquidityController": {
     "initCodeHash": "0x19ce7a691d1f8631bfce9fea002c385c418fc69c2e9a9aa5d44ee0cf348c1026",
-    "sourceCodeHash": "0x9f452ed4a7ac159a8ffac2877ac79c00ab003f8843331c39af97c35d4e458476"
+    "sourceCodeHash": "0x87351013f5bcca917dfdd916b06b8ece6bd447acae146f004a33d88f59ce2487"
   },
   "src/L2/NativeAssetLiquidity.sol:NativeAssetLiquidity": {
     "initCodeHash": "0x04b176e5d484e54173a5644c833117c5fd9f055dce8678be9ec4cf07c0f01f00",
-    "sourceCodeHash": "0x286519aec9b3aa2bdc19aab180c4c2f73749f5ee973f05c9bd9fe33f17de36ee"
+    "sourceCodeHash": "0x79289174e875ead5a6290df9af1951d6c0ff0dc6809601e1c7a80110ceb8e945"
   },
   "src/L2/OperatorFeeVault.sol:OperatorFeeVault": {
     "initCodeHash": "0x3d8c0d7736e8767f2f797da1c20c5fe30bd7f48a4cf75f376290481ad7c0f91f",

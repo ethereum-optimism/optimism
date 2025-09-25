@@ -14,6 +14,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title SequencerFeeVault_TestInit
 /// @notice Reusable test initialization for `SequencerFeeVault` tests.
@@ -37,8 +38,8 @@ contract SequencerFeeVault_Constructor_Test is SequencerFeeVault_TestInit {
         assertEq(sequencerFeeVault.recipient(), recipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
         assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), deploy.cfg().sequencerFeeVaultWithdrawalNetwork());
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), deploy.cfg().sequencerFeeVaultWithdrawalNetwork());
     }
 }
 
@@ -96,6 +97,7 @@ contract SequencerFeeVault_Withdraw_Test is SequencerFeeVault_TestInit {
 
     /// @notice Tests that `withdraw` successfully initiates a withdrawal to L1.
     function test_withdraw_toL1_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         uint256 amount = sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT() + 1;
         vm.deal(address(sequencerFeeVault), amount);
 
@@ -105,7 +107,12 @@ contract SequencerFeeVault_Withdraw_Test is SequencerFeeVault_TestInit {
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this));
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this), Types.WithdrawalNetwork.L1);
+        emit Withdrawal(
+            address(sequencerFeeVault).balance,
+            recipient,
+            address(this),
+            Types.WithdrawalNetwork(deploy.cfg().sequencerFeeVaultWithdrawalNetwork())
+        );
 
         // The entire vault's balance is withdrawn
         vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(sequencerFeeVault).balance, hex"");
