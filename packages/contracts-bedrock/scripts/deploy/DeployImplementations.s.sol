@@ -118,8 +118,8 @@ contract DeployImplementations is Script {
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Validate V2 game depth parameters are sensible
             require(
-                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 200,
-                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-200)"
+                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
+                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
             );
             // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
             require(

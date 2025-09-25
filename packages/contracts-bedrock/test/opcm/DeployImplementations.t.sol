@@ -411,7 +411,7 @@ contract DeployImplementations_Test is Test {
         // Reset and test huge max game depth
         input.faultGameV2MaxClockDuration = 200;
         input.faultGameV2MaxGameDepth = 300; // > 200
-        vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-200)");
+        vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)");
         deployImplementations.run(input);
 
         // Reset and test invalid split depth (too large, >= maxGameDepth)
