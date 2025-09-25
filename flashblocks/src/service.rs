@@ -131,8 +131,25 @@ where
 
     /// Takes out `current` [`PendingBlock`] if `state` is not preceding it.
     fn on_new_tip(&mut self, state: CanonStateNotification<N>) -> Option<PendingBlock<N>> {
-        let latest = state.tip_checked()?.hash();
-        self.current.take_if(|current| current.parent_hash() != latest)
+        let tip = state.tip_checked()?;
+        let tip_hash = tip.hash();
+        let current = self.current.take_if(|current| current.parent_hash() != tip_hash);
+
+        // Prefill the cache with state from the new canonical tip, similar to payload/basic
+        let mut cached = CachedReads::default();
+        let committed = state.committed();
+        let new_execution_outcome = committed.execution_outcome();
+        for (addr, acc) in new_execution_outcome.bundle_accounts_iter() {
+            if let Some(info) = acc.info.clone() {
+                // Pre-cache existing accounts and their storage (only changed accounts/storage)
+                let storage =
+                    acc.storage.iter().map(|(key, slot)| (*key, slot.present_value)).collect();
+                cached.insert_account(addr, info, storage);
+            }
+        }
+        self.cached_state = Some((tip_hash, cached));
+
+        current
     }
 }
 
