@@ -30,13 +30,14 @@ func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
+				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 				dp.L1OsakaTimeOffset = ptr(hexutil.Uint64(24))
 				// TODO add the BPO forks
 				dp.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8)) // Jack up the blob market so we can test the blob fee calculation
 			},
 		)
 
-		miner, _, _, sequencer, _ := env.Miner, env.Batcher, env.Sequencer, env.Sequencer, env.Engine
+		miner, sequencer := env.Miner, env.Sequencer
 
 		// Bind to L1Block contract on L2
 		l1BlockContract, err := legacybindings.NewL1Block(predeploys.L1BlockAddr, env.Engine.EthClient())
@@ -71,6 +72,8 @@ func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
 		}
 
 		// Build L1 blocks to trigger Fusaka activation
+		// TODO in the current version of op-geth, the blob parameters don't change between Prague and Osaka.
+		// So this test is no useful until we can activate different blob parameters.
 		l1Block := miner.ActBuildToOsaka(t)
 		require.Equal(t, uint64(2), l1Block.Number().Uint64())
 
