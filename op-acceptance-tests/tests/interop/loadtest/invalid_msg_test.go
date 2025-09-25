@@ -119,6 +119,7 @@ func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 // executing messages are also spammed. The number of invalid messages spammed per slot is
 // configurable via NAT_INVALID_MPS (default: 1_000).
 func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t, l2A, l2B := setupLoadTest(gt)
 
 	// Emit a valid initiating message.

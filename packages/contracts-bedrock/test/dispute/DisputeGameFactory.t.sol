@@ -129,9 +129,17 @@ contract DisputeGameFactory_TestInit is CommonTest {
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
+    function _setGame(address _gameImpl, GameType _gameType) internal {
+        _setGame(_gameImpl, _gameType, false, "");
+    }
+
     function _setGame(address _gameImpl, GameType _gameType, bytes memory _implArgs) internal {
+        _setGame(_gameImpl, _gameType, true, _implArgs);
+    }
+
+    function _setGame(address _gameImpl, GameType _gameType, bool _hasImplArgs, bytes memory _implArgs) internal {
         vm.startPrank(disputeGameFactory.owner());
-        if (_implArgs.length > 0) {
+        if (_hasImplArgs) {
             disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), _implArgs);
         } else {
             disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
@@ -157,7 +165,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON, "");
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -185,7 +193,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, "");
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
     }
 
     /// @notice Sets up a fault game implementation
@@ -203,7 +211,23 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON, "");
+        _setGame(gameImpl_, GameTypes.CANNON);
+    }
+
+    /// @notice Sets up immutable data for fault game v2 implementation
+    function getFaultDisputeGameV2ImmutableArgs(Claim _absolutePrestate)
+        internal
+        returns (bytes memory immutableArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        // Encode the implementation args for CWIA (tightly packed)
+        immutableArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId // 32 bytes (l2ChainId)
+        );
     }
 
     /// @notice Sets up a fault game v2 implementation
@@ -211,7 +235,12 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        bytes memory immutableArgs;
+        (immutableArgs, vm_, preimageOracle_) = getFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
+        gameImpl_ = setupFaultDisputeGameV2(immutableArgs);
+    }
+
+    function setupFaultDisputeGameV2(bytes memory immutableArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
@@ -219,16 +248,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        // Encode the implementation args for CWIA (tightly packed)
-        bytes memory implArgs = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            l2ChainId // 32 bytes (l2ChainId)
-        );
-
-        _setGame(gameImpl_, GameTypes.CANNON, implArgs);
+        _setGame(gameImpl_, GameTypes.CANNON, immutableArgs);
     }
 
     function setupPermissionedDisputeGame(
@@ -254,7 +274,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, "");
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
@@ -263,6 +283,30 @@ contract DisputeGameFactory_TestInit is CommonTest {
         }
     }
 
+    /// @notice Sets up immutable args for PDG v2 implementation
+    function getPermissionedDisputeGameV2ImmutableArgs(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
+        // Encode the implementation args for CWIA (tightly packed)
+        implArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            l2ChainId, // 32 bytes (l2ChainId),
+            _proposer, // 20 bytes
+            _challenger // 20 bytes
+        );
+    }
+
+    /// @notice Deploys PDG v2 implementation and sets it on the DGF
     function setupPermissionedDisputeGameV2(
         Claim _absolutePrestate,
         address _proposer,
@@ -271,27 +315,25 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        bytes memory implArgs;
+        (implArgs, vm_, preimageOracle_) =
+            getPermissionedDisputeGameV2ImmutableArgs(_absolutePrestate, _proposer, _challenger);
+
+        gameImpl_ = setupPermissionedDisputeGameV2(implArgs);
+    }
+
+    /// @notice Deploys PDG v2 implementation and sets it on the DGF
+    function setupPermissionedDisputeGameV2(bytes memory _implArgs) internal returns (address gameImpl_) {
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IPermissionedDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON), _proposer, _challenger)
+                    IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON))
                 )
             )
         });
 
-        // Encode the implementation args for CWIA (tightly packed)
-        bytes memory implArgs = abi.encodePacked(
-            _absolutePrestate, // 32 bytes
-            vm_, // 20 bytes
-            anchorStateRegistry, // 20 bytes
-            delayedWeth, // 20 bytes
-            l2ChainId // 32 bytes (l2ChainId)
-        );
-
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, implArgs);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, _implArgs);
     }
 }
 

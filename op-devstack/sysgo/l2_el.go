@@ -73,3 +73,16 @@ func WithL2ELNode(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchest
 		return WithOpGeth(id, opts...)
 	}
 }
+
+func WithExtL2Node(id stack.L2ELNodeID, elRPCEndpoint string) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
+
+		// Create L2 EL node with external RPC
+		l2ELNode := &OpGeth{
+			id:      id,
+			userRPC: elRPCEndpoint,
+		}
+		require.True(orch.l2ELs.SetIfMissing(id, l2ELNode), "must not already exist")
+	})
+}

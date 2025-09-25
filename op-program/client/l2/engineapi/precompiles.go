@@ -187,6 +187,10 @@ func (c *ecrecoverOracle) Run(input []byte) ([]byte, error) {
 	return result, nil
 }
 
+func (c *ecrecoverOracle) Name() string {
+	return "ECRECOVER_ORACLE"
+}
+
 func allZero(b []byte) bool {
 	for _, byte := range b {
 		if byte != 0 {
@@ -203,6 +207,10 @@ type bn256PairingOracle struct {
 
 func (b *bn256PairingOracle) RequiredGas(input []byte) uint64 {
 	return b.Orig.RequiredGas(input)
+}
+
+func (b *bn256PairingOracle) Name() string {
+	return b.Orig.Name()
 }
 
 var (
@@ -249,6 +257,10 @@ func (b *bn256PairingOracleGranite) Run(input []byte) ([]byte, error) {
 	return b.bn256PairingOracle.Run(input)
 }
 
+func (b *bn256PairingOracleGranite) Name() string {
+	return b.Orig.Name()
+}
+
 // kzgPointEvaluationOracle implements the EIP-4844 point evaluation precompile,
 // using the preimage-oracle to perform the evaluation.
 type kzgPointEvaluationOracle struct {
@@ -259,6 +271,10 @@ type kzgPointEvaluationOracle struct {
 // RequiredGas estimates the gas required for running the point evaluation precompile.
 func (b *kzgPointEvaluationOracle) RequiredGas(input []byte) uint64 {
 	return b.Orig.RequiredGas(input)
+}
+
+func (b *kzgPointEvaluationOracle) Name() string {
+	return b.Orig.Name()
 }
 
 const (
@@ -362,6 +378,10 @@ func (b *blsOperationOracle) Run(input []byte) ([]byte, error) {
 		panic("unexpected result from BLS12-381 operation")
 	}
 	return result, nil
+}
+
+func (b *blsOperationOracle) Name() string {
+	return b.Orig.Name()
 }
 
 type blsOperationOracleWithSizeLimit struct {

@@ -158,7 +158,7 @@ func mainAction(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to prepare witness data collector: %w", err)
 	}
-	state.StartPrefetcher("debug", witness)
+	state.StartPrefetcher("debug", witness, nil)
 	defer func() { // Even if the EVM fails, try to export witness data for the state-transition up to the error.
 		witnessDump := witness.ToExecutionWitness()
 		out, err := json.MarshalIndent(witnessDump, "", "  ")

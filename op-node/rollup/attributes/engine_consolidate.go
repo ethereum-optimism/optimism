@@ -95,8 +95,8 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	}
 	return nil
 }
-func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrParams *eth.Bytes8, attrMinBaseFee *uint64, blockExtraData []byte) error {
 
+func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrParams *eth.Bytes8, attrMinBaseFee *uint64, blockExtraData []byte) error {
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
 	if attrParams != nil {

@@ -1,0 +1,31 @@
+# AI Engineering Tools
+
+# Contract Test Maintenance
+
+# Run the contract test ranking script
+rank:
+    cd contracts-test-maintenance/components/tests_ranker && python3 test_ranker.py
+
+# Render prompt with the first ranked test and contract
+render:
+    cd contracts-test-maintenance/components/prompt-renderer && python3 render.py
+
+# Run ranking and render prompt in one command
+prompt:
+    just rank
+    just render
+
+# Run the Devin client
+devin:
+    cd contracts-test-maintenance/components/devin-api && python3 devin_client.py
+
+# Run the complete cycle: rank, render, and send to Devin
+ai-contracts-test:
+    # Step 1: Rank tests
+    just rank
+
+    # Step 2: Render prompt
+    just render
+
+    # Step 3: Send to Devin
+    just devin

@@ -303,6 +303,7 @@ semgrep-test:
 # Runs all checks.
 check:
   @just semgrep-test-validity-check \
+  semgrep \
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \

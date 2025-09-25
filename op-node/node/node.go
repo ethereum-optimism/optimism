@@ -555,7 +555,7 @@ func (n *OpNode) initP2P(cfg *config.Config) (err error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(n.log, n.metrics, n.l2Driver.SyncDeriver, n.cfg.Tracer)
-		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, rec, n.l2Source, n.runCfg, n.metrics, false)
+		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, rec, n.l2Source, n.runCfg, n.metrics)
 		if err != nil {
 			return
 		}

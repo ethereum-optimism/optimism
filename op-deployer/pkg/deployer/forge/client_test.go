@@ -3,26 +3,24 @@ package forge
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-
 	"github.com/stretchr/testify/require"
 )
 
 type ioStruct struct {
-	ID   uint8
-	Data []byte
+	ID    uint8
+	Data  []byte
+	Slice []uint32
+	Array [3]uint64
 }
 
 func TestMinimalSources(t *testing.T) {
@@ -44,19 +42,28 @@ func TestMinimalSources(t *testing.T) {
 
 	// Then see if we can successfully run a script
 	cl.Wd = tmpDir
-	encDec := new(testEncoderDecoder)
-	caller := NewScriptCaller[ioStruct, ioStruct](cl, "script/Test.s.sol:TestScript", "run(bytes)", encDec, encDec)
+	caller := NewScriptCaller(
+		cl,
+		"script/Test.s.sol:TestScript",
+		"runEncoded(bytes)",
+		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
+		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
+	)
 	// It should not recompile since we included the cache.
 	in := ioStruct{
-		ID:   1,
-		Data: []byte{0x01, 0x02, 0x03, 0x04},
+		ID:    1,
+		Data:  []byte{0x01, 0x02, 0x03, 0x04},
+		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
 	out, changed, err := caller(ctx, in)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.EqualValues(t, ioStruct{
-		ID:   2,
-		Data: in.Data,
+		ID:    2,
+		Data:  in.Data,
+		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
 }
 
@@ -90,63 +97,38 @@ func TestScriptCaller(t *testing.T) {
 	cl.Wd = projDir(t)
 
 	require.NoError(t, cl.Clean(ctx))
-	encDec := new(testEncoderDecoder)
-	caller := NewScriptCaller[ioStruct, ioStruct](cl, "script/Test.s.sol:TestScript", "run(bytes)", encDec, encDec)
+	caller := NewScriptCaller(
+		cl,
+		"script/Test.s.sol:TestScript",
+		"runEncoded(bytes)",
+		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
+		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
+	)
+
 	in := ioStruct{
-		ID:   1,
-		Data: []byte{0x01, 0x02},
+		ID:    1,
+		Data:  []byte{0x01, 0x02},
+		Slice: []uint32{0x01, 0x02, 0x03, 0x04},
+		Array: [3]uint64{0x01, 0x02, 0x03},
 	}
 	out, recompiled, err := caller(context.Background(), in)
 	require.NoError(t, err)
 	require.True(t, recompiled)
 	require.EqualValues(t, ioStruct{
-		ID:   2,
-		Data: []byte{0x01, 0x02},
+		ID:    2,
+		Data:  in.Data,
+		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
 	out, recompiled, err = caller(context.Background(), in)
 	require.NoError(t, err)
 	require.False(t, recompiled)
 	require.EqualValues(t, ioStruct{
-		ID:   2,
-		Data: []byte{0x01, 0x02},
+		ID:    2,
+		Data:  in.Data,
+		Slice: in.Slice,
+		Array: in.Array,
 	}, out)
-}
-
-var (
-	runArgs = abi.Arguments{{Type: mustTuple()}}
-)
-
-func mustTuple() abi.Type {
-	t, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
-		{Name: "ID", Type: "uint8"},
-		{Name: "Data", Type: "bytes"},
-	})
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-type testEncoderDecoder struct {
-}
-
-func (t *testEncoderDecoder) Encode(in ioStruct) ([]byte, error) {
-	return runArgs.Pack(in)
-}
-
-func (t *testEncoderDecoder) Decode(v []byte) (ioStruct, error) {
-	var out ioStruct
-	decoded, err := runArgs.Unpack(v)
-	if err != nil {
-		return out, fmt.Errorf("error unpacking args: %w", err)
-	}
-	// Geth's ABI decoding library returns an anonymous strut
-	// which requires reflection to parse.
-	anonStruct := decoded[0]
-	val := reflect.ValueOf(anonStruct)
-	out.ID = uint8(val.FieldByName("ID").Uint())
-	out.Data = val.FieldByName("Data").Bytes()
-	return out, nil
 }
 
 func copyDir(src, dst string) error {

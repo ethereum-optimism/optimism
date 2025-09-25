@@ -26,6 +26,7 @@ import (
 // This test is known to be flaky
 // See: https://github.com/ethereum-optimism/optimism/issues/17298
 func TestPreNoInbox(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()

@@ -40,27 +40,32 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
 
-	var release string
-	if intent.L1ContractsLocator.IsEmbedded() {
-		release = standard.CurrentTag
-	} else {
-		release = "dev"
+	readInput := opcm.ReadImplementationAddressesInput{
+		AddressManager:                    dco.AddressManager,
+		L1ERC721BridgeProxy:               dco.L1ERC721BridgeProxy,
+		SystemConfigProxy:                 dco.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxy: dco.OptimismMintableERC20FactoryProxy,
+		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
+		OptimismPortalProxy:               dco.OptimismPortalProxy,
+		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
+		DelayedWETHPermissionedGameProxy:  dco.DelayedWETHPermissionedGameProxy,
+		Opcm:                              dci.Opcm,
 	}
 
-	readInput := opcm.ReadImplementationAddressesInput{
-		DeployOPChainOutput: dco,
-		Opcm:                dci.Opcm,
-		Release:             release,
-	}
-	impls, err := opcm.ReadImplementationAddresses(env.L1ScriptHost, readInput)
+	readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 	if err != nil {
-		return fmt.Errorf("failed to read implementation addresses: %w", err)
+		return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+	}
+
+	impls, err := readImplementations.Run(readInput)
+	if err != nil {
+		return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 	}
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
 	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
-	st.ImplementationsDeployment.EthLockboxImpl = impls.ETHLockbox
+	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
 	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
 	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
