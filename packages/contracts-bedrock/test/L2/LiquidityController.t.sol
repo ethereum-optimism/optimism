@@ -45,26 +45,39 @@ contract LiquidityController_TestInit is CommonTest {
         skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 
-    /// @notice Tests that contract version is set correctly.
-    function test_setup_version_succeeds() public view {
-        assertTrue(bytes(liquidityController.version()).length > 0);
-    }
-
-    /// @notice Tests that gas paying token name is set correctly.
-    function test_setup_gasPayingTokenName_succeeds() public view {
-        assertTrue(bytes(liquidityController.gasPayingTokenName()).length > 0);
-    }
-
-    /// @notice Tests that gas paying token symbol is set correctly.
-    function test_setup_gasPayingTokenSymbol_succeeds() public view {
-        assertTrue(bytes(liquidityController.gasPayingTokenSymbol()).length > 0);
-    }
-
     /// @notice Helper function to authorize a minter.
     function _authorizeMinter(address _minter) internal {
         // Authorize the minter
         stdstore.target(address(liquidityController)).sig(liquidityController.minters.selector).with_key(_minter)
             .checked_write(true);
+    }
+}
+
+/// @title LiquidityController_Version_Test
+/// @notice Tests the `version` function of the `LiquidityController` contract.
+contract LiquidityController_Version_Test is LiquidityController_TestInit {
+    /// @notice Tests that the version function returns a valid string.
+    function test_version_succeeds() public view {
+        assert(bytes(liquidityController.version()).length > 0);
+    }
+}
+
+/// @title LiquidityController_GasPayingTokenName_Test
+/// @notice Tests the `gasPayingTokenName` function of the `LiquidityController` contract.
+contract LiquidityController_GasPayingTokenName_Test is LiquidityController_TestInit {
+    /// @notice Tests that the `version` function returns the correct string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_gasPayingTokenName_succeeds() public view {
+        assertTrue(bytes(liquidityController.gasPayingTokenName()).length > 0);
+    }
+}
+
+/// @title LiquidityController_GasPayingTokenSymbol_Test
+/// @notice Tests the `gasPayingTokenSymbol` function of the `LiquidityController` contract.
+contract LiquidityController_GasPayingTokenSymbol_Test is LiquidityController_TestInit {
+    /// @notice Tests that the gasPayingTokenSymbol function returns a valid string.
+    function test_gasPayingTokenSymbol_succeeds() public view {
+        assertTrue(bytes(liquidityController.gasPayingTokenSymbol()).length > 0);
     }
 }
 

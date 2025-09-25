@@ -25,11 +25,15 @@ contract NativeAssetLiquidity_TestInit is CommonTest {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
+}
 
-    /// @notice Tests that contract is set up correctly.
-    function test_setup_version_succeeds() public view {
-        // Assert
-        assertTrue(bytes(nativeAssetLiquidity.version()).length > 0);
+/// @title NativeAssetLiquidity_Version_Test
+/// @notice Tests the `version` function of the `NativeAssetLiquidity` contract.
+contract NativeAssetLiquidity_Version_Test is NativeAssetLiquidity_TestInit {
+    /// @notice Tests that the `version` function returns the correct string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() public view {
+        assert(bytes(nativeAssetLiquidity.version()).length > 0);
     }
 }
 
