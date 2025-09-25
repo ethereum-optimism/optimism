@@ -97,6 +97,8 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 	return monitor
 }
 
+type monitorOpts func(*SequencerHealthMonitor)
+
 // SetupMonitorWithRollupBoost creates a HealthMonitor that includes a RollupBoostClient
 func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	now, unsafeInterval, safeInterval uint64,
@@ -104,6 +106,7 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	mockP2P *p2pMocks.API,
 	mockRollupBoost *clientmocks.RollupBoostClient,
 	elP2pClient client.ElP2PClient,
+	opts ...monitorOpts,
 ) *SequencerHealthMonitor {
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
@@ -136,6 +139,9 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 			minPeerCount: s.minElP2pPeerCount,
 			elP2pClient:  elP2pClient,
 		}
+	}
+	for _, opt := range opts {
+		opt(monitor)
 	}
 	err := monitor.Start(context.Background())
 	s.NoError(err)
@@ -437,6 +443,86 @@ func (s *HealthMonitorTestSuite) TestRollupBoostPartialStatus() {
 	// Check for unhealthy status
 	healthUpdateCh := monitor.Subscribe()
 	healthFailure := <-healthUpdateCh
+	s.Equal(ErrRollupBoostPartiallyHealthy, healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostPartialStatusWithTolerance() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+
+	// because 6 healthchecks are going to be expected cause 6 calls of sync status
+	for i := 0; i < 6; i++ {
+		rc.ExpectSyncStatus(ss1, nil)
+	}
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup partial rollup boost status (treated as unhealthy)
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatusPartial, nil)
+
+	toleranceLimit := uint64(2)
+	toleranceIntervalSeconds := uint64(3)
+
+	timeBoundedRotatingCounter, err := NewTimeBoundedRotatingCounter(toleranceIntervalSeconds, toleranceLimit)
+	s.Nil(err)
+
+	// Start monitor with all dependencies as well as tolerance of 2 rollup-boost partial unhealthiness per 3s period
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb, nil, func(shm *SequencerHealthMonitor) {
+		tp := &timeProvider{now: 1758792282}
+		timeBoundedRotatingCounter.timeProviderFn = tp.Now
+
+		// pollute the cache of timeBoundRotatingCounter with 999 elements so as to later test the lazy cleanup
+		// note: the 1000th element will be added by the first healthchecl run
+		for i := 0; i < 999; i++ {
+			timeBoundedRotatingCounter.temporalCache[int64(i)] = uint64(1)
+		}
+
+		shm.timeTolerantRollupBoostPartialHealthinessMgr = timeBoundedRotatingCounter
+	})
+
+	healthUpdateCh := monitor.Subscribe()
+
+	// first error is tolerated (time t+1)
+	healthStatus := <-healthUpdateCh
+	s.Nil(healthStatus)
+	s.Len(timeBoundedRotatingCounter.temporalCache, 1000) // lazy cleanup of the cache not done yet as it's within the bounds
+
+	// second error is tolerated as well (time t+2)
+	healthStatus = <-healthUpdateCh
+	s.Nil(healthStatus)
+	s.Len(timeBoundedRotatingCounter.temporalCache, 1000) // no change of the cache until the next reset
+
+	// third error isn't tolerated (time t+3)
+	healthFailure := <-healthUpdateCh
+	s.Equal(ErrRollupBoostPartiallyHealthy, healthFailure)
+
+	// by now, because of three healthchecks, three seconds have been simulated to pass (by the timeProviderFn)
+	// this should reset the time bound counter, thereby allowing partial unhealthiness failures to be tolerated again
+
+	// first error after the reset is tolerated (time t+4)
+	healthStatus = <-healthUpdateCh
+	s.Nil(healthStatus)
+	s.Len(timeBoundedRotatingCounter.temporalCache, 1) // lazy cleanup of the cache done and it's left with only the current value
+
+	// second error after the reset is tolerated as well (time t+5)
+	healthStatus = <-healthUpdateCh
+	s.Nil(healthStatus)
+	s.Len(timeBoundedRotatingCounter.temporalCache, 1) // no change to the cache until the next reset
+
+	// third error after the reset isn't tolerated (time t+6)
+	healthFailure = <-healthUpdateCh
 	s.Equal(ErrRollupBoostPartiallyHealthy, healthFailure)
 
 	s.NoError(monitor.Stop())
