@@ -515,6 +515,7 @@ impl SimpleBlockGenerator {
                     no_tx_pool: Some(empty_blocks),
                     gas_limit: Some(10000000000),
                     eip_1559_params: None,
+                    min_base_fee: None,
                 }),
             )
             .await?;

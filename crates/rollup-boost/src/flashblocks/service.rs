@@ -19,7 +19,6 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use reth_optimism_payload_builder::payload_id_optimism;
-use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -40,14 +39,6 @@ pub enum FlashblocksError {
     InvalidIndex,
     #[error("Missing payload")]
     MissingPayload,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct FlashbotsMessage {
-    method: String,
-    params: serde_json::Value,
-    #[serde(default)]
-    id: Option<u64>,
 }
 
 // Simplify actor messages to just handle shutdown

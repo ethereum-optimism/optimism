@@ -25,7 +25,6 @@ use rollup_boost::{
     FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
 };
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -227,7 +226,7 @@ impl FlashblocksCacheInner {
                     timestamp,
                 };
                 let input: ConvertReceiptInput<'_, OpPrimitives> = ConvertReceiptInput {
-                    receipt: Cow::Borrowed(receipt),
+                    receipt: receipt.clone(),
                     tx: tx.try_to_recovered_ref()?,
                     gas_used: receipt.cumulative_gas_used() - gas_used,
                     next_log_index,

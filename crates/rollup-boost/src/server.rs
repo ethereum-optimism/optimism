@@ -303,6 +303,7 @@ where
                 no_tx_pool: Some(true),
                 gas_limit: attrs.gas_limit,
                 eip_1559_params: attrs.eip_1559_params,
+                min_base_fee: attrs.min_base_fee,
             },
             None => OpPayloadAttributes {
                 payload_attributes: builder_payload.payload_attributes(),
@@ -310,6 +311,7 @@ where
                 no_tx_pool: Some(true),
                 gas_limit: None,
                 eip_1559_params: None,
+                min_base_fee: None,
             },
         };
 
