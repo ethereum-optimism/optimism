@@ -124,14 +124,14 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
-    /// @param txId The identifier of the scheduled transaction (nonce-independent).
+    /// @param txHash The identifier of the scheduled transaction (nonce-independent).
     /// @param when The timestamp when execution becomes valid.
-    event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
+    event TransactionScheduled(Safe indexed safe, bytes32 indexed txHash, uint256 executionTime);
 
     /// @notice Emitted when a transaction is cancelled for a Safe.
     /// @param safe The Safe whose transaction is cancelled.
-    /// @param txId The identifier of the cancelled transaction (nonce-independent).
-    event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
+    /// @param txHash The identifier of the cancelled transaction (nonce-independent).
+    event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
 
     /// @notice Emitted when the cancellation threshold is updated
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
@@ -146,12 +146,11 @@ contract TimelockGuard is IGuard, ISemver {
     //                  Internal View Functions                   //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the blocking threshold threshold for a given safe
+    /// @notice Returns the blocking threshold, which is defined as the minimum number of owners that must coordinate to
+    /// block a transaction from being executed by refusing to sign.
     /// @param _safe The Safe address to query
     /// @return The current blocking threshold
     function _blockingThreshold(Safe _safe) internal view returns (uint256) {
-        // The blocking threshold is the number of owners who can coordinate to block a transaction
-        // from being executed by refusing to sign.
         return _safe.getOwners().length - _safe.getThreshold() + 1;
     }
 
