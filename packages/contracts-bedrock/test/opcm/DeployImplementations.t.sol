@@ -97,12 +97,11 @@ contract DeployImplementations_Test is Test {
     )
         public
     {
-        // Bound inputs to reasonable ranges
-        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, 365 days);
-        _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000); // 1 byte to 1MB
-        vm.assume(_challengePeriodSeconds != 0);
-        _proofMaturityDelaySeconds = bound(_proofMaturityDelaySeconds, 1, 365 days);
-        _disputeGameFinalityDelaySeconds = bound(_disputeGameFinalityDelaySeconds, 1, 365 days);
+        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, type(uint256).max);
+        _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000);
+        _challengePeriodSeconds = uint64(bound(uint256(_challengePeriodSeconds), 1, type(uint64).max));
+        _proofMaturityDelaySeconds = bound(_proofMaturityDelaySeconds, 1, type(uint256).max);
+        _disputeGameFinalityDelaySeconds = bound(_disputeGameFinalityDelaySeconds, 1, type(uint256).max);
 
         // Ensure superchainConfigImpl is not zero address
         vm.assume(_superchainConfigImpl != address(0));
