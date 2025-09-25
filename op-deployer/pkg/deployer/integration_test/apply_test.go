@@ -42,6 +42,7 @@ import (
 )
 
 const defaultL1ChainID uint64 = 77799777
+const testCustomGasLimit = uint64(60_000_000)
 
 type deployerKey struct{}
 
@@ -243,7 +244,6 @@ func TestGlobalOverrides(t *testing.T) {
 	defer cancel()
 
 	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
-	expectedGasLimit := strings.ToLower("0x1C9C380")
 	expectedBaseFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	expectedL1FeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000002")
 	expectedSequencerFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000003")
@@ -255,7 +255,6 @@ func TestGlobalOverrides(t *testing.T) {
 	expectedUseFaultProofs := false
 	intent.GlobalDeployOverrides = map[string]interface{}{
 		"l2BlockTime":                         float64(3),
-		"l2GenesisBlockGasLimit":              expectedGasLimit,
 		"baseFeeVaultRecipient":               expectedBaseFeeVaultRecipient,
 		"l1FeeVaultRecipient":                 expectedL1FeeVaultRecipient,
 		"sequencerFeeVaultRecipient":          expectedSequencerFeeVaultRecipient,
@@ -272,7 +271,6 @@ func TestGlobalOverrides(t *testing.T) {
 	cfg, err := state.CombineDeployConfig(intent, intent.Chains[0], st, st.Chains[0])
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
-	require.Equal(t, expectedGasLimit, strings.ToLower(cfg.L2InitializationConfig.L2GenesisBlockDeployConfig.L2GenesisBlockGasLimit.String()), "L2 Genesis Block Gas Limit should be 30_000_000")
 	require.Equal(t, expectedBaseFeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.BaseFeeVaultRecipient, "Base Fee Vault Recipient should be the expected address")
 	require.Equal(t, expectedL1FeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.L1FeeVaultRecipient, "L1 Fee Vault Recipient should be the expected address")
 	require.Equal(t, expectedSequencerFeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.SequencerFeeVaultRecipient, "Sequencer Fee Vault Recipient should be the expected address")
@@ -687,6 +685,7 @@ func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 		Eip1559DenominatorCanyon:   standard.Eip1559DenominatorCanyon,
 		Eip1559Denominator:         standard.Eip1559Denominator,
 		Eip1559Elasticity:          standard.Eip1559Elasticity,
+		GasLimit:                   testCustomGasLimit,
 		Roles: state.ChainRoles{
 			L1ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 			L2ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
@@ -820,6 +819,13 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 			_, ok := alloc[predeploys.GovernanceTokenAddr]
 			require.False(t, ok, "governance token should not be deployed by default")
 		}
+
+		genesis, rollup, err := inspect.GenesisAndRollup(st, chainState.ID)
+		require.NoError(t, err)
+		require.Equal(t, rollup.Genesis.SystemConfig.GasLimit, testCustomGasLimit, "rollup gasLimit")
+		require.Equal(t, genesis.GasLimit, testCustomGasLimit, "genesis gasLimit")
+
+		require.Equal(t, chainIntent.GasLimit, testCustomGasLimit, "chainIntent gasLimit")
 
 		require.Equal(t, int(chainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
 		require.Equal(t, int(chainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")

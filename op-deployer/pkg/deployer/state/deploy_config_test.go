@@ -22,6 +22,7 @@ func TestCombineDeployConfig(t *testing.T) {
 	chainIntent := ChainIntent{
 		Eip1559Denominator:         1,
 		Eip1559Elasticity:          2,
+		GasLimit:                   standard.GasLimit,
 		BaseFeeVaultRecipient:      common.HexToAddress("0x123"),
 		L1FeeVaultRecipient:        common.HexToAddress("0x456"),
 		SequencerFeeVaultRecipient: common.HexToAddress("0x789"),
