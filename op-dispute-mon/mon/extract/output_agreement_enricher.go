@@ -146,6 +146,14 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			game.RollupEndpointNotFoundCount++
 		} else {
 			foundResults = append(foundResults, result)
+			// Track safety counts only for found results where the output root matches the game's root claim
+			if result.outputRoot == game.RootClaim {
+				if result.isSafe {
+					game.RollupEndpointSafeCount++
+				} else {
+					game.RollupEndpointUnsafeCount++
+				}
+			}
 		}
 	}
 

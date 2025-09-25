@@ -579,3 +579,139 @@ func (s *stubRollupClient) SafeHeadAtL1Block(_ context.Context, _ uint64) (*eth.
 		},
 	}, nil
 }
+
+func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CountsSafetyWhenOutputRootMatchesRootClaim", func(t *testing.T) {
+		rootClaim := common.HexToHash("0xabcd")
+		enricher, clients, _ := setupMultiNodeTest(t, 3)
+
+		// Client 0: safe (safeHeadNum >= l2BlockNumber)
+		clients[0].outputRoot = rootClaim
+		clients[0].safeHeadNum = 100
+
+		// Client 1: unsafe (safeHeadNum < l2BlockNumber)
+		clients[1].outputRoot = rootClaim
+		clients[1].safeHeadNum = 50
+
+		// Client 2: safe
+		clients[2].outputRoot = rootClaim
+		clients[2].safeHeadNum = 150
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 0,
+			},
+			L1HeadNum:                 200,
+			L2BlockNumber:             75,
+			RootClaim:                 rootClaim,
+			RollupEndpointErrors:      make(map[string]bool),
+			RollupEndpointSafeCount:   0,
+			RollupEndpointUnsafeCount: 0,
+		}
+
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 2, game.RollupEndpointSafeCount, "Should count 2 safe endpoints")
+		require.Equal(t, 1, game.RollupEndpointUnsafeCount, "Should count 1 unsafe endpoint")
+		require.True(t, game.HasMixedSafety(), "Should have mixed safety")
+	})
+
+	t.Run("DoesNotCountSafetyWhenOutputRootDiffersFromRootClaim", func(t *testing.T) {
+		rootClaim := common.HexToHash("0xabcd")
+		differentRoot := common.HexToHash("0xdiff")
+		enricher, clients, _ := setupMultiNodeTest(t, 3)
+
+		// All clients return different root but have varying safety
+		for _, client := range clients {
+			client.outputRoot = differentRoot
+			client.safeHeadNum = 100 // All would be safe if checked
+		}
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 0,
+			},
+			L1HeadNum:                 200,
+			L2BlockNumber:             75,
+			RootClaim:                 rootClaim,
+			RollupEndpointErrors:      make(map[string]bool),
+			RollupEndpointSafeCount:   0,
+			RollupEndpointUnsafeCount: 0,
+		}
+
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, game.RollupEndpointSafeCount, "Should not count safety when output root differs")
+		require.Equal(t, 0, game.RollupEndpointUnsafeCount, "Should not count safety when output root differs")
+		require.False(t, game.HasMixedSafety(), "Should not have mixed safety")
+	})
+
+	t.Run("DoesNotCountSafetyForNotFoundResults", func(t *testing.T) {
+		rootClaim := common.HexToHash("0xabcd")
+		enricher, clients, _ := setupMultiNodeTest(t, 3)
+
+		// Client 0: found and safe
+		clients[0].outputRoot = rootClaim
+		clients[0].safeHeadNum = 100
+
+		// Client 1: not found
+		clients[1].outputErr = errors.New("not found")
+
+		// Client 2: found and unsafe
+		clients[2].outputRoot = rootClaim
+		clients[2].safeHeadNum = 50
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 0,
+			},
+			L1HeadNum:                 200,
+			L2BlockNumber:             75,
+			RootClaim:                 rootClaim,
+			RollupEndpointErrors:      make(map[string]bool),
+			RollupEndpointSafeCount:   0,
+			RollupEndpointUnsafeCount: 0,
+		}
+
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, game.RollupEndpointSafeCount, "Should count only found safe endpoints")
+		require.Equal(t, 1, game.RollupEndpointUnsafeCount, "Should count only found unsafe endpoints")
+		require.True(t, game.HasMixedSafety(), "Should have mixed safety")
+	})
+
+	t.Run("AllEndpointsSafeNoMixedSafety", func(t *testing.T) {
+		rootClaim := common.HexToHash("0xabcd")
+		enricher, clients, _ := setupMultiNodeTest(t, 3)
+
+		// All clients safe
+		for _, client := range clients {
+			client.outputRoot = rootClaim
+			client.safeHeadNum = 100
+		}
+
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 0,
+			},
+			L1HeadNum:                 200,
+			L2BlockNumber:             75,
+			RootClaim:                 rootClaim,
+			RollupEndpointErrors:      make(map[string]bool),
+			RollupEndpointSafeCount:   0,
+			RollupEndpointUnsafeCount: 0,
+		}
+
+		err := enricher.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+
+		require.Equal(t, 3, game.RollupEndpointSafeCount, "Should count all safe endpoints")
+		require.Equal(t, 0, game.RollupEndpointUnsafeCount, "Should count no unsafe endpoints")
+		require.False(t, game.HasMixedSafety(), "Should not have mixed safety")
+	})
+}

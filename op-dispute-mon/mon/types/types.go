@@ -71,6 +71,12 @@ type EnrichedGameData struct {
 
 	// RollupEndpointTotalCount tracks the total number of rollup endpoints attempted for this game.
 	RollupEndpointTotalCount int
+
+	// RollupEndpointSafeCount tracks the number of rollup endpoints that reported the root as safe.
+	RollupEndpointSafeCount int
+
+	// RollupEndpointUnsafeCount tracks the number of rollup endpoints that reported the root as unsafe.
+	RollupEndpointUnsafeCount int
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.
@@ -87,6 +93,12 @@ func (g EnrichedGameData) HasMixedAvailability() bool {
 
 	successfulEndpoints := g.RollupEndpointTotalCount - g.RollupEndpointErrorCount - g.RollupEndpointNotFoundCount
 	return g.RollupEndpointNotFoundCount > 0 && successfulEndpoints > 0
+}
+
+// HasMixedSafety returns true if some rollup endpoints reported the root as safe and others as unsafe
+// for this game. This indicates inconsistent safety assessment across the rollup node network.
+func (g EnrichedGameData) HasMixedSafety() bool {
+	return g.RollupEndpointSafeCount > 0 && g.RollupEndpointUnsafeCount > 0
 }
 
 // BidirectionalTree is a tree of claims represented as a flat list of claims.

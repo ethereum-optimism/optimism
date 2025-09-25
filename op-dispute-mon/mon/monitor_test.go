@@ -325,3 +325,146 @@ type mockMixedAvailabilityMetrics struct {
 func (m *mockMixedAvailabilityMetrics) RecordMixedAvailabilityGames(count int) {
 	m.recordedCount = count
 }
+
+func TestMonitor_MixedSafetyMonitorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MixedSafetyMonitorCalledWithGamesData", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games with mixed safety scenarios
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointSafeCount:   2, // Mixed safety: some safe, some unsafe
+				RollupEndpointUnsafeCount: 1,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointSafeCount:   3, // All endpoints safe - not mixed safety
+				RollupEndpointUnsafeCount: 0,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointSafeCount:   1, // Mixed safety: some safe, some unsafe
+				RollupEndpointUnsafeCount: 4,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x44}},
+				RollupEndpointSafeCount:   0, // All endpoints unsafe - not mixed safety
+				RollupEndpointUnsafeCount: 2,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x55}},
+				RollupEndpointSafeCount:   0, // No safety checks performed - not mixed safety
+				RollupEndpointUnsafeCount: 0,
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
+		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that MixedSafetyMonitor was called and recorded the correct count
+		// Should count games with mixed safety: game 0x11 and 0x33 = 2 total
+		require.Equal(t, 2, mixedSafetyMetrics.recordedCount)
+	})
+
+	t.Run("OnlyGamesWithMixedSafetyAreCounted", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games without mixed safety
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointSafeCount:   5, // All safe
+				RollupEndpointUnsafeCount: 0,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointSafeCount:   0, // All unsafe
+				RollupEndpointUnsafeCount: 3,
+			},
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointSafeCount:   0, // No checks performed
+				RollupEndpointUnsafeCount: 0,
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
+		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that no games were counted as having mixed safety
+		require.Equal(t, 0, mixedSafetyMetrics.recordedCount)
+	})
+
+	t.Run("EdgeCaseMinimalMixedSafety", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create a game with minimal mixed safety (1 safe, 1 unsafe)
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:              types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointSafeCount:   1, // Minimal mixed safety
+				RollupEndpointUnsafeCount: 1,
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		mixedSafetyMetrics := &mockMixedSafetyMetrics{}
+		mixedSafetyMonitor := NewMixedSafetyMonitor(logger, mixedSafetyMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, mixedSafetyMonitor.CheckMixedSafety)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that the minimal mixed safety case is counted
+		require.Equal(t, 1, mixedSafetyMetrics.recordedCount)
+	})
+}
+
+// mockMixedSafetyMetrics for integration test
+type mockMixedSafetyMetrics struct {
+	recordedCount int
+}
+
+func (m *mockMixedSafetyMetrics) RecordMixedSafetyGames(count int) {
+	m.recordedCount = count
+}

@@ -114,3 +114,66 @@ func TestEnrichedGameData_HasMixedAvailability(t *testing.T) {
 		})
 	}
 }
+
+func TestEnrichedGameData_HasMixedSafety(t *testing.T) {
+	tests := []struct {
+		name                      string
+		rollupEndpointSafeCount   int
+		rollupEndpointUnsafeCount int
+		expected                  bool
+	}{
+		{
+			name:                      "no safety assessments",
+			rollupEndpointSafeCount:   0,
+			rollupEndpointUnsafeCount: 0,
+			expected:                  false,
+		},
+		{
+			name:                      "all endpoints report safe",
+			rollupEndpointSafeCount:   3,
+			rollupEndpointUnsafeCount: 0,
+			expected:                  false,
+		},
+		{
+			name:                      "all endpoints report unsafe",
+			rollupEndpointSafeCount:   0,
+			rollupEndpointUnsafeCount: 3,
+			expected:                  false,
+		},
+		{
+			name:                      "mixed safety - some safe, some unsafe",
+			rollupEndpointSafeCount:   2,
+			rollupEndpointUnsafeCount: 1,
+			expected:                  true,
+		},
+		{
+			name:                      "mixed safety - minority safe",
+			rollupEndpointSafeCount:   1,
+			rollupEndpointUnsafeCount: 4,
+			expected:                  true,
+		},
+		{
+			name:                      "mixed safety - majority safe",
+			rollupEndpointSafeCount:   4,
+			rollupEndpointUnsafeCount: 1,
+			expected:                  true,
+		},
+		{
+			name:                      "mixed safety - equal split",
+			rollupEndpointSafeCount:   2,
+			rollupEndpointUnsafeCount: 2,
+			expected:                  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data := EnrichedGameData{
+				RollupEndpointSafeCount:   test.rollupEndpointSafeCount,
+				RollupEndpointUnsafeCount: test.rollupEndpointUnsafeCount,
+			}
+			result := data.HasMixedSafety()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
