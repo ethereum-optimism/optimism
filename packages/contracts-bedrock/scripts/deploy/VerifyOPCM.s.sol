@@ -898,13 +898,6 @@ contract VerifyOPCM is Script {
             sourceName = sourceNameOverrides[_contractName];
         }
 
-        // Check if the dispute profile artifact exists and should be used.
-        string memory disputePath =
-            string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".dispute.json");
-        if (vm.exists(disputePath)) {
-            return disputePath;
-        }
-
         // Return computed path, relative to the contracts-bedrock directory.
         return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
     }
