@@ -257,8 +257,8 @@ contract TimelockGuard is IGuard, ISemver {
         uint256 _gasPrice,
         address _gasToken,
         address payable _refundReceiver,
-        bytes memory,
-        address
+        bytes memory, /* signatures */
+        address /* msgSender */
     )
         external
         override
@@ -267,7 +267,8 @@ contract TimelockGuard is IGuard, ISemver {
 
         if (_safeState[callingSafe].timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
-            // guard set, but not configured to complete the setup process.
+            // guard set, but not configured, to complete the setup process.
+
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a
             // delay of zero.
             return;
