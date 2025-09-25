@@ -49,7 +49,7 @@ const (
 	DefaultCannonSnapshotFreq   = uint(1_000_000_000)
 	DefaultCannonInfoFreq       = uint(10_000_000)
 	DefaultAsteriscSnapshotFreq = uint(1_000_000_000)
-	DefaultAsteriscInfoFreq     = uint(10_000_000)
+	DefaultAsteriscInfoFreq     = uint(1_000_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
 	// The default value is 28 days. The worst case duration for a game is 16 days
