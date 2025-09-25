@@ -1,9 +1,16 @@
-import os
+"""
+Script to create and monitor Devin AI sessions for contract test maintenance.
+Loads prompt from the prompt renderer output and sends it to the Devin API,
+then monitors the session until completion while logging the results.
+"""
+
+from datetime import datetime
+import glob
 import json
+import os
+from pathlib import Path
 import time
 import urllib.request
-import glob
-from datetime import datetime
 
 # Load .env file
 if os.path.exists(".env"):
@@ -57,7 +64,16 @@ def log_session(session_id, status, session_data):
         run_time = None
         selected_files = {}
 
+    # Read system version
+    version_file = Path(__file__).parent.parent.parent / "VERSION"
+    try:
+        with open(version_file, "r") as f:
+            system_version = f.read().strip()
+    except (FileNotFoundError, IOError):
+        system_version = "unknown"
+
     log_entry = {
+        "system_version": system_version,
         "run_id": run_id,
         "run_time": run_time,
         "devin_session_id": session_id,
@@ -79,8 +95,16 @@ def _make_request(url, headers, data=None, method="GET"):
     """Make HTTP request to Devin API and return JSON response."""
     try:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 504:
+            print(f"Server timeout (504) - will retry")
+            return None
+        else:
+            print(f"Request failed: {method} {url}")
+            print(f"Error: {e}")
+            raise
     except Exception as e:
         print(f"Request failed: {method} {url}")
         print(f"Error: {e}")
@@ -128,11 +152,28 @@ def monitor_session(session_id):
     api_key, base_url = _validate_environment()
     headers = _create_headers(api_key)
     last_status = None
+    retry_delay = 60  # Start with 1 minute
 
     while True:
         try:
             status = _make_request(f"{base_url}/sessions/{session_id}", headers)
+
+            # Handle server timeout (no response) - retry with backoff
+            if status is None:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 480)  # Cap at 8 minutes
+                continue
+
+            # Reset retry delay on successful request
+            retry_delay = 60
             current_status = status.get("status_enum")
+
+            # Handle Devin setup phase (status_enum is None but we got a response)
+            if current_status is None:
+                print("Devin is setting up...")
+                time.sleep(5)
+                continue
 
             # Only print when status changes and is meaningful
             if current_status and current_status != last_status:

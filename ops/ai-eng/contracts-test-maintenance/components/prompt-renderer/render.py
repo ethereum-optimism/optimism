@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script to render a prompt instance by replacing placeholders with actual test and contract paths
 from the first entry in the ranking JSON file.
