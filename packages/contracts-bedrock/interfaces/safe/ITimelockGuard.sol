@@ -40,8 +40,8 @@ interface ITimelockGuard {
 
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
     function cancelTransactionOnSafe(address _safe, bytes32 _txHash) external;
-    function cancellationThresholdForSafe(address _safe) external view returns (uint256);
-    function pendingTransactionsForSafe(address) external pure returns (bytes32[] memory);
+    function cancellationThreshold(address _safe) external view returns (uint256);
+    function pendingTransactions(address) external pure returns (bytes32[] memory);
     function checkTransaction(
         address _to,
         uint256 _value,
@@ -58,7 +58,7 @@ interface ITimelockGuard {
         external;
     function checkAfterExecution(bytes32, bool) external;
     function configureTimelockGuard(uint256 _timelockDelay) external;
-    function scheduledTransactionForSafe(
+    function scheduledTransaction(
         address _safe,
         bytes32 _txHash
     )
@@ -74,9 +74,9 @@ interface ITimelockGuard {
     )
         external;
     function version() external view returns (string memory);
-    function timelockConfigurationForSafe(address _safe) external view returns (uint256 timelockDelay);
+    function timelockConfiguration(address _safe) external view returns (uint256 timelockDelay);
     function maxCancellationThreshold(address _safe) external view returns (uint256);
-    function pendingTransactionsForSafe(address _safe)
+    function pendingTransactions(address _safe)
         external
         view
         returns (TimelockGuard.ScheduledTransaction[] memory);

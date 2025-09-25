@@ -162,7 +162,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the cancellation threshold for a given safe
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
-    function cancellationThresholdForSafe(Safe _safe) public view returns (uint256) {
+    function cancellationThreshold(Safe _safe) public view returns (uint256) {
         // Return 0 if guard is not enabled
         if (!_isGuardEnabled(_safe)) {
             return 0;
@@ -198,14 +198,14 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockConfigurationForSafe(Safe _safe) public view returns (uint256) {
+    function timelockConfiguration(Safe _safe) public view returns (uint256) {
         return _safeState[_safe].timelockDelay;
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
     /// @dev This function is necessary to properly expose the scheduledTransactions mapping, as
     ///      simply making the mapping public will return a tuple instead of a struct.
-    function scheduledTransactionForSafe(
+    function scheduledTransaction(
         Safe _safe,
         bytes32 _txHash
     )
@@ -225,7 +225,7 @@ contract TimelockGuard is IGuard, ISemver {
     /// uncallable if the set grows to a point where copying to memory consumes too much gas to fit
     /// in a block.
     /// @return List of pending transaction hashes
-    function pendingTransactionsForSafe(Safe _safe) external view returns (ScheduledTransaction[] memory) {
+    function pendingTransactions(Safe _safe) external view returns (ScheduledTransaction[] memory) {
         SafeState storage safeState = _safeState[_safe];
 
         // Get the list of pending transaction hashes
