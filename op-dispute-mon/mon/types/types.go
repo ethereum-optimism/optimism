@@ -77,6 +77,9 @@ type EnrichedGameData struct {
 
 	// RollupEndpointUnsafeCount tracks the number of rollup endpoints that reported the root as unsafe.
 	RollupEndpointUnsafeCount int
+
+	// RollupEndpointDifferentOutputRoots tracks whether rollup endpoints returned different output roots for this game.
+	RollupEndpointDifferentOutputRoots bool
 }
 
 // UsesOutputRoots returns true if the game type is one of the known types that use output roots as proposals.

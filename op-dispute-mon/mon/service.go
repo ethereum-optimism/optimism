@@ -38,17 +38,18 @@ type Service struct {
 
 	cl clock.Clock
 
-	extractor         *extract.Extractor
-	forecast          *Forecast
-	bonds             *bonds.Bonds
-	game              *extract.GameCallerCreator
-	resolutions       *ResolutionMonitor
-	claims            *ClaimMonitor
-	withdrawals       *WithdrawalMonitor
-	mixedAvailability *MixedAvailability
-	mixedSafety       *MixedSafetyMonitor
-	rollupClients     []*sources.RollupClient
-	supervisorClients []*sources.SupervisorClient
+	extractor           *extract.Extractor
+	forecast            *Forecast
+	bonds               *bonds.Bonds
+	game                *extract.GameCallerCreator
+	resolutions         *ResolutionMonitor
+	claims              *ClaimMonitor
+	withdrawals         *WithdrawalMonitor
+	mixedAvailability   *MixedAvailability
+	mixedSafety         *MixedSafetyMonitor
+	differentOutputRoot *DifferentOutputRootMonitor
+	rollupClients       []*sources.RollupClient
+	supervisorClients   []*sources.SupervisorClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
@@ -101,6 +102,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	s.initWithdrawalMonitor()
 	s.initMixedAvailabilityMonitor()
 	s.initMixedSafetyMonitor()
+	s.initDifferentOutputRootMonitor()
 
 	s.initGameCallerCreator() // Must be called before initForecast
 
@@ -135,6 +137,10 @@ func (s *Service) initMixedAvailabilityMonitor() {
 
 func (s *Service) initMixedSafetyMonitor() {
 	s.mixedSafety = NewMixedSafetyMonitor(s.logger, s.metrics)
+}
+
+func (s *Service) initDifferentOutputRootMonitor() {
+	s.differentOutputRoot = NewDifferentOutputRootMonitor(s.logger, s.metrics)
 }
 
 func (s *Service) initGameCallerCreator() {
@@ -295,7 +301,8 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
 		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
 		s.mixedAvailability.CheckMixedAvailability,
-		s.mixedSafety.CheckMixedSafety)
+		s.mixedSafety.CheckMixedSafety,
+		s.differentOutputRoot.CheckDifferentOutputRoots)
 }
 
 func (s *Service) Start(ctx context.Context) error {

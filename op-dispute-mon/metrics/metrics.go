@@ -187,6 +187,8 @@ type Metricer interface {
 
 	RecordMixedSafetyGames(count int)
 
+	RecordDifferentOutputRootGames(count int)
+
 	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
@@ -237,12 +239,13 @@ type Metrics struct {
 	failedGames                prometheus.Gauge
 	l2Challenges               prometheus.GaugeVec
 
-	requiredCollateral     prometheus.GaugeVec
-	availableCollateral    prometheus.GaugeVec
-	nodeEndpointErrors     prometheus.Gauge
-	nodeEndpointErrorCount prometheus.Gauge
-	mixedAvailabilityGames prometheus.Gauge
-	mixedSafetyGames       prometheus.Gauge
+	requiredCollateral       prometheus.GaugeVec
+	availableCollateral      prometheus.GaugeVec
+	nodeEndpointErrors       prometheus.Gauge
+	nodeEndpointErrorCount   prometheus.Gauge
+	mixedAvailabilityGames   prometheus.Gauge
+	mixedSafetyGames         prometheus.Gauge
+	differentOutputRootGames prometheus.Gauge
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -430,6 +433,11 @@ func NewMetrics() *Metrics {
 			Name:      "mixed_safety_games",
 			Help:      "Number of games where some rollup nodes reported the root as safe while others reported it as unsafe in the last update cycle",
 		}),
+		differentOutputRootGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "different_output_root_games",
+			Help:      "Number of games where rollup nodes returned different output roots for the same L2 block in the last update cycle",
+		}),
 	}
 }
 
@@ -581,6 +589,10 @@ func (m *Metrics) RecordMixedAvailabilityGames(count int) {
 
 func (m *Metrics) RecordMixedSafetyGames(count int) {
 	m.mixedSafetyGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordDifferentOutputRootGames(count int) {
+	m.differentOutputRootGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {

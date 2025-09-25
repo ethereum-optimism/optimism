@@ -182,6 +182,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		for _, result := range foundResults[1:] {
 			if result.outputRoot != firstResult.outputRoot {
 				diverged = true
+				game.RollupEndpointDifferentOutputRoots = true
 				break
 			}
 		}

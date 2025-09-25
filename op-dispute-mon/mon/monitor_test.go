@@ -468,3 +468,168 @@ type mockMixedSafetyMetrics struct {
 func (m *mockMixedSafetyMetrics) RecordMixedSafetyGames(count int) {
 	m.recordedCount = count
 }
+
+func TestMonitor_DifferentOutputRootMonitorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DifferentOutputRootMonitorCalledWithGamesData", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games with different output root scenarios
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointDifferentOutputRoots: true, // Has different output roots
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointDifferentOutputRoots: false, // No disagreement
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointDifferentOutputRoots: true, // Has different output roots
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x44}},
+				RollupEndpointDifferentOutputRoots: false, // No disagreement
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
+		differentOutputRootMonitor := NewDifferentOutputRootMonitor(logger, differentOutputRootMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentOutputRoots)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that DifferentOutputRootMonitor was called and recorded the correct count
+		// Should count games with different output roots: game 0x11 and 0x33 = 2 total
+		require.Equal(t, 2, differentOutputRootMetrics.recordedCount)
+	})
+
+	t.Run("OnlyGamesWithDifferentOutputRootsAreCounted", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games without different output roots
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointDifferentOutputRoots: false, // No disagreement
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointDifferentOutputRoots: false, // No disagreement
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointDifferentOutputRoots: false, // No disagreement
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
+		differentOutputRootMonitor := NewDifferentOutputRootMonitor(logger, differentOutputRootMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentOutputRoots)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that no games were counted as having different output roots
+		require.Equal(t, 0, differentOutputRootMetrics.recordedCount)
+	})
+
+	t.Run("AllGamesHaveDifferentOutputRoots", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create games where all have different output roots
+		games := []*monTypes.EnrichedGameData{
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x11}},
+				RollupEndpointDifferentOutputRoots: true,
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x22}},
+				RollupEndpointDifferentOutputRoots: true,
+			},
+			{
+				GameMetadata:                       types.GameMetadata{Proxy: common.Address{0x33}},
+				RollupEndpointDifferentOutputRoots: true,
+			},
+		}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
+		differentOutputRootMonitor := NewDifferentOutputRootMonitor(logger, differentOutputRootMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentOutputRoots)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that all games were counted
+		require.Equal(t, 3, differentOutputRootMetrics.recordedCount)
+	})
+
+	t.Run("EmptyGamesListReturnsZero", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LvlDebug)
+		fetchHeadBlock := func(ctx context.Context) (eth.L1BlockRef, error) {
+			return eth.L1BlockRef{Number: 1, Hash: common.Hash{0xaa}}, nil
+		}
+		monitorInterval := 100 * time.Millisecond
+		cl := clock.NewAdvancingClock(10 * time.Millisecond)
+		cl.Start()
+
+		// Create empty games list
+		games := []*monTypes.EnrichedGameData{}
+
+		extractor := &mockExtractor{games: games}
+		forecast := &mockForecast{}
+		differentOutputRootMetrics := &mockDifferentOutputRootMetrics{}
+		differentOutputRootMonitor := NewDifferentOutputRootMonitor(logger, differentOutputRootMetrics)
+
+		monitor := newGameMonitor(context.Background(), logger, cl, metrics.NoopMetrics, monitorInterval, 10*time.Second, fetchHeadBlock,
+			extractor.Extract, forecast.Forecast, differentOutputRootMonitor.CheckDifferentOutputRoots)
+
+		err := monitor.monitorGames()
+		require.NoError(t, err)
+
+		// Verify that count is zero
+		require.Equal(t, 0, differentOutputRootMetrics.recordedCount)
+	})
+}
+
+// mockDifferentOutputRootMetrics for integration test
+type mockDifferentOutputRootMetrics struct {
+	recordedCount int
+}
+
+func (m *mockDifferentOutputRootMetrics) RecordDifferentOutputRootGames(count int) {
+	m.recordedCount = count
+}
