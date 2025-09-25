@@ -116,34 +116,6 @@ contract DeployImplementations is Script {
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
         if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Validate V2 game depth parameters are sensible
-            require(
-                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
-                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
-            );
-            // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
-            require(
-                _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
-                "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
-            );
-
-            // Validate V2 clock parameters fit in uint64 before deployment
-            require(
-                _input.faultGameV2ClockExtension <= type(uint64).max,
-                "DeployImplementations: faultGameV2ClockExtension too large for uint64"
-            );
-            require(
-                _input.faultGameV2MaxClockDuration <= type(uint64).max,
-                "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
-            );
-            require(
-                _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
-                "DeployImplementations: maxClockDuration must be >= clockExtension"
-            );
-            require(
-                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
-            );
-
             deployFaultDisputeGameV2Impl(_input, output_);
             deployPermissionedDisputeGameV2Impl(_input, output_);
         }
@@ -670,6 +642,35 @@ contract DeployImplementations is Script {
     }
 
     function assertValidInput(Input memory _input) private pure {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Validate V2 game depth parameters are sensible
+            require(
+                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
+                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
+            );
+            // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
+            require(
+                _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
+                "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
+            );
+
+            // Validate V2 clock parameters fit in uint64 before deployment
+            require(
+                _input.faultGameV2ClockExtension <= type(uint64).max,
+                "DeployImplementations: faultGameV2ClockExtension too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration <= type(uint64).max,
+                "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
+                "DeployImplementations: maxClockDuration must be >= clockExtension"
+            );
+            require(
+                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
+            );
+        }
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
