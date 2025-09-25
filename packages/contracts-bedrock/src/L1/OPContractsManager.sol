@@ -835,7 +835,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _gameType: GameTypes.CANNON,
                 _opChainConfig: _opChainConfig
             });
-            if (_opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)) {
                 // If a cannon kona prestate is specified, deploy a Cannon Kona game with the same parameters as the
                 // Cannon game, but using the cannon kona prestate and game type.
                 deployAndSetNewGameImpl({
@@ -1666,10 +1666,12 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
 
+        // The permissionless DelayedWETH is used by both SUPER_CANNON and SUPER_CANNON_KONA games
+        IDelayedWETH newPermissionlessDelayedWETHProxy;
         // If the cannon game is being used, set that up too.
         if (_input.usePermissionlessGame) {
             // Deploy a new DelayedWETH proxy for the permissionless game.
-            IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
+            newPermissionlessDelayedWETHProxy = IDelayedWETH(
                 payable(
                     deployProxy({
                         _l2ChainId: block.timestamp,
@@ -1722,26 +1724,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // If the cannon-kona game is being used, set that up too.
         if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) != (bytes32(0))) {
-            // Deploy a new DelayedWETH proxy for the permissionless game.
-            IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
-                payable(
-                    deployProxy({
-                        _l2ChainId: block.timestamp,
-                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
-                        _contractName: "DelayedWETH-Interop-CannonKona"
-                    })
-                )
-            );
-
-            // Initialize the new DelayedWETH proxy.
-            upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
-                address(newPermissionlessDelayedWETHProxy),
-                getImplementations().delayedWETHImpl,
-                abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
-            );
-
             // Deploy the new SuperFaultDisputeGame.
             ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
                 Blueprint.deployFrom(

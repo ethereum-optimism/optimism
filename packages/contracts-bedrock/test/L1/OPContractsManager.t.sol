@@ -1762,7 +1762,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superCannonFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
         assertEq(superCannonFdg.absolutePrestate().raw(), cannonPrestate1.raw());
 
-        // Check that the Super Cannon game has the correct parameters.
+        // Check that the Super Cannon Kona game has the correct parameters.
         ISuperFaultDisputeGame superCannonKonaFdg =
             ISuperFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)));
         assertEq(superCannonKonaFdg.maxGameDepth(), input.gameParameters.maxGameDepth);
@@ -1770,6 +1770,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superCannonKonaFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superCannonKonaFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
         assertEq(superCannonKonaFdg.absolutePrestate().raw(), cannonKonaPrestate1.raw());
+        assertEq(address(superCannonKonaFdg.weth()), address(superCannonFdg.weth()));
 
         // Check that the Super Permissioned Cannon game has the correct parameters.
         IDisputeGame superPdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
