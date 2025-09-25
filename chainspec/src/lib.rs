@@ -459,33 +459,33 @@ impl OpGenesisInfo {
             .unwrap_or_default(),
             ..Default::default()
         };
-        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info {
-            if let (Some(elasticity), Some(denominator)) = (
+        if let Some(optimism_base_fee_info) = &info.optimism_chain_info.base_fee_info &&
+            let (Some(elasticity), Some(denominator)) = (
                 optimism_base_fee_info.eip1559_elasticity,
                 optimism_base_fee_info.eip1559_denominator,
-            ) {
-                let base_fee_params = if let Some(canyon_denominator) =
-                    optimism_base_fee_info.eip1559_denominator_canyon
-                {
-                    BaseFeeParamsKind::Variable(
-                        vec![
-                            (
-                                EthereumHardfork::London.boxed(),
-                                BaseFeeParams::new(denominator as u128, elasticity as u128),
-                            ),
-                            (
-                                OpHardfork::Canyon.boxed(),
-                                BaseFeeParams::new(canyon_denominator as u128, elasticity as u128),
-                            ),
-                        ]
-                        .into(),
-                    )
-                } else {
-                    BaseFeeParams::new(denominator as u128, elasticity as u128).into()
-                };
+            )
+        {
+            let base_fee_params = if let Some(canyon_denominator) =
+                optimism_base_fee_info.eip1559_denominator_canyon
+            {
+                BaseFeeParamsKind::Variable(
+                    vec![
+                        (
+                            EthereumHardfork::London.boxed(),
+                            BaseFeeParams::new(denominator as u128, elasticity as u128),
+                        ),
+                        (
+                            OpHardfork::Canyon.boxed(),
+                            BaseFeeParams::new(canyon_denominator as u128, elasticity as u128),
+                        ),
+                    ]
+                    .into(),
+                )
+            } else {
+                BaseFeeParams::new(denominator as u128, elasticity as u128).into()
+            };
 
-                info.base_fee_params = base_fee_params;
-            }
+            info.base_fee_params = base_fee_params;
         }
 
         info
@@ -498,19 +498,18 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 
     // If Isthmus is active, overwrite the withdrawals root with the storage root of predeploy
     // `L2ToL1MessagePasser.sol`
-    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp) {
-        if let Some(predeploy) = genesis.alloc.get(&ADDRESS_L2_TO_L1_MESSAGE_PASSER) {
-            if let Some(storage) = &predeploy.storage {
-                header.withdrawals_root =
-                    Some(storage_root_unhashed(storage.iter().filter_map(|(k, v)| {
-                        if v.is_zero() {
-                            None
-                        } else {
-                            Some((*k, (*v).into()))
-                        }
-                    })));
-            }
-        }
+    if hardforks.fork(OpHardfork::Isthmus).active_at_timestamp(header.timestamp) &&
+        let Some(predeploy) = genesis.alloc.get(&ADDRESS_L2_TO_L1_MESSAGE_PASSER) &&
+        let Some(storage) = &predeploy.storage
+    {
+        header.withdrawals_root =
+            Some(storage_root_unhashed(storage.iter().filter_map(|(k, v)| {
+                if v.is_zero() {
+                    None
+                } else {
+                    Some((*k, (*v).into()))
+                }
+            })));
     }
 
     header

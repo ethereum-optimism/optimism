@@ -303,7 +303,7 @@ mod tests {
 
         // Verify deposit transaction
         let deposit_tx = match &deposit_decoded.transaction {
-            OpTypedTransaction::Legacy(ref tx) => tx,
+            OpTypedTransaction::Legacy(tx) => tx,
             _ => panic!("Expected legacy transaction for NFT deposit"),
         };
 
@@ -345,7 +345,7 @@ mod tests {
         assert!(system_decoded.is_legacy());
 
         let system_tx = match &system_decoded.transaction {
-            OpTypedTransaction::Legacy(ref tx) => tx,
+            OpTypedTransaction::Legacy(tx) => tx,
             _ => panic!("Expected Legacy transaction"),
         };
 

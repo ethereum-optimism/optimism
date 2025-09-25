@@ -690,11 +690,11 @@ where
 
             // We skip invalid cross chain txs, they would be removed on the next block update in
             // the maintenance job
-            if let Some(interop) = interop {
-                if !is_valid_interop(interop, self.config.attributes.timestamp()) {
-                    best_txs.mark_invalid(tx.signer(), tx.nonce());
-                    continue
-                }
+            if let Some(interop) = interop &&
+                !is_valid_interop(interop, self.config.attributes.timestamp())
+            {
+                best_txs.mark_invalid(tx.signer(), tx.nonce());
+                continue
             }
             // check if the job was cancelled, if so we can exit early
             if self.cancel.is_cancelled() {

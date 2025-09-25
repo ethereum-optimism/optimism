@@ -108,11 +108,10 @@ where
                             if let Some(notification) = canonical_notification {
                                 let chain = notification.committed();
                                 for block in chain.blocks_iter() {
-                                    if block.body().contains_transaction(&hash) {
-                                        if let Some(receipt) = this.transaction_receipt(hash).await? {
+                                    if block.body().contains_transaction(&hash)
+                                        && let Some(receipt) = this.transaction_receipt(hash).await? {
                                             return Ok(receipt);
                                         }
-                                    }
                                 }
                             } else {
                                 // Canonical stream ended
@@ -130,11 +129,10 @@ where
                             // Check flashblocks for faster confirmation (Optimism-specific)
                             if let Ok(Some(pending_block)) = this.pending_flashblock() {
                                 let block_and_receipts = pending_block.into_block_and_receipts();
-                                if block_and_receipts.block.body().contains_transaction(&hash) {
-                                    if let Some(receipt) = this.transaction_receipt(hash).await? {
+                                if block_and_receipts.block.body().contains_transaction(&hash)
+                                    && let Some(receipt) = this.transaction_receipt(hash).await? {
                                         return Ok(receipt);
                                     }
-                                }
                             }
                         }
                     }

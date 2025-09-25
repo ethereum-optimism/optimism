@@ -107,7 +107,12 @@ where
     /// Returns `None` if the flashblock have no `base` or the base is not a child block of latest.
     fn build_args(
         &mut self,
-    ) -> Option<BuildArgs<impl IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>>> {
+    ) -> Option<
+        BuildArgs<
+            impl IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>
+                + use<N, S, EvmConfig, Provider>,
+        >,
+    > {
         let Some(base) = self.blocks.payload_base() else {
             trace!(
                 flashblock_number = ?self.blocks.block_number(),
@@ -119,11 +124,11 @@ where
         };
 
         // attempt an initial consecutive check
-        if let Some(latest) = self.builder.provider().latest_header().ok().flatten() {
-            if latest.hash() != base.parent_hash {
-                trace!(flashblock_parent=?base.parent_hash, flashblock_number=base.block_number, local_latest=?latest.num_hash(), "Skipping non consecutive build attempt");
-                return None;
-            }
+        if let Some(latest) = self.builder.provider().latest_header().ok().flatten() &&
+            latest.hash() != base.parent_hash
+        {
+            trace!(flashblock_parent=?base.parent_hash, flashblock_number=base.block_number, local_latest=?latest.num_hash(), "Skipping non consecutive build attempt");
+            return None;
         }
 
         Some(BuildArgs {
@@ -244,16 +249,15 @@ where
                 let fut = this.canon_receiver.recv();
                 pin!(fut);
                 fut.poll_unpin(cx)
-            } {
-                if let Some(current) = this.on_new_tip(state) {
-                    trace!(
-                        parent_hash = %current.block().parent_hash(),
-                        block_number = current.block().number(),
-                        "Clearing current flashblock on new canonical block"
-                    );
+            } && let Some(current) = this.on_new_tip(state)
+            {
+                trace!(
+                    parent_hash = %current.block().parent_hash(),
+                    block_number = current.block().number(),
+                    "Clearing current flashblock on new canonical block"
+                );
 
-                    return Poll::Ready(Some(Ok(None)))
-                }
+                return Poll::Ready(Some(Ok(None)))
             }
 
             if !this.rebuild && this.current.is_some() {
