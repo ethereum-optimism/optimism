@@ -357,6 +357,13 @@ contract DeployOPChainOutput is BaseDeployIO {
 contract DeployOPChain is Script {
     // -------- Core Deployment Methods --------
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployOPChainInput _doi = abi.decode(_input, (DeployOPChainInput));
+        DeployOPChainOutput _doo;
+        run(_doi, _doo);
+        return abi.encode(_doo);
+    }
+
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
         IOPContractsManager opcm = _doi.opcm();
 
