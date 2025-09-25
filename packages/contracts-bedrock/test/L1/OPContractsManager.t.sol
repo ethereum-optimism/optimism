@@ -1821,23 +1821,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         return IPermissionedDisputeGame(address(gameProxy));
     }
 
-    /// @notice Helper function to create a fault dispute game v2 (non-permissioned) through the factory
-    function _createFaultDisputeGameV2(IDisputeGameFactory factory) internal returns (IFaultDisputeGame) {
-        // Check if there's an init bond required for the game type
-        uint256 initBond = factory.initBonds(GameTypes.CANNON);
-
-        // Fund the test contract if needed
-        if (initBond > 0) {
-            vm.deal(address(this), initBond);
-        }
-
-        IDisputeGame gameProxy = factory.create{ value: initBond }(
-            GameTypes.CANNON, Claim.wrap(bytes32(uint256(1))), abi.encode(bytes32(uint256(2)))
-        );
-
-        return IFaultDisputeGame(address(gameProxy));
-    }
-
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
