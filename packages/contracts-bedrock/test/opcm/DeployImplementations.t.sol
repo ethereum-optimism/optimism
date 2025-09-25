@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
 // Libraries
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -14,6 +15,7 @@ import { GameTypes } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 
@@ -104,6 +106,26 @@ contract DeployImplementations_Test is Test {
 
         // Ensure superchainConfigImpl is not zero address
         vm.assume(_superchainConfigImpl != address(0));
+        // Must configure the ProxyAdmin contract.
+
+        superchainProxyAdmin = IProxyAdmin(
+            DeployUtils.create1({
+                _name: "ProxyAdmin",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
+            })
+        );
+        superchainConfigProxy = ISuperchainConfig(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                )
+            })
+        );
+
+        ISuperchainConfig superchainConfigImpl = ISuperchainConfig(_superchainConfigImpl);
+        vm.prank(address(superchainProxyAdmin));
+        IProxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
 
         _faultGameV2MaxGameDepth = bound(_faultGameV2MaxGameDepth, 4, 125);
         _faultGameV2SplitDepth =
