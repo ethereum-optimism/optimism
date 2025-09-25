@@ -25,6 +25,7 @@ reth-errors.workspace = true
 reth-storage-api.workspace = true
 reth-node-api.workspace = true
 reth-tasks.workspace = true
+reth-metrics.workspace = true
 
 # alloy
 alloy-eips = { workspace = true, features = ["serde"] }
@@ -44,6 +45,7 @@ brotli.workspace = true
 
 # debug
 tracing.workspace = true
+metrics.workspace = true
 
 # errors
 eyre.workspace = true
