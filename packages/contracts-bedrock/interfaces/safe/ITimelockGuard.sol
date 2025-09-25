@@ -5,7 +5,8 @@ library Enum {
     type Operation is uint8;
 }
 
-library TimelockGuard {
+interface ITimelockGuard {
+
     struct ScheduledTransaction {
         uint256 executionTime;
         bool cancelled;
