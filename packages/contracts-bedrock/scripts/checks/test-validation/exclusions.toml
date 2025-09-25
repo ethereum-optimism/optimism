@@ -91,4 +91,5 @@ contracts = [
     "OptimismPortal2_MigrateLiquidity_Test",    # Interop tests hosted in the OptimismPortal2 test file
     "OptimismPortal2_MigrateToSuperRoots_Test", # Interop tests hosted in the OptimismPortal2 test file
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
+    "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
 ]
