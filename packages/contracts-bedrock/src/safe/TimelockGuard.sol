@@ -221,6 +221,8 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Returns the maximum cancellation threshold for a given safe
+    /// @dev The cancellation threshold must be capped in order to preserve the ability of honest users to cancel
+    ///      malicious transactions.
     /// @param _safe The Safe address to query
     /// @return The maximum cancellation threshold
     function maxCancellationThreshold(Safe _safe) public view returns (uint256) {
@@ -421,7 +423,9 @@ contract TimelockGuard is IGuard, ISemver {
         // Store the timelock delay for this safe
         _safeState[callingSafe].timelockDelay = _timelockDelay;
 
-        // Initialize or reset the cancellation threshold to 1
+        // Initialize or reset the cancellation threshold to 1.
+        // Note that this is redundant with the cancellation threshold reset which occurs when a transaction is
+        // executed, but it is kept here for completeness.
         _resetCancellationThreshold(callingSafe);
         emit GuardConfigured(callingSafe, _timelockDelay);
     }
@@ -487,7 +491,11 @@ contract TimelockGuard is IGuard, ISemver {
         );
 
         // Check if the transaction exists
-        // A transaction can only be scheduled once, regardless of whether it has been cancelled or not.
+        // A transaction can only be scheduled once, regardless of whether it has been cancelled or not,
+        // as otherwise an observer could reuse the same signatures to either:
+        // 1. Reschedule a transaction after it has been cancelled
+        // 2. Reschedule a pending transaction, which would update the execution time thus extending the delay
+        //    for the original transaction.
         if (_safeState[_safe].scheduledTransactions[txHash].executionTime != 0) {
             revert TimelockGuard_TransactionAlreadyScheduled();
         }
