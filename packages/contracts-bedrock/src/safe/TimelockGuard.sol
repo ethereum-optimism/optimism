@@ -194,6 +194,20 @@ contract TimelockGuard is IGuard, ISemver {
         return _safe.getOwners().length - _safe.getThreshold() + 1;
     }
 
+    /// @notice Internal helper to get the guard address from a Safe
+    /// @param _safe The Safe address
+    /// @return The current guard address
+    function _isGuardEnabled(Safe _safe) internal view returns (bool) {
+        // keccak256("guard_manager.guard.address") from GuardManager
+        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+        address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
+        return guard == address(this);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                  External View Functions                   //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Returns the cancellation threshold for a given safe
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
@@ -215,20 +229,6 @@ contract TimelockGuard is IGuard, ISemver {
         // Return the minimum of the blocking threshold and the quorum
         return (blockingThreshold < quorum ? blockingThreshold : quorum);
     }
-
-    /// @notice Internal helper to get the guard address from a Safe
-    /// @param _safe The Safe address
-    /// @return The current guard address
-    function _isGuardEnabled(Safe _safe) internal view returns (bool) {
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
-        return guard == address(this);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                  External View Functions                   //
-    ////////////////////////////////////////////////////////////////
 
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
