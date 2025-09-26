@@ -10,7 +10,12 @@ build-contracts:
 
 copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz \
+        -C ../packages/contracts-bedrock \
+        --exclude="*.t.sol" \
+        --exclude="book/" \
+        --exclude="snapshots/" \
+        .
 
 _LDFLAGSSTRING := "'" + trim(
     "-X main.GitCommit=" + GITCOMMIT + " " + \
