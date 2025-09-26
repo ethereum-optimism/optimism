@@ -132,7 +132,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            bool isV2DisputeGame =
+                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
             if (isV2DisputeGame && !v2FeatureEnabled) {
                 continue;
             }
@@ -202,7 +203,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            bool isV2DisputeGame =
+                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
             if (isV2DisputeGame && !v2FeatureEnabled) {
                 continue;
             }
