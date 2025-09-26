@@ -110,7 +110,7 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
                 upgradeController: dso.superchainProxyAdmin.owner(),
                 challenger: makeAddr("challenger"),
                 devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-             })
+            })
         );
 
         return dio.opcm;
@@ -540,7 +540,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Verify that V2 contracts are deployed (not address(0))
         IOPContractsManager.Implementations memory impls = opcmV2.implementations();
         assertTrue(
-            address(impls.faultDisputeGameV2Impl) != address(0), "FaultDisputeGameV2 implementation should be non-zero"
+            address(impls.faultDisputeGameV2Impl) != address(0),
+            "FaultDisputeGameV2 implementation should be non-zero"
         );
         assertTrue(
             address(impls.permissionedDisputeGameV2Impl) != address(0),
@@ -581,8 +582,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                 bytes memory implCode = refs[i].addr.code;
 
                 // Grab the artifact info for the implementation
-                VerifyOPCM.ArtifactInfo memory artifact =
-                    harness.loadArtifactInfo(harness.buildArtifactPath(refs[i].name));
+                VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(harness.buildArtifactPath(refs[i].name));
 
                 // Find a byte that's NOT in an immutable reference
                 bool inImmutable = true;
