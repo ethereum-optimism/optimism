@@ -762,6 +762,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
+        // Upgrade the OptimismMintableERC20Factory contract.
+        upgradeTo(
+            _opChainConfig.proxyAdmin,
+            _opChainConfig.systemConfigProxy.optimismMintableERC20Factory(),
+            _impls.optimismMintableERC20FactoryImpl
+        );
+
         // Use the SystemConfig to grab the DisputeGameFactory address.
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
@@ -1802,9 +1809,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.5.0
+    /// @custom:semver 3.6.0
     function version() public pure virtual returns (string memory) {
-        return "3.5.0";
+        return "3.6.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
