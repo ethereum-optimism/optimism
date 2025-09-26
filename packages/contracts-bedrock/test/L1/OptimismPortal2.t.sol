@@ -2565,11 +2565,13 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         external
     {
         // Prevent overflow on an upgrade context
-        if (isUsingLockbox()) {
+        // Since the value always goes through the portal
+        _mint = bound(_mint, 0, type(uint256).max - address(optimismPortal2).balance);
+
+        if (isUsingLockbox() && address(optimismPortal2).balance > address(ethLockbox).balance) {
             _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
-        } else {
-            _mint = bound(_mint, 0, type(uint256).max - address(optimismPortal2).balance);
         }
+
         if (isUsingCustomGasToken()) {
             _mint = 0;
         }
@@ -2585,7 +2587,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
 
         uint256 balanceBefore = address(optimismPortal2).balance;
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
-        _mint = bound(_mint, 0, type(uint256).max - balanceBefore);
 
         // EOA emulation
         vm.expectEmit(address(optimismPortal2));
