@@ -149,7 +149,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event TransactionExecuted(Safe indexed safe, uint256 indexed nonce, bytes32 txHash);
+    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -293,8 +293,8 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
     /// @notice Checks configuration reverts when the contract is too old.
     function test_configureTimelockGuard_revertsIfVersionTooOld_reverts() external {
-        vm.mockCall(address(timelockGuard), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
-        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector);
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
+        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector, address(timelockGuard));
         vm.prank(address(safeInstance.safe));
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
@@ -615,60 +615,10 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_CheckTransaction_Test
 /// @notice Tests for checkTransaction function
 contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
-    using stdStorage for StdStorage;
-
     /// @notice Establishes the configured guard before checkTransaction tests.
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
-    }
-
-    /// @notice Test that scheduled transactions can execute after the delay period
-    function test_checkTransaction_scheduledTransactionAfterDelay_succeeds() external {
-        // Schedule a transaction
-        uint256 nonce = safeInstance.safe.nonce();
-        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
-        dummyTx.scheduleTransaction(timelockGuard);
-
-        // Fast forward past the timelock delay
-        vm.warp(block.timestamp + TIMELOCK_DELAY);
-        // Increment the nonce, as would normally happen when the transaction is executed
-        vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(nonce + 1)));
-
-        // increment the cancellation threshold so that we can test that it is reset
-        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
-            address(safeInstance.safe)
-        ).find();
-        vm.store(
-            address(timelockGuard),
-            bytes32(slot),
-            bytes32(uint256(timelockGuard.cancellationThreshold(safeInstance.safe) + 1))
-        );
-
-        vm.prank(address(safeInstance.safe));
-        vm.expectEmit(true, true, true, true);
-        emit TransactionExecuted(safeInstance.safe, nonce, dummyTx.hash);
-        timelockGuard.checkTransaction(
-            dummyTx.params.to,
-            dummyTx.params.value,
-            dummyTx.params.data,
-            dummyTx.params.operation,
-            dummyTx.params.safeTxGas,
-            dummyTx.params.baseGas,
-            dummyTx.params.gasPrice,
-            dummyTx.params.gasToken,
-            dummyTx.params.refundReceiver,
-            "",
-            address(0)
-        );
-
-        // Confirm that the transaction is executed
-        TimelockGuard.ScheduledTransaction memory scheduledTransaction =
-            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
-        assert(scheduledTransaction.state == TimelockGuard.TransactionState.Executed);
-
-        // Confirm that the cancellation threshold is reset
-        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
     }
 
     /// @notice Test that checkTransaction reverts when scheduled transaction delay hasn't passed
@@ -811,6 +761,7 @@ contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_Integration_Test
 /// @notice Tests for integration between TimelockGuard and Safe
 contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
+    using stdStorage for StdStorage;
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
@@ -822,9 +773,28 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
+
+        // increment the cancellation threshold so that we can test that it is reset
+        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
+            address(safeInstance.safe)
+        ).find();
+        vm.store(
+            address(timelockGuard),
+            bytes32(slot),
+            bytes32(uint256(timelockGuard.cancellationThreshold(safeInstance.safe) + 1))
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
         dummyTx.executeTransaction();
 
-        assert(timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash).state == TimelockGuard.TransactionState.Executed);
+        // Confirm that the transaction is executed
+        TimelockGuard.ScheduledTransaction memory scheduledTransaction =
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
+        assert(scheduledTransaction.state == TimelockGuard.TransactionState.Executed);
+
+        // Confirm that the cancellation threshold is reset
+        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
     }
 
     /// @notice Test that scheduling a transaction and then executing it twice reverts

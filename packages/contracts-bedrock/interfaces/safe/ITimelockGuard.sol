@@ -45,6 +45,7 @@ interface ITimelockGuard {
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event TransactionCancelled(address indexed safe, bytes32 indexed txHash);
     event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executionTime);
+    event TransactionExecuted(address indexed safe, bytes32 txHash);
 
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
     function signCancellationForSafe(address _safe, bytes32 _txHash) external;

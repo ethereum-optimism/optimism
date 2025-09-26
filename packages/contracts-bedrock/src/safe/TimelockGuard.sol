@@ -49,7 +49,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     LivenessModule would be used. If there is a quorum of absent keys, but no significant malicious control, the
 ///     LivenessModule would also be used.
 ///     The TimelockGuard acts when there is malicious control of a quorum of keys. If the control is temporary, for
-///     example by phishing a single set of signatures, then the TimelockGuard's cancellation is enough to stop the attack
+///     example by phishing a single set of signatures, then the TimelockGuard's cancellation is enough to stop the
+/// attack
 ///     entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to execute
 ///     remediations external to the compromised safe.
 ///     +---------------------------------------------------------------------+
@@ -179,9 +180,8 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Emitted when a transaction is executed for a Safe.
     /// @param safe The Safe whose transaction is executed.
-    /// @param nonce The nonce of the Safe for the transaction being executed.
     /// @param txHash The identifier of the executed transaction (nonce-independent).
-    event TransactionExecuted(Safe indexed safe, uint256 indexed nonce, bytes32 txHash);
+    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
     ////////////////////////////////////////////////////////////////
     //                  Internal View Functions                   //
@@ -283,8 +283,10 @@ contract TimelockGuard is IGuard, ISemver {
     //                 Guard Interface Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Called by the Safe before executing a transaction
-    /// @dev Implementation of IGuard interface
+    /// @notice Implementation of IGuard interface.Called by the Safe before executing a transaction
+    /// @dev This function is used to check that the transaction has been scheduled and is ready to execute.
+    ///      It only reads the state of the contract, and potentially reverts in order to protect against execution of
+    ///      unscheduled, early or cancelled transactions.
     function checkTransaction(
         address _to,
         uint256 _value,
@@ -299,6 +301,7 @@ contract TimelockGuard is IGuard, ISemver {
         address /* msgSender */
     )
         external
+        view
         override
     {
         Safe callingSafe = Safe(payable(msg.sender));
@@ -346,23 +349,42 @@ contract TimelockGuard is IGuard, ISemver {
         if (scheduledTx.executionTime > block.timestamp) {
             revert TimelockGuard_TransactionNotReady();
         }
+    }
+
+    /// @notice Implementation of IGuard interface. Called by the Safe after executing a transaction
+    /// @dev This function is used to update the state of the contract after the transaction has been executed.
+    ///      Although making state changes here is a violation of the Checks-Effects-Interactions pattern, it
+    ///      safe to do in this case because we trust that the Safe does not enable arbitrary calls without
+    ///      proper authorization checks.
+    function checkAfterExecution(bytes32 _txHash, bool _success) external override {
+        Safe callingSafe = Safe(payable(msg.sender));
+        // If the timelock delay is zero, we return immediately.
+        // This is important in order to allow a Safe which has the guard set, but not configured,
+        // to complete the setup process.
+        // It is also just a reasonable thing to do, since an unconfigured Safe must have a delay of zero, and so
+        // we do not expect the transaction to have been scheduled.
+        if (_safeState[callingSafe].timelockDelay == 0) {
+            return;
+        }
+
+        // If the transaction failed, then we return early and leave the transaction in its current state,
+        // which allows the transaction to be retried.
+        // This is consistent with the Safe's own behaviour, which does not increment the nonce if the
+        // call fails.
+        if (!_success) {
+            return;
+        }
+
+        ScheduledTransaction storage scheduledTx = _safeState[callingSafe].scheduledTransactions[_txHash];
 
         // Set the transaction as executed
         scheduledTx.state = TransactionState.Executed;
-        _safeState[callingSafe].pendingTxHashes.remove(txHash);
+        _safeState[callingSafe].pendingTxHashes.remove(_txHash);
 
         // Reset the cancellation threshold
         _resetCancellationThreshold(callingSafe);
 
-        emit TransactionExecuted(callingSafe, nonce, txHash);
-    }
-
-    /// @notice Called by the Safe after executing a transaction
-    /// @dev Implementation of IGuard interface
-    function checkAfterExecution(bytes32, bool) external override {
-        // Do nothing
-        // In order to follow the Checks-Effects-Interactions pattern,
-        // all logic should be done in the checkTransaction function.
+        emit TransactionExecuted(callingSafe, _txHash);
     }
 
     ////////////////////////////////////////////////////////////////
