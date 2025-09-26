@@ -222,7 +222,14 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Returns the maximum cancellation threshold for a given safe
     /// @dev The cancellation threshold must be capped in order to preserve the ability of honest users to cancel
-    ///      malicious transactions.
+    ///      malicious transactions. The rationale for the calculation of the maximum cancellation threshold is as
+    ///      follows:
+    ///      If the quorum is lower, then it is used as the maximum cancellation threshold,
+    ///      so that even if an attacker has _joint control_ of a quorum of keys, the honest users can still
+    ///      indefinitely cancel a malicious transaction.
+    ///      If the blocking threshold is lower, then it is used as the maximum cancellation threshold, so that if an
+    ///      attacker has less than a quorum of keys, honest users can still remove an attacker from the Safe by
+    ///      refusing to respond to a malicious transaction.
     /// @param _safe The Safe address to query
     /// @return The maximum cancellation threshold
     function maxCancellationThreshold(Safe _safe) public view returns (uint256) {
