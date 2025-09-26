@@ -620,7 +620,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         vm.store(address(safeInstance.safe), bytes32(uint256(5)), bytes32(uint256(nonce + 1)));
 
         // increment the cancellation threshold so that we can test that it is reset
-        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThresholdForSafe(address)").with_key(
+        uint256 slot = stdstore.target(address(timelockGuard)).sig("cancellationThreshold(address)").with_key(
             address(safeInstance.safe)
         ).find();
         vm.store(
