@@ -6,11 +6,16 @@ library Enum {
 }
 
 interface ITimelockGuard {
-
+    enum TransactionState {
+        NotScheduled,
+        Pending,
+        Cancelled,
+        Executed
+    }
     struct ScheduledTransaction {
         uint256 executionTime;
-        bool cancelled;
-        bool executed;
+        TransactionState state;
+        ExecTransactionParams params;
     }
 
     struct ExecTransactionParams {
@@ -32,6 +37,9 @@ interface ITimelockGuard {
     error TimelockGuard_TransactionAlreadyCancelled();
     error TimelockGuard_TransactionAlreadyScheduled();
     error TimelockGuard_TransactionNotScheduled();
+    error TimelockGuard_TransactionNotReady();
+    error TimelockGuard_TransactionAlreadyExecuted();
+    error TimelockGuard_InvalidVersion();
 
     event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
@@ -41,7 +49,6 @@ interface ITimelockGuard {
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
     function signCancellationForSafe(address _safe, bytes32 _txHash) external;
     function cancellationThreshold(address _safe) external view returns (uint256);
-
     function checkTransaction(
         address _to,
         uint256 _value,
