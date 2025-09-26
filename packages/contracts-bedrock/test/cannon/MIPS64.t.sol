@@ -49,10 +49,10 @@ contract MIPS64_TestInit is Test {
     }
 }
 
-/// @title MIPS64_Unclassified_Test
+/// @title MIPS64_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `MIPS64` contract or
 ///         are testing multiple functions at once.
-contract MIPS64_Unclassified_Test is MIPS64_TestInit {
+contract MIPS64_Uncategorized_Test is MIPS64_TestInit {
     /// @notice Test the we can deploy MIPS64 with a valid version parameter.
     function test_deploy_supportedVersions_succeeds() external {
         for (uint256 i = 0; i < validVersions.length; i++) {

@@ -643,9 +643,9 @@ contract ETHLockbox_MigrateLiquidity_Test is ETHLockbox_TestInit {
     }
 }
 
-/// @title ETHLockbox_Unclassified_Test
-/// @notice Contains unclassified tests related to ETHLockbox.
-contract ETHLockbox_Unclassified_Test is ETHLockbox_TestInit {
+/// @title ETHLockbox_Uncategorized_Test
+/// @notice Contains uncategorized tests related to ETHLockbox.
+contract ETHLockbox_Uncategorized_Test is ETHLockbox_TestInit {
     /// @notice Tests the proxy admin owner is correctly returned.
     function test_proxyProxyAdminOwner_succeeds() public view {
         assertEq(ethLockbox.proxyAdminOwner(), proxyAdminOwner);

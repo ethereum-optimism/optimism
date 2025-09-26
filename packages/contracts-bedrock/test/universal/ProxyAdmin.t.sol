@@ -291,10 +291,10 @@ contract ProxyAdmin_UpgradeAndCall_Test is ProxyAdmin_TestInit {
     }
 }
 
-/// @title ProxyAdmin_Unclassified_Test
+/// @title ProxyAdmin_Uncategorized_Test
 /// @notice General tests that are not testing any function directly or that test multiple
 ///         functions of the `ProxyAdmin` contract.
-contract ProxyAdmin_Unclassified_Test is ProxyAdmin_TestInit {
+contract ProxyAdmin_Uncategorized_Test is ProxyAdmin_TestInit {
     function test_owner_succeeds() external view {
         assertEq(admin.owner(), alice);
     }

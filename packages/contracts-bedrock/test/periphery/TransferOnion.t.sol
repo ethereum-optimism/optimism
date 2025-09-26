@@ -67,10 +67,10 @@ contract TransferOnion_Constructor_Test is TransferOnion_TestInit {
     }
 }
 
-/// @title TransferOnion_Unclassified_Test
+/// @title TransferOnion_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `TransferOnion`
 ///         contract or are testing multiple functions at once.
-contract TransferOnion_Unclassified_Test is TransferOnion_TestInit {
+contract TransferOnion_Uncategorized_Test is TransferOnion_TestInit {
     /// @notice Tests unwrapping the onion.
     function test_unwrap_succeeds() external {
         // Commit to transferring tiny amounts of tokens
