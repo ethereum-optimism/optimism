@@ -17,7 +17,7 @@ import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol
 /// @title OptimismMintableERC20
 /// @notice OptimismMintableERC20 is a standard extension of the base ERC20 token contract designed
 ///         to allow the StandardBridge contracts to mint and burn tokens. This makes it possible to
-///         use an OptimismMintablERC20 as the L2 representation of an L1 token, or vice-versa.
+///         use an OptimismMintableERC20 as the L2 representation of an L1 token, or vice-versa.
 ///         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
 ///         meant for use on L2.
 contract OptimismMintableERC20 is ERC20Permit, ISemver {
@@ -47,8 +47,8 @@ contract OptimismMintableERC20 is ERC20Permit, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0-beta.5
-    string public constant version = "1.4.0-beta.5";
+    /// @custom:semver 1.4.1
+    string public constant version = "1.4.1";
 
     /// @notice Getter function for the permit2 address. It deterministically deployed
     ///         so it will always be at the same address. It is also included as a preinstall,

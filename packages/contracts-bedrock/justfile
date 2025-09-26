@@ -275,6 +275,13 @@ unused-imports-check-no-build:
 # Checks for unused imports in Solidity contracts.
 unused-imports-check: build unused-imports-check-no-build
 
+# Checks that the semver of contracts are valid. Does not build contracts.
+valid-semver-check-no-build:
+  go run ./scripts/checks/valid-semver-check/main.go
+
+# Checks that the semver of contracts are valid.
+valid-semver-check: build valid-semver-check-no-build
+
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh
@@ -307,6 +314,7 @@ check:
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
+  valid-semver-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
