@@ -365,7 +365,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 		// Use configuration to determine whether to enable cell proofs
 		enableCellProofs := m.cfg.EnableCellProofs.Load()
-		if sidecar, blobHashes, err = MakeSidecarWithConfig(candidate.Blobs, enableCellProofs); err != nil {
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, enableCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}
@@ -493,14 +493,8 @@ func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
-// data. Creates Version1 sidecars with cell proofs for Fusaka (EIP-7742) compatibility by default.
-func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
-	return MakeSidecarWithConfig(blobs, true) // Default to enabling cell proofs
-}
-
-// MakeSidecarWithConfig builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
 // data with configurable cell proof support.
-func MakeSidecarWithConfig(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar, []common.Hash, error) {
+func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar, []common.Hash, error) {
 	var sidecar *types.BlobTxSidecar
 	if enableCellProofs {
 		sidecar = &types.BlobTxSidecar{
