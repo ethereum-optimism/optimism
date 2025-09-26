@@ -63,6 +63,8 @@ type BatcherCfg struct {
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 	AltDA                AltDAInputSetter
+
+	EnableCellProofs bool
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -71,6 +73,7 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
+		EnableCellProofs:     false, // TODO change to true when Osaka activates on L1
 	}
 }
 
@@ -372,7 +375,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
 		require.NoError(t, b.FromData(payload), "must turn data into blob")
-		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, false) // TODO use cell proofs if configured to do so
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, s.l2BatcherCfg.EnableCellProofs)
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 		blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
@@ -456,7 +459,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, false) // TODO use cell proofs if configured to do so
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, s.l2BatcherCfg.EnableCellProofs)
 	require.NoError(t, err)
 	require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 	blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
