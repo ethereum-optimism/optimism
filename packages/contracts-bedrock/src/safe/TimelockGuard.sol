@@ -50,18 +50,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     LivenessModule would also be used.
 ///     The TimelockGuard acts when there is malicious control of a quorum of keys. If the control is temporary, for
 ///     example by phishing a single set of signatures, then the TimelockGuard's cancellation is enough to stop the
-/// attack
-///     entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to execute
-///     remediations external to the compromised safe.
-///     +---------------------------------------------------------------------+
-///     |                     |      Absent Keys      |   Malicious Control   |
-///     +---------------------------------------------------------------------+
-///     | 1+                  | Detection and Removal | Detection and Removal |
-///     +---------------------------------------------------------------------+
-///     | Blocking Threshold+ | Liveness Module       | Liveness Module       |
-///     +---------------------------------------------------------------------+
-///     | Quorum+             | Liveness Module       | Timelock Guard        |
-///     +---------------------------------------------------------------------+
+///     attack entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to
+///     execute remediations external to the compromised safe.
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
@@ -419,8 +409,6 @@ contract TimelockGuard is IGuard, ISemver {
     ///      is important to ensure that maliciously gathered signatures will not be able to instantly reconfigure
     ///      the delay to zero.
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
-    /// @dev We considered several implementations to allow for a pause mechanism of sorts, which could be used if the
-    /// on-call team needed more time. Ultimately, we rejected all of them in favour of better on-call processes.
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
