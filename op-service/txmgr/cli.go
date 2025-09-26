@@ -77,6 +77,7 @@ type DefaultFlagValues struct {
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
+	EnableCellProofs          bool
 }
 
 var (
@@ -95,6 +96,7 @@ var (
 		TxSendTimeout:             0, // Try sending txs indefinitely, to preserve tx ordering for Holocene
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
+		EnableCellProofs:          false, // Ater Osaka activates on L1, this should be set to true
 	}
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
@@ -242,7 +244,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		&cli.BoolFlag{
 			Name:    EnableCellProofsFlagName,
 			Usage:   "Enable cell proofs in blob transactions for Fusaka (EIP-7742) compatibility",
-			Value:   true,
+			Value:   false,
 			EnvVars: prefixEnvVars("TXMGR_ENABLE_CELL_PROOFS"),
 		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
@@ -293,7 +295,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		TxSendTimeout:             defaults.TxSendTimeout,
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
-		EnableCellProofs:          true, // Enable cell proofs by default for Fusaka compatibility
+		EnableCellProofs:          defaults.EnableCellProofs,
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
 	}
 }
