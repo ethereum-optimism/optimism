@@ -90,8 +90,8 @@ contract TimelockGuard is IGuard, ISemver {
     /// all the data about all the transactions, regardless of their state.
     /// We chose this implementation because the set of pending transactions is independent of the core flow, and if
     /// there would be a bug in it, it would only affect the `pendingTransactions` view function.
-    /// A notable alternative was to keen onlt the pending transactions in storage, and remove them as soon as they are
-    /// cancelled or executed, but that opens the Timelock to some low-risk griefing attackes that we nontheless prefer
+    /// A notable alternative was to keep only the pending transactions in storage, and remove them as soon as they are
+    /// cancelled or executed, but that opens the Timelock to some low-risk griefing attacks that we nonetheless prefer
     /// to avoid.
     struct SafeState {
         uint256 timelockDelay;

@@ -33,10 +33,10 @@ interface ITimelockGuard {
     error TimelockGuard_TransactionAlreadyScheduled();
     error TimelockGuard_TransactionNotScheduled();
 
-    event CancellationThresholdUpdated(address indexed _safe, uint256 _oldThreshold, uint256 _newThreshold);
-    event GuardConfigured(address indexed _safe, uint256 _timelockDelay);
-    event TransactionCancelled(address indexed _safe, bytes32 indexed _txHash);
-    event TransactionScheduled(address indexed _safe, bytes32 indexed _txHash, uint256 when);
+    event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
+    event GuardConfigured(address indexed safe, uint256 timelockDelay);
+    event TransactionCancelled(address indexed safe, bytes32 indexed txHash);
+    event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executed);
 
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
     function cancelTransactionOnSafe(address _safe, bytes32 _txHash) external;
