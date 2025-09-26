@@ -11,6 +11,10 @@ import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
+
+/// @title TransactionBuilder
+/// @notice Facilitates the construction of transactions and signatures, and provides helper methods
+///        for scheduling, executing, and cancelling transactions.
 library TransactionBuilder {
     // A struct type used to construct a transaction for scheduling and execution
     struct Transaction {

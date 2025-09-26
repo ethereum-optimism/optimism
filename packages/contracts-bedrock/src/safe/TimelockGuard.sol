@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
-import { ExecTransactionParams } from "src/safe/Types.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -28,7 +27,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     unless the transaction has first been scheduled by calling scheduleTransaction() on this contract. Because
 ///     scheduleTransaction() uses the Safe's own signature verification logic, the same signatures used
 ///     to execute a transaction can be used to schedule it.
-///     !Note: this guard does not apply a delay to transactions executed by modules which are installed on the Safe.
+///     Note: this guard does not apply a delay to transactions executed by modules which are installed on the Safe.
 /// Cancelling transactions:
 ///     Once a transaction has been scheduled, so long as it has not already been executed, it can be
 ///     cancelled by calling cancelTransaction() on this contract.
@@ -48,7 +47,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     LivenessModule would be used. If there is a quorum of absent keys, but no significant malicious control, the
 ///     LivenessModule would also be used.
 ///     The TimelockGuard acts when there is malicious control of a quorum of keys. If the control is temporary, for
-///     example by phishing a single set of signatures, then the TimelockGuard is enough to detect and stop the attack
+///     example by phishing a single set of signatures, then the TimelockGuard's cancellation is enough to stop the attack
 ///     entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to execute
 ///     remediations external to the compromised safe.
 ///     +---------------------------------------------------------------------+
