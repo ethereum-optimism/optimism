@@ -14,15 +14,12 @@ import (
 var excludeContracts = []string{
 	"src/L2/L2StandardBridgeInterop.sol", // Has +interop suffix
 	"src/L1/OptimismPortalInterop.sol",   // Has +interop suffix
-	"src/vendor/asterisc/RISCV.sol",      // Vendor contract
-	"src/vendor/eas/SchemaRegistry.sol",  // Vendor contract
-	"src/vendor/eas/EAS.sol",             // Vendor contract
 }
 
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{},
+		[]string{"forge-artifacts/RISCV.sol/**.json", "forge-artifacts/EAS.sol/**.json", "forge-artifacts/SchemaRegistry.sol/**.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("Error: %v/n", err)
