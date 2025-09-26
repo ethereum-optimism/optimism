@@ -107,14 +107,9 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Aggregated state for each Safe using this guard.
     /// @dev We have chosen for operational reasons to keep a list of pending transactions that can be easily retrieved
-    /// via a function call. There are several ways to accomplish this but we chose to maintain a separate EnumerableSet
-    /// with the txHashes of the pending transactions, that needs to be maintained in sync with the mapping that keeps
-    /// all the data about all the transactions, regardless of their state.
-    /// We chose this implementation because the set of pending transactions is independent of the core flow, and if
-    /// there would be a bug in it, it would only affect the `pendingTransactions` view function.
-    /// A notable alternative was to keep only the pending transactions in storage, and remove them as soon as they are
-    /// cancelled or executed, but that opens the Timelock to some low-risk griefing attacks that we nonetheless prefer
-    /// to avoid.
+    /// via a function call. This is done by maintaining a separate EnumerableSet with the hashes of pending
+    /// transactions. Transactions in the enumerable set need to be updated along with updates to the
+    /// ScheduledTransactions mapping.
     struct SafeState {
         uint256 timelockDelay;
         uint256 cancellationThreshold;
