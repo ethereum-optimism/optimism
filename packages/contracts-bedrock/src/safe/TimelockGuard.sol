@@ -81,6 +81,15 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Parameters for the Safe's execTransaction function
+    /// @custom:field to The address of the contract to call.
+    /// @custom:field value The value to send with the transaction.
+    /// @custom:field data The data to send with the transaction.
+    /// @custom:field operation The operation to perform with the transaction.
+    /// @custom:field safeTxGas The gas to use for the transaction.
+    /// @custom:field baseGas The base gas to use for the transaction.
+    /// @custom:field gasPrice The gas price to use for the transaction.
+    /// @custom:field gasToken The token to use for the transaction.
+    /// @custom:field refundReceiver The address to receive the refund for the transaction.
     struct ExecTransactionParams {
         address to;
         uint256 value;
