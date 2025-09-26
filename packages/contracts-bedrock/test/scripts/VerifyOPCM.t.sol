@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
@@ -120,11 +121,21 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
+        // Check if V2 dispute games feature is enabled
+        bytes32 bitmap = opcm.devFeatureBitmap();
+        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         // Change 256 bytes at random.
-        for (uint8 i = 0; i < 255; i++) {
+        for (uint256 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
+
+            // Skip V2 dispute games when feature disabled
+            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            if (isV2DisputeGame && !v2FeatureEnabled) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
@@ -180,16 +191,21 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
+        // Check if V2 dispute games feature is enabled
+        bytes32 bitmap = opcm.devFeatureBitmap();
+        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         // Change 256 bytes at random.
         for (uint8 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
-            // Skip V2 implementations (not yet deployed)
-            // if (_isV2DisputeGameImplementation(ref.name)) {
-            //     continue;
-            // }
+            // Skip V2 dispute games when feature disabled
+            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            if (isV2DisputeGame && !v2FeatureEnabled) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;

@@ -12,6 +12,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -106,6 +107,8 @@ contract VerifyOPCM is Script {
     /// @notice Setup flag.
     bool internal ready;
 
+ /// @notice The OPCM address being verified, stored to access during contract verification.
+       address internal currentOpcmAddress;
     /// @notice Populates override mappings.
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
@@ -200,6 +203,9 @@ contract VerifyOPCM is Script {
             console.log("         ONLY to be used in test environments");
             console.log("         Do NOT do this in production");
         }
+
+        // Store OPCM address for use in verification functions
+       currentOpcmAddress = _opcmAddress;
 
         // Fetch Implementations & Blueprints from OPCM
         IOPContractsManager opcm = IOPContractsManager(_opcmAddress);
@@ -396,6 +402,25 @@ contract VerifyOPCM is Script {
     {
         console.log();
         console.log(string.concat("Checking Contract: ", _target.field));
+       // Check if this is a V2 dispute game that should be skipped
+       if (_isV2DisputeGameImplementation(_target.name)) {
+       IOPContractsManager opcm = IOPContractsManager(currentOpcmAddress);
+
+       if (!_isV2DisputeGamesEnabled(opcm)) {
+       if (_target.addr == address(0)) {
+       console.log("  [SKIP] V2 dispute game not deployed (feature disabled)");
+       console.log(string.concat("  Contract: ", _target.name));
+       return true; // Consider this "verified" when feature is off
+       } else {
+       console.log("  [FAIL] V2 dispute game deployed but feature disabled");
+       console.log(string.concat("  Contract: ", _target.name));
+       console.log(string.concat("  Address: ", vm.toString(_target.addr)));
+       return false;
+       }
+       }
+       // If feature is enabled, continue with normal verification
+       }
+
         console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
         console.log(string.concat("  Contract: ", _target.name));
         console.log(string.concat("  Address: ", vm.toString(_target.addr)));
@@ -499,6 +524,22 @@ contract VerifyOPCM is Script {
 
         return success;
     }
+
+    /// @notice Checks if V2 dispute games feature is enabled in the dev feature bitmap.
+       /// @param _opcm The OPContractsManager to check.
+       /// @return True if V2 dispute games are enabled.
+       function _isV2DisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
+       bytes32 bitmap = _opcm.devFeatureBitmap();
+       return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+      }
+
+       /// @notice Checks if a contract is a V2 dispute game implementation.
+       /// @param _contractName The name to check.
+       /// @return True if this is a V2 dispute game.
+       function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+       return LibString.eq(_contractName, "FaultDisputeGameV2") ||
+       LibString.eq(_contractName, "PermissionedDisputeGameV2");
+       }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
     /// @param _opcm The OPCM contract to verify immutable variables for.
