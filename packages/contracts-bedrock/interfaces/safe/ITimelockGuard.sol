@@ -36,12 +36,12 @@ interface ITimelockGuard {
     event CancellationThresholdUpdated(address indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event TransactionCancelled(address indexed safe, bytes32 indexed txHash);
-    event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executed);
+    event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executionTime);
 
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
     function signCancellationForSafe(address _safe, bytes32 _txHash) external;
     function cancellationThreshold(address _safe) external view returns (uint256);
-    function pendingTransactions(address) external pure returns (bytes32[] memory);
+
     function checkTransaction(
         address _to,
         uint256 _value,
@@ -64,7 +64,7 @@ interface ITimelockGuard {
     )
         external
         view
-        returns (TimelockGuard.ScheduledTransaction memory);
+        returns (ScheduledTransaction memory);
     function safeConfigs(address) external view returns (uint256 timelockDelay);
     function scheduleTransaction(
         address _safe,
@@ -79,5 +79,5 @@ interface ITimelockGuard {
     function pendingTransactions(address _safe)
         external
         view
-        returns (TimelockGuard.ScheduledTransaction[] memory);
+        returns (ScheduledTransaction[] memory);
 }
