@@ -71,6 +71,9 @@ contract TimelockGuard is IGuard, ISemver {
     }
 
     /// @notice Scheduled transaction
+    /// @custom:field executionTime The timestamp when execution becomes valid.
+    /// @custom:field state The state of the transaction.
+    /// @custom:field params The parameters of the transaction.
     struct ScheduledTransaction {
         uint256 executionTime;
         TransactionState state;
