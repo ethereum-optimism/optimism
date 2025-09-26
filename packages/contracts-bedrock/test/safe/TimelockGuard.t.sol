@@ -173,20 +173,21 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
 
         // Deploy the singleton TimelockGuard
         timelockGuard = new TimelockGuard();
-
-        // Create Safe owners
-        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);
-
         // Set up Safe with owners
-        safeInstance = _setupSafe(keys, THRESHOLD);
+        safeInstance = _deploySafe("owners", NUM_OWNERS, THRESHOLD);
         safe = Safe(payable(safeInstance.safe));
 
         // Safe without guard enabled
-        // Reduce the threshold just to prevent a CREATE2 collision when deploying this safe.
-        unguardedSafe = _setupSafe(keys, THRESHOLD - 1);
+        unguardedSafe = _deploySafe("owners-unguarded", NUM_OWNERS, THRESHOLD);
 
         // Enable the guard on the Safe
         _enableGuard(safeInstance);
+    }
+
+    /// @notice Deploys a Safe with the given owners and threshold
+    function _deploySafe(string memory _prefix, uint256 _numOwners, uint256 _threshold) internal returns (SafeInstance memory) {
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys(_prefix, _numOwners);
+        return _setupSafe(keys, _threshold);
     }
 
     /// @notice Builds an empty transaction wrapper for a Safe instance.
@@ -738,9 +739,64 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
-/// @title TimelockGuard_Integration_test
+/// @title TimelockGuard_MaxCancellationThreshold_Test
+/// @notice Tests for the maxCancellationThreshold function in TimelockGuard
+contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    /// @notice Test that maxCancellationThreshold returns the correct value
+    function test_maxCancellationThreshold_maxThresholdIsBlockingThreshold_succeeds() external {
+        // create a new Safe with 7 owners and quorum of 5 (blocking threshold is 3)
+        SafeInstance memory newSafeInstance = _deploySafe("owners", 7, 5);
+        _enableGuard(newSafeInstance);
+        _configureGuard(newSafeInstance, TIMELOCK_DELAY);
+
+        // Set up a dummy transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(newSafeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        // Calculate expected max cancellation threshold
+        uint256 blockingThreshold = newSafeInstance.safe.getOwners().length - newSafeInstance.safe.getThreshold() + 1;
+        uint256 quorum = newSafeInstance.safe.getThreshold();
+
+        // Ensure that the minimum is set by the blocking threshold
+        assertGt(quorum, blockingThreshold);
+
+        // Assert that the maxCancellationThreshold function returns the expected value
+        assertEq(timelockGuard.maxCancellationThreshold(newSafeInstance.safe), blockingThreshold);
+    }
+
+    /// @notice Test that maxCancellationThreshold returns the correct value
+    function test_maxCancellationThreshold_maxThresholdIsQuorum_succeeds() external {
+        // create a new Safe with 7 owners and quorum of 3 (blocking threshold is 5)
+        SafeInstance memory newSafeInstance = _deploySafe("owners", 7, 3);
+        _enableGuard(newSafeInstance);
+        _configureGuard(newSafeInstance, TIMELOCK_DELAY);
+
+        // Set up a dummy transaction
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(newSafeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        // Calculate expected max cancellation threshold
+        uint256 blockingThreshold = newSafeInstance.safe.getOwners().length - newSafeInstance.safe.getThreshold() + 1;
+        uint256 quorum = newSafeInstance.safe.getThreshold();
+
+        // Ensure that the minimum is set by quorum
+        assertGt(blockingThreshold, quorum);
+
+        // Assert that the maxCancellationThreshold function returns the expected value
+        assertEq(timelockGuard.maxCancellationThreshold(newSafeInstance.safe), quorum);
+    }
+}
+
+
+
+/// @title TimelockGuard_Integration_Test
 /// @notice Tests for integration between TimelockGuard and Safe
-contract TimelockGuard_Integration_test is TimelockGuard_TestInit {
+contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);
