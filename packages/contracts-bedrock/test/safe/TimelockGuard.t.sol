@@ -11,7 +11,6 @@ import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
-
 /// @title TransactionBuilder
 /// @notice Facilitates the construction of transactions and signatures, and provides helper methods
 ///        for scheduling, executing, and cancelling transactions.
@@ -185,7 +184,14 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Deploys a Safe with the given owners and threshold
-    function _deploySafe(string memory _prefix, uint256 _numOwners, uint256 _threshold) internal returns (SafeInstance memory) {
+    function _deploySafe(
+        string memory _prefix,
+        uint256 _numOwners,
+        uint256 _threshold
+    )
+        internal
+        returns (SafeInstance memory)
+    {
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys(_prefix, _numOwners);
         return _setupSafe(keys, _threshold);
     }
@@ -465,8 +471,7 @@ contract TimelockGuard_ScheduledTransactionForSafe_Test is TimelockGuard_TestIni
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
             timelockGuard.scheduledTransaction(safe, dummyTx.hash);
         assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
-        assertEq(scheduledTransaction.cancelled, false);
-        assertEq(scheduledTransaction.executed, false);
+        assert(scheduledTransaction.state == TimelockGuard.TransactionState.Pending);
         assertEq(keccak256(abi.encode(scheduledTransaction.params)), keccak256(abi.encode(dummyTx.params)));
     }
 }
@@ -548,7 +553,10 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         emit TransactionCancelled(safeInstance.safe, dummyTx.hash);
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
 
-        assertEq(timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash).cancelled, true);
+        assert(
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash).state
+                == TimelockGuard.TransactionState.Cancelled
+        );
     }
 
     /// @notice Confirms pre-approved hashes can authorise cancellations.
@@ -582,7 +590,7 @@ contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
         // Confirm that the transaction is cancelled
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
             timelockGuard.scheduledTransaction(dummyTx.safeInstance.safe, dummyTx.hash);
-        assertEq(scheduledTransaction.cancelled, true);
+        assert(scheduledTransaction.state == TimelockGuard.TransactionState.Cancelled);
     }
 
     /// @notice Verifies cancelling an unscheduled transaction reverts.
@@ -649,7 +657,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         // Confirm that the transaction is executed
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
             timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
-        assertEq(scheduledTransaction.executed, true);
+        assert(scheduledTransaction.state == TimelockGuard.TransactionState.Executed);
 
         // Confirm that the cancellation threshold is reset
         assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
@@ -792,8 +800,6 @@ contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
     }
 }
 
-
-
 /// @title TimelockGuard_Integration_Test
 /// @notice Tests for integration between TimelockGuard and Safe
 contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
@@ -810,7 +816,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         vm.warp(block.timestamp + TIMELOCK_DELAY);
         dummyTx.executeTransaction();
 
-        assertEq(timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash).executed, true);
+        assert(timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash).state == TimelockGuard.TransactionState.Executed);
     }
 
     /// @notice Test that scheduling a transaction and then executing it twice reverts

@@ -62,11 +62,18 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
+    /// @notice Allowed states of a transaction
+    enum TransactionState {
+        NotScheduled,
+        Pending,
+        Cancelled,
+        Executed
+    }
+
     /// @notice Scheduled transaction
     struct ScheduledTransaction {
         uint256 executionTime;
-        bool cancelled;
-        bool executed;
+        TransactionState state;
         ExecTransactionParams params;
     }
 
@@ -293,12 +300,19 @@ contract TimelockGuard is IGuard, ISemver {
         ScheduledTransaction storage scheduledTx = _safeState[callingSafe].scheduledTransactions[txHash];
 
         // Check if the transaction was cancelled
-        if (scheduledTx.cancelled) {
+        if (scheduledTx.state == TransactionState.Cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
 
+        // Check if the transaction has already been executed
+        // Note: this is of course enforced by the Safe itself, but we check it here for
+        // completeness
+        if (scheduledTx.state == TransactionState.Executed) {
+            revert TimelockGuard_TransactionAlreadyExecuted();
+        }
+
         // Check if the transaction has been scheduled
-        if (scheduledTx.executionTime == 0) {
+        if (scheduledTx.state == TransactionState.NotScheduled) {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
@@ -307,15 +321,8 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_TransactionNotReady();
         }
 
-        // Check if the transaction has already been executed
-        // Note: this is of course enforced by the Safe itself, but we check it here for
-        // completeness
-        if (scheduledTx.executed) {
-            revert TimelockGuard_TransactionAlreadyExecuted();
-        }
-
         // Set the transaction as executed
-        scheduledTx.executed = true;
+        scheduledTx.state = TransactionState.Executed;
         _safeState[callingSafe].pendingTxHashes.remove(txHash);
 
         // Reset the cancellation threshold
@@ -471,7 +478,7 @@ contract TimelockGuard is IGuard, ISemver {
 
         // Schedule the transaction and add it to the pending transactions set
         _safeState[_safe].scheduledTransactions[txHash] =
-            ScheduledTransaction({ executionTime: executionTime, cancelled: false, executed: false, params: _params });
+            ScheduledTransaction({ executionTime: executionTime, state: TransactionState.Pending, params: _params });
         _safeState[_safe].pendingTxHashes.add(txHash);
 
         emit TransactionScheduled(_safe, txHash, executionTime);
@@ -501,13 +508,13 @@ contract TimelockGuard is IGuard, ISemver {
         // There is nothing inherently wrong with cancelling a transaction a transaction that doesn't meet these
         // criteria, but we revert in order to inform the user, and avoid emitting a misleading TransactionCancelled
         // event.
-        if (_safeState[_safe].scheduledTransactions[_txHash].cancelled) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.Cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
-        if (_safeState[_safe].scheduledTransactions[_txHash].executed) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.Executed) {
             revert TimelockGuard_TransactionAlreadyExecuted();
         }
-        if (_safeState[_safe].scheduledTransactions[_txHash].executionTime == 0) {
+        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.NotScheduled) {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
@@ -527,7 +534,7 @@ contract TimelockGuard is IGuard, ISemver {
         );
 
         // Set the transaction as cancelled, and remove it from the pending transactions set
-        _safeState[_safe].scheduledTransactions[_txHash].cancelled = true;
+        _safeState[_safe].scheduledTransactions[_txHash].state = TransactionState.Cancelled;
         _safeState[_safe].pendingTxHashes.remove(_txHash);
 
         // Increase the cancellation threshold
