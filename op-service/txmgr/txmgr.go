@@ -516,25 +516,15 @@ func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar
 		}
 		sidecar.Commitments = append(sidecar.Commitments, commitment)
 		blobHashes = append(blobHashes, eth.KZGToVersionedHash(commitment))
-	}
-
-	// Compute proofs based on the sidecar version
-	if enableCellProofs {
-		// Version1: Use cell proofs for Fusaka compatibility
-		allCellProofs := make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob)
-		for i, blob := range blobs {
-			rawBlob := blob.KZGBlob()
+		if enableCellProofs {
+			// Version1: Use cell proofs for Fusaka compatibility
 			cellProofs, err := kzg4844.ComputeCellProofs(rawBlob)
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d in tx candidate: %w", i, err)
 			}
-			allCellProofs = append(allCellProofs, cellProofs...)
-		}
-		sidecar.Proofs = allCellProofs
-	} else {
-		// Version0: Use legacy blob proofs
-		for i, blob := range blobs {
-			rawBlob := blob.KZGBlob()
+			sidecar.Proofs = append(sidecar.Proofs, cellProofs...)
+		} else {
+			// Version0: Use legacy blob proofs
 			proof, err := kzg4844.ComputeBlobProof(rawBlob, sidecar.Commitments[i])
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
