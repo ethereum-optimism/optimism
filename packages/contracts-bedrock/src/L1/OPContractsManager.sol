@@ -332,6 +332,7 @@ abstract contract OPContractsManagerBase {
         if (
             gameType.raw() == GameTypes.SUPER_CANNON.raw()
                 || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                || gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
         ) {
             l2ChainId = 0;
         } else {
