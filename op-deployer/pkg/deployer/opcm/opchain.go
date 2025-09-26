@@ -45,14 +45,6 @@ type DeployOPChainInput struct {
 	OperatorFeeConstant uint64
 }
 
-func (input *DeployOPChainInput) InputSet() bool {
-	return true
-}
-
-func (input *DeployOPChainInput) StartingAnchorRoot() []byte {
-	return PermissionedGameStartingAnchorRoot
-}
-
 type DeployOPChainOutput struct {
 	OpChainProxyAdmin                 common.Address
 	AddressManager                    common.Address
@@ -72,16 +64,11 @@ type DeployOPChainOutput struct {
 	DelayedWETHPermissionlessGameProxy common.Address
 }
 
-func (output *DeployOPChainOutput) CheckOutput(input common.Address) error {
-	return nil
-}
+type DeployOPChainScript script.DeployScriptWithOutput[DeployOPChainInput, DeployOPChainOutput]
 
-type DeployOPChainScript struct {
-	Run func(input, output common.Address) error
-}
-
-func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	return RunScriptSingle[DeployOPChainInput, DeployOPChainOutput](host, input, "DeployOPChain.s.sol", "DeployOPChain")
+// NewDeployOPChainScript loads and validates the DeployOPChain script contract
+func NewDeployOPChainScript(host *script.Host) (DeployOPChainScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployOPChainInput, DeployOPChainOutput](host, "DeployOPChain.s.sol", "DeployOPChain")
 }
 
 func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {

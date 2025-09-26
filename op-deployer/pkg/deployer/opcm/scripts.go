@@ -17,6 +17,7 @@ type Scripts struct {
 	DeployPreimageOracle  DeployPreimageOracleScript
 	DeployProxy           DeployProxyScript
 	DeploySuperchain      DeploySuperchainScript
+	DeployOPChain         DeployOPChainScript
 }
 
 // NewScripts collects all the deployment scripts, raising exceptions if any of them
@@ -30,6 +31,11 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 	deploySuperchain, err := NewDeploySuperchainScript(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeploySuperchain script: %w", err)
+	}
+
+	deployOPChain, err := NewDeployOPChainScript(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 
 	deployAlphabetVM, err := NewDeployAlphabetVMScript(host)
@@ -77,5 +83,6 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 		DeployProxy:           deployProxy,
 		DeployImplementations: deployImplementations,
 		DeploySuperchain:      deploySuperchain,
+		DeployOPChain:         deployOPChain,
 	}, nil
 }

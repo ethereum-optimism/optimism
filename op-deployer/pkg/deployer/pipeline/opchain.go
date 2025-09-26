@@ -33,7 +33,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	dco, err = opcm.DeployOPChain(env.L1ScriptHost, dci)
+	dco, err = env.Scripts.DeployOPChain.Run(dci)
 	if err != nil {
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
