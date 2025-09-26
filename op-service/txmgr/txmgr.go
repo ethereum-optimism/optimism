@@ -497,10 +497,12 @@ func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar
 	var sidecar *types.BlobTxSidecar
 	if enableCellProofs {
 		sidecar = &types.BlobTxSidecar{
+			Proofs:  make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob),
 			Version: types.BlobSidecarVersion1, // Use Version1 for cell proofs (Fusaka compatibility)
 		}
 	} else {
 		sidecar = &types.BlobTxSidecar{
+			Proofs:  make([]kzg4844.Proof, 0, len(blobs)),
 			Version: types.BlobSidecarVersion0, // Use Version0 for legacy blob proofs
 		}
 	}
