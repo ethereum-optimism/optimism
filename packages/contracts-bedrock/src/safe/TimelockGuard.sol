@@ -42,7 +42,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// Threats Mitigated and Integration With LivenessModule:
 ///     This Guard is designed to protect against a number of well-defined scenarios, defined on
 ///     the two axes of amount of keys compromised, and type of compromise.
-///     For scenarios where the keys compromised don't amount to a blocking threshold, regular transactions from the
+///     For scenarios where the keys compromised don't amount to a blocking threshold (the number of signers who must
+///     refuse to sign a transaction in order to block it from being executed), regular transactions from the
 ///     multisig for removal or rotation is the preferred solution.
 ///     For scenarios where the keys compromised are at least a blocking threshold, but not as much as quorum, the
 ///     LivenessModule would be used. If there is a quorum of absent keys, but no significant malicious control, the
