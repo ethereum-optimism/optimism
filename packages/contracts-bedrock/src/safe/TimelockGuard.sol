@@ -542,7 +542,7 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Generate the cancellation transaction data
-        bytes memory txData = abi.encodeCall(this.cancelTransactionOnSafe, (_safe, _txHash));
+        bytes memory txData = abi.encodeCall(this.signCancellationForSafe, (_safe, _txHash));
         bytes memory cancellationTxData = _safe.encodeTransactionData(
             address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
@@ -572,7 +572,7 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data
     /// @dev This function is not meant to be called, use cancelTransaction instead
-    function cancelTransactionOnSafe(Safe, bytes32) public pure {
+    function signCancellationForSafe(Safe, bytes32) public pure {
         // Reverting here may cause issues for some signing tooling, but it is better to revert than for
         // to silently fail, potentially allowing the caller to believe that the transaction has been cancelled.
         revert("This function is not meant to be called, use cancelTransaction instead");

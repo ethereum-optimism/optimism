@@ -131,7 +131,7 @@ library TransactionBuilder {
         delete cancellation.params;
         cancellation.params.to = address(_timelockGuard);
         cancellation.params.data =
-            abi.encodeCall(TimelockGuard.cancelTransactionOnSafe, (Safe(payable(_tx.safeInstance.safe)), _tx.hash));
+            abi.encodeCall(TimelockGuard.signCancellationForSafe, (Safe(payable(_tx.safeInstance.safe)), _tx.hash));
 
         // Get only the number of signatures required for the cancellation transaction
         uint256 cancellationThreshold = _timelockGuard.cancellationThreshold(_tx.safeInstance.safe);

@@ -39,7 +39,7 @@ interface ITimelockGuard {
     event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executed);
 
     function cancelTransaction(address _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
-    function cancelTransactionOnSafe(address _safe, bytes32 _txHash) external;
+    function signCancellationForSafe(address _safe, bytes32 _txHash) external;
     function cancellationThreshold(address _safe) external view returns (uint256);
     function pendingTransactions(address) external pure returns (bytes32[] memory);
     function checkTransaction(
