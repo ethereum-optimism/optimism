@@ -207,9 +207,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 		} else {
 			require.NoError(t, validateBlobSidecarLegacy(sidecar, hashes))
 		}
-		if sidecar != nil {
-			s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
-		}
+		s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 	return receipt
