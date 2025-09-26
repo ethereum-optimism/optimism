@@ -208,7 +208,7 @@ func (m *SimpleTxManager) Close() {
 }
 
 func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logger {
-	fields := []any{"tx", tx.Hash(), "nonce", tx.Nonce()}
+	fields := []any{"tx", tx.Hash().Hex(), "nonce", tx.Nonce()}
 	if logGas {
 		fields = append(fields, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gasLimit", tx.Gas())
 	}
