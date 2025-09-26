@@ -472,7 +472,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MaxTipCap.Store(maxTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
-	res.EnableCellProofs.Store(cfg.EnableCellProofs)
+	res.EnableCellProofs = cfg.EnableCellProofs
 
 	return &res, nil
 }
@@ -513,7 +513,7 @@ type Config struct {
 
 	// EnableCellProofs determines whether to use cell proofs (Version1 sidecars)
 	// for Fusaka (EIP-7742) compatibility. If false, uses legacy blob proofs (Version0).
-	EnableCellProofs atomic.Bool
+	EnableCellProofs bool
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int
