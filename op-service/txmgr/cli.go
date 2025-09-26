@@ -378,6 +378,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
+		EnableCellProofs:           ctx.Bool(EnableCellProofsFlagName),
 	}
 }
 
