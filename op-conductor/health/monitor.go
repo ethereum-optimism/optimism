@@ -132,9 +132,10 @@ func (t *timeBoundedRotatingCounter) Increment() (uint64, error) {
 }
 
 func (t *timeBoundedRotatingCounter) CurrentValue() uint64 {
-	// no benefit is RLock-ing and returning this value.
 	currentTsSeconds := time.Now().Unix()
 	truncatedTimestamp := currentTsSeconds / int64(t.resetIntervalSeconds)
+	t.mut.RLock()
+	defer t.mut.RUnlock()
 	return t.temporalCache[truncatedTimestamp]
 }
 
