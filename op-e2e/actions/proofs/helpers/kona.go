@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,10 +28,22 @@ func IsKonaConfigured() bool {
 	return konaHostPath != ""
 }
 
+func writeConfig[T any](t helpers.Testing, workDir string, name string, cfg []*T, cfgPaths []string) {
+	for i, cfg := range cfg {
+		cfgPath := filepath.Join(workDir, fmt.Sprintf("%s_%d.json", name, i))
+		ser, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(cfgPath, ser, fs.ModePerm))
+
+		cfgPaths[i] = cfgPath
+	}
+}
+
 func RunKonaNative(
 	t helpers.Testing,
 	workDir string,
 	rollupCfgs []*rollup.Config,
+	l1chainConfigs []*params.ChainConfig,
 	l1Rpc string,
 	l1BeaconRpc string,
 	l2Rpcs []string,
@@ -38,14 +51,11 @@ func RunKonaNative(
 ) error {
 	// Write rollup config to tempdir.
 	rollupCfgPaths := make([]string, len(rollupCfgs))
-	for i, cfg := range rollupCfgs {
-		rollupConfigPath := filepath.Join(workDir, fmt.Sprintf("rollup_%d.json", i))
-		ser, err := json.Marshal(cfg)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(rollupConfigPath, ser, fs.ModePerm))
+	writeConfig(t, workDir, "rollup", rollupCfgs, rollupCfgPaths)
 
-		rollupCfgPaths[i] = rollupConfigPath
-	}
+	// Write l1 chain config to tempdir.
+	l1chainConfigPaths := make([]string, len(l1chainConfigs))
+	writeConfig(t, workDir, "l1chain", l1chainConfigs, l1chainConfigPaths)
 
 	// Run the fault proof program from the state transition from L2 block L2Blocknumber - 1 -> L2BlockNumber.
 	vmCfg := vm.Config{
@@ -53,6 +63,7 @@ func RunKonaNative(
 		L1Beacon:          l1BeaconRpc,
 		L2s:               l2Rpcs,
 		RollupConfigPaths: rollupCfgPaths,
+		L1ConfigPaths:     l1chainConfigPaths,
 		Server:            konaHostPath,
 	}
 	inputs := utils.LocalGameInputs{
