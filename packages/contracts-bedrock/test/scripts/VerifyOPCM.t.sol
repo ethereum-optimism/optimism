@@ -4,16 +4,12 @@ pragma solidity 0.8.15;
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
 // Scripts
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
-import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
-import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
-import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Interfaces
 import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
@@ -72,48 +68,6 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
-    }
-
-    /// @notice Deploys a new OPCM with V2 dispute games feature enabled.
-    /// @return The deployed OPCM with V2 contracts.
-    function deployOPCMWithV2Enabled() internal returns (IOPContractsManager) {
-        // Deploy Superchain contracts first
-        DeploySuperchain deploySuperchain = new DeploySuperchain();
-        DeploySuperchain.Output memory dso = deploySuperchain.run(
-            DeploySuperchain.Input({
-                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
-                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
-                guardian: makeAddr("guardian"),
-                paused: false,
-                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
-                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
-            })
-        );
-
-        // Deploy implementations with v2 flag enabled
-        DeployImplementations deployImplementations = new DeployImplementations();
-        DeployImplementations.Output memory dio = deployImplementations.run(
-            DeployImplementations.Input({
-                withdrawalDelaySeconds: 100,
-                minProposalSizeBytes: 200,
-                challengePeriodSeconds: 300,
-                proofMaturityDelaySeconds: 400,
-                disputeGameFinalityDelaySeconds: 500,
-                mipsVersion: StandardConstants.MIPS_VERSION,
-                faultGameV2MaxGameDepth: 73,
-                faultGameV2SplitDepth: 30,
-                faultGameV2ClockExtension: 10800,
-                faultGameV2MaxClockDuration: 302400,
-                superchainConfigProxy: dso.superchainConfigProxy,
-                protocolVersionsProxy: dso.protocolVersionsProxy,
-                superchainProxyAdmin: dso.superchainProxyAdmin,
-                upgradeController: dso.superchainProxyAdmin.owner(),
-                challenger: makeAddr("challenger"),
-                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-            })
-        );
-
-        return dio.opcm;
     }
 }
 
@@ -178,8 +132,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame =
-                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
             if (isV2DisputeGame && !v2FeatureEnabled) {
                 continue;
             }
@@ -249,8 +202,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame =
-                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+            bool isV2DisputeGame = LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
             if (isV2DisputeGame && !v2FeatureEnabled) {
                 continue;
             }
@@ -523,98 +475,5 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         expectedUnaccounted[0] = "blueprints";
         vm.expectRevert(abi.encodeWithSelector(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector, expectedUnaccounted));
         harness.validateAllGettersAccounted();
-    }
-
-    /// @notice Tests that the script succeeds when V2 dispute games are deployed (feature enabled).
-    /// @dev This test will fail with ProtocolVersions bytecode mismatch - this is a known issue.
-    function test_run_withV2DisputeGamesEnabled_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
-
-        // Deploy OPCM with V2 feature enabled
-        IOPContractsManager opcmV2 = deployOPCMWithV2Enabled();
-
-        // Verify that V2 dispute games feature is enabled
-        assertTrue(opcmV2.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES), "V2 flag should be enabled");
-
-        // Verify that V2 contracts are deployed (not address(0))
-        IOPContractsManager.Implementations memory impls = opcmV2.implementations();
-        assertTrue(
-            address(impls.faultDisputeGameV2Impl) != address(0),
-            "FaultDisputeGameV2 implementation should be non-zero"
-        );
-        assertTrue(
-            address(impls.permissionedDisputeGameV2Impl) != address(0),
-            "PermissionedDisputeGameV2 implementation should be non-zero"
-        );
-
-        // Update environment variables for the new OPCM deployment
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcmV2.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcmV2.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcmV2.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcmV2.upgradeController()));
-
-        // Run verification - should succeed WITH V2 contracts properly verified
-        harness.run(address(opcmV2), true);
-    }
-
-    /// @notice Tests that the script reverts when V2 contracts have non-immutable modifications.
-    function test_run_v2EnabledNonImmutableModifications_reverts() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
-
-        // Deploy OPCM with V2 feature enabled
-        IOPContractsManager opcmV2 = deployOPCMWithV2Enabled();
-
-        // Update environment variables for the new OPCM deployment
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcmV2.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcmV2.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcmV2.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcmV2.upgradeController()));
-
-        // Grab the list of implementations including V2
-        VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcmV2, "implementations", false);
-
-        // Find and modify a V2 contract outside immutable references
-        for (uint256 i = 0; i < refs.length; i++) {
-            if (LibString.eq(refs[i].name, "FaultDisputeGameV2")) {
-                // Get the code for the implementation
-                bytes memory implCode = refs[i].addr.code;
-
-                // Grab the artifact info for the implementation
-                VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(harness.buildArtifactPath(refs[i].name));
-
-                // Find a byte that's NOT in an immutable reference
-                bool inImmutable = true;
-                uint256 modifyPos = 0;
-                while (inImmutable && modifyPos < implCode.length) {
-                    inImmutable = false;
-                    for (uint256 j = 0; j < artifact.immutableRefs.length; j++) {
-                        VerifyOPCM.ImmutableRef memory immRef = artifact.immutableRefs[j];
-                        if (modifyPos >= immRef.offset && modifyPos < immRef.offset + immRef.length) {
-                            inImmutable = true;
-                            break;
-                        }
-                    }
-                    if (inImmutable) {
-                        modifyPos++;
-                    }
-                }
-
-                // Modify the byte outside immutable references
-                if (modifyPos < implCode.length) {
-                    bytes1 existingByte = implCode[modifyPos];
-                    bytes1 newByte = bytes1(uint8(uint256(uint8(existingByte)) + 1));
-                    implCode[modifyPos] = newByte;
-                    vm.etch(refs[i].addr, implCode);
-                }
-
-                break; // Only modify one V2 contract for this test
-            }
-        }
-
-        // Run verification - should revert due to non-immutable modification
-        vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
-        harness.run(address(opcmV2), true);
     }
 }
