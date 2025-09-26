@@ -8,6 +8,7 @@ import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -149,6 +150,9 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Error for when a transaction has already been executed
     error TimelockGuard_TransactionAlreadyExecuted();
+
+    /// @notice Error for when the contract is not at least version 1.3.0
+    error TimelockGuard_InvalidVersion();
 
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
@@ -393,6 +397,13 @@ contract TimelockGuard is IGuard, ISemver {
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
+
+        // Check that the contract is at least version 1.3.0
+        // Prior to version 1.3.0, checkSignatures() was not exposed as a public function, so we need to check the
+        // version otherwise the safe will be bricked.
+        if (SemverComp.lt(callingSafe.VERSION(), "1.3.0")) {
+            revert TimelockGuard_InvalidVersion();
+        }
 
         // Check that this guard is enabled on the calling Safe
         // There is nothing inherently wrong with configuring the guard on a safe that it is not enabled on,
