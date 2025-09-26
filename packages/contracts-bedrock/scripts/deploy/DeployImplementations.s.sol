@@ -37,7 +37,6 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -679,8 +678,7 @@ contract DeployImplementations is Script {
             _isProxy: false
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
-        // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
-        ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }
