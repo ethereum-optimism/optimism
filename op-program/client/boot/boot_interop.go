@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	ErrUnknownChainID = errors.New("unknown chain id")
+	ErrUnknownChainID        = errors.New("unknown chain id")
+	ErrL1ChainConfigMismatch = errors.New("l1 chain config chain ID mismatch")
 )
 
 type BootInfoInterop struct {
@@ -104,7 +105,7 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 func (c *OracleConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error) {
 	if c.l1ChainConfig != nil {
 		if c.l1ChainConfig.ChainID.Cmp(chainID.ToBig()) != 0 {
-			panic(fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", c.l1ChainConfig.ChainID, chainID))
+			panic(fmt.Errorf("%w: %v != %v", ErrL1ChainConfigMismatch, c.l1ChainConfig.ChainID, chainID))
 		}
 		return c.l1ChainConfig, nil
 	}
