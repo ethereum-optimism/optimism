@@ -302,3 +302,21 @@ func TestDropInapplicable_ApplicablePayloadKept(t *testing.T) {
 	require.Equal(t, 1, pq.Len())
 	require.Equal(t, payload, pq.Peek())
 }
+
+// TestPayloadsQueue_Pop_SameElementFullQueue tests that we correctly Pop the same element, if it is to be popped, when the payloads queue is full.
+func TestPayloadsQueue_Pop_SameElementFullQueue(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+
+	// pq is PayloadsQueue with MaxSize = payloadMemFixedCost, so space for a single payload with no txs
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost, payloadMemSize)
+
+	payload_13 := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(13), BlockHash: common.Hash{0x06}})
+	require.NoError(t, pq.Push(payload_13))
+
+	payload_12 := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(12), BlockHash: common.Hash{0x05}})
+	require.Error(t, pq.Push(payload_12))
+
+	require.Equal(t, 1, pq.Len())
+	_, ok := pq.blockHashes[payload_12.ExecutionPayload.BlockHash]
+	require.False(t, ok)
+}

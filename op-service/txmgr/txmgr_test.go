@@ -1728,7 +1728,9 @@ func TestMakeSidecar(t *testing.T) {
 	for i := 0; i < 4096; i++ {
 		blob[32*i] &= 0b0011_1111
 	}
-	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob})
+
+	// Pre Fusaka, blob proof sidecar is Version0
+	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob}, false)
 	require.NoError(t, err)
 	require.Equal(t, len(hashes), 1)
 	require.Equal(t, len(sidecar.Blobs), len(hashes))
@@ -1737,6 +1739,19 @@ func TestMakeSidecar(t *testing.T) {
 
 	for i, commit := range sidecar.Commitments {
 		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
+		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
+	}
+
+	// Post Fusaka, blob proof sidecar is Version1
+	sidecar, hashes, err = MakeSidecar([]*eth.Blob{&blob}, true)
+	require.NoError(t, err)
+	require.Equal(t, len(hashes), 1)
+	require.Equal(t, len(sidecar.Blobs), len(hashes))
+	require.Equal(t, len(sidecar.Proofs), len(hashes)*kzg4844.CellProofsPerBlob)
+	require.Equal(t, len(sidecar.Commitments), len(hashes))
+
+	require.NoError(t, kzg4844.VerifyCellProofs(sidecar.Blobs, sidecar.Commitments, sidecar.Proofs), "cell proof must be valid")
+	for i, commit := range sidecar.Commitments {
 		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
 	}
 }

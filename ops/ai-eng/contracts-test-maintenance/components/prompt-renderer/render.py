@@ -9,23 +9,27 @@ from pathlib import Path
 
 
 def load_ranking_data():
-    """Load the ranking JSON file and return the first entry."""
-    ranking_file = (
-        Path(__file__).parent.parent / "tests_ranker" / "output" / "ranking.json"
-    )
+    """Load the ranking JSON file and return the first entry and run_id."""
+    ranking_dir = Path(__file__).parent / "../tests_ranker" / "output"
+
+    # Get the ranking file
+    ranking_file = next(ranking_dir.glob("*_ranking.json"))
+
+    # Extract run_id from filename
+    run_id = ranking_file.stem.replace("_ranking", "")
 
     with open(ranking_file, "r") as f:
         data = json.load(f)
 
     if not data.get("entries"):
-        raise ValueError("No entries found in ranking.json")
+        raise ValueError(f"No entries found in {ranking_file.name}")
 
-    return data["entries"][0]
+    return data["entries"][0], run_id
 
 
 def load_prompt_template():
     """Load the prompt template markdown file."""
-    prompt_file = Path(__file__).parent.parent / "prompt" / "prompt.md"
+    prompt_file = Path(__file__).parent.parent.parent / "prompt" / "prompt.md"
 
     with open(prompt_file, "r") as f:
         return f.read()
@@ -38,18 +42,16 @@ def render_prompt(template, test_path, contract_path):
     )
 
 
-def save_prompt_instance(rendered_prompt, test_path, contract_path):
-    """Save the rendered prompt to the output folder with a descriptive name."""
+def save_prompt_instance(rendered_prompt, run_id):
+    """Save the rendered prompt to the output folder with run ID."""
     output_dir = Path(__file__).parent / "output"
     output_dir.mkdir(exist_ok=True)
 
-    # Extract test name and remove .t suffix if present
-    test_name = Path(test_path).stem
-    if test_name.endswith(".t"):
-        test_name = test_name[:-2]
+    # Remove old prompt files
+    for old_file in output_dir.glob("*_prompt.md"):
+        old_file.unlink()
 
-    # Create descriptive filename
-    filename = f"{test_name}_prompt.md"
+    filename = f"{run_id}_prompt.md"
     output_file = output_dir / filename
 
     with open(output_file, "w") as f:
@@ -61,12 +63,12 @@ def save_prompt_instance(rendered_prompt, test_path, contract_path):
 def main():
     """Main function to render and save the prompt instance."""
     try:
-        # Load the first entry from ranking
-        first_entry = load_ranking_data()
+        # Load ranking data and get run_id
+        first_entry, run_id = load_ranking_data()
         test_path = first_entry["test_path"]
         contract_path = first_entry["contract_path"]
 
-        print(f"Using first ranking entry:")
+        print(f"Using ranking from run {run_id}:")
         print(f"  Test path: {test_path}")
         print(f"  Contract path: {contract_path}")
 
@@ -77,7 +79,7 @@ def main():
         rendered_prompt = render_prompt(template, test_path, contract_path)
 
         # Save the rendered prompt
-        output_file = save_prompt_instance(rendered_prompt, test_path, contract_path)
+        output_file = save_prompt_instance(rendered_prompt, run_id)
 
         print(f"Prompt instance saved to: {output_file}")
 

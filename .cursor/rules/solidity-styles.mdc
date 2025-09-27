@@ -63,7 +63,7 @@ Applies to Solidity files.
   - `method`: `test`, `testFuzz`, or `testDiff`
   - `status`: `succeeds`, `reverts`, `works`, `fails`, or `benchmark`
 - Test contract naming:
-  - `TargetContract_Init`: for basic setup contracts
+  - `TargetContract_TestInit`: for basic setup contracts
   - `TargetContract_FunctionName_Test`: for happy path tests
   - `TargetContract_FunctionName_TestFail`: for sad path tests
   - `TargetContract_Harness`: for harness contracts

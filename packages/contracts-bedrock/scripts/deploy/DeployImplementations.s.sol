@@ -15,6 +15,9 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
+import { GameTypes, Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -38,6 +41,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -48,6 +52,11 @@ contract DeployImplementations is Script {
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
+        // V2 Dispute Game parameters
+        uint256 faultGameV2MaxGameDepth;
+        uint256 faultGameV2SplitDepth;
+        uint256 faultGameV2ClockExtension;
+        uint256 faultGameV2MaxClockDuration;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -79,6 +88,8 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
+        IFaultDisputeGameV2 faultDisputeGameV2Impl;
+        IPermissionedDisputeGameV2 permissionedDisputeGameV2Impl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -104,6 +115,10 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            deployFaultDisputeGameV2Impl(_input, output_);
+            deployPermissionedDisputeGameV2Impl(_input, output_);
+        }
 
         // Deploy the OP Contracts Manager with the new implementations set.
         deployOPContractsManager(_input, output_);
@@ -464,6 +479,44 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
+    function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameTypes.CANNON;
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
+
+        IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "FaultDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "FaultDisputeGameV2Impl");
+        _output.faultDisputeGameV2Impl = impl;
+    }
+
+    function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameTypes.PERMISSIONED_CANNON;
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
+
+        IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "PermissionedDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "PermissionedDisputeGameV2Impl");
+        _output.permissionedDisputeGameV2Impl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
         Input memory _input,
         Output memory _output,
@@ -589,6 +642,35 @@ contract DeployImplementations is Script {
     }
 
     function assertValidInput(Input memory _input) private pure {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Validate V2 game depth parameters are sensible
+            require(
+                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
+                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
+            );
+            // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
+            require(
+                _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
+                "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
+            );
+
+            // Validate V2 clock parameters fit in uint64 before deployment
+            require(
+                _input.faultGameV2ClockExtension <= type(uint64).max,
+                "DeployImplementations: faultGameV2ClockExtension too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration <= type(uint64).max,
+                "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
+                "DeployImplementations: maxClockDuration must be >= clockExtension"
+            );
+            require(
+                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
+            );
+        }
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
@@ -637,7 +719,27 @@ contract DeployImplementations is Script {
             address(_output.ethLockboxImpl)
         );
 
+        // Only include V2 contracts in validation if they were deployed
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            address[] memory v2Addrs = Solarray.addresses(
+                address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl)
+            );
+            addrs2 = Solarray.extend(addrs2, v2Addrs);
+        }
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+
+        // Validate V2 contracts not deployed when flag is disabled
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            require(
+                address(_output.faultDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but FaultDisputeGameV2 was deployed"
+            );
+            require(
+                address(_output.permissionedDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but PermissionedDisputeGameV2 was deployed"
+            );
+        }
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
