@@ -103,6 +103,14 @@ func (s *SuperDisputeSystem) L1Genesis() *core.Genesis {
 	return s.sys.L1Genesis()
 }
 
+func (s *SuperDisputeSystem) L1Geneses() []*core.Genesis {
+	cfgs := make([]*core.Genesis, len(s.sys.L2IDs()))
+	for i := range s.sys.L2IDs() {
+		cfgs[i] = s.sys.L1Genesis()
+	}
+	return cfgs
+}
+
 func (s *SuperDisputeSystem) L2Geneses() []*core.Genesis {
 	networks := s.sys.L2IDs()
 	cfgs := make([]*core.Genesis, len(networks))
