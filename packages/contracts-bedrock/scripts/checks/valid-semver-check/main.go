@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -11,15 +10,10 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
-var excludeContracts = []string{
-	"src/L2/L2StandardBridgeInterop.sol", // Has +interop suffix
-	"src/L1/OptimismPortalInterop.sol",   // Has +interop suffix
-}
-
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{"forge-artifacts/RISCV.sol/**.json", "forge-artifacts/EAS.sol/**.json", "forge-artifacts/SchemaRegistry.sol/**.json"},
+		[]string{"forge-artifacts/L2StandardBridgeInterop.sol/**.json", "forge-artifacts/OptimismPortalInterop.sol/**.json", "forge-artifacts/RISCV.sol/**.json", "forge-artifacts/EAS.sol/**.json", "forge-artifacts/SchemaRegistry.sol/**.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("Error: %v/n", err)
@@ -35,11 +29,6 @@ func processFile(path string) (*common.Void, []error) {
 
 	// Only check src/ contracts.
 	if !strings.HasPrefix(artifact.Ast.AbsolutePath, "src/") {
-		return nil, nil
-	}
-
-	// If the contract is excluded, skip.
-	if slices.Contains(excludeContracts, artifact.Ast.AbsolutePath) {
 		return nil, nil
 	}
 
