@@ -187,18 +187,25 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 		return fmt.Errorf("failed to check custom configs directory: %w", err)
 	}
 	var rollupChainIDs []eth.ChainID
-	var genesisChainIDs []eth.ChainID
+	var l2genesisChainIDs []eth.ChainID
+	var l1genesisChainIDs []eth.ChainID
 	for _, entry := range entries {
 		entryName := entry.Name()
 		switch {
 		case "placeholder.json" == entryName:
 		case "depsets.json" == entryName:
+		case strings.HasSuffix(entryName, "-genesis-l1.json"):
+			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l1.json"))
+			if err != nil {
+				return fmt.Errorf("incorrectly named genesis-l1 config (%s). expected <chain-id>-genesis-l1.json: %w", entryName, err)
+			}
+			l1genesisChainIDs = append(l1genesisChainIDs, id)
 		case strings.HasSuffix(entryName, "-genesis-l2.json"):
 			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l2.json"))
 			if err != nil {
 				return fmt.Errorf("incorrectly named genesis-l2 config (%s). expected <chain-id>-genesis-l2.json: %w", entryName, err)
 			}
-			genesisChainIDs = append(genesisChainIDs, id)
+			l2genesisChainIDs = append(l2genesisChainIDs, id)
 		case strings.HasSuffix(entryName, "-rollup.json"):
 			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-rollup.json"))
 			if err != nil {
@@ -209,8 +216,9 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 			return fmt.Errorf("invalid config file name: %s, Make sure that the only files in the custom config directory are placeholder.json, depsets.json, <chain-id>-genesis-l2.json or <chain-id>-rollup.json", entryName)
 		}
 	}
-	if !slices.Equal(rollupChainIDs, genesisChainIDs) {
-		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, genesis chain IDs %v. Make sure that the rollup and genesis configs have the same set of chain IDs prefixes", rollupChainIDs, genesisChainIDs)
+	if !slices.Equal(rollupChainIDs, l2genesisChainIDs) {
+		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, l2 genesis chain IDs %v. Make sure that the rollup and l2 genesis configs have the same set of chain IDs prefixes", rollupChainIDs, l2genesisChainIDs)
 	}
+
 	return nil
 }
