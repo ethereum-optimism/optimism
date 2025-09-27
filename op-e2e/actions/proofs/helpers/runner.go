@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,13 +84,15 @@ func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Mi
 		defer fakeBeacon.Close()
 
 		rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
+		l1chainConfigs := make([]*params.ChainConfig, 0, len(fixtureInputs.L2Sources))
 		l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
 		for _, source := range fixtureInputs.L2Sources {
 			rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
+			l1chainConfigs = append(l1chainConfigs, source.Node.L1ChainConfig)
 			l2Endpoints = append(l2Endpoints, source.Engine.HTTPEndpoint())
 		}
 
-		err = RunKonaNative(t, workDir, rollupCfgs, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
+		err = RunKonaNative(t, workDir, rollupCfgs, l1chainConfigs, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
 		checkResult(t, err)
 	} else {
 		programCfg := NewOpProgramCfg(fixtureInputs)
