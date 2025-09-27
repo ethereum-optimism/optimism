@@ -81,6 +81,8 @@ func TestTimeBoundedRotatingCounterIncrement(t *testing.T) {
 
 }
 
+// To test the bad path: comment out mut.RLock() and mut.RUnlock() in the CurrentValue() method, and run this test again
+// you'll see a "fatal error: concurrent map read and map write"
 func TestTimeBoundedRotatingCounterConcurrentAccess(t *testing.T) {
 	mockTimeProvider := &timeProvider{now: 0}
 
