@@ -50,7 +50,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		safeEnabled:    safeEnabled,
 		safeInterval:   safeInterval,
 		minPeerCount:   minPeerCount,
-		timeProviderFn: currentTimeProvicer,
+		timeProviderFn: currentTimeProvider,
 		node:           node,
 		p2p:            p2p,
 		supervisor:     supervisor,
@@ -79,64 +79,6 @@ type ElP2pHealthMonitor struct {
 	log          log.Logger
 	minPeerCount uint64
 	elP2pClient  client.ElP2PClient
-}
-
-// this is a type of counter which keeps on incrementing until its reset interval is hit
-// this can be used to track time-based rate-limit, error counts, etc.
-type timeBoundedRotatingCounter struct {
-	resetIntervalSeconds uint64
-	maxValue             uint64
-	timeProviderFn       func() uint64
-
-	mut           *sync.RWMutex
-	temporalCache map[int64]uint64
-}
-
-func NewTimeBoundedRotatingCounter(resetIntervalSeconds, maxValue uint64) (*timeBoundedRotatingCounter, error) {
-	if resetIntervalSeconds == 0 {
-		panic("reset interval seconds must be more than 0")
-	}
-	return &timeBoundedRotatingCounter{
-		resetIntervalSeconds: resetIntervalSeconds,
-		maxValue:             maxValue,
-		mut:                  &sync.RWMutex{},
-		temporalCache:        map[int64]uint64{},
-		timeProviderFn:       currentTimeProvicer,
-	}, nil
-}
-
-func (t *timeBoundedRotatingCounter) Increment() (uint64, error) {
-	// let's take `resetIntervalSeconds` as 60s
-	// truncatedTimestamp is current timestamp rounded off by 60s (resetIntervalSeconds)
-	// thereby generating a value which stays same until the next 60s helping track and incrementing the counter corresponding to it for the next 60s
-	currentTsSeconds := t.timeProviderFn()
-	truncatedTimestamp := int64(currentTsSeconds / t.resetIntervalSeconds)
-	t.mut.Lock()
-	defer t.mut.Unlock()
-
-	// a lazy cleanup subroutine to the clean the cache when it's grown enough, preventing memory leaks
-	defer func() {
-		if len(t.temporalCache) > 1000 {
-			newCache := map[int64]uint64{
-				truncatedTimestamp: t.temporalCache[truncatedTimestamp],
-			}
-			t.temporalCache = newCache // garbage collector should take care of the old cache
-		}
-	}()
-
-	if t.maxValue == 0 || t.temporalCache[truncatedTimestamp] < t.maxValue {
-		t.temporalCache[truncatedTimestamp]++
-		return t.temporalCache[truncatedTimestamp], nil
-	}
-	return 0, fmt.Errorf("counter at its max value, please wait %ds for it to be reset", (t.resetIntervalSeconds - (currentTsSeconds % t.resetIntervalSeconds)))
-}
-
-func (t *timeBoundedRotatingCounter) CurrentValue() uint64 {
-	currentTsSeconds := time.Now().Unix()
-	truncatedTimestamp := currentTsSeconds / int64(t.resetIntervalSeconds)
-	t.mut.RLock()
-	defer t.mut.RUnlock()
-	return t.temporalCache[truncatedTimestamp]
 }
 
 // SequencerHealthMonitor monitors sequencer health.
@@ -379,6 +321,6 @@ func calculateTimeDiff(now, then uint64) uint64 {
 	return now - then
 }
 
-func currentTimeProvicer() uint64 {
+func currentTimeProvider() uint64 {
 	return uint64(time.Now().Unix())
 }
