@@ -61,9 +61,14 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}
 
-	chainCfg, err := chainconfig.ChainConfigByChainID(chainID)
+	chainCfg, err := chainconfig.L2ChainConfigByChainID(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load chain config: %w", err)
+	}
+
+	l1ChainCfg, err := chainconfig.L1ChainConfigByChainID(eth.ChainIDFromBig(rollupCfg.L1ChainID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load l1 chain config: %w", err)
 	}
 
 	l2ClientCfg := sources.L2ClientDefaultConfig(rollupCfg, false)
@@ -85,6 +90,7 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		setupLog:     setupLog,
 		l2Client:     l2Client,
 		rollupCfg:    rollupCfg,
+		l1ChainCfg:   l1ChainCfg,
 		runInProcess: runInProcess,
 	}, nil
 }

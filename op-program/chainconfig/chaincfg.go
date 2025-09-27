@@ -25,7 +25,7 @@ var (
 
 // OPSepoliaChainConfig loads the op-sepolia chain config. This is intended for tests that need an arbitrary, valid chain config.
 func OPSepoliaChainConfig() *params.ChainConfig {
-	return mustLoadChainConfig("op-sepolia")
+	return mustLoadL2ChainConfig("op-sepolia")
 }
 
 //go:embed configs/*json
@@ -78,26 +78,17 @@ func rollupConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*rollup
 	return &customRollupConfig, customRollupConfig.ParseRollupConfig(file)
 }
 
-// ChainConfigByChainID locates the genesis chain config from either the superchain-registry or the embed.
+// L2ChainConfigByChainID locates the genesis chain config from either the superchain-registry or the embed.
 // Returns ErrMissingChainConfig if the chain config is not found.
-func ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
+func L2ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
 	config, err := superutil.LoadOPStackChainConfigFromChainID(eth.EvilChainIDToUInt64(chainID))
 	if err == nil {
 		return config, err
 	}
-	return chainConfigByChainID(chainID, customChainConfigFS)
+	return l2ChainConfigByChainID(chainID, customChainConfigFS)
 }
 
-func chainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.ChainConfig, error) {
-
-	// Certain L1 Chain Configs are looked up directly from the op-geth library
-	if chainID == eth.ChainIDFromBig(params.MainnetChainConfig.ChainID) {
-		return params.MainnetChainConfig, nil
-	}
-	if chainID == eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID) {
-		return params.SepoliaChainConfig, nil
-	}
-
+func l2ChainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.ChainConfig, error) {
 	// Load from custom chain configs from embed FS
 	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%v-genesis-l2.json", chainID))
 	if errors.Is(err, os.ErrNotExist) {
@@ -113,12 +104,40 @@ func chainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.
 	return genesis.Config, nil
 }
 
-func mustLoadChainConfig(name string) *params.ChainConfig {
+func L1ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
+	// Certain L1 Chain Configs are looked up directly from the op-geth library
+	if chainID == eth.ChainIDFromBig(params.MainnetChainConfig.ChainID) {
+		return params.MainnetChainConfig, nil
+	}
+	if chainID == eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID) {
+		return params.SepoliaChainConfig, nil
+	}
+
+	return l1ChainConfigByChainID(chainID, customChainConfigFS)
+}
+
+func l1ChainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.ChainConfig, error) {
+	// Load from custom chain configs from embed FS
+	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%v-genesis-l1.json", chainID))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("%w: no chain config available for chain ID: %v", ErrMissingChainConfig, chainID)
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get chain config for chain ID %v: %w", chainID, err)
+	}
+	var genesis core.Genesis
+	err = json.Unmarshal(data, &genesis)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse chain config for chain ID %v: %w", chainID, err)
+	}
+	return genesis.Config, nil
+}
+
+func mustLoadL2ChainConfig(name string) *params.ChainConfig {
 	chainCfg := chaincfg.ChainByName(name)
 	if chainCfg == nil {
 		panic(fmt.Errorf("%w: unknown chain config %q", errChainNotFound, name))
 	}
-	cfg, err := ChainConfigByChainID(eth.ChainIDFromUInt64(chainCfg.ChainID))
+	cfg, err := L2ChainConfigByChainID(eth.ChainIDFromUInt64(chainCfg.ChainID))
 	if err != nil {
 		panic(fmt.Errorf("failed to load rollup config: %q: %w", name, err))
 	}

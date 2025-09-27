@@ -296,7 +296,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			chainID = eth.ChainIDFromUInt64(ch.ChainID)
 		}
 
-		l2ChainConfig, err := chainconfig.ChainConfigByChainID(chainID)
+		l2ChainConfig, err := chainconfig.L2ChainConfigByChainID(chainID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", chainID, err)
 		}
@@ -307,12 +307,12 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
 
-		switch {
-		case rollupCfg.L1ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
-			l1ChainConfigs = append(l1ChainConfigs, params.MainnetChainConfig)
-		case rollupCfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-			l1ChainConfigs = append(l1ChainConfigs, params.SepoliaChainConfig)
+		l1ChainID := eth.ChainIDFromBig(rollupCfg.L1ChainID)
+		l1ChainConfig, err := chainconfig.L1ChainConfigByChainID(l1ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", chainID, err)
 		}
+		l1ChainConfigs = append(l1ChainConfigs, l1ChainConfig)
 
 		if interopEnabled {
 			depSet, err := depset.FromRegistry(chainID)

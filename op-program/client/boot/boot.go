@@ -67,11 +67,12 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		if err != nil {
 			panic(err)
 		}
-		l1ChainConfig, err = chainconfig.ChainConfigByChainID(eth.ChainIDFromBig(rollupConfig.L1ChainID))
+		l1ChainID := eth.ChainIDFromBig(rollupConfig.L1ChainID)
+		l1ChainConfig, err = chainconfig.L1ChainConfigByChainID(l1ChainID)
 		if err != nil {
 			panic(err)
 		}
-		l2ChainConfig, err = chainconfig.ChainConfigByChainID(l2ChainID)
+		l2ChainConfig, err = chainconfig.L2ChainConfigByChainID(l2ChainID)
 		if err != nil {
 			panic(err)
 		}

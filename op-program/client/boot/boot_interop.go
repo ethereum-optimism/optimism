@@ -68,7 +68,7 @@ func (c *OracleConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 	if cfg, ok := c.l2ChainConfigs[chainID]; ok {
 		return cfg, nil
 	}
-	cfg, err := chainconfig.ChainConfigByChainID(chainID)
+	cfg, err := chainconfig.L2ChainConfigByChainID(chainID)
 	if !c.customConfigsLoaded && errors.Is(err, chainconfig.ErrMissingChainConfig) {
 		c.loadCustomConfigs()
 		if cfg, ok := c.l2ChainConfigs[chainID]; !ok {
@@ -102,11 +102,10 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 }
 
 func (c *OracleConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error) {
-
 	if cfg, ok := c.l1ChainConfigs[chainID]; ok {
 		return cfg, nil
 	}
-	cfg, err := chainconfig.ChainConfigByChainID(chainID)
+	cfg, err := chainconfig.L1ChainConfigByChainID(chainID)
 	if err != nil {
 		return nil, err
 	}
