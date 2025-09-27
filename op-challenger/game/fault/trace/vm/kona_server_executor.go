@@ -23,7 +23,7 @@ func NewNativeKonaExecutor() *KonaExecutor {
 }
 
 func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
-	if len(cfg.L2s) != 1 || len(cfg.RollupConfigPaths) > 1 || len(cfg.Networks) > 1 || len(cfg.L1ConfigPaths) > 1 {
+	if len(cfg.L2s) != 1 || len(cfg.RollupConfigPaths) > 1 || len(cfg.Networks) > 1 || len(cfg.L1GenesisPaths) > 1 {
 		return nil, errors.New("multiple L2s/L1s specified but only one supported")
 	}
 	args := []string{
@@ -57,8 +57,8 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		args = append(args, "--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10))
 	}
 
-	if len(cfg.L1ConfigPaths) > 0 {
-		args = append(args, "--l1-config-path", cfg.L1ConfigPaths[0])
+	if len(cfg.L1GenesisPaths) > 0 {
+		args = append(args, "--l1-config-path", cfg.L1GenesisPaths[0])
 	}
 
 	return args, nil

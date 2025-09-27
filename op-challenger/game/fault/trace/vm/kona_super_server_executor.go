@@ -50,8 +50,8 @@ func (s *KonaSuperExecutor) OracleCommand(cfg Config, dataDir string, inputs uti
 		args = append(args, "--rollup-config-paths", strings.Join(cfg.RollupConfigPaths, ","))
 	}
 
-	if len(cfg.L1ConfigPaths) > 0 {
-		args = append(args, "--l1-config-paths", strings.Join(cfg.L1ConfigPaths, ","))
+	if len(cfg.L1GenesisPaths) > 0 {
+		args = append(args, "--l1-config-paths", strings.Join(cfg.L1GenesisPaths, ","))
 	}
 
 	return args, nil

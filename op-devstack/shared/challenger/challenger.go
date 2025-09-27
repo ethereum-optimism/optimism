@@ -52,7 +52,7 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) error {
+func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l1Geneses, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) error {
 	root, err := findMonorepoRoot()
 	if err != nil {
 		return err
@@ -79,6 +79,19 @@ func applyCannonConfig(c *config.Config, rollupCfgs []*rollup.Config, l2Geneses 
 		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
 	}
 
+	for _, l2Genesis := range l1Geneses {
+		genesisBytes, err := json.Marshal(l2Genesis)
+		if err != nil {
+			return fmt.Errorf("marshall l1 genesis config: %w", err)
+		}
+		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l1-genesis-%v.json", l2Genesis.Config.ChainID))
+		err = os.WriteFile(genesisFile, genesisBytes, 0o644)
+		if err != nil {
+			return fmt.Errorf("write l1 genesis config: %w", err)
+		}
+		c.Cannon.L1GenesisPaths = append(c.Cannon.L1GenesisPaths, genesisFile)
+	}
+
 	for _, rollupCfg := range rollupCfgs {
 		rollupBytes, err := json.Marshal(rollupCfg)
 		if err != nil {
@@ -101,9 +114,9 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
-func WithCannonConfig(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+func WithCannonConfig(rollupCfgs []*rollup.Config, l1Geneses, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
 	return func(c *config.Config) error {
-		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+		return applyCannonConfig(c, rollupCfgs, l1Geneses, l2Geneses, prestateVariant)
 	}
 }
 
