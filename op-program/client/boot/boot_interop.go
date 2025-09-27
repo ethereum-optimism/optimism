@@ -39,7 +39,7 @@ type OracleConfigSource struct {
 
 	customConfigsLoaded bool
 
-	l1ChainConfigs map[eth.ChainID]*params.ChainConfig
+	l1ChainConfig  *params.ChainConfig
 	l2ChainConfigs map[eth.ChainID]*params.ChainConfig
 	rollupConfigs  map[eth.ChainID]*rollup.Config
 	depset         depset.DependencySet
@@ -102,14 +102,17 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 }
 
 func (c *OracleConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error) {
-	if cfg, ok := c.l1ChainConfigs[chainID]; ok {
-		return cfg, nil
+	if c.l1ChainConfig != nil {
+		if c.l1ChainConfig.ChainID.Cmp(chainID.ToBig()) != 0 {
+			panic(fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", c.l1ChainConfig.ChainID, chainID))
+		}
+		return c.l1ChainConfig, nil
 	}
 	cfg, err := chainconfig.L1ChainConfigByChainID(chainID)
 	if err != nil {
 		return nil, err
 	}
-	c.l1ChainConfigs[chainID] = cfg
+	c.l1ChainConfig = cfg
 	return cfg, nil
 }
 
@@ -140,14 +143,12 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	c.depset = &depset
 	c.customConfigsLoaded = true
 
-	var l1ChainConfigs []*params.ChainConfig
-	err = json.Unmarshal(c.oracle.Get(L1ChainConfigLocalIndex), &l1ChainConfigs)
+	var l1ChainConfig *params.ChainConfig
+	err = json.Unmarshal(c.oracle.Get(L1ChainConfigLocalIndex), &l1ChainConfig)
 	if err != nil {
 		panic("failed to bootstrap l1 chain configs")
 	}
-	for _, config := range l1ChainConfigs {
-		c.l1ChainConfigs[eth.ChainIDFromBig(config.ChainID)] = config
-	}
+	c.l1ChainConfig = l1ChainConfig
 }
 
 func BootstrapInterop(r oracleClient) *BootInfoInterop {
@@ -161,7 +162,6 @@ func BootstrapInterop(r oracleClient) *BootInfoInterop {
 			oracle:         r,
 			l2ChainConfigs: make(map[eth.ChainID]*params.ChainConfig),
 			rollupConfigs:  make(map[eth.ChainID]*rollup.Config),
-			l1ChainConfigs: make(map[eth.ChainID]*params.ChainConfig),
 		},
 		L1Head:         l1Head,
 		AgreedPrestate: agreedPrestate,
