@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	rollupengine "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum/go-ethereum"
@@ -37,6 +38,7 @@ type SyncTester struct {
 	chainID eth.ChainID
 
 	elReader ReadOnlyELBackend
+	behavior EngineBehavior
 
 	sessMgr *session.SessionManager
 }
@@ -59,17 +61,36 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
 	elReader := NewELReader(elClient)
-	logger.Info("Initialized sync tester from config", "syncTester", stID)
-	return NewSyncTester(logger, m, stID, stCfg.ChainID, elReader), nil
+
+	// Create engine behavior based on configuration
+	engineKind := stCfg.EngineKind
+	if engineKind == "" {
+		engineKind = rollupengine.Geth // Default to Geth if not specified
+	}
+
+	behavior, err := CreateEngineBehavior(engineKind, stCfg.SyncMode, stCfg.NetworkType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create engine behavior: %w", err)
+	}
+
+	logger.Info("Initialized sync tester from config",
+		"syncTester", stID,
+		"engineKind", engineKind,
+		"syncMode", behavior.GetSyncMode(),
+		"networkType", stCfg.NetworkType,
+		"supportsPostFinalizationELSync", behavior.SupportsPostFinalizationELSync())
+
+	return NewSyncTester(logger, m, stID, stCfg.ChainID, elReader, behavior), nil
 }
 
-func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
+func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend, behavior EngineBehavior) *SyncTester {
 	return &SyncTester{
 		log:      logger,
 		m:        m,
 		id:       stID,
 		chainID:  chainID,
 		elReader: elReader,
+		behavior: behavior,
 		sessMgr:  session.NewSessionManager(logger),
 	}
 }
@@ -281,7 +302,13 @@ func (s *SyncTester) getPayload(session *eth.SyncTesterSession, logger log.Logge
 // ForkchoiceUpdatedV1 is called for processing V1 attributes
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV1", "state", state, "attr", attr)
+		logger.Debug("ForkchoiceUpdatedV1", "state", state, "attr", attr, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleForkchoiceUpdate(ctx, session, logger, state, attr, engine.PayloadV1, false, false); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV1, false, false)
 	})
 }
@@ -289,7 +316,13 @@ func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkcho
 // ForkchoiceUpdatedV2 is called for processing V2 attributes
 func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV2", "state", state, "attr", attr)
+		logger.Debug("ForkchoiceUpdatedV2", "state", state, "attr", attr, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleForkchoiceUpdate(ctx, session, logger, state, attr, engine.PayloadV2, true, false); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV2, true, false)
 	})
 }
@@ -297,7 +330,13 @@ func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkcho
 // ForkchoiceUpdatedV3 must be only called with Ecotone attributes
 func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
-		logger.Debug("ForkchoiceUpdatedV3", "state", state, "attr", attr)
+		logger.Debug("ForkchoiceUpdatedV3", "state", state, "attr", attr, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleForkchoiceUpdate(ctx, session, logger, state, attr, engine.PayloadV3, true, true); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true)
 	})
 }
@@ -543,7 +582,13 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 // NewPayloadV1 must be only called with Bedrock Payload
 func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV1", "payload", payload)
+		logger.Debug("NewPayloadV1", "payload", payload, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleNewPayload(ctx, session, logger, payload, nil, nil, nil, false, false); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
 	})
 }
@@ -551,7 +596,13 @@ func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV2 must be only called with Bedrock, Canyon, Delta Payload
 func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV2", "payload", payload)
+		logger.Debug("NewPayloadV2", "payload", payload, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleNewPayload(ctx, session, logger, payload, nil, nil, nil, false, false); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
 	})
 }
@@ -559,7 +610,13 @@ func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV3 must be only called with Ecotone Payload
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV3", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot)
+		logger.Debug("NewPayloadV3", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleNewPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, nil, true, false); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, nil, true, false)
 	})
 }
@@ -567,7 +624,13 @@ func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPay
 // NewPayloadV4 must be only called with Isthmus payload
 func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
-		logger.Debug("NewPayloadV4", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests)
+		logger.Debug("NewPayloadV4", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests, "engine", s.behavior.GetEngineKind())
+
+		// Use engine-specific behavior if available
+		if result, err := s.behavior.HandleNewPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true); result != nil || err != nil {
+			return result, err
+		}
+
 		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true)
 	})
 }
