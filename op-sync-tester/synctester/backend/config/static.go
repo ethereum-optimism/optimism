@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -15,6 +16,17 @@ type SyncTesterEntry struct {
 	// ChainID is used to sanity-check we are connected to the right chain,
 	// and never accidentally try to use a different chain for sync tester work.
 	ChainID eth.ChainID `yaml:"chain_id"`
+
+	// EngineKind specifies which EL implementation to mock (geth, reth, erigon)
+	// This affects behavior around sync modes and engine API responses
+	EngineKind engine.Kind `yaml:"engine_kind,omitempty"`
+
+	// SyncMode specifies the sync mode to simulate (full, snap, etc.)
+	SyncMode string `yaml:"sync_mode,omitempty"`
+
+	// NetworkType specifies the network type (mainnet, sepolia, etc.)
+	// This affects regenesis behavior and other network-specific characteristics
+	NetworkType string `yaml:"network_type,omitempty"`
 }
 
 type Config struct {
