@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"testing"
 
+	rollupengine "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
@@ -97,7 +98,11 @@ func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumber
 }
 
 func initTestSyncTester(t *testing.T, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
-	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), chainID, elReader)
+	// Create a default Geth behavior for testing
+	behavior, err := CreateEngineBehavior(rollupengine.Geth, "full", "sepolia")
+	require.NoError(t, err)
+
+	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), chainID, elReader, behavior)
 	return syncTester
 }
 
