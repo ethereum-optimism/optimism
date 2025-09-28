@@ -122,11 +122,6 @@ func (u *EOA) Transact(opts ...txplan.Option) *txplan.PlannedTx {
 // It is not exposed publicly in DSL: see methods like VerifyBalance instead.
 func (u *EOA) balance() eth.ETH {
 	result, err := retry.Do(u.ctx, 3, retry.Exponential(), func() (*big.Int, error) {
-		// Add additional check to ensure the EL node is ready before making balance requests
-		_, err := u.el.stackEL().EthClient().InfoByLabel(u.ctx, eth.Unsafe)
-		if err != nil {
-			return nil, err
-		}
 		return u.el.stackEL().EthClient().BalanceAt(u.ctx, u.Address(), nil)
 	})
 	u.t.Require().NoError(err, "must lookup balance")
