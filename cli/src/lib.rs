@@ -40,7 +40,7 @@ use reth_rpc_server_types::{DefaultRpcModuleValidator, RpcModuleValidator};
 use std::{ffi::OsString, fmt, marker::PhantomData, sync::Arc};
 
 use chainspec::OpChainSpecParser;
-use clap::{command, Parser};
+use clap::Parser;
 use commands::Commands;
 use futures_util::Future;
 use reth_cli::chainspec::ChainSpecParser;
