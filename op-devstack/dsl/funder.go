@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"sync"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -61,8 +60,6 @@ func (f *Funder) Fund(wallet *EOA, amount eth.ETH) eth.ETH {
 }
 
 func (f *Funder) FundNoWait(wallet *EOA, amount eth.ETH) {
-	// Add a small delay to ensure faucet is ready
-	time.Sleep(100 * time.Millisecond)
 	f.faucet.Fund(wallet.Address(), amount)
 }
 
