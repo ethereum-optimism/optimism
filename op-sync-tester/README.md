@@ -18,6 +18,44 @@ synctesters:
   sepolia:
     chain_id: 11155420
     el_rpc:  https://sepolia.optimism.io
+    engine_kind: geth  # Optional: geth, reth, or erigon (defaults to geth)
+    sync_mode: full    # Optional: full, snap, etc. (defaults to network-specific)
+    network_type: sepolia  # Optional: mainnet, sepolia, goerli, etc.
+```
+
+### Engine Implementation Mocking
+
+op-sync-tester now supports mocking different EL (Execution Layer) implementations to test L2CL (L2 Consensus Layer) behavior with various engine types:
+
+- **Geth**: Conservative sync approach, does not support post-finalization EL sync
+- **Reth**: Aggressive sync with better performance, supports post-finalization EL sync
+- **Erigon**: Optimized for archival data, supports post-finalization EL sync
+
+Each engine implementation can be configured with different sync modes and network characteristics to simulate real-world scenarios.
+
+Example with multiple engine types:
+```yaml
+synctesters:
+  sepolia-geth:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    engine_kind: geth
+    sync_mode: full
+    network_type: sepolia
+
+  sepolia-reth:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    engine_kind: reth
+    sync_mode: snap
+    network_type: sepolia
+
+  mainnet-with-regenesis:
+    chain_id: 10
+    el_rpc: https://mainnet.optimism.io
+    engine_kind: erigon
+    sync_mode: full
+    network_type: mainnet  # Supports regenesis
 ```
 
 Run the service:
