@@ -66,7 +66,7 @@ func (el *elNode) WaitForOnline() {
 		}
 		el.log.Info("EL node is online")
 		return true
-	}, 30*time.Second, 1*time.Second, "Expected to be online")
+	}, 10*time.Second, 1*time.Second, "Expected to be online")
 }
 
 func (el *elNode) IsCanonical(ref eth.BlockID) bool {
