@@ -90,6 +90,12 @@ func (o *mockPreinteropBootstrapOracle) Get(key preimage.Key) []byte {
 		}
 		b, _ := json.Marshal(o.b.L2ChainConfig)
 		return b
+	case L1ChainConfigLocalIndex.PreimageKey():
+		if !o.custom {
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
+		}
+		b, _ := json.Marshal(o.b.L1ChainConfig)
+		return b
 	case RollupConfigLocalIndex.PreimageKey():
 		if !o.custom {
 			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
