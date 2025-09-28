@@ -1,0 +1,41 @@
+# Example configuration for op-sync-tester with different EL implementations
+synctesters:
+  # Geth implementation with full sync mode
+  sepolia-geth:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    engine_kind: geth
+    sync_mode: full
+    network_type: sepolia
+
+  # Reth implementation with snap sync mode
+  sepolia-reth:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    engine_kind: reth
+    sync_mode: snap
+    network_type: sepolia
+
+  # Erigon implementation with full sync mode
+  sepolia-erigon:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    engine_kind: erigon
+    sync_mode: full
+    network_type: sepolia
+
+  # Mainnet with regenesis support
+  mainnet-geth:
+    chain_id: 10
+    el_rpc: https://mainnet.optimism.io
+    engine_kind: geth
+    sync_mode: full
+    network_type: mainnet
+
+  # Default configuration (will use Geth as default)
+  default:
+    chain_id: 11155420
+    el_rpc: https://sepolia.optimism.io
+    # engine_kind defaults to geth
+    # sync_mode defaults to network-specific default
+    # network_type defaults to empty (uses default characteristics)
