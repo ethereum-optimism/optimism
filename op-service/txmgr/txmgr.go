@@ -365,7 +365,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
 		// Use configuration to determine whether to enable cell proofs
-		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, m.cfg.EnableCellProofs); err != nil {
+		useCellProofs := m.cfg.CellProofTime < uint64(time.Now().Unix())
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, useCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}
