@@ -27,7 +27,7 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		return nil, errors.New("l1 genesis path is not defined")
 	}
 	if len(cfg.L2s) != 1 || len(cfg.RollupConfigPaths) > 1 || len(cfg.Networks) > 1 {
-		return nil, errors.New("multiple L2s/L1s specified but only one supported")
+		return nil, errors.New("multiple L2s specified but only one supported")
 	}
 	args := []string{
 		cfg.Server,
