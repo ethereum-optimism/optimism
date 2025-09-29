@@ -482,6 +482,10 @@ func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
 }
 
+func (sys *System) L2Geneses() []*core.Genesis {
+	return []*core.Genesis{sys.L2GenesisCfg}
+}
+
 func (sys *System) AllocType() config.AllocType {
 	return sys.Cfg.AllocType
 }
