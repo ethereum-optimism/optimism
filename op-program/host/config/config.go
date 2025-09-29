@@ -309,11 +309,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		}
 		rollupCfgs = append(rollupCfgs, rollupCfg)
 
-		l1ChainID := eth.ChainIDFromBig(rollupCfg.L1ChainID)
-		l1ChainConfig, err = chainconfig.L1ChainConfigByChainID(l1ChainID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", chainID, err)
-		}
+		// L1 chain config resolution deferred until after all rollup configs are loaded
 
 		if interopEnabled {
 			depSet, err := depset.FromRegistry(chainID)
@@ -345,10 +341,40 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		rollupCfgs = append(rollupCfgs, rollupCfg)
 	}
 
-	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
-	l1ChainConfig, err = loadChainConfigFromGenesis(l1ChainConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("invalid l1 chain config: %w", err)
+	// Resolve L1 chain config akin to op-node's NewL1ChainConfig
+	if len(rollupCfgs) == 0 {
+		return nil, fmt.Errorf("no rollup configs provided to resolve L1 chain config")
+	}
+	l1ChainIDBig := rollupCfgs[0].L1ChainID
+	switch {
+	case l1ChainIDBig.Cmp(params.MainnetChainConfig.ChainID) == 0:
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			log.Warn("L1 chain config is set, but it is not necessary for mainnet")
+		}
+		l1ChainConfig = params.MainnetChainConfig
+	case l1ChainIDBig.Cmp(params.SepoliaChainConfig.ChainID) == 0:
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			log.Warn("L1 chain config is set, but it is not necessary for sepolia")
+		}
+		l1ChainConfig = params.SepoliaChainConfig
+	default:
+		if ctx.IsSet(flags.L1ChainConfig.Name) {
+			cf, err := loadL1ChainConfigFromFile(ctx.String(flags.L1ChainConfig.Name))
+			if err != nil {
+				return nil, fmt.Errorf("invalid l1 chain config: %w", err)
+			}
+			l1ChainConfig = cf
+		} else {
+			// Fallback to program-embedded lookup
+			lc, err := chainconfig.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
+			if err != nil {
+				return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", eth.EvilChainIDToUInt64(eth.ChainIDFromBig(l1ChainIDBig)), err)
+			}
+			l1ChainConfig = lc
+		}
+	}
+	if l1ChainConfig == nil || l1ChainConfig.BlobScheduleConfig == nil {
+		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
 	}
 
 	if ctx.Bool(flags.L2Custom.Name) {
@@ -408,6 +434,25 @@ func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
 		return nil, fmt.Errorf("parse genesis file: %w", err)
 	}
 	return cfg, nil
+}
+
+// loadL1ChainConfigFromFile attempts to decode a file as a params.ChainConfig directly,
+// and if that fails, it attempts to load the config from the .config field (genesis.json format).
+func loadL1ChainConfigFromFile(path string) (*params.ChainConfig, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
+	}
+	defer file.Close()
+
+	var chainConfig params.ChainConfig
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&chainConfig); err == nil {
+		return &chainConfig, nil
+	}
+
+	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](path, "config")
 }
 
 func loadRollupConfig(rollupConfigPath string) (*rollup.Config, error) {

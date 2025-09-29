@@ -160,6 +160,7 @@ var programFlags = []cli.Flag{
 	L2AgreedPrestate,
 	L2Custom,
 	RollupConfig,
+	L1ChainConfig,
 	Network,
 	DataDir,
 	DataFormat,
