@@ -41,11 +41,11 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 	}
 
 	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
-	e.TryUpdateUnsafe(ctx, ev.Ref)
+	eq.tryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		e.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
-		e.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.tryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.tryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
 	// Now if possible synchronously call FCU
 	err := e.tryUpdateEngine(ctx)

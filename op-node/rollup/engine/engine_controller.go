@@ -206,6 +206,12 @@ func (e *EngineController) requestForkchoiceUpdate(ctx context.Context) {
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.isEngineSyncing()
+}
+
+func (e *EngineController) isEngineSyncing() bool {
 	return e.syncStatus == syncStatusWillStartEL ||
 		e.syncStatus == syncStatusStartedEL ||
 		e.syncStatus == syncStatusFinishedELButNotFinalized
@@ -404,7 +410,7 @@ func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
 	if !e.needFCUCall {
 		return ErrNoFCUNeeded
 	}
-	if e.IsEngineSyncing() {
+	if e.isEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
 	}
 	if err := e.initializeUnknowns(ctx); err != nil {
@@ -448,6 +454,12 @@ func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
 }
 
 func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.insertUnsafePayload(ctx, envelope, ref)
+}
+
+func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
@@ -556,7 +568,7 @@ func (e *EngineController) shouldTryBackupUnsafeReorg() bool {
 		return false
 	}
 	// This method must be never called when EL sync. If EL sync is in progress, early return.
-	if e.IsEngineSyncing() {
+	if e.isEngineSyncing() {
 		e.log.Warn("Attempting to unsafe reorg using backupUnsafe while EL syncing")
 		return false
 	}
@@ -568,9 +580,15 @@ func (e *EngineController) shouldTryBackupUnsafeReorg() bool {
 	return true
 }
 
-// TryBackupUnsafeReorg attempts to reorg(restore) unsafe head to backupUnsafeHead.
-// If succeeds, update current forkchoice state to the rollup node.
 func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.tryBackupUnsafeReorg(ctx)
+}
+
+// tryBackupUnsafeReorg attempts to reorg(restore) unsafe head to backupUnsafeHead.
+// If succeeds, update current forkchoice state to the rollup node.
+func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, error) {
 	if !e.shouldTryBackupUnsafeReorg() {
 		// Do not need to perform FCU.
 		return false, nil
@@ -693,15 +711,24 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-func (e *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
-	e.emitter.Emit(ctx, PendingSafeUpdateEvent{
-		PendingSafe: e.pendingSafeHead,
-		Unsafe:      e.unsafeHead,
+func (d *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.emitter.Emit(ctx, PendingSafeUpdateEvent{
+		PendingSafe: d.PendingSafeL2Head(),
+		Unsafe:      d.UnsafeL2Head(),
 	})
 }
 
-// TryUpdatePendingSafe updates the pending safe head if the new reference is newer
+// TryUpdatePendingSafe updates the pending safe head if the new reference is newer, acquiring lock
 func (e *EngineController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.tryUpdatePendingSafe(ctx, ref, concluding, source)
+}
+
+// tryUpdatePendingSafe updates the pending safe head if the new reference is newer
+func (e *EngineController) tryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 	// Only promote if not already stale.
 	// Resets/overwrites happen through engine-resets, not through promotion.
 	if ref.Number > e.pendingSafeHead.Number {
@@ -714,8 +741,15 @@ func (e *EngineController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2B
 	}
 }
 
-// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
+// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding, acquiring lock
 func (e *EngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.tryUpdateLocalSafe(ctx, ref, concluding, source)
+}
+
+// tryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
+func (e *EngineController) tryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 	if concluding && ref.Number > e.localSafeHead.Number {
 		// Promote to local safe
 		e.log.Debug("Updating local safe", "local_safe", ref, "safe", e.safeHead, "unsafe", e.unsafeHead)
@@ -725,7 +759,7 @@ func (e *EngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2Blo
 }
 
 // TryUpdateUnsafe updates the unsafe head and backs up the previous one if needed
-func (e *EngineController) TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockRef) {
+func (e *EngineController) tryUpdateUnsafe(ctx context.Context, ref eth.L2BlockRef) {
 	// Backup unsafeHead when new block is not built on original unsafe head.
 	if e.unsafeHead.Number >= ref.Number {
 		e.SetBackupUnsafeL2Head(e.unsafeHead, false)
@@ -750,6 +784,12 @@ func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, 
 }
 
 func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.promoteFinalized(ctx, ref)
+}
+func (e *EngineController) promoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
+
 	if ref.Number < e.finalizedHead.Number {
 		e.log.Error("Cannot rewind finality,", "ref", ref, "finalized", e.finalizedHead)
 		return
