@@ -1097,6 +1097,160 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         prestateUpdater = opcm;
     }
 
+    /// @notice Tests that we can update the prestate for both CANNON and CANNON_KONA game types.
+    function test_updatePrestate_bothGamesWithValidInput_succeeds() public {
+        // Add a FaultDisputeGame implementation via addGameType.
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
+        addGameType(input);
+        input = newGameInputFactory(GameTypes.CANNON_KONA);
+        addGameType(input);
+
+        // Create the input for the function call.
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
+        IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
+        inputs[0] = IOPContractsManager.UpdatePrestateInput(
+            chainDeployOutput1.systemConfigProxy,
+            chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate,
+            cannonKonaPrestate
+        );
+
+        // Turn the ProxyAdmin owner into a DelegateCaller.
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Trigger the updatePrestate function.
+        DelegateCaller(proxyAdminOwner).dcForward(
+            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
+        );
+
+        // Grab the PermissionedDisputeGame.
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.PERMISSIONED_CANNON
+                )
+            )
+        );
+
+        // Grab the FaultDisputeGame.
+        IFaultDisputeGame cannonGame = IFaultDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.CANNON
+                )
+            )
+        );
+
+        // Grab the FaultDisputeGame.
+        IFaultDisputeGame cannonKonaGame = IFaultDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.CANNON_KONA
+                )
+            )
+        );
+
+        // Check the prestate values.
+        assertEq(pdg.absolutePrestate().raw(), cannonPrestate.raw(), "permissioned prestate mismatch");
+        assertEq(cannonGame.absolutePrestate().raw(), cannonPrestate.raw(), "cannon prestate mismatch");
+        assertEq(cannonKonaGame.absolutePrestate().raw(), cannonKonaPrestate.raw(), "cannon-kona prestate mismatch");
+
+        // Ensure that the WETH contracts are not reverting
+        cannonGame.weth().balanceOf(address(0));
+        cannonKonaGame.weth().balanceOf(address(0));
+
+        // Ensure that the WETH contract is not reverting.
+        pdg.weth().balanceOf(address(0));
+    }
+
+    function test_updatePrestate_withSuperGame_succeeds() public {
+        // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
+        // SuperPermissionedDisputeGame implementation.
+        vm.mockCall(
+            address(chainDeployOutput1.disputeGameFactoryProxy),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(chainDeployOutput1.permissionedDisputeGame)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IDisputeGame.gameType, ()),
+            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+        );
+
+        // Add a SuperPermissionedDisputeGame implementation via addGameType.
+        IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
+        addGameType(input1);
+        vm.clearMockedCalls();
+
+        // Add a SuperFaultDisputeGame implementation via addGameType.
+        IOPContractsManager.AddGameInput memory input2 = newGameInputFactory(GameTypes.SUPER_CANNON);
+        addGameType(input2);
+        IOPContractsManager.AddGameInput memory input3 = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
+        addGameType(input3);
+
+        // Clear out the PermissionedDisputeGame implementation.
+        address owner = chainDeployOutput1.disputeGameFactoryProxy.owner();
+        vm.prank(owner);
+        chainDeployOutput1.disputeGameFactoryProxy.setImplementation(
+            GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0)))
+        );
+
+        // Create the input for the function call.
+        Claim cannonPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ABBA"));
+        IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
+        inputs[0] = IOPContractsManager.UpdatePrestateInput({
+            systemConfigProxy: chainDeployOutput1.systemConfigProxy,
+            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate: cannonPrestate,
+            cannonKonaPrestate: cannonKonaPrestate
+        });
+
+        // Turn the ProxyAdmin owner into a DelegateCaller.
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Trigger the updatePrestate function.
+        DelegateCaller(proxyAdminOwner).dcForward(
+            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
+        );
+
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.SUPER_PERMISSIONED_CANNON
+                )
+            )
+        );
+
+        IFaultDisputeGame fdg = IFaultDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.SUPER_CANNON
+                )
+            )
+        );
+        IFaultDisputeGame fdgKona = IFaultDisputeGame(
+            address(
+                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
+                    GameTypes.SUPER_CANNON_KONA
+                )
+            )
+        );
+
+        // Check the prestate values.
+        assertEq(pdg.absolutePrestate().raw(), cannonPrestate.raw(), "pdg prestate mismatch");
+        assertEq(fdg.absolutePrestate().raw(), cannonPrestate.raw(), "fdg prestate mismatch");
+        assertEq(fdgKona.absolutePrestate().raw(), cannonKonaPrestate.raw(), "fdgKona prestate mismatch");
+
+        // Ensure that the WETH contracts are not reverting
+        pdg.weth().balanceOf(address(0));
+        fdg.weth().balanceOf(address(0));
+        fdgKona.weth().balanceOf(address(0));
+    }
+
     function test_updatePrestate_pdgAndCannonKonaOnly_succeeds() public {
         // Add a FaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
@@ -1167,6 +1321,32 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
 
         // Trigger the updatePrestate function, should revert.
         vm.expectRevert(IOPContractsManagerGameTypeAdder.OPContractsManagerGameTypeAdder_MixedGameTypes.selector);
+        DelegateCaller(proxyAdminOwner).dcForward(
+            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
+        );
+    }
+
+    /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
+    ///         zero hash.
+    function test_updatePrestate_whenCannonPrestateIsZero_reverts() public {
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
+        addGameType(input);
+
+        // Create the input for the function call.
+        IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
+        inputs[0] = IOPContractsManager.UpdatePrestateInput({
+            systemConfigProxy: chainDeployOutput1.systemConfigProxy,
+            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
+            cannonPrestate: Claim.wrap(bytes32(0)),
+            cannonKonaPrestate: Claim.wrap(bytes32(hex"ABBA"))
+        });
+
+        // Turn the ProxyAdmin owner into a DelegateCaller.
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Trigger the updatePrestate function, should revert.
+        vm.expectRevert(IOPContractsManager.PrestateRequired.selector);
         DelegateCaller(proxyAdminOwner).dcForward(
             address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
         );
