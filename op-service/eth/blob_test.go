@@ -304,10 +304,10 @@ func TestCalcBlobFeeDefault(t *testing.T) {
 	header := &types.Header{
 		ExcessBlobGas: ptr(uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction)),
 	}
-	cancunBlobFee := CalcBlobFeeDefault(header)
+	cancunBlobFee := calcBlobFeeDefault(header)
 	require.Equal(t, big.NewInt(485165195), cancunBlobFee)
 
 	header.RequestsHash = &(common.Hash{})
-	pragueBlobFee := CalcBlobFeeDefault(header)
+	pragueBlobFee := calcBlobFeeDefault(header)
 	require.Equal(t, big.NewInt(617436), pragueBlobFee)
 }

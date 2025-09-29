@@ -290,8 +290,8 @@ func (b *Blob) Clear() {
 // This is to deal in a best-effort way with situations where the chain config is not
 // available, but it can be assumed that per the definition of the Prague fork that
 // Prague is active iff the requests hash field is present.
-// TODO: DEPRECATED
-func CalcBlobFeeDefault(header *types.Header) *big.Int {
+// WARN: DEPRECATED
+func calcBlobFeeDefault(header *types.Header) *big.Int {
 	// We make the assumption that eip4844.CalcBlobFee only needs
 	// - London and Cancun to be active
 	// - the Prague time to be set relative to the header time
@@ -313,7 +313,7 @@ func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	cancunHeader := &types.Header{
 		ExcessBlobGas: &excessBlobGas,
 	}
-	return CalcBlobFeeDefault(cancunHeader)
+	return calcBlobFeeDefault(cancunHeader)
 }
 
 func ptr[T any](t T) *T { return &t }
