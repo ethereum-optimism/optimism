@@ -404,9 +404,7 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	return nil
 }
 
-// tryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
-// this is a no-op if the nodes already agree on the forkchoice state.
-func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
+func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if !e.needFCUCall {
 		return ErrNoFCUNeeded
 	}
@@ -451,6 +449,24 @@ func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
 	}
 	e.needFCUCall = false
 	return nil
+}
+
+// tryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
+// this is a no-op if the nodes already agree on the forkchoice state.
+func (e *EngineController) tryUpdateEngine(ctx context.Context) {
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := e.tryUpdateEngineInternal(e.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
+		if errors.Is(err, derive.ErrReset) {
+			e.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected tryUpdateEngine error type: %w", err),
+			})
+		}
+	}
 }
 
 func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
@@ -643,24 +659,14 @@ func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, erro
 }
 
 func (e *EngineController) TryUpdateEngine(ctx context.Context) {
-	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := e.tryUpdateEngine(e.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
-		if errors.Is(err, derive.ErrReset) {
-			e.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-		} else if errors.Is(err, derive.ErrTemporary) {
-			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-		} else {
-			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-				Err: fmt.Errorf("unexpected tryUpdateEngine error type: %w", err),
-			})
-		}
-	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.tryUpdateEngine(ctx)
 }
 
 // TODO(#16917) Remove Event System Refactor Comments
 // OnEvent implements event.Deriver (moved from EngDeriver)
-// TryUpdateEngineEvent is replaced with TryUpdateEngine
+// TryUpdateEngineEvent is replaced with tryUpdateEngine
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -674,7 +680,7 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 			e.emitter.Emit(ctx, PromoteCrossUnsafeEvent(x))
 		}
 		// Try to apply the forkchoice changes
-		e.TryUpdateEngine(ctx)
+		e.tryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
 		e.SetCrossUnsafeHead(x.Ref)
 		e.onUnsafeUpdate(ctx, x.Ref, e.unsafeHead)
@@ -780,7 +786,7 @@ func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, 
 		e.onUnsafeUpdate(ctx, ref, e.unsafeHead)
 	}
 	// Try to apply the forkchoice changes
-	e.TryUpdateEngine(ctx)
+	e.tryUpdateEngine(ctx)
 }
 
 func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
@@ -801,7 +807,7 @@ func (e *EngineController) promoteFinalized(ctx context.Context, ref eth.L2Block
 	e.SetFinalizedHead(ref)
 	e.emitter.Emit(ctx, FinalizedUpdateEvent{Ref: ref})
 	// Try to apply the forkchoice changes
-	e.TryUpdateEngine(ctx)
+	e.tryUpdateEngine(ctx)
 }
 
 // SetAttributesResetter sets the attributes component that needs force reset notifications
@@ -840,7 +846,7 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUns
 	}
 
 	// Time to apply the changes to the underlying engine
-	e.TryUpdateEngine(ctx)
+	e.tryUpdateEngine(ctx)
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.unsafeHead,
