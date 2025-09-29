@@ -206,10 +206,10 @@ contract L1ChugSplashProxy_GetImplementation_Test is L1ChugSplashProxy_TestInit 
     }
 }
 
-/// @title L1ChugSplashProxy_Unclassified_Test
+/// @title L1ChugSplashProxy_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `L1ChugSplashProxy`
 ///         contract or are testing multiple functions at once.
-contract L1ChugSplashProxy_Unclassified_Test is L1ChugSplashProxy_TestInit {
+contract L1ChugSplashProxy_Uncategorized_Test is L1ChugSplashProxy_TestInit {
     /// @notice Tests that when the caller is not the owner and the implementation is not set, all
     ///         calls reverts.
     function test_calls_whenNotOwnerNoImplementation_reverts() public {
