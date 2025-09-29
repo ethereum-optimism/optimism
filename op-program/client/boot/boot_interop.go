@@ -147,7 +147,7 @@ func (c *OracleConfigSource) loadCustomConfigs() {
 	var l1ChainConfig *params.ChainConfig
 	err = json.Unmarshal(c.oracle.Get(L1ChainConfigLocalIndex), &l1ChainConfig)
 	if err != nil {
-		panic("failed to bootstrap l1 chain configs")
+		panic("failed to bootstrap l1 chain configs: " + fmt.Sprintf("%v", err))
 	}
 	c.l1ChainConfig = l1ChainConfig
 }

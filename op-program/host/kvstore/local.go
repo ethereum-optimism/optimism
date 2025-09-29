@@ -69,9 +69,9 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 			return nil, ErrNotFound
 		}
 		if s.config.InteropEnabled {
-			return json.Marshal(s.config.L1ChainConfigs)
+			return json.Marshal(s.config.L1ChainConfigs[0])
 		}
-		return json.Marshal(s.config.L1ChainConfigs[0])
+		return json.Marshal(s.config.L1ChainConfigs)
 	default:
 		return nil, ErrNotFound
 	}
