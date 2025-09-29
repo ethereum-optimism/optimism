@@ -111,6 +111,8 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
+		orch.writeDefaultJWT()
+
 		elLogger := elP.Logger()
 		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
@@ -118,7 +120,9 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 			l1Net.genesis,
 			l1Clock,
 			filepath.Join(blobPath, "l1_el"),
-			bcn)
+			bcn,
+			geth.WithAuth(orch.jwtPath),
+		)
 		require.NoError(err)
 		require.NoError(l1Geth.Node.Start())
 		elP.Cleanup(func() {

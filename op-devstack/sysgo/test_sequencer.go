@@ -81,6 +81,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 
 		logger := p.Logger()
 
+		orch.writeDefaultJWT()
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
 		l1ELClient, err := ethclient.DialContext(p.Ctx(), l1EL.UserRPC())

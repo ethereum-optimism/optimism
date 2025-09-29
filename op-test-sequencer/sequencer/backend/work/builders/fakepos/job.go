@@ -67,7 +67,7 @@ func (j *Job) setHeadSafeAndFinalized() {
 		panic("chain head not found")
 	}
 	if j.parent != (common.Hash{}) {
-		j.head, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(j.head.Number.Uint64()-1)) // override head if parent is set
+		j.head, err = j.b.blockchain.HeaderByHash(context.Background(), j.parent) // override head if parent is set
 		if err != nil {
 			panic("chain head's parent not found")
 		}

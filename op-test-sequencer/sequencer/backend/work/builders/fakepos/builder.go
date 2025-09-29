@@ -18,13 +18,21 @@ type Beacon interface {
 	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error
 }
 
+type Blockchain interface {
+	// All methods are assumed to have identical behavior to the corresponding methods on
+	// go-ethereum/ethclient.Client.
+
+	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
+	HeaderByHash(context.Context, common.Hash) (*types.Header, error)
+}
+
 type Builder struct {
 	id  seqtypes.BuilderID
 	log log.Logger
 
 	engine     geth.EngineAPI
 	beacon     Beacon
-	blockchain geth.Backend
+	blockchain Blockchain
 	genesis    *types.Header
 	config     types.BlockType
 

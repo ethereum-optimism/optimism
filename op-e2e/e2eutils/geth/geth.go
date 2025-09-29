@@ -74,6 +74,15 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 	return gethInstance, fakepos, nil
 }
 
+func WithAuth(jwtPath string) GethOption {
+	return func(_ *ethconfig.Config, nodeCfg *node.Config) error {
+		nodeCfg.AuthAddr = "127.0.0.1"
+		nodeCfg.AuthPort = 0
+		nodeCfg.JWTSecret = jwtPath
+		return nil
+	}
+}
+
 type gethBackend struct {
 	chain *core.BlockChain
 }
@@ -142,7 +151,8 @@ func InitL2(name string, genesis *core.Genesis, jwtPath string, opts ...GethOpti
 
 // createGethNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
-// If the node is l2, catalyst is enabled.
+// Catalyst is always enabled. If the node is an L1, the catalyst API can be used by alternative
+// sequencers (e.g., op-test-sequencer) if the default FakePoS is stopped.
 // The node should be started and then closed when done.
 func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opts ...GethOption) (*GethInstance, error) {
 	for i, opt := range opts {
@@ -171,12 +181,9 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, opt
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
-	// Enable catalyst if l2
-	if l2 {
-		if err := catalyst.Register(n, backend); err != nil {
-			n.Close()
-			return nil, err
-		}
+	if err := catalyst.Register(n, backend); err != nil {
+		n.Close()
+		return nil, err
 	}
 	return &GethInstance{
 		Backend: backend,

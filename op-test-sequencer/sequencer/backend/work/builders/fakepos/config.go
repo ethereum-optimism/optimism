@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	ChainConfig       types.BlockType
-	Backend           geth.Backend
+	Backend           Blockchain
 	EngineAPI         geth.EngineAPI
 	Beacon            Beacon
 	FinalizedDistance uint64
