@@ -3,6 +3,7 @@ package boot
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -59,7 +60,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		l1ChainConfig = new(params.ChainConfig)
 		err = json.Unmarshal(br.r.Get(L1ChainConfigLocalIndex), l1ChainConfig)
 		if err != nil {
-			panic("failed to bootstrap l1ChainConfig")
+			panic("failed to bootstrap l1ChainConfig: " + fmt.Sprintf("%v", err))
 		}
 	} else {
 		var err error

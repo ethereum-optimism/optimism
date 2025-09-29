@@ -52,7 +52,9 @@ var (
 type Config struct {
 	L2ChainID eth.ChainID
 	Rollups   []*rollup.Config
-	// L1ChainConfigs are the op-geth chain config for the L1 execution engine
+	// L1ChainConfigs are the geth chain configs for the L1 execution engine
+	// For interop, we only have one l1 chain config
+	// since all L2 chains must have the same l1 chain config
 	L1ChainConfigs []*params.ChainConfig
 	// DataDir is the directory to read/write pre-image data from/to.
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
