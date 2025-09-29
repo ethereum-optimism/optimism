@@ -210,15 +210,15 @@ func NewOpProgramCfg(
 	fi *FixtureInputs,
 ) *config.Config {
 	var rollupConfigs []*rollup.Config
-	var l1chainConfigs []*params.ChainConfig
+	var l1chainConfig *params.ChainConfig
 	var l2chainConfigs []*params.ChainConfig
 	for _, source := range fi.L2Sources {
-		l1chainConfigs = append(l1chainConfigs, source.Node.L1ChainConfig)
+		l1chainConfig = source.Node.L1ChainConfig
 		rollupConfigs = append(rollupConfigs, source.Node.RollupCfg)
 		l2chainConfigs = append(l2chainConfigs, source.ChainConfig)
 	}
 
-	dfault := config.NewConfig(rollupConfigs, l1chainConfigs, l2chainConfigs, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
+	dfault := config.NewConfig(rollupConfigs, l1chainConfig, l2chainConfigs, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 	dfault.L2ChainID = boot.CustomChainIDIndicator
 	if fi.InteropEnabled {
 		dfault.AgreedPrestate = fi.AgreedPrestate
