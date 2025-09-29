@@ -7,6 +7,7 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
@@ -94,6 +95,9 @@ contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
+
+        // Skip V1 tests when V2 dispute games are enabled to avoid game type conflicts
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         // Get the actual anchor roots
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
