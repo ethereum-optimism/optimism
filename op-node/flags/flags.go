@@ -307,7 +307,7 @@ var (
 	}
 	L1ChainConfig = &cli.StringFlag{
 		Name:     "rollup.l1-chain-config",
-		Usage:    "JSON encoded chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary if using network flags.",
+		Usage:    "JSON encoded chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary if using Ethereum mainnet or Sepolia as an L1.",
 		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
 		Category: RollupCategory,
 	}

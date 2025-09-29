@@ -124,7 +124,7 @@ func (cfg *Config) Check() error {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
 	if cfg.L1ChainConfig == nil {
-		return fmt.Errorf(" missing L1ChainConfig")
+		return fmt.Errorf("missing L1ChainConfig")
 	}
 	if cfg.Rollup.EcotoneTime != nil {
 		if cfg.Beacon == nil {
