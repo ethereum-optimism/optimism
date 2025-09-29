@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -25,6 +26,10 @@ func (m *MockEngine) ExpectGetPayload(payloadId eth.PayloadID, payload *eth.Exec
 func (m *MockEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	out := m.Mock.Called(mustJson(state), mustJson(attr))
 	return out.Get(0).(*eth.ForkchoiceUpdatedResult), out.Error(1)
+}
+
+func (m *MockEngine) ExpectForkchoiceUpdateAny(result *eth.ForkchoiceUpdatedResult, err error) {
+	m.Mock.On("ForkchoiceUpdate", mock.Anything, mock.Anything).Once().Return(result, err)
 }
 
 func (m *MockEngine) ExpectForkchoiceUpdate(state *eth.ForkchoiceState, attr *eth.PayloadAttributes, result *eth.ForkchoiceUpdatedResult, err error) {

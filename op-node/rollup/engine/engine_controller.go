@@ -191,20 +191,24 @@ func (e *EngineController) BackupUnsafeL2Head() eth.L2BlockRef {
 }
 
 func (e *EngineController) RequestForkchoiceUpdate(ctx context.Context) {
-	e.mu.RLock()
-	unsafe := e.unsafeHead
-	safe := e.safeHead
-	finalized := e.finalizedHead
-	e.mu.RUnlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.requestForkchoiceUpdate(ctx)
+}
+
+func (e *EngineController) requestForkchoiceUpdate(ctx context.Context) {
 	e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-		UnsafeL2Head:    unsafe,
-		SafeL2Head:      safe,
-		FinalizedL2Head: finalized,
+		UnsafeL2Head:    e.unsafeHead,
+		SafeL2Head:      e.safeHead,
+		FinalizedL2Head: e.finalizedHead,
 	})
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
-	return e.syncStatus == syncStatusWillStartEL || e.syncStatus == syncStatusStartedEL || e.syncStatus == syncStatusFinishedELButNotFinalized
+	return e.syncStatus == syncStatusWillStartEL ||
+		e.syncStatus == syncStatusStartedEL ||
+		e.syncStatus == syncStatusFinishedELButNotFinalized
 }
 
 // SetFinalizedHead implements LocalEngineControl.
@@ -940,5 +944,5 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 	e.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
 
 	// request forkchoice update directly so we can process the payload
-	e.RequestForkchoiceUpdate(ctx)
+	e.requestForkchoiceUpdate(ctx)
 }
