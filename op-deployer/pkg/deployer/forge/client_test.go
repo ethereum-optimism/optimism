@@ -45,7 +45,7 @@ func TestMinimalSources(t *testing.T) {
 	caller := NewScriptCaller(
 		cl,
 		"script/Test.s.sol:TestScript",
-		"runEncoded(bytes)",
+		"runWithBytes(bytes)",
 		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
 		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
 	)
@@ -100,7 +100,7 @@ func TestScriptCaller(t *testing.T) {
 	caller := NewScriptCaller(
 		cl,
 		"script/Test.s.sol:TestScript",
-		"runEncoded(bytes)",
+		"runWithBytes(bytes)",
 		&BytesScriptEncoder[ioStruct]{TypeName: "ioStruct"},
 		&BytesScriptDecoder[ioStruct]{TypeName: "ioStruct"},
 	)

@@ -69,10 +69,6 @@ type EngineController interface {
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }
 
-type CLSync interface {
-	LowestQueuedUnsafeBlock() eth.L2BlockRef
-}
-
 type AttributesHandler interface {
 	// HasAttributes returns if there are any block attributes to process.
 	// HasAttributes is for EngineQueue testing only, and can be removed when attribute processing is fully independent.

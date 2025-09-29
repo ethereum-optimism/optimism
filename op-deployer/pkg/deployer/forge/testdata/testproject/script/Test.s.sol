@@ -20,7 +20,7 @@ contract TestScript {
         return Output({ id: 0x02, data: _input.data, slice: _input.slice, array: _input.array });
     }
 
-    function runEncoded(bytes memory _input) public pure returns (bytes memory) {
+    function runWithBytes(bytes memory _input) public pure returns (bytes memory) {
         Input memory input = abi.decode(_input, (Input));
         Output memory output = _run(input);
         return abi.encode(output);

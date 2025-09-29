@@ -285,6 +285,8 @@ func newMockBackendWithConfirmationDelay(g *gasPricer, wg *sync.WaitGroup) *mock
 	b.g = g
 
 	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		b.mu.Lock()
+		defer b.mu.Unlock()
 		_, exists := b.cachedTxs[tx.Hash()]
 		if !exists {
 			b.cachedTxs[tx.Hash()] = tx

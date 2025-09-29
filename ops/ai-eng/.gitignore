@@ -1,0 +1,32 @@
+# AI Engineering project ignores
+
+# Output directories
+*/output/
+output/
+
+# Log file
+contracts-test-maintenance/log.jsonl
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db

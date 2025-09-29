@@ -67,14 +67,6 @@ func (eq *CLSync) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 	return ref
 }
 
-type ReceivedUnsafePayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
-
-func (ev ReceivedUnsafePayloadEvent) String() string {
-	return "received-unsafe-payload"
-}
-
 func (eq *CLSync) OnEvent(ctx context.Context, ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the payloads queue.
 	eq.mu.Lock()
@@ -85,8 +77,6 @@ func (eq *CLSync) OnEvent(ctx context.Context, ev event.Event) bool {
 		eq.onInvalidPayload(x)
 	case engine.ForkchoiceUpdateEvent:
 		eq.onForkchoiceUpdate(ctx, x)
-	case ReceivedUnsafePayloadEvent:
-		eq.onUnsafePayload(ctx, x)
 	default:
 		return false
 	}
@@ -139,15 +129,18 @@ func (eq *CLSync) onForkchoiceUpdate(ctx context.Context, event engine.Forkchoic
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
-func (eq *CLSync) onUnsafePayload(ctx context.Context, event ReceivedUnsafePayloadEvent) {
-	eq.log.Debug("CL sync received payload", "payload", event.Envelope.ExecutionPayload.ID())
-	if event.Envelope == nil {
-		eq.log.Error("cannot add nil unsafe payload")
+func (eq *CLSync) AddUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+	if envelope == nil {
+		eq.log.Error("CL sync AddUnsafePayload cannot add nil unsafe payload")
 		return
 	}
+	eq.mu.Lock()
+	defer eq.mu.Unlock()
 
-	if err := eq.unsafePayloads.Push(event.Envelope); err != nil {
-		eq.log.Warn("Could not add unsafe payload", "id", event.Envelope.ExecutionPayload.ID(), "timestamp", uint64(event.Envelope.ExecutionPayload.Timestamp), "err", err)
+	eq.log.Debug("CL sync received payload", "payload", envelope.ExecutionPayload.ID())
+
+	if err := eq.unsafePayloads.Push(envelope); err != nil {
+		eq.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
 		return
 	}
 	p := eq.unsafePayloads.Peek()
