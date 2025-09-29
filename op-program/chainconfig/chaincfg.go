@@ -219,6 +219,9 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 	if !slices.Equal(rollupChainIDs, l2genesisChainIDs) {
 		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, l2 genesis chain IDs %v. Make sure that the rollup and l2 genesis configs have the same set of chain IDs prefixes", rollupChainIDs, l2genesisChainIDs)
 	}
+	if len(l1genesisChainIDs) != len(rollupChainIDs) {
+		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, l1 genesis chain IDs %v. Make sure there is a l1 genesis chain id for each rollup config", rollupChainIDs, l1genesisChainIDs)
+	}
 
 	return nil
 }

@@ -30,10 +30,10 @@ var (
 	ErrMissingBin    = errors.New("missing bin")
 	ErrMissingServer = errors.New("missing server")
 
-	ErrMissingRollupConfig  = errors.New("missing network or rollup config path")
-	ErrMissingL1ChainConfig = errors.New("missing network or l1 chain config path")
-	ErrMissingL2Genesis     = errors.New("missing network or l2 genesis path")
-	ErrNetworkUnknown       = errors.New("unknown network")
+	ErrMissingRollupConfig = errors.New("missing network or rollup config path")
+	ErrMissingL1Genesis    = errors.New("missing network or l1 genesis path")
+	ErrMissingL2Genesis    = errors.New("missing network or l2 genesis path")
+	ErrNetworkUnknown      = errors.New("unknown network")
 
 	ErrVMPanic = errors.New("vm exited with exit code 2 (panic)")
 )
@@ -83,7 +83,7 @@ func (c *Config) Check() error {
 			return ErrMissingRollupConfig
 		}
 		if len(c.L1GenesisPaths) == 0 {
-			return ErrMissingL1ChainConfig
+			return ErrMissingL1Genesis
 		}
 		if len(c.L2GenesisPaths) == 0 {
 			return ErrMissingL2Genesis
