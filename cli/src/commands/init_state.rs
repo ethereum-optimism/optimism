@@ -12,8 +12,8 @@ use reth_optimism_primitives::{
 };
 use reth_primitives_traits::SealedHeader;
 use reth_provider::{
-    BlockNumReader, ChainSpecProvider, DatabaseProviderFactory, StaticFileProviderFactory,
-    StaticFileWriter,
+    BlockNumReader, ChainSpecProvider, DBProvider, DatabaseProviderFactory,
+    StaticFileProviderFactory, StaticFileWriter,
 };
 use std::{io::BufReader, sync::Arc};
 use tracing::info;

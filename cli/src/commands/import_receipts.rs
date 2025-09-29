@@ -17,9 +17,9 @@ use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{bedrock::is_dup_tx, OpPrimitives, OpReceipt};
 use reth_primitives_traits::NodePrimitives;
 use reth_provider::{
-    providers::ProviderNodeTypes, writer::UnifiedStorageWriter, DatabaseProviderFactory,
-    OriginalValuesKnown, ProviderFactory, StageCheckpointReader, StageCheckpointWriter,
-    StateWriter, StaticFileProviderFactory, StatsReader, StorageLocation,
+    providers::ProviderNodeTypes, DBProvider, DatabaseProviderFactory, OriginalValuesKnown,
+    ProviderFactory, StageCheckpointReader, StageCheckpointWriter, StateWriter,
+    StaticFileProviderFactory, StatsReader,
 };
 use reth_stages::{StageCheckpoint, StageId};
 use reth_static_file_types::StaticFileSegment;
@@ -224,18 +224,11 @@ where
         // Update total_receipts after all filtering
         total_receipts += receipts.iter().map(|v| v.len()).sum::<usize>();
 
-        // We're reusing receipt writing code internal to
-        // `UnifiedStorageWriter::append_receipts_from_blocks`, so we just use a default empty
-        // `BundleState`.
         let execution_outcome =
             ExecutionOutcome::new(Default::default(), receipts, first_block, Default::default());
 
         // finally, write the receipts
-        provider.write_state(
-            &execution_outcome,
-            OriginalValuesKnown::Yes,
-            StorageLocation::StaticFiles,
-        )?;
+        provider.write_state(&execution_outcome, OriginalValuesKnown::Yes)?;
     }
 
     // Only commit if we have imported as many receipts as the number of transactions.
@@ -260,7 +253,7 @@ where
     provider
         .save_stage_checkpoint(StageId::Execution, StageCheckpoint::new(highest_block_receipts))?;
 
-    UnifiedStorageWriter::commit(provider)?;
+    provider.commit()?;
 
     Ok(ImportReceiptsResult { total_decoded_receipts, total_filtered_out_dup_txns })
 }
