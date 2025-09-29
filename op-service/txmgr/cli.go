@@ -450,12 +450,12 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	}
 	cellProofTime := cfg.CellProofTime
 	if cfg.CellProofTime == math.MaxUint64 {
-		switch chainID {
-		case params.MainnetChainConfig.ChainID:
+		switch {
+		case chainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
 			if params.MainnetChainConfig.OsakaTime != nil {
 				cellProofTime = *(params.MainnetChainConfig.OsakaTime)
 			}
-		case params.SepoliaChainConfig.ChainID:
+		case chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
 			if params.SepoliaChainConfig.OsakaTime != nil {
 				cellProofTime = *(params.SepoliaChainConfig.OsakaTime)
 			}
