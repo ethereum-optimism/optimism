@@ -89,7 +89,7 @@ type DisputeSystem interface {
 	DisputeGameFactoryAddr() common.Address
 	RollupCfgs() []*rollup.Config
 	DependencySet() *depset.StaticConfigDependencySet
-	L1Geneses() []*core.Genesis
+	L1Genesis() *core.Genesis
 	L2Geneses() []*core.Genesis
 	PrestateVariant() shared.PrestateVariant
 

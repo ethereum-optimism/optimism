@@ -474,11 +474,7 @@ func (sys *System) RollupCfgs() []*rollup.Config {
 	return []*rollup.Config{sys.RollupConfig}
 }
 
-func (sys *System) L1Geneses() []*core.Genesis {
-	return []*core.Genesis{sys.L1GenesisCfg}
-}
-
-func (sys *System) L1Genesis(network string) *core.Genesis {
+func (sys *System) L1Genesis() *core.Genesis {
 	return sys.L1GenesisCfg
 }
 

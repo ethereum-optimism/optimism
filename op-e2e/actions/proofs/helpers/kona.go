@@ -63,7 +63,7 @@ func RunKonaNative(
 		L1Beacon:          l1BeaconRpc,
 		L2s:               l2Rpcs,
 		RollupConfigPaths: rollupCfgPaths,
-		L1GenesisPaths:    l1chainConfigPaths,
+		L1GenesisPath:     l1chainConfigPaths[0],
 		Server:            konaHostPath,
 	}
 	inputs := utils.LocalGameInputs{
