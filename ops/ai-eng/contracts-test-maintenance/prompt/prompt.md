@@ -90,7 +90,6 @@ This systematic approach ensures comprehensive test improvements without missing
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
-- Reorganize test contracts to match source function declaration order
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -107,7 +106,7 @@ This systematic approach ensures comprehensive test improvements without missing
 <naming_rules>
 **Test Contract Names:**
 - `TargetContract_FunctionName_Test` - ONE contract per function (no exceptions)
-- `TargetContract_Uncategorized_Test` - For multi-function integration tests only
+- `TargetContract_Uncategorized_Test` - For multi-function integration tests only (NEVER use "Unclassified")
 - `TargetContract_TestInit` - Shared setup contract
 - Constants/ALL CAPS: Convert to PascalCase (e.g., `MAX_LIMIT` → `TargetContract_MaxLimit_Test`)
 
@@ -120,7 +119,6 @@ This systematic approach ensures comprehensive test improvements without missing
 - Format: `[method]_[functionName]_[scenario]_[outcome]`
   - Methods: `test`, `testFuzz`, `testDiff`
   - Outcomes: `succeeds`, `reverts`, `fails` (never `works`)
-  - Scenarios: Keep concise (e.g., `expired` not `expiredPause`)
 - ALL parameters use underscore prefix: `_param`
 - Read-only tests MUST have `view` modifier
 
@@ -133,6 +131,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Generic test contracts (Security_Test, Edge_Test, etc.)
 - Generic helper names (Helper, Mock, CheckSender)
 - All edge cases must go in function-specific or Uncategorized contracts
+- "Unclassified_Test" contracts (must use "Uncategorized_Test")
 </naming_rules>
 
 <test_organization>
@@ -143,6 +142,8 @@ Function-Specific Test Contract:
 - Primary goal: Test ONE function's behavior
 - Even if the test calls other functions for setup or verification
 - Example: Testing function X that uses Y for verification → goes in X_Test
+- Example: Testing getBytes32 using setBytes32 for setup → goes in GetBytes32_Test, NOT Uncategorized
+- Key question: What are your assertions actually testing? That determines the contract.
 
 Uncategorized_Test Contract:
 - Primary goal: Test integration/interaction between multiple functions
@@ -151,14 +152,22 @@ Uncategorized_Test Contract:
 
 Ask yourself: "What is the PRIMARY behavior I'm testing?" The answer determines the categorization.
 
-**Final Organization Structure:**
-1. After all tests are implemented and passing
-2. Map all functions from source contract in declaration order
-3. Reorganize ALL test contracts to match this order
-4. Structure: Helper contracts → TestInit → function tests (in source order) → Uncategorized last
-5. NEVER delete existing tests - only enhance, rename, or reorganize
+**Expected Structure:**
+Helper contracts → TestInit → function tests (in source order) → Uncategorized_Test last
 
 CRITICAL: Organization happens LAST, after all improvements are complete
+
+**COMMON CATEGORIZATION MISTAKES:**
+- Putting tests in Uncategorized_Test just because they call multiple functions
+- If you're only asserting on ONE function's output → it belongs in that function's test contract
+- Setup/helper calls don't make it an integration test
+- Real Uncategorized example: Testing deposit() followed by withdraw() to verify round-trip behavior
+- Wrong Uncategorized usage: Testing getter after setter when only asserting the getter works
+
+**EMPTY CONTRACT CLEANUP:**
+- If moving tests leaves a contract empty → DELETE the empty contract
+- Empty test contracts are not placeholders - they're dead code
+- This includes: Empty function-specific contracts, empty Uncategorized_Test
 </test_organization>
 
 <error_patterns>
@@ -198,7 +207,7 @@ Low-level calls: check both success=false and error selector
 
 **Implementation Details:**
 - Before implementing helper functions, check for existing libraries (OpenZeppelin, Solady, etc.)
-- Version testing: Use `assert(bytes(contractName.version()).length > 0);` not specific version strings
+- Version testing: Use `assertGt(bytes(contractName.version()).length, 0);` not specific version strings
 - Never use dummy values: hex"test" → use valid hex like hex"1234" or hex""
 - Check actual contract behavior before making assumptions
 </test_assumptions>
@@ -375,13 +384,8 @@ function test_validate_fails() external {
 }
 </wrong>
 <right>
-function test_validate_invalidParams_reverts() external {
+function test_validate_zeroAddress_reverts() external {
     vm.expectRevert(Validator.InvalidParams.selector); // ✓ Specific selector
-    // OR
-    vm.expectRevert(bytes("specific revert message")); // ✓ Specific message
-    validator.validate(params);
-}
-</right>
 </example>
 <example>
 <scenario>Enhancement vs new test</scenario>
@@ -398,6 +402,42 @@ function testFuzz_transfer_validAmount_succeeds(uint256 _amount) {
     _amount = bound(_amount, 0, MAX_BALANCE); // ✓ Enhanced to cover all cases including boundary
     transfer(_amount);
 }
+</right>
+</example>
+<example>
+<scenario>Getter test misplaced in Uncategorized</scenario>
+<wrong>
+contract Storage_Uncategorized_Test {
+    function testFuzz_setGetBytes32Multi_succeeds(Slot[] calldata _slots) {
+        setter.setBytes32(slots);  // Setup
+        for (uint256 i; i < slots.length; i++) {
+            assertEq(setter.getBytes32(slots[i].key), slots[i].value); // ❌ Only testing getter
+        }
+    }
+}
+</wrong>
+<right>
+contract Storage_GetBytes32_Test {
+    function testFuzz_getBytes32_multipleSlots_succeeds(Slot[] calldata _slots) {
+        setter.setBytes32(slots);  // Setup is fine
+        for (uint256 i; i < slots.length; i++) {
+            assertEq(setter.getBytes32(slots[i].key), slots[i].value); // ✓ Testing getter
+        }
+    }
+}
+</right>
+</example>
+<example>
+<scenario>Empty contract after reorganization</scenario>
+<wrong>
+// After moving test to GetBytes32_Test
+contract Storage_Uncategorized_Test is Storage_TestInit {
+    // ❌ Empty contract left behind
+}
+</wrong>
+<right>
+// Contract completely removed from file ✓
+// No empty Storage_Uncategorized_Test remains
 </right>
 </example>
 </examples>
@@ -437,9 +477,8 @@ function testFuzz_transfer_validAmount_succeeds(uint256 _amount) {
 - Replace with `vm.expectRevert(ErrorName.selector)` or `vm.expectRevert(bytes("message"))`
 
 *Organization confusion:*
-- Read source contract function order first
-- Move test contracts to match that exact order
-- Keep helper contracts at top, Uncategorized last
+- Expected order: Helper contracts at top, Uncategorized last
+- Function tests should follow source contract declaration order
 
 *Fuzz test failures:*
 - Check if constraints properly bound the values

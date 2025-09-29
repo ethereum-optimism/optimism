@@ -5,12 +5,12 @@ It provides utilities for discovering test files, mapping them to source contrac
 calculating staleness metrics, and generating ranked output.
 """
 
+from datetime import datetime, timezone
 import json
+from pathlib import Path
 import subprocess
 import time
 import tomllib
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
 
@@ -183,6 +183,28 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
     for file_path in exclusion_files:
         # File exclusion - store as Path object in set for O(1) lookup
         excluded_files.add(Path(file_path))
+
+    # Add recently processed files from log.jsonl (avoid immediate duplicates)
+    log_file = Path(__file__).parent.parent.parent / "log.jsonl"
+    if log_file.exists():
+        cutoff = time.time() - (7 * 24 * 3600)  # 7 days
+        try:
+            with open(log_file) as f:
+                for line in f:
+                    entry = json.loads(line.strip())
+                    if (
+                        entry.get("status") in ["finished", "blocked", "failed"]
+                        and entry.get("run_time")
+                        and datetime.strptime(
+                            entry["run_time"], "%Y-%m-%d %H:%M:%S"
+                        ).timestamp()
+                        > cutoff
+                    ):
+                        test_path = entry.get("selected_files", {}).get("test_path")
+                        if test_path:
+                            excluded_files.add(Path(test_path))
+        except (json.JSONDecodeError, ValueError, KeyError):
+            pass
 
     return excluded_dirs, excluded_files
 
