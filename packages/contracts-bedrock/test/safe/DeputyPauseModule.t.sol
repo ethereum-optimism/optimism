@@ -617,7 +617,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     }
 }
 
-/// @title L1CrossDomainMessenger_Uncategorized_Test
+/// @title DeputyPauseModule_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `DeputyPauseModule`
 ///         contract or are testing multiple functions at once.
 contract DeputyPauseModule_Uncategorized_Test is DeputyPauseModule_TestInit {
