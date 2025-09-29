@@ -4,9 +4,7 @@
 [exclusions]
 # Directory exclusions (exclude all files within these directories)
 directories = [
-    "test/invariants/OptimismSuperchainERC20/fuzz/",
-    "test/invariants/OptimismSuperchainERC20/handlers/",
-    "test/invariants/OptimismSuperchainERC20/helpers/",
+    "test/invariants/",
     "test/opcm/",
     "test/scripts/",
     "test/setup/"

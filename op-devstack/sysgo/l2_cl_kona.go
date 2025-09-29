@@ -169,7 +169,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
 
 		envVars := []string{
-			"KONA_NODE_L1_ETH_RPC=" + l1EL.userRPC,
+			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
 			// TODO: WS RPC addresses do not work and will make the startup panic with a connection error in the
 			// JWT validation / engine-capabilities setup code-path.
