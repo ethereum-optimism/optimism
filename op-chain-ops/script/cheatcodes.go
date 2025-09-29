@@ -43,3 +43,7 @@ func (c *AccessControlledPrecompile) Run(input []byte) ([]byte, error) {
 	}
 	return c.inner.Run(input)
 }
+
+func (c *AccessControlledPrecompile) Name() string {
+	return c.inner.Name()
+}

@@ -39,6 +39,10 @@ type ImplementationsConfig struct {
 	ProofMaturityDelaySeconds       uint64             `cli:"proof-maturity-delay-seconds"`
 	DisputeGameFinalityDelaySeconds uint64             `cli:"dispute-game-finality-delay-seconds"`
 	DevFeatureBitmap                common.Hash        `cli:"dev-feature-bitmap"`
+	FaultGameMaxGameDepth           uint64             `cli:"fault-game-max-game-depth"`
+	FaultGameSplitDepth             uint64             `cli:"fault-game-split-depth"`
+	FaultGameClockExtension         uint64             `cli:"fault-game-clock-extension"`
+	FaultGameMaxClockDuration       uint64             `cli:"fault-game-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
@@ -88,6 +92,22 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.DisputeGameFinalityDelaySeconds == 0 {
 		return errors.New("dispute game finality delay in seconds must be specified")
+	}
+	// Check V2 fault game parameters only if V2 dispute games feature is enabled
+	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGames)
+	if deployV2Games {
+		if c.FaultGameMaxGameDepth == 0 {
+			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameSplitDepth == 0 {
+			return errors.New("fault game split depth must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameClockExtension == 0 {
+			return errors.New("fault game clock extension must be specified when V2 dispute games feature is enabled")
+		}
+		if c.FaultGameMaxClockDuration == 0 {
+			return errors.New("fault game max clock duration must be specified when V2 dispute games feature is enabled")
+		}
 	}
 	if c.SuperchainConfigProxy == (common.Address{}) {
 		return errors.New("superchain config proxy must be specified")
@@ -205,6 +225,10 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
 			DevFeatureBitmap:                cfg.DevFeatureBitmap,
+			FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(cfg.FaultGameMaxGameDepth),
+			FaultGameV2SplitDepth:           new(big.Int).SetUint64(cfg.FaultGameSplitDepth),
+			FaultGameV2ClockExtension:       new(big.Int).SetUint64(cfg.FaultGameClockExtension),
+			FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(cfg.FaultGameMaxClockDuration),
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,

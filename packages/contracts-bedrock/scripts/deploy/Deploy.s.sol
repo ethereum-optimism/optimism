@@ -274,12 +274,16 @@ contract Deploy is Deployer {
                 proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
                 disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
+                devFeatureBitmap: cfg.devFeatureBitmap(),
+                faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
+                faultGameV2SplitDepth: cfg.faultGameV2SplitDepth(),
+                faultGameV2ClockExtension: cfg.faultGameV2ClockExtension(),
+                faultGameV2MaxClockDuration: cfg.faultGameV2MaxClockDuration(),
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: superchainProxyAdmin.owner(),
-                challenger: cfg.l2OutputOracleChallenger(),
-                devFeatureBitmap: cfg.devFeatureBitmap()
+                challenger: cfg.l2OutputOracleChallenger()
             })
         );
 

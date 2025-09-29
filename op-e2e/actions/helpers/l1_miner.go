@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
@@ -196,12 +198,48 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	if tx.Type() == types.BlobTxType {
 		require.True(t, s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be cancun to process blob tx")
 		sidecar := tx.BlobTxSidecar()
-		if sidecar != nil {
-			s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
+		require.NotNil(t, sidecar, "missing sidecar in blob transaction")
+		hashes := tx.BlobHashes()
+		require.Greater(t, len(hashes), 0, "blobless blob transaction")
+		require.NoError(t, sidecar.ValidateBlobCommitmentHashes(hashes))
+		if s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
+			require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
+		} else {
+			require.NoError(t, validateBlobSidecarLegacy(sidecar, hashes))
 		}
+		s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 	return receipt
+}
+
+// validateBlobSidecarLegacy implements pre-Osaka sidecar validation.
+// Copied and adapted from op-geth core/txpool/validation.go
+func validateBlobSidecarLegacy(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
+	if sidecar.Version != types.BlobSidecarVersion0 {
+		return fmt.Errorf("invalid sidecar version pre-osaka: %v", sidecar.Version)
+	}
+	if len(sidecar.Proofs) != len(hashes) {
+		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes))
+	}
+	for i := range sidecar.Blobs {
+		if err := kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]); err != nil {
+			return fmt.Errorf("invalid blob %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// validateBlobSidecarOsaka implements Osaka sidecar validation.
+// Copied and adapted from op-geth core/txpool/validation.go
+func validateBlobSidecarOsaka(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
+	if sidecar.Version != types.BlobSidecarVersion1 {
+		return fmt.Errorf("invalid sidecar version post-osaka: %v", sidecar.Version)
+	}
+	if len(sidecar.Proofs) != len(hashes)*kzg4844.CellProofsPerBlob {
+		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes)*kzg4844.CellProofsPerBlob)
+	}
+	return kzg4844.VerifyCellProofs(sidecar.Blobs, sidecar.Commitments, sidecar.Proofs)
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {

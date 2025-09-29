@@ -23,7 +23,7 @@ type SyncDeriver struct {
 
 	SafeHeadNotifs rollup.SafeHeadListener // notified when safe head is updated
 
-	CLSync CLSync
+	CLSync *clsync.CLSync
 
 	// The engine controller is used by the sequencer & Derivation components.
 	// We will also use it for EL sync in a future PR.
@@ -110,7 +110,7 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-		s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
+		s.CLSync.AddUnsafePayload(ctx, envelope)
 	} else if s.SyncCfg.SyncMode == sync.ELSync {
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {

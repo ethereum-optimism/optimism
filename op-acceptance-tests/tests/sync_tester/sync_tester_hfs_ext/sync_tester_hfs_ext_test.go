@@ -1,4 +1,4 @@
-package hardforks_ext
+package sync_tester_hfs_ext
 
 import (
 	"context"
@@ -60,6 +60,62 @@ var (
 	L1CLBeaconEndpoint = getEnvOrDefault("L1_CL_BEACON_ENDPOINT", DefaultL1CLBeaconEndpoint)
 	L1ELEndpoint       = getEnvOrDefault("L1_EL_ENDPOINT", DefaultL1ELEndpoint)
 )
+
+func TestSyncTesterHFS_Canyon_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Canyon, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Canyon_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Canyon, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Delta_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Delta, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Delta_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Delta, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Ecotone_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Ecotone, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Ecotone_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Ecotone, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Fjord_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Fjord, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Fjord_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Fjord, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Granite_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Granite, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Granite_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Granite, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Holocene_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Holocene, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Holocene_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Holocene, sync.ELSync)
+}
+
+func TestSyncTesterHFS_Isthmus_CLSync(gt *testing.T) {
+	hfsExt(gt, rollup.Isthmus, sync.CLSync)
+}
+
+func TestSyncTesterHFS_Isthmus_ELSync(gt *testing.T) {
+	hfsExt(gt, rollup.Isthmus, sync.ELSync)
+}
 
 // getEnvOrDefault returns the environment variable value or the default if not set
 func getEnvOrDefault(envVar, defaultValue string) string {
@@ -165,8 +221,8 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 	return orch.(*sysgo.Orchestrator)
 }
 
-func SyncTesterHFSExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
-	t := devtest.SerialT(gt)
+func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
+	t := devtest.ParallelT(gt)
 	l := t.Logger()
 
 	// Initial block number to sync from before the upgrade

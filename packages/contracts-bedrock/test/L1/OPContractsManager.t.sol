@@ -1278,7 +1278,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim absolutePrestate2 = Claim.wrap(bytes32(hex"DEAD"));
 
     /// @notice Function requires interop portal.
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
@@ -1353,6 +1353,11 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(address(_disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)), address(0));
         assertEq(address(_disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)), address(0));
         assertEq(address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)), address(0));
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            // Only explicitly zeroed out if feature is enabled. Otherwise left unchanged (which may still be 0).
+            assertEq(address(_disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)), address(0));
+            assertEq(address(_disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA)), address(0));
+        }
     }
 
     /// @notice Tests that the migration function succeeds when requesting to use the
@@ -1642,6 +1647,37 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _doMigration(
             input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
         );
+    }
+}
+
+/// @title OPContractsManager_Migrate_CannonKonaEnabled_Test
+/// @notice Tests the `migrate` function of the `OPContractsManager` contract.
+contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager_Migrate_Test {
+    function setUp() public override {
+        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        super.setUp();
+    }
+
+    function test_migrate_zerosOutCannonKonaGameTypes_succeeds() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Grab the existing DisputeGameFactory for each chain.
+        IDisputeGameFactory oldDisputeGameFactory1 =
+            IDisputeGameFactory(payable(chainDeployOutput1.systemConfigProxy.disputeGameFactory()));
+        IDisputeGameFactory oldDisputeGameFactory2 =
+            IDisputeGameFactory(payable(chainDeployOutput2.systemConfigProxy.disputeGameFactory()));
+        // Ensure cannon kona games have implementations
+        oldDisputeGameFactory1.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(1)));
+        oldDisputeGameFactory2.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(1)));
+        oldDisputeGameFactory1.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(2)));
+        oldDisputeGameFactory2.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(2)));
+
+        // Execute the migration.
+        _doMigration(input);
+
+        // Assert that the old game implementations are now zeroed out.
+        _assertOldGamesZeroed(oldDisputeGameFactory1);
+        _assertOldGamesZeroed(oldDisputeGameFactory2);
     }
 }
 

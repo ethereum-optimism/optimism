@@ -8,6 +8,8 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -47,6 +49,9 @@ contract DeployImplementations_Test is Test {
         DeployImplementations.Output memory output = deployImplementations.run(input);
 
         assertNotEq(address(output.systemConfigImpl), address(0));
+        // V2 contracts should not be deployed with default flag (false)
+        assertEq(address(output.faultDisputeGameV2Impl), address(0));
+        assertEq(address(output.permissionedDisputeGameV2Impl), address(0));
     }
 
     function test_reuseImplementation_succeeds() public {
@@ -70,6 +75,11 @@ contract DeployImplementations_Test is Test {
         assertEq(address(output1.anchorStateRegistryImpl), address(output2.anchorStateRegistryImpl), "1100");
         assertEq(address(output1.opcm), address(output2.opcm), "1200");
         assertEq(address(output1.ethLockboxImpl), address(output2.ethLockboxImpl), "1300");
+        // V2 contracts should both be address(0) since default flag is false
+        assertEq(address(output1.faultDisputeGameV2Impl), address(output2.faultDisputeGameV2Impl), "1400");
+        assertEq(address(output1.permissionedDisputeGameV2Impl), address(output2.permissionedDisputeGameV2Impl), "1500");
+        assertEq(address(output1.faultDisputeGameV2Impl), address(0), "V2 contracts should be null");
+        assertEq(address(output1.permissionedDisputeGameV2Impl), address(0), "V2 contracts should be null");
     }
 
     function testFuzz_run_memory_succeeds(
@@ -78,18 +88,25 @@ contract DeployImplementations_Test is Test {
         uint64 _challengePeriodSeconds,
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds,
-        address _superchainConfigImpl
+        address _superchainConfigImpl,
+        uint256 _faultGameV2MaxGameDepth,
+        uint256 _faultGameV2SplitDepth,
+        uint256 _faultGameV2ClockExtension,
+        uint256 _faultGameV2MaxClockDuration,
+        bytes32 _devFeatureBitmap
     )
         public
     {
-        vm.assume(_withdrawalDelaySeconds != 0);
-        vm.assume(_minProposalSizeBytes != 0);
-        vm.assume(_challengePeriodSeconds != 0);
-        vm.assume(_proofMaturityDelaySeconds != 0);
-        vm.assume(_disputeGameFinalityDelaySeconds != 0);
-        vm.assume(_superchainConfigImpl != address(0));
+        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, type(uint256).max);
+        _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000);
+        _challengePeriodSeconds = uint64(bound(uint256(_challengePeriodSeconds), 1, type(uint64).max));
+        _proofMaturityDelaySeconds = bound(_proofMaturityDelaySeconds, 1, type(uint256).max);
+        _disputeGameFinalityDelaySeconds = bound(_disputeGameFinalityDelaySeconds, 1, type(uint256).max);
 
+        // Ensure superchainConfigImpl is not zero address
+        vm.assume(_superchainConfigImpl != address(0));
         // Must configure the ProxyAdmin contract.
+
         superchainProxyAdmin = IProxyAdmin(
             DeployUtils.create1({
                 _name: "ProxyAdmin",
@@ -109,6 +126,22 @@ contract DeployImplementations_Test is Test {
         vm.prank(address(superchainProxyAdmin));
         IProxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
 
+        _faultGameV2MaxGameDepth = bound(_faultGameV2MaxGameDepth, 4, 125);
+        _faultGameV2SplitDepth =
+            bound(_faultGameV2SplitDepth, 2, _faultGameV2MaxGameDepth > 3 ? _faultGameV2MaxGameDepth - 2 : 2);
+        _faultGameV2ClockExtension = bound(_faultGameV2ClockExtension, 1, 7 days);
+        _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
+
+        // When V2 is not enabled, set V2 params to 0 to match script expectations
+        // Otherwise ensure they remain within bounds already set
+        bool isV2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        if (!isV2Enabled) {
+            _faultGameV2MaxGameDepth = 0;
+            _faultGameV2SplitDepth = 0;
+            _faultGameV2ClockExtension = 0;
+            _faultGameV2MaxClockDuration = 0;
+        }
+
         DeployImplementations.Input memory input = DeployImplementations.Input(
             _withdrawalDelaySeconds,
             _minProposalSizeBytes,
@@ -116,7 +149,11 @@ contract DeployImplementations_Test is Test {
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
-            bytes32(0), // devFeatureBitmap
+            _devFeatureBitmap, // devFeatureBitmap (fuzzed)
+            _faultGameV2MaxGameDepth, // faultGameV2MaxGameDepth (bounded)
+            _faultGameV2SplitDepth, // faultGameV2SplitDepth (bounded)
+            _faultGameV2ClockExtension, // faultGameV2ClockExtension (bounded)
+            _faultGameV2MaxClockDuration, // faultGameV2MaxClockDuration (bounded)
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
@@ -140,6 +177,45 @@ contract DeployImplementations_Test is Test {
         assertNotEq(address(output.opcmDeployer), address(0), "1000");
         assertNotEq(address(output.opcmGameTypeAdder), address(0), "1100");
 
+        // Check V2 contracts based on feature flag
+        bool v2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        if (v2Enabled) {
+            assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
+            assertNotEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
+
+            // Verify V2 constructor parameters match fuzz inputs
+            assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), _faultGameV2MaxGameDepth, "FDGv2 maxGameDepth");
+            assertEq(output.faultDisputeGameV2Impl.splitDepth(), _faultGameV2SplitDepth, "FDGv2 splitDepth");
+            assertEq(
+                output.faultDisputeGameV2Impl.clockExtension().raw(),
+                uint64(_faultGameV2ClockExtension),
+                "FDGv2 clockExtension"
+            );
+            assertEq(
+                output.faultDisputeGameV2Impl.maxClockDuration().raw(),
+                uint64(_faultGameV2MaxClockDuration),
+                "FDGv2 maxClockDuration"
+            );
+
+            assertEq(
+                output.permissionedDisputeGameV2Impl.maxGameDepth(), _faultGameV2MaxGameDepth, "PDGv2 maxGameDepth"
+            );
+            assertEq(output.permissionedDisputeGameV2Impl.splitDepth(), _faultGameV2SplitDepth, "PDGv2 splitDepth");
+            assertEq(
+                output.permissionedDisputeGameV2Impl.clockExtension().raw(),
+                uint64(_faultGameV2ClockExtension),
+                "PDGv2 clockExtension"
+            );
+            assertEq(
+                output.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
+                uint64(_faultGameV2MaxClockDuration),
+                "PDGv2 maxClockDuration"
+            );
+        } else {
+            assertEq(address(output.faultDisputeGameV2Impl), address(0), "V2 should be null when disabled");
+            assertEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 should be null when disabled");
+        }
+
         // Address contents assertions
         bytes memory empty;
 
@@ -155,6 +231,17 @@ contract DeployImplementations_Test is Test {
         assertNotEq(address(output.opcmContractsContainer).code, empty, "2100");
         assertNotEq(address(output.opcmDeployer).code, empty, "2200");
         assertNotEq(address(output.opcmGameTypeAdder).code, empty, "2300");
+
+        // V2 contracts code existence based on feature flag
+        if (v2Enabled) {
+            assertNotEq(address(output.faultDisputeGameV2Impl).code, empty, "V2 FDG should have code when enabled");
+            assertNotEq(
+                address(output.permissionedDisputeGameV2Impl).code, empty, "V2 PDG should have code when enabled"
+            );
+        } else {
+            assertEq(address(output.faultDisputeGameV2Impl).code, empty, "V2 FDG should be empty when disabled");
+            assertEq(address(output.permissionedDisputeGameV2Impl).code, empty, "V2 PDG should be empty when disabled");
+        }
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
@@ -237,6 +324,223 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
     }
 
+    function test_deployImplementation_withV2Enabled_succeeds() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+
+        assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should be deployed");
+        assertNotEq(
+            address(output.permissionedDisputeGameV2Impl), address(0), "PermissionedDisputeGameV2 should be deployed"
+        );
+
+        // Validate constructor args for FaultDisputeGameV2
+        assertEq(
+            uint256(output.faultDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.CANNON.raw()),
+            "FaultDisputeGameV2 gameType incorrect"
+        );
+        assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
+        assertEq(output.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
+        assertEq(
+            output.faultDisputeGameV2Impl.clockExtension().raw(), 10800, "FaultDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output.faultDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "FaultDisputeGameV2 maxClockDuration incorrect"
+        );
+
+        // Validate constructor args for PermissionedDisputeGameV2
+        assertEq(
+            uint256(output.permissionedDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
+            "PermissionedDisputeGameV2 gameType incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGameV2 splitDepth incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "PermissionedDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "PermissionedDisputeGameV2 maxClockDuration incorrect"
+        );
+    }
+
+    function test_v2ParamsValidation_withFlagDisabled_succeeds() public {
+        // When V2 flag is disabled, V2 params should be 0 or within safe bounds
+        DeployImplementations.Input memory input = defaultInput();
+        input.devFeatureBitmap = bytes32(0); // V2 disabled
+
+        // Test that zero values are accepted
+        input.faultGameV2MaxGameDepth = 0;
+        input.faultGameV2SplitDepth = 0;
+        input.faultGameV2ClockExtension = 0;
+        input.faultGameV2MaxClockDuration = 0;
+
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+        assertEq(address(output.faultDisputeGameV2Impl), address(0), "V2 FDG should be null when disabled");
+        assertEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 PDG should be null when disabled");
+    }
+
+    function test_v2ParamsValidation_withHugeValues_reverts() public {
+        // When V2 flag is enabled, huge V2 params should be rejected
+        DeployImplementations.Input memory input = defaultInput();
+        input.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES; // V2 enabled
+
+        // Test that huge clock extension is rejected
+        input.faultGameV2ClockExtension = type(uint256).max;
+        vm.expectRevert("DeployImplementations: faultGameV2ClockExtension too large for uint64");
+        deployImplementations.run(input);
+
+        // Reset and test huge max clock duration
+        input.faultGameV2ClockExtension = 100;
+        input.faultGameV2MaxClockDuration = type(uint256).max;
+        vm.expectRevert("DeployImplementations: faultGameV2MaxClockDuration too large for uint64");
+        deployImplementations.run(input);
+
+        // Reset and test huge max game depth
+        input.faultGameV2MaxClockDuration = 200;
+        input.faultGameV2MaxGameDepth = 300; // > 200
+        vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)");
+        deployImplementations.run(input);
+
+        // Reset and test invalid split depth (too large, >= maxGameDepth)
+        input.faultGameV2MaxGameDepth = 50;
+        input.faultGameV2SplitDepth = 50; // splitDepth + 1 must be < maxGameDepth
+        vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
+        deployImplementations.run(input);
+
+        // Reset and test invalid split depth (too small, < 2)
+        input.faultGameV2MaxGameDepth = 50;
+        input.faultGameV2SplitDepth = 1; // < 2
+        vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
+        deployImplementations.run(input);
+
+        // Reset and test clock extension = 0 (must be > 0 when V2 enabled)
+        input.faultGameV2SplitDepth = 10;
+        input.faultGameV2ClockExtension = 0;
+        input.faultGameV2MaxClockDuration = 1000;
+        vm.expectRevert("DeployImplementations: faultGameV2ClockExtension must be > 0");
+        deployImplementations.run(input);
+
+        // Reset and test maxClockDuration < clockExtension
+        input.faultGameV2ClockExtension = 1000;
+        input.faultGameV2MaxClockDuration = 500; // < clockExtension
+        vm.expectRevert("DeployImplementations: maxClockDuration must be >= clockExtension");
+        deployImplementations.run(input);
+    }
+
+    function test_deployImplementation_withV2Disabled_succeeds() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.devFeatureBitmap = bytes32(0);
+        DeployImplementations.Output memory output = deployImplementations.run(input);
+
+        assertEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should not be deployed");
+        assertEq(
+            address(output.permissionedDisputeGameV2Impl),
+            address(0),
+            "PermissionedDisputeGameV2 should not be deployed"
+        );
+
+        // Ensure other contracts are still deployed
+        assertNotEq(address(output.systemConfigImpl), address(0), "SystemConfig should still be deployed");
+        assertNotEq(address(output.disputeGameFactoryImpl), address(0), "DisputeGameFactory should still be deployed");
+    }
+
+    function test_reuseImplementation_withV2Flags_succeeds() public {
+        DeployImplementations.Input memory inputEnabled = defaultInput();
+        inputEnabled.devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
+        DeployImplementations.Output memory output1 = deployImplementations.run(inputEnabled);
+
+        DeployImplementations.Input memory inputDisabled = defaultInput();
+        inputDisabled.devFeatureBitmap = bytes32(0);
+        DeployImplementations.Output memory output2 = deployImplementations.run(inputDisabled);
+
+        // V2 contracts should be different between enabled and disabled
+        assertTrue(
+            address(output1.faultDisputeGameV2Impl) != address(output2.faultDisputeGameV2Impl),
+            "V2 addresses should differ between enabled/disabled"
+        );
+        assertTrue(
+            address(output1.permissionedDisputeGameV2Impl) != address(output2.permissionedDisputeGameV2Impl),
+            "V2 addresses should differ between enabled/disabled"
+        );
+
+        // Validate constructor args for FaultDisputeGameV2
+        assertEq(
+            uint256(output1.faultDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.CANNON.raw()),
+            "FaultDisputeGameV2 gameType incorrect"
+        );
+        assertEq(output1.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
+        assertEq(output1.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
+        assertEq(
+            output1.faultDisputeGameV2Impl.clockExtension().raw(), 10800, "FaultDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output1.faultDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "FaultDisputeGameV2 maxClockDuration incorrect"
+        );
+
+        // Validate constructor args for PermissionedDisputeGameV2
+        assertEq(
+            uint256(output1.permissionedDisputeGameV2Impl.gameType().raw()),
+            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
+            "PermissionedDisputeGameV2 gameType incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.splitDepth(), 30, "PermissionedDisputeGameV2 splitDepth incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.clockExtension().raw(),
+            10800,
+            "PermissionedDisputeGameV2 clockExtension incorrect"
+        );
+        assertEq(
+            output1.permissionedDisputeGameV2Impl.maxClockDuration().raw(),
+            302400,
+            "PermissionedDisputeGameV2 maxClockDuration incorrect"
+        );
+
+        // Other contracts should remain the same
+        assertEq(
+            address(output1.systemConfigImpl),
+            address(output2.systemConfigImpl),
+            "SystemConfig addresses should be the same"
+        );
+        assertEq(
+            address(output1.disputeGameFactoryImpl),
+            address(output2.disputeGameFactoryImpl),
+            "DisputeGameFactory addresses should be the same"
+        );
+
+        // Running with same flags should produce same results
+        DeployImplementations.Output memory output3 = deployImplementations.run(inputEnabled);
+        assertEq(
+            address(output1.faultDisputeGameV2Impl),
+            address(output3.faultDisputeGameV2Impl),
+            "V2 enabled addresses should be deterministic"
+        );
+        assertEq(
+            address(output1.permissionedDisputeGameV2Impl),
+            address(output3.permissionedDisputeGameV2Impl),
+            "V2 enabled addresses should be deterministic"
+        );
+    }
+
     function defaultInput() private view returns (DeployImplementations.Input memory input_) {
         input_ = DeployImplementations.Input(
             withdrawalDelaySeconds,
@@ -246,6 +550,10 @@ contract DeployImplementations_Test is Test {
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             bytes32(0), // devFeatureBitmap
+            73, // faultGameV2MaxGameDepth
+            30, // faultGameV2SplitDepth
+            10800, // faultGameV2ClockExtension
+            302400, // faultGameV2MaxClockDuration
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,

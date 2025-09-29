@@ -127,12 +127,16 @@ func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
 		envelope: e,
 		size:     size,
 	})
+	upq.blockHashes[e.ExecutionPayload.BlockHash] = struct{}{}
 	upq.currentSize += size
 	for upq.currentSize > upq.MaxSize {
 		env := upq.Pop()
 		upq.log.Info("Dropping payload from payload queue because the payload queue is too large", "id", env.ExecutionPayload.ID())
+		// if we popped the same payload, return error
+		if env.ExecutionPayload.BlockHash == e.ExecutionPayload.BlockHash {
+			return fmt.Errorf("cannot add payload %s, since it has the oldest block number in queue and queue size limit is reached", e.ExecutionPayload.ID())
+		}
 	}
-	upq.blockHashes[e.ExecutionPayload.BlockHash] = struct{}{}
 	return nil
 }
 
