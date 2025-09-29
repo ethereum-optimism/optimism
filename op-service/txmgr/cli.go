@@ -448,19 +448,8 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 			return nil, fmt.Errorf("invalid max tip cap: %w", err)
 		}
 	}
-	cellProofTime := cfg.CellProofTime
-	if cfg.CellProofTime == math.MaxUint64 {
-		switch {
-		case chainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
-			if params.MainnetChainConfig.OsakaTime != nil {
-				cellProofTime = *(params.MainnetChainConfig.OsakaTime)
-			}
-		case chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-			if params.SepoliaChainConfig.OsakaTime != nil {
-				cellProofTime = *(params.SepoliaChainConfig.OsakaTime)
-			}
-		}
-	}
+
+	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(chainID, cfg.CellProofTime)
 
 	res := Config{
 		Backend: l1,
@@ -491,6 +480,30 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	return &res, nil
+}
+
+func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {
+	if cellProofTime != math.MaxUint64 {
+		return cellProofTime // We only fallback if nothing is set
+	}
+	if chainID.Cmp(params.MainnetChainConfig.ChainID) == 0 {
+		if params.MainnetChainConfig.OsakaTime == nil {
+			return math.MaxUint64 // not yet scheduled, so we never use cell proofs
+		} else {
+			return *(params.MainnetChainConfig.OsakaTime)
+		}
+	}
+
+	if chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
+		if params.SepoliaChainConfig.OsakaTime == nil {
+			return math.MaxUint64
+		} else {
+			return *(params.SepoliaChainConfig.OsakaTime)
+		}
+	}
+
+	return math.MaxUint64 // Network not known and no override specified, so we never use cell proofs
+
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
