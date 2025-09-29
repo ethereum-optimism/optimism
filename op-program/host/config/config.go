@@ -52,10 +52,10 @@ var (
 type Config struct {
 	L2ChainID eth.ChainID
 	Rollups   []*rollup.Config
-	// L1ChainConfigs are the geth chain configs for the L1 execution engine
-	// For interop, we only have one l1 chain config
-	// since all L2 chains must have the same l1 chain config
-	L1ChainConfigs []*params.ChainConfig
+	// L1ChainConfig is the geth chain config for the L1 execution engine
+	// For interop, we only have one L1 chain config
+	// since all L2 chains must have the same L1
+	L1ChainConfig *params.ChainConfig
 	// DataDir is the directory to read/write pre-image data from/to.
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
@@ -202,7 +202,7 @@ func NewSingleChainConfig(
 	}
 	cfg := NewConfig(
 		[]*rollup.Config{rollupCfg},
-		[]*params.ChainConfig{l1ChainConfig},
+		l1ChainConfig,
 		[]*params.ChainConfig{l2ChainConfig},
 		l1Head,
 		l2Head,
@@ -216,7 +216,7 @@ func NewSingleChainConfig(
 // NewConfig creates a Config with all optional values set to the CLI default value
 func NewConfig(
 	rollupCfgs []*rollup.Config,
-	l1ChainConfigs []*params.ChainConfig,
+	l1ChainConfig *params.ChainConfig,
 	l2ChainConfigs []*params.ChainConfig,
 	l1Head common.Hash,
 	l2Head common.Hash,
@@ -226,7 +226,7 @@ func NewConfig(
 ) *Config {
 	return &Config{
 		Rollups:            rollupCfgs,
-		L1ChainConfigs:     l1ChainConfigs,
+		L1ChainConfig:      l1ChainConfig,
 		L2ChainConfigs:     l2ChainConfigs,
 		L1Head:             l1Head,
 		L2Head:             l2Head,
@@ -284,7 +284,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	var err error
 	var rollupCfgs []*rollup.Config
 	var l2ChainConfigs []*params.ChainConfig
-	var l1ChainConfigs []*params.ChainConfig
+	var l1ChainConfig *params.ChainConfig
 	var l2ChainID eth.ChainID
 	var dependencySet depset.DependencySet
 	networkNames := ctx.StringSlice(flags.Network.Name)
@@ -310,11 +310,10 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		rollupCfgs = append(rollupCfgs, rollupCfg)
 
 		l1ChainID := eth.ChainIDFromBig(rollupCfg.L1ChainID)
-		l1ChainConfig, err := chainconfig.L1ChainConfigByChainID(l1ChainID)
+		l1ChainConfig, err = chainconfig.L1ChainConfigByChainID(l1ChainID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", chainID, err)
 		}
-		l1ChainConfigs = append(l1ChainConfigs, l1ChainConfig)
 
 		if interopEnabled {
 			depSet, err := depset.FromRegistry(chainID)
@@ -346,13 +345,10 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		rollupCfgs = append(rollupCfgs, rollupCfg)
 	}
 
-	l1ChainConfigPaths := ctx.StringSlice(flags.L1ChainConfig.Name)
-	for _, l1ChainConfigPath := range l1ChainConfigPaths {
-		l1ChainConfig, err := loadChainConfigFromGenesis(l1ChainConfigPath)
-		if err != nil {
-			return nil, fmt.Errorf("invalid l1 chain config: %w", err)
-		}
-		l1ChainConfigs = append(l1ChainConfigs, l1ChainConfig)
+	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
+	l1ChainConfig, err = loadChainConfigFromGenesis(l1ChainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid l1 chain config: %w", err)
 	}
 
 	if ctx.Bool(flags.L2Custom.Name) {
@@ -383,7 +379,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	return &Config{
 		L2ChainID:          l2ChainID,
 		Rollups:            rollupCfgs,
-		L1ChainConfigs:     l1ChainConfigs,
+		L1ChainConfig:      l1ChainConfig,
 		DataDir:            ctx.String(flags.DataDir.Name),
 		DataFormat:         dbFormat,
 		L2URLs:             ctx.StringSlice(flags.L2NodeAddr.Name),
@@ -409,7 +405,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
 	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](path, "config")
 	if err != nil {
-		return nil, fmt.Errorf("parse l2 genesis file: %w", err)
+		return nil, fmt.Errorf("parse genesis file: %w", err)
 	}
 	return cfg, nil
 }

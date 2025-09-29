@@ -68,9 +68,8 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		if s.config.L2ChainID != boot.CustomChainIDIndicator {
 			return nil, ErrNotFound
 		}
-		// Even for interop, we only have one l1 chain config
-		// since all L2 chains must have the same l1 chain config
-		return json.Marshal(s.config.L1ChainConfigs[0])
+
+		return json.Marshal(s.config.L1ChainConfig)
 	default:
 		return nil, ErrNotFound
 	}

@@ -34,9 +34,9 @@ var (
 		Usage:   "Rollup chain parameters",
 		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
 	}
-	L1ChainConfig = &cli.StringSliceFlag{
+	L1ChainConfig = &cli.StringFlag{
 		Name:    "l1.chainconfig",
-		Usage:   "L1 chain config files (liat of paths to genesis.json)",
+		Usage:   "L1 chain config file (path to genesis.json)",
 		EnvVars: prefixEnvVars("L1_CHAINCONFIG"),
 	}
 	Network = &cli.StringSliceFlag{

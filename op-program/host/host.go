@@ -146,12 +146,12 @@ func (p *programExecutor) RunProgram(
 	}
 
 	var l1ChainConfig *params.ChainConfig
-	for _, c := range p.cfg.L1ChainConfigs {
-		if eth.ChainIDFromBig(c.ChainID).Cmp(eth.ChainIDFromBig(rollupConfig.L1ChainID)) == 0 {
-			l1ChainConfig = c
-			break
-		}
+	if eth.ChainIDFromBig(p.cfg.L1ChainConfig.ChainID).Cmp(eth.ChainIDFromBig(rollupConfig.L1ChainID)) == 0 {
+		l1ChainConfig = p.cfg.L1ChainConfig
+	} else {
+		return fmt.Errorf("L1 chain config chain ID mismatch: %v != %v", eth.ChainIDFromBig(p.cfg.L1ChainConfig.ChainID), eth.ChainIDFromBig(rollupConfig.L1ChainID))
 	}
+
 	prefetcherCreator := func(context.Context, log.Logger, kvstore.KV, *config.Config) (hostcommon.Prefetcher, error) {
 		// TODO(#13663): prevent recursive block execution
 		return prefetcher, nil
