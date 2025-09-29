@@ -14,6 +14,11 @@ contract L1Withdrawer is ISemver {
     /// @notice Thrown when the caller is not the ProxyAdmin owner.
     error L1Withdrawer_OnlyProxyAdminOwner();
 
+    /// @notice Thrown when the withdrawal gas limit is too low.
+    error L1Withdrawer_WithdrawalGasLimitTooLow();
+
+    uint256 internal constant MIN_WITHDRAWAL_GAS = 250_000;
+
     /// @notice The minimum amount of ETH that must be accumulated before a withdrawal is initiated.
     uint256 public minWithdrawalAmount;
 
@@ -21,6 +26,7 @@ contract L1Withdrawer is ISemver {
     address public recipient;
 
     /// @notice The L1 gas limit set when initiating withdrawals.
+    /// @dev withdrawalGasLimit should be overestimated to account for expensive receive()
     uint96 public withdrawalGasLimit;
 
     /// @notice Emitted when a withdrawal to L1 is initiated.
@@ -58,6 +64,9 @@ contract L1Withdrawer is ISemver {
     /// @param _recipient The L1 address that will receive withdrawals.
     /// @param _withdrawalGasLimit The gas limit for the L1 withdrawal transaction.
     constructor(uint256 _minWithdrawalAmount, address _recipient, uint96 _withdrawalGasLimit) {
+        if (_withdrawalGasLimit < MIN_WITHDRAWAL_GAS) {
+            revert L1Withdrawer_WithdrawalGasLimitTooLow();
+        }
         minWithdrawalAmount = _minWithdrawalAmount;
         recipient = _recipient;
         withdrawalGasLimit = _withdrawalGasLimit;
@@ -89,6 +98,8 @@ contract L1Withdrawer is ISemver {
     }
 
     /// @notice Updates the recipient address. Only callable by the ProxyAdmin owner.
+    /// @dev The recipient MUST be able to receive ether or L1Withdrawer#receive will fail
+    /// when the withdrawal is finalized.
     /// @param _newRecipient The new recipient address.
     function setRecipient(address _newRecipient) external {
         if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
@@ -104,6 +115,9 @@ contract L1Withdrawer is ISemver {
     function setWithdrawalGasLimit(uint96 _newWithdrawalGasLimit) external {
         if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert L1Withdrawer_OnlyProxyAdminOwner();
+        }
+        if (_newWithdrawalGasLimit < MIN_WITHDRAWAL_GAS) {
+            revert L1Withdrawer_WithdrawalGasLimitTooLow();
         }
         uint96 oldWithdrawalGasLimit = withdrawalGasLimit;
         withdrawalGasLimit = _newWithdrawalGasLimit;

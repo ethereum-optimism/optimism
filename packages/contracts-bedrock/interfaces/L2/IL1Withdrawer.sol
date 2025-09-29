@@ -5,6 +5,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 interface IL1Withdrawer is ISemver {
     error L1Withdrawer_OnlyProxyAdminOwner();
+    error L1Withdrawer_WithdrawalGasLimitTooLow();
 
     event WithdrawalInitiated(address indexed recipient, uint256 amount);
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);

@@ -57,6 +57,7 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     }
 
     /// @notice Returns the recipients and amounts for fee distribution.
+    /// @dev The recipients returned MUST be able to receive ether or FeeSplitter#disburseFees will fail.
     /// @param _sequencerFeeRevenue Revenue from sequencer fees.
     /// @param _baseFeeRevenue Revenue from base fees.
     /// @param _operatorFeeRevenue Revenue from operator fees.

@@ -265,8 +265,9 @@ contract RevenueSharingIntegration_Test is CommonTest {
         _operatorFees2 = bound(_operatorFees2, 0, 100 ether);
         _l1Fees2 = bound(_l1Fees2, 0, 100 ether);
 
-        // Handle case where first disbursement has all zero fees
-        if (_l1Fees == 0 && _sequencerFees == 0 && _baseFees == 0 && _operatorFees == 0) {
+        // Handle case where grossShare == 0
+        // It is 0 when it sums up to less than 40 because of the GROSS_SHARE_BPS = 250 and BASIS_POINT_SCALE = 10_000
+        if (_l1Fees + _sequencerFees + _baseFees + _operatorFees < 40) {
             vm.expectRevert(ISuperchainRevSharesCalculator.SharesCalculator_ZeroGrossShare.selector);
             superchainRevSharesCalculator.getRecipientsAndAmounts(_sequencerFees, _baseFees, _operatorFees, _l1Fees);
             return;
@@ -351,8 +352,9 @@ contract RevenueSharingIntegration_Test is CommonTest {
 
         // ========== SECOND DISBURSEMENT ==========
 
-        // Handle case where second disbursement has all zero fees
-        if (_l1Fees2 == 0 && _sequencerFees2 == 0 && _baseFees2 == 0 && _operatorFees2 == 0) {
+        // Handle case where grossShare == 0
+        // It is 0 when it sums up to less than 40 because of the GROSS_SHARE_BPS = 250 and BASIS_POINT_SCALE = 10_000
+        if (_l1Fees2 + _sequencerFees2 + _baseFees2 + _operatorFees2 < 40) {
             vm.expectRevert(ISuperchainRevSharesCalculator.SharesCalculator_ZeroGrossShare.selector);
             superchainRevSharesCalculator.getRecipientsAndAmounts(_sequencerFees2, _baseFees2, _operatorFees2, _l1Fees2);
             return;

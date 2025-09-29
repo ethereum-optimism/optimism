@@ -40,12 +40,5 @@
     "offset": 0,
     "slot": "2",
     "type": "uint64"
-  },
-  {
-    "bytes": "32",
-    "label": "depositData",
-    "offset": 0,
-    "slot": "3",
-    "type": "bytes"
   }
 ]

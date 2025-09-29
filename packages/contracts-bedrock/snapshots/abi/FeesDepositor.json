@@ -10,19 +10,6 @@
   },
   {
     "inputs": [],
-    "name": "depositData",
-    "outputs": [
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "gasLimit",
     "outputs": [
       {
@@ -68,11 +55,6 @@
         "internalType": "uint64",
         "name": "_gasLimit",
         "type": "uint64"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_depositData",
-        "type": "bytes"
       }
     ],
     "name": "initialize",
@@ -148,21 +130,8 @@
   {
     "inputs": [
       {
-        "internalType": "bytes",
-        "name": "_depositData",
-        "type": "bytes"
-      }
-    ],
-    "name": "setDepositData",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint64",
-        "name": "_gasLimit",
+        "name": "_newGasLimit",
         "type": "uint64"
       }
     ],
@@ -175,7 +144,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_l2Recipient",
+        "name": "_newL2Recipient",
         "type": "address"
       }
     ],
@@ -188,7 +157,7 @@
     "inputs": [
       {
         "internalType": "uint96",
-        "name": "_minDepositAmount",
+        "name": "_newMinDepositAmount",
         "type": "uint96"
       }
     ],
@@ -209,25 +178,6 @@
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "oldDepositData",
-        "type": "bytes"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "newDepositData",
-        "type": "bytes"
-      }
-    ],
-    "name": "DepositDataUpdated",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -330,13 +280,13 @@
       {
         "indexed": false,
         "internalType": "uint96",
-        "name": "oldminDepositAmount",
+        "name": "oldMinDepositAmount",
         "type": "uint96"
       },
       {
         "indexed": false,
         "internalType": "uint96",
-        "name": "newminDepositAmount",
+        "name": "newMinDepositAmount",
         "type": "uint96"
       }
     ],

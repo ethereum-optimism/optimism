@@ -16,17 +16,15 @@ contract FeesDepositor_TestInit is CommonTest {
     // Events
     event FeesDeposited(address indexed l2Recipient, uint256 amount);
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
-    event MinDepositAmountUpdated(uint96 oldminDepositAmount, uint96 newminDepositAmount);
+    event MinDepositAmountUpdated(uint96 oldMinDepositAmount, uint96 newMinDepositAmount);
     event L2RecipientUpdated(address oldL2Recipient, address newL2Recipient);
     event GasLimitUpdated(uint64 oldGasLimit, uint64 newGasLimit);
-    event DepositDataUpdated(bytes oldDepositData, bytes newDepositData);
 
     // Test state
     FeesDepositor feesDepositor;
     address l2Recipient = makeAddr("l2Recipient");
     uint96 minDepositAmount = 1 ether;
     uint64 gasLimit = 150_000;
-    bytes depositData = hex"1234";
     address depositFeesRecipient;
 
     /// @notice Test setup.
@@ -51,7 +49,7 @@ contract FeesDepositor_TestInit is CommonTest {
 
         // Initialize through proxy
         vm.prank(proxyAdminOwner);
-        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit, depositData);
+        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit);
 
         // Set depositFeesRecipient
         depositFeesRecipient =
@@ -66,7 +64,7 @@ contract FeesDepositor_Initialize_Test is FeesDepositor_TestInit {
     /// standard deployment script and instead is deployed manually, that's why we have this test.
     function test_cannotReinitialize_succeeds() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit, depositData);
+        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit);
     }
 }
 
@@ -87,7 +85,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         vm.expectCall(
             address(optimismPortal2),
             _amount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _amount, gasLimit, false, depositData)),
+            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _amount, gasLimit, false, "")),
             0
         );
 
@@ -114,7 +112,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         vm.expectCall(
             address(optimismPortal2),
             _sendAmount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _sendAmount, gasLimit, false, depositData))
+            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _sendAmount, gasLimit, false, ""))
         );
 
         (bool success,) = address(feesDepositor).call{ value: _sendAmount }("");
@@ -164,7 +162,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         vm.expectCall(
             address(optimismPortal2),
             totalAmount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, totalAmount, gasLimit, false, depositData))
+            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, totalAmount, gasLimit, false, ""))
         );
 
         (bool success2,) = address(feesDepositor).call{ value: _secondAmount }("");
@@ -177,6 +175,23 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
             depositFeesRecipientBalanceBefore + totalAmount,
             "depositFeesRecipient balance 2"
         );
+    }
+
+    /// @notice Fuzz test to ensure receive function gas usage never exceeds 200,000 gas.
+    /// @dev This test verifies the security requirement that receive() doesn't consume excessive gas,
+    ///      preventing potential issues with withdrawal gas limits. The limit includes buffer for
+    ///      measurement overhead and future contract changes.
+    function testFuzz_receive_gasUsageWithinLimit_succeeds(uint256 _amount) external {
+        _amount = bound(_amount, 0, type(uint256).max - depositFeesRecipient.balance);
+
+        vm.deal(address(this), _amount);
+
+        uint256 gasBefore = gasleft();
+        (bool success,) = address(feesDepositor).call{ value: _amount }("");
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertTrue(success, "Receive call should succeed");
+        assertLe(gasUsed, 200_000, "Receive function gas usage should not exceed 200,000 gas");
     }
 }
 
@@ -264,34 +279,5 @@ contract FeesDepositor_SetGasLimit_Test is FeesDepositor_TestInit {
         feesDepositor.setGasLimit(newGasLimit);
 
         assertEq(feesDepositor.gasLimit(), gasLimit);
-    }
-}
-
-/// @title FeesDepositor_SetDepositData_Test
-/// @notice Tests the setDepositData function of the `FeesDepositor` contract.
-contract FeesDepositor_SetDepositData_Test is FeesDepositor_TestInit {
-    function testFuzz_setDepositData_asOwner_succeeds(bytes memory _newDepositData) external {
-        address owner = proxyAdmin.owner();
-
-        vm.expectEmit(address(feesDepositor));
-        emit DepositDataUpdated(depositData, _newDepositData);
-
-        vm.prank(owner);
-        feesDepositor.setDepositData(_newDepositData);
-
-        assertEq(feesDepositor.depositData(), _newDepositData);
-    }
-
-    function testFuzz_setDepositData_asNonOwner_reverts(address _caller) external {
-        address owner = proxyAdmin.owner();
-        vm.assume(_caller != owner);
-
-        bytes memory newDepositData = hex"5678";
-
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
-        vm.prank(_caller);
-        feesDepositor.setDepositData(newDepositData);
-
-        assertEq(feesDepositor.depositData(), depositData);
     }
 }

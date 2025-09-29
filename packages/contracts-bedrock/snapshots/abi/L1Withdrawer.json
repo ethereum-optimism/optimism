@@ -220,5 +220,10 @@
     "inputs": [],
     "name": "L1Withdrawer_OnlyProxyAdminOwner",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1Withdrawer_WithdrawalGasLimitTooLow",
+    "type": "error"
   }
 ]
