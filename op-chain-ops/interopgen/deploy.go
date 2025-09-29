@@ -270,6 +270,7 @@ func MigrateInterop(
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
 			ProxyAdmin:        superDeployment.ProxyAdmin,
 			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			// TODO(#17652): Configure CannonKonaPrestate
 		}
 	}
 

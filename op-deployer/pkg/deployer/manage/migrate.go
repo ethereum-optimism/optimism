@@ -115,6 +115,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 				SystemConfigProxy: common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
 				ProxyAdmin:        common.HexToAddress(cliCtx.String(OPChainProxyAdminFlag.Name)),
 				CannonPrestate:    common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
+				// TODO(#17652): Configure CannonKonaPrestate
 			},
 		},
 	}

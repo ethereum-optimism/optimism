@@ -1724,7 +1724,10 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         }
 
         // If the cannon-kona game is being used, set that up too.
-        if (_input.usePermissionlessGame && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) != (bytes32(0))) {
+        if (
+            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _input.usePermissionlessGame
+                && Claim.unwrap(_input.opChainConfigs[0].cannonKonaPrestate) != (bytes32(0))
+        ) {
             // Deploy the new SuperFaultDisputeGame.
             ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
                 Blueprint.deployFrom(
