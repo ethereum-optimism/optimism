@@ -2612,7 +2612,7 @@ contract FaultDisputeGameV2_GetChallengerDuration_Test is FaultDisputeGameV2_Tes
     }
 }
 
-/// @title FaultDisputeGame_Uncategorized_Test
+/// @title FaultDisputeGameV2_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `FaultDisputeGame`
 ///         contract or are testing multiple functions at once.
 contract FaultDisputeGameV2_Uncategorized_Test is FaultDisputeGameV2_TestInit {
