@@ -315,7 +315,14 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 		}
 		return params.SepoliaChainConfig, nil
 	default:
-		return NewL1ChainConfigFromCLI(log, ctx)
+		cf, err := NewL1ChainConfigFromCLI(log, ctx)
+		if err != nil {
+			return nil, err
+		}
+		if cf.BlobScheduleConfig == nil {
+			return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
+		}
+		return cf, nil
 	}
 }
 
@@ -337,14 +344,7 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainCon
 
 	// If that fails, try to load the config from the .config property.
 	// This should work if the provided file is a genesis file / chainspec
-	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
-	if err != nil {
-		return nil, err
-	}
-	if cfg.BlobScheduleConfig == nil {
-		return nil, errors.New("blob schedule config of provided l1 chain config is nil")
-	}
-	return cfg, nil
+	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
 func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {
