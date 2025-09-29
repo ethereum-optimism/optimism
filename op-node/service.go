@@ -300,13 +300,16 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 }
 
 func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*params.ChainConfig, error) {
-	switch chainId {
-	case params.MainnetChainConfig.ChainID:
+	if chainId == nil {
+		panic("l1 chain id is nil")
+	}
+	switch {
+	case chainId.Cmp(params.MainnetChainConfig.ChainID) == 0:
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
 			log.Warn("L1 chain config is set, but it is not necessary for mainnet")
 		}
 		return params.MainnetChainConfig, nil
-	case params.SepoliaChainConfig.ChainID:
+	case chainId.Cmp(params.SepoliaChainConfig.ChainID) == 0:
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
 			log.Warn("L1 chain config is set, but it is not necessary for sepolia")
 		}
@@ -334,7 +337,14 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainCon
 
 	// If that fails, try to load the config from the .config property.
 	// This should work if the provided file is a genesis file / chainspec
-	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	if err != nil {
+		return nil, err
+	}
+	if cfg.BlobScheduleConfig == nil {
+		return nil, errors.New("blob schedule config of provided l1 chain config is nil")
+	}
+	return cfg, nil
 }
 
 func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {
