@@ -58,7 +58,7 @@ type Config struct {
 	Networks          []string
 	L2Custom          bool
 	RollupConfigPaths []string
-	L1GenesisPaths    []string
+	L1GenesisPath     string
 	L2GenesisPaths    []string
 	DepsetConfigPath  string
 }
@@ -82,7 +82,7 @@ func (c *Config) Check() error {
 		if len(c.RollupConfigPaths) == 0 {
 			return ErrMissingRollupConfig
 		}
-		if len(c.L1GenesisPaths) == 0 {
+		if c.L1GenesisPath == "" {
 			return ErrMissingL1Genesis
 		}
 		if len(c.L2GenesisPaths) == 0 {

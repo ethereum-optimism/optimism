@@ -13,11 +13,12 @@ import (
 func TestKonaFillHostCommand(t *testing.T) {
 	dir := "mockdir"
 	cfg := Config{
-		L1:       "http://localhost:8888",
-		L1Beacon: "http://localhost:9000",
-		L2s:      []string{"http://localhost:9999"},
-		Server:   "./bin/mockserver",
-		Networks: []string{"op-mainnet"},
+		L1:            "http://localhost:8888",
+		L1Beacon:      "http://localhost:9000",
+		L2s:           []string{"http://localhost:9999"},
+		Server:        "./bin/mockserver",
+		Networks:      []string{"op-mainnet"},
+		L1GenesisPath: "mockdir/l1-genesis-1.json",
 	}
 	inputs := utils.LocalGameInputs{
 		L1Head:           common.Hash{0x11},

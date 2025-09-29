@@ -295,7 +295,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
-			cfg.Cannon.L1GenesisPaths = []string{"bar.json"}
+			cfg.Cannon.L1GenesisPath = "bar.json"
 			cfg.Cannon.L2GenesisPaths = nil
 			cfg.Cannon.DepsetConfigPath = "foo.json"
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
@@ -377,7 +377,7 @@ func TestDepsetConfig(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
-			cfg.Cannon.L1GenesisPaths = []string{"bar.json"}
+			cfg.Cannon.L1GenesisPath = "bar.json"
 			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
 			cfg.Cannon.DepsetConfigPath = ""
 			require.NoError(t, cfg.Check())
@@ -390,7 +390,7 @@ func TestDepsetConfig(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L1GenesisPaths = []string{"bar.json"}
+			cfg.AsteriscKona.L1GenesisPath = "bar.json"
 			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
 			cfg.AsteriscKona.DepsetConfigPath = ""
 			require.NoError(t, cfg.Check())
@@ -478,7 +478,7 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			cfg.Asterisc.Networks = nil
 			cfg.Asterisc.RollupConfigPaths = []string{"foo.json"}
 			cfg.Asterisc.L2GenesisPaths = nil
-			cfg.Asterisc.L1GenesisPaths = []string{"bar.json"}
+			cfg.Asterisc.L1GenesisPath = "bar.json"
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
@@ -586,7 +586,7 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = nil
-			cfg.AsteriscKona.L1GenesisPaths = []string{"bar.json"}
+			cfg.AsteriscKona.L1GenesisPath = "bar.json"
 			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
@@ -595,7 +595,7 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L1GenesisPaths = []string{"bar.json"}
+			cfg.AsteriscKona.L1GenesisPath = "bar.json"
 			cfg.AsteriscKona.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
@@ -604,7 +604,7 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.AsteriscKona.Networks = nil
 			cfg.AsteriscKona.RollupConfigPaths = []string{"foo.json"}
-			cfg.AsteriscKona.L1GenesisPaths = nil
+			cfg.AsteriscKona.L1GenesisPath = ""
 			cfg.AsteriscKona.L2GenesisPaths = []string{"genesis.json"}
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL1Genesis)
 		})

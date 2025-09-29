@@ -73,7 +73,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	l1CL, ok := orch.l1CLs.Get(l1CLID)
 	require.True(ok)
 
-	l1Geneses := make([]*core.Genesis, 0, len(l2ELIDs))
+	l1Genesis := new(core.Genesis)
 	l2Geneses := make([]*core.Genesis, 0, len(l2ELIDs))
 	rollupCfgs := make([]*rollup.Config, 0, len(l2ELIDs))
 	l2NetIDs := make([]stack.L2NetworkID, 0, len(l2ELIDs))
@@ -106,7 +106,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		l1Net, ok := orch.l1Nets.Get(l1ChainID)
 		require.Truef(ok, "l1Net %s not found", l1ChainID)
 
-		l1Geneses = append(l1Geneses, l1Net.genesis)
+		l1Genesis = l1Net.genesis
 
 	}
 
@@ -131,7 +131,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),
-			shared.WithCannonConfig(rollupCfgs, l1Geneses, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
 			shared.WithSuperCannonTraceType(),
 			shared.WithSuperPermissionedTraceType(),
 		)
@@ -155,7 +155,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(),
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
-			shared.WithCannonConfig(rollupCfgs, l1Geneses, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
 			shared.WithCannonTraceType(),
 			shared.WithPermissionedTraceType(),
 			shared.WithFastGames(),
