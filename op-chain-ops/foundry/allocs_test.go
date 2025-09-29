@@ -54,7 +54,7 @@ func TestForgeAllocs_FromState(t *testing.T) {
 	st.CreateContract(contract)
 	st.SetNonce(contract, 30, tracing.NonceChangeUnspecified)
 	st.SetBalance(contract, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
-	st.SetCode(contract, []byte{10, 11, 12, 13, 14})
+	st.SetCode(contract, []byte{10, 11, 12, 13, 14}, tracing.CodeChangeUnspecified)
 
 	// Commit and make a new state, we cannot reuse the state after Commit
 	// (see doc-comment in Commit, absolute footgun)
