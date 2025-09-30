@@ -65,8 +65,9 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		}
 	}
 	if rollupBoostToleratePartialHealthinessToleranceLimit != 0 {
+		hm.rollupBoostPartialHealthinessToleranceLimit = rollupBoostToleratePartialHealthinessToleranceLimit
 		var err error
-		hm.timeTolerantRollupBoostPartialHealthinessMgr, err = NewTimeBoundedRotatingCounter(rollupBoostToleratePartialHealthinessToleranceIntervalSeconds, rollupBoostToleratePartialHealthinessToleranceLimit)
+		hm.rollupBoostPartialHealthinessToleranceCounter, err = NewTimeBoundedRotatingCounter(rollupBoostToleratePartialHealthinessToleranceIntervalSeconds)
 		if err != nil {
 			panic(fmt.Errorf("failed to setup health monitor: %w", err))
 		}
@@ -100,12 +101,13 @@ type SequencerHealthMonitor struct {
 
 	timeProviderFn func() uint64
 
-	node                                         dial.RollupClientInterface
-	p2p                                          apis.P2PClient
-	supervisor                                   SupervisorHealthAPI
-	rb                                           client.RollupBoostClient
-	elP2p                                        *ElP2pHealthMonitor
-	timeTolerantRollupBoostPartialHealthinessMgr *timeBoundedRotatingCounter
+	node                                          dial.RollupClientInterface
+	p2p                                           apis.P2PClient
+	supervisor                                    SupervisorHealthAPI
+	rb                                            client.RollupBoostClient
+	elP2p                                         *ElP2pHealthMonitor
+	rollupBoostPartialHealthinessToleranceLimit   uint64
+	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -296,11 +298,10 @@ func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
 	case client.HealthStatusHealthy:
 		return nil
 	case client.HealthStatusPartial:
-		if hm.timeTolerantRollupBoostPartialHealthinessMgr != nil {
-			if _, err := hm.timeTolerantRollupBoostPartialHealthinessMgr.Increment(); err == nil {
-				hm.log.Warn("[Tolerating Failure] Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
-				return nil
-			}
+		if hm.rollupBoostPartialHealthinessToleranceCounter != nil && hm.rollupBoostPartialHealthinessToleranceCounter.CurrentValue() < hm.rollupBoostPartialHealthinessToleranceLimit {
+			latestValue := hm.rollupBoostPartialHealthinessToleranceCounter.Increment()
+			hm.log.Debug("Rollup-boost partial unhealthiness failure tolerated", "currentValue", latestValue, "limit", hm.rollupBoostPartialHealthinessToleranceLimit)
+			return nil
 		}
 		hm.log.Error("Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
 		return ErrRollupBoostPartiallyHealthy

@@ -10,13 +10,13 @@ import (
 func TestTimeBoundedRotatingCounterSetup(t *testing.T) {
 	t.Parallel()
 	t.Run("fail with 0 interval seconds value", func(t *testing.T) {
-		counter, err := NewTimeBoundedRotatingCounter(0, 0)
+		counter, err := NewTimeBoundedRotatingCounter(0)
 		require.Error(t, err)
 		require.Nil(t, counter)
 	})
 
-	t.Run("succeed with 0 max value", func(t *testing.T) {
-		counter, err := NewTimeBoundedRotatingCounter(2, 0)
+	t.Run("succeed with non-zero interval seconds value", func(t *testing.T) {
+		counter, err := NewTimeBoundedRotatingCounter(2)
 		require.NoError(t, err)
 		require.NotNil(t, counter)
 	})
@@ -26,8 +26,8 @@ func TestTimeBoundedRotatingCounterIncrement(t *testing.T) {
 
 	mockTimeProvider := &timeProvider{now: 0} // every access to .Now() will increment its value simulating a one-second time passing
 
-	maxValue, resetInterval := uint64(2), uint64(6)
-	counter, err := NewTimeBoundedRotatingCounter(resetInterval, maxValue)
+	resetInterval := uint64(6)
+	counter, err := NewTimeBoundedRotatingCounter(resetInterval)
 	require.NoError(t, err)
 	require.NotNil(t, counter)
 	counter.timeProviderFn = mockTimeProvider.Now
@@ -36,44 +36,38 @@ func TestTimeBoundedRotatingCounterIncrement(t *testing.T) {
 	require.Equal(t, uint64(0), counter.CurrentValue())
 	require.Equal(t, int(mockTimeProvider.now), 1)
 
-	newValue, err := counter.Increment()
-	require.NoError(t, err)
+	newValue := counter.Increment()
 	require.Equal(t, uint64(1), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 2)
 	require.Equal(t, uint64(1), counter.CurrentValue())
 	require.Equal(t, int(mockTimeProvider.now), 3)
 
-	newValue, err = counter.Increment()
-	require.NoError(t, err)
+	newValue = counter.Increment()
 	require.Equal(t, uint64(2), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 4)
 	require.Equal(t, uint64(2), counter.CurrentValue())
 	require.Equal(t, int(mockTimeProvider.now), 5)
 
-	newValue, err = counter.Increment()
-	require.Error(t, err)
-	require.Equal(t, uint64(2), newValue)
+	newValue = counter.Increment()
+	require.Equal(t, uint64(3), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 6)
 	require.Equal(t, uint64(0), counter.CurrentValue()) // the next second counter rotates returning 0 as the current value
 	require.Equal(t, int(mockTimeProvider.now), 7)
 
-	newValue, err = counter.Increment()
-	require.NoError(t, err)
+	newValue = counter.Increment()
 	require.Equal(t, uint64(1), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 8)
 	require.Equal(t, uint64(1), counter.CurrentValue())
 	require.Equal(t, int(mockTimeProvider.now), 9)
 
-	newValue, err = counter.Increment()
-	require.NoError(t, err)
+	newValue = counter.Increment()
 	require.Equal(t, uint64(2), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 10)
 	require.Equal(t, uint64(2), counter.CurrentValue())
 	require.Equal(t, int(mockTimeProvider.now), 11)
 
-	newValue, err = counter.Increment()
-	require.Error(t, err)
-	require.Equal(t, uint64(2), newValue)
+	newValue = counter.Increment()
+	require.Equal(t, uint64(3), newValue)
 	require.Equal(t, int(mockTimeProvider.now), 12)
 	require.Equal(t, uint64(0), counter.CurrentValue()) // the next second counter rotates returning 0 as the current value
 	require.Equal(t, int(mockTimeProvider.now), 13)
@@ -85,7 +79,7 @@ func TestTimeBoundedRotatingCounterIncrement(t *testing.T) {
 func TestTimeBoundedRotatingCounterConcurrentAccess(t *testing.T) {
 	mockTimeProvider := &timeProvider{now: 0}
 
-	counter, err := NewTimeBoundedRotatingCounter(1, 9)
+	counter, err := NewTimeBoundedRotatingCounter(1)
 	require.NoError(t, err)
 	require.NotNil(t, counter)
 	counter.timeProviderFn = mockTimeProvider.Now
@@ -95,8 +89,7 @@ func TestTimeBoundedRotatingCounterConcurrentAccess(t *testing.T) {
 
 	write := func() {
 		defer wg.Done()
-		_, err := counter.Increment()
-		require.NoError(t, err) // considering the max value is 9, the increment should never fail
+		counter.Increment()
 	}
 	read := func() {
 		defer wg.Done()
@@ -116,21 +109,19 @@ func TestTimeBoundedRotatingCounterLazyCleanup(t *testing.T) {
 
 	// a counter with a reset interval of 2 ensuring every two-seconds the counter's cache would track a new key:value
 	// we'll trigger the 2-second increment by calling .Increment() and .CurrentValue() because both under the hood, would call .Now() of the mockTimeProvider
-	counter, err := NewTimeBoundedRotatingCounter(2, 9)
+	counter, err := NewTimeBoundedRotatingCounter(2)
 	require.NoError(t, err)
 	require.NotNil(t, counter)
 	counter.timeProviderFn = mockTimeProvider.Now
 
 	for i := 0; i < 1000; i++ {
-		_, err := counter.Increment() // trigger a 1-second time increase
-		require.NoError(t, err)
+		counter.Increment()    // trigger a 1-second time increase
 		counter.CurrentValue() // trigger another 1-second time increase, causing the counter interval to reset ensuring next Increment would write a new key in the cache
 	}
 
 	require.Equal(t, 1000, len(counter.temporalCache))
 
 	// 1001th increment should trigger the lazy cleanup this time
-	_, err = counter.Increment()
-	require.NoError(t, err)
+	counter.Increment()
 	require.Equal(t, 1, len(counter.temporalCache))
 }
