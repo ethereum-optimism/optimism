@@ -138,7 +138,7 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	// applicable forkchoice -> process once
 	mockEngine.ExpectGetPayload(eth.PayloadID{}, payloadA1, nil)
 	mockEngine.ExpectNewPayload(payloadA1.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
-	mockEngine.ExpectForkchoiceUpdateAny(&eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{HeadBlockHash: refA1.Hash, SafeBlockHash: common.Hash{}, FinalizedBlockHash: common.Hash{}}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
 	cl.OnEvent(context.Background(), ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
 	require.NotNil(t, cl.unsafePayloads.Peek(), "should not pop yet")
 
