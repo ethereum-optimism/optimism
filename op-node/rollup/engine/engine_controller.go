@@ -206,8 +206,8 @@ func (e *EngineController) requestForkchoiceUpdate(ctx context.Context) {
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return e.isEngineSyncing()
 }
 
