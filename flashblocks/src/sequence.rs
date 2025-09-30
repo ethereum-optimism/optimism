@@ -121,6 +121,11 @@ where
     pub(crate) fn count(&self) -> usize {
         self.inner.len()
     }
+
+    /// Returns the reference to the last flashblock.
+    pub(crate) fn last_flashblock(&self) -> Option<&FlashBlock> {
+        self.inner.last_key_value().map(|(_, b)| &b.block)
+    }
 }
 
 /// A complete sequence of flashblocks, often corresponding to a full block.

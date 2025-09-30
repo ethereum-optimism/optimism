@@ -1,4 +1,4 @@
-use crate::ExecutionPayloadBaseV1;
+use crate::{ExecutionPayloadBaseV1, PendingFlashBlock};
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag};
 use alloy_primitives::B256;
 use reth_chain_state::{CanonStateSubscriptions, ExecutedBlock};
@@ -41,6 +41,8 @@ pub(crate) struct BuildArgs<I> {
     pub base: ExecutionPayloadBaseV1,
     pub transactions: I,
     pub cached_state: Option<(B256, CachedReads)>,
+    pub last_flashblock_index: u64,
+    pub last_flashblock_hash: B256,
 }
 
 impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
@@ -56,14 +58,14 @@ where
             Receipt = ReceiptTy<N>,
         > + Unpin,
 {
-    /// Returns the [`PendingBlock`] made purely out of transactions and [`ExecutionPayloadBaseV1`]
-    /// in `args`.
+    /// Returns the [`PendingFlashBlock`] made purely out of transactions and
+    /// [`ExecutionPayloadBaseV1`] in `args`.
     ///
     /// Returns `None` if the flashblock doesn't attach to the latest header.
     pub(crate) fn execute<I: IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>>(
         &self,
         mut args: BuildArgs<I>,
-    ) -> eyre::Result<Option<(PendingBlock<N>, CachedReads)>> {
+    ) -> eyre::Result<Option<(PendingFlashBlock<N>, CachedReads)>> {
         trace!("Attempting new pending block from flashblocks");
 
         let latest = self
@@ -110,17 +112,21 @@ where
             vec![execution_result.requests],
         );
 
-        Ok(Some((
-            PendingBlock::with_executed_block(
-                Instant::now() + Duration::from_secs(1),
-                ExecutedBlock {
-                    recovered_block: block.into(),
-                    execution_output: Arc::new(execution_outcome),
-                    hashed_state: Arc::new(hashed_state),
-                },
-            ),
-            request_cache,
-        )))
+        let pending_block = PendingBlock::with_executed_block(
+            Instant::now() + Duration::from_secs(1),
+            ExecutedBlock {
+                recovered_block: block.into(),
+                execution_output: Arc::new(execution_outcome),
+                hashed_state: Arc::new(hashed_state),
+            },
+        );
+        let pending_flashblock = PendingFlashBlock::new(
+            pending_block,
+            args.last_flashblock_index,
+            args.last_flashblock_hash,
+        );
+
+        Ok(Some((pending_flashblock, request_cache)))
     }
 }
 

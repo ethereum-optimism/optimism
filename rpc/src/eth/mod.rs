@@ -139,7 +139,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             parent.hash() == pending_block.block().parent_hash() &&
             now <= pending_block.expires_at
         {
-            return Ok(Some(pending_block.clone()));
+            return Ok(Some(pending_block.pending.clone()));
         }
 
         Ok(None)

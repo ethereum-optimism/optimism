@@ -51,6 +51,7 @@ metrics.workspace = true
 eyre.workspace = true
 
 ringbuffer.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true

@@ -1,8 +1,11 @@
 use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::{Address, Bloom, Bytes, B256, U256};
 use alloy_rpc_types_engine::PayloadId;
+use derive_more::Deref;
+use reth_node_api::NodePrimitives;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_primitives::OpReceipt;
+use reth_rpc_eth_types::PendingBlock;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -117,5 +120,29 @@ impl From<ExecutionPayloadBaseV1> for OpNextBlockEnvAttributes {
             parent_beacon_block_root: Some(value.parent_beacon_block_root),
             extra_data: value.extra_data,
         }
+    }
+}
+
+/// The pending block built with all received Flashblocks alongside the metadata for the last added
+/// Flashblock.
+#[derive(Debug, Clone, Deref)]
+pub struct PendingFlashBlock<N: NodePrimitives> {
+    /// The complete pending block built out of all received Flashblocks.
+    #[deref]
+    pub pending: PendingBlock<N>,
+    /// A sequential index that identifies the last Flashblock added to this block.
+    pub last_flashblock_index: u64,
+    /// The last Flashblock block hash,
+    pub last_flashblock_hash: B256,
+}
+
+impl<N: NodePrimitives> PendingFlashBlock<N> {
+    /// Create new pending flashblock.
+    pub const fn new(
+        pending: PendingBlock<N>,
+        last_flashblock_index: u64,
+        last_flashblock_hash: B256,
+    ) -> Self {
+        Self { pending, last_flashblock_index, last_flashblock_hash }
     }
 }
