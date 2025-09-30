@@ -825,8 +825,15 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 	e.originSelectorResetter = resetter
 }
 
-// ForceReset performs a forced reset to the specified block references
+// ForceReset performs a forced reset to the specified block references, acquiring lock
 func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.forceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+}
+
+// forceReset performs a forced reset to the specified block references
+func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	// Reset other components before resetting the engine
 	if e.attributesResetter != nil {
 		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
