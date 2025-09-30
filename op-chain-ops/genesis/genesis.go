@@ -139,6 +139,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		DevL1DeployConfig:  config.DevL1DeployConfig,
 		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
 		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
+		L1OsakaTimeOffset:  (*uint64)(config.L1OsakaTimeOffset),
 	})
 }
 
@@ -148,6 +149,8 @@ type DevL1DeployConfigMinimal struct {
 	L1ChainID eth.ChainID
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *uint64
+	// When Fusaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *uint64
 }
 
 // NewL1GenesisMinimal creates a L1 dev genesis template.
@@ -202,6 +205,10 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.L1PragueTimeOffset != nil {
 		pragueTime := uint64(timestamp) + uint64(*config.L1PragueTimeOffset)
 		chainConfig.PragueTime = &pragueTime
+	}
+	if config.L1OsakaTimeOffset != nil {
+		osakaTime := uint64(timestamp) + uint64(*config.L1OsakaTimeOffset)
+		chainConfig.OsakaTime = &osakaTime
 	}
 	// Note: excess-blob-gas, blob-gas-used, withdrawals-hash, requests-hash are set to reasonable defaults for L1 by the ToBlock() function
 	return &core.Genesis{

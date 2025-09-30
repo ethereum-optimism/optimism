@@ -40,7 +40,9 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
+				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24))           // Activate at second l1 block
+				dp.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8)) // Jack up the blob market so we can test the blob fee calculation
+
 			},
 		)
 
@@ -98,6 +100,8 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})
 			require.NoError(t, err, "failed to get blob base fee")
 			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation, l1BlockNum %d, l2BlockNum %d", l1BlockID.Number, l2Block.Number)
+			require.Greater(t, bbf.Uint64(), uint64(1),
+				"blob base fee is unrealistically low and doesn't exercise the blob fee calculation")
 		}
 
 		requireSafeHeadProgression := func(t actionsHelpers.StatefulTesting, safeL2Before, safeL2After eth.L2BlockRef, batchedWithSetCodeTx bool) {

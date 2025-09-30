@@ -160,9 +160,9 @@ func (s *L2Sequencer) ActL2ForceAdvanceL1Origin(t Testing) {
 	s.mockL1OriginSelector.originOverride = nextOrigin
 }
 
-// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
+// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
+	for s.L2Unsafe().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2EmptyBlock(t)
 	}
