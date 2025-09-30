@@ -14,6 +14,7 @@ members = [
     "crates/cli/",
     "crates/consensus/",
     "crates/evm/",
+    "crates/exex",
     "crates/flashblocks/",
     "crates/hardforks/",
     "crates/node/",
@@ -165,6 +166,7 @@ reth-optimism-chainspec = { path = "crates/chainspec/", default-features = false
 reth-optimism-cli = { path = "crates/cli/", default-features = false }
 reth-optimism-consensus = { path = "crates/consensus/", default-features = false }
 reth-optimism-evm = { path = "crates/evm/", default-features = false }
+reth-optimism-exex = { path = "crates/exex/" }
 reth-optimism-flashblocks = { path = "crates/flashblocks/" }
 reth-optimism-forks = { path = "crates/hardforks/", default-features = false }
 reth-optimism-node = { path = "crates/node/" }
