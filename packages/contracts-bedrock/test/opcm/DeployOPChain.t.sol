@@ -9,17 +9,8 @@ import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-
-import { Claim, Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChain_TestBase is Test {
     DeploySuperchain deploySuperchain;
