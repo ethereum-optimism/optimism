@@ -138,7 +138,7 @@ func (e *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Sig
 
 	e.SetUnsafeHead(ref)
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
-	if err := e.tryUpdateEngine(ctx); err != nil {
+	if err := e.tryUpdateEngineInternal(ctx); err != nil {
 		return fmt.Errorf("failed to update engine forkchoice: %w", err)
 	}
 	return nil

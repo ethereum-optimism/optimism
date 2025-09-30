@@ -28,27 +28,27 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 		e.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
-		e.ForceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, e.Finalized())
+		e.forceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, e.Finalized())
 		e.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
 			Ref:      ev.Ref.BlockRef(),
 		})
 		// Apply it to the execution engine
-		e.TryUpdateEngine(ctx)
+		e.tryUpdateEngine(ctx)
 		// Not a regular reset, since we don't wind back to any L2 block.
 		// We start specifically from the replacement block.
 		return
 	}
 
 	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
-	e.TryUpdateUnsafe(ctx, ev.Ref)
+	e.tryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		e.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
-		e.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		e.tryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		e.tryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
 	// Now if possible synchronously call FCU
-	err := e.tryUpdateEngine(ctx)
+	err := e.tryUpdateEngineInternal(ctx)
 	if err != nil {
 		e.log.Error("Failed to update engine", "error", err)
 	}
