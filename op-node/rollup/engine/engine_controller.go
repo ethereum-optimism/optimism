@@ -437,11 +437,7 @@ func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
 		}
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
-		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.unsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
-		})
+		e.requestForkchoiceUpdate(ctx)
 	}
 	if e.unsafeHead == e.safeHead && e.safeHead == e.pendingSafeHead {
 		// Remove backupUnsafeHead because this backup will be never used after consolidation.
@@ -537,11 +533,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	}
 
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
-		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.unsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
-		})
+		e.requestForkchoiceUpdate(ctx)
 	}
 
 	totalTime := fcu2Finish.Sub(newPayloadStart)
@@ -618,15 +610,12 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		}
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
-		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.backupUnsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
-		})
 		// Execution engine accepted the reorg.
 		e.log.Info("successfully reorged unsafe head using backupUnsafe", "unsafe", e.backupUnsafeHead.ID())
 		e.SetUnsafeHead(e.backupUnsafeHead)
 		e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
+
+		e.requestForkchoiceUpdate(ctx)
 		return true, nil
 	}
 	e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
