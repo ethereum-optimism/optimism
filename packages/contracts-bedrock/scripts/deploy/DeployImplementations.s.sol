@@ -61,7 +61,7 @@ contract DeployImplementations is Script {
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
-        address l1PAO;
+        address l1PAO; // L1 ProxyAdminOwner, the owner of the ProxyAdmin in the previous line
         address challenger;
     }
 
