@@ -106,8 +106,6 @@ type EngineController struct {
 	// L1 chain for reset functionality
 	l1 sync.L1Chain
 
-	// TODO(#16917) Remove Event System Refactor Comments
-	// Event system fields (moved from EngDeriver)
 	ctx     context.Context
 	emitter event.Emitter
 
@@ -679,9 +677,6 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 	e.tryUpdateEngine(ctx)
 }
 
-// TODO(#16917) Remove Event System Refactor Comments
-// OnEvent implements event.Deriver (moved from EngDeriver)
-// TryUpdateEngineEvent is replaced with tryUpdateEngine
 func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -734,12 +729,12 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-func (d *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-		PendingSafe: d.PendingSafeL2Head(),
-		Unsafe:      d.UnsafeL2Head(),
+func (e *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.emitter.Emit(ctx, PendingSafeUpdateEvent{
+		PendingSafe: e.pendingSafeHead,
+		Unsafe:      e.unsafeHead,
 	})
 }
 
@@ -812,7 +807,6 @@ func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2Block
 	e.promoteFinalized(ctx, ref)
 }
 func (e *EngineController) promoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
-
 	if ref.Number < e.finalizedHead.Number {
 		e.log.Error("Cannot rewind finality,", "ref", ref, "finalized", e.finalizedHead)
 		return
@@ -1015,5 +1009,59 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 		})
 		return
 	}
-	e.ForceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
+	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
+}
+
+var ErrEngineSyncing = errors.New("engine is syncing")
+
+type BlockInsertionErrType uint
+
+const (
+	// BlockInsertOK indicates that the payload was successfully executed and appended to the canonical chain.
+	BlockInsertOK BlockInsertionErrType = iota
+	// BlockInsertTemporaryErr indicates that the insertion failed but may succeed at a later time without changes to the payload.
+	BlockInsertTemporaryErr
+	// BlockInsertPrestateErr indicates that the pre-state to insert the payload could not be prepared, e.g. due to missing chain data.
+	BlockInsertPrestateErr
+	// BlockInsertPayloadErr indicates that the payload was invalid and cannot become canonical.
+	BlockInsertPayloadErr
+)
+
+// startPayload starts an execution payload building process in the engine, with the given attributes.
+// The severity of the error is distinguished to determine whether the same payload attributes may be re-attempted later.
+func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes) (id eth.PayloadID, errType BlockInsertionErrType, err error) {
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, attrs)
+	if err != nil {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) {
+			switch code := eth.ErrorCode(rpcErr.ErrorCode()); code {
+			case eth.InvalidForkchoiceState:
+				return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", err)
+			case eth.InvalidPayloadAttributes:
+				return eth.PayloadID{}, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", err)
+			default:
+				if code.IsEngineError() {
+					return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("unexpected engine error code in forkchoice-updated response: %w", err)
+				}
+				return eth.PayloadID{}, BlockInsertTemporaryErr, fmt.Errorf("unexpected generic error code in forkchoice-updated response: %w", err)
+			}
+		}
+
+		return eth.PayloadID{}, BlockInsertTemporaryErr, fmt.Errorf("failed to create new block via forkchoice: %w", err)
+	}
+
+	switch fcRes.PayloadStatus.Status {
+	// TODO: snap sync - specify explicit different error type if node is syncing
+	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+		return eth.PayloadID{}, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+	case eth.ExecutionValid:
+		if fcRes.PayloadID == nil {
+			return eth.PayloadID{}, BlockInsertTemporaryErr, errors.New("nil id in forkchoice result when expecting a valid ID")
+		}
+		return *fcRes.PayloadID, BlockInsertOK, nil
+	case eth.ExecutionSyncing:
+		return eth.PayloadID{}, BlockInsertTemporaryErr, ErrEngineSyncing
+	default:
+		return eth.PayloadID{}, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+	}
 }
