@@ -3,25 +3,6 @@
     "inputs": [
       {
         "internalType": "contract GnosisSafe",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "blockingThresholdForSafe",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       },
@@ -54,7 +35,7 @@
         "type": "address"
       }
     ],
-    "name": "cancellationThresholdForSafe",
+    "name": "cancellationThreshold",
     "outputs": [
       {
         "internalType": "uint256",
@@ -69,37 +50,18 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "_txHash",
         "type": "bytes32"
       },
       {
         "internalType": "bool",
-        "name": "",
+        "name": "_success",
         "type": "bool"
       }
     ],
     "name": "checkAfterExecution",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "pendingTransactionsForSafe",
-    "outputs": [
-      {
-        "internalType": "bytes32[]",
-        "name": "",
-        "type": "bytes32[]"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -162,14 +124,7 @@
     ],
     "name": "checkTransaction",
     "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "clearTimelockGuard",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -191,36 +146,14 @@
         "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_txHash",
-        "type": "bytes32"
       }
     ],
-    "name": "scheduledTransactionForSafe",
+    "name": "maxCancellationThreshold",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "executionTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "cancelled",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "executed",
-            "type": "bool"
-          }
-        ],
-        "internalType": "struct TimelockGuard.ScheduledTransaction",
+        "internalType": "uint256",
         "name": "",
-        "type": "tuple"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -230,21 +163,80 @@
     "inputs": [
       {
         "internalType": "contract GnosisSafe",
-        "name": "",
+        "name": "_safe",
         "type": "address"
       }
     ],
-    "name": "safeConfigs",
+    "name": "pendingTransactions",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "timelockDelay",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "configured",
-        "type": "bool"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "executionTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TimelockGuard.TransactionState",
+            "name": "state",
+            "type": "uint8"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              },
+              {
+                "internalType": "enum Enum.Operation",
+                "name": "operation",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "safeTxGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "baseGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "gasToken",
+                "type": "address"
+              },
+              {
+                "internalType": "address payable",
+                "name": "refundReceiver",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TimelockGuard.ExecTransactionParams",
+            "name": "params",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TimelockGuard.ScheduledTransaction[]",
+        "name": "",
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "view",
@@ -310,7 +302,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct ExecTransactionParams",
+        "internalType": "struct TimelockGuard.ExecTransactionParams",
         "name": "_params",
         "type": "tuple"
       },
@@ -326,16 +318,109 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "version",
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "scheduledTransaction",
     "outputs": [
       {
-        "internalType": "string",
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "executionTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TimelockGuard.TransactionState",
+            "name": "state",
+            "type": "uint8"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              },
+              {
+                "internalType": "enum Enum.Operation",
+                "name": "operation",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "safeTxGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "baseGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "gasToken",
+                "type": "address"
+              },
+              {
+                "internalType": "address payable",
+                "name": "refundReceiver",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TimelockGuard.ExecTransactionParams",
+            "name": "params",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TimelockGuard.ScheduledTransaction",
         "name": "",
-        "type": "string"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "signCancellationForSafe",
+    "outputs": [],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -346,24 +431,25 @@
         "type": "address"
       }
     ],
-    "name": "timelockConfigurationForSafe",
+    "name": "timelockConfiguration",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "timelockDelay",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "configured",
-            "type": "bool"
-          }
-        ],
-        "internalType": "struct TimelockGuard.GuardConfig",
+        "internalType": "uint256",
         "name": "",
-        "type": "tuple"
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -402,19 +488,6 @@
         "internalType": "contract GnosisSafe",
         "name": "safe",
         "type": "address"
-      }
-    ],
-    "name": "GuardCleared",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "contract GnosisSafe",
-        "name": "safe",
-        "type": "address"
       },
       {
         "indexed": false,
@@ -438,7 +511,7 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "txId",
+        "name": "txHash",
         "type": "bytes32"
       }
     ],
@@ -453,12 +526,6 @@
         "internalType": "contract GnosisSafe",
         "name": "safe",
         "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "nonce",
-        "type": "uint256"
       },
       {
         "indexed": false,
@@ -482,18 +549,23 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "txId",
+        "name": "txHash",
         "type": "bytes32"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "when",
+        "name": "executionTime",
         "type": "uint256"
       }
     ],
     "name": "TransactionScheduled",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -507,17 +579,22 @@
   },
   {
     "inputs": [],
-    "name": "TimelockGuard_GuardStillEnabled",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "TimelockGuard_InvalidTimelockDelay",
     "type": "error"
   },
   {
     "inputs": [],
+    "name": "TimelockGuard_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TimelockGuard_TransactionAlreadyCancelled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionAlreadyExecuted",
     "type": "error"
   },
   {

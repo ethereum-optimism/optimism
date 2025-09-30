@@ -211,6 +211,10 @@
     "initCodeHash": "0x4679b41e5648a955a883efd0271453c8b13ff4846f853d372527ebb1e0905ab5",
     "sourceCodeHash": "0xd3084fb5446782cb6d0adb4278ef0a12c418dd538b4b14b90407b971b44cc35b"
   },
+  "src/safe/TimelockGuard.sol:TimelockGuard": {
+    "initCodeHash": "0x528f24e0b41bc77ee9fbc312f24afa7118b2e5cedd2744d051ed92104429574a",
+    "sourceCodeHash": "0x5cc610de65df062e13e89197f9d8cf854483cce4540c58ff2e6fd97fba42b74d"
+  },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0xc3289416829b252c830ad7d389a430986a7404df4fe0be37cb19e1c40907f047",
     "sourceCodeHash": "0xf5e29dd5c750ea935c7281ec916ba5277f5610a0a9e984e53ae5d5245b3cf2f4"
