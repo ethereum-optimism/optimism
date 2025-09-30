@@ -436,6 +436,13 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
     );
 
+    function setUp() public virtual override {
+        super.setUp();
+
+        // Skip AddGameType tests when V2 dispute games are enabled
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+    }
+
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
