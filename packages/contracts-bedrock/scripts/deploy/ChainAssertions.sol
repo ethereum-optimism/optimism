@@ -55,6 +55,7 @@ library ChainAssertions {
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfigImpls(Types.ContractSet memory _contracts) internal view {
         ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
+        console.log("Running chain assertions on the SystemConfig impl at %s", address(config));
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(config), _isProxy: false, _slot: 0, _offset: 0 });
@@ -95,6 +96,8 @@ library ChainAssertions {
         view
     {
         ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
+        console.log("Running chain assertions on the SystemConfig proxy at %s", address(config));
+
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(config), _isProxy: true, _slot: 0, _offset: 0 });
 
