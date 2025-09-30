@@ -440,6 +440,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         super.setUp();
 
         // Skip AddGameType tests when V2 dispute games are enabled
+        // TODO(#17260): Remove skip when V2 dispute game support for addGameType implemented
         skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
     }
 
@@ -798,6 +799,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
         // Skip UpdatePrestate tests when V2 dispute games enabled
         // UpdatePrestate feature not yet implemented for V2
+        // TODO(#17261): Remove skip when V2 dispute game support for updatePrestate implemented
         skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         prestateUpdater = opcm;

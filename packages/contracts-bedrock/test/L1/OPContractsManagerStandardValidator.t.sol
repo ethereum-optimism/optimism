@@ -104,6 +104,7 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         super.setUp();
 
         // Skip V1 StandardValidator tests when V2 dispute games are enabled
+        // TODO(#17267): Remove skip when V2 dispute game support added to the StandardValidator is implemented
         skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         // Grab the deploy input for later use.
