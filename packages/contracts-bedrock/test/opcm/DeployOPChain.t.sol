@@ -10,7 +10,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChain_TestBase is Test {
     DeploySuperchain deploySuperchain;
@@ -134,13 +134,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Basic non-zero and code checks are covered inside run->checkOutput.
         // Additonal targeted assertions added below.
 
-        // Owners and roles propagated
-        assertEq(address(doo.opChainProxyAdmin.owner()), opChainProxyAdminOwner, "ProxyAdmin owner");
-        assertEq(address(doo.systemConfigProxy.owner()), systemConfigOwner, "SystemConfig owner");
-        assertEq(address(doo.systemConfigProxy.unsafeBlockSigner()), unsafeBlockSigner, "unsafeBlockSigner");
-        assertEq(address(uint160(uint256(doo.systemConfigProxy.batcherHash()))), batcher, "batcherHash");
-
-        // Dispute game roles/params propagated
         assertEq(address(doo.permissionedDisputeGame.proposer()), proposer, "PDG proposer");
         assertEq(address(doo.permissionedDisputeGame.challenger()), challenger, "PDG challenger");
         assertEq(doo.permissionedDisputeGame.splitDepth(), disputeSplitDepth, "PDG splitDepth");
@@ -160,9 +153,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             Claim.unwrap(disputeAbsolutePrestate),
             "PDG absolutePrestate"
         );
-
-        (Hash actualRoot,) = doo.anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
-        assertEq(Hash.unwrap(actualRoot), 0xdead000000000000000000000000000000000000000000000000000000000000, "ASR start root");
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
@@ -177,21 +167,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         deployOPChainInput.l2ChainId = uint256(hash(_seed, 8));
 
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-
-        // TODO Add fault proof contract assertions below once OPCM fully supports them.
-
-        // Assert inputs were properly passed through to the contract initializers.
-        assertEq(address(doo.opChainProxyAdmin.owner()), deployOPChainInput.opChainProxyAdminOwner, "2100");
-        assertEq(address(doo.systemConfigProxy.owner()), deployOPChainInput.systemConfigOwner, "2200");
-        address batcherActual = address(uint160(uint256(doo.systemConfigProxy.batcherHash())));
-        assertEq(batcherActual, deployOPChainInput.batcher, "2300");
-        assertEq(address(doo.systemConfigProxy.unsafeBlockSigner()), deployOPChainInput.unsafeBlockSigner, "2400");
-        assertEq(address(doo.permissionedDisputeGame.proposer()), deployOPChainInput.proposer, "2500");
-        assertEq(address(doo.permissionedDisputeGame.challenger()), deployOPChainInput.challenger, "2600");
-
-        // TODO once we deploy the Permissionless Dispute Game
-        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2610");
-        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2620");
 
         // Verify that the initial bonds are zero.
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "2700");

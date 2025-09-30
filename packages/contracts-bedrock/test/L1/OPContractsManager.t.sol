@@ -1701,7 +1701,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         internal
         returns (IOPContractsManager.DeployInput memory)
     {
-
         bytes memory startingAnchorRoot = new DeployOPChain().startingAnchorRoot();
         return IOPContractsManager.DeployInput({
             roles: IOPContractsManager.Roles({

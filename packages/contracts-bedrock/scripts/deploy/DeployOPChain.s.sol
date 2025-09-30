@@ -307,5 +307,4 @@ contract DeployOPChain is Script {
 
         return abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT());
     }
-
 }
