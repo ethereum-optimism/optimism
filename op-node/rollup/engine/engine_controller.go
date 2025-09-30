@@ -945,7 +945,7 @@ func (e *EngineController) processUnsafePayload(ctx context.Context, envelope *e
 	if ref.BlockRef().ID() == e.unsafeHead.BlockRef().ID() {
 		return
 	}
-	if err := e.InsertUnsafePayload(e.ctx, envelope, ref); err != nil {
+	if err := e.insertUnsafePayload(e.ctx, envelope, ref); err != nil {
 		e.log.Info("failed to insert payload", "ref", ref,
 			"txs", len(envelope.ExecutionPayload.Transactions), "err", err)
 		// yes, duplicate error-handling. After all derivers are interacting with the engine
