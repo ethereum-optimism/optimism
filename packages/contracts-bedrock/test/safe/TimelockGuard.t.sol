@@ -11,6 +11,10 @@ import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
+contract Target {
+    function doSomething() external {}
+}
+
 /// @title TransactionBuilder
 /// @notice Facilitates the construction of transactions and signatures, and provides helper methods
 ///        for scheduling, executing, and cancelling transactions.
@@ -218,7 +222,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     {
         TransactionBuilder.Transaction memory transaction = _createEmptyTransaction(_safeInstance);
         transaction.params.to = address(0xabba);
-        transaction.params.data = abi.encodeWithSignature("doSomething()");
+        transaction.params.data = abi.encodeCall(Target.doSomething, ());
         transaction.updateTransaction();
         return transaction;
     }
@@ -293,6 +297,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
     /// @notice Checks configuration reverts when the contract is too old.
     function test_configureTimelockGuard_revertsIfVersionTooOld_reverts() external {
+        // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector, address(timelockGuard));
         vm.prank(address(safeInstance.safe));
