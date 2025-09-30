@@ -319,8 +319,8 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.upgradeController = address(0);
-        vm.expectRevert("DeployImplementations: upgradeController not set");
+        input.l1PAO = address(0);
+        vm.expectRevert("DeployImplementations: L1PAO not set");
         deployImplementations.run(input);
     }
 
