@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"net/http"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -9,6 +10,7 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
@@ -31,7 +33,9 @@ type simpleChainContainer struct {
 	stopped      chan struct{}
 	log          gethlog.Logger
 	chainID      types.ChainID
-	initOverload *rollupNode.InitializationOverrides // Shared resources for all virtual nodes
+	initOverload *rollupNode.InitOverload             // Base shared resources for all virtual nodes
+	rpcHandler   *oprpc.Handler                       // Current per-chain RPC handler instance
+	setHandler   func(chainID string, h http.Handler) // Set the RPC handler on the proxyfor the chain
 }
 
 func NewChainContainer(
@@ -39,7 +43,9 @@ func NewChainContainer(
 	vncfg *opnodecfg.Config,
 	log gethlog.Logger,
 	cfg config.CLIConfig,
-	initOverload *rollupNode.InitializationOverrides) ChainContainer {
+	initOverload *rollupNode.InitOverload,
+	rpcHandler *oprpc.Handler,
+	setHandler func(chainID string, h http.Handler)) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:        vncfg,
 		cfg:          cfg,
@@ -47,6 +53,8 @@ func NewChainContainer(
 		log:          log,
 		stopped:      make(chan struct{}, 1),
 		initOverload: initOverload,
+		rpcHandler:   rpcHandler,
+		setHandler:   setHandler,
 	}
 	// TODO: Enable P2P for Virtual Nodes
 	// (can be delayed assuming lite-node operates unsafe)
@@ -54,6 +62,8 @@ func NewChainContainer(
 		DisableP2P: true,
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
+	// inheret RPC config from the supernode
+	vncfg.RPC = cfg.RPCConfig
 	return c
 }
 
@@ -64,7 +74,13 @@ func (c *simpleChainContainer) subPath(path string) string {
 func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
 	for {
-		// create a new virtual node with shared init overload
+		// create a fresh handler per (re)start, swap it into the proxy, and inject into overload
+		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
+		if c.setHandler != nil {
+			c.setHandler(c.chainID.String(), h)
+		}
+		c.initOverload.RPCHandler = h
+		c.rpcHandler = h
 		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
