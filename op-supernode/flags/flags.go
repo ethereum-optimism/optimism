@@ -38,16 +38,31 @@ var (
 		Value:    "./datadir",
 		Required: false,
 	}
+	L1NodeAddr = &cli.StringFlag{
+		Name:     "l1",
+		Usage:    "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
+		EnvVars:  prefixEnvVars("L1_ETH_RPC"),
+		Required: true,
+	}
+	L1BeaconAddr = &cli.StringFlag{
+		Name:     "l1.beacon",
+		Usage:    "Address of L1 Beacon-node HTTP endpoint to use",
+		EnvVars:  prefixEnvVars("L1_BEACON"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	SampleFlag,
 	ChainsFlag,
+	L1NodeAddr,
 }
 
 var optionalFlags []cli.Flag
 
 func init() {
+	optionalFlags = append(optionalFlags, L1BeaconAddr)
+	optionalFlags = append(optionalFlags, DataDirFlag)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)

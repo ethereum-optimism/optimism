@@ -7,6 +7,7 @@ import (
 	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
@@ -22,27 +23,30 @@ type ChainContainer interface {
 }
 
 type simpleChainContainer struct {
-	vn      virtual_node.VirtualNode
-	vncfg   *opnodecfg.Config
-	cfg     config.CLIConfig
-	pause   atomic.Bool
-	stop    atomic.Bool
-	stopped chan struct{}
-	log     gethlog.Logger
-	chainID types.ChainID
+	vn           virtual_node.VirtualNode
+	vncfg        *opnodecfg.Config
+	cfg          config.CLIConfig
+	pause        atomic.Bool
+	stop         atomic.Bool
+	stopped      chan struct{}
+	log          gethlog.Logger
+	chainID      types.ChainID
+	initOverload *rollupNode.InitializationOverrides // Shared resources for all virtual nodes
 }
 
 func NewChainContainer(
 	chainID types.ChainID,
 	vncfg *opnodecfg.Config,
 	log gethlog.Logger,
-	cfg config.CLIConfig) ChainContainer {
+	cfg config.CLIConfig,
+	initOverload *rollupNode.InitializationOverrides) ChainContainer {
 	c := &simpleChainContainer{
-		vncfg:   vncfg,
-		cfg:     cfg,
-		chainID: chainID,
-		log:     log,
-		stopped: make(chan struct{}, 1),
+		vncfg:        vncfg,
+		cfg:          cfg,
+		chainID:      chainID,
+		log:          log,
+		stopped:      make(chan struct{}, 1),
+		initOverload: initOverload,
 	}
 	// TODO: Enable P2P for Virtual Nodes
 	// (can be delayed assuming lite-node operates unsafe)
@@ -61,8 +65,8 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 	// when Start exits, signal that the chain container is stopped
 	defer func() { c.stopped <- struct{}{} }()
 	for {
-		// initialize the virtual node
-		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log)
+		// initialize the virtual node with shared init overload
+		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)

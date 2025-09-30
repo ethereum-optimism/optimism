@@ -28,6 +28,10 @@ func VirtualNodeConfigs(ctx *cli.Context, vnFlags flags.VNFlagMap, log gethlog.L
 		}
 	}
 
+	// seed the supernode L1 and Beacon addressess to all chains
+	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.L1NodeAddr.Name] = ctx.String(flags.L1NodeAddr.Name)
+	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.BeaconAddr.Name] = ctx.String(flags.L1BeaconAddr.Name)
+
 	// proliferate vn.* flags to the appropriate chains
 	for name, value := range vnFlags {
 		for _, chainID := range chains {

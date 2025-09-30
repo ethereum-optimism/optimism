@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	gosync "sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,34 @@ import (
 )
 
 var ErrAlreadyClosed = errors.New("node is already closed")
+
+// L1Client is the interface that op-node uses to interact with L1.
+// This allows wrapped or mocked clients to be used
+type L1Client interface {
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
+	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
+	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
+	GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error)
+	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	ChainID(ctx context.Context) (*big.Int, error)
+	Close()
+}
+
+// BeaconClient is the interface that op-node uses to interact with L1 Beacon.
+// This allows wrapped or mocked clients to be used
+type BeaconClient interface {
+	GetVersion(ctx context.Context) (string, error)
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
 
 type closableSafeDB interface {
 	rollup.SafeHeadListener
@@ -124,6 +153,14 @@ type OpNode struct {
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
 func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
+	return NewWithOverride(ctx, cfg, log, appVersion, m, InitializationOverrides{})
+}
+
+// NewWithOverride creates a new OpNode instance with optional initialization overrides.
+// This allows callers to override specific initialization steps, enabling resource sharing
+// (e.g., shared L1Client across multiple nodes) without duplicating connections or caches.
+// If override is nil or any of its fields are nil, the default initialization is used for those steps.
+func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics, override InitializationOverrides) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -140,7 +177,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
-	err := n.init(ctx, cfg, initializationOverrides{})
+	err := n.init(ctx, cfg, override)
 	if err != nil {
 		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
@@ -152,7 +189,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	return n, nil
 }
 
-type initializationOverrides struct {
+type InitializationOverrides struct {
 	L1Source   L1Source
 	Beacon     L1Beacon
 	RPCHandler *oprpc.Handler
@@ -161,7 +198,7 @@ type initializationOverrides struct {
 // init progressively creates and sets up all the components of the OpNode
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
-func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides initializationOverrides) error {
+func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 
 	var err error

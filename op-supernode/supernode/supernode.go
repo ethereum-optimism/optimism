@@ -2,9 +2,14 @@ package supernode
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supernode/resources"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
@@ -13,27 +18,48 @@ import (
 )
 
 type Supernode struct {
-	log         gethlog.Logger
-	version     string
-	requestStop context.CancelCauseFunc
-	stopped     bool
-	cfg         *config.CLIConfig
-	chains      map[types.ChainID]cc.ChainContainer
-	wg          sync.WaitGroup
+	log          gethlog.Logger
+	version      string
+	requestStop  context.CancelCauseFunc
+	stopped      bool
+	cfg          *config.CLIConfig
+	chains       map[types.ChainID]cc.ChainContainer
+	wg           sync.WaitGroup
+	l1Client     *sources.L1Client
+	beaconClient *sources.L1BeaconClient
 }
 
-func New(log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[types.ChainID]*opnodecfg.Config) *Supernode {
+func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[types.ChainID]*opnodecfg.Config) (*Supernode, error) {
 	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[types.ChainID]cc.ChainContainer)}
+
+	// Initialize L1 client
+	if err := s.initL1Client(ctx, cfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize L1 client: %w", err)
+	}
+
+	// Initialize L1 Beacon client (optional)
+	if err := s.initBeaconClient(ctx, cfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize L1 Beacon client: %w", err)
+	}
+
+	// Create InitOverload with shared resources
+	// Wrap clients in non-closeable versions so virtual nodes can't close the shared resources
+	initOverload := &rollupNode.InitializationOverrides{
+		L1Source: resources.NewNonCloseableL1Client(s.l1Client),
+		Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
+	}
+
 	// Initialize chain containers for each configured chain ID
+	// Pass shared resources via InitOverload to all containers
 	for _, id := range cfg.Chains {
 		if vnCfgs[types.ChainID(id)] == nil {
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
 		chainID := types.ChainID(id)
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg)
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload)
 	}
-	return s
+	return s, nil
 }
 
 func (s *Supernode) Start(ctx context.Context) error {
@@ -57,11 +83,75 @@ func (s *Supernode) Start(ctx context.Context) error {
 func (s *Supernode) Stop(ctx context.Context) error {
 	s.log.Info("supernode exiting")
 	s.stopped = true
+
 	// stop all chain containers
 	for _, chain := range s.chains {
 		chain.Stop(ctx)
 	}
+
+	// Now close the shared resources (they're no longer wrapped)
+	s.log.Info("closing shared L1 and Beacon clients")
+	if s.l1Client != nil {
+		s.l1Client.Close()
+	}
+	if s.beaconClient != nil {
+		// BeaconClient doesn't have a Close method, no action needed
+	}
+
 	return nil
 }
 
 func (s *Supernode) Stopped() bool { return s.stopped }
+
+// L1Client returns the L1 client instance
+func (s *Supernode) L1Client() *sources.L1Client {
+	return s.l1Client
+}
+
+// BeaconClient returns the L1 Beacon client instance (may be nil if not configured)
+func (s *Supernode) BeaconClient() *sources.L1BeaconClient {
+	return s.beaconClient
+}
+
+func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) error {
+	s.log.Info("initializing shared L1 client", "l1_addr", cfg.L1NodeAddr)
+
+	// Create L1 RPC client with basic configuration
+	l1RPC, err := client.NewRPC(ctx, s.log, cfg.L1NodeAddr, client.WithDialAttempts(10))
+	if err != nil {
+		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
+	}
+
+	nonCloseableRPC := resources.NewNonCloseableRPC(l1RPC)
+
+	l1ClientCfg := sources.L1ClientSimpleConfig(false, sources.RPCKindStandard, 100)
+	s.l1Client, err = sources.NewL1Client(nonCloseableRPC, s.log, nil, l1ClientCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create L1 client: %w", err)
+	}
+
+	s.log.Info("L1 client initialized successfully")
+	return nil
+}
+
+func (s *Supernode) initBeaconClient(ctx context.Context, cfg *config.CLIConfig) error {
+	if cfg.L1BeaconAddr == "" {
+		s.log.Info("L1 Beacon address not configured, skipping beacon client initialization")
+		return nil
+	}
+
+	s.log.Info("initializing L1 Beacon client", "beacon_addr", cfg.L1BeaconAddr)
+
+	// Create beacon client
+	basicClient := client.NewBasicHTTPClient(cfg.L1BeaconAddr, s.log)
+	beaconHTTPClient := sources.NewBeaconHTTPClient(basicClient)
+
+	// Create L1 Beacon client with default config
+	beaconCfg := sources.L1BeaconClientConfig{
+		FetchAllSidecars: false,
+	}
+	s.beaconClient = sources.NewL1BeaconClient(beaconHTTPClient, beaconCfg)
+
+	s.log.Info("L1 Beacon client initialized successfully")
+	return nil
+}

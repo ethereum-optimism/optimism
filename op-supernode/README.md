@@ -76,6 +76,23 @@ This enables:
 - Debugging specific chain instances
 - Tracking Virtual Node restarts and lifecycle events
 
+### 🔌 Shared Resources
+
+The Supernode optimizes resource usage by sharing L1 connections across all Virtual Nodes:
+
+#### Shared L1 Client
+- **Single TCP connection** to the L1 RPC endpoint for all chains
+- **Shared cache** for L1 blocks, receipts, and transactions
+- **Shared rate limiting** across all Virtual Node requests
+- **Protected from closure** - Virtual Nodes cannot close the shared connection
+
+#### Implementation
+The Supernode creates L1 and L1 Beacon clients on startup and wraps them with **non-closeable wrappers** in the `resources/` package. These wrappers:
+- Implement the same interfaces as the standard clients (`node.L1Client`, `node.BeaconClient`)
+- Delegate all methods to the underlying client
+- Override `Close()` to be a no-op, preventing accidental closure
+- Are passed to Virtual Nodes via `op-node`'s `InitOverload` mechanism
+
 ## Architecture
 
 ### Components
@@ -91,7 +108,7 @@ The top-level orchestrator that:
 Per-chain lifecycle manager that:
 - Wraps a Virtual Node with control logic
 - Manages config overrides
-- (Future) Holds long-running resources for Virtual Nodes
+- Passes shared resources to Virtual Nodes
 - Handles pause/resume operations
 - Provides restart-on-error behavior
 
@@ -119,8 +136,8 @@ just op-supernode
   --sample "example" \
   --chains 901,902 \
   --data-dir ./supernode-data \
-  -vn.all.l1=http://localhost:8545 \
-  -vn.all.l1.beacon=http://localhost:5052 \
+  --l1 http://localhost:8545 \
+  --l1.beacon http://localhost:5052 \
   -vn.901.l2=http://localhost:9001 \
   -vn.901.l2.jwt-secret=./jwt-901.txt \
   -vn.901.rollup.config=./rollup-901.json \
@@ -135,10 +152,10 @@ just op-supernode
 export OP_SUPERNODE_CHAINS=901,902,903
 export OP_SUPERNODE_SAMPLE="production"
 export OP_SUPERNODE_DATA_DIR=/var/lib/supernode
+export OP_SUPERNODE_L1_ETH_RPC=$L1_RPC
+export OP_SUPERNODE_L1_BEACON=$L1_BEACON
 
 ./bin/op-supernode \
-  -vn.all.l1=$L1_RPC \
-  -vn.all.l1.beacon=$L1_BEACON \
   -vn.901.l2=$CHAIN_901_RPC \
   -vn.902.l2=$CHAIN_902_RPC \
   -vn.903.l2=$CHAIN_903_RPC
@@ -150,9 +167,11 @@ export OP_SUPERNODE_DATA_DIR=/var/lib/supernode
 
 - `--sample` - Sample configuration string (required for now)
 - `--chains` - Comma-separated list of chain IDs to run
+- `--l1` - L1 RPC endpoint (shared across all chains)
 
 #### Optional Flags
 
+- `--l1.beacon` - L1 Beacon endpoint (shared across all chains)
 - `--data-dir` - Root data directory for all chains (default: `./datadir`)
 - Standard OP Service flags for logging, metrics, pprof, and RPC
 
@@ -165,9 +184,9 @@ All standard OP Node flags can be prefixed with:
 **Common patterns:**
 
 ```bash
-# Shared L1 for all chains
--vn.all.l1=http://l1:8545
--vn.all.l1.beacon=http://l1:5052
+# Shared L1 for all chains (supernode-level flags)
+--l1 http://l1:8545
+--l1.beacon http://l1:5052
 
 # Per-chain L2 execution engines
 -vn.901.l2=http://op-geth-901:8551
@@ -177,7 +196,7 @@ All standard OP Node flags can be prefixed with:
 -vn.901.rollup.config=./rollup-901.json
 -vn.902.rollup.config=./rollup-902.json
 
-# Shared sync configuration
+# Shared sync configuration (applies to all virtual nodes)
 -vn.all.syncmode=execution-layer
 ```
 

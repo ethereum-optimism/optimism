@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"errors"
 	"strings"
 )
 
@@ -45,4 +46,14 @@ func ExtractVNFlags(args []string) (VNFlagMap, []string) {
 	}
 
 	return vnFlags, filteredArgs
+}
+
+func (v VNFlagMap) Check() error {
+	topLevel := []string{L1NodeAddr.Name, L1BeaconAddr.Name}
+	for _, flag := range topLevel {
+		if _, ok := v[VNFlagGlobalPrefix+flag]; ok {
+			return errors.New("global " + flag + " should be set by --" + flag)
+		}
+	}
+	return nil
 }

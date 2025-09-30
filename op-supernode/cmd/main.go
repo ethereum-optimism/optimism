@@ -30,6 +30,10 @@ func main() {
 	// Extract and store vn.* flags before urfave/cli processes args
 	// This allows us to handle dynamic chain-specific flags
 	vnFlags, filteredArgs := flags.ExtractVNFlags(os.Args)
+	if err := vnFlags.Check(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
@@ -55,7 +59,19 @@ func main() {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 
 		l.Info("configured sample", "sample", cfg.Sample)
-		return supernode.New(l, Version, close, cfg, vnCfgs), nil
+		if cfg.L1NodeAddr != "" {
+			l.Info("configured L1", "l1_addr", cfg.L1NodeAddr)
+		}
+		if cfg.L1BeaconAddr != "" {
+			l.Info("configured L1 Beacon", "beacon_addr", cfg.L1BeaconAddr)
+		}
+
+		ctx := cliCtx.Context
+		sn, err := supernode.New(ctx, l, Version, close, cfg, vnCfgs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create supernode: %w", err)
+		}
+		return sn, nil
 	})
 
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
