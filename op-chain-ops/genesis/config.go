@@ -379,6 +379,16 @@ type UpgradeScheduleDeployConfig struct {
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
 	// When Fusaka activates. Relative to L1 genesis.
 	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1FusakaTimeOffset,omitempty"`
+	// When BPO1 activates. Relative to L1 genesis.
+	L1BPO1TimeOffset *hexutil.Uint64 `json:"l1BPO1TimeOffset,omitempty"`
+	// When BPO2 activates. Relative to L1 genesis.
+	L1BPO2TimeOffset *hexutil.Uint64 `json:"l1BPO2TimeOffset,omitempty"`
+	// When BPO3 activates. Relative to L1 genesis.
+	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
+	// When BPO4 activates. Relative to L1 genesis.
+	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// Blob schedule config.
+	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)
