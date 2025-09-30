@@ -144,11 +144,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 						"internalType": "address"
 					}
 				]
-			},
-			{
-				"name": "_upgradeController",
-				"type": "address",
-				"internalType": "address"
 			}
 		]`
 

@@ -124,9 +124,9 @@ var (
 		Usage:   "Protocol versions proxy.",
 		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_PROXY"),
 	}
-	UpgradeControllerFlag = &cli.StringFlag{
-		Name:    "upgrade-controller",
-		Usage:   "Upgrade controller.",
+	L1PAOFlag = &cli.StringFlag{
+		Name:    "l1-proxy-admin-owner",
+		Usage:   "L1 ProxyAdmin Owner.",
 		EnvVars: deployer.PrefixEnvVar("UPGRADE_CONTROLLER"),
 	}
 	SuperchainProxyAdminFlag = &cli.StringFlag{
@@ -160,7 +160,7 @@ var ImplementationsFlags = []cli.Flag{
 	DisputeGameFinalityDelaySecondsFlag,
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
-	UpgradeControllerFlag,
+	L1PAOFlag,
 	SuperchainProxyAdminFlag,
 	ChallengerFlag,
 }
