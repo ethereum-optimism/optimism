@@ -795,6 +795,11 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     function setUp() public override {
         super.setUp();
+
+        // Skip UpdatePrestate tests when V2 dispute games enabled
+        // UpdatePrestate feature not yet implemented for V2
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         prestateUpdater = opcm;
     }
 
