@@ -175,7 +175,10 @@ where
     /// the response if it was forwarded.
     async fn maybe_forward_request(&self, req: &Request<'_>) -> Option<MethodResponse> {
         let should_forward = match req.method_name() {
-            "debug_traceTransaction" => self.should_forward_transaction(req),
+            "debug_traceTransaction" |
+            "eth_getTransactionByHash" |
+            "eth_getTransactionReceipt" |
+            "eth_getRawTransactionByHash" => self.should_forward_transaction(req),
             method => self.should_forward_block_request(method, req),
         };
 
