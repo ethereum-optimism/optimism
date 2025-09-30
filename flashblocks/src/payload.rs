@@ -1,5 +1,5 @@
 use alloy_eips::eip4895::Withdrawal;
-use alloy_primitives::{Address, Bloom, Bytes, B256, U256};
+use alloy_primitives::{bytes, Address, Bloom, Bytes, B256, U256};
 use alloy_rpc_types_engine::PayloadId;
 use derive_more::Deref;
 use reth_node_api::NodePrimitives;
@@ -39,6 +39,19 @@ impl FlashBlock {
     /// Returns the first parent hash of this flashblock.
     pub fn parent_hash(&self) -> Option<B256> {
         Some(self.base.as_ref()?.parent_hash)
+    }
+}
+
+/// A trait for decoding flashblocks from bytes.
+pub trait FlashBlockDecoder: Send + 'static {
+    /// Decodes `bytes` into a [`FlashBlock`].
+    fn decode(&self, bytes: bytes::Bytes) -> eyre::Result<FlashBlock>;
+}
+
+/// Default implementation of the decoder.
+impl FlashBlockDecoder for () {
+    fn decode(&self, bytes: bytes::Bytes) -> eyre::Result<FlashBlock> {
+        FlashBlock::decode(bytes)
     }
 }
 

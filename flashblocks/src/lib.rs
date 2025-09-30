@@ -1,7 +1,8 @@
 //! A downstream integration of Flashblocks.
 
 pub use payload::{
-    ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, Metadata,
+    ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, FlashBlockDecoder,
+    Metadata,
 };
 pub use service::FlashBlockService;
 pub use ws::{WsConnect, WsFlashBlockStream};

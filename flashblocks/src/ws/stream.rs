@@ -1,4 +1,4 @@
-use crate::FlashBlock;
+use crate::{FlashBlock, FlashBlockDecoder};
 use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, Stream, StreamExt,
@@ -28,6 +28,7 @@ pub struct WsFlashBlockStream<Stream, Sink, Connector> {
     ws_url: Url,
     state: State,
     connector: Connector,
+    decoder: Box<dyn FlashBlockDecoder>,
     connect: ConnectFuture<Sink, Stream>,
     stream: Option<Stream>,
     sink: Option<Sink>,
@@ -40,10 +41,16 @@ impl WsFlashBlockStream<WsStream, WsSink, WsConnector> {
             ws_url,
             state: State::default(),
             connector: WsConnector,
+            decoder: Box::new(()),
             connect: Box::pin(async move { Err(Error::ConnectionClosed)? }),
             stream: None,
             sink: None,
         }
+    }
+
+    /// Sets the [`FlashBlock`] decoder for the websocket stream.
+    pub fn with_decoder(self, decoder: Box<dyn FlashBlockDecoder>) -> Self {
+        Self { decoder, ..self }
     }
 }
 
@@ -53,6 +60,7 @@ impl<Stream, S, C> WsFlashBlockStream<Stream, S, C> {
         Self {
             ws_url,
             state: State::default(),
+            decoder: Box::new(()),
             connector,
             connect: Box::pin(async move { Err(Error::ConnectionClosed)? }),
             stream: None,
@@ -111,10 +119,10 @@ where
 
                 match msg {
                     Ok(Message::Binary(bytes)) => {
-                        return Poll::Ready(Some(FlashBlock::decode(bytes)))
+                        return Poll::Ready(Some(this.decoder.decode(bytes)))
                     }
                     Ok(Message::Text(bytes)) => {
-                        return Poll::Ready(Some(FlashBlock::decode(bytes.into())))
+                        return Poll::Ready(Some(this.decoder.decode(bytes.into())))
                     }
                     Ok(Message::Ping(bytes)) => this.ping(bytes),
                     Ok(Message::Close(frame)) => this.close(frame),
