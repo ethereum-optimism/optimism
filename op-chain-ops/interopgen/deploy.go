@@ -229,7 +229,12 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
+	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
+	}
+
+	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
 		SystemConfigOwner:            cfg.SystemConfigOwner,
 		Batcher:                      cfg.BatchSenderAddress,
@@ -244,8 +249,8 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		GasLimit:                     cfg.GasLimit,
 		DisputeGameType:              cfg.DisputeGameType,
 		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:            cfg.DisputeSplitDepth,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,
 		DisputeMaxClockDuration:      cfg.DisputeMaxClockDuration,
 		AllowCustomDisputeParameters: true,
@@ -258,7 +263,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	// Collect deployment addresses
 	return &L2Deployment{
-		L2OpchainDeployment: L2OpchainDeployment(output),
+		L2OpchainDeployment: NewL2OPChainDeploymentFromDeployOPChainOutput(output),
 	}, nil
 }
 
