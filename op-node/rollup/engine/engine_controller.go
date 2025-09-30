@@ -41,6 +41,17 @@ var ErrNoFCUNeeded = errors.New("no FCU call was needed")
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
+// ResetEngineRequestEvent requests the EngineController to walk
+// the L2 chain backwards until it finds a plausible unsafe head,
+// and find an L2 safe block that is guaranteed to still be from the L1 chain.
+// This event is not used in interop.
+type ResetEngineRequestEvent struct {
+}
+
+func (ev ResetEngineRequestEvent) String() string {
+	return "reset-engine-request"
+}
+
 type Engine interface {
 	ExecEngine
 	derive.L2Source
@@ -91,6 +102,9 @@ type EngineController struct {
 	rollupCfg  *rollup.Config
 	elStart    time.Time
 	clock      clock.Clock
+
+	// L1 chain for reset functionality
+	l1 sync.L1Chain
 
 	// TODO(#16917) Remove Event System Refactor Comments
 	// Event system fields (moved from EngDeriver)
@@ -148,7 +162,7 @@ type EngineController struct {
 var _ event.Deriver = (*EngineController)(nil)
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
-	rollupCfg *rollup.Config, syncCfg *sync.Config, emitter event.Emitter,
+	rollupCfg *rollup.Config, syncCfg *sync.Config, l1 sync.L1Chain, emitter event.Emitter,
 ) *EngineController {
 	syncStatus := syncStatusCL
 	if syncCfg.SyncMode == sync.ELSync {
@@ -164,6 +178,7 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		syncCfg:        syncCfg,
 		syncStatus:     syncStatus,
 		clock:          clock.SystemClock,
+		l1:             l1,
 		ctx:            ctx,
 		emitter:        emitter,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
@@ -711,6 +726,8 @@ func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		e.onInvalidPayload(x)
 	case ForkchoiceUpdateEvent:
 		e.onForkchoiceUpdate(ctx, x)
+	case ResetEngineRequestEvent:
+		e.onResetEngineRequest(ctx)
 	default:
 		return false
 	}
@@ -987,4 +1004,16 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 
 	// request forkchoice update directly so we can process the payload
 	e.requestForkchoiceUpdate(ctx)
+}
+
+// onResetEngineRequest handles the ResetEngineRequestEvent by finding L2 heads and performing a force reset
+func (e *EngineController) onResetEngineRequest(ctx context.Context) {
+	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	if err != nil {
+		e.emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
+		})
+		return
+	}
+	e.ForceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
 }
