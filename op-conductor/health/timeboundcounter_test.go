@@ -23,7 +23,6 @@ func TestTimeBoundedRotatingCounterSetup(t *testing.T) {
 }
 
 func TestTimeBoundedRotatingCounterIncrement(t *testing.T) {
-	t.Parallel()
 
 	mockTimeProvider := &timeProvider{now: 0} // every access to .Now() will increment its value simulating a one-second time passing
 
@@ -95,7 +94,6 @@ func TestTimeBoundedRotatingCounterConcurrentAccess(t *testing.T) {
 	wg.Add(2000)
 
 	write := func() {
-		defer wg.Done()
 		defer wg.Done()
 		_, err := counter.Increment()
 		require.NoError(t, err) // considering the max value is 9, the increment should never fail
