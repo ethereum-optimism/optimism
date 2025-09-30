@@ -96,6 +96,12 @@ contract DeployImplementations is Script {
 
     // -------- Core Deployment Methods --------
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
     function run(Input memory _input) public returns (Output memory output_) {
         assertValidInput(_input);
 

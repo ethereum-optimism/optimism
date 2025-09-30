@@ -54,7 +54,8 @@ type L2Verifier struct {
 
 	log log.Logger
 
-	Eng L2API
+	Eng    L2API
+	CLSync *clsync.CLSync
 
 	syncStatus driver.SyncStatusTracker
 
@@ -213,6 +214,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		eventSys:          sys,
 		log:               log,
 		Eng:               eng,
+		CLSync:            clSync,
 		engine:            ec,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
@@ -455,7 +457,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		s.CLSync.AddUnsafePayload(t.Ctx(), payload)
 	}
 }
 

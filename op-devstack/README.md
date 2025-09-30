@@ -159,5 +159,9 @@ Rust stack env vars:
 - `KONA_NODE_EXEC_PATH=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run
 - `OP_RETH_EXEC_PATH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run
 
+Go stack env vars:
+- `DEVSTACK_L1EL_KIND=geth` to select geth as default L1 EL node
+- `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
+
 Other useful env vars:
 - `DISABLE_OP_E2E_LEGACY=true` to disable the op-e2e package from loading build-artifacts that are not used by devstack.

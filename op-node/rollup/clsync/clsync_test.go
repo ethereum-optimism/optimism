@@ -44,7 +44,7 @@ func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
 	}}
 
 	// Adding an unsafe payload requests a forkchoice update via engine controller
-	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payload})
+	cl.AddUnsafePayload(context.Background(), payload)
 	require.Equal(t, 1, fe.calls)
 	require.NotNil(t, cl.unsafePayloads.Peek())
 
@@ -141,7 +141,7 @@ func TestCLSync_OnUnsafePayload_EnqueueEmitAndRecord(t *testing.T) {
 	cl := NewCLSync(logger, cfg, metrics, fe)
 	cl.AttachEmitter(emitter)
 
-	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+	cl.AddUnsafePayload(context.Background(), payloadA1)
 	require.Equal(t, 1, fe.calls)
 
 	// queued and metrics recorded
@@ -164,7 +164,7 @@ func TestCLSync_OnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	cl.AttachEmitter(emitter)
 
 	// queue payload A1
-	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+	cl.AddUnsafePayload(context.Background(), payloadA1)
 	require.Equal(t, 1, fe.calls)
 
 	// applicable forkchoice -> process once
@@ -225,8 +225,8 @@ func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
 		BlockHash:   common.Hash{0x02},
 	}}
 
-	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: head})
-	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: other})
+	cl.AddUnsafePayload(context.Background(), head)
+	cl.AddUnsafePayload(context.Background(), other)
 	require.Equal(t, 2, fe.calls)
 
 	// Invalidate non-head should not drop head
