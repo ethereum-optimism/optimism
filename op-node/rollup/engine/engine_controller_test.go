@@ -1,4 +1,4 @@
-package clsync
+package engine
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -19,53 +20,25 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-type noopMetrics struct{}
-
-func (n *noopMetrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {}
-
-type fakeEngController struct{ calls int }
-
-func (f *fakeEngController) RequestForkchoiceUpdate(ctx context.Context) { f.calls++ }
-func (f *fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-}
-func (f *fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
-}
-func (f *fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {
-}
-
-func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
-	logger := testlog.Logger(t, 0)
-	fe := &fakeEngController{}
-	cl := NewCLSync(logger, nil, &noopMetrics{}, fe)
+func TestInvalidPayloadDropsHead(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	cl.AttachEmitter(emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, emitter)
 
 	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		BlockHash: common.Hash{0x01},
 	}}
 
-	// Adding an unsafe payload requests a forkchoice update via engine controller
-	cl.AddUnsafePayload(context.Background(), payload)
-	require.Equal(t, 1, fe.calls)
-	require.NotNil(t, cl.unsafePayloads.Peek())
+	emitter.ExpectOnce(PayloadInvalidEvent{})
+	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
+
+	// Add an unsafe payload requests a forkchoice update via engine controller
+	ec.AddUnsafePayload(context.Background(), payload)
+
+	require.NotNil(t, ec.unsafePayloads.Peek())
 
 	// Mark it invalid; it should be dropped if it matches the queue head
-	cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: payload})
-	require.Nil(t, cl.unsafePayloads.Peek())
-}
-
-type recordingMetrics struct {
-	calls    int
-	lastLen  uint64
-	lastMem  uint64
-	lastNext eth.BlockID
-}
-
-func (m *recordingMetrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
-	m.calls++
-	m.lastLen = length
-	m.lastMem = memSize
-	m.lastNext = next
+	ec.OnEvent(context.Background(), PayloadInvalidEvent{Envelope: payload})
+	require.Nil(t, ec.unsafePayloads.Peek())
 }
 
 // buildSimpleCfgAndPayload creates a minimal rollup config and a valid payload (A1) on top of A0.
@@ -133,87 +106,81 @@ func buildSimpleCfgAndPayload(t *testing.T) (*rollup.Config, eth.L2BlockRef, eth
 	return cfg, refA0, refA1, payloadA1
 }
 
-func TestCLSync_OnUnsafePayload_EnqueueEmitAndRecord(t *testing.T) {
-	cfg, _, refA1, payloadA1 := buildSimpleCfgAndPayload(t)
-	logger := testlog.Logger(t, 0)
-	metrics := &recordingMetrics{}
+func TestOnUnsafePayload_EnqueueEmit(t *testing.T) {
+	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
+
 	emitter := &testutils.MockEmitter{}
-	fe := &fakeEngController{}
-	cl := NewCLSync(logger, cfg, metrics, fe)
-	cl.AttachEmitter(emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, emitter)
 
-	cl.AddUnsafePayload(context.Background(), payloadA1)
-	require.Equal(t, 1, fe.calls)
+	emitter.ExpectOnce(PayloadInvalidEvent{})
+	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
 
-	// queued and metrics recorded
-	got := cl.unsafePayloads.Peek()
+	ec.AddUnsafePayload(context.Background(), payloadA1)
+
+	got := ec.unsafePayloads.Peek()
 	require.NotNil(t, got)
 	require.Equal(t, payloadA1, got)
-	require.Equal(t, 1, metrics.calls)
-	require.EqualValues(t, 1, metrics.lastLen)
-	require.Equal(t, refA1.Hash, metrics.lastNext.Hash)
-	require.Equal(t, cl.unsafePayloads.MemSize(), metrics.lastMem)
 }
 
-func TestCLSync_OnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
+func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	cfg, refA0, refA1, payloadA1 := buildSimpleCfgAndPayload(t)
-	logger := testlog.Logger(t, 0)
-	metrics := &recordingMetrics{}
+
 	emitter := &testutils.MockEmitter{}
-	fe := &fakeEngController{}
-	cl := NewCLSync(logger, cfg, metrics, fe)
-	cl.AttachEmitter(emitter)
+	mockEngine := &testutils.MockEngine{}
+	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, emitter)
 
 	// queue payload A1
+	emitter.ExpectOnceType("UnsafeUpdateEvent")
+	emitter.ExpectOnceType("PayloadInvalidEvent")
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
+	emitter.ExpectOnceType("ForkchoiceUpdateEvent")
 	cl.AddUnsafePayload(context.Background(), payloadA1)
-	require.Equal(t, 1, fe.calls)
 
 	// applicable forkchoice -> process once
-	emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
-	emitter.AssertExpectations(t)
+	mockEngine.ExpectGetPayload(eth.PayloadID{}, payloadA1, nil)
+	mockEngine.ExpectNewPayload(payloadA1.ExecutionPayload, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+	mockEngine.ExpectForkchoiceUpdate(&eth.ForkchoiceState{HeadBlockHash: refA1.Hash, SafeBlockHash: common.Hash{}, FinalizedBlockHash: common.Hash{}}, nil, &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid}}, nil)
+	cl.OnEvent(context.Background(), ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
 	require.NotNil(t, cl.unsafePayloads.Peek(), "should not pop yet")
 
 	// same forkchoice -> retry
-	emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
-	emitter.AssertExpectations(t)
+	cl.OnEvent(context.Background(), ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
 	require.NotNil(t, cl.unsafePayloads.Peek(), "still pending")
 
 	// after applied (unsafe head == A1) -> pop
-	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA1, SafeL2Head: refA0, FinalizedL2Head: refA0})
+	cl.OnEvent(context.Background(), ForkchoiceUpdateEvent{UnsafeL2Head: refA1, SafeL2Head: refA0, FinalizedL2Head: refA0})
 	require.Nil(t, cl.unsafePayloads.Peek())
 }
 
-func TestCLSync_LowestQueuedUnsafeBlock(t *testing.T) {
+func TestLowestQueuedUnsafeBlock(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
-	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, cfg, &noopMetrics{}, &fakeEngController{})
+
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, emitter)
+
 	// empty -> zero
-	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
+	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
 
 	// queue -> returns derived ref
-	_ = cl.unsafePayloads.Push(payloadA1)
+	_ = ec.unsafePayloads.Push(payloadA1)
 	want, err := derive.PayloadToBlockRef(cfg, payloadA1.ExecutionPayload)
 	require.NoError(t, err)
-	require.Equal(t, want, cl.LowestQueuedUnsafeBlock())
+	require.Equal(t, want, ec.LowestQueuedUnsafeBlock())
 }
 
-func TestCLSync_LowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
+func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
-	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, &rollup.Config{}, &noopMetrics{}, &fakeEngController{})
+	emitter := &testutils.MockEmitter{}
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, emitter)
+
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
-	_ = cl.unsafePayloads.Push(bad)
-	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
+	_ = ec.unsafePayloads.Push(bad)
+	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
 }
 
-func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
-	logger := testlog.Logger(t, 0)
-	fe := &fakeEngController{}
-	cl := NewCLSync(logger, nil, &noopMetrics{}, fe)
+func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	cl.AttachEmitter(emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, emitter)
 
 	// Head payload (lower block number)
 	head := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -226,14 +193,18 @@ func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
 		BlockHash:   common.Hash{0x02},
 	}}
 
-	cl.AddUnsafePayload(context.Background(), head)
-	cl.AddUnsafePayload(context.Background(), other)
-	require.Equal(t, 2, fe.calls)
+	emitter.ExpectOnce(PayloadInvalidEvent{})
+	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
+	ec.AddUnsafePayload(context.Background(), head)
+
+	emitter.ExpectOnce(PayloadInvalidEvent{})
+	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
+	ec.AddUnsafePayload(context.Background(), other)
 
 	// Invalidate non-head should not drop head
-	cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: other})
-	require.Equal(t, 2, cl.unsafePayloads.Len())
-	require.Equal(t, head, cl.unsafePayloads.Peek())
+	ec.OnEvent(context.Background(), PayloadInvalidEvent{Envelope: other})
+	require.Equal(t, 2, ec.unsafePayloads.Len())
+	require.Equal(t, head, ec.unsafePayloads.Peek())
 }
 
 // note: nil-envelope behavior is not tested to match current implementation

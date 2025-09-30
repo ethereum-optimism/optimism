@@ -21,25 +21,25 @@ type RollupAPI interface {
 
 var _ RollupAPI = (*EngineController)(nil)
 
-func (ec *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, attrs *eth.PayloadAttributes) (eth.PayloadInfo, error) {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
+func (e *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, attrs *eth.PayloadAttributes) (eth.PayloadInfo, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-	_, err := ec.engine.L2BlockRefByHash(ctx, parent.Hash)
+	_, err := e.engine.L2BlockRefByHash(ctx, parent.Hash)
 	if err != nil {
 		return eth.PayloadInfo{}, fmt.Errorf("failed to retrieve parent block %s from engine: %w", parent, err)
 	}
 
-	if err := ec.initializeUnknowns(ctx); err != nil {
+	if err := e.initializeUnknowns(ctx); err != nil {
 		return eth.PayloadInfo{}, fmt.Errorf("failed to initialize forkchoice pre-state: %w", err)
 	}
 
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      parent.Hash,
-		SafeBlockHash:      ec.safeHead.Hash,
-		FinalizedBlockHash: ec.finalizedHead.Hash,
+		SafeBlockHash:      e.safeHead.Hash,
+		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
-	id, errTyp, err := startPayload(ctx, ec.engine, fc, attrs)
+	id, errTyp, err := startPayload(ctx, e.engine, fc, attrs)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:
@@ -71,10 +71,10 @@ func (ec *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, a
 	}, nil
 }
 
-func (ec *EngineController) CancelBlock(ctx context.Context, id eth.PayloadInfo) error {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
-	_, err := ec.engine.GetPayload(ctx, id)
+func (e *EngineController) CancelBlock(ctx context.Context, id eth.PayloadInfo) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, err := e.engine.GetPayload(ctx, id)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
@@ -91,10 +91,10 @@ func (ec *EngineController) CancelBlock(ctx context.Context, id eth.PayloadInfo)
 	return nil
 }
 
-func (ec *EngineController) SealBlock(ctx context.Context, id eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
-	envelope, err := ec.engine.GetPayload(ctx, id)
+func (e *EngineController) SealBlock(ctx context.Context, id eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	envelope, err := e.engine.GetPayload(ctx, id)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
@@ -111,17 +111,17 @@ func (ec *EngineController) SealBlock(ctx context.Context, id eth.PayloadInfo) (
 	return envelope, nil
 }
 
-func (ec *EngineController) CommitBlock(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) error {
-	ec.mu.Lock()
-	defer ec.mu.Unlock()
+func (e *EngineController) CommitBlock(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	envelope := signed.Envelope
-	ref, err := derive.PayloadToBlockRef(ec.rollupCfg, envelope.ExecutionPayload)
+	ref, err := derive.PayloadToBlockRef(e.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
 		return fmt.Errorf("invalid payload: %w", err)
 	}
 
-	status, err := ec.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return fmt.Errorf("failed to insert payload: %w", err)
 	}
@@ -136,9 +136,9 @@ func (ec *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Si
 		break
 	}
 
-	ec.SetUnsafeHead(ref)
-	ec.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
-	if err := ec.tryUpdateEngine(ctx); err != nil {
+	e.SetUnsafeHead(ref)
+	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+	if err := e.tryUpdateEngine(ctx); err != nil {
 		return fmt.Errorf("failed to update engine forkchoice: %w", err)
 	}
 	return nil
