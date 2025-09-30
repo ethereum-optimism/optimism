@@ -200,8 +200,7 @@ contract DeployImplementations is Script {
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin,
-                    _input.upgradeController
+                    _input.superchainProxyAdmin
                 )
             )
         );

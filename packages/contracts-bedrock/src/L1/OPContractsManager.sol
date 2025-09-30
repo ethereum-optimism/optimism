@@ -1830,9 +1830,6 @@ contract OPContractsManager is ISemver {
     /// which is intended to be DELEGATECALLed.
     OPContractsManager internal immutable thisOPCM;
 
-    /// @notice The address of the upgrade controller.
-    address public immutable upgradeController;
-
     // -------- Errors --------
 
     /// @notice Thrown when an address is the zero address.
@@ -1884,8 +1881,7 @@ contract OPContractsManager is ISemver {
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
         _opcmDeployer.assertValidContractAddress(address(_protocolVersions));
@@ -1903,7 +1899,6 @@ contract OPContractsManager is ISemver {
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
         thisOPCM = this;
-        upgradeController = _upgradeController;
     }
 
     /// @notice Validates the configuration of the L1 contracts.
