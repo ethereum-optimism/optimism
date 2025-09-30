@@ -624,16 +624,16 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 }
 
-func (d *EngineController) TryUpdateEngine(ctx context.Context) {
+func (e *EngineController) TryUpdateEngine(ctx context.Context) {
 	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
 	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := d.tryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
+	if err := e.tryUpdateEngine(e.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
 		if errors.Is(err, derive.ErrReset) {
-			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+			e.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
 		} else if errors.Is(err, derive.ErrTemporary) {
-			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 		} else {
-			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 				Err: fmt.Errorf("unexpected tryUpdateEngine error type: %w", err),
 			})
 		}
@@ -643,60 +643,60 @@ func (d *EngineController) TryUpdateEngine(ctx context.Context) {
 // TODO(#16917) Remove Event System Refactor Comments
 // OnEvent implements event.Deriver (moved from EngDeriver)
 // TryUpdateEngineEvent is replaced with TryUpdateEngine
-func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+func (e *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
 	//  PromoteSafeEvent fan out is updated to procedural PromoteSafe method call
 	switch x := ev.(type) {
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
-		if !d.rollupCfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(ctx, PromoteCrossUnsafeEvent(x))
+		if !e.rollupCfg.IsInterop(x.Ref.Time) {
+			e.emitter.Emit(ctx, PromoteCrossUnsafeEvent(x))
 		}
 		// Try to apply the forkchoice changes
-		d.TryUpdateEngine(ctx)
+		e.TryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
-		d.SetCrossUnsafeHead(x.Ref)
-		d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
+		e.SetCrossUnsafeHead(x.Ref)
+		e.onUnsafeUpdate(ctx, x.Ref, e.unsafeHead)
 	case LocalSafeUpdateEvent:
 		// pre-interop everything that is local-safe is also immediately cross-safe.
-		if !d.rollupCfg.IsInterop(x.Ref.Time) {
-			d.PromoteSafe(ctx, x.Ref, x.Source)
+		if !e.rollupCfg.IsInterop(x.Ref.Time) {
+			e.PromoteSafe(ctx, x.Ref, x.Source)
 		}
 	case InteropInvalidateBlockEvent:
-		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
+		e.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
-		d.onBuildStart(ctx, x)
+		e.onBuildStart(ctx, x)
 	case BuildStartedEvent:
-		d.onBuildStarted(ctx, x)
+		e.onBuildStarted(ctx, x)
 	case BuildSealEvent:
-		d.onBuildSeal(ctx, x)
+		e.onBuildSeal(ctx, x)
 	case BuildSealedEvent:
-		d.onBuildSealed(ctx, x)
+		e.onBuildSealed(ctx, x)
 	case BuildInvalidEvent:
-		d.onBuildInvalid(ctx, x)
+		e.onBuildInvalid(ctx, x)
 	case BuildCancelEvent:
-		d.onBuildCancel(ctx, x)
+		e.onBuildCancel(ctx, x)
 	case PayloadProcessEvent:
-		d.onPayloadProcess(ctx, x)
+		e.onPayloadProcess(ctx, x)
 	case PayloadSuccessEvent:
-		d.onPayloadSuccess(ctx, x)
+		e.onPayloadSuccess(ctx, x)
 	case PayloadInvalidEvent:
-		d.onInvalidPayload(x)
+		e.onInvalidPayload(x)
 	case ForkchoiceUpdateEvent:
-		d.onForkchoiceUpdate(ctx, x)
+		e.onForkchoiceUpdate(ctx, x)
 	default:
 		return false
 	}
 	return true
 }
 
-func (d *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
-	d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-		PendingSafe: d.PendingSafeL2Head(),
-		Unsafe:      d.UnsafeL2Head(),
+func (e *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	e.emitter.Emit(ctx, PendingSafeUpdateEvent{
+		PendingSafe: e.pendingSafeHead,
+		Unsafe:      e.unsafeHead,
 	})
 }
 
