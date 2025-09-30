@@ -62,10 +62,9 @@ func (c *simpleChainContainer) subPath(path string) string {
 }
 
 func (c *simpleChainContainer) Start(ctx context.Context) error {
-	// when Start exits, signal that the chain container is stopped
 	defer func() { c.stopped <- struct{}{} }()
 	for {
-		// initialize the virtual node with shared init overload
+		// create a new virtual node with shared init overload
 		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
@@ -75,25 +74,52 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		if c.stop.Load() {
 			break
 		}
+
+		// start the virtual node
 		err := c.vn.Start(ctx)
 		if err != nil {
-			c.log.Warn("virtual node exited", "error", err)
+			c.log.Warn("virtual node exited with error", "error", err)
 		}
+
+		// always stop the virtual node after it exits
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if stopErr := c.vn.Stop(stopCtx); stopErr != nil {
+			c.log.Error("error stopping virtual node", "error", stopErr)
+		}
+		cancel()
+		if ctx.Err() != nil {
+			c.log.Info("chain container context cancelled, stopping restart loop", "ctx_err", ctx.Err())
+			break
+		}
+
+		// check if the chain container was stopped
+		if c.stop.Load() {
+			c.log.Info("chain container stop requested, stopping restart loop")
+			break
+		}
+
 	}
-	c.log.Info("chain container Start function exiting")
+	c.log.Info("chain container exiting")
 	return nil
 }
 
 func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	c.stop.Store(true)
-	c.log.Info("chain container stopping")
-	err := c.vn.Stop(ctx)
-	if err != nil {
-		c.log.Error("error stopping virtual node", "error", err)
+	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if c.vn != nil {
+		if err := c.vn.Stop(stopCtx); err != nil {
+			c.log.Error("error stopping virtual node", "error", err)
+		}
 	}
-	// wait for the Start loop to truly exit
-	<-c.stopped
-	return nil
+
+	select {
+	case <-c.stopped:
+		return nil
+	case <-stopCtx.Done():
+		return stopCtx.Err()
+	}
 }
 
 func (c *simpleChainContainer) Pause(ctx context.Context) error {

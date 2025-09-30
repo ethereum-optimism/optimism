@@ -2,6 +2,7 @@ package virtual_node
 
 import (
 	"context"
+	"time"
 
 	e2eopnode "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
@@ -21,6 +22,7 @@ type simpleVirtualNode struct {
 	inner        *e2eopnode.Opnode
 	vnID         string
 	initOverload *rollupNode.InitializationOverrides // Shared resources
+	stopCh       chan struct{}                       // Signal when node should stop running
 }
 
 func generateVirtualNodeID() string {
@@ -35,31 +37,53 @@ func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rol
 		cfg:          cfg,
 		log:          l,
 		initOverload: initOverload,
+		stopCh:       make(chan struct{}),
 	}
 }
 
 func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	if v.cfg == nil {
-		v.log.Error("virtual node missing config")
 		return nil
 	}
 
-	v.log.Info("virtual node starting with shared L1 and Beacon clients")
-	opNode, err := e2eopnode.NewOpnode(v.log, v.cfg, func(err error) {
+	errorFn := func(err error) {
 		if err != nil {
-			v.log.Error("virtual op-node error", "error", err)
+			select {
+			case v.stopCh <- struct{}{}:
+			default:
+			}
 		}
-	})
+	}
+
+	opNode, err := e2eopnode.NewOpnodeWithOverload(v.log, v.cfg, errorFn, v.initOverload)
 	if err != nil {
-		v.log.Error("failed to start virtual op-node", "error", err)
 		return err
 	}
 	v.inner = opNode
+
+	go func() {
+		<-ctx.Done()
+		if v.inner != nil {
+			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			v.inner.Stop(stopCtx)
+		}
+		select {
+		case v.stopCh <- struct{}{}:
+		default:
+		}
+	}()
+
+	<-v.stopCh
 	return nil
 }
 
 func (v *simpleVirtualNode) Stop(ctx context.Context) error {
-	v.log.Info("virtual node stopping")
+	select {
+	case v.stopCh <- struct{}{}:
+	default:
+	}
+
 	if v.inner != nil {
 		return v.inner.Stop(ctx)
 	}

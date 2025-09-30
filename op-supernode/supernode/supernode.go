@@ -64,38 +64,34 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 func (s *Supernode) Start(ctx context.Context) error {
 	s.log.Info("supernode starting", "version", s.version, "sample", s.cfg.Sample)
-	// start all chain containers in their own routines
-	for _, chain := range s.chains {
+	for chainID, chain := range s.chains {
 		s.wg.Add(1)
-		go func(chain cc.ChainContainer) {
+		go func(chainID types.ChainID, chain cc.ChainContainer) {
 			defer s.wg.Done()
 			if err := chain.Start(ctx); err != nil {
-				s.log.Error("error starting chain", "chain", chain, "error", err)
+				s.log.Error("error starting chain", "chain_id", chainID, "error", err)
 			}
-		}(chain)
+		}(chainID, chain)
 	}
-	// Block until context is cancelled (e.g., by interrupt signal)
 	<-ctx.Done()
 	s.log.Info("supernode received stop signal")
 	return ctx.Err()
 }
 
 func (s *Supernode) Stop(ctx context.Context) error {
-	s.log.Info("supernode exiting")
+	s.log.Info("supernode stopping")
 	s.stopped = true
 
-	// stop all chain containers
-	for _, chain := range s.chains {
-		chain.Stop(ctx)
+	for chainID, chain := range s.chains {
+		if err := chain.Stop(ctx); err != nil {
+			s.log.Error("error stopping chain container", "chain_id", chainID, "error", err)
+		}
 	}
 
-	// Now close the shared resources (they're no longer wrapped)
-	s.log.Info("closing shared L1 and Beacon clients")
+	s.wg.Wait()
+
 	if s.l1Client != nil {
 		s.l1Client.Close()
-	}
-	if s.beaconClient != nil {
-		// BeaconClient doesn't have a Close method, no action needed
 	}
 
 	return nil
