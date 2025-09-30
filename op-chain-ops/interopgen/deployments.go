@@ -58,7 +58,7 @@ type L2OpchainDeployment struct {
 	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address `json:"OptimismPortalProxy"`
-	EthLockboxProxy                    common.Address `json:"EthLockboxProxy"`
+	ETHLockboxProxy                    common.Address `json:"ETHLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address `json:"DisputeGameFactoryProxy"`
 	AnchorStateRegistryProxy           common.Address `json:"AnchorStateRegistryProxy"`
 	FaultDisputeGame                   common.Address `json:"FaultDisputeGame"`
@@ -78,7 +78,7 @@ func NewL2OPChainDeploymentFromDeployOPChainOutput(output opcm.DeployOPChainOutp
 		L1CrossDomainMessengerProxy:       output.L1CrossDomainMessengerProxy,
 		// Fault proof contracts below.
 		OptimismPortalProxy:                output.OptimismPortalProxy,
-		EthLockboxProxy:                    output.EthLockboxProxy,
+		ETHLockboxProxy:                    output.EthLockboxProxy,
 		DisputeGameFactoryProxy:            output.DisputeGameFactoryProxy,
 		AnchorStateRegistryProxy:           output.AnchorStateRegistryProxy,
 		FaultDisputeGame:                   output.FaultDisputeGame,
