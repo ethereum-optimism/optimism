@@ -853,7 +853,7 @@ func (e *EngineController) onInvalidPayload(x PayloadInvalidEvent) {
 // to apply on top of the received forkchoice pre-state.
 // The payload is held on to until the forkchoice changes (success case) or the payload is reported to be invalid.
 func (e *EngineController) onForkchoiceUpdate(ctx context.Context, event ForkchoiceUpdateEvent) {
-	e.log.Debug("CL sync received forkchoice update",
+	e.log.Debug("Received forkchoice update",
 		"unsafe", event.UnsafeL2Head, "safe", event.SafeL2Head, "finalized", event.FinalizedL2Head)
 
 	e.unsafePayloads.DropInapplicableUnsafePayloads(event)
@@ -916,13 +916,13 @@ func (e *EngineController) processUnsafePayload(ctx context.Context, envelope *e
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
 func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 	if envelope == nil {
-		e.log.Error("CL sync AddUnsafePayload cannot add nil unsafe payload")
+		e.log.Error("AddUnsafePayload cannot add nil unsafe payload")
 		return
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.log.Debug("CL sync received payload", "payload", envelope.ExecutionPayload.ID())
+	e.log.Debug("Received payload", "payload", envelope.ExecutionPayload.ID())
 
 	if err := e.unsafePayloads.Push(envelope); err != nil {
 		e.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
