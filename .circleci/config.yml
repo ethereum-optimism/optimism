@@ -427,7 +427,7 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       - discord-notification-failures-on-develop:
-          mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)"
+          mentions: "Platforms (<@&1346448413172170807>)" # Protocol DevX Pod
           message: "Kurtosis acceptance tests failed for devnet <<parameters.devnet>> gate <<parameters.gate>>"
   initialize:
     docker:
@@ -1574,7 +1574,7 @@ jobs:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
-                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
+                mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>>"
 
   sanitize-op-program:
@@ -1828,6 +1828,15 @@ jobs:
       - run:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
+
+  op-deployer-forge-version:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - checkout-from-workspace
+      - run:
+          command: just check-forge-version
+          working_directory: op-deployer
 
   kontrol-tests:
     docker:
@@ -2183,6 +2192,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
+      - op-deployer-forge-version:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2792,54 +2806,15 @@ workflows:
           requires:
             - initialize
 
-  # Acceptance tests (post-merge to develop)
+  # Acceptance tests
   acceptance-tests:
     when:
       or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        # Manual dispatch
         - and:
             - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
-    jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - cannon-prestate-quick: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      # IN-MEMORY (all)
-      - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 90m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
-      # Generate flaky test report
-      - generate-flaky-report:
-          name: generate-flaky-tests-report
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - circleci-api-token
-
-  # Acceptance tests (pre-merge to develop)
-  acceptance-tests-pr:
-    when:
-      not:
-        equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
       - initialize:
           context:
