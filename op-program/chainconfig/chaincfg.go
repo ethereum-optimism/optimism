@@ -188,18 +188,21 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 	}
 	var rollupChainIDs []eth.ChainID
 	var l2genesisChainIDs []eth.ChainID
-	var l1genesisChainIDs []eth.ChainID
+	var l1genesisChainID *eth.ChainID
 	for _, entry := range entries {
 		entryName := entry.Name()
 		switch {
 		case "placeholder.json" == entryName:
 		case "depsets.json" == entryName:
 		case strings.HasSuffix(entryName, "-genesis-l1.json"):
+			if l1genesisChainID != nil {
+				return fmt.Errorf("multiple l1 genesis files found")
+			}
 			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l1.json"))
 			if err != nil {
 				return fmt.Errorf("incorrectly named genesis-l1 config (%s). expected <chain-id>-genesis-l1.json: %w", entryName, err)
 			}
-			l1genesisChainIDs = append(l1genesisChainIDs, id)
+			l1genesisChainID = &id
 		case strings.HasSuffix(entryName, "-genesis-l2.json"):
 			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l2.json"))
 			if err != nil {
@@ -218,9 +221,6 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 	}
 	if !slices.Equal(rollupChainIDs, l2genesisChainIDs) {
 		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, l2 genesis chain IDs %v. Make sure that the rollup and l2 genesis configs have the same set of chain IDs prefixes", rollupChainIDs, l2genesisChainIDs)
-	}
-	if len(l1genesisChainIDs) != len(rollupChainIDs) {
-		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, l1 genesis chain IDs %v. Make sure there is a l1 genesis chain id for each rollup config", rollupChainIDs, l1genesisChainIDs)
 	}
 
 	return nil

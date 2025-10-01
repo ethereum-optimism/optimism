@@ -90,6 +90,11 @@ func TestCheckConfigFilenames(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCheckConfigFilenames_WithoutCustomL1Genesis(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigNoL1FS, "configs_no_l1")
+	require.NoError(t, err)
+}
+
 func TestCheckConfigFilenames_Missing(t *testing.T) {
 	err := checkConfigFilenames(test.TestCustomChainConfigEmptyFS, "configs_empty")
 	require.NoError(t, err)

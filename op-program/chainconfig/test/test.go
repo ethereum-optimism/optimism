@@ -10,3 +10,6 @@ var TestCustomChainConfigEmptyFS embed.FS
 
 //go:embed configs_typo/*json
 var TestCustomChainConfigTypoFS embed.FS
+
+//go:embed configs_no_l1/*.json
+var TestCustomChainConfigNoL1FS embed.FS
