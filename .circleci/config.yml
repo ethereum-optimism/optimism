@@ -2743,13 +2743,12 @@ workflows:
               network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
-  # Acceptance tests (post-merge to develop)
+  # Acceptance tests
   acceptance-tests:
     when:
       or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        # Manual dispatch
         - and:
             - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -2786,37 +2785,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
 
-  # Acceptance tests (pre-merge to develop)
-  acceptance-tests-pr:
-    when:
-      not:
-        equal: [<< pipeline.git.branch >>, "develop"]
-    jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - cannon-prestate-quick: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      # IN-MEMORY (all)
-      - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 90m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
