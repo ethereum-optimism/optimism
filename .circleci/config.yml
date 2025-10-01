@@ -424,7 +424,7 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       - discord-notification-failures-on-develop:
-          mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)"
+          mentions: "Platforms (<@&1346448413172170807>)" # Protocol DevX Pod
           message: "Kurtosis acceptance tests failed for devnet <<parameters.devnet>> gate <<parameters.gate>>"
   initialize:
     docker:
@@ -1527,7 +1527,7 @@ jobs:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
-                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
+                mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>>"
 
   sanitize-op-program:
