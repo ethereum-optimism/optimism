@@ -47,7 +47,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testCustomGasLimit = uint64(90_123_456)
+const testCustomGasLimit = uint64(60_000_000)
 
 type deployerKey struct{}
 
