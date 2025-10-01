@@ -62,7 +62,7 @@ func setupChains(opts ...func(setupOpts *chainSetupOpts)) (*staticConfigSource, 
 	}
 
 	rollupCfgs := make([]*rollup.Config, 0, chainSetupOpts.chainCount)
-	l1ChainCfgs := make([]*params.ChainConfig, 0, chainSetupOpts.chainCount)
+
 	chainCfgs := make([]*params.ChainConfig, 0, chainSetupOpts.chainCount)
 	chainIDAndOutputs := make([]eth.ChainIDAndOutput, 0, chainSetupOpts.chainCount)
 	dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, chainSetupOpts.chainCount)
@@ -77,7 +77,6 @@ func setupChains(opts ...func(setupOpts *chainSetupOpts)) (*staticConfigSource, 
 		chainCfg.ChainID = rollupCfg.L2ChainID
 		rollupCfgs = append(rollupCfgs, &rollupCfg)
 		chainCfgs = append(chainCfgs, &chainCfg)
-		l1ChainCfgs = append(l1ChainCfgs, params.SepoliaChainConfig)
 		chainIDs = append(chainIDs, eth.ChainIDFromBig(rollupCfg.L2ChainID))
 
 		chainIDAndOutputs = append(chainIDAndOutputs, eth.ChainIDAndOutput{
@@ -99,11 +98,11 @@ func setupChains(opts ...func(setupOpts *chainSetupOpts)) (*staticConfigSource, 
 		ds, _ = depset.NewStaticConfigDependencySet(dependencies)
 	}
 	configSource := &staticConfigSource{
-		rollupCfgs:     rollupCfgs,
-		chainConfigs:   chainCfgs,
-		l1ChainConfigs: l1ChainCfgs,
-		depset:         ds,
-		chainIDs:       chainIDs,
+		rollupCfgs:    rollupCfgs,
+		chainConfigs:  chainCfgs,
+		l1ChainConfig: params.SepoliaChainConfig,
+		depset:        ds,
+		chainIDs:      chainIDs,
 	}
 	tasksStub := &stubTasks{
 		l2SafeHead: eth.L2BlockRef{Number: 918429823450218}, // Past the claimed block
@@ -912,11 +911,11 @@ func (t *stubTasks) ExpectBuildDepositOnlyBlock(
 }
 
 type staticConfigSource struct {
-	rollupCfgs     []*rollup.Config
-	chainConfigs   []*params.ChainConfig
-	l1ChainConfigs []*params.ChainConfig
-	depset         *depset.StaticConfigDependencySet
-	chainIDs       []eth.ChainID
+	rollupCfgs    []*rollup.Config
+	chainConfigs  []*params.ChainConfig
+	l1ChainConfig *params.ChainConfig
+	depset        *depset.StaticConfigDependencySet
+	chainIDs      []eth.ChainID
 }
 
 func (s *staticConfigSource) RollupConfig(chainID eth.ChainID) (*rollup.Config, error) {
@@ -937,13 +936,8 @@ func (s *staticConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 	panic(fmt.Sprintf("no chain config found for chain %d", chainID))
 }
 
-func (s *staticConfigSource) L1ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error) {
-	for _, cfg := range s.l1ChainConfigs {
-		if eth.ChainIDFromBig(cfg.ChainID) == chainID {
-			return cfg, nil
-		}
-	}
-	panic(fmt.Sprintf("no l1 chain config found for chain %d", chainID))
+func (s *staticConfigSource) L1ChainConfig(l1ChainID eth.ChainID) (*params.ChainConfig, error) {
+	return s.l1ChainConfig, nil
 }
 
 func (s *staticConfigSource) DependencySet(chainID eth.ChainID) (depset.DependencySet, error) {
