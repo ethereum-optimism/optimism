@@ -44,9 +44,6 @@ func TestGetCustomL1ChainConfig(t *testing.T) {
 	config, err := l1ChainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.NoError(t, err)
 	require.Equal(t, config.ChainID.Uint64(), uint64(900))
-
-	_, err = l1ChainConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
-	require.Error(t, err)
 }
 
 func TestGetCustomL1ChainConfig_Missing(t *testing.T) {
