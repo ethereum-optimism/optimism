@@ -115,8 +115,8 @@ type safeDB interface {
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
-	eng L2API, cfg *rollup.Config, depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
-	l1ChainConfig *params.ChainConfig,
+	eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
+	depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
 ) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
