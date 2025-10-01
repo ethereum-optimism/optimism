@@ -52,6 +52,21 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///     example by phishing a single set of signatures, then the TimelockGuard's cancellation is enough to stop the
 ///     attack entirely. If the malicious control would be permanent, then the TimelockGuard will buy some time to
 ///     execute remediations external to the compromised safe.
+///     The following table summarizes the various scenarios and the course of action to take in each case.
+///                       +---------------------------------------------------------------------------+
+///                       |                        Course of action when X Number of keys...          |
+/// +-------------------------------------------------------------------------------------------------+
+/// |                     | ... are Absent                 |  ... are Maliciously Controlled          |
+/// | X Number of keys    | (Honest signers cannot sign)   |  (Malicious signers can sign)            |
+/// +-------------------------------------------------------------------------------------------------+
+/// | 1+                  | swapOwner                      | swapOwner                                |
+/// +-------------------------------------------------------------------------------------------------+
+/// | Blocking Threshold+ | challenge +                    | challenge +                              |
+/// |                     | changeOwnershipToFallback      | changeOwnershipToFallback                |
+/// +-------------------------------------------------------------------------------------------------+
+/// | Quorum+             | challenge +                    | cancelTransaction                        |
+/// |                     | changeOwnershipToFallback      |                                          |
+/// +-------------------------------------------------------------------------------------------------+
 contract TimelockGuard is IGuard, ISemver {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
