@@ -89,6 +89,87 @@ func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimal
 	return opt
 }
 
+// DefaultTwoL2System defines a minimal system with a single L1 and two L2 chains,
+// without interop or supervisor: both L2s get their own ELs, and we attach L2CL nodes
+// via the default L2CL selector (which can be set to supernode to share a single process).
+type DefaultTwoL2SystemIDs struct {
+	L1   stack.L1NetworkID
+	L1EL stack.L1ELNodeID
+	L1CL stack.L1CLNodeID
+
+	L2A   stack.L2NetworkID
+	L2ACL stack.L2CLNodeID
+	L2AEL stack.L2ELNodeID
+
+	L2B   stack.L2NetworkID
+	L2BCL stack.L2CLNodeID
+	L2BEL stack.L2ELNodeID
+
+	L2ABatcher  stack.L2BatcherID
+	L2AProposer stack.L2ProposerID
+	L2BBatcher  stack.L2BatcherID
+	L2BProposer stack.L2ProposerID
+}
+
+func NewDefaultTwoL2SystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultTwoL2SystemIDs {
+	return DefaultTwoL2SystemIDs{
+		L1:          stack.L1NetworkID(l1ID),
+		L1EL:        stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:        stack.NewL1CLNodeID("l1", l1ID),
+		L2A:         stack.L2NetworkID(l2AID),
+		L2ACL:       stack.NewL2CLNodeID("sequencer", l2AID),
+		L2AEL:       stack.NewL2ELNodeID("sequencer", l2AID),
+		L2B:         stack.L2NetworkID(l2BID),
+		L2BCL:       stack.NewL2CLNodeID("sequencer", l2BID),
+		L2BEL:       stack.NewL2ELNodeID("sequencer", l2BID),
+		L2ABatcher:  stack.NewL2BatcherID("main", l2AID),
+		L2AProposer: stack.NewL2ProposerID("main", l2AID),
+		L2BBatcher:  stack.NewL2BatcherID("main", l2BID),
+		L2BProposer: stack.NewL2ProposerID("main", l2BID),
+	}
+}
+
+func DefaultTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultTwoL2SystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2AEL))
+	opt.Add(WithL2CLNode(ids.L2ACL, ids.L1CL, ids.L1EL, ids.L2AEL, L2CLSequencer()))
+
+	opt.Add(WithL2ELNode(ids.L2BEL))
+	opt.Add(WithL2CLNode(ids.L2BCL, ids.L1CL, ids.L1EL, ids.L2BEL, L2CLSequencer()))
+
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
+
+	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 type DefaultMinimalSystemWithSyncTesterIDs struct {
 	DefaultMinimalSystemIDs
 
