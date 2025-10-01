@@ -964,10 +964,6 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
-      - run:
-          name: Lint forge test names
-          command: just lint-forge-tests-check-no-build
-          working_directory: packages/contracts-bedrock
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
@@ -2789,18 +2785,12 @@ workflows:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build:
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - contracts-bedrock-heavy-fuzz-nightly:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
           requires:
-            - contracts-bedrock-build
+            - initialize
 
   # Acceptance tests (post-merge to develop)
   acceptance-tests:
