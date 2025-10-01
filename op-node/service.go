@@ -306,12 +306,12 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 	switch {
 	case chainId.Cmp(params.MainnetChainConfig.ChainID) == 0:
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for mainnet")
+			log.Warn("L1 chain config is set, but it is not necessary for mainnet and will be ignored")
 		}
 		return params.MainnetChainConfig, nil
 	case chainId.Cmp(params.SepoliaChainConfig.ChainID) == 0:
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for sepolia")
+			log.Warn("L1 chain config is set, but it is not necessary for sepolia and will be ignored")
 		}
 		return params.SepoliaChainConfig, nil
 	default:
