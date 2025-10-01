@@ -26,19 +26,22 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 }
 
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitOverload, appVersion string) virtual_node.VirtualNode
+
 type simpleChainContainer struct {
-	vn           virtual_node.VirtualNode
-	vncfg        *opnodecfg.Config
-	cfg          config.CLIConfig
-	pause        atomic.Bool
-	stop         atomic.Bool
-	stopped      chan struct{}
-	log          gethlog.Logger
-	chainID      types.ChainID
-	initOverload *rollupNode.InitOverload             // Base shared resources for all virtual nodes
-	rpcHandler   *oprpc.Handler                       // Current per-chain RPC handler instance
-	setHandler   func(chainID string, h http.Handler) // Set the RPC handler on the proxyfor the chain
-	appVersion   string
+	vn                 virtual_node.VirtualNode
+	vncfg              *opnodecfg.Config
+	cfg                config.CLIConfig
+	pause              atomic.Bool
+	stop               atomic.Bool
+	stopped            chan struct{}
+	log                gethlog.Logger
+	chainID            types.ChainID
+	initOverload       *rollupNode.InitOverload             // Base shared resources for all virtual nodes
+	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
+	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the proxyfor the chain
+	appVersion         string
+	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
 }
 
 func NewChainContainer(
@@ -50,15 +53,16 @@ func NewChainContainer(
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler)) ChainContainer {
 	c := &simpleChainContainer{
-		vncfg:        vncfg,
-		cfg:          cfg,
-		chainID:      chainID,
-		log:          log,
-		stopped:      make(chan struct{}, 1),
-		initOverload: initOverload,
-		rpcHandler:   rpcHandler,
-		setHandler:   setHandler,
-		appVersion:   virtualNodeVersion,
+		vncfg:              vncfg,
+		cfg:                cfg,
+		chainID:            chainID,
+		log:                log,
+		stopped:            make(chan struct{}, 1),
+		initOverload:       initOverload,
+		rpcHandler:         rpcHandler,
+		setHandler:         setHandler,
+		appVersion:         virtualNodeVersion,
+		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
 	// TODO: Enable P2P for Virtual Nodes
 	// (can be delayed assuming lite-node operates unsafe)
@@ -69,6 +73,11 @@ func NewChainContainer(
 	// inheret RPC config from the supernode
 	vncfg.RPC = cfg.RPCConfig
 	return c
+}
+
+// defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitOverload, appVersion string) virtual_node.VirtualNode {
+	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
 
 func (c *simpleChainContainer) subPath(path string) string {
@@ -85,7 +94,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
-		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload, c.appVersion)
+		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
