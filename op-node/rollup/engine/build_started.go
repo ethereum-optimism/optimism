@@ -24,10 +24,10 @@ func (ev BuildStartedEvent) String() string {
 	return "build-started"
 }
 
-func (eq *EngineController) onBuildStarted(ctx context.Context, ev BuildStartedEvent) {
+func (e *EngineController) onBuildStarted(ctx context.Context, ev BuildStartedEvent) {
 	// If a (pending) safe block, immediately seal the block
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, BuildSealEvent{
+		e.emitter.Emit(ctx, BuildSealEvent{
 			Info:         ev.Info,
 			BuildStarted: ev.BuildStarted,
 			Concluding:   ev.Concluding,
