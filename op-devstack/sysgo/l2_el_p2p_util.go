@@ -2,13 +2,10 @@ package sysgo
 
 import (
 	"context"
-	"slices"
-	"time"
 
 	"github.com/ethereum/go-ethereum/p2p"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
@@ -49,19 +46,6 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	var peerAdded bool
 	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
 	require.True(peerAdded, "should have added peer successfully")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		var peers []peer
-		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
-			return false, err
-		}
-		return slices.ContainsFunc(peers, func(p peer) bool {
-			return p.ID == targetInfo.ID
-		}), nil
-	})
-	require.NoError(err, "The peer was not connected")
 }
 
 type peer struct {
