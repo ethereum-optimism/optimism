@@ -304,7 +304,6 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum => github.com/fakedev9999/op-geth v0.0.0-20250925030841-befc452df542
-replace github.com/ethereum-optimism/op-geth => github.com/fakedev9999/op-geth v0.0.0-20250925030841-befc452df542
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 
