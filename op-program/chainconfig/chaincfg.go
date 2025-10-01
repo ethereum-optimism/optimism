@@ -106,7 +106,7 @@ func l2ChainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*param
 
 func L1ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
 	cfg, err := eth.L1ChainConfigByChainID(chainID)
-	if err != nil {
+	if err == nil {
 		return cfg, err
 	}
 	// if the l1 chain id is not known, we fallback to the custom chain config
