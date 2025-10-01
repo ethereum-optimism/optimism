@@ -19,4 +19,10 @@ clean:
 # Run tests
 test: (go_test "./...")
 
+# Run tests with coverage report
+coverage:
+    @go test ./... -coverprofile=coverage.out
+    @go tool cover -func=coverage.out | grep '^total:'
+    @go tool cover -func=coverage.out | grep -v '^total:'
+
 
