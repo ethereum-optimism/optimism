@@ -26,6 +26,7 @@ reth-storage-api.workspace = true
 reth-node-api.workspace = true
 reth-tasks.workspace = true
 reth-metrics.workspace = true
+reth-trie.workspace = true
 
 # alloy
 alloy-eips = { workspace = true, features = ["serde"] }

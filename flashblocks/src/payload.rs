@@ -1,3 +1,4 @@
+use alloy_consensus::BlockHeader;
 use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::{bytes, Address, Bloom, Bytes, B256, U256};
 use alloy_rpc_types_engine::PayloadId;
@@ -147,6 +148,8 @@ pub struct PendingFlashBlock<N: NodePrimitives> {
     pub last_flashblock_index: u64,
     /// The last Flashblock block hash,
     pub last_flashblock_hash: B256,
+    /// Whether the [`PendingBlock`] has a properly computed stateroot.
+    pub has_computed_state_root: bool,
 }
 
 impl<N: NodePrimitives> PendingFlashBlock<N> {
@@ -155,7 +158,13 @@ impl<N: NodePrimitives> PendingFlashBlock<N> {
         pending: PendingBlock<N>,
         last_flashblock_index: u64,
         last_flashblock_hash: B256,
+        has_computed_state_root: bool,
     ) -> Self {
-        Self { pending, last_flashblock_index, last_flashblock_hash }
+        Self { pending, last_flashblock_index, last_flashblock_hash, has_computed_state_root }
+    }
+
+    /// Returns the properly calculated state root for that block if it was computed.
+    pub fn computed_state_root(&self) -> Option<B256> {
+        self.has_computed_state_root.then_some(self.pending.block().state_root())
     }
 }
