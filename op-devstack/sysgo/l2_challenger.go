@@ -101,11 +101,11 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		l2NetIDs = append(l2NetIDs, l2Net.id)
 	}
 
-	l1Nets := orch.l1Nets.Values()
-	if len(l1Nets) != 1 {
-		require.Fail("only one L1 network is supported")
+	l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+	if !ok {
+		require.Fail("l1 network not found")
 	}
-	l1Genesis := l1Nets[0].genesis
+	l1Genesis := l1Net.genesis
 
 	dir := p.TempDir()
 	var cfg *config.Config
