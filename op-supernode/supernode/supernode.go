@@ -48,13 +48,6 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		return nil, fmt.Errorf("failed to initialize L1 Beacon client: %w", err)
 	}
 
-	// Create InitOverload with shared resources
-	// Wrap clients in non-closeable versions so virtual nodes can't close the shared resources
-	initOverload := &rollupNode.InitializationOverrides{
-		L1Source: resources.NewNonCloseableL1Client(s.l1Client),
-		Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
-	}
-
 	// Initialize chain containers for each configured chain ID
 	// Pass shared resources via InitOverload to all containers
 	// Build reverse proxy first; we'll attach per-chain handlers at runtime via SetHandler
@@ -65,6 +58,10 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			continue
 		}
 		chainID := types.ChainID(id)
+		initOverload := &rollupNode.InitOverload{
+			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
+			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
+		}
 		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcProxy.SetHandler
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload, nil, s.rpcProxy.SetHandler)
 	}

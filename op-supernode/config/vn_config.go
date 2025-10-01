@@ -32,6 +32,11 @@ func VirtualNodeConfigs(ctx *cli.Context, vnFlags flags.VNFlagMap, log gethlog.L
 	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.L1NodeAddr.Name] = ctx.String(flags.L1NodeAddr.Name)
 	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.BeaconAddr.Name] = ctx.String(flags.L1BeaconAddr.Name)
 
+	// P2P is disabled for virtual nodes, so use in-memory discovery DB to avoid file conflicts
+	// Setting to "memory" prevents multiple chains from trying to open the same discovery db file
+	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.DiscoveryPathName] = "memory"
+	vnFlags[flags.VNFlagGlobalPrefix+opnodeflags.PeerstorePathName] = "memory"
+
 	// proliferate vn.* flags to the appropriate chains
 	for name, value := range vnFlags {
 		for _, chainID := range chains {
