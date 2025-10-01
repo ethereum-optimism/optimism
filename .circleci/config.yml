@@ -47,6 +47,9 @@ parameters:
   contracts_coverage_dispatch:
     type: boolean
     default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
   acceptance_tests_dispatch:
     type: boolean
     default: false
@@ -920,6 +923,50 @@ jobs:
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
+          paths:
+            - "/root/.cache/go-build"
+      - notify-failures-on-develop
+
+  contracts-bedrock-heavy-fuzz-nightly:
+    circleci_ip_ranges: true
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - checkout-from-workspace
+      - run:
+          name: Print dependencies
+          command: just dep-status
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Run heavy fuzz tests
+          command: just test
+          environment:
+            FOUNDRY_PROFILE: ciheavy
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 90m
+      - run:
+          name: Print failed test traces
+          command: just test-rerun
+          environment:
+            FOUNDRY_PROFILE: ciheavy
+          working_directory: packages/contracts-bedrock
+          when: on_fail
+      - save_cache:
+          name: Save Go build cache
+          key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
       - notify-failures-on-develop
@@ -2742,6 +2789,22 @@ workflows:
             parameters:
               network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
+
+  scheduled-heavy-fuzz-tests:
+    when:
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>>]
+        - equal: [true, << pipeline.parameters.heavy_fuzz_dispatch >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-heavy-fuzz-nightly:
+          context:
+            - slack
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
 
   # Acceptance tests
   acceptance-tests:
