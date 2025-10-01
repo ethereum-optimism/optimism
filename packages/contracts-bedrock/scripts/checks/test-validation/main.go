@@ -37,6 +37,8 @@ func main() {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Println("✅ All contract test validations passed")
 }
 
 // Processes a single test artifact file and runs all validations
@@ -278,6 +280,36 @@ func findArtifactPath(contractFileName, contractName string) (string, error) {
 	return files[0], nil
 }
 
+// Checks if the artifact represents a library
+func isLibrary(artifact *solc.ForgeArtifact) bool {
+	// Check the AST for ContractKind == "library"
+	for _, node := range artifact.Ast.Nodes {
+		if node.NodeType == "ContractDefinition" && node.ContractKind == "library" {
+			return true
+		}
+	}
+	return false
+}
+
+// Extracts function names from the AST (for libraries with internal functions)
+func extractFunctionsFromAST(artifact *solc.ForgeArtifact) []string {
+	var functions []string
+
+	// Navigate through AST to find function definitions
+	for _, node := range artifact.Ast.Nodes {
+		if node.NodeType == "ContractDefinition" {
+			// Iterate through contract nodes to find functions
+			for _, childNode := range node.Nodes {
+				if childNode.NodeType == "FunctionDefinition" && childNode.Name != "" {
+					functions = append(functions, childNode.Name)
+				}
+			}
+		}
+	}
+
+	return functions
+}
+
 // Validates that a function exists in the source contract
 func checkFunctionExists(artifact *solc.ForgeArtifact, functionName string) bool {
 	// Special functions always exist
@@ -309,7 +341,18 @@ func checkFunctionExists(artifact *solc.ForgeArtifact, functionName string) bool
 			return false
 		}
 
-		// Check if function exists in the ABI
+		// Check if source is a library - use AST for internal functions
+		if isLibrary(srcArtifact) {
+			functions := extractFunctionsFromAST(srcArtifact)
+			for _, fn := range functions {
+				if strings.EqualFold(fn, functionName) {
+					return true
+				}
+			}
+			return false
+		}
+
+		// For contracts, check if function exists in the ABI
 		for _, method := range srcArtifact.Abi.Parsed.Methods {
 			if strings.EqualFold(method.Name, functionName) {
 				return true

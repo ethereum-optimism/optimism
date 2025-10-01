@@ -369,6 +369,53 @@ func TestFindArtifactPath(t *testing.T) {
 	}
 }
 
+func TestIsLibrary(t *testing.T) {
+	library := &solc.ForgeArtifact{
+		Ast: solc.Ast{
+			Nodes: []solc.AstNode{
+				{NodeType: "ContractDefinition", ContractKind: "library"},
+			},
+		},
+	}
+	contract := &solc.ForgeArtifact{
+		Ast: solc.Ast{
+			Nodes: []solc.AstNode{
+				{NodeType: "ContractDefinition", ContractKind: "contract"},
+			},
+		},
+	}
+	if !isLibrary(library) {
+		t.Error("library artifact should be detected as library")
+	}
+	if isLibrary(contract) {
+		t.Error("contract artifact should not be detected as library")
+	}
+}
+
+func TestExtractFunctionsFromAST(t *testing.T) {
+	artifact := &solc.ForgeArtifact{
+		Ast: solc.Ast{
+			Nodes: []solc.AstNode{
+				{
+					NodeType: "ContractDefinition",
+					Nodes: []solc.AstNode{
+						{NodeType: "FunctionDefinition", Name: "add"},
+						{NodeType: "FunctionDefinition", Name: "subtract"},
+						{NodeType: "VariableDeclaration", Name: "ignored"},
+					},
+				},
+			},
+		},
+	}
+	functions := extractFunctionsFromAST(artifact)
+	if len(functions) != 2 {
+		t.Errorf("expected 2 functions, got %d", len(functions))
+	}
+	if functions[0] != "add" || functions[1] != "subtract" {
+		t.Errorf("unexpected function names: %v", functions)
+	}
+}
+
 func TestCheckFunctionExists(t *testing.T) {
 	artifact := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test/Contract.t.sol": "Contract_Test"}}}}
 	if !checkFunctionExists(artifact, "constructor") {

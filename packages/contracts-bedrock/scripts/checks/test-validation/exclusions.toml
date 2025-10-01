@@ -23,6 +23,7 @@ src_validation = [
     "test/cannon/MIPS64Memory.t.sol",      # Tests external MIPS implementation
     "test/dispute/lib/LibClock.t.sol",     # Tests library utilities
     "test/dispute/lib/LibGameId.t.sol",    # Tests library utilities
+    "test/libraries/DeployUtils.t.sol",    # Tests library utilities - no direct src counterpart
     "test/setup/DeployVariations.t.sol",   # Tests deployment variations
     "test/universal/BenchmarkTest.t.sol",  # Performance benchmarking tests
     "test/universal/ExtendedPause.t.sol",  # Tests extended functionality
@@ -56,6 +57,8 @@ contract_name_validation = [
     "test/L2/GasPriceOracle.t.sol",                       # Contains contracts not matching GasPriceOracle base name
     "test/universal/StandardBridge.t.sol",                # Contains contracts not matching StandardBridge base name
     "test/L1/OPContractsManagerContractsContainer.t.sol", # Contains contracts not matching OPContractsManagerContractsContainer base name
+    "test/libraries/Blueprint.t.sol",                     # Contains helper contracts (BlueprintHarness, ConstructorArgMock)
+    "test/libraries/SafeCall.t.sol",                      # Contains helper contracts (SimpleSafeCaller)
 ]
 
 # PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
@@ -64,23 +67,21 @@ contract_name_validation = [
 # contract's ABI.
 #
 # Common reasons for exclusion:
-# - Libraries: Have different artifact structures that the validation system
-#   doesn't currently support, making function name lookup impossible
 # - Internal/Private functions: Some contracts test internal functions that
 #   aren't exposed in the public ABI, so they can't be validated
 # - Misspelled/Incorrect function names: Test contracts may have typos or
 #   incorrect function names that don't match the actual source contract
 #
 # Resolving these issues requires either:
-# - Enhancing the validation system to support libraries and complex structures
+# - Enhancing the validation system to support complex structures
 # - Fixing misspelled function names in test contracts
 # - Restructuring tests to match actual function signatures
 function_name_validation = [
-    "test/libraries",                     # Libraries have different artifact structure, unsupported
-    "test/dispute/lib/LibPosition.t.sol", # Library testing - artifact structure issues
-    "test/L1/ProxyAdminOwnedBase.t.sol",  # Tests internal functions not in ABI
-    "test/L1/SystemConfig.t.sol",         # Tests internal functions not in ABI
-    "test/safe/SafeSigners.t.sol",        # Function name validation issues
+    "test/L1/ProxyAdminOwnedBase.t.sol",       # Tests internal functions not in ABI
+    "test/L1/SystemConfig.t.sol",              # Tests internal functions not in ABI
+    "test/safe/SafeSigners.t.sol",             # Function name validation issues
+    "test/libraries/Predeploys.t.sol",         # Function 'uncategorizedInterop' doesn't exist in library
+    "test/libraries/TransientContext.t.sol",   # Function 'reentrantAware' doesn't exist in library
 ]
 
 [excluded_tests]
@@ -91,4 +92,5 @@ contracts = [
     "OptimismPortal2_MigrateLiquidity_Test",    # Interop tests hosted in the OptimismPortal2 test file
     "OptimismPortal2_MigrateToSuperRoots_Test", # Interop tests hosted in the OptimismPortal2 test file
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
+    "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
 ]
