@@ -2848,6 +2848,13 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
 
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+
   close-issue-workflow:
     when:
       and:
