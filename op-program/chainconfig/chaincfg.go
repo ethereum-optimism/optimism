@@ -185,21 +185,16 @@ func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
 	}
 	var rollupChainIDs []eth.ChainID
 	var l2genesisChainIDs []eth.ChainID
-	var l1genesisChainID *eth.ChainID
 	for _, entry := range entries {
 		entryName := entry.Name()
 		switch {
 		case "placeholder.json" == entryName:
 		case "depsets.json" == entryName:
 		case strings.HasSuffix(entryName, "-genesis-l1.json"):
-			if l1genesisChainID != nil {
-				return fmt.Errorf("multiple l1 genesis files found")
-			}
-			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l1.json"))
+			_, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l1.json"))
 			if err != nil {
 				return fmt.Errorf("incorrectly named genesis-l1 config (%s). expected <chain-id>-genesis-l1.json: %w", entryName, err)
 			}
-			l1genesisChainID = &id
 		case strings.HasSuffix(entryName, "-genesis-l2.json"):
 			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l2.json"))
 			if err != nil {
