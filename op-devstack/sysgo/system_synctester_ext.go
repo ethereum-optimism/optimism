@@ -2,7 +2,6 @@ package sysgo
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -57,16 +56,25 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
 
+	// We must supply the full L1 Chain Config, so look that up or fail if unknown
+	l1ChainConfig := new(params.ChainConfig)
+	chainID := ids.L1.ChainID()
+	switch {
+	case chainID.Cmp(eth.ChainIDFromBig(params.MainnetChainConfig.ChainID)) == 0:
+		l1ChainConfig = params.MainnetChainConfig
+	case chainID.Cmp(eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID)) == 0:
+		l1ChainConfig = params.SepoliaChainConfig
+	default:
+		panic(fmt.Sprintf("unsupported L1 chain ID: %s", chainID))
+	}
+
 	// Skip deployer since we're using external L1 and superchain registry for L2 config
 	// Create L1 network record for external L1
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
-		chainID, _ := ids.L1.ChainID().Uint64()
 		l1Net := &L1Network{
 			id: ids.L1,
 			genesis: &core.Genesis{
-				Config: &params.ChainConfig{
-					ChainID: big.NewInt(int64(chainID)),
-				},
+				Config: l1ChainConfig,
 			},
 			blockTime: 12,
 		}

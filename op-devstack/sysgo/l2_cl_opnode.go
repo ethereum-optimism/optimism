@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -303,14 +302,6 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		}
 		if cfg.SafeDBPath != "" {
 			nodeCfg.SafeDBPath = cfg.SafeDBPath
-		}
-
-		// mimic op-node's L1ChainConfig resolution
-		switch {
-		case l2Net.rollupCfg.L1ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
-			nodeCfg.L1ChainConfig = params.MainnetChainConfig
-		case l2Net.rollupCfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-			nodeCfg.L1ChainConfig = params.SepoliaChainConfig
 		}
 
 		l2CLNode := &OpNode{
