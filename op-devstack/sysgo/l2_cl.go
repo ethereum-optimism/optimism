@@ -93,6 +93,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 	switch os.Getenv("DEVSTACK_L2CL_KIND") {
 	case "kona":
 		return WithKonaNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
+	case "supernode":
+		return WithSuperNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	default:
 		return WithOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	}
