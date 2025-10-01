@@ -2,6 +2,7 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -20,6 +21,9 @@ func NewOpProgramServerExecutor(logger log.Logger) *OpProgramServerExecutor {
 }
 
 func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
+	if cfg.L1GenesisPath == "" {
+		return nil, errors.New("l1 genesis path is not defined")
+	}
 	args := []string{
 		cfg.Server, "--server",
 		"--l1", cfg.L1,
@@ -29,6 +33,7 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 		"--l1.head", inputs.L1Head.Hex(),
 		"--l2.claim", inputs.L2Claim.Hex(),
 		"--l2.blocknumber", inputs.L2SequenceNumber.Text(10),
+		"--l1.config", cfg.L1GenesisPath,
 	}
 	if inputs.L2Head != (common.Hash{}) {
 		args = append(args, "--l2.head", inputs.L2Head.Hex())
