@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -303,30 +304,24 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 	if chainId == nil {
 		panic("l1 chain id is nil")
 	}
-	switch {
-	case chainId.Cmp(params.MainnetChainConfig.ChainID) == 0:
-		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for mainnet and will be ignored")
-		}
-		return params.MainnetChainConfig, nil
-	case chainId.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for sepolia and will be ignored")
-		}
-		return params.SepoliaChainConfig, nil
-	default:
-		cf, err := NewL1ChainConfigFromCLI(log, ctx)
-		if err != nil {
-			return nil, err
-		}
-		if cf.ChainID.Cmp(chainId) != 0 {
-			return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
-		}
-		if cf.BlobScheduleConfig == nil {
-			return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
-		}
-		return cf, nil
+
+	cfg, err := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId))
+	if err != nil {
+		return cfg, err
 	}
+
+	// if the chain id is not known, we fallback to the CLI config
+	cf, err := NewL1ChainConfigFromCLI(log, ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cf.ChainID.Cmp(chainId) != 0 {
+		return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
+	}
+	if cf.BlobScheduleConfig == nil {
+		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
+	}
+	return cf, nil
 }
 
 func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainConfig, error) {

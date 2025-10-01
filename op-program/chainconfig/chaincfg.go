@@ -105,14 +105,11 @@ func l2ChainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*param
 }
 
 func L1ChainConfigByChainID(chainID eth.ChainID) (*params.ChainConfig, error) {
-	// Certain L1 Chain Configs are looked up directly from the op-geth library
-	if chainID == eth.ChainIDFromBig(params.MainnetChainConfig.ChainID) {
-		return params.MainnetChainConfig, nil
+	cfg, err := eth.L1ChainConfigByChainID(chainID)
+	if err != nil {
+		return cfg, err
 	}
-	if chainID == eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID) {
-		return params.SepoliaChainConfig, nil
-	}
-
+	// if the l1 chain id is not known, we fallback to the custom chain config
 	return l1ChainConfigByChainID(chainID, customChainConfigFS)
 }
 

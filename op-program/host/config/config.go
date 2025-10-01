@@ -284,7 +284,6 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	var err error
 	var rollupCfgs []*rollup.Config
 	var l2ChainConfigs []*params.ChainConfig
-	var l1ChainConfig *params.ChainConfig
 	var l2ChainID eth.ChainID
 	var dependencySet depset.DependencySet
 	networkNames := ctx.StringSlice(flags.Network.Name)
@@ -346,18 +345,9 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		return nil, fmt.Errorf("no rollup configs provided to resolve L1 chain config")
 	}
 	l1ChainIDBig := rollupCfgs[0].L1ChainID
-	switch {
-	case l1ChainIDBig.Cmp(params.MainnetChainConfig.ChainID) == 0:
-		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for mainnet")
-		}
-		l1ChainConfig = params.MainnetChainConfig
-	case l1ChainIDBig.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-		if ctx.IsSet(flags.L1ChainConfig.Name) {
-			log.Warn("L1 chain config is set, but it is not necessary for sepolia")
-		}
-		l1ChainConfig = params.SepoliaChainConfig
-	default:
+	l1ChainConfig, err := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
+	if err != nil {
+		// if the l1 chain config is not known, we fallback to the CLI flag if set...
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
 			cf, err := loadL1ChainConfigFromFile(ctx.String(flags.L1ChainConfig.Name))
 			if err != nil {
@@ -368,7 +358,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			}
 			l1ChainConfig = cf
 		} else {
-			// Fallback to program-embedded lookup
+			// ... or the program-embedded lookup if no CLI flag is set
 			lc, err := chainconfig.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
 			if err != nil {
 				return nil, fmt.Errorf("failed to load l1 chain config for chain %d: %w", eth.EvilChainIDToUInt64(eth.ChainIDFromBig(l1ChainIDBig)), err)

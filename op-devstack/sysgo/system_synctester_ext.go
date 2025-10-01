@@ -59,12 +59,9 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 	// We must supply the full L1 Chain Config, so look that up or fail if unknown
 	l1ChainConfig := new(params.ChainConfig)
 	chainID := ids.L1.ChainID()
-	switch {
-	case chainID.Cmp(eth.ChainIDFromBig(params.MainnetChainConfig.ChainID)) == 0:
-		l1ChainConfig = params.MainnetChainConfig
-	case chainID.Cmp(eth.ChainIDFromBig(params.SepoliaChainConfig.ChainID)) == 0:
-		l1ChainConfig = params.SepoliaChainConfig
-	default:
+
+	l1ChainConfig, err := eth.L1ChainConfigByChainID(chainID)
+	if err != nil {
 		panic(fmt.Sprintf("unsupported L1 chain ID: %s", chainID))
 	}
 
