@@ -65,7 +65,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			continue
 		}
 		chainID := types.ChainID(id)
-		// Pass SetHandler; the container will create handlers per (re)start
+		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcProxy.SetHandler
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload, nil, s.rpcProxy.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))

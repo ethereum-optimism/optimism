@@ -17,6 +17,8 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
+const virtualNodeVersion = "0.0.0"
+
 type ChainContainer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -36,6 +38,7 @@ type simpleChainContainer struct {
 	initOverload *rollupNode.InitOverload             // Base shared resources for all virtual nodes
 	rpcHandler   *oprpc.Handler                       // Current per-chain RPC handler instance
 	setHandler   func(chainID string, h http.Handler) // Set the RPC handler on the proxyfor the chain
+	appVersion   string
 }
 
 func NewChainContainer(
@@ -55,6 +58,7 @@ func NewChainContainer(
 		initOverload: initOverload,
 		rpcHandler:   rpcHandler,
 		setHandler:   setHandler,
+		appVersion:   virtualNodeVersion,
 	}
 	// TODO: Enable P2P for Virtual Nodes
 	// (can be delayed assuming lite-node operates unsafe)
@@ -81,7 +85,7 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
-		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload)
+		c.vn = virtual_node.NewVirtualNode(c.vncfg, c.log, c.initOverload, c.appVersion)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
 			time.Sleep(1 * time.Second)
