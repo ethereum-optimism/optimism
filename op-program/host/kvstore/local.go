@@ -65,10 +65,10 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		}
 		return json.Marshal(s.config.DependencySet)
 	case l1ChainConfigKey:
+		// NOTE: We check the L2 chain ID again to determine if we are using custom configs
 		if s.config.L2ChainID != boot.CustomChainIDIndicator {
 			return nil, ErrNotFound
 		}
-
 		return json.Marshal(s.config.L1ChainConfig)
 	default:
 		return nil, ErrNotFound
