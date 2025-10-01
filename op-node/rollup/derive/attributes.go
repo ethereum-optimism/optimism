@@ -46,10 +46,10 @@ func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1ChainConfig *param
 	}
 	return &FetchingAttributesBuilder{
 		rollupCfg:     rollupCfg,
+		l1ChainConfig: l1ChainConfig,
 		depSet:        depSet,
 		l1:            l1,
 		l2:            l2,
-		l1ChainConfig: l1ChainConfig,
 	}
 }
 
