@@ -1837,7 +1837,7 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.6.0
+    /// @custom:semver 3.8.0
     function version() public pure virtual returns (string memory) {
         return "3.8.0";
     }
