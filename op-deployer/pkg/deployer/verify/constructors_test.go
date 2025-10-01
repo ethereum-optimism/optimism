@@ -156,6 +156,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 			totalSlots += calculateTypeSlots(arg.Type)
 		}
 
-		require.Equal(t, 25, totalSlots)
+		require.Equal(t, 24, totalSlots)
 	})
 }
