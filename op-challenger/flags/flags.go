@@ -44,6 +44,11 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
+	L1GenesisFlag = &cli.StringFlag{
+		Name:    "l1-genesis-path",
+		Usage:   "Path to the L1 genesis file. Only required if the L1 is not mainnet, sepolia, holesky, or hoodi.",
+		EnvVars: prefixEnvVars("L1_GENESIS_PATH"),
+	}
 	SupervisorRpcFlag = &cli.StringFlag{
 		Name:    "supervisor-rpc",
 		Usage:   "Provider URL for supervisor RPC",
@@ -324,6 +329,7 @@ var optionalFlags = []cli.Flag{
 	UnsafeAllowInvalidPrestate,
 	ResponseDelayFlag,
 	ResponseDelayAfterFlag,
+	L1GenesisFlag,
 }
 
 func init() {
@@ -708,6 +714,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
 		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
 		Cannon: vm.Config{
+			L1GenesisPath:     ctx.String(L1GenesisFlag.Name),
 			VmType:            types.TraceTypeCannon,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
@@ -728,6 +735,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
+			L1GenesisPath:     ctx.String(L1GenesisFlag.Name),
 			VmType:            types.TraceTypeCannonKona,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
@@ -749,6 +757,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,
 		Datadir:                           ctx.String(DatadirFlag.Name),
 		Asterisc: vm.Config{
+			L1GenesisPath:     ctx.String(L1GenesisFlag.Name),
 			VmType:            types.TraceTypeAsterisc,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
@@ -767,6 +776,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
 		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
 		AsteriscKona: vm.Config{
+			L1GenesisPath:     ctx.String(L1GenesisFlag.Name),
 			VmType:            types.TraceTypeAsteriscKona,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
