@@ -28,22 +28,25 @@ func IsKonaConfigured() bool {
 	return konaHostPath != ""
 }
 
-func writeConfig[T any](t helpers.Testing, workDir string, name string, cfg []*T, cfgPaths []string) {
+func writeConfigs[T any](t helpers.Testing, workDir string, name string, cfg []*T, cfgPaths []string) {
 	for i, cfg := range cfg {
 		cfgPath := filepath.Join(workDir, fmt.Sprintf("%s_%d.json", name, i))
-		ser, err := json.Marshal(cfg)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(cfgPath, ser, fs.ModePerm))
-
+		writeConfig(t, workDir, name, cfg, cfgPath)
 		cfgPaths[i] = cfgPath
 	}
+}
+
+func writeConfig[T any](t helpers.Testing, workDir string, name string, cfg *T, cfgPath string) {
+	ser, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(cfgPath, ser, fs.ModePerm))
 }
 
 func RunKonaNative(
 	t helpers.Testing,
 	workDir string,
 	rollupCfgs []*rollup.Config,
-	l1chainConfigs []*params.ChainConfig,
+	l1chainConfig *params.ChainConfig,
 	l1Rpc string,
 	l1BeaconRpc string,
 	l2Rpcs []string,
@@ -51,11 +54,11 @@ func RunKonaNative(
 ) error {
 	// Write rollup config to tempdir.
 	rollupCfgPaths := make([]string, len(rollupCfgs))
-	writeConfig(t, workDir, "rollup", rollupCfgs, rollupCfgPaths)
+	writeConfigs(t, workDir, "rollup", rollupCfgs, rollupCfgPaths)
 
 	// Write l1 chain config to tempdir.
-	l1chainConfigPaths := make([]string, len(l1chainConfigs))
-	writeConfig(t, workDir, "l1chain", l1chainConfigs, l1chainConfigPaths)
+	l1chainConfigPath := filepath.Join(workDir, "l1chain.json")
+	writeConfig(t, workDir, "l1chain", l1chainConfig, l1chainConfigPath)
 
 	// Run the fault proof program from the state transition from L2 block L2Blocknumber - 1 -> L2BlockNumber.
 	vmCfg := vm.Config{
@@ -63,7 +66,7 @@ func RunKonaNative(
 		L1Beacon:          l1BeaconRpc,
 		L2s:               l2Rpcs,
 		RollupConfigPaths: rollupCfgPaths,
-		L1GenesisPath:     l1chainConfigPaths[0],
+		L1GenesisPath:     l1chainConfigPath,
 		Server:            konaHostPath,
 	}
 	inputs := utils.LocalGameInputs{
