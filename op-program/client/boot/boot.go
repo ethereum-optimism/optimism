@@ -65,6 +65,9 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		if *l1ChainConfig == (params.ChainConfig{}) {
 			l1ChainConfig = nil
 		}
+		if l1ChainConfig.ChainID.Cmp(rollupConfig.L1ChainID) != 0 {
+			panic("l1ChainConfig chain ID does not match rollup config L1 chain ID")
+		}
 	} else {
 		var err error
 		rollupConfig, err = chainconfig.RollupConfigByChainID(l2ChainID)

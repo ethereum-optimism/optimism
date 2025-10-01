@@ -64,6 +64,21 @@ func TestBootstrapClient_CustomChain_WithoutL1Genesis(t *testing.T) {
 	require.EqualValues(t, bootInfo, readBootInfo)
 }
 
+func TestBootstrapClient_CustomChain_L1ChainConfigMismatch(t *testing.T) {
+	bootInfo := &BootInfo{
+		L1Head:             common.HexToHash("0x1111"),
+		L2OutputRoot:       common.HexToHash("0x2222"),
+		L2Claim:            common.HexToHash("0x3333"),
+		L2ClaimBlockNumber: 1,
+		L2ChainID:          CustomChainIDIndicator,
+		L1ChainConfig:      params.MainnetChainConfig,
+		L2ChainConfig:      chainconfig.OPSepoliaChainConfig(),
+		RollupConfig:       chaincfg.OPSepolia(),
+	}
+	mockOracle := newMockPreinteropBootstrapOracle(bootInfo, true)
+	require.Panics(t, func() { NewBootstrapClient(mockOracle).BootInfo() })
+}
+
 func TestBootstrapClient_UnknownChainPanics(t *testing.T) {
 	bootInfo := &BootInfo{
 		L1Head:             common.HexToHash("0x1111"),
