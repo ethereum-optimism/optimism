@@ -23,9 +23,6 @@ func NewNativeKonaExecutor() *KonaExecutor {
 }
 
 func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
-	if cfg.L1GenesisPath == "" {
-		return nil, errors.New("l1 genesis path is not defined")
-	}
 	if len(cfg.L2s) != 1 || len(cfg.RollupConfigPaths) > 1 || len(cfg.Networks) > 1 {
 		return nil, errors.New("multiple L2s specified but only one supported")
 	}
@@ -40,7 +37,6 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		"--agreed-l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--claimed-l2-output-root", inputs.L2Claim.Hex(),
 		"--claimed-l2-block-number", inputs.L2SequenceNumber.Text(10),
-		"--l1-config-path", cfg.L1GenesisPath,
 	}
 
 	if s.nativeMode {
@@ -59,6 +55,10 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 
 		chainCfg := chaincfg.ChainByName(cfg.Networks[0])
 		args = append(args, "--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10))
+	}
+
+	if cfg.L1GenesisPath != "" {
+		args = append(args, "--l1-config-path", cfg.L1GenesisPath)
 	}
 
 	return args, nil
