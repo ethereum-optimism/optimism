@@ -319,6 +319,9 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 		if err != nil {
 			return nil, err
 		}
+		if cf.ChainID.Cmp(chainId) != 0 {
+			return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
+		}
 		if cf.BlobScheduleConfig == nil {
 			return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
 		}
