@@ -40,6 +40,7 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		"--agreed-l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--claimed-l2-output-root", inputs.L2Claim.Hex(),
 		"--claimed-l2-block-number", inputs.L2SequenceNumber.Text(10),
+		"--l1-config-path", cfg.L1GenesisPath,
 	}
 
 	if s.nativeMode {
@@ -59,8 +60,6 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		chainCfg := chaincfg.ChainByName(cfg.Networks[0])
 		args = append(args, "--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10))
 	}
-
-	args = append(args, "--l1-config-path", cfg.L1GenesisPath)
 
 	return args, nil
 }
