@@ -1215,7 +1215,10 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
                 )
             )
         );
-        IFaultDisputeGame fdg = IFaultDisputeGame(
+        address cannonFDG = address(
+            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(GameTypes.CANNON)
+        );
+        IFaultDisputeGame cannonKonaFDG = IFaultDisputeGame(
             address(
                 IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
                     GameTypes.CANNON_KONA
@@ -1225,11 +1228,12 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
 
         // Check the prestate value.
         assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
-        assertEq(fdg.absolutePrestate().raw(), konaPrestate.raw(), "fdg prestate mismatch");
+        assertEq(cannonKonaFDG.absolutePrestate().raw(), konaPrestate.raw(), "fdg prestate mismatch");
+        assertEq(cannonFDG, address(0), "cannon permissionless FDG should not exist");
 
         // Ensure that the WETH contract is not reverting.
         pdg.weth().balanceOf(address(0));
-        fdg.weth().balanceOf(address(0));
+        cannonKonaFDG.weth().balanceOf(address(0));
     }
 
     function test_updatePrestate_mixedGameTypes_reverts() public {

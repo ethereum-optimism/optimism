@@ -639,7 +639,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     disputeAbsolutePrestate: prestate,
                     saltMixer: reusableSaltMixer(_prestateUpdateInputs[i].systemConfigProxy),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
-                    proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
+                    proxyAdmin: _prestateUpdateInputs[i].systemConfigProxy.proxyAdmin(),
                     delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
                     disputeGameType: gameParams.gameType,
                     disputeMaxGameDepth: gameParams.maxGameDepth,
@@ -1803,7 +1803,6 @@ contract OPContractsManager is ISemver {
     /// @notice The input required to identify a chain for updating prestates
     struct UpdatePrestateInput {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
         Claim cannonPrestate;
         Claim cannonKonaPrestate;
     }
