@@ -154,11 +154,11 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	}
 	l2ChainConfig, err := bootInfo.Configs.ChainConfig(chainAgreedPrestate.ChainID)
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+		return types.OptimisticBlock{}, fmt.Errorf("no l2 chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
 	l1ChainConfig, err := bootInfo.Configs.L1ChainConfig(eth.ChainIDFromBig(rollupCfg.L1ChainID))
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
+		return types.OptimisticBlock{}, fmt.Errorf("no l1hain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
 	}
 	depSet, err := bootInfo.Configs.DependencySet(chainAgreedPrestate.ChainID)
 	if err != nil {
