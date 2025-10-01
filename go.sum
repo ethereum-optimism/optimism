@@ -230,6 +230,8 @@ github.com/elastic/gosigar v0.14.3 h1:xwkKwPia+hSfg9GqrCUKYdId102m9qTJIIr7egmK/u
 github.com/elastic/gosigar v0.14.3/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/emicklei/dot v1.6.2 h1:08GN+DD79cy/tzN6uLCT84+2Wk9u+wvqP+Hkx/dIR8A=
 github.com/emicklei/dot v1.6.2/go.mod h1:DeV7GvQtIw4h2u73RKBkkFdvVAz0D9fzeJrgPW6gy/s=
+github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e h1:iy1vBIzACYUyOVyoADUwvAiq2eOPC0yVsDUdolPwQjk=
+github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.4-0.20251001155152-4eb15ccedf7e/go.mod h1:DYj7+vYJ4cIB7zera9mv4LcAynCL5u4YVfoeUu6Wa+w=
 github.com/ethereum-optimism/op-geth v1.101603.1-rc.1 h1:qH+BM+AHrHFWPonJEpapmyo/LJhqj9/TGsRaWg4RCYg=
 github.com/ethereum-optimism/op-geth v1.101603.1-rc.1/go.mod h1:Ct2QjqZ2UKgvvgKLLYzoh/DBicJZB8DXsv45DgEjcco=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250603144016-9c45ca7d4508 h1:A/3QVFt+Aa9ozpPVXxUTLui8honBjSusAaiCVRbafgs=
@@ -579,8 +581,6 @@ github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m
 github.com/mattn/go-runewidth v0.0.16 h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
 github.com/mattn/go-runewidth v0.0.16/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
-github.com/mdehoog/go-ethereum-hdwallet v0.0.0-20250919015454-4f3f74837ae0 h1:iQV5P5sPgaF319fr88TzkGZF0NHwzdLAHbbUL997BwI=
-github.com/mdehoog/go-ethereum-hdwallet v0.0.0-20250919015454-4f3f74837ae0/go.mod h1:DYj7+vYJ4cIB7zera9mv4LcAynCL5u4YVfoeUu6Wa+w=
 github.com/mholt/archiver v3.1.1+incompatible h1:1dCVxuqs0dJseYEhi5pl7MYPH9zDa1wBi7mF09cbNkU=
 github.com/mholt/archiver v3.1.1+incompatible/go.mod h1:Dh2dOXnSdiLxRiPoVfIr/fI1TwETms9B8CTWfeh7ROU=
 github.com/microcosm-cc/bluemonday v1.0.1/go.mod h1:hsXNsILzKxV+sX77C5b8FSuKF00vh2OMYv+xgHpAMF4=
