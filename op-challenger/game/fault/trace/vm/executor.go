@@ -82,9 +82,6 @@ func (c *Config) Check() error {
 		if len(c.RollupConfigPaths) == 0 {
 			return ErrMissingRollupConfig
 		}
-		if c.L1GenesisPath == "" {
-			return ErrMissingL1Genesis
-		}
 		if len(c.L2GenesisPaths) == 0 {
 			return ErrMissingL2Genesis
 		}
