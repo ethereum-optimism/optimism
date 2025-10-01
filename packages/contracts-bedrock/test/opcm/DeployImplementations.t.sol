@@ -33,7 +33,7 @@ contract DeployImplementations_Test is Test {
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-    address upgradeController = makeAddr("upgradeController");
+    address l1PAO = makeAddr("l1PAO");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
@@ -157,7 +157,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1PAO,
             challenger
         );
 
@@ -557,7 +557,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1PAO,
             challenger
         );
     }
