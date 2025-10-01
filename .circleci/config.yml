@@ -47,7 +47,13 @@ parameters:
   contracts_coverage_dispatch:
     type: boolean
     default: false
+  heavy_fuzz_dispatch:
+    type: boolean
+    default: false
   acceptance_tests_dispatch:
+    type: boolean
+    default: false
+  kurtosis_acceptance_tests_dispatch:
     type: boolean
     default: false
   sync_test_op_node_dispatch:
@@ -306,6 +312,123 @@ commands:
       - utils/install-mise
 
 jobs:
+  # Kurtosis-based acceptance tests
+  op-acceptance-tests-kurtosis:
+    parameters:
+      devnet:
+        description: |
+          The name of the pre-defined Kurtosis devnet to run the acceptance tests against
+          (e.g. 'simple', 'interop', 'jovian'). Empty string uses in-process testing (sysgo orchestrator).
+        type: string
+        default: "interop"
+      gate:
+        description: The gate to run the acceptance tests against. Must be defined in op-acceptance-tests/acceptance-tests.yaml.
+        type: string
+        default: "interop"
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 30m
+      use_circleci_runner:
+        description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
+        type: boolean
+        default: false
+    machine:
+      image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
+      docker_layer_caching: <<parameters.use_circleci_runner>>
+    resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
+    steps:
+      - checkout-from-workspace
+      - run:
+          name: Setup Kurtosis
+          command: |
+            echo "Setting up Kurtosis for external devnet testing..."
+            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+            kurtosis version || true
+            echo "Starting Kurtosis engine..."
+            kurtosis engine start || true
+            echo "Cleaning old instances..."
+            kurtosis clean -a || true
+            kurtosis engine status || true
+            echo "Kurtosis setup complete"
+      - run:
+          name: Dump kurtosis logs (pre-run)
+          command: |
+            # Best-effort: show engine status and existing enclaves before the test run
+            kurtosis engine status || true
+            kurtosis enclave ls || true
+      - run:
+          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
+          working_directory: op-acceptance-tests
+          no_output_timeout: 1h
+          environment:
+            GOFLAGS: "-mod=mod"
+            GO111MODULE: "on"
+            GOGC: "0"
+          command: |
+            LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+      - run:
+          name: Dump kurtosis logs
+          when: on_fail
+          command: |
+            # Dump logs & specs
+            kurtosis dump ./.kurtosis-dump
+
+            # Remove spec.json files
+            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+
+            # Remove all unnecessary logs
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+
+            # Print enclaves and try to show service logs for the most recent devnet
+            kurtosis enclave ls || true
+            # Dump logs for all enclaves to aid debugging
+            for e in $(kurtosis enclave ls --output json 2>/dev/null | jq -r '.[].identifier' 2>/dev/null); do
+              echo "\n==== Kurtosis logs for enclave: $e ===="
+              kurtosis enclave inspect "$e" || true
+              kurtosis service logs "$e" --all-services --follow=false || true
+            done
+      - run:
+          name: Print results (summary)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/summary.log" || true
+      - run:
+          name: Print results (failures)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/failed/*.log" || true
+          when: on_fail
+      - run:
+          name: Print results (all)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/all.log" || true
+      - run:
+          name: Generate JUnit XML test report for CircleCI
+          working_directory: op-acceptance-tests
+          when: always
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: ./op-acceptance-tests/results
+      - when:
+          condition: always
+          steps:
+            - store_artifacts:
+                path: ./op-acceptance-tests/logs
+      - discord-notification-failures-on-develop:
+          mentions: "Platforms (<@&1346448413172170807>)" # Protocol DevX Pod
+          message: "Kurtosis acceptance tests failed for devnet <<parameters.devnet>> gate <<parameters.gate>>"
   initialize:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -800,6 +923,50 @@ jobs:
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
+          paths:
+            - "/root/.cache/go-build"
+      - notify-failures-on-develop
+
+  contracts-bedrock-heavy-fuzz-nightly:
+    circleci_ip_ranges: true
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - checkout-from-workspace
+      - run:
+          name: Print dependencies
+          command: just dep-status
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Run heavy fuzz tests
+          command: just test
+          environment:
+            FOUNDRY_PROFILE: ciheavy
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 90m
+      - run:
+          name: Print failed test traces
+          command: just test-rerun
+          environment:
+            FOUNDRY_PROFILE: ciheavy
+          working_directory: packages/contracts-bedrock
+          when: on_fail
+      - save_cache:
+          name: Save Go build cache
+          key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
       - notify-failures-on-develop
@@ -1407,7 +1574,7 @@ jobs:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
-                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
+                mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>>"
 
   sanitize-op-program:
@@ -1662,6 +1829,15 @@ jobs:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
 
+  op-deployer-forge-version:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - checkout-from-workspace
+      - run:
+          command: just check-forge-version
+          working_directory: op-deployer
+
   kontrol-tests:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1866,6 +2042,65 @@ jobs:
           destination: flaky-test-reports
 
 workflows:
+  # Nightly Kurtosis acceptance tests
+  scheduled-kurtosis-acceptance-tests:
+    when:
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>>]
+        - and:
+            - equal: [true, << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>]
+            - equal: ["api", << pipeline.trigger_source >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build: # needed for in-process tests that some suites may use
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - cannon-prestate-quick: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+      - op-acceptance-tests-kurtosis:
+          name: kurtosis-simple-nightly
+          devnet: simple
+          gate: base
+          use_circleci_runner: true
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      - op-acceptance-tests-kurtosis:
+          name: kurtosis-jovian-nightly
+          devnet: jovian
+          gate: jovian
+          use_circleci_runner: true
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      - op-acceptance-tests-kurtosis:
+          name: kurtosis-interop-nightly
+          devnet: interop
+          gate: interop
+          use_circleci_runner: true
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
   main:
     when:
       or:
@@ -1957,6 +2192,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
+      - op-deployer-forge-version:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2550,13 +2790,28 @@ workflows:
               network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
-  # Acceptance tests (post-merge to develop)
+  scheduled-heavy-fuzz-tests:
+    when:
+      or:
+        - equal: [build_daily, <<pipeline.schedule.name>>]
+        - equal: [true, << pipeline.parameters.heavy_fuzz_dispatch >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-heavy-fuzz-nightly:
+          context:
+            - slack
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+
+  # Acceptance tests
   acceptance-tests:
     when:
       or:
-        - and:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: ["webhook", << pipeline.trigger_source >>]
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        # Manual dispatch
         - and:
             - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
@@ -2593,37 +2848,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
 
-  # Acceptance tests (pre-merge to develop)
-  acceptance-tests-pr:
-    when:
-      not:
-        equal: [<< pipeline.git.branch >>, "develop"]
-    jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-build: # needed for sysgo tests
-          build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - cannon-prestate-quick: # needed for sysgo tests
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      # IN-MEMORY (all)
-      - op-acceptance-tests:
-          name: memory-all
-          gate: "" # Empty gate = gateless mode
-          no_output_timeout: 90m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate-quick
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report

@@ -61,14 +61,6 @@ type DerivationPipeline interface {
 	ConfirmEngineReset()
 }
 
-type EngineController interface {
-	engine.RollupAPI
-	engine.LocalEngineControl
-	IsEngineSyncing() bool
-	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
-	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
-}
-
 type AttributesHandler interface {
 	// HasAttributes returns if there are any block attributes to process.
 	// HasAttributes is for EngineQueue testing only, and can be removed when attribute processing is fully independent.
