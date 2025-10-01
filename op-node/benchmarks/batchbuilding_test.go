@@ -115,10 +115,10 @@ func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint
 // should only be used for testing purposes, as the batch input doesn't contain the necessary information
 // to build the full block (only non-deposit transactions and a subset of header fields are populated).
 func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*types.Block, error) {
-	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:  uint64(batch.EpochNum),
 		InfoHash: batch.EpochHash,
-	}, batch.Timestamp, params.MergedTestChainConfig)
+	}, batch.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("could not build L1 Info transaction: %w", err)
 	}

@@ -118,7 +118,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(mkCfg(), testSysCfg, 0, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(mkCfg(), params.MergedTestChainConfig, testSysCfg, 0, l1Info, 0)
 		require.NoError(t, err)
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, nil, l1Fetcher, l1CfgFetcher, params.MergedTestChainConfig)
@@ -157,7 +157,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, 0, l1Info, 0)
 		require.NoError(t, err)
 
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
@@ -188,7 +188,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, l2Parent.SequenceNumber+1, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, l2Parent.SequenceNumber+1, l1Info, 0)
 		require.NoError(t, err)
 
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
@@ -234,7 +234,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		seqNumber := uint64(0)
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
 		require.NoError(t, err)
 
@@ -275,7 +275,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
 		require.NoError(t, err)
 
@@ -316,7 +316,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0, params.MergedTestChainConfig)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, 0, l1Info, 0)
 		require.NoError(t, err)
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, nil, l1Fetcher, l1CfgFetcher, params.MergedTestChainConfig)
@@ -368,7 +368,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 				if !tc.regolith {
 					time--
 				}
-				l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, time, params.MergedTestChainConfig)
+				l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, 0, l1Info, time)
 				require.NoError(t, err)
 				l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
 				attrBuilder := NewFetchingAttributesBuilder(cfg, nil, l1Fetcher, l1CfgFetcher, params.MergedTestChainConfig)
@@ -465,7 +465,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 			l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 			epoch := l1Info.ID()
-			l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0, params.MergedTestChainConfig)
+			l1InfoTx, err := L1InfoDepositBytes(cfg, params.MergedTestChainConfig, testSysCfg, 0, l1Info, 0)
 			require.NoError(t, err)
 			l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{

@@ -68,7 +68,7 @@ func TestAttributesQueue(t *testing.T) {
 	l2Fetcher.ExpectSystemConfigByL2Hash(safeHead.Hash, parentL1Cfg, nil)
 
 	rollupCfg := rollup.Config{}
-	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, expectedL1Cfg, safeHead.SequenceNumber+1, l1Info, 0, params.MergedTestChainConfig)
+	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, expectedL1Cfg, safeHead.SequenceNumber+1, l1Info, 0)
 	require.NoError(t, err)
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(safeHead.Time + cfg.BlockTime),
