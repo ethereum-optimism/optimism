@@ -37,54 +37,44 @@ func TestNewL1ChainConfig_KnownChains(t *testing.T) {
 func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 	logger := log.New()
 
+	testChainID := big.NewInt(424242)
+
 	// Build a minimal custom ChainConfig
 	custom := &params.ChainConfig{
-		ChainID:            big.NewInt(424242),
+		ChainID:            testChainID,
 		BlobScheduleConfig: &params.BlobScheduleConfig{},
 	}
 
 	customFaulty := &params.ChainConfig{
-		ChainID:            big.NewInt(424242),
+		ChainID:            testChainID,
 		BlobScheduleConfig: nil,
 	}
 
 	// Prepare temp dir
 	dir := t.TempDir()
 
-	// Direct JSON file containing a ChainConfig
-	directPath := filepath.Join(dir, "chainconfig.json")
-	{
-		f, err := os.Create(directPath)
+	encode := func(path string, cfg any) {
+		f, err := os.Create(path)
 		require.NoError(t, err)
 		enc := json.NewEncoder(f)
-		err = enc.Encode(custom)
+		err = enc.Encode(cfg)
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
 	}
 
+	// Direct JSON file containing a ChainConfig
+	directPath := filepath.Join(dir, "chainconfig.json")
+	encode(directPath, custom)
+
 	directFaultyPath := filepath.Join(dir, "chainconfig_faulty.json")
-	{
-		f, err := os.Create(directFaultyPath)
-		require.NoError(t, err)
-		enc := json.NewEncoder(f)
-		err = enc.Encode(customFaulty)
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
-	}
+	encode(directFaultyPath, customFaulty)
 
 	// Embedded JSON file that contains { "config": <ChainConfig> }
 	embeddedPath := filepath.Join(dir, "genesis_like.json")
-	{
-		type wrapper struct {
-			Config *params.ChainConfig `json:"config"`
-		}
-		f, err := os.Create(embeddedPath)
-		require.NoError(t, err)
-		enc := json.NewEncoder(f)
-		err = enc.Encode(wrapper{Config: custom})
-		require.NoError(t, err)
-		require.NoError(t, f.Close())
+	type wrapper struct {
+		Config *params.ChainConfig `json:"config"`
 	}
+	encode(embeddedPath, wrapper{Config: custom})
 
 	// Helper to run the CLI with a given file path
 	runWithPath := func(path string) (*params.ChainConfig, error) {
@@ -92,7 +82,7 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		app.Flags = []cli.Flag{nodeflags.L1ChainConfig}
 		var out *params.ChainConfig
 		app.Action = func(ctx *cli.Context) error {
-			cfg, err := NewL1ChainConfig(big.NewInt(999999999), ctx, logger)
+			cfg, err := NewL1ChainConfig(testChainID, ctx, logger)
 			out = cfg
 			return err
 		}
