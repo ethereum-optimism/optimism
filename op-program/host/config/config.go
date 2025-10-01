@@ -363,6 +363,9 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid l1 chain config: %w", err)
 			}
+			if cf.ChainID.Cmp(l1ChainIDBig) != 0 {
+				return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, l1ChainIDBig)
+			}
 			l1ChainConfig = cf
 		} else {
 			// Fallback to program-embedded lookup
