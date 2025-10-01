@@ -228,7 +228,6 @@ interface IOPContractsManager {
     /// @notice The input required to identify a chain for updating prestates
     struct UpdatePrestateInput {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
         Claim cannonPrestate;
         Claim cannonKonaPrestate;
     }
