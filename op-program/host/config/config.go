@@ -52,10 +52,6 @@ var (
 type Config struct {
 	L2ChainID eth.ChainID
 	Rollups   []*rollup.Config
-	// L1ChainConfig is the geth chain config for the L1 execution engine
-	// For interop, we only have one L1 chain config
-	// since all L2 chains must have the same L1
-	L1ChainConfig *params.ChainConfig
 	// DataDir is the directory to read/write pre-image data from/to.
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
@@ -90,6 +86,10 @@ type Config struct {
 	// L2ChainConfigs are the op-geth chain config for the L2 execution engines
 	// Must have one chain config for each rollup config
 	L2ChainConfigs []*params.ChainConfig
+	// L1ChainConfig is the geth chain config for the L1 execution engine
+	// For interop, we only have one L1 chain config
+	// since all L2 chains must have the same L1
+	L1ChainConfig *params.ChainConfig
 	// ExecCmd specifies the client program to execute in a separate process.
 	// If unset, the fault proof client is run in the same process.
 	ExecCmd string
@@ -186,8 +186,8 @@ func (c *Config) FetchingEnabled() bool {
 
 func NewSingleChainConfig(
 	rollupCfg *rollup.Config,
-	l1ChainConfig *params.ChainConfig,
 	l2ChainConfig *params.ChainConfig,
+	l1ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
 	l2Head common.Hash,
 	l2OutputRoot common.Hash,
@@ -202,8 +202,8 @@ func NewSingleChainConfig(
 	}
 	cfg := NewConfig(
 		[]*rollup.Config{rollupCfg},
-		l1ChainConfig,
 		[]*params.ChainConfig{l2ChainConfig},
+		l1ChainConfig,
 		l1Head,
 		l2Head,
 		l2OutputRoot,
@@ -216,8 +216,8 @@ func NewSingleChainConfig(
 // NewConfig creates a Config with all optional values set to the CLI default value
 func NewConfig(
 	rollupCfgs []*rollup.Config,
-	l1ChainConfig *params.ChainConfig,
 	l2ChainConfigs []*params.ChainConfig,
+	l1ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
 	l2Head common.Hash,
 	l2OutputRoot common.Hash,

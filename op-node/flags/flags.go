@@ -187,6 +187,12 @@ var (
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
 	}
+	L1ChainConfig = &cli.StringFlag{
+		Name:     "rollup.l1-chain-config",
+		Usage:    "Path to .json file with the chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary / will be ignored if using Ethereum mainnet or Sepolia as an L1.",
+		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
+		Category: RollupCategory,
+	}
 	L2EngineKind = &cli.GenericFlag{
 		Name: "l2.enginekind",
 		Usage: "The kind of engine client, used to control the behavior of optimism in respect to different types of engine clients. Valid options: " +
@@ -304,12 +310,6 @@ var (
 		Usage:    "File path used to persist safe head update data. Disabled if not set.",
 		EnvVars:  prefixEnvVars("SAFEDB_PATH"),
 		Category: OperationsCategory,
-	}
-	L1ChainConfig = &cli.StringFlag{
-		Name:     "rollup.l1-chain-config",
-		Usage:    "JSON encoded chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary if using Ethereum mainnet or Sepolia as an L1.",
-		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
-		Category: RollupCategory,
 	}
 	/* Deprecated Flags */
 	L2EngineSyncEnabled = &cli.BoolFlag{

@@ -61,7 +61,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	depSet depset.DependencySet, seqConfDepth uint64,
 ) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, l1ChainConfig, depSet, &sync.Config{}, safedb.Disabled)
-	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, depSet, l1, eng, l1ChainConfig)
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, eng)
 	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	originSelector := sequencing.NewL1OriginSelector(t.Ctx(), log, cfg, seqConfDepthL1)
 	l1OriginSelector := &MockL1OriginSelector{

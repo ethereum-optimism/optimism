@@ -45,6 +45,7 @@ type DerivationOptions struct {
 func RunDerivation(
 	logger log.Logger,
 	cfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 	depSet derive.DependencySet,
 	l2Cfg *params.ChainConfig,
 	l1Head common.Hash,
@@ -53,8 +54,7 @@ func RunDerivation(
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
 	db l2.KeyValueStore,
-	options DerivationOptions,
-	l1ChainConfig *params.ChainConfig) (DerivationResult, error) {
+	options DerivationOptions) (DerivationResult, error) {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	l1BlobsSource := l1.NewBlobFetcher(logger, l1Oracle)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, l2OutputRoot, db)

@@ -22,6 +22,7 @@ func RunPreInteropProgram(
 	result, err := tasks.RunDerivation(
 		logger,
 		bootInfo.RollupConfig,
+		bootInfo.L1ChainConfig,
 		nil, // No dependency set pre-interop
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
@@ -31,7 +32,6 @@ func RunPreInteropProgram(
 		l2PreimageOracle,
 		db,
 		opts,
-		bootInfo.L1ChainConfig,
 	)
 	if err != nil {
 		return err

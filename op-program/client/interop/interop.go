@@ -38,6 +38,7 @@ type taskExecutor interface {
 	RunDerivation(
 		logger log.Logger,
 		rollupCfg *rollup.Config,
+		l1ChainConfig *params.ChainConfig,
 		depSet depset.DependencySet,
 		l2ChainConfig *params.ChainConfig,
 		l1Head common.Hash,
@@ -45,7 +46,6 @@ type taskExecutor interface {
 		claimedBlockNumber uint64,
 		l1Oracle l1.Oracle,
 		l2Oracle l2.Oracle,
-		l1ChainConfig *params.ChainConfig,
 	) (tasks.DerivationResult, error)
 
 	BuildDepositOnlyBlock(
@@ -171,6 +171,7 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	derivationResult, err := tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		l1ChainConfig,
 		depSet,
 		l2ChainConfig,
 		bootInfo.L1Head,
@@ -178,7 +179,6 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 		claimedBlockNumber,
 		l1PreimageOracle,
 		l2PreimageOracle,
-		l1ChainConfig,
 	)
 	if err != nil {
 		return types.OptimisticBlock{}, err
@@ -200,6 +200,7 @@ type interopTaskExecutor struct {
 func (t *interopTaskExecutor) RunDerivation(
 	logger log.Logger,
 	rollupCfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 	depSet depset.DependencySet,
 	l2ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
@@ -207,11 +208,11 @@ func (t *interopTaskExecutor) RunDerivation(
 	claimedBlockNumber uint64,
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
-	l1ChainConfig *params.ChainConfig,
 ) (tasks.DerivationResult, error) {
 	return tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		l1ChainConfig,
 		depSet,
 		l2ChainConfig,
 		l1Head,
@@ -221,7 +222,6 @@ func (t *interopTaskExecutor) RunDerivation(
 		l2Oracle,
 		memorydb.New(),
 		tasks.DerivationOptions{StoreBlockData: true},
-		l1ChainConfig,
 	)
 }
 

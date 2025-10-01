@@ -90,7 +90,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	if err != nil {
 		return nil, err
 	}
-	fb := derive.NewFetchingAttributesBuilder(cfg, depSet, l1Cl, l2Cl, c.L1ChainConfig) // TODO pass L1 chain config
+	fb := derive.NewFetchingAttributesBuilder(cfg, c.L1ChainConfig, depSet, l1Cl, l2Cl)
 
 	fb.TestSkipL1OriginCheck()
 

@@ -172,6 +172,7 @@ func (p *programExecutor) RunProgram(
 	result, err := tasks.RunDerivation(
 		p.logger,
 		rollupConfig,
+		l1ChainConfig,
 		p.cfg.DependencySet,
 		l2ChainConfig,
 		p.cfg.L1Head,
@@ -181,7 +182,6 @@ func (p *programExecutor) RunProgram(
 		l2PreimageOracle,
 		db,
 		opts,
-		l1ChainConfig,
 	)
 	if err != nil {
 		return err

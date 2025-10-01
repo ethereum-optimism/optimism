@@ -27,8 +27,6 @@ type Config struct {
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
 
-	L1ChainConfig *params.ChainConfig
-
 	Beacon L1BeaconEndpointSetup
 
 	InteropConfig interop.Setup
@@ -36,6 +34,8 @@ type Config struct {
 	Driver driver.Config
 
 	Rollup rollup.Config
+
+	L1ChainConfig *params.ChainConfig
 
 	DependencySet depset.DependencySet
 

@@ -114,7 +114,7 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet Depe
 	channelMux := NewChannelMux(log, spec, frameQueue, metrics)
 	chInReader := NewChannelInReader(rollupCfg, log, channelMux, metrics)
 	batchMux := NewBatchMux(log, rollupCfg, chInReader, l2Source)
-	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, depSet, l1Fetcher, l2Source, l1ChainConfig)
+	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1ChainConfig, depSet, l1Fetcher, l2Source)
 	attributesQueue := NewAttributesQueue(log, rollupCfg, attrBuilder, batchMux)
 
 	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during

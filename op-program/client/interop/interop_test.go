@@ -849,6 +849,7 @@ var _ taskExecutor = (*stubTasks)(nil)
 func (t *stubTasks) RunDerivation(
 	_ log.Logger,
 	_ *rollup.Config,
+	_ *params.ChainConfig,
 	_ depset.DependencySet,
 	_ *params.ChainConfig,
 	_ common.Hash,
@@ -856,7 +857,6 @@ func (t *stubTasks) RunDerivation(
 	_ uint64,
 	_ l1.Oracle,
 	_ l2.Oracle,
-	_ *params.ChainConfig,
 ) (tasks.DerivationResult, error) {
 	return tasks.DerivationResult{
 		Head:       t.l2SafeHead,
