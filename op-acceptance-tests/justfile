@@ -95,6 +95,8 @@ acceptance-test devnet="" gate="base":
         CMD_ARGS=(
             "$BINARY_PATH"
             "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
+            "--validators" "./acceptance-tests.yaml"
+            "--exclude-gates" "flake-shake"
             "--allow-skips"
             "--timeout" "90m"
             "--default-timeout" "10m"
@@ -146,6 +148,7 @@ acceptance-test-docker devnet="simple" gate="base":
         --testdir "/go/src/github.com/ethereum-optimism/optimism" \
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
+        $( [[ "{{gate}}" != "flake-shake" ]] && echo --exclude-gates flake-shake ) \
         --log.level debug
 
 
@@ -153,3 +156,23 @@ acceptance-test-docker devnet="simple" gate="base":
 clean:
     kurtosis clean --all
     rm -rf tests/interop/loadtest/artifacts
+
+
+# Build, vet, lint and test Go code in ./cmd
+cmd-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd {{REPO_ROOT}}/op-acceptance-tests
+
+    echo "Downloading Go modules..."
+    go mod download
+
+    echo "Building ./cmd/..."
+    go build ./cmd/...
+
+    echo "Running go vet on ./cmd/..."
+    go vet ./cmd/...
+
+    echo "Running unit tests for ./cmd/..."
+    go test -v ./cmd/...
