@@ -345,8 +345,8 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		return nil, fmt.Errorf("no rollup configs provided to resolve L1 chain config")
 	}
 	l1ChainIDBig := rollupCfgs[0].L1ChainID
-	l1ChainConfig, err := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
-	if err != nil {
+	l1ChainConfig := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(l1ChainIDBig))
+	if l1ChainConfig == nil {
 		// if the l1 chain config is not known, we fallback to the CLI flag if set...
 		if ctx.IsSet(flags.L1ChainConfig.Name) {
 			cf, err := loadL1ChainConfigFromFile(ctx.String(flags.L1ChainConfig.Name))

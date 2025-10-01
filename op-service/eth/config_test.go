@@ -11,7 +11,7 @@ func TestL1ChainConfigByChainID(t *testing.T) {
 	tc := []struct {
 		chainID                        uint64
 		expectedDepositContractAddress common.Address
-		shouldError                    bool
+		shouldBeNil                    bool
 	}{
 		{1, common.HexToAddress("0x00000000219ab540356cbb839cbe05303d7705fa"), false},        // Mainnet
 		{11155111, common.HexToAddress("0x7f02c3e3c98b133055b8b348b2ac625669ed295d"), false}, // Sepolia
@@ -20,15 +20,12 @@ func TestL1ChainConfigByChainID(t *testing.T) {
 		{560049, common.HexToAddress("0xdeadbeef"), true},                                    // Unknown
 	}
 	for _, tc := range tc {
-		config, err := L1ChainConfigByChainID(ChainIDFromUInt64(tc.chainID))
+		config := L1ChainConfigByChainID(ChainIDFromUInt64(tc.chainID))
 
-		if tc.shouldError {
-			require.Error(t, err)
+		if tc.shouldBeNil {
+			require.Nil(t, config)
 		} else {
-			require.NoError(t, err)
 			require.Equal(t, tc.expectedDepositContractAddress, config.DepositContractAddress)
-
 		}
-
 	}
 }

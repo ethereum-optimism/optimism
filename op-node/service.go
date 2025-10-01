@@ -305,9 +305,8 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 		panic("l1 chain id is nil")
 	}
 
-	cfg, err := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId))
-	if err == nil {
-		return cfg, err
+	if cfg := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId)); cfg != nil {
+		return cfg, nil
 	}
 
 	// if the chain id is not known, we fallback to the CLI config

@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 type DefaultMinimalExternalELSystemIDs struct {
@@ -57,11 +56,9 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
 
 	// We must supply the full L1 Chain Config, so look that up or fail if unknown
-	l1ChainConfig := new(params.ChainConfig)
 	chainID := ids.L1.ChainID()
-
-	l1ChainConfig, err := eth.L1ChainConfigByChainID(chainID)
-	if err != nil {
+	l1ChainConfig := eth.L1ChainConfigByChainID(chainID)
+	if l1ChainConfig == nil {
 		panic(fmt.Sprintf("unsupported L1 chain ID: %s", chainID))
 	}
 
