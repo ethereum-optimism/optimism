@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -83,6 +84,16 @@ func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOu
 	return RunScriptSingle[DeployOPChainInput, DeployOPChainOutput](host, input, "DeployOPChain.s.sol", "DeployOPChain")
 }
 
+func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/DeployOPChain.s.sol:DeployOPChain",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[DeployOPChainInput]{TypeName: "DeployOPChainInput"},
+		&forge.BytesScriptDecoder[DeployOPChainOutput]{TypeName: "DeployOPChainOutput"},
+	)
+}
+
 type ReadImplementationAddressesInput struct {
 	AddressManager                    common.Address
 	L1ERC721BridgeProxy               common.Address
@@ -115,4 +126,14 @@ type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImpleme
 // NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
 func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
 	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
+}
+
+func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.ScriptCaller[ReadImplementationAddressesInput, ReadImplementationAddressesOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/ReadImplementationAddresses.s.sol:ReadImplementationAddresses",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[ReadImplementationAddressesInput]{TypeName: "ReadImplementationAddressesInput"},
+		&forge.BytesScriptDecoder[ReadImplementationAddressesOutput]{TypeName: "ReadImplementationAddressesOutput"},
+	)
 }

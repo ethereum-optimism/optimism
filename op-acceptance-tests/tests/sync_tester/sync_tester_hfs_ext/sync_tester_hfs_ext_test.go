@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -200,11 +199,6 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				Finalized: chainCfg.Genesis.L2.Number,
 			}),
 		)
-		// TODO(#17564): op-node has a suspected race during EL Sync.
-		// To temporarily mitigate and stabilize tests, restrict runtime
-		// parallelism to 1 (no true concurrency). This masks the race;
-		// remove once the underlying issue is fixed.
-		runtime.GOMAXPROCS(1)
 	} else {
 		opt = stack.Combine(opt,
 			presets.WithSyncTesterELInitialState(eth.FCUState{

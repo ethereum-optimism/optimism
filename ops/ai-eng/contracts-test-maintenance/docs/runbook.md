@@ -73,6 +73,13 @@ The Devin API client (`components/devin-api/devin_client.py`) automatically:
 
 Devin API credentials in `components/devin-api/.env`
 
+#### Session Monitoring
+
+The client monitors Devin sessions with resilient error handling:
+- **30-second request timeout** to prevent hanging
+- **Exponential backoff retry** for server errors (1min → 2min → 4min → 8min)
+- **Patient monitoring** for long-running sessions (30+ minutes for CI completion)
+
 #### Session Logging
 
 All Devin sessions are automatically logged to `log.jsonl` with:
@@ -96,5 +103,12 @@ All Devin sessions are automatically logged to `log.jsonl` with:
 - `run_time` - Human-readable timestamp of the run
 - `devin_session_id` - Unique Devin session identifier
 - `selected_files` - The test-contract pair that was worked on
-- `status` - Final session status ("finished", "blocked", "expired")
+- `status` - Final session status ("finished", "blocked", "expired", "failed")
 - `pull_request_url` - GitHub PR URL (only present if status is "finished")
+
+#### Duplicate Prevention
+
+The ranking system automatically excludes files processed in the **last 7 days** to prevent duplicate work:
+- Files with status `finished`, `blocked`, or `failed` are temporarily excluded
+- After 7 days, files become available for ranking again (aligns with PR auto-close policy)
+- This prevents immediate re-ranking of files still under review

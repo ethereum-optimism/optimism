@@ -131,7 +131,7 @@ func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID
 				EnableAdmin: true,
 			},
 			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
-			L1RPC:       l1EL.userRPC,
+			L1RPC:       l1EL.UserRPC(),
 			// Note: datadir is created here,
 			// persistent across stop/start, for the duration of the package execution.
 			Datadir:               orch.p.TempDir(),

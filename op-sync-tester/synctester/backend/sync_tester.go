@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
@@ -676,11 +677,27 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 	// Look up canonical block for relay comparison
 	block, err := s.elReader.GetBlockByHash(ctx, payload.BlockHash)
 	if err != nil {
-		// Do not know block hash included in payload is correct or not. Consider as a server error and make CL retry
-		if errors.Is(err, ethereum.NotFound) {
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("block not found", err))
+		if !errors.Is(err, ethereum.NotFound) {
+			// Do not retry when error did not occur because of Not found error
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block", err))
 		}
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block", err))
+		// Not found error may be recovered when given payload is near the sequencer tip.
+		// Read only EL may not be ready yet. In this case, retry once more after waiting block time (2 seconds)
+		logger.Warn("Block not found while validating new payload. Retrying", "number", payload.BlockNumber, "hash", payload.BlockHash)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			// Handle case when context cancelled while waiting.
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(fmt.Errorf("context done: %w", ctx.Err()))
+		}
+		block, err = s.elReader.GetBlockByHash(ctx, payload.BlockHash)
+		if err != nil {
+			if errors.Is(err, ethereum.NotFound) {
+				return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("block not found after retry", err))
+			}
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block after retry", err))
+		}
+		// Use block info fetched by retrying
 	}
 	// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/derivation.md#building-individual-payload-attributes
 	// Implicitly determine whether canyon is enabled by inspecting withdrawals from read only EL data

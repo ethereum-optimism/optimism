@@ -33,14 +33,15 @@ func (d *Downloader) Download(ctx context.Context, url string, out io.Writer) er
 	if err != nil {
 		return err
 	}
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download failed with status code %d: %s", resp.StatusCode, resp.Status)
 	}
 	if resp.ContentLength > 0 && d.MaxSize > 0 && resp.ContentLength > d.MaxSize {
 		return fmt.Errorf("content length %d exceeds maximum allowed size %d", resp.ContentLength, d.MaxSize)
 	}
-
-	defer resp.Body.Close()
 
 	r := io.Reader(resp.Body)
 	if d.MaxSize > 0 {

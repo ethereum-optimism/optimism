@@ -860,7 +860,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate, Claim.wrap(bytes32(0))
+            chainDeployOutput1.systemConfigProxy, prestate, Claim.wrap(bytes32(0))
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -899,7 +899,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate, Claim.wrap(bytes32(0))
+            chainDeployOutput1.systemConfigProxy, prestate, Claim.wrap(bytes32(0))
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -978,7 +978,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate, Claim.wrap(bytes32(0))
+            chainDeployOutput1.systemConfigProxy, prestate, Claim.wrap(bytes32(0))
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -1026,7 +1026,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate, Claim.wrap(bytes32(0))
+            chainDeployOutput1.systemConfigProxy, prestate, Claim.wrap(bytes32(0))
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -1047,7 +1047,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: Claim.wrap(bytes32(0)),
             cannonKonaPrestate: Claim.wrap(bytes32(0))
         });
@@ -1068,7 +1067,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: Claim.wrap(bytes32(0)),
             cannonKonaPrestate: Claim.wrap(bytes32(hex"ABBA"))
         });
@@ -1110,10 +1108,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         Claim cannonKonaPrestate = Claim.wrap(bytes32(hex"ADDA"));
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput(
-            chainDeployOutput1.systemConfigProxy,
-            chainDeployOutput1.opChainProxyAdmin,
-            cannonPrestate,
-            cannonKonaPrestate
+            chainDeployOutput1.systemConfigProxy, cannonPrestate, cannonKonaPrestate
         );
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -1203,7 +1198,6 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: cannonPrestate,
             cannonKonaPrestate: cannonKonaPrestate
         });
@@ -1261,7 +1255,6 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: prestate,
             cannonKonaPrestate: konaPrestate
         });
@@ -1283,7 +1276,10 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
                 )
             )
         );
-        IFaultDisputeGame fdg = IFaultDisputeGame(
+        address cannonFDG = address(
+            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(GameTypes.CANNON)
+        );
+        IFaultDisputeGame cannonKonaFDG = IFaultDisputeGame(
             address(
                 IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
                     GameTypes.CANNON_KONA
@@ -1293,11 +1289,12 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
 
         // Check the prestate value.
         assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
-        assertEq(fdg.absolutePrestate().raw(), konaPrestate.raw(), "fdg prestate mismatch");
+        assertEq(cannonKonaFDG.absolutePrestate().raw(), konaPrestate.raw(), "fdg prestate mismatch");
+        assertEq(cannonFDG, address(0), "cannon permissionless FDG should not exist");
 
         // Ensure that the WETH contract is not reverting.
         pdg.weth().balanceOf(address(0));
-        fdg.weth().balanceOf(address(0));
+        cannonKonaFDG.weth().balanceOf(address(0));
     }
 
     function test_updatePrestate_mixedGameTypes_reverts() public {
@@ -1310,7 +1307,6 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: prestate,
             cannonKonaPrestate: Claim.wrap(hex"ADDA")
         });
@@ -1336,7 +1332,6 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: Claim.wrap(bytes32(0)),
             cannonKonaPrestate: Claim.wrap(bytes32(hex"ABBA"))
         });
@@ -1362,7 +1357,6 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.UpdatePrestateInput[] memory inputs = new IOPContractsManager.UpdatePrestateInput[](1);
         inputs[0] = IOPContractsManager.UpdatePrestateInput({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             cannonPrestate: Claim.wrap(bytes32(hex"ABBA")),
             cannonKonaPrestate: Claim.wrap(bytes32(0))
         });

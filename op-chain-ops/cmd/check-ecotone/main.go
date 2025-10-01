@@ -500,7 +500,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	for i := 0; i < 4096; i++ {
 		blob[32*i] &= 0b0011_1111
 	}
-	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob})
+	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob}, false)
 	if err != nil {
 		return fmt.Errorf("failed to make sidecar: %w", err)
 	}

@@ -31,6 +31,8 @@ type Implementations struct {
 	AnchorStateRegistryImpl          common.Address `json:"AnchorStateRegistryImpl"`
 	SuperchainConfigImpl             common.Address `json:"SuperchainConfigImpl"`
 	ProtocolVersionsImpl             common.Address `json:"ProtocolVersionsImpl"`
+	FaultDisputeGameV2Impl           common.Address `json:"FaultDisputeGameV2Impl"`
+	PermissionedDisputeGameV2Impl    common.Address `json:"PermissionedDisputeGameV2Impl"`
 }
 
 type SuperchainDeployment struct {
