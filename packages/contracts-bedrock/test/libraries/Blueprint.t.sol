@@ -237,10 +237,10 @@ contract Blueprint_BytesToUint_Test is Blueprint_TestInit {
     }
 }
 
-/// @title Blueprint_Unclassified_Test
+/// @title Blueprint_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Blueprint` library or
 ///         are testing multiple functions at once.
-contract Blueprint_Unclassified_Test is Blueprint_TestInit {
+contract Blueprint_Uncategorized_Test is Blueprint_TestInit {
     /// @dev Tests that a roundtrip from initcode to blueprint to initcode succeeds, ensuring the
     ///      invariant that `parseBlueprintPreamble(blueprintDeployerBytecode(x)) = x`.
     function testFuzz_roundtrip_succeeds(bytes memory _initcode) public {

@@ -187,10 +187,10 @@ contract SuperPermissionedDisputeGame_Step_Test is SuperPermissionedDisputeGame_
     }
 }
 
-/// @title SuperPermissionedDisputeGame_Unclassified_Test
+/// @title SuperPermissionedDisputeGame_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `SuperPermissionedDisputeGame` contract or are testing multiple functions at once.
-contract SuperPermissionedDisputeGame_Unclassified_Test is SuperPermissionedDisputeGame_TestInit {
+contract SuperPermissionedDisputeGame_Uncategorized_Test is SuperPermissionedDisputeGame_TestInit {
     /// @notice Tests that the proposer can create a permissioned dispute game.
     function test_createGame_proposer_succeeds() public {
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);

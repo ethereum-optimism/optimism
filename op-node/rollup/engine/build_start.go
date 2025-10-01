@@ -18,25 +18,25 @@ func (ev BuildStartEvent) String() string {
 	return "build-start"
 }
 
-func (eq *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
-	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
+func (e *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	rpcCtx, cancel := context.WithTimeout(e.ctx, buildStartTimeout)
 	defer cancel()
 
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
-		eq.PendingSafeL2Head().Hash != ev.Attributes.Parent.Hash {
+		e.pendingSafeHead.Hash != ev.Attributes.Parent.Hash {
 		// Warn about small reorgs, happens when pending safe head is getting rolled back
-		eq.log.Warn("block-attributes derived from L1 do not build on pending safe head, likely reorg",
-			"pending_safe", eq.PendingSafeL2Head(), "attributes_parent", ev.Attributes.Parent)
+		e.log.Warn("block-attributes derived from L1 do not build on pending safe head, likely reorg",
+			"pending_safe", e.pendingSafeHead, "attributes_parent", ev.Attributes.Parent)
 	}
 
 	fcEvent := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    ev.Attributes.Parent,
-		SafeL2Head:      eq.safeHead,
-		FinalizedL2Head: eq.finalizedHead,
+		SafeL2Head:      e.safeHead,
+		FinalizedL2Head: e.finalizedHead,
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
-		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return
 	}
 	fc := eth.ForkchoiceState{
@@ -45,33 +45,33 @@ func (eq *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent
 		FinalizedBlockHash: fcEvent.FinalizedL2Head.Hash,
 	}
 	buildStartTime := time.Now()
-	id, errTyp, err := startPayload(rpcCtx, eq.engine, fc, ev.Attributes.Attributes)
+	id, errTyp, err := startPayload(rpcCtx, e.engine, fc, ev.Attributes.Attributes)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+			e.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 				Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err),
 			})
 			return
 		case BlockInsertPrestateErr:
-			eq.emitter.Emit(ctx, rollup.ResetEvent{
+			e.emitter.Emit(ctx, rollup.ResetEvent{
 				Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err),
 			})
 			return
 		case BlockInsertPayloadErr:
-			eq.emitter.Emit(ctx, BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
+			e.emitter.Emit(ctx, BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
 			return
 		default:
-			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 				Err: fmt.Errorf("unknown error type %d: %w", errTyp, err),
 			})
 			return
 		}
 	}
-	eq.emitter.Emit(ctx, fcEvent)
+	e.emitter.Emit(ctx, fcEvent)
 
-	eq.emitter.Emit(ctx, BuildStartedEvent{
+	e.emitter.Emit(ctx, BuildStartedEvent{
 		Info:         eth.PayloadInfo{ID: id, Timestamp: uint64(ev.Attributes.Attributes.Timestamp)},
 		BuildStarted: buildStartTime,
 		Concluding:   ev.Attributes.Concluding,

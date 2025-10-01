@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -54,8 +53,7 @@ type L2Verifier struct {
 
 	log log.Logger
 
-	Eng    L2API
-	CLSync *clsync.CLSync
+	Eng L2API
 
 	syncStatus driver.SyncStatusTracker
 
@@ -156,9 +154,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("engine-reset", engineResetDeriver, opts)
 	engineResetDeriver.SetEngController(ec)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
-	sys.Register("cl-sync", clSync, opts)
-
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
 		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc, ec)
@@ -191,7 +186,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
 		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
 		Engine:         ec,
 		SyncCfg:        syncCfg,
 		Config:         cfg,
@@ -214,7 +208,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		eventSys:          sys,
 		log:               log,
 		Eng:               eng,
-		CLSync:            clSync,
 		engine:            ec,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
@@ -457,7 +450,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.CLSync.AddUnsafePayload(t.Ctx(), payload)
+		s.engine.AddUnsafePayload(t.Ctx(), payload)
 	}
 }
 

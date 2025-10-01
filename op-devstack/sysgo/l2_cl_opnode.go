@@ -243,7 +243,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
-				L1NodeAddr:       l1EL.userRPC,
+				L1NodeAddr:       l1EL.UserRPC(),
 				L1TrustRPC:       false,
 				L1RPCKind:        sources.RPCKindDebugGeth,
 				RateLimit:        0,
