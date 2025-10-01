@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -151,14 +150,6 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		require.True(ok, "l2 network required")
 
 		l1ChainConfig := l1Net.genesis.Config
-
-		// mimic op-node's L1ChainConfig resolution
-		switch {
-		case l2Net.rollupCfg.L1ChainID.Cmp(params.MainnetChainConfig.ChainID) == 0:
-			l1ChainConfig = params.MainnetChainConfig
-		case l2Net.rollupCfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0:
-			l1ChainConfig = params.SepoliaChainConfig
-		}
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
