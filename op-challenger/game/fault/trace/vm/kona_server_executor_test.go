@@ -44,4 +44,5 @@ func TestKonaFillHostCommand(t *testing.T) {
 	require.True(t, slices.Contains(args, "--agreed-l2-output-root"))
 	require.True(t, slices.Contains(args, "--claimed-l2-output-root"))
 	require.True(t, slices.Contains(args, "--claimed-l2-block-number"))
+	require.True(t, slices.Contains(args, "--l1-config-path"))
 }
