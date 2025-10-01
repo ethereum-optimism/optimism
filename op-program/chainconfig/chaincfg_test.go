@@ -95,6 +95,11 @@ func TestCheckConfigFilenames_WithoutCustomL1Genesis(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCheckConfigFilenames_MultipleL1Genesis(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigMultipleL1FS, "configs_multiple_l1")
+	require.ErrorContains(t, err, "multiple l1 genesis files found")
+}
+
 func TestCheckConfigFilenames_Missing(t *testing.T) {
 	err := checkConfigFilenames(test.TestCustomChainConfigEmptyFS, "configs_empty")
 	require.NoError(t, err)
