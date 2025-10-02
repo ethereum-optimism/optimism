@@ -101,7 +101,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		L2ChainId:                    chainID.Big(),
 		Opcm:                         st.ImplementationsDeployment.OpcmImpl,
 		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                     standard.GasLimit,
+		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:          proofParams.DisputeMaxGameDepth,
