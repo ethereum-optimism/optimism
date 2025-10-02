@@ -192,9 +192,12 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 
 func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, _ string) []error {
 	// Check for uncategorized test pattern
-	if functionName == "Uncategorized" {
-		// Pattern: <ContractName>_Uncategorized_Test
-		return nil
+	allowedFunctionNames := []string{"Uncategorized", "Integration"}
+	for _, allowed := range allowedFunctionNames {
+		if functionName == allowed {
+			// Pattern: <ContractName>_Uncategorized_Test or <ContractName>_Integration_Test
+			return nil
+		}
 	}
 	// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
 	if !checkFunctionExists(artifact, functionName) {
