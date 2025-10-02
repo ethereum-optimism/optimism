@@ -251,6 +251,11 @@ func checkSrcPath(artifact *solc.ForgeArtifact) bool {
 // Validates that contract name matches the file path
 func checkContractNameFilePath(artifact *solc.ForgeArtifact) bool {
 	for filePath, contractName := range artifact.Metadata.Settings.CompilationTarget {
+
+		if isExcludedTest(contractName) {
+			continue
+		}
+
 		// Split contract name to get the base contract name (before first underscore)
 		contractParts := strings.Split(contractName, "_")
 		// Split file path to get individual path components
