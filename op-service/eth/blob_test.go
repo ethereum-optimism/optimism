@@ -303,59 +303,45 @@ func TestCalcBlobFeeCancun(t *testing.T) {
 }
 
 // TestCalcBlobFeeAcrossForksWithFixedExcess tests the blob base fee calculation for different forks.
+// Using the Sepolia chain config.
 func TestCalcBlobFeeAcrossForksWithFixedExcess(t *testing.T) {
-	zero := uint64(0)
 	excess := uint64(40_000_000)
 	header := &types.Header{ExcessBlobGas: &excess, Time: 1754904516, Number: big.NewInt(1)}
-
+	cfg := params.SepoliaChainConfig
 	tests := []struct {
-		name        string
-		cfgOverride func(*params.ChainConfig)
-		wantBF      int64
+		name      string
+		blockTime uint64
+		wantBF    int64
 	}{
 		{
-			name: "Cancun",
-			cfgOverride: func(cfg *params.ChainConfig) {
-				cfg.CancunTime = &zero
-			},
-			wantBF: 159773,
+			name:      "Cancun",
+			blockTime: *cfg.CancunTime,
+			wantBF:    159773,
 		},
 		{
-			name: "Prague",
-			cfgOverride: func(cfg *params.ChainConfig) {
-				cfg.PragueTime = &zero
-			},
-			wantBF: 2944,
+			name:      "Prague",
+			blockTime: *cfg.PragueTime,
+			wantBF:    2944,
 		},
 		{
-			name: "Osaka",
-			cfgOverride: func(cfg *params.ChainConfig) {
-				cfg.OsakaTime = &zero
-			},
-			wantBF: 2944,
+			name:      "Osaka",
+			blockTime: *cfg.OsakaTime,
+			wantBF:    2944,
 		},
 		{
-			name: "BPO1",
-			cfgOverride: func(cfg *params.ChainConfig) {
-				cfg.BPO1Time = &zero
-			},
-			wantBF: 120,
+			name:      "BPO1",
+			blockTime: *cfg.BPO1Time,
+			wantBF:    120,
 		},
 		{
-			name: "BPO2",
-			cfgOverride: func(cfg *params.ChainConfig) {
-				cfg.BPO2Time = &zero
-			},
-			wantBF: 30,
+			name:      "BPO2",
+			blockTime: *cfg.BPO2Time,
+			wantBF:    30,
 		},
 	}
 
 	for _, tt := range tests {
-		cfg := &params.ChainConfig{
-			LondonBlock:        big.NewInt(0),
-			BlobScheduleConfig: params.SepoliaChainConfig.BlobScheduleConfig,
-		}
-		tt.cfgOverride(cfg)
+		header.Time = tt.blockTime
 		bf := eip4844.CalcBlobFee(cfg, header)
 		assert.Equal(t, tt.wantBF, bf.Int64())
 	}
