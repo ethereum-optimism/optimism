@@ -59,8 +59,9 @@ func TestGetCustomL1ChainConfig_KnownChainID(t *testing.T) {
 		eth.ChainIDFromUInt64(560048),   // Hoodi
 	}
 	for _, chainID := range knownChainIds {
-		_, err := L1ChainConfigByChainID(chainID)
+		cfg, err := L1ChainConfigByChainID(chainID)
 		require.NoError(t, err)
+		require.True(t, chainID.Cmp(eth.ChainIDFromBig(cfg.ChainID)) == 0)
 	}
 	unknownChainId := eth.ChainIDFromUInt64(11111)
 	_, err := L1ChainConfigByChainID(unknownChainId)
