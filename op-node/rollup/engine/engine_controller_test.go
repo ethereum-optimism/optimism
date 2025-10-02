@@ -159,13 +159,16 @@ func TestLowestQueuedUnsafeBlock(t *testing.T) {
 	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	// empty -> zero
-	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
+	_, ref := ec.PeekUnsafePayload()
+	require.Equal(t, eth.L2BlockRef{}, ref)
 
 	// queue -> returns derived ref
 	_ = ec.unsafePayloads.Push(payloadA1)
 	want, err := derive.PayloadToBlockRef(cfg, payloadA1.ExecutionPayload)
 	require.NoError(t, err)
-	require.Equal(t, want, ec.LowestQueuedUnsafeBlock())
+
+	_, ref = ec.PeekUnsafePayload()
+	require.Equal(t, want, ref)
 }
 
 func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
@@ -175,7 +178,8 @@ func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = ec.unsafePayloads.Push(bad)
-	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
+	_, ref := ec.PeekUnsafePayload()
+	require.Equal(t, eth.L2BlockRef{}, ref)
 }
 
 func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
