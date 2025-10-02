@@ -63,7 +63,8 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 			panic("failed to bootstrap l1ChainConfig: " + fmt.Sprintf("%v", err))
 		}
 		if l1ChainConfig.ChainID.Cmp(rollupConfig.L1ChainID) != 0 {
-			panic("l1ChainConfig chain ID does not match rollup config L1 chain ID")
+			panic(fmt.Errorf("l1ChainConfig chain ID does not match rollup config L1 chain ID: %v != %v",
+				l1ChainConfig.ChainID, rollupConfig.L1ChainID))
 		}
 	} else {
 		var err error
