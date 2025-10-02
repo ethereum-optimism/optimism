@@ -154,7 +154,7 @@ type DevL1DeployConfigMinimal struct {
 	L1ChainID eth.ChainID
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *uint64
-	// When Fusaka activates. Relative to L1 genesis.
+	// When Osaka activates. Relative to L1 genesis.
 	L1OsakaTimeOffset *uint64
 	// When BPO1 activates. Relative to L1 genesis.
 	L1BPO1TimeOffset *uint64
