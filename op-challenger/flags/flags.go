@@ -44,11 +44,6 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON"),
 	}
-	L1GenesisFlag = &cli.StringFlag{
-		Name:    "l1-genesis-path",
-		Usage:   "Path to the L1 genesis file. Only required if the L1 is not mainnet, sepolia, holesky, or hoodi.",
-		EnvVars: prefixEnvVars("L1_GENESIS_PATH"),
-	}
 	SupervisorRpcFlag = &cli.StringFlag{
 		Name:    "supervisor-rpc",
 		Usage:   "Provider URL for supervisor RPC",
@@ -145,6 +140,13 @@ var (
 		return &cli.StringSliceFlag{
 			Name:    name,
 			Usage:   "Paths to the op-geth genesis file " + traceTypeInfo,
+			EnvVars: envVars,
+		}
+	})
+	L1GenesisFlag = NewVMFlag("l1-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+		return &cli.StringFlag{
+			Name:    name,
+			Usage:   "Path to the L1 genesis file. Only required if the L1 is not mainnet, sepolia, holesky, or hoodi.",
 			EnvVars: envVars,
 		}
 	})
@@ -336,7 +338,6 @@ var optionalFlags = []cli.Flag{
 	UnsafeAllowInvalidPrestate,
 	ResponseDelayFlag,
 	ResponseDelayAfterFlag,
-	L1GenesisFlag,
 	L1BeaconSkipBlobVerificationFlag,
 }
 
@@ -344,6 +345,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, PreStatesURLFlag.Flags()...)
 	optionalFlags = append(optionalFlags, RollupConfigFlag.Flags()...)
+	optionalFlags = append(optionalFlags, L1GenesisFlag.Flags()...)
 	optionalFlags = append(optionalFlags, L2GenesisFlag.Flags()...)
 	optionalFlags = append(optionalFlags, DepsetConfigFlag.Flags()...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
@@ -724,7 +726,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		RollupRpc:                    ctx.String(RollupRpcFlag.Name),
 		SupervisorRPC:                ctx.String(SupervisorRpcFlag.Name),
 		Cannon: vm.Config{
-			L1GenesisPath:                ctx.String(L1GenesisFlag.Name),
 			VmType:                       types.TraceTypeCannon,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
@@ -736,6 +737,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Networks:                     networks,
 			L2Custom:                     ctx.Bool(CannonL2CustomFlag.Name),
 			RollupConfigPaths:            RollupConfigFlag.StringSlice(ctx, types.TraceTypeCannon),
+			L1GenesisPath:                L1GenesisFlag.String(ctx, types.TraceTypeCannon),
 			L2GenesisPaths:               L2GenesisFlag.StringSlice(ctx, types.TraceTypeCannon),
 			DepsetConfigPath:             DepsetConfigFlag.String(ctx, types.TraceTypeCannon),
 			SnapshotFreq:                 ctx.Uint(CannonSnapshotFreqFlag.Name),
@@ -746,7 +748,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
-			L1GenesisPath:                ctx.String(L1GenesisFlag.Name),
 			VmType:                       types.TraceTypeCannonKona,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
@@ -758,6 +759,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Networks:                     networks,
 			L2Custom:                     ctx.Bool(CannonKonaL2CustomFlag.Name),
 			RollupConfigPaths:            RollupConfigFlag.StringSlice(ctx, types.TraceTypeCannonKona),
+			L1GenesisPath:                L1GenesisFlag.String(ctx, types.TraceTypeCannonKona),
 			L2GenesisPaths:               L2GenesisFlag.StringSlice(ctx, types.TraceTypeCannonKona),
 			DepsetConfigPath:             DepsetConfigFlag.String(ctx, types.TraceTypeCannonKona),
 			SnapshotFreq:                 ctx.Uint(CannonSnapshotFreqFlag.Name),
@@ -769,7 +771,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,
 		Datadir:                           ctx.String(DatadirFlag.Name),
 		Asterisc: vm.Config{
-			L1GenesisPath:                ctx.String(L1GenesisFlag.Name),
 			VmType:                       types.TraceTypeAsterisc,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
@@ -780,6 +781,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Server:                       ctx.String(AsteriscServerFlag.Name),
 			Networks:                     networks,
 			RollupConfigPaths:            RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsterisc),
+			L1GenesisPath:                L1GenesisFlag.String(ctx, types.TraceTypeAsterisc),
 			L2GenesisPaths:               L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsterisc),
 			DepsetConfigPath:             DepsetConfigFlag.String(ctx, types.TraceTypeAsterisc),
 			SnapshotFreq:                 ctx.Uint(AsteriscSnapshotFreqFlag.Name),
@@ -789,7 +791,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		AsteriscAbsolutePreState:        ctx.String(AsteriscPreStateFlag.Name),
 		AsteriscAbsolutePreStateBaseURL: asteriscPreStatesURL,
 		AsteriscKona: vm.Config{
-			L1GenesisPath:                ctx.String(L1GenesisFlag.Name),
 			VmType:                       types.TraceTypeAsteriscKona,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
@@ -801,6 +802,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Networks:                     networks,
 			L2Custom:                     ctx.Bool(AsteriscKonaL2CustomFlag.Name),
 			RollupConfigPaths:            RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
+			L1GenesisPath:                L1GenesisFlag.String(ctx, types.TraceTypeAsteriscKona),
 			L2GenesisPaths:               L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
 			DepsetConfigPath:             DepsetConfigFlag.String(ctx, types.TraceTypeAsteriscKona),
 			SnapshotFreq:                 ctx.Uint(AsteriscSnapshotFreqFlag.Name),
