@@ -5,7 +5,10 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -297,4 +300,63 @@ func TestExtraneousData(t *testing.T) {
 func TestCalcBlobFeeCancun(t *testing.T) {
 	cancunBlobFee := CalcBlobFeeCancun(uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction))
 	require.Equal(t, big.NewInt(485165195), cancunBlobFee)
+}
+
+// TestCalcBlobFeeAcrossForksWithFixedExcess tests the blob base fee calculation for different forks.
+func TestCalcBlobFeeAcrossForksWithFixedExcess(t *testing.T) {
+	zero := uint64(0)
+	excess := uint64(40_000_000)
+	header := &types.Header{ExcessBlobGas: &excess, Time: 1754904516, Number: big.NewInt(1)}
+
+	tests := []struct {
+		name        string
+		cfgOverride func(*params.ChainConfig)
+		wantBF      int64
+	}{
+		{
+			name: "Cancun",
+			cfgOverride: func(cfg *params.ChainConfig) {
+				cfg.CancunTime = &zero
+			},
+			wantBF: 159773,
+		},
+		{
+			name: "Prague",
+			cfgOverride: func(cfg *params.ChainConfig) {
+				cfg.PragueTime = &zero
+			},
+			wantBF: 2944,
+		},
+		{
+			name: "Osaka",
+			cfgOverride: func(cfg *params.ChainConfig) {
+				cfg.OsakaTime = &zero
+			},
+			wantBF: 2944,
+		},
+		{
+			name: "BPO1",
+			cfgOverride: func(cfg *params.ChainConfig) {
+				cfg.BPO1Time = &zero
+			},
+			wantBF: 120,
+		},
+		{
+			name: "BPO2",
+			cfgOverride: func(cfg *params.ChainConfig) {
+				cfg.BPO2Time = &zero
+			},
+			wantBF: 30,
+		},
+	}
+
+	for _, tt := range tests {
+		cfg := &params.ChainConfig{
+			LondonBlock:        big.NewInt(0),
+			BlobScheduleConfig: params.SepoliaChainConfig.BlobScheduleConfig,
+		}
+		tt.cfgOverride(cfg)
+		bf := eip4844.CalcBlobFee(cfg, header)
+		assert.Equal(t, tt.wantBF, bf.Int64())
+	}
 }
