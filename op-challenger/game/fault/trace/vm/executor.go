@@ -57,8 +57,8 @@ type Config struct {
 	Networks          []string
 	L2Custom          bool
 	RollupConfigPaths []string
-	L1GenesisPath     string
 	L2GenesisPaths    []string
+	L1GenesisPath     string
 	DepsetConfigPath  string
 }
 
