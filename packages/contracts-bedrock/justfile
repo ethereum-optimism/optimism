@@ -16,8 +16,27 @@ dep-status:
 ########################################################
 
 # Core forge build command.
+
 forge-build *ARGS:
   forge build {{ARGS}}
+
+  @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
+  @# On the first invocation, `forge script` may compile a small set of dependencies.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @#
+  @# Notes:
+  @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
+  @#   dependency graph into the cache. Subsequent `forge script` runs (including other scripts)
+  @#   will typically print "No files changed, compilation skipped".
+  @# - We pass `--skip "/**/test/**"` to keep tests out of the graph and suppress warnings.
+  @# - Providing a signature/args is not required for compilation; compilation happens before
+  @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
+  @#   nothing runs in any case.
+  @forge script "scripts/deploy/Deploy.s.sol" \
+    --skip "/**/test/**" \
+    --sig "idonotexist()" \
+    --skip-simulation \
+    2>/dev/null || true
 
 # Developer build command (faster).
 forge-build-dev *ARGS:

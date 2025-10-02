@@ -9,13 +9,13 @@ build-contracts:
   just ../packages/contracts-bedrock/forge-build
 
 copy-contract-artifacts:
-    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz \
-        -C ../packages/contracts-bedrock \
-        --exclude="*.t.sol" \
-        --exclude="book/" \
-        --exclude="snapshots/" \
-        .
+    #!/bin/bash
+    set -euo pipefail
+
+    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
+    go run ./pkg/deployer/artifacts/cmd/mktar \
+        -base ../packages/contracts-bedrock \
+        -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 
 _LDFLAGSSTRING := "'" + trim(
     "-X main.GitCommit=" + GITCOMMIT + " " + \
