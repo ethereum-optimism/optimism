@@ -306,7 +306,7 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 	}
 
 	cfg, err := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainId))
-	if err != nil {
+	if err == nil {
 		return cfg, err
 	}
 
