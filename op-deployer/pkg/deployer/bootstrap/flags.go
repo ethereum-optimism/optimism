@@ -128,7 +128,7 @@ var (
 		Name:    "l1-proxy-admin-owner",
 		Aliases: []string{"upgrade-controller"},
 		Usage:   "L1 ProxyAdmin Owner.",
-		EnvVars: []string{deployer.PrefixEnvVar("L1_PROXY_ADMIN_OWNER"), deployer.PrefixEnvVar("UPGRADE_CONTROLLER")},
+		EnvVars: deployer.PrefixEnvVar("L1_PROXY_ADMIN_OWNER"),
 	}
 	SuperchainProxyAdminFlag = &cli.StringFlag{
 		Name:    "superchain-proxy-admin",
