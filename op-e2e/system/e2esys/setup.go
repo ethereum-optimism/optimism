@@ -272,11 +272,6 @@ func writeDefaultJWT(t testing.TB) string {
 	return jwtPath
 }
 
-type DepositContractConfig struct {
-	L2Oracle           common.Address
-	FinalizationPeriod *big.Int
-}
-
 type SystemConfig struct {
 	Secrets                *secrets.Secrets
 	L1InfoPredeployAddress common.Address
@@ -292,14 +287,10 @@ type SystemConfig struct {
 	// L1FinalizedDistance is the distance from the L1 head that L1 blocks will be artificially finalized on.
 	L1FinalizedDistance uint64
 
-	Premine        map[common.Address]*big.Int
-	Nodes          map[string]*config2.Config // Per node config. Don't use populate rollup.Config
-	Loggers        map[string]log.Logger
-	GethOptions    map[string][]geth.GethOption
-	ProposerLogger log.Logger
-	BatcherLogger  log.Logger
-
-	ExternalL2Shim string
+	Premine     map[common.Address]*big.Int
+	Nodes       map[string]*config2.Config // Per node config. Don't use populate rollup.Config
+	Loggers     map[string]log.Logger
+	GethOptions map[string][]geth.GethOption
 
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
