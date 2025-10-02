@@ -1001,6 +1001,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON);
         addGameType(input);
 
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
@@ -1016,6 +1017,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
     ///         zero hash.
     function test_updatePrestate_whenPDGPrestateIsZero_reverts() public {
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
@@ -1027,6 +1029,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     }
 
     function test_updatePrestate_whenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts() public {
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
@@ -1172,6 +1175,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
         addGameType(input);
 
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
@@ -1192,6 +1196,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
@@ -1208,6 +1213,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
+        // nosemgrep: sol-style-use-abi-encodecall
         _runUpdatePrestateAndChecks(
             IOPContractsManager.UpdatePrestateInput({
                 systemConfigProxy: chainDeployOutput1.systemConfigProxy,
