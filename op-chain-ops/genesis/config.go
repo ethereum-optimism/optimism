@@ -377,8 +377,8 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
-	// When Fusaka activates. Relative to L1 genesis.
-	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1FusakaTimeOffset,omitempty"`
+	// When Osaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1OsakaTimeOffset,omitempty"`
 	// When BPO1 activates. Relative to L1 genesis.
 	L1BPO1TimeOffset *hexutil.Uint64 `json:"l1BPO1TimeOffset,omitempty"`
 	// When BPO2 activates. Relative to L1 genesis.
