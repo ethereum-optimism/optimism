@@ -13,6 +13,7 @@ const (
 	L2ChainConfigLocalIndex
 	RollupConfigLocalIndex
 	DependencySetLocalIndex
+	L1ChainConfigLocalIndex
 )
 
 type oracleClient interface {

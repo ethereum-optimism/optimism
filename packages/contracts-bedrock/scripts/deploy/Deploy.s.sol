@@ -9,7 +9,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
@@ -327,7 +326,7 @@ contract Deploy is Deployer {
             _mips: IMIPS64(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 

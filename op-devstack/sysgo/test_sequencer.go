@@ -115,10 +115,14 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 		l2SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2CLID.ChainID()))
 		l1SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ELID.ChainID()))
 
+		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		require.True(ok, "l1 net required")
+
 		v := &config.Ensemble{
 			Builders: map[seqtypes.BuilderID]*config.BuilderEntry{
 				bid_L2: {
 					Standard: &standardbuilder.Config{
+						L1ChainConfig: l1Net.genesis.Config,
 						L1EL: endpoint.MustRPC{
 							Value: endpoint.HttpURL(l1EL.UserRPC()),
 						},
