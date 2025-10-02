@@ -10,10 +10,6 @@ import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
-contract Target {
-    function doSomething() external { }
-}
-
 /// @title TransactionBuilder
 /// @notice Facilitates the construction of transactions and signatures, and provides helper methods
 ///        for scheduling, executing, and cancelling transactions.
@@ -221,7 +217,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     {
         TransactionBuilder.Transaction memory transaction = _createEmptyTransaction(_safeInstance);
         transaction.params.to = address(0xabba);
-        transaction.params.data = abi.encodeCall(Target.doSomething, ());
+        transaction.params.data = hex"acdc";
         transaction.updateTransaction();
         return transaction;
     }
@@ -835,7 +831,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
     }
 
     /// @notice Test that rescheduling an identical previously cancelled transaction reverts
-    function test_integration_scheduleTransaction_identicalPreviouslyCancelled_reverts() external {
+    function test_integration_scheduleTransactionIdenticalToPreviouslyCancelled_reverts() external {
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
 
