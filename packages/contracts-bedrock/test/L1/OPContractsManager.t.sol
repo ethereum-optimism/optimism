@@ -383,7 +383,7 @@ contract OPContractsManager_TestInit is CommonTest {
         ).l2ChainId();
 
         // Expect the GameTypeAdded event to be emitted.
-        vm.expectEmit(true, true, false, false, address(this));
+        vm.expectEmit(true, true, true, false, address(this));
         emit GameTypeAdded(
             l2ChainId, input.disputeGameType, IDisputeGame(payable(address(0))), IDisputeGame(payable(address(0)))
         );
