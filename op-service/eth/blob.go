@@ -284,7 +284,9 @@ func (b *Blob) Clear() {
 }
 
 // CalcBlobFeeCancun calculates the blob fee for the given header using
-// the default blob schedule for Cancun.
+// the default blob schedule for Cancun. This function only exists
+// to support the L1 Pectra Blob Schedule Fix. The geth function
+// eip4844.CalcBlobFee should be used instead.
 func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	// Dummy Cancun header for calculation.
 	cancunHeader := &types.Header{
