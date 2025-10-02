@@ -644,7 +644,9 @@ func PerformELSyncAndCheckPayloads(t actionsHelpers.Testing, miner *actionsHelpe
 	// Insert it on the verifier
 	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), from)
+	// Must check with block which is not genesis
+	startBlockNum := from + 1
+	seqStart, err := seqEngCl.PayloadByNumber(t.Ctx(), startBlockNum)
 	require.NoError(t, err)
 	verifier.ActL2InsertUnsafePayload(seqHead)(t)
 
@@ -657,10 +659,10 @@ func PerformELSyncAndCheckPayloads(t actionsHelpers.Testing, miner *actionsHelpe
 	)
 
 	// Expect snap sync to download & execute the entire chain
-	// Verify this by checking that the verifier has the correct value for block 1
+	// Verify this by checking that the verifier has the correct value for block startBlockNum
 	require.Eventually(t,
 		func() bool {
-			block, err := verifier.Eng.L2BlockRefByNumber(t.Ctx(), from)
+			block, err := verifier.Eng.L2BlockRefByNumber(t.Ctx(), startBlockNum)
 			if err != nil {
 				return false
 			}

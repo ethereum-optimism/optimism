@@ -90,6 +90,23 @@ func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel) CheckFunc {
 	}
 }
 
+func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int) CheckFunc {
+	return func() error {
+		logger := el.log.With("id", el.inner.ID(), "chain", el.ChainID(), "label", label, "target", target)
+		logger.Info("Expecting L2EL to reach")
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head := el.BlockRefByLabel(label)
+				if head.Number >= target {
+					logger.Info("L2EL advanced", "target", target)
+					return nil
+				}
+				logger.Info("L2EL sync status", "current", head.Number)
+				return fmt.Errorf("expected head to advance: %s", label)
+			})
+	}
+}
+
 func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
@@ -133,6 +150,10 @@ func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckF
 
 func (el *L2ELNode) Advanced(label eth.BlockLabel, block uint64) {
 	el.require.NoError(el.AdvancedFn(label, block)())
+}
+
+func (el *L2ELNode) Reached(label eth.BlockLabel, block uint64, attempts int) {
+	el.require.NoError(el.ReachedFn(label, block, attempts)())
 }
 
 func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {

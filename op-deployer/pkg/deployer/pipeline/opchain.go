@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -33,7 +34,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	dco, err = opcm.DeployOPChain(env.L1ScriptHost, dci)
+	dco, err = env.Scripts.DeployOPChain.Run(dci)
 	if err != nil {
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
@@ -110,8 +111,8 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          proofParams.DisputeMaxGameDepth,
-		DisputeSplitDepth:            proofParams.DisputeSplitDepth,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
 		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
@@ -130,7 +131,7 @@ func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.Ch
 	opChainContracts.L1StandardBridgeProxy = dco.L1StandardBridgeProxy
 	opChainContracts.L1CrossDomainMessengerProxy = dco.L1CrossDomainMessengerProxy
 	opChainContracts.OptimismPortalProxy = dco.OptimismPortalProxy
-	opChainContracts.EthLockboxProxy = dco.ETHLockboxProxy
+	opChainContracts.EthLockboxProxy = dco.EthLockboxProxy
 	opChainContracts.DisputeGameFactoryProxy = dco.DisputeGameFactoryProxy
 	opChainContracts.AnchorStateRegistryProxy = dco.AnchorStateRegistryProxy
 	opChainContracts.FaultDisputeGameImpl = dco.FaultDisputeGame

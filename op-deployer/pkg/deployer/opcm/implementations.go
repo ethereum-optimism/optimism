@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -58,4 +59,14 @@ type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementat
 // NewDeployImplementationsScript loads and validates the DeployImplementations script contract
 func NewDeployImplementationsScript(host *script.Host) (DeployImplementationsScript, error) {
 	return script.NewDeployScriptWithOutputFromFile[DeployImplementationsInput, DeployImplementationsOutput](host, "DeployImplementations.s.sol", "DeployImplementations")
+}
+
+func NewDeployImplementationsForgeCaller(client *forge.Client) forge.ScriptCaller[DeployImplementationsInput, DeployImplementationsOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/DeployImplementations.s.sol:DeployImplementations",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[DeployImplementationsInput]{TypeName: "DeployImplementationsInput"},
+		&forge.BytesScriptDecoder[DeployImplementationsOutput]{TypeName: "DeployImplementationsOutput"},
+	)
 }

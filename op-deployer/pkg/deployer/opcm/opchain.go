@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -34,22 +35,14 @@ type DeployOPChainInput struct {
 
 	DisputeGameType              uint32
 	DisputeAbsolutePrestate      common.Hash
-	DisputeMaxGameDepth          uint64
-	DisputeSplitDepth            uint64
+	DisputeMaxGameDepth          *big.Int
+	DisputeSplitDepth            *big.Int
 	DisputeClockExtension        uint64
 	DisputeMaxClockDuration      uint64
 	AllowCustomDisputeParameters bool
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64
-}
-
-func (input *DeployOPChainInput) InputSet() bool {
-	return true
-}
-
-func (input *DeployOPChainInput) StartingAnchorRoot() []byte {
-	return PermissionedGameStartingAnchorRoot
 }
 
 type DeployOPChainOutput struct {
@@ -62,7 +55,7 @@ type DeployOPChainOutput struct {
 	L1CrossDomainMessengerProxy       common.Address
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
-	ETHLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
+	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
 	FaultDisputeGame                   common.Address
@@ -71,16 +64,21 @@ type DeployOPChainOutput struct {
 	DelayedWETHPermissionlessGameProxy common.Address
 }
 
-func (output *DeployOPChainOutput) CheckOutput(input common.Address) error {
-	return nil
+type DeployOPChainScript script.DeployScriptWithOutput[DeployOPChainInput, DeployOPChainOutput]
+
+// NewDeployOPChainScript loads and validates the DeployOPChain script contract
+func NewDeployOPChainScript(host *script.Host) (DeployOPChainScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployOPChainInput, DeployOPChainOutput](host, "DeployOPChain.s.sol", "DeployOPChain")
 }
 
-type DeployOPChainScript struct {
-	Run func(input, output common.Address) error
-}
-
-func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	return RunScriptSingle[DeployOPChainInput, DeployOPChainOutput](host, input, "DeployOPChain.s.sol", "DeployOPChain")
+func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/DeployOPChain.s.sol:DeployOPChain",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[DeployOPChainInput]{TypeName: "DeployOPChainInput"},
+		&forge.BytesScriptDecoder[DeployOPChainOutput]{TypeName: "DeployOPChainOutput"},
+	)
 }
 
 type ReadImplementationAddressesInput struct {
@@ -115,4 +113,14 @@ type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImpleme
 // NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
 func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
 	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
+}
+
+func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.ScriptCaller[ReadImplementationAddressesInput, ReadImplementationAddressesOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/ReadImplementationAddresses.s.sol:ReadImplementationAddresses",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[ReadImplementationAddressesInput]{TypeName: "ReadImplementationAddressesInput"},
+		&forge.BytesScriptDecoder[ReadImplementationAddressesOutput]{TypeName: "ReadImplementationAddressesOutput"},
+	)
 }

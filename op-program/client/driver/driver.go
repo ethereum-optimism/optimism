@@ -44,16 +44,12 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
 	pipelineDeriver.AttachEmitter(d)
 
-	ec := engine.NewEngineController(context.Background(), l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
+	ec := engine.NewEngineController(context.Background(), l2Source, logger, metrics.NoopMetrics, cfg, syncCfg, l1Source, d)
 
 	attrHandler := attributes.NewAttributesHandler(logger, cfg, context.Background(), l2Source, ec)
 	ec.SetAttributesResetter(attrHandler)
 	ec.SetPipelineResetter(pipelineDeriver)
-
-	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
-	engResetDeriv.AttachEmitter(d)
-	engResetDeriv.SetEngController(ec)
 
 	prog := &ProgramDeriver{
 		logger:           logger,
@@ -68,7 +64,6 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 		prog,
 		ec,
 		pipelineDeriver,
-		engResetDeriv,
 	}
 	d.end = prog
 

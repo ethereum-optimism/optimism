@@ -10,9 +10,6 @@ import (
 )
 
 func TestSyncTesterELSync(gt *testing.T) {
-	// TODO(#17615) Root cause and re-enable tests
-	gt.Skip("Skip TestSyncTesterELSync")
-
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleWithSyncTester(t)
 	require := t.Require()
