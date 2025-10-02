@@ -23,8 +23,8 @@ use op_alloy_rpc_types_engine::OpExecutionData;
 use op_revm::{OpSpecId, OpTransaction};
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
-    precompiles::PrecompilesMap, ConfigureEngineEvm, ConfigureEvm, EvmEnv, EvmEnvFor,
-    ExecutableTxIterator, ExecutionCtxFor, TransactionEnv,
+    eth::NextEvmEnvAttributes, precompiles::PrecompilesMap, ConfigureEngineEvm, ConfigureEvm,
+    EvmEnv, EvmEnvFor, ExecutableTxIterator, ExecutionCtxFor, TransactionEnv,
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
@@ -152,36 +152,7 @@ where
     }
 
     fn evm_env(&self, header: &Header) -> Result<EvmEnv<OpSpecId>, Self::Error> {
-        let spec = config::revm_spec(self.chain_spec(), header);
-
-        let cfg_env = CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec);
-
-        let blob_excess_gas_and_price = spec
-            .into_eth_spec()
-            .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
-
-        let block_env = BlockEnv {
-            number: U256::from(header.number()),
-            beneficiary: header.beneficiary(),
-            timestamp: U256::from(header.timestamp()),
-            difficulty: if spec.into_eth_spec() >= SpecId::MERGE {
-                U256::ZERO
-            } else {
-                header.difficulty()
-            },
-            prevrandao: if spec.into_eth_spec() >= SpecId::MERGE {
-                header.mix_hash()
-            } else {
-                None
-            },
-            gas_limit: header.gas_limit(),
-            basefee: header.base_fee_per_gas().unwrap_or_default(),
-            // EIP-4844 excess blob gas of this block, introduced in Cancun
-            blob_excess_gas_and_price,
-        };
-
-        Ok(EvmEnv { cfg_env, block_env })
+        Ok(EvmEnv::for_op_block(header, self.chain_spec(), self.chain_spec().chain().id()))
     }
 
     fn next_evm_env(
@@ -189,37 +160,18 @@ where
         parent: &Header,
         attributes: &Self::NextBlockEnvCtx,
     ) -> Result<EvmEnv<OpSpecId>, Self::Error> {
-        // ensure we're not missing any timestamp based hardforks
-        let spec_id = revm_spec_by_timestamp_after_bedrock(self.chain_spec(), attributes.timestamp);
-
-        // configure evm env based on parent block
-        let cfg_env =
-            CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec_id);
-
-        // if the parent block did not have excess blob gas (i.e. it was pre-cancun), but it is
-        // cancun now, we need to set the excess blob gas to the default value(0)
-        let blob_excess_gas_and_price = spec_id
-            .into_eth_spec()
-            .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
-
-        let block_env = BlockEnv {
-            number: U256::from(parent.number() + 1),
-            beneficiary: attributes.suggested_fee_recipient,
-            timestamp: U256::from(attributes.timestamp),
-            difficulty: U256::ZERO,
-            prevrandao: Some(attributes.prev_randao),
-            gas_limit: attributes.gas_limit,
-            // calculate basefee based on parent block's gas usage
-            basefee: self
-                .chain_spec()
-                .next_block_base_fee(parent, attributes.timestamp)
-                .unwrap_or_default(),
-            // calculate excess gas based on parent block's blob gas usage
-            blob_excess_gas_and_price,
-        };
-
-        Ok(EvmEnv { cfg_env, block_env })
+        Ok(EvmEnv::for_op_next_block(
+            parent,
+            NextEvmEnvAttributes {
+                timestamp: attributes.timestamp,
+                suggested_fee_recipient: attributes.suggested_fee_recipient,
+                prev_randao: attributes.prev_randao,
+                gas_limit: attributes.gas_limit,
+            },
+            self.chain_spec().next_block_base_fee(parent, attributes.timestamp).unwrap_or_default(),
+            self.chain_spec(),
+            self.chain_spec().chain().id(),
+        ))
     }
 
     fn context_for_block(
