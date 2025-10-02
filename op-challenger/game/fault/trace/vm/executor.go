@@ -31,7 +31,6 @@ var (
 	ErrMissingServer = errors.New("missing server")
 
 	ErrMissingRollupConfig = errors.New("missing network or rollup config path")
-	ErrMissingL1Genesis    = errors.New("missing network or l1 genesis path")
 	ErrMissingL2Genesis    = errors.New("missing network or l2 genesis path")
 	ErrNetworkUnknown      = errors.New("unknown network")
 

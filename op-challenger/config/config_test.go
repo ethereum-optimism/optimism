@@ -311,12 +311,6 @@ func TestCannonRequiredArgs(t *testing.T) {
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestCannonNetworkorL1GenesisPathRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
-			cfg.Cannon.L1GenesisPath = ""
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL1Genesis)
-		})
-
 		t.Run(fmt.Sprintf("TestCannonNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfigWithNoNetworks(t, traceType)
 			cfg.Cannon.L2GenesisPaths = nil
@@ -493,12 +487,6 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
-		t.Run(fmt.Sprintf("TestAsteriscNetworkorL1GenesisPathRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
-			cfg.Asterisc.L1GenesisPath = ""
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL1Genesis)
-		})
-
 		t.Run(fmt.Sprintf("TestAsteriscNetworkOrL2GenesisRequired-%v", traceType), func(t *testing.T) {
 			cfg := validConfigWithNoNetworks(t, traceType)
 			cfg.Asterisc.L2GenesisPaths = nil
@@ -615,12 +603,6 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 			cfg := validConfigWithNoNetworks(t, traceType)
 			cfg.AsteriscKona.L2GenesisPaths = nil
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
-		})
-
-		t.Run(fmt.Sprintf("TestAsteriscKonaNetworkOrL1GenesisRequired-%v", traceType), func(t *testing.T) {
-			cfg := validConfigWithNoNetworks(t, traceType)
-			cfg.AsteriscKona.L1GenesisPath = ""
-			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL1Genesis)
 		})
 
 		t.Run(fmt.Sprintf("MaySpecifyNetworkAndCustomConfig-%v", traceType), func(t *testing.T) {
