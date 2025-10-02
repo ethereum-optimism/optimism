@@ -136,6 +136,6 @@ func Test_ProgramAction_BlobParameterForks(gt *testing.T) {
 	}
 
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
 	matrix.AddDefaultTestCases(nil, helpers.NewForkMatrix(helpers.LatestFork), runBlobParameterForksTest)
+	matrix.Run(gt)
 }

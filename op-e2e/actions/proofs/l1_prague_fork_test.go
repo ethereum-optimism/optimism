@@ -37,7 +37,6 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 			),
 			func(dp *genesis.DeployConfig) {
 				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
-
 			},
 		)
 
