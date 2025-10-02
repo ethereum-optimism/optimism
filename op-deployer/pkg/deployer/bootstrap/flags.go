@@ -124,11 +124,11 @@ var (
 		Usage:   "Protocol versions proxy.",
 		EnvVars: deployer.PrefixEnvVar("PROTOCOL_VERSIONS_PROXY"),
 	}
-	L1PAOFlag = &cli.StringFlag{
+	L1ProxyAdminOwnerFlag = &cli.StringFlag{
 		Name:    "l1-proxy-admin-owner",
 		Aliases: []string{"upgrade-controller"},
 		Usage:   "L1 ProxyAdmin Owner.",
-		EnvVars: deployer.PrefixEnvVar("UPGRADE_CONTROLLER"),
+		EnvVars: []string{deployer.PrefixEnvVar("L1_PROXY_ADMIN_OWNER"), deployer.PrefixEnvVar("UPGRADE_CONTROLLER")},
 	}
 	SuperchainProxyAdminFlag = &cli.StringFlag{
 		Name:    "superchain-proxy-admin",
@@ -180,7 +180,7 @@ var SuperchainFlags = []cli.Flag{
 	deployer.ArtifactsLocatorFlag,
 	SuperchainProxyAdminOwnerFlag,
 	ProtocolVersionsOwnerFlag,
-	L1PAOFlag,
+	L1ProxyAdminOwnerFlag,
 	GuardianFlag,
 	PausedFlag,
 	RequiredProtocolVersionFlag,
