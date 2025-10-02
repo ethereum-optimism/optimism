@@ -1186,7 +1186,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
 
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
     ///         zero hash.
-    function test_updatePrestate_presetCannonKona_whenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts()
+    function test_updatePrestate_presetCannonKonaWhenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts()
         public
     {
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
