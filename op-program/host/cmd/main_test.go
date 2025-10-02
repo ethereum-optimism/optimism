@@ -81,8 +81,8 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	require.NoError(t, err)
 	defaultCfg := config.NewSingleChainConfig(
 		rollupCfg,
-		params.SepoliaChainConfig,
 		chainconfig.OPSepoliaChainConfig(),
+		params.SepoliaChainConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
 		common.HexToHash(l2OutputRoot),
