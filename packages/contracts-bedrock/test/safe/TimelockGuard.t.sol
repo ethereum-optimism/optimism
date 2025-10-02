@@ -274,13 +274,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         assertEq(delay != 0, true);
     }
 
-    /// @notice Checks configuration reverts when the guard is not enabled.
-    function test_configureTimelockGuard_revertsIfGuardNotEnabled_reverts() external {
-        vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
-        vm.prank(address(unguardedSafe.safe));
-        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
-    }
-
     /// @notice Confirms delays above the maximum revert during configuration.
     function test_configureTimelockGuard_revertsIfDelayTooLong_reverts() external {
         uint256 tooLongDelay = ONE_YEAR + 1;

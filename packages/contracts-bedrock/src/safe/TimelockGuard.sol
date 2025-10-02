@@ -423,10 +423,11 @@ contract TimelockGuard is IGuard, ISemver {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Configure the contract as a timelock guard by setting the timelock delay
-    /// @dev This function is only callable by the Safe itself, and will revert if the guard is not enabled on the Safe.
+    /// @dev This function is only callable by the Safe itself.
     ///      Requiring a call from the Safe itself (rather than accepting signatures directly as in cancelTransaction())
     ///      is important to ensure that maliciously gathered signatures will not be able to instantly reconfigure
-    ///      the delay to zero.
+    ///      the delay to zero. This function does not check that the guard is enabled on the Safe, the recommended
+    ///      approach is to atomically enable the guard and configure the delay in a single batched transaction.
     /// @param _timelockDelay The timelock delay in seconds (0 to clear configuration)
     function configureTimelockGuard(uint256 _timelockDelay) external {
         // Record the calling Safe
@@ -439,14 +440,6 @@ contract TimelockGuard is IGuard, ISemver {
             revert TimelockGuard_InvalidVersion();
         }
 
-        // Check that this guard is enabled on the calling Safe
-        // There is nothing inherently wrong with configuring the guard on a safe that it is not enabled on,
-        // but we choose to revert here to avoid users from mistakenly believing that simply configuring the guard
-        // is enough to activate the delay.
-        if (!_isGuardEnabled(callingSafe)) {
-            revert TimelockGuard_GuardNotEnabled();
-        }
-
         // Validate timelock delay - must not be longer than 1 year
         if (_timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
@@ -455,9 +448,7 @@ contract TimelockGuard is IGuard, ISemver {
         // Store the timelock delay for this safe
         _safeState[callingSafe].timelockDelay = _timelockDelay;
 
-        // Initialize or reset the cancellation threshold to 1.
-        // Note that this is redundant with the cancellation threshold reset which occurs when a transaction is
-        // executed, but it is kept here for completeness.
+        // Initialize (or reset) the cancellation threshold to 1.
         _resetCancellationThreshold(callingSafe);
         emit GuardConfigured(callingSafe, _timelockDelay);
     }
