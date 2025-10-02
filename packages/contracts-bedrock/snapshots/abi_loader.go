@@ -28,9 +28,6 @@ var delayedWETH []byte
 //go:embed abi/SystemConfig.json
 var systemConfig []byte
 
-//go:embed abi/CrossL2Inbox.json
-var crossL2Inbox []byte
-
 func LoadDisputeGameFactoryABI() *abi.ABI {
 	return loadABI(disputeGameFactory)
 }
@@ -52,10 +49,6 @@ func LoadDelayedWETHABI() *abi.ABI {
 
 func LoadSystemConfigABI() *abi.ABI {
 	return loadABI(systemConfig)
-}
-
-func LoadCrossL2InboxABI() *abi.ABI {
-	return loadABI(crossL2Inbox)
 }
 
 func loadABI(json []byte) *abi.ABI {
