@@ -11,10 +11,16 @@ Run multiple OP Stack chains in a single process. OP Supernode virtualizes OP No
 
 ### How it works
 ```
-Supernode
-  ├── ChainContainer (901) ── VirtualNode (OP Node)
-  ├── ChainContainer (902) ── VirtualNode (OP Node)
-  └── ChainContainer (903) ── VirtualNode (OP Node)
+Supernode: Runs Containers
+  ├── ChainContainer (901) Manages:
+      ├── VirtualNode ── In Memory OP Node (901)
+      └── (FUTURE) Engine Controller (901)
+  ├── ChainContainer (902) Manages:
+      ├── VirtualNode ── In Memory OP Node (902)
+      └── (FUTURE) Engine Controller (902)
+  └── ChainContainer (903) Manages:
+      ├── VirtualNode ── In Memory OP Node (903)
+      └── (FUTURE) Engine Controller (903)
 ```
 - Supernode orchestrates chain containers (start/stop/restart, pause/resume, shutdown)
 - ChainContainer applies per-chain config and passes shared resources
@@ -35,11 +41,10 @@ Run multiple chains:
   --l1 http://localhost:8545 \
   --l1.beacon http://localhost:5052 \
   -vn.901.l2=http://localhost:9001 \
-  -vn.901.l2.jwt-secret=./jwt-901.txt \
   -vn.901.rollup.config=./rollup-901.json \
   -vn.902.l2=http://localhost:9002 \
-  -vn.902.l2.jwt-secret=./jwt-902.txt \
-  -vn.902.rollup.config=./rollup-902.json
+  -vn.902.rollup.config=./rollup-902.json \
+  -vn.all.l2.jwt-secret=./jwt-902.txt
 ```
 
 Environment variables:
@@ -97,16 +102,16 @@ Data layout:
 Logs include `chain_id` and a short-lived `vn_id` for filtering and debugging.
 
 ### RPC Routing
-RPC Clients are created in namespaced paths, so the supernode has a single RPC URL which acts as a reverse proxy to the virutal nodes
+RPC Clients are created in namespaced paths, so the supernode has a single RPC URL which acts as an RPC router to the virtual nodes
 ```
 /
   ├── 901/
   ├── 902/
   └── 903/
 ```
-calling RPC methods on `/901` will proxy the method to the Virtual Node for that chain.
+calling RPC methods on `/901` will route the method to the Virtual Node for that chain.
 
 ### Limitations
 - P2P disabled for Virtual Nodes (unsafe head sync possible later)
 - Pause/resume exists but not yet exposed via API
-- Virtual Node metrics pending reverse proxy and RPC exposure
+- Virtual Node metrics are untested and expected non-functional currently

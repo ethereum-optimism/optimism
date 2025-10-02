@@ -1,4 +1,4 @@
-package reverseproxy
+package resources
 
 import (
 	"net/http"
@@ -17,13 +17,13 @@ func rpcEchoHandler(t *testing.T, name string) http.Handler {
 
 func TestDispatchToCorrectChain(t *testing.T) {
 	l := gethlog.Root()
-	p := New(l, Config{})
-	p.SetHandler("10", rpcEchoHandler(t, "10"))
-	p.SetHandler("20", rpcEchoHandler(t, "20"))
+	router := NewRouter(l, RouterConfig{})
+	router.SetHandler("10", rpcEchoHandler(t, "10"))
+	router.SetHandler("20", rpcEchoHandler(t, "20"))
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/10", nil)
-	p.ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if got := rec.Header().Get("X-Chain"); got != "10" {
 		t.Fatalf("expected chain 10, got %q", got)
 	}
@@ -34,13 +34,13 @@ func TestDispatchToCorrectChain(t *testing.T) {
 
 func TestPathRewriting(t *testing.T) {
 	l := gethlog.Root()
-	p := New(l, Config{})
-	p.SetHandler("10", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	router := NewRouter(l, RouterConfig{})
+	router.SetHandler("10", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(r.URL.Path))
 	}))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/10/eth_blockNumber", nil)
-	p.ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if body := rec.Body.String(); body != "/eth_blockNumber" {
 		t.Fatalf("expected path /eth_blockNumber, got %q", body)
 	}
@@ -48,11 +48,11 @@ func TestPathRewriting(t *testing.T) {
 
 func TestUnknownChain(t *testing.T) {
 	l := gethlog.Root()
-	p := New(l, Config{})
-	p.SetHandler("10", http.NotFoundHandler())
+	router := NewRouter(l, RouterConfig{})
+	router.SetHandler("10", http.NotFoundHandler())
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/999", nil)
-	p.ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
 	}

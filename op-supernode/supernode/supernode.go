@@ -12,9 +12,8 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supernode/resources"
-	"github.com/ethereum-optimism/optimism/op-supernode/resources/reverseproxy"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 
@@ -32,7 +31,7 @@ type Supernode struct {
 	l1Client     *sources.L1Client
 	beaconClient *sources.L1BeaconClient
 	rpcServer    *http.Server
-	rpcProxy     *reverseproxy.Proxy
+	rpcRouter    *resources.Router
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[types.ChainID]*opnodecfg.Config) (*Supernode, error) {
@@ -50,8 +49,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 	// Initialize chain containers for each configured chain ID
 	// Pass shared resources via InitOverload to all containers
-	// Build reverse proxy first; we'll attach per-chain handlers at runtime via SetHandler
-	s.rpcProxy = reverseproxy.New(log, reverseproxy.Config{})
+	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
+	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
 	for _, id := range cfg.Chains {
 		if vnCfgs[types.ChainID(id)] == nil {
 			log.Error("missing virtual node config for chain", "chain", id)
@@ -62,11 +61,11 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
 		}
-		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcProxy.SetHandler
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload, nil, s.rpcProxy.SetHandler)
+		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload, nil, s.rpcRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
-	s.rpcServer = &http.Server{Addr: addr, Handler: s.rpcProxy}
+	s.rpcServer = &http.Server{Addr: addr, Handler: s.rpcRouter}
 	return s, nil
 }
 
@@ -77,7 +76,7 @@ func (s *Supernode) Start(ctx context.Context) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			s.log.Info("starting reverse proxy RPC server", "addr", s.rpcServer.Addr)
+			s.log.Info("starting RPC router server", "addr", s.rpcServer.Addr)
 			if err := s.rpcServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				s.log.Error("rpc server error", "error", err)
 				if s.requestStop != nil {
@@ -104,7 +103,7 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	s.log.Info("supernode stopping")
 	s.stopped = true
 
-	// Stop RPC server first, then close proxy resources
+	// Stop RPC server first, then close router resources
 	if s.rpcServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 0)
 		defer cancel()
@@ -112,9 +111,9 @@ func (s *Supernode) Stop(ctx context.Context) error {
 			s.log.Error("error shutting down rpc server", "error", err)
 		}
 	}
-	if s.rpcProxy != nil {
-		if err := s.rpcProxy.Close(); err != nil {
-			s.log.Error("error closing rpc proxy", "error", err)
+	if s.rpcRouter != nil {
+		if err := s.rpcRouter.Close(); err != nil {
+			s.log.Error("error closing rpc router", "error", err)
 		}
 	}
 

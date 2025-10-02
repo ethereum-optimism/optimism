@@ -1,4 +1,4 @@
-package reverseproxy
+package resources
 
 import (
 	"io"
@@ -9,30 +9,30 @@ import (
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
-// Config defines runtime options for the reverse proxy server.
-type Config struct {
+// RouterConfig defines runtime options for the RPC router server.
+type RouterConfig struct {
 	EnableWebsockets bool
 	MaxBodyBytes     int64
 }
 
-// Proxy multiplexes JSON-RPC requests by the first path segment which represents the chainID.
-type Proxy struct {
+// Router multiplexes JSON-RPC requests by the first path segment which represents the chainID.
+type Router struct {
 	log     gethlog.Logger
-	cfg     Config
+	cfg     RouterConfig
 	mu      sync.RWMutex
 	paths   map[string]http.Handler // chainID -> handler
 	closers []io.Closer
 }
 
-// New constructs an empty Proxy. Handlers can be added later via SetHandler.
-func New(log gethlog.Logger, cfg Config) *Proxy {
-	return &Proxy{log: log, cfg: cfg, paths: make(map[string]http.Handler)}
+// NewRouter constructs an empty Router. Handlers can be added later via SetHandler.
+func NewRouter(log gethlog.Logger, cfg RouterConfig) *Router {
+	return &Router{log: log, cfg: cfg, paths: make(map[string]http.Handler)}
 }
 
 // Close releases any resources created by the factory.
-func (p *Proxy) Close() error {
+func (r *Router) Close() error {
 	var firstErr error
-	for _, c := range p.closers {
+	for _, c := range r.closers {
 		if err := c.Close(); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -41,47 +41,47 @@ func (p *Proxy) Close() error {
 }
 
 // SetHandler replaces or adds the handler for a given chainID at runtime.
-func (p *Proxy) SetHandler(chainID string, h http.Handler) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.paths == nil {
-		p.paths = make(map[string]http.Handler)
+func (r *Router) SetHandler(chainID string, h http.Handler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.paths == nil {
+		r.paths = make(map[string]http.Handler)
 	}
-	p.paths[chainID] = h
+	r.paths[chainID] = h
 }
 
 // ServeHTTP routes requests to the chain-specific handler, after stripping the chain prefix.
-func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	chainID, remainder := splitFirstSegment(r.URL.Path)
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	chainID, remainder := splitFirstSegment(req.URL.Path)
 	if chainID == "" {
-		http.NotFound(w, r)
+		http.NotFound(w, req)
 		return
 	}
 
-	p.mu.RLock()
-	h, ok := p.paths[chainID]
-	p.mu.RUnlock()
+	r.mu.RLock()
+	h, ok := r.paths[chainID]
+	r.mu.RUnlock()
 	if !ok {
-		http.NotFound(w, r)
+		http.NotFound(w, req)
 		return
 	}
 
 	// Rewrite path so the downstream handler sees root or the remaining path after the chainID
 	// We only touch URL.Path and RequestURI for correctness; leave the body and headers intact.
-	origPath := r.URL.Path
-	origReqURI := r.RequestURI
-	r.URL.Path = remainder
-	if r.URL.RawQuery != "" {
-		r.RequestURI = remainder + "?" + r.URL.RawQuery
+	origPath := req.URL.Path
+	origReqURI := req.RequestURI
+	req.URL.Path = remainder
+	if req.URL.RawQuery != "" {
+		req.RequestURI = remainder + "?" + req.URL.RawQuery
 	} else {
-		r.RequestURI = remainder
+		req.RequestURI = remainder
 	}
 	defer func() {
-		r.URL.Path = origPath
-		r.RequestURI = origReqURI
+		req.URL.Path = origPath
+		req.RequestURI = origReqURI
 	}()
 
-	h.ServeHTTP(w, r)
+	h.ServeHTTP(w, req)
 }
 
 // splitFirstSegment returns the first non-empty path segment and the remainder path starting with '/'.
