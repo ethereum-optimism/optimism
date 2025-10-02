@@ -19,8 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
-	runL1FusakaTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+// Test_ProgramAction_BlobParameterForks tests the blob base fee calculation for different forks.
+func Test_ProgramAction_BlobParameterForks(gt *testing.T) {
+	runBlobParameterForksTest := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 
 		// Create test environment with Fusaka activation
@@ -31,7 +32,8 @@ func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+				dp.L1CancunTimeOffset = ptr(hexutil.Uint64(0))
+				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(12))
 				dp.L1OsakaTimeOffset = ptr(hexutil.Uint64(24))
 				dp.L1BPO1TimeOffset = ptr(hexutil.Uint64(36))
 				dp.L1BPO2TimeOffset = ptr(hexutil.Uint64(48))
@@ -93,34 +95,15 @@ func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
 			}
 		}
 
-		// Build L1 blocks to trigger Fusaka activation
-		// The blob parameters don't change between Prague and Osaka.
-		// So this test is only useful when we hit the BPO forks below
-		l1Block := miner.ActBuildToOsaka(t)
-		require.Equal(t, uint64(2), l1Block.Number().Uint64())
-
-		// Build an empty L2 block which has a pre-Fusaka L1 origin, and check the blob fee is correct
-		sequencer.ActL2EmptyBlock(t)
-		l2Block := sequencer.SyncStatus().UnsafeL2
-		require.Equal(t, uint64(1), l2Block.Number)
-		requireConsistentBlobBaseFeeForFork(t, l2Block, false, "Osaka", func(num *big.Int, time uint64) bool { return env.Sd.L1Cfg.Config.IsOsaka(num, time) })
-
-		// Advance L2 chain until L1 origin has Fusaka activ
-		sequencer.ActL1HeadSignal(t)
-		sequencer.ActBuildToL1HeadUnsafe(t)
-
-		// Check that the L1 origin is now a Fusaka block, and that the blob fee is correct
-		l2Block = sequencer.L2Unsafe()
-		require.Greater(t, l2Block.Number, uint64(1))
-		requireConsistentBlobBaseFeeForFork(t, l2Block, true, "Osaka", func(num *big.Int, time uint64) bool { return env.Sd.L1Cfg.Config.IsOsaka(num, time) })
-
-		// Now iterate through BPO forks and assert pre/post activation blob fees match expectations
+		// Iterate through all forks and assert pre/post activation blob fees match expectations
 		cfg := env.Sd.L1Cfg.Config
 		forks := []struct {
 			label    string
 			forkTime *uint64
 			isActive func(num *big.Int, time uint64) bool
 		}{
+			{"Prague", cfg.PragueTime, func(num *big.Int, time uint64) bool { return cfg.IsPrague(num, time) }},
+			{"Osaka", cfg.OsakaTime, func(num *big.Int, time uint64) bool { return cfg.IsOsaka(num, time) }},
 			{"BPO1", cfg.BPO1Time, func(num *big.Int, time uint64) bool { return cfg.IsBPO1(num, time) }},
 			{"BPO2", cfg.BPO2Time, func(num *big.Int, time uint64) bool { return cfg.IsBPO2(num, time) }},
 			{"BPO3", cfg.BPO3Time, func(num *big.Int, time uint64) bool { return cfg.IsBPO3(num, time) }},
@@ -154,5 +137,5 @@ func Test_ProgramAction_OsakaForkAfterGenesis(gt *testing.T) {
 
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
-	matrix.AddDefaultTestCases(nil, helpers.NewForkMatrix(helpers.LatestFork), runL1FusakaTest)
+	matrix.AddDefaultTestCases(nil, helpers.NewForkMatrix(helpers.LatestFork), runBlobParameterForksTest)
 }
