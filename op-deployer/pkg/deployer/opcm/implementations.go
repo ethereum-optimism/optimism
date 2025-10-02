@@ -22,7 +22,7 @@ type DeployImplementationsInput struct {
 	SuperchainConfigProxy           common.Address
 	ProtocolVersionsProxy           common.Address
 	SuperchainProxyAdmin            common.Address
-	L1PAO			                common.Address
+	L1PAO                           common.Address
 	Challenger                      common.Address
 }
 
