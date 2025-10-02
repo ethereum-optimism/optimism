@@ -40,12 +40,13 @@ func TestELSyncAfterInitialELSync(gt *testing.T) {
 	// Send missing gap, payload 2
 	sys.L2CLB.SignalTarget(sys.L2EL, 2)
 
+	retries := 2
 	// Gap filled and payload 2, 3, 4, 5 became canonical. Payload 7 is still non canonical
-	sys.L2ELB.Reached(eth.Unsafe, 5, 2)
+	sys.L2ELB.Reached(eth.Unsafe, 5, retries)
 
 	// Send missing gap, payload 6
 	sys.L2CLB.SignalTarget(sys.L2EL, 6)
 
 	// Gap filled and block 6, 7 became canonical
-	sys.L2ELB.Reached(eth.Unsafe, 7, 2)
+	sys.L2ELB.Reached(eth.Unsafe, 7, retries)
 }
