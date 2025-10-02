@@ -1,4 +1,4 @@
-package depreqres
+package clsync
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSingleChainMultiNode(),
-		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithConsensusLayerSync(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),

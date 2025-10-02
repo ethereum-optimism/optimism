@@ -1,4 +1,4 @@
-package depreqres
+package elsync
 
 import (
 	"testing"
