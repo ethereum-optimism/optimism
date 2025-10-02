@@ -1838,7 +1838,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     /// @notice Test that deploy without v2 flag doesn't set v2 implementations for PERMISSIONED_CANNON
     function test_deployPermissionedWithoutV2Flag_succeeds() public {
         // Convert DOI to OPCM input and deploy
-        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(doi);
+        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
         IOPContractsManager.DeployOutput memory output = opcm.deploy(opcmInput);
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
@@ -1897,8 +1897,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         );
 
         // Set up deploy input for the v2-enabled OPCM
-        doi.set(doi.opcm.selector, address(opcmV2));
-        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(doi);
+        deployOPChainInput.opcm = address(opcmV2);
+        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
         IOPContractsManager.DeployOutput memory output = opcmV2.deploy(opcmInput);
 
         // Verify that the DisputeGameFactory has registered the v2 implementation for PERMISSIONED_CANNON game type
