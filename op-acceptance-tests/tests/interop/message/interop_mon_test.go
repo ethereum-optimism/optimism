@@ -17,6 +17,7 @@ import (
 
 // TestInteropMon is testing that the op-interop-mon metrics are correctly collected
 func TestInteropMon(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 

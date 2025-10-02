@@ -119,6 +119,7 @@ type ETHBackend interface {
 	// TODO: Maybe need a generic interface to support different RPC providers
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	BlobBaseFee(ctx context.Context) (*big.Int, error)
 	// NonceAt returns the account nonce of the given account.
 	// The block number can be nil, in which case the nonce is taken from the latest known block.
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
@@ -208,7 +209,7 @@ func (m *SimpleTxManager) Close() {
 }
 
 func (m *SimpleTxManager) txLogger(tx *types.Transaction, logGas bool) log.Logger {
-	fields := []any{"tx", tx.Hash(), "nonce", tx.Nonce()}
+	fields := []any{"tx", tx.Hash().Hex(), "nonce", tx.Nonce()}
 	if logGas {
 		fields = append(fields, "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gasLimit", tx.Gas())
 	}
@@ -363,7 +364,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if candidate.To == nil {
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
-		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs); err != nil {
+		// Use configuration to determine whether to enable cell proofs
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, m.cfg.EnableCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}
@@ -491,10 +493,23 @@ func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
-// data.
-func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error) {
-	sidecar := &types.BlobTxSidecar{}
+// data with configurable cell proof support.
+func MakeSidecar(blobs []*eth.Blob, enableCellProofs bool) (*types.BlobTxSidecar, []common.Hash, error) {
+	var sidecar *types.BlobTxSidecar
+	if enableCellProofs {
+		sidecar = &types.BlobTxSidecar{
+			Proofs:  make([]kzg4844.Proof, 0, len(blobs)*kzg4844.CellProofsPerBlob),
+			Version: types.BlobSidecarVersion1, // Use Version1 for cell proofs (Fusaka compatibility)
+		}
+	} else {
+		sidecar = &types.BlobTxSidecar{
+			Proofs:  make([]kzg4844.Proof, 0, len(blobs)),
+			Version: types.BlobSidecarVersion0, // Use Version0 for legacy blob proofs
+		}
+	}
+
 	blobHashes := make([]common.Hash, 0, len(blobs))
+
 	for i, blob := range blobs {
 		rawBlob := blob.KZGBlob()
 		sidecar.Blobs = append(sidecar.Blobs, *rawBlob)
@@ -503,13 +518,24 @@ func MakeSidecar(blobs []*eth.Blob) (*types.BlobTxSidecar, []common.Hash, error)
 			return nil, nil, fmt.Errorf("cannot compute KZG commitment of blob %d in tx candidate: %w", i, err)
 		}
 		sidecar.Commitments = append(sidecar.Commitments, commitment)
-		proof, err := kzg4844.ComputeBlobProof(rawBlob, commitment)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
-		}
-		sidecar.Proofs = append(sidecar.Proofs, proof)
 		blobHashes = append(blobHashes, eth.KZGToVersionedHash(commitment))
+		if enableCellProofs {
+			// Version1: Use cell proofs for Fusaka compatibility
+			cellProofs, err := kzg4844.ComputeCellProofs(rawBlob)
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d in tx candidate: %w", i, err)
+			}
+			sidecar.Proofs = append(sidecar.Proofs, cellProofs...)
+		} else {
+			// Version0: Use legacy blob proofs
+			proof, err := kzg4844.ComputeBlobProof(rawBlob, sidecar.Commitments[i])
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
+			}
+			sidecar.Proofs = append(sidecar.Proofs, proof)
+		}
 	}
+
 	return sidecar, blobHashes, nil
 }
 
@@ -815,8 +841,11 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	}
 
 	m.metr.RecordBaseFee(tip.BaseFee)
-	if tip.ExcessBlobGas != nil {
-		blobFee := eth.CalcBlobFeeDefault(tip)
+
+	if blobFee, err := m.backend.BlobBaseFee(ctx); err != nil {
+		m.metr.RPCError()
+		m.l.Warn("Unable to fetch blob base fee", "err", err)
+	} else {
 		m.metr.RecordBlobBaseFee(blobFee)
 	}
 

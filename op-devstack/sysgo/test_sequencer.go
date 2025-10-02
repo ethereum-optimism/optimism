@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -80,8 +81,13 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 
 		logger := p.Logger()
 
+		orch.writeDefaultJWT()
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
+		l1ELClient, err := ethclient.DialContext(p.Ctx(), l1EL.UserRPC())
+		require.NoError(err)
+		engineCl, err := dialEngine(p.Ctx(), l1EL.AuthRPC(), orch.jwtSecret)
+		require.NoError(err)
 
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
@@ -114,7 +120,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 				bid_L2: {
 					Standard: &standardbuilder.Config{
 						L1EL: endpoint.MustRPC{
-							Value: endpoint.HttpURL(l1EL.userRPC),
+							Value: endpoint.HttpURL(l1EL.UserRPC()),
 						},
 						L2EL: endpoint.MustRPC{
 							Value: endpoint.HttpURL(l2EL.UserRPC()),
@@ -126,7 +132,9 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 				},
 				bid_L1: {
 					L1: &fakepos.Config{
-						GethBackend:       l1EL.l1Geth.Backend,
+						ChainConfig:       orch.wb.outL1Genesis.Config,
+						EngineAPI:         engineCl,
+						Backend:           l1ELClient,
 						Beacon:            l1CL.beacon,
 						FinalizedDistance: 20,
 						SafeDistance:      10,

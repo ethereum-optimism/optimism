@@ -24,7 +24,6 @@ type EngineController interface {
 	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
 	// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
 	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
-	// RequestForkchoiceUpdate requests a forkchoice update
 	RequestForkchoiceUpdate(ctx context.Context)
 	RequestPendingSafeUpdate(ctx context.Context)
 }

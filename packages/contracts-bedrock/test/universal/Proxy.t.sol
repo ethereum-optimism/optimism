@@ -257,9 +257,9 @@ contract Proxy_Implementation_Test is Proxy_TestInit {
     }
 }
 
-/// @title Proxy_Unclassified_Test
+/// @title Proxy_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Proxy` contract.
-contract Proxy_Unclassified_Test is Proxy_TestInit {
+contract Proxy_Uncategorized_Test is Proxy_TestInit {
     function test_delegatesToImpl_succeeds() external {
         // Call the storage setter on the proxy
         Proxy_SimpleStorage_Harness(address(proxy)).set(1, 1);

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
@@ -658,16 +659,16 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 	}
 	// OP Stack specific request shape validation
 	if isEcotone {
-		if payload.WithdrawalsRoot == nil {
-			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
-		}
 		if len(versionedHashes) != 0 {
 			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("versionedHashes length non-zero: %d", len(versionedHashes)))
 		}
 	}
 	if isIsthmus {
+		if payload.WithdrawalsRoot == nil {
+			// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#update-to-executionpayload
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+		}
 		if len(executionRequests) != 0 {
 			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv4
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("executionRequests must be empty array but got %d", len(executionRequests)))
@@ -676,11 +677,27 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 	// Look up canonical block for relay comparison
 	block, err := s.elReader.GetBlockByHash(ctx, payload.BlockHash)
 	if err != nil {
-		// Do not know block hash included in payload is correct or not. Consider as a server error and make CL retry
-		if errors.Is(err, ethereum.NotFound) {
-			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("block not found", err))
+		if !errors.Is(err, ethereum.NotFound) {
+			// Do not retry when error did not occur because of Not found error
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block", err))
 		}
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block", err))
+		// Not found error may be recovered when given payload is near the sequencer tip.
+		// Read only EL may not be ready yet. In this case, retry once more after waiting block time (2 seconds)
+		logger.Warn("Block not found while validating new payload. Retrying", "number", payload.BlockNumber, "hash", payload.BlockHash)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			// Handle case when context cancelled while waiting.
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(fmt.Errorf("context done: %w", ctx.Err()))
+		}
+		block, err = s.elReader.GetBlockByHash(ctx, payload.BlockHash)
+		if err != nil {
+			if errors.Is(err, ethereum.NotFound) {
+				return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("block not found after retry", err))
+			}
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block after retry", err))
+		}
+		// Use block info fetched by retrying
 	}
 	// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/derivation.md#building-individual-payload-attributes
 	// Implicitly determine whether canyon is enabled by inspecting withdrawals from read only EL data

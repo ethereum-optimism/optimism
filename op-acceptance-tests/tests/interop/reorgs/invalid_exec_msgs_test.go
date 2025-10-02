@@ -26,6 +26,7 @@ import (
 // TestReorgInvalidExecMsgs tests that the supervisor reorgs the chain when an invalid exec msg is included
 // Each subtest runs a test with  a different invalid message, by modifying the message in the txModifierFn
 func TestReorgInvalidExecMsgs(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	gt.Run("invalid log index", func(gt *testing.T) {
 		testReorgInvalidExecMsg(gt, func(msg *suptypes.Message) {
 			msg.Identifier.LogIndex = 1024

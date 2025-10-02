@@ -1,180 +1,81 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Script } from "forge-std/Script.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 
-contract ReadImplementationAddressesInput is DeployOPChainOutput {
-    IOPContractsManager internal _opcm;
-
-    function set(bytes4 _sel, address _addr) public override {
-        require(_addr != address(0), "ReadImplementationAddressesInput: cannot set zero address");
-        if (_sel == this.opcm.selector) _opcm = IOPContractsManager(_addr);
-        else if (_sel == this.addressManager.selector) _addressManager = IAddressManager(_addr);
-        else super.set(_sel, _addr);
-    }
-
-    function opcm() public view returns (IOPContractsManager) {
-        DeployUtils.assertValidContractAddress(address(_opcm));
-        return _opcm;
-    }
-}
-
-contract ReadImplementationAddressesOutput is BaseDeployIO {
-    address internal _delayedWETH;
-    address internal _optimismPortal;
-    address internal _optimismPortalInterop;
-    address internal _ethLockbox;
-    address internal _systemConfig;
-    address internal _l1CrossDomainMessenger;
-    address internal _l1ERC721Bridge;
-    address internal _l1StandardBridge;
-    address internal _optimismMintableERC20Factory;
-    address internal _disputeGameFactory;
-    address internal _mipsSingleton;
-    address internal _preimageOracleSingleton;
-
-    function set(bytes4 _sel, address _addr) public {
-        require(_addr != address(0), "ReadImplementationAddressesOutput: cannot set zero address");
-        if (_sel == this.delayedWETH.selector) _delayedWETH = _addr;
-        else if (_sel == this.optimismPortal.selector) _optimismPortal = _addr;
-        else if (_sel == this.optimismPortalInterop.selector) _optimismPortalInterop = _addr;
-        else if (_sel == this.ethLockbox.selector) _ethLockbox = _addr;
-        else if (_sel == this.systemConfig.selector) _systemConfig = _addr;
-        else if (_sel == this.l1CrossDomainMessenger.selector) _l1CrossDomainMessenger = _addr;
-        else if (_sel == this.l1ERC721Bridge.selector) _l1ERC721Bridge = _addr;
-        else if (_sel == this.l1StandardBridge.selector) _l1StandardBridge = _addr;
-        else if (_sel == this.optimismMintableERC20Factory.selector) _optimismMintableERC20Factory = _addr;
-        else if (_sel == this.disputeGameFactory.selector) _disputeGameFactory = _addr;
-        else if (_sel == this.mipsSingleton.selector) _mipsSingleton = _addr;
-        else if (_sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = _addr;
-        else revert("ReadImplementationAddressesOutput: unknown selector");
-    }
-
-    function delayedWETH() public view returns (address) {
-        require(_delayedWETH != address(0), "ReadImplementationAddressesOutput: delayedWETH not set");
-        return _delayedWETH;
-    }
-
-    function optimismPortal() public view returns (address) {
-        require(_optimismPortal != address(0), "ReadImplementationAddressesOutput: optimismPortal not set");
-        return _optimismPortal;
-    }
-
-    function optimismPortalInterop() public view returns (address) {
-        require(
-            _optimismPortalInterop != address(0), "ReadImplementationAddressesOutput: optimismPortalInterop not set"
-        );
-        return _optimismPortalInterop;
-    }
-
-    function ethLockbox() public view returns (address) {
-        require(_ethLockbox != address(0), "ReadImplementationAddressesOutput: ethLockbox not set");
-        return _ethLockbox;
-    }
-
-    function systemConfig() public view returns (address) {
-        require(_systemConfig != address(0), "ReadImplementationAddressesOutput: systemConfig not set");
-        return _systemConfig;
-    }
-
-    function l1CrossDomainMessenger() public view returns (address) {
-        require(
-            _l1CrossDomainMessenger != address(0), "ReadImplementationAddressesOutput: l1CrossDomainMessenger not set"
-        );
-        return _l1CrossDomainMessenger;
-    }
-
-    function l1ERC721Bridge() public view returns (address) {
-        require(_l1ERC721Bridge != address(0), "ReadImplementationAddressesOutput: l1ERC721Bridge not set");
-        return _l1ERC721Bridge;
-    }
-
-    function l1StandardBridge() public view returns (address) {
-        require(_l1StandardBridge != address(0), "ReadImplementationAddressesOutput: l1StandardBridge not set");
-        return _l1StandardBridge;
-    }
-
-    function optimismMintableERC20Factory() public view returns (address) {
-        require(
-            _optimismMintableERC20Factory != address(0),
-            "ReadImplementationAddressesOutput: optimismMintableERC20Factory not set"
-        );
-        return _optimismMintableERC20Factory;
-    }
-
-    function disputeGameFactory() public view returns (address) {
-        require(_disputeGameFactory != address(0), "ReadImplementationAddressesOutput: disputeGameFactory not set");
-        return _disputeGameFactory;
-    }
-
-    function mipsSingleton() public view returns (address) {
-        require(_mipsSingleton != address(0), "ReadImplementationAddressesOutput: mipsSingleton not set");
-        return _mipsSingleton;
-    }
-
-    function preimageOracleSingleton() public view returns (address) {
-        require(
-            _preimageOracleSingleton != address(0), "ReadImplementationAddressesOutput: preimageOracleSingleton not set"
-        );
-        return _preimageOracleSingleton;
-    }
-}
-
 contract ReadImplementationAddresses is Script {
-    function run(ReadImplementationAddressesInput _rii, ReadImplementationAddressesOutput _rio) public {
-        address[6] memory eip1967Proxies = [
-            address(_rii.delayedWETHPermissionedGameProxy()),
-            address(_rii.optimismPortalProxy()),
-            address(_rii.systemConfigProxy()),
-            address(_rii.l1ERC721BridgeProxy()),
-            address(_rii.optimismMintableERC20FactoryProxy()),
-            address(_rii.disputeGameFactoryProxy())
-        ];
+    struct Input {
+        address addressManager;
+        address l1ERC721BridgeProxy;
+        address systemConfigProxy;
+        address optimismMintableERC20FactoryProxy;
+        address l1StandardBridgeProxy;
+        address optimismPortalProxy;
+        address disputeGameFactoryProxy;
+        address delayedWETHPermissionedGameProxy;
+        address opcm;
+    }
 
-        bytes4[6] memory sels = [
-            _rio.delayedWETH.selector,
-            _rio.optimismPortal.selector,
-            _rio.systemConfig.selector,
-            _rio.l1ERC721Bridge.selector,
-            _rio.optimismMintableERC20Factory.selector,
-            _rio.disputeGameFactory.selector
-        ];
+    struct Output {
+        address delayedWETH;
+        address optimismPortal;
+        address optimismPortalInterop;
+        address ethLockbox;
+        address systemConfig;
+        address l1CrossDomainMessenger;
+        address l1ERC721Bridge;
+        address l1StandardBridge;
+        address optimismMintableERC20Factory;
+        address disputeGameFactory;
+        address mipsSingleton;
+        address preimageOracleSingleton;
+    }
 
-        for (uint256 i = 0; i < eip1967Proxies.length; i++) {
-            IProxy proxy = IProxy(payable(eip1967Proxies[i]));
-            vm.prank(address(0));
-            _rio.set(sels[i], proxy.implementation());
-        }
+    function run(Input memory _input) public returns (Output memory output_) {
+        // Get implementations from EIP-1967 proxies
+        output_.delayedWETH = getEIP1967Impl(_input.delayedWETHPermissionedGameProxy);
+        output_.optimismPortal = getEIP1967Impl(_input.optimismPortalProxy);
+        output_.systemConfig = getEIP1967Impl(_input.systemConfigProxy);
+        output_.l1ERC721Bridge = getEIP1967Impl(_input.l1ERC721BridgeProxy);
+        output_.optimismMintableERC20Factory = getEIP1967Impl(_input.optimismMintableERC20FactoryProxy);
+        output_.disputeGameFactory = getEIP1967Impl(_input.disputeGameFactoryProxy);
 
+        // Get L1StandardBridge implementation (uses different proxy type)
         vm.prank(address(0));
-        address l1SBImpl = IStaticL1ChugSplashProxy(address(_rii.l1StandardBridgeProxy())).getImplementation();
+        output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
+
+        // Get implementations from OPCM
+        IOPContractsManager opcm = IOPContractsManager(_input.opcm);
+        output_.mipsSingleton = opcm.implementations().mipsImpl;
+        output_.delayedWETH = opcm.implementations().delayedWETHImpl;
+        output_.ethLockbox = opcm.implementations().ethLockboxImpl;
+        output_.optimismPortalInterop = opcm.implementations().optimismPortalInteropImpl;
+
+        // Get L1CrossDomainMessenger from AddressManager
+        IAddressManager am = IAddressManager(_input.addressManager);
+        output_.l1CrossDomainMessenger = am.getAddress("OVM_L1CrossDomainMessenger");
+
+        // Get PreimageOracle from MIPS singleton
+        output_.preimageOracleSingleton = address(IMIPS64(output_.mipsSingleton).oracle());
+    }
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
+    /// @notice Gets the implementation address from an EIP-1967 proxy
+    /// @param _proxy The proxy address to read from
+    /// @return impl_ The implementation address
+    function getEIP1967Impl(address _proxy) private returns (address impl_) {
+        IProxy proxy = IProxy(payable(_proxy));
         vm.prank(address(0));
-        _rio.set(_rio.l1StandardBridge.selector, l1SBImpl);
-
-        address mipsLogic = _rii.opcm().implementations().mipsImpl;
-        _rio.set(_rio.mipsSingleton.selector, mipsLogic);
-
-        address delayedWETH = _rii.opcm().implementations().delayedWETHImpl;
-        _rio.set(_rio.delayedWETH.selector, delayedWETH);
-
-        IAddressManager am = _rii.addressManager();
-        _rio.set(_rio.l1CrossDomainMessenger.selector, am.getAddress("OVM_L1CrossDomainMessenger"));
-
-        address preimageOracle = address(IMIPS64(mipsLogic).oracle());
-        _rio.set(_rio.preimageOracleSingleton.selector, preimageOracle);
-
-        address ethLockbox = _rii.opcm().implementations().ethLockboxImpl;
-        _rio.set(_rio.ethLockbox.selector, ethLockbox);
-
-        address optimismPortalInterop = _rii.opcm().implementations().optimismPortalInteropImpl;
-        _rio.set(_rio.optimismPortalInterop.selector, optimismPortalInterop);
+        impl_ = proxy.implementation();
     }
 }

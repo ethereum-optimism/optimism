@@ -44,6 +44,7 @@ const (
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
 	AlreadyPublishedCustomErrsFlagName = "txmgr.already-published-custom-errs"
+	EnableCellProofsFlagName           = "txmgr.enable-cell-proofs"
 )
 
 var (
@@ -76,6 +77,7 @@ type DefaultFlagValues struct {
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
+	EnableCellProofs          bool
 }
 
 var (
@@ -94,6 +96,7 @@ var (
 		TxSendTimeout:             0, // Try sending txs indefinitely, to preserve tx ordering for Holocene
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
+		EnableCellProofs:          false, // Ater Osaka activates on L1, this should be set to true
 	}
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
@@ -238,6 +241,12 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Usage:   "List of custom RPC error messages that indicate that a transaction has already been published.",
 			EnvVars: prefixEnvVars("TXMGR_ALREADY_PUBLISHED_CUSTOM_ERRS"),
 		},
+		&cli.BoolFlag{
+			Name:    EnableCellProofsFlagName,
+			Usage:   "Enable cell proofs in blob transactions for Fusaka (EIP-7742) compatibility",
+			Value:   false,
+			EnvVars: prefixEnvVars("TXMGR_ENABLE_CELL_PROOFS"),
+		},
 	}, opsigner.CLIFlags(envPrefix, "")...)
 }
 
@@ -266,6 +275,7 @@ type CLIConfig struct {
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
+	EnableCellProofs           bool
 }
 
 func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
@@ -285,6 +295,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		TxSendTimeout:             defaults.TxSendTimeout,
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
+		EnableCellProofs:          defaults.EnableCellProofs,
 		SignerCLIConfig:           opsigner.NewCLIConfig(),
 	}
 }
@@ -367,6 +378,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
+		EnableCellProofs:           ctx.Bool(EnableCellProofsFlagName),
 	}
 }
 
@@ -460,6 +472,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MaxTipCap.Store(maxTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
+	res.EnableCellProofs = cfg.EnableCellProofs
 
 	return &res, nil
 }
@@ -497,6 +510,10 @@ type Config struct {
 	MaxTipCap atomic.Pointer[big.Int]
 
 	MinBlobTxFee atomic.Pointer[big.Int]
+
+	// EnableCellProofs determines whether to use cell proofs (Version1 sidecars)
+	// for Fusaka (EIP-7742) compatibility. If false, uses legacy blob proofs (Version0).
+	EnableCellProofs bool
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int
