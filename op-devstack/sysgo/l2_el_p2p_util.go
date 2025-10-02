@@ -2,10 +2,13 @@ package sysgo
 
 import (
 	"context"
+	"slices"
+	"time"
 
 	"github.com/ethereum/go-ethereum/p2p"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
