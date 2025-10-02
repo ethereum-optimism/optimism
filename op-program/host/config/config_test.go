@@ -298,7 +298,7 @@ func TestDBFormat(t *testing.T) {
 }
 
 func validConfig() *Config {
-	cfg := NewSingleChainConfig(validRollupConfig, validL1ChainConfig, validL2Genesis, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
+	cfg := NewSingleChainConfig(validRollupConfig, validL2Genesis, validL1ChainConfig, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
 	cfg.DataDir = "/tmp/configTest"
 	return cfg
 }
