@@ -212,8 +212,8 @@
     "sourceCodeHash": "0xd3084fb5446782cb6d0adb4278ef0a12c418dd538b4b14b90407b971b44cc35b"
   },
   "src/safe/TimelockGuard.sol:TimelockGuard": {
-    "initCodeHash": "0x1b97340271fcb971499f4d96ae6f1c1b9145aa25248667a571a2ef300e7aa88c",
-    "sourceCodeHash": "0xe531e22da4e02f1f8f84036fa0b04a6ac3b2857d6ae2e1e595a04e4ec27516fb"
+    "initCodeHash": "0xddebf627921fef026da31af50da90d148c9f7cf4411bc4a5df1bb630429d59e1",
+    "sourceCodeHash": "0xbcc30891f3662d85241153d3e3dd052e636263a495defac27653a7536e38b478"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
