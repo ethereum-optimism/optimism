@@ -58,8 +58,8 @@ contract LivenessModule is ISemver {
     uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.1-beta.3
-    string public constant version = "1.2.1-beta.3";
+    /// @custom:semver 1.2.2
+    string public constant version = "1.2.2";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(

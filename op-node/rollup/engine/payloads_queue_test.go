@@ -1,4 +1,4 @@
-package clsync
+package engine
 
 import (
 	"container/heap"
@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -172,7 +171,7 @@ func TestDropInapplicable_PopsMultipleInapplicable(t *testing.T) {
 	require.NoError(t, pq.Push(oldSafe))
 	require.NoError(t, pq.Push(next))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0x10}, Number: 10},
 		SafeL2Head:      eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 9},
 		FinalizedL2Head: eth.L2BlockRef{},
@@ -199,7 +198,7 @@ func TestDropInapplicable_RemovesAlreadyProcessed(t *testing.T) {
 	processed := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(headNum), BlockHash: headHash})
 	require.NoError(t, pq.Push(processed))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(headNum, headHash),
 		SafeL2Head:      mkRef(0, common.Hash{}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
@@ -216,7 +215,7 @@ func TestDropInapplicable_DropOlderThanSafe(t *testing.T) {
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(8), BlockHash: common.Hash{0x01}})
 	require.NoError(t, pq.Push(payload))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(10, common.Hash{0xaa}),
 		SafeL2Head:      mkRef(8, common.Hash{0xbb}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
@@ -234,7 +233,7 @@ func TestDropInapplicable_DropOlderThanUnsafe(t *testing.T) {
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(10), BlockHash: common.Hash{0x02}})
 	require.NoError(t, pq.Push(payload))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(10, common.Hash{0xaa}),
 		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
@@ -253,7 +252,7 @@ func TestDropInapplicable_DropNextHeightMismatch(t *testing.T) {
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(11), BlockHash: common.Hash{0x03}, ParentHash: common.Hash{0xff}})
 	require.NoError(t, pq.Push(payload))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(10, headHash),
 		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
@@ -272,7 +271,7 @@ func TestDropInapplicable_NonAdjacentMismatchReturns(t *testing.T) {
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(12), BlockHash: common.Hash{0x04}, ParentHash: common.Hash{0xff}})
 	require.NoError(t, pq.Push(payload))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(10, headHash),
 		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
@@ -292,7 +291,7 @@ func TestDropInapplicable_ApplicablePayloadKept(t *testing.T) {
 	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(11), BlockHash: common.Hash{0x05}, ParentHash: headHash})
 	require.NoError(t, pq.Push(payload))
 
-	ev := engine.ForkchoiceUpdateEvent{
+	ev := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    mkRef(10, headHash),
 		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
 		FinalizedL2Head: mkRef(0, common.Hash{}),
