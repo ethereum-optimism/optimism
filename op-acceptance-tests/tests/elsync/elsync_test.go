@@ -31,8 +31,8 @@ func TestELSyncAfterInitialELSync(gt *testing.T) {
 	// Send payloads for block 3, 4, 5, 7 which will make non-canonical blocks, block 2 missed
 	// Non-canonical payloads will be buffered at the L2EL
 	// Order does not matter
-	for _, t := range []uint64{5, 3, 4, 7} {
-		sys.L2CLB.SignalTarget(sys.L2EL, t)
+	for _, target := range []uint64{5, 3, 4, 7} {
+		sys.L2CLB.SignalTarget(sys.L2EL, target)
 		// Canonical unsafe head never advances because of the gap
 		require.Equal(uint64(1), sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 	}
