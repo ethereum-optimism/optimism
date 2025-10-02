@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
@@ -12,7 +11,7 @@ import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 using TransactionBuilder for TransactionBuilder.Transaction;
 
 contract Target {
-    function doSomething() external {}
+    function doSomething() external { }
 }
 
 /// @title TransactionBuilder
@@ -134,8 +133,7 @@ library TransactionBuilder {
         // Empty out the params, then set based on the cancellation transaction format
         delete cancellation.params;
         cancellation.params.to = address(_timelockGuard);
-        cancellation.params.data =
-            abi.encodeCall(TimelockGuard.signCancellationForSafe, (Safe(payable(_tx.safeInstance.safe)), _tx.hash));
+        cancellation.params.data = abi.encodeCall(TimelockGuard.signCancellation, (_tx.hash));
 
         // Get only the number of signatures required for the cancellation transaction
         uint256 cancellationThreshold = _timelockGuard.cancellationThreshold(_tx.safeInstance.safe);
@@ -154,6 +152,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event TransactionExecuted(Safe indexed safe, bytes32 txHash);
+    event Message(string message);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -539,8 +538,16 @@ contract TimelockGuard_PendingTransactionsForSafe_Test is TimelockGuard_TestInit
     }
 }
 
-/// @title TimelockGuard_CancelTransaction_Test
-/// @notice Tests for cancelTransaction function
+/// @title TimelockGuard_signCancellation_Test
+/// @notice Tests for signCancellation function
+contract TimelockGuard_signCancellation_Test is TimelockGuard_TestInit {
+    function test_signCancellation_succeeds() external {
+        vm.expectEmit(true, true, true, true);
+        emit Message("This function not meant to be called, did you mean to call cancelTransaction?");
+        timelockGuard.signCancellation(bytes32(0));
+    }
+}
+
 contract TimelockGuard_CancelTransaction_Test is TimelockGuard_TestInit {
     /// @notice Prepares a configured guard before cancellation tests run.
     function setUp() public override {
@@ -767,6 +774,7 @@ contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
 /// @notice Tests for integration between TimelockGuard and Safe
 contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
     using stdStorage for StdStorage;
+
     function setUp() public override {
         super.setUp();
         _configureGuard(safeInstance, TIMELOCK_DELAY);

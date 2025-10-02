@@ -183,6 +183,10 @@ contract TimelockGuard is IGuard, ISemver {
     /// @param txHash The identifier of the executed transaction (nonce-independent).
     event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
+    /// @notice Used to emit a message, primarily to ensure that the cancelTransaction function is
+    ///         is not labelled as view so that it is treated as a state-changing function.
+    event Message(string message);
+
     ////////////////////////////////////////////////////////////////
     //                  Internal View Functions                   //
     ////////////////////////////////////////////////////////////////
@@ -578,7 +582,13 @@ contract TimelockGuard is IGuard, ISemver {
         }
 
         // Generate the cancellation transaction data
-        bytes memory txData = abi.encodeCall(this.signCancellationForSafe, (_safe, _txHash));
+        bytes memory txData = abi.encodeCall(this.signCancellation, (_txHash));
+        // Any nonce can be used here, as long as all of the signatures are for the same
+        // nonce. In practice we expect the nonce to be the same as the nonce of the transaction
+        // being cancelled, as this most closely mimics the behaviour of the Safe UI's transaction
+        // replacement feature. However we do not enforce that here, to allow for flexibility,
+        // and to avoid the need for logic to retrieve the nonce from the transaction being
+        // cancelled.
         bytes memory cancellationTxData = _safe.encodeTransactionData(
             address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
@@ -606,11 +616,9 @@ contract TimelockGuard is IGuard, ISemver {
     //                      Dummy Functions                       //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data
-    /// @dev This function is not meant to be called, use cancelTransaction instead
-    function signCancellationForSafe(Safe, bytes32) public pure {
-        // Reverting here may cause issues for some signing tooling, but it is better to revert than for
-        // to silently fail, potentially allowing the caller to believe that the transaction has been cancelled.
-        revert("This function is not meant to be called, use cancelTransaction instead");
+    /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data in
+    ///         the Safe UI.
+    function signCancellation(bytes32) public {
+        emit Message("This function not meant to be called, did you mean to call cancelTransaction?");
     }
 }

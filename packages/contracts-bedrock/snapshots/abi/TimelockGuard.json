@@ -408,19 +408,14 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
-        "name": "",
-        "type": "address"
-      },
-      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
       }
     ],
-    "name": "signCancellationForSafe",
+    "name": "signCancellation",
     "outputs": [],
-    "stateMutability": "pure",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -497,6 +492,19 @@
       }
     ],
     "name": "GuardConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+      }
+    ],
+    "name": "Message",
     "type": "event"
   },
   {
