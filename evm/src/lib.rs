@@ -212,7 +212,10 @@ where
     R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    fn evm_env_for_payload(&self, payload: &OpExecutionData) -> EvmEnvFor<Self> {
+    fn evm_env_for_payload(
+        &self,
+        payload: &OpExecutionData,
+    ) -> Result<EvmEnvFor<Self>, Self::Error> {
         let timestamp = payload.payload.timestamp();
         let block_number = payload.payload.block_number();
 
@@ -242,27 +245,30 @@ where
             blob_excess_gas_and_price,
         };
 
-        EvmEnv { cfg_env, block_env }
+        Ok(EvmEnv { cfg_env, block_env })
     }
 
-    fn context_for_payload<'a>(&self, payload: &'a OpExecutionData) -> ExecutionCtxFor<'a, Self> {
-        OpBlockExecutionCtx {
+    fn context_for_payload<'a>(
+        &self,
+        payload: &'a OpExecutionData,
+    ) -> Result<ExecutionCtxFor<'a, Self>, Self::Error> {
+        Ok(OpBlockExecutionCtx {
             parent_hash: payload.parent_hash(),
             parent_beacon_block_root: payload.sidecar.parent_beacon_block_root(),
             extra_data: payload.payload.as_v1().extra_data.clone(),
-        }
+        })
     }
 
     fn tx_iterator_for_payload(
         &self,
         payload: &OpExecutionData,
-    ) -> impl ExecutableTxIterator<Self> {
-        payload.payload.transactions().clone().into_iter().map(|encoded| {
+    ) -> Result<impl ExecutableTxIterator<Self>, Self::Error> {
+        Ok(payload.payload.transactions().clone().into_iter().map(|encoded| {
             let tx = TxTy::<Self::Primitives>::decode_2718_exact(encoded.as_ref())
                 .map_err(AnyError::new)?;
             let signer = tx.try_recover().map_err(AnyError::new)?;
             Ok::<_, AnyError>(WithEncoded::new(encoded, tx.with_signer(signer)))
-        })
+        }))
     }
 }
 
