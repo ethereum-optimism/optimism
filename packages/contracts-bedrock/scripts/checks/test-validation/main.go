@@ -190,9 +190,9 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 	return errors
 }
 
-func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, featureEnabledName string) []error {
+func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, _ string) []error {
 	// Check for uncategorized test pattern
-	if functionName == "Uncategorized" || functionName == "Unclassified" {
+	if functionName == "Uncategorized" {
 		// Pattern: <ContractName>_Uncategorized_Test
 		return nil
 	}

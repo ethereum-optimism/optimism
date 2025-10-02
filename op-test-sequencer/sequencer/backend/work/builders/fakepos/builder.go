@@ -2,15 +2,16 @@ package fakepos
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 type Beacon interface {
@@ -18,22 +19,22 @@ type Beacon interface {
 }
 
 type Blockchain interface {
-	CurrentBlock() *types.Header
-	GetHeaderByNumber(number uint64) *types.Header
-	GetHeaderByHash(hash common.Hash) *types.Header
-	CurrentFinalBlock() *types.Header
-	CurrentSafeBlock() *types.Header
-	Genesis() *types.Block
-	Config() *params.ChainConfig
+	// All methods are assumed to have identical behavior to the corresponding methods on
+	// go-ethereum/ethclient.Client.
+
+	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
+	HeaderByHash(context.Context, common.Hash) (*types.Header, error)
 }
 
 type Builder struct {
 	id  seqtypes.BuilderID
 	log log.Logger
 
-	engine     *catalyst.ConsensusAPI
+	engine     geth.EngineAPI
 	beacon     Beacon
 	blockchain Blockchain
+	genesis    *types.Header
+	config     types.BlockType
 
 	registry work.Jobs
 
@@ -48,13 +49,19 @@ type Builder struct {
 var _ work.Builder = (*Builder)(nil)
 
 func NewBuilder(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOpts, config *Config) (work.Builder, error) {
+	genesis, err := config.Backend.HeaderByNumber(context.Background(), new(big.Int))
+	if err != nil {
+		return nil, fmt.Errorf("get genesis header: %w", err)
+	}
 	return &Builder{
 		id:                id,
 		log:               opts.Log,
+		genesis:           genesis,
+		config:            config.ChainConfig,
 		registry:          opts.Jobs,
-		engine:            catalyst.NewConsensusAPI(config.GethBackend),
+		engine:            config.EngineAPI,
 		beacon:            config.Beacon,
-		blockchain:        config.GethBackend.BlockChain(),
+		blockchain:        config.Backend,
 		withdrawalsIndex:  1001,
 		envelopes:         make(map[common.Hash]*engine.ExecutionPayloadEnvelope),
 		finalizedDistance: config.FinalizedDistance,

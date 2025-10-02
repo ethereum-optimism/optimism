@@ -4,9 +4,38 @@
 # As a rule of thumb, we recommend that each fork gate inherits from the
 # base gate as well as any earlier fork gates.
 
-
-
 gates:
+  # New tests should be added here first with target_gate metadata.
+  # Once we're confident they're not flaky, they will be promoted.
+  # Example entry format:
+  # - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/parallelism
+  #   timeout: 10m
+  #   metadata:
+  #     target_gate: base  # Will be promoted to base gate once stable
+  #     added_date: "2025-01-23"
+  #     owner: "team-infra"
+  - id: flake-shake
+    description: "Quarantine gate for new and potentially flaky tests requiring stability validation."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_elsync
+        name: TestSyncTesterELSync
+        timeout: 10m
+        metadata:
+          target_gate: sync-test-op-node
+          owner: "changwan,anton"
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian
+        name: TestMinBaseFee
+        timeout: 10m
+        metadata:
+          target_gate: jovian
+          owner: "george"
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal
+        name: TestWithdrawal
+        timeout: 10m
+        metadata:
+          target_gate: base
+          owner: "stefano"
+
   - id: isthmus
     description: "Isthmus network tests."
     tests:

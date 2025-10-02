@@ -67,7 +67,7 @@ just
 just acceptance-test <devnet> <gate>
 
 # Use specific op-acceptor version
-ACCEPTOR_VERSION=v1.0.0 just acceptance-test simple base
+ACCEPTOR_VERSION=v1.0.0 just acceptance-test "" base
 ```
 
 ### Direct CLI Usage
@@ -162,6 +162,85 @@ To add new acceptance tests:
    - name: YourTestName
      package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/your/package/path
    ```
+
+## Flake-Shake: Test Stability Validation
+
+Flake-shake is a test stability validation system that runs tests multiple times to detect flakiness before they reach production gates. It serves as a quarantine area where new or potentially unstable tests must prove their reliability.
+
+### Purpose
+
+- Detect flaky tests through repeated execution (100+ iterations)
+- Prevent unstable tests from disrupting CI/CD pipelines
+- Provide data-driven decisions for test promotion to production gates
+
+### How It Works
+
+Flake-shake runs tests multiple times and aggregates results to determine stability:
+- **STABLE**: Tests with 100% pass rate across all iterations
+- **UNSTABLE**: Tests with any failures (<100% pass rate)
+
+### Running Flake-Shake
+
+Flake-shake is integrated into op-acceptor and can be run locally or in CI:
+
+```bash
+# Run flake-shake with op-acceptor (requires op-acceptor v3.4.0+)
+op-acceptor \
+  --validators ./acceptance-tests.yaml \
+  --gate flake-shake \
+  --flake-shake \
+  --flake-shake-iterations 10 \
+  --orchestrator sysgo
+
+# Run with more iterations for thorough testing
+op-acceptor \
+  --validators ./acceptance-tests.yaml \
+  --gate flake-shake \
+  --flake-shake \
+  --flake-shake-iterations 100 \
+  --orchestrator sysgo
+```
+
+### Adding Tests to Flake-Shake
+
+Add new or suspicious tests to the flake-shake gate in `acceptance-tests.yaml`:
+
+```yaml
+gates:
+  - id: flake-shake
+    description: "Test stability validation gate"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/yourtest
+        timeout: 10m
+        metadata:
+          target_gate: base  # Where to promote once stable
+```
+
+### Understanding Reports
+
+Flake-shake generates comprehensive reports in two formats:
+- **`flake-shake-report.json`**: Machine-readable results for automation
+- **`flake-shake-report.html`**: Human-friendly visualization with charts
+
+Reports include:
+- **Pass rate**: Percentage of successful runs per test
+- **Timing statistics**: Min/avg/max execution duration
+- **Failure patterns**: First few failure logs for debugging
+- **Stability recommendation**: STABLE or UNSTABLE classification
+
+### CI Integration
+
+In CI, flake-shake runs tests across multiple parallel workers:
+- 10 workers each run 10 iterations (100 total by default)
+- Results are aggregated using the `flake-shake-aggregator` tool
+- Reports are stored as CircleCI artifacts
+
+### Promotion Criteria
+
+Tests should remain in flake-shake until they demonstrate consistent stability:
+- **Immediate promotion**: 100% pass rate across 100+ iterations
+- **Investigation needed**: Any failures require fixing before promotion
+- **Minimum soak time**: 3 days in flake-shake gate recommended
 
 ### Quick Development
 

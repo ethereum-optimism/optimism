@@ -671,7 +671,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
-    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
+    /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
+    ///      `_opChainConfigs`'s ProxyAdmin.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external virtual {
         // Grab the implementations.
@@ -762,6 +763,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
+        // Upgrade the OptimismMintableERC20Factory contract.
+        upgradeTo(
+            _opChainConfig.proxyAdmin,
+            _opChainConfig.systemConfigProxy.optimismMintableERC20Factory(),
+            _impls.optimismMintableERC20FactoryImpl
+        );
+
         // Use the SystemConfig to grab the DisputeGameFactory address.
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
@@ -832,7 +840,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
+    /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         // Only upgrade the superchainConfig if the current version is less than the target version.
@@ -1802,9 +1810,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.5.0
+    /// @custom:semver 3.7.0
     function version() public pure virtual returns (string memory) {
-        return "3.5.0";
+        return "3.7.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1941,7 +1949,8 @@ contract OPContractsManager is ISemver {
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
-    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
+    /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
+    ///      `_opChainConfigs`'s ProxyAdmin.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
@@ -1953,7 +1962,7 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
+    /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();

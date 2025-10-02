@@ -25,5 +25,8 @@ var (
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
-	return new(big.Int).And(b, f).BitLen() != 0
+
+	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
+	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
+	return featuresIsNonZero && bitmapContainsFeatures
 }
