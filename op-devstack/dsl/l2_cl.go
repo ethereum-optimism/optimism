@@ -164,6 +164,29 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 	}
 }
 
+func (cl *L2CLNode) ReachedNodeFn(lvl types.SafetyLevel, cl2 *L2CLNode, attempts int) CheckFunc {
+	return func() error {
+		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl)
+		logger.Info("Expecting " + cl.inner.ID().String() + " to reach " + lvl.String() + " same as " + cl2.inner.ID().String())
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head := cl.HeadBlockRef(lvl)
+
+				head2 := cl2.HeadBlockRef(lvl)
+				if head.Number == head2.Number {
+					logger.Info("Chain advanced as expected", "target", head.Number)
+					return nil
+				}
+				logger.Info("Chain sync status", "cl", head.Number, "cl2", head2.Number)
+				return fmt.Errorf("expected head to advance: %s", lvl)
+			})
+	}
+}
+
+func (cl *L2CLNode) ReachedNode(lvl types.SafetyLevel, cl2 *L2CLNode, attempts int) {
+	cl.require.NoError(cl.ReachedNodeFn(lvl, cl2, attempts)())
+}
+
 // ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {

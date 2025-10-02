@@ -241,6 +241,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 		}
 
+		// Set the req-resp sync flag as per config
+		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
+
 		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
 		l2EngineAddr := l2EL.EngineRPC()
 
