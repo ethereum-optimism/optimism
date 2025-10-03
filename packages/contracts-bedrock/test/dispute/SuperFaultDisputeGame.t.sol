@@ -2325,10 +2325,10 @@ contract SuperFaultDisputeGame_GetChallengerDuration_Test is SuperFaultDisputeGa
     }
 }
 
-/// @title SuperFaultDisputeGame_Unclassified_Test
+/// @title SuperFaultDisputeGame_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `SuperFaultDisputeGame`
 ///         contract or are testing multiple functions at once.
-contract SuperFaultDisputeGame_Unclassified_Test is SuperFaultDisputeGame_TestInit {
+contract SuperFaultDisputeGame_Uncategorized_Test is SuperFaultDisputeGame_TestInit {
     /// @notice Tests that the game's starting timestamp is set correctly.
     function test_createdAt_succeeds() public view {
         assertEq(gameProxy.createdAt().raw(), block.timestamp);

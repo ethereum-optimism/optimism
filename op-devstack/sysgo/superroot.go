@@ -39,7 +39,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			l1EL, ok := o.l1ELs.Get(l1ELID)
 			require.True(ok, "must have L1 EL node")
-			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.userRPC)
+			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 			require.NoError(err)
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)

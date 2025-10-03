@@ -32,6 +32,24 @@ update-forge forge_version="":
   #!/bin/bash
   ./scripts/forge-checksums.sh {{forge_version}}
 
+check-forge-version:
+  #!/bin/bash
+  set -euo pipefail
+
+  mise_version=$(yq '.tools.forge' ../mise.toml)
+  echo "mise forge version       : $mise_version"
+  op_deployer_version=$(jq -r '.forge' pkg/deployer/forge/version.json | sed 's/^v//')
+  echo "op-deployer forge version: $op_deployer_version"
+
+  if [ "$mise_version" != "$op_deployer_version" ]; then
+    echo "ERROR: Forge versions don't match!"
+    echo "  mise       : $mise_version"
+    echo "  op-deployer: $op_deployer_version"
+    exit 1
+  fi
+
+  echo -e "\n✓ forge versions match: $mise_version"
+
 # ======================================
 # Deployment and Verification Utilities
 #

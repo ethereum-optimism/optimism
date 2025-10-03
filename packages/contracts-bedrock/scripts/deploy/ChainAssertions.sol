@@ -7,7 +7,6 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
@@ -54,68 +53,73 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(
+    function checkSystemConfigImpls(Types.ContractSet memory _contracts) internal view {
+        ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
+        console.log("Running chain assertions on the SystemConfig impl at %s", address(config));
+
+        // Check that the contract is initialized
+        DeployUtils.assertInitialized({ _contractAddress: address(config), _isProxy: false, _slot: 0, _offset: 0 });
+
+        IResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
+
+        require(config.owner() == address(0), "CHECK-SCFG-220");
+        require(config.overhead() == 0, "CHECK-SCFG-230");
+        require(config.scalar() == 0, "CHECK-SCFG-240"); // version 1
+        require(config.basefeeScalar() == 0, "CHECK-SCFG-250");
+        require(config.blobbasefeeScalar() == 0, "CHECK-SCFG-260");
+        require(config.batcherHash() == bytes32(0), "CHECK-SCFG-270");
+        require(config.gasLimit() == 0, "CHECK-SCFG-280");
+        require(config.unsafeBlockSigner() == address(0), "CHECK-SCFG-290");
+        // Check _config
+        require(resourceConfig.maxResourceLimit == 0, "CHECK-SCFG-300");
+        require(resourceConfig.elasticityMultiplier == 0, "CHECK-SCFG-310");
+        require(resourceConfig.baseFeeMaxChangeDenominator == 0, "CHECK-SCFG-320");
+        require(resourceConfig.systemTxMaxGas == 0, "CHECK-SCFG-330");
+        require(resourceConfig.minimumBaseFee == 0, "CHECK-SCFG-340");
+        require(resourceConfig.maximumBaseFee == 0, "CHECK-SCFG-350");
+        // Check _addresses
+        require(config.startBlock() == type(uint256).max, "CHECK-SCFG-360");
+        require(config.batchInbox() == address(0), "CHECK-SCFG-370");
+        require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
+        require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
+        require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
+        require(config.optimismPortal() == address(0), "CHECK-SCFG-420");
+        require(config.optimismMintableERC20Factory() == address(0), "CHECK-SCFG-430");
+    }
+
+    /// @notice Asserts that the SystemConfig is setup correctly
+    function checkSystemConfigProxies(
         Types.ContractSet memory _contracts,
-        DeployOPChainInput _doi,
-        bool _isProxy
+        Types.DeployOPChainInput memory _doi
     )
         internal
         view
     {
         ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
-        console.log(
-            "Running chain assertions on the SystemConfig %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(config)
-        );
+        console.log("Running chain assertions on the SystemConfig proxy at %s", address(config));
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(config), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(config), _isProxy: true, _slot: 0, _offset: 0 });
 
-        IResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-
-        if (_isProxy) {
-            require(config.owner() == _doi.systemConfigOwner(), "CHECK-SCFG-10");
-            require(config.basefeeScalar() == _doi.basefeeScalar(), "CHECK-SCFG-20");
-            require(config.blobbasefeeScalar() == _doi.blobBaseFeeScalar(), "CHECK-SCFG-30");
-            require(config.batcherHash() == bytes32(uint256(uint160(_doi.batcher()))), "CHECK-SCFG-40");
-            require(config.gasLimit() == uint64(_doi.gasLimit()), "CHECK-SCFG-50");
-            require(config.unsafeBlockSigner() == _doi.unsafeBlockSigner(), "CHECK-SCFG-60");
-            require(config.scalar() >> 248 == 1, "CHECK-SCFG-70");
-            // Depends on start block being set to 0 in `initialize`
-            require(config.startBlock() == block.number, "CHECK-SCFG-140");
-            require(config.batchInbox() == _doi.opcm().chainIdToBatchInboxAddress(_doi.l2ChainId()), "CHECK-SCFG-150");
-            // Check _addresses
-            require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
-            require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
-            require(config.l1StandardBridge() == _contracts.L1StandardBridge, "CHECK-SCFG-180");
-            require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
-            require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
-        } else {
-            require(config.owner() == address(0), "CHECK-SCFG-220");
-            require(config.overhead() == 0, "CHECK-SCFG-230");
-            require(config.scalar() == 0, "CHECK-SCFG-240"); // version 1
-            require(config.basefeeScalar() == 0, "CHECK-SCFG-250");
-            require(config.blobbasefeeScalar() == 0, "CHECK-SCFG-260");
-            require(config.batcherHash() == bytes32(0), "CHECK-SCFG-270");
-            require(config.gasLimit() == 0, "CHECK-SCFG-280");
-            require(config.unsafeBlockSigner() == address(0), "CHECK-SCFG-290");
-            // Check _config
-            require(resourceConfig.maxResourceLimit == 0, "CHECK-SCFG-300");
-            require(resourceConfig.elasticityMultiplier == 0, "CHECK-SCFG-310");
-            require(resourceConfig.baseFeeMaxChangeDenominator == 0, "CHECK-SCFG-320");
-            require(resourceConfig.systemTxMaxGas == 0, "CHECK-SCFG-330");
-            require(resourceConfig.minimumBaseFee == 0, "CHECK-SCFG-340");
-            require(resourceConfig.maximumBaseFee == 0, "CHECK-SCFG-350");
-            // Check _addresses
-            require(config.startBlock() == type(uint256).max, "CHECK-SCFG-360");
-            require(config.batchInbox() == address(0), "CHECK-SCFG-370");
-            require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
-            require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
-            require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
-            require(config.optimismPortal() == address(0), "CHECK-SCFG-420");
-            require(config.optimismMintableERC20Factory() == address(0), "CHECK-SCFG-430");
-        }
+        require(config.owner() == _doi.systemConfigOwner, "CHECK-SCFG-10");
+        require(config.basefeeScalar() == _doi.basefeeScalar, "CHECK-SCFG-20");
+        require(config.blobbasefeeScalar() == _doi.blobBaseFeeScalar, "CHECK-SCFG-30");
+        require(config.batcherHash() == bytes32(uint256(uint160(_doi.batcher))), "CHECK-SCFG-40");
+        require(config.gasLimit() == uint64(_doi.gasLimit), "CHECK-SCFG-50");
+        require(config.unsafeBlockSigner() == _doi.unsafeBlockSigner, "CHECK-SCFG-60");
+        require(config.scalar() >> 248 == 1, "CHECK-SCFG-70");
+        // Depends on start block being set to 0 in `initialize`
+        require(config.startBlock() == block.number, "CHECK-SCFG-140");
+        require(
+            config.batchInbox() == IOPContractsManager(_doi.opcm).chainIdToBatchInboxAddress(_doi.l2ChainId),
+            "CHECK-SCFG-150"
+        );
+        // Check _addresses
+        require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
+        require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
+        require(config.l1StandardBridge() == _contracts.L1StandardBridge, "CHECK-SCFG-180");
+        require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
+        require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
@@ -438,14 +442,12 @@ library ChainAssertions {
         );
     }
 
-    function checkAnchorStateRegistryProxy(
-        IAnchorStateRegistry _anchorStateRegistryProxy,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        // Then we check the proxy as ASR.
+    function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {
+        DeployUtils.assertValidContractAddress(address(_anchorStateRegistryProxy));
+        if (_isProxy) {
+            DeployUtils.assertERC1967ImplementationSet(address(_anchorStateRegistryProxy));
+        }
+
         DeployUtils.assertInitialized({
             _contractAddress: address(_anchorStateRegistryProxy),
             _isProxy: _isProxy,

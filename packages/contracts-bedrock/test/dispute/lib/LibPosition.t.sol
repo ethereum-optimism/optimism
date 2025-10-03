@@ -213,10 +213,10 @@ contract LibPosition_Move_Test is LibPosition_TestInit {
     }
 }
 
-/// @title LibPosition_Unclassified_Test
+/// @title LibPosition_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LibPosition` contract
 ///         or are testing multiple functions at once.
-contract LibPosition_Unclassified_Test is LibPosition_TestInit {
+contract LibPosition_Uncategorized_Test is LibPosition_TestInit {
     /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos, and
     ///         the trace index in a tree of max depth = 4.
     function test_pos_correctness_succeeds() public pure {

@@ -72,7 +72,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.DependencySet, 0)
+	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.L1Cfg.Config, sd.DependencySet, 0)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
@@ -210,13 +210,15 @@ func NewOpProgramCfg(
 	fi *FixtureInputs,
 ) *config.Config {
 	var rollupConfigs []*rollup.Config
-	var chainConfigs []*params.ChainConfig
+	var l2chainConfigs []*params.ChainConfig
+	var l1chainConfig *params.ChainConfig
 	for _, source := range fi.L2Sources {
 		rollupConfigs = append(rollupConfigs, source.Node.RollupCfg)
-		chainConfigs = append(chainConfigs, source.ChainConfig)
+		l2chainConfigs = append(l2chainConfigs, source.ChainConfig)
+		l1chainConfig = source.Node.L1ChainConfig
 	}
 
-	dfault := config.NewConfig(rollupConfigs, chainConfigs, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
+	dfault := config.NewConfig(rollupConfigs, l2chainConfigs, l1chainConfig, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 	dfault.L2ChainID = boot.CustomChainIDIndicator
 	if fi.InteropEnabled {
 		dfault.AgreedPrestate = fi.AgreedPrestate

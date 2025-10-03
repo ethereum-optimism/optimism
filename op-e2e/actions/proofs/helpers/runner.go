@@ -83,13 +83,14 @@ func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Mi
 		defer fakeBeacon.Close()
 
 		rollupCfgs := make([]*rollup.Config, 0, len(fixtureInputs.L2Sources))
+		l1chainConfig := l1.L1Chain().Config()
 		l2Endpoints := make([]string, 0, len(fixtureInputs.L2Sources))
 		for _, source := range fixtureInputs.L2Sources {
 			rollupCfgs = append(rollupCfgs, source.Node.RollupCfg)
 			l2Endpoints = append(l2Endpoints, source.Engine.HTTPEndpoint())
 		}
 
-		err = RunKonaNative(t, workDir, rollupCfgs, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
+		err = RunKonaNative(t, workDir, rollupCfgs, l1chainConfig, l1.HTTPEndpoint(), fakeBeacon.BeaconAddr(), l2Endpoints, *fixtureInputs)
 		checkResult(t, err)
 	} else {
 		programCfg := NewOpProgramCfg(fixtureInputs)

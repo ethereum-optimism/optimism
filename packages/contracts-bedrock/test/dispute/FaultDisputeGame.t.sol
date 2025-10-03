@@ -2641,10 +2641,10 @@ contract FaultDisputeGame_GetChallengerDuration_Test is FaultDisputeGame_TestIni
     }
 }
 
-/// @title FaultDisputeGame_Unclassified_Test
+/// @title FaultDisputeGame_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `FaultDisputeGame`
 ///         contract or are testing multiple functions at once.
-contract FaultDisputeGame_Unclassified_Test is FaultDisputeGame_TestInit {
+contract FaultDisputeGame_Uncategorized_Test is FaultDisputeGame_TestInit {
     /// @notice Tests that the game's starting timestamp is set correctly.
     function test_createdAt_succeeds() public view {
         assertEq(gameProxy.createdAt().raw(), block.timestamp);
