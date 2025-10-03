@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -114,6 +115,8 @@ func KZGProofFromHex(s string) (kzg4844.Proof, error) {
 	return out, nil
 }
 
+var badProof, _ = KZGProofFromHex("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+
 func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 	indices := []uint64{5, 7, 2}
 	index0, sidecar0 := makeTestBlobSidecar(indices[0])
@@ -124,12 +127,10 @@ func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
 
 	// Set proof to a bad / stubbed value
-	proof, err := KZGProofFromHex("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
-	require.NoError(t, err)
-	sidecars[1].KZGProof = eth.Bytes48(proof)
+	sidecars[1].KZGProof = eth.Bytes48(badProof)
 
 	// Check that verification succeeds when skipBlobVerification is true
-	_, err = blobsFromSidecars(sidecars, hashes, true)
+	_, err := blobsFromSidecars(sidecars, hashes, true)
 	require.NoError(t, err)
 
 	// Check that verification fails when skipBlobVerification is false
@@ -225,7 +226,37 @@ func TestBeaconClientFallback(t *testing.T) {
 	resp, err = c.GetBlobSidecars(ctx, eth.L1BlockRef{Time: 14}, hashes)
 	require.Equal(t, sidecars, resp)
 	require.NoError(t, err)
+}
 
+func TestBeaconClientSkipBlobVerification(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+
+	// invalidate proof
+	sidecar1.KZGProof = eth.Bytes48(badProof)
+	apiSidecars := toAPISideCars(sidecars)
+
+	ctx := context.Background()
+	p := mocks.NewBeaconClient(t)
+
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{}, false)
+	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+	_, err := clientWithValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
+	assert.Error(t, err)
+
+	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+	clientWithoutValidation := NewL1BeaconClient(p, L1BeaconClientConfig{}, true)
+	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+	_, err = clientWithoutValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
+	assert.NoError(t, err)
 }
 
 func TestBeaconHTTPClient(t *testing.T) {
