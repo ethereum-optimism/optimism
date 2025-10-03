@@ -1003,6 +1003,9 @@ jobs:
           command: just ai-contracts-test
           working_directory: ops/ai-eng
           no_output_timeout: 60m
+      - store_artifacts:
+          path: ops/ai-eng/contracts-test-maintenance/log.jsonl
+          destination: log.jsonl
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
