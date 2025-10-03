@@ -310,3 +310,24 @@ func validInteropConfig() *Config {
 	cfg.L2OutputRoot = crypto.Keccak256Hash(cfg.AgreedPrestate)
 	return cfg
 }
+
+func TestL1BeaconSkipBlobVerification(t *testing.T) {
+	t.Run("DefaultIsFalse", func(t *testing.T) {
+		cfg := validConfig()
+		require.False(t, cfg.L1BeaconSkipBlobVerification, "L1BeaconSkipBlobVerification should default to false")
+	})
+
+	t.Run("CanBeSetToTrue", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.L1BeaconSkipBlobVerification = true
+		require.True(t, cfg.L1BeaconSkipBlobVerification)
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("WorksWithInterop", func(t *testing.T) {
+		cfg := validInteropConfig()
+		cfg.L1BeaconSkipBlobVerification = true
+		require.True(t, cfg.L1BeaconSkipBlobVerification)
+		require.NoError(t, cfg.Check())
+	})
+}

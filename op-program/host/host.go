@@ -80,6 +80,9 @@ func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV
 	if !cfg.FetchingEnabled() {
 		return nil, nil
 	}
+	if cfg.L1BeaconSkipBlobVerification {
+		logger.Warn("Blob verification is DISABLED. This should only be used for testing and development. NOT FOR PRODUCTION USE.")
+	}
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
 	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialAttempts(10))
 	if err != nil {
@@ -95,7 +98,10 @@ func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV
 
 	logger.Info("Connecting to L1 beacon", "l1", cfg.L1BeaconURL)
 	l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
-	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
+	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{
+		FetchAllSidecars:     false,
+		SkipBlobVerification: cfg.L1BeaconSkipBlobVerification,
+	})
 
 	logger.Info("Initializing L2 clients")
 	sources, err := prefetcher.NewRetryingL2SourcesFromURLs(ctx, logger, cfg.Rollups, cfg.L2URLs, cfg.L2ExperimentalURLs)
