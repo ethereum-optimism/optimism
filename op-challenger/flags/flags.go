@@ -367,9 +367,9 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 
 func CheckCannonBaseFlags(ctx *cli.Context) error {
 	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || ctx.Bool(CannonL2CustomFlag.Name)) {
-		return fmt.Errorf("flag %v can not be used with %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.SourceFlagName(ctx, types.TraceTypeCannon), L2GenesisFlag.SourceFlagName(ctx, types.TraceTypeCannon), CannonL2CustomFlag.Name)
+		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || L1GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || ctx.Bool(CannonL2CustomFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon), L1GenesisFlag.EitherFlagName(types.TraceTypeCannon), CannonL2CustomFlag.Name)
 	}
 	if ctx.Bool(CannonL2CustomFlag.Name) && !(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
 		return fmt.Errorf("flag %v and %v must be set when %v is true",
@@ -427,9 +427,9 @@ func CheckCannonKonaBaseFlags(ctx *cli.Context, traceType types.TraceType) error
 			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(traceType), L2GenesisFlag.EitherFlagName(traceType))
 	}
 	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannonKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) || ctx.Bool(CannonKonaL2CustomFlag.Name)) {
-		return fmt.Errorf("flag %v can not be used with %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.SourceFlagName(ctx, types.TraceTypeCannonKona), L2GenesisFlag.SourceFlagName(ctx, types.TraceTypeCannonKona), CannonKonaL2CustomFlag.Name)
+		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannonKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) || L1GenesisFlag.IsSet(ctx, types.TraceTypeCannonKona) || ctx.Bool(CannonKonaL2CustomFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannonKona), L2GenesisFlag.EitherFlagName(types.TraceTypeCannonKona), L1GenesisFlag.EitherFlagName(types.TraceTypeCannonKona), CannonKonaL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(CannonBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
@@ -460,9 +460,9 @@ func CheckAsteriscBaseFlags(ctx *cli.Context, traceType types.TraceType) error {
 			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(traceType), L2GenesisFlag.EitherFlagName(traceType))
 	}
 	if ctx.IsSet(flags.NetworkFlagName) &&
-		(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || ctx.Bool(AsteriscKonaL2CustomFlag.Name)) {
-		return fmt.Errorf("flag %v can not be used with %v, %v or %v",
-			flags.NetworkFlagName, RollupConfigFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona), L2GenesisFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona), AsteriscKonaL2CustomFlag.Name)
+		(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || L1GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) || ctx.Bool(AsteriscKonaL2CustomFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v, %v, %v or %v",
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeAsteriscKona), L2GenesisFlag.EitherFlagName(types.TraceTypeAsteriscKona), L1GenesisFlag.EitherFlagName(types.TraceTypeAsteriscKona), AsteriscKonaL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(AsteriscBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscBinFlag.Name)
