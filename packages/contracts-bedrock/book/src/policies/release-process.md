@@ -6,7 +6,7 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
 
 1. Checkout the commit
 1. Run `git tag <tag-string>`
-1. Run `git push origin tag <tag-string>`
+1. Run `git push origin <tag-string>`
    This may require special authorization. Once pushed a tag cannot be deleted, so please be sure it is correct.
 1. Create release notes in Github:
    - Go to the [Releases page](https://github.com/ethereum-optimism/optimism/releases), enter or select `<tag-string>`
