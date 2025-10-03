@@ -42,9 +42,9 @@ jobs:
       - run: just eigenda-devnet-test-memstore -v
         working-directory: kurtosis-devnet
 
-  # This is an optimism devnet which talks to the eigenda holesky testnet via an eigenda-proxy.
-  # TODO: we should connect this to an eigenda kurtosis devnet instead of using our holesky testnet.
-  run_op_eigenda_holesky_devnet:
+  # This is an optimism devnet which talks to the eigenda sepolia testnet via an eigenda-proxy.
+  # TODO: we should connect this to an eigenda kurtosis devnet instead of using our sepolia testnet.
+  run_op_eigenda_sepolia_devnet:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false # run all matrix jobs even if one fails
@@ -52,12 +52,8 @@ jobs:
         # This list should be kept up-to-date with the files in eigenda-template-values
         valuesFile:
           [
-            # v1 is too slow for sequential large blobs.
-            # Could send a single massive blob every few minutes, but then migration test
-            # takes too long waiting for the few certs to land onchain, so opted to just not run it.
-            "holesky-concurrent-small-blobs.json",
-            "holesky-v2-sequential-large-blobs.json",
-            "holesky-v2-concurrent-small-blobs.json",
+            "sepolia-v2-sequential-large-blobs.json",
+            "sepolia-v2-concurrent-small-blobs.json",
           ]
     steps:
       - uses: actions/checkout@v4
@@ -71,14 +67,14 @@ jobs:
           jq --argjson newconfig '{
             "eigenda-proxy": {
               "secrets": {
-                "eigenda.signer-private-key-hex": "${{ secrets.EIGENDA_V1_HOLESKY_TESTNET_SIGNER_KEY }}",
-                "eigenda.v2.signer-payment-key-hex": "${{ secrets.EIGENDA_V2_HOLESKY_TESTNET_SIGNER_KEY }}",
-                "eigenda.eth_rpc": "https://ethereum-holesky-rpc.publicnode.com"
+                "eigenda.signer-private-key-hex": "${{ secrets.EIGENDA_SEPOLIA_TESTNET_SIGNER_KEY }}",
+                "eigenda.v2.signer-payment-key-hex": "${{ secrets.EIGENDA_SEPOLIA_TESTNET_SIGNER_KEY }}",
+                "eigenda.eth_rpc": "https://ethereum-sepolia-rpc.publicnode.com"
               }
             }
-          }' '. *= $newconfig' eigenda-template-values/${{ matrix.valuesFile }} > holesky-config-with-secrets.json
+          }' '. *= $newconfig' eigenda-template-values/${{ matrix.valuesFile }} > sepolia-config-with-secrets.json
         working-directory: kurtosis-devnet
-      - run: just eigenda-devnet-start holesky-config-with-secrets.json
+      - run: just eigenda-devnet-start sepolia-config-with-secrets.json
         working-directory: kurtosis-devnet
         env:
           # Temporary fix for error (see https://github.com/Layr-Labs/optimism/actions/runs/14325605690/job/40150440399?pr=42)
@@ -87,5 +83,5 @@ jobs:
           # See https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
           # and https://github.com/docker/cli/issues/613
           DOCKER_API_VERSION: 1.45
-      - run: just eigenda-devnet-test-holesky -v
+      - run: just eigenda-devnet-test-sepolia -v
         working-directory: kurtosis-devnet

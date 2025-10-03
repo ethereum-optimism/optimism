@@ -16,7 +16,7 @@ func TestEigenDAV2Migration_Memstore(t *testing.T) {
 	testEigenDAV2Migration(t, 20)
 }
 
-func TestEigenDAV2Migration_Holesky(t *testing.T) {
+func TestEigenDAV2Migration_Sepolia(t *testing.T) {
 	// We set to 160 = 16 mins (160 L1Blocks * 6sec/L1Block).
 	// This is unfortunately required because of the holocene strict ordering rules.
 	// After switching proxy from v1 to v2, the v2 certs, even though they finalize very quickly

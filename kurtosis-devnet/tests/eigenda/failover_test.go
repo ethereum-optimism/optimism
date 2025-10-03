@@ -146,6 +146,7 @@ func requireBatcherTxsToBeFromLayer(t *testing.T, fromBlockNum, toBlockNum uint6
 const ethDACalldataCommitmentPrefix = "0x00"
 const eigenDAV1CommitmentPrefix = "0x01010000"
 const eigenDAV2CommitmentPrefix = "0x01010001"
+const eigenDAV3CommitmentPrefix = "0x01010002"
 
 type DALayer string
 
@@ -268,6 +269,9 @@ func fetchBatcherTxs(gethL1Endpoint string, batchInbox string, fromBlockNum, toB
 					batcherTx.daLayer = DALayerEigenDAV1
 				} else if strings.HasPrefix(tx.InputData, eigenDAV2CommitmentPrefix) {
 					batcherTx.daLayer = DALayerEigenDAV2
+				} else if strings.HasPrefix(tx.InputData, eigenDAV3CommitmentPrefix) {
+					// eigenDA V2 with V3 cert
+					batcherTx.daLayer = DALayerEigenDAV2
 				} else if strings.HasPrefix(tx.InputData, ethDACalldataCommitmentPrefix) {
 					batcherTx.daLayer = DALayerEthCalldata
 				} else {
@@ -277,6 +281,5 @@ func fetchBatcherTxs(gethL1Endpoint string, batchInbox string, fromBlockNum, toB
 			}
 		}
 	}
-
 	return batcherTxs, nil
 }

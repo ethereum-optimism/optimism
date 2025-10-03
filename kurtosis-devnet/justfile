@@ -100,12 +100,12 @@ eigenda-devnet-clean ENCLAVE_NAME="eigenda-devnet":
 [group('eigenda')]
 eigenda-devnet-test-memstore *ARGS="":
     go test ./tests/eigenda/... -run "_Memstore$" -v -timeout 30m {{ARGS}}
-# Runs all tests that end with the `_Holesky` suffix, assuming the devnet was started with proxy using holesky backend.
-# To start the devnet with holesky backend, the files in eigenda-template-values/holesky-* need have secrets injected.
+# Runs all tests that end with the `_Sepolia` suffix, assuming the devnet was started with proxy using sepolia backend.
+# To start the devnet with sepolia backend, the files in eigenda-template-values/sepolia-* need have secrets injected.
 # Take a look at how CI does it in .github/workflows/kurtosis-devnet.yml .
 [group('eigenda')]
-eigenda-devnet-test-holesky *ARGS="":
-    go test ./tests/eigenda/... -run "_Holesky$" -v -timeout 40m {{ARGS}}
+eigenda-devnet-test-sepolia *ARGS="":
+    go test ./tests/eigenda/... -run "_Sepolia$" -v -timeout 50m {{ARGS}}
 [group('eigenda')]
 eigenda-devnet-add-tx-fuzzer ENCLAVE_NAME="eigenda-devnet" *ARGS="":
   kurtosis service add {{ENCLAVE_NAME}} tx-fuzz ethpandaops/tx-fuzz:master --cmd \

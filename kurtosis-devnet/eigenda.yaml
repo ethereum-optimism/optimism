@@ -1,19 +1,19 @@
-# This devnet uses an eigenda-proxy to interact with the eigenda holesky testnet network.
+# This devnet uses an eigenda-proxy to interact with the eigenda sepolia testnet network.
 # As a requirement, you must first create and populate the eigenda-secrets.json file
 # 1. cp eigenda-secrets.example.json eigenda-secrets.json
 # 2. Populate the file with the required values
-# TODO: Connect this with an eigenda v1 kurtosis devnet instead of using our holesky testnet.
+# TODO: Connect this with an eigenda v1 kurtosis devnet instead of using our sepolia testnet.
 #       See https://github.com/Layr-Labs/avs-devnet/blob/main/examples/eigenda.yaml
 {{- $context := or . (dict)}}
 # TODO: I hate yaml templating... should really move to something more reasonable. CUE perhaps?
-# use proxy by default, otherwise connect with eigenda holesky backend
+# use proxy by default, otherwise connect with eigenda sepolia backend
 {{- $useProxyMemstore := dig "eigenda-proxy" "useMemstore" true $context }}
 {{- $proxyDispersalBackend := dig "eigenda-proxy" "dispersalBackend" "v1" $context }}
 {{- $eigendaV1SignerKey := dig "eigenda-proxy" "secrets" "eigenda.signer-private-key-hex" "" $context }}
 {{- $eigendaV2SignerKey := dig "eigenda-proxy" "secrets" "eigenda.v2.signer-payment-key-hex" "" $context }}
 {{- $eigendaBackendEthRpc := dig "eigenda-proxy" "secrets" "eigenda.eth_rpc" "" $context }}
 {{- if not $useProxyMemstore}}
-  # make sure the secrets are populated when using eigenda-holesky backend
+  # make sure the secrets are populated when using eigenda-sepolia backend
   {{- if or (eq $eigendaV1SignerKey "") (eq $eigendaV2SignerKey "") (eq $eigendaBackendEthRpc "") }}
     {{- fail "Missing required eigenda-proxy eigenda-backend secrets." }}
   {{- end }}
@@ -86,7 +86,7 @@ optimism_package:
         proposal_interval: 10m
       da_params:
         enabled: true
-        image: ghcr.io/layr-labs/eigenda-proxy:v1.7.0
+        image: ghcr.io/layr-labs/eigenda-proxy:2.2.1
         cmd:
           - --addr=0.0.0.0
           - --port=3100
@@ -94,19 +94,20 @@ optimism_package:
           - --storage.dispersal-backend={{ $proxyDispersalBackend }} #v1 or v2
           - --api-enabled=admin # to enable changing dispersal-backend to v2 without restarting
           - --eigenda.v2.max-blob-length=1MiB # makes startup faster by only loading 1MiB/2MiB of G1/G2 SRS points.
+          - --eigenda.v2.network=sepolia_testnet
         {{- if $useProxyMemstore }}
           - --memstore.enabled
           - --memstore.expiration=30m
-        {{- else }} # connect to eigenda holesky backend
+        {{- else }} # connect to eigenda sepolia backend
           # V1 flags
-          - --eigenda.disperser-rpc=disperser-holesky.eigenda.xyz:443
-          - --eigenda.svc-manager-addr=0xD4A7E1Bd8015057293f0D0A557088c286942e84b
+          - --eigenda.disperser-rpc=disperser-testnet-sepolia.eigenda.xyz:443
+          - --eigenda.svc-manager-addr=0x3a5acf46ba6890B8536420F4900AC9BC45Df4764
           # The two params below are loaded from the eigenda-secrets.json file
           - --eigenda.signer-private-key-hex={{ $eigendaV1SignerKey }}
           - --eigenda.eth-rpc={{ $eigendaBackendEthRpc }}
           # V2 flags
-          - --eigenda.v2.disperser-rpc=disperser-holesky.eigenda.xyz:443
-          - --eigenda.v2.cert-verifier-addr=0xFe52fE1940858DCb6e12153E2104aD0fDFbE1162
+          - --eigenda.v2.cert-verifier-router-or-immutable-verifier-addr=0x58D2B844a894f00b7E6F9F492b9F43aD54Cd4429
+          - --eigenda.v2.disperser-rpc=disperser-testnet-sepolia.eigenda.xyz:443
           - --eigenda.v2.signer-payment-key-hex={{ $eigendaV2SignerKey }}
           - --eigenda.v2.eth-rpc={{ $eigendaBackendEthRpc }}
         {{- end }}
@@ -130,6 +131,7 @@ ethereum_package:
       el_extra_params:
         - --graphql # needed to query for batcher-inbox txs to test failover working correctly
       cl_type: teku
+      cl_image: consensys/teku:25.7.1
   network_params:
     preset: minimal
     genesis_delay: 5
