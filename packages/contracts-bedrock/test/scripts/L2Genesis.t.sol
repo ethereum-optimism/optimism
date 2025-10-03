@@ -147,7 +147,7 @@ contract L2Genesis_TestInit is Test {
         IL1Withdrawer l1Withdrawer = IL1Withdrawer(superchainRevSharesCalculator.shareRecipient());
         assertEq(l1Withdrawer.minWithdrawalAmount(), 10 ether);
         assertEq(l1Withdrawer.recipient(), input.l1FeesDepositor);
-        assertEq(l1Withdrawer.withdrawalGasLimit(), 300_000);
+        assertEq(l1Withdrawer.withdrawalGasLimit(), 1_000_000);
     }
 }
 
