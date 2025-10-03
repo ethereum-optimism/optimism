@@ -86,7 +86,7 @@ contract L2Genesis is Script {
     uint256 internal constant PRECOMPILE_COUNT = 256;
 
     uint80 internal constant DEV_ACCOUNT_FUND_AMT = 10_000 ether;
-    uint96 internal constant WITHDRAWAL_MIN_GAS_LIMIT = 300_000;
+    uint32 internal constant WITHDRAWAL_MIN_GAS_LIMIT = 1_000_000;
     uint256 internal constant MIN_WITHDRAWAL_AMOUNT_THRESHOLD = 10 ether;
 
     /// @notice Default Anvil dev accounts. Only funded if `cfg.fundDevAccounts == true`.

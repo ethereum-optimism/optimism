@@ -8,8 +8,8 @@
     "sourceCodeHash": "0x6c9d3e2dee44c234d59ab93b6564536dfd807f1c4a02a82d5393bc53cb15b8b7"
   },
   "src/L1/FeesDepositor.sol:FeesDepositor": {
-    "initCodeHash": "0x3b1acae6460e04be9a855a24de87524f19827239da08f05934c3dd6183a8b5c5",
-    "sourceCodeHash": "0x613dc957e3bb409d1c7fb767971308b9cb1ed3c953407c8c641a6ec2bbf42fe8"
+    "initCodeHash": "0xe52c51805cfd55967d037173159f18aaf4344e32e5c8ad41f8d5d0025b1d36a8",
+    "sourceCodeHash": "0xe5f2b1915a201c0b8a107f168f5b9bc8aec8e8e95f938082e42ba5b5c8ebbd11"
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
     "initCodeHash": "0x3dc659aafb03bd357f92abfc6794af89ee0ddd5212364551637422bf8d0b00f9",
@@ -84,8 +84,8 @@
     "sourceCodeHash": "0x2e85139090b9072e368a5ff36e5fcf2a90b219c6024e06a7998904cd75412395"
   },
   "src/L2/L1Withdrawer.sol:L1Withdrawer": {
-    "initCodeHash": "0xb25010651e421d159204b9c9d3ae3d3569e57de82eabcff6a1d2560a21b88a82",
-    "sourceCodeHash": "0xde60d5d9f89f6c1195b11e21b2c3287afaa756a749c052530b76f26b4cdf6c0a"
+    "initCodeHash": "0x91e0be0d49636212678191c06b9b6840c399f08ad946bc7b52f24231691be28b",
+    "sourceCodeHash": "0x25422bdaf51d611c1688a835737368c0ff2ab639dac852af8a20ebb4e16fc103"
   },
   "src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger": {
     "initCodeHash": "0xe160be403df12709c371c33195d1b9c3b5e9499e902e86bdabc8eed749c3fd61",

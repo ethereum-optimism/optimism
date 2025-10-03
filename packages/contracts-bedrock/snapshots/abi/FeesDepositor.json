@@ -13,9 +13,9 @@
     "name": "gasLimit",
     "outputs": [
       {
-        "internalType": "uint64",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint64"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -47,14 +47,14 @@
         "type": "address"
       },
       {
-        "internalType": "contract IOptimismPortal2",
-        "name": "_portal",
+        "internalType": "contract IL1CrossDomainMessenger",
+        "name": "_messenger",
         "type": "address"
       },
       {
-        "internalType": "uint64",
+        "internalType": "uint32",
         "name": "_gasLimit",
-        "type": "uint64"
+        "type": "uint32"
       }
     ],
     "name": "initialize",
@@ -77,12 +77,12 @@
   },
   {
     "inputs": [],
-    "name": "minDepositAmount",
+    "name": "messenger",
     "outputs": [
       {
-        "internalType": "uint96",
+        "internalType": "contract IL1CrossDomainMessenger",
         "name": "",
-        "type": "uint96"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -90,12 +90,12 @@
   },
   {
     "inputs": [],
-    "name": "portal",
+    "name": "minDepositAmount",
     "outputs": [
       {
-        "internalType": "contract IOptimismPortal2",
+        "internalType": "uint96",
         "name": "",
-        "type": "address"
+        "type": "uint96"
       }
     ],
     "stateMutability": "view",
@@ -130,9 +130,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint64",
+        "internalType": "uint32",
         "name": "_newGasLimit",
-        "type": "uint64"
+        "type": "uint32"
       }
     ],
     "name": "setGasLimit",
@@ -228,15 +228,15 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint64",
+        "internalType": "uint32",
         "name": "oldGasLimit",
-        "type": "uint64"
+        "type": "uint32"
       },
       {
         "indexed": false,
-        "internalType": "uint64",
+        "internalType": "uint32",
         "name": "newGasLimit",
-        "type": "uint64"
+        "type": "uint32"
       }
     ],
     "name": "GasLimitUpdated",

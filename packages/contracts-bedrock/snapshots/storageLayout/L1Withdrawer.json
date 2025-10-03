@@ -14,10 +14,10 @@
     "type": "address"
   },
   {
-    "bytes": "12",
+    "bytes": "4",
     "label": "withdrawalGasLimit",
     "offset": 20,
     "slot": "1",
-    "type": "uint96"
+    "type": "uint32"
   }
 ]

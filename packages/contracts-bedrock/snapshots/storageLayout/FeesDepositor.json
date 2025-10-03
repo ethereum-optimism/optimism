@@ -15,10 +15,10 @@
   },
   {
     "bytes": "20",
-    "label": "portal",
+    "label": "messenger",
     "offset": 2,
     "slot": "0",
-    "type": "contract IOptimismPortal2"
+    "type": "contract IL1CrossDomainMessenger"
   },
   {
     "bytes": "12",
@@ -35,10 +35,10 @@
     "type": "address"
   },
   {
-    "bytes": "8",
+    "bytes": "4",
     "label": "gasLimit",
     "offset": 0,
     "slot": "2",
-    "type": "uint64"
+    "type": "uint32"
   }
 ]

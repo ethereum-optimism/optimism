@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IFeesDepositor } from "interfaces/L1/IFeesDepositor.sol";
 import { FeesDepositor } from "src/L1/FeesDepositor.sol";
@@ -18,13 +18,13 @@ contract FeesDepositor_TestInit is CommonTest {
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event MinDepositAmountUpdated(uint96 oldMinDepositAmount, uint96 newMinDepositAmount);
     event L2RecipientUpdated(address oldL2Recipient, address newL2Recipient);
-    event GasLimitUpdated(uint64 oldGasLimit, uint64 newGasLimit);
+    event GasLimitUpdated(uint32 oldGasLimit, uint32 newGasLimit);
 
     // Test state
     FeesDepositor feesDepositor;
     address l2Recipient = makeAddr("l2Recipient");
     uint96 minDepositAmount = 1 ether;
-    uint64 gasLimit = 150_000;
+    uint32 gasLimit = 150_000;
     address depositFeesRecipient;
 
     /// @notice Test setup.
@@ -49,7 +49,7 @@ contract FeesDepositor_TestInit is CommonTest {
 
         // Initialize through proxy
         vm.prank(proxyAdminOwner);
-        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit);
+        feesDepositor.initialize(minDepositAmount, l2Recipient, l1CrossDomainMessenger, gasLimit);
 
         // Set depositFeesRecipient
         depositFeesRecipient =
@@ -64,7 +64,7 @@ contract FeesDepositor_Initialize_Test is FeesDepositor_TestInit {
     /// standard deployment script and instead is deployed manually, that's why we have this test.
     function test_cannotReinitialize_succeeds() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        feesDepositor.initialize(minDepositAmount, l2Recipient, optimismPortal2, gasLimit);
+        feesDepositor.initialize(minDepositAmount, l2Recipient, l1CrossDomainMessenger, gasLimit);
     }
 }
 
@@ -81,11 +81,11 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         vm.expectEmit(address(feesDepositor));
         emit FundsReceived(address(this), _amount, _amount);
 
-        // Expect call to the portal not to be done
+        // Expect call to the messenger not to be done
         vm.expectCall(
-            address(optimismPortal2),
+            address(l1CrossDomainMessenger),
             _amount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _amount, gasLimit, false, "")),
+            abi.encodeCall(ICrossDomainMessenger.sendMessage, (l2Recipient, hex"", gasLimit)),
             0
         );
 
@@ -110,9 +110,9 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         emit FeesDeposited(l2Recipient, _sendAmount);
 
         vm.expectCall(
-            address(optimismPortal2),
+            address(l1CrossDomainMessenger),
             _sendAmount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, _sendAmount, gasLimit, false, ""))
+            abi.encodeCall(ICrossDomainMessenger.sendMessage, (l2Recipient, hex"", gasLimit))
         );
 
         (bool success,) = address(feesDepositor).call{ value: _sendAmount }("");
@@ -128,7 +128,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         // First amount should not exceed minDepositAmount (so it doesn't trigger deposit)
         _firstAmount = bound(_firstAmount, 0, minDepositAmount - 1);
 
-        // First deposit (should not trigger portal deposit)
+        // First deposit (should not trigger deposit)
         vm.deal(address(this), _firstAmount);
 
         vm.expectEmit(address(feesDepositor));
@@ -150,7 +150,7 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
 
         uint256 totalAmount = _firstAmount + _secondAmount;
 
-        // Second deposit (will trigger portal deposit since total >= minDepositAmount)
+        // Second deposit (will trigger deposit since total >= minDepositAmount)
         vm.deal(address(this), _secondAmount);
 
         vm.expectEmit(address(feesDepositor));
@@ -160,9 +160,9 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
         emit FeesDeposited(l2Recipient, totalAmount);
 
         vm.expectCall(
-            address(optimismPortal2),
+            address(l1CrossDomainMessenger),
             totalAmount,
-            abi.encodeCall(IOptimismPortal.depositTransaction, (l2Recipient, totalAmount, gasLimit, false, ""))
+            abi.encodeCall(ICrossDomainMessenger.sendMessage, (l2Recipient, hex"", gasLimit))
         );
 
         (bool success2,) = address(feesDepositor).call{ value: _secondAmount }("");
@@ -175,23 +175,6 @@ contract FeesDepositor_Receive_Test is FeesDepositor_TestInit {
             depositFeesRecipientBalanceBefore + totalAmount,
             "depositFeesRecipient balance 2"
         );
-    }
-
-    /// @notice Fuzz test to ensure receive function gas usage never exceeds 200,000 gas.
-    /// @dev This test verifies the security requirement that receive() doesn't consume excessive gas,
-    ///      preventing potential issues with withdrawal gas limits. The limit includes buffer for
-    ///      measurement overhead and future contract changes.
-    function testFuzz_receive_gasUsageWithinLimit_succeeds(uint256 _amount) external {
-        _amount = bound(_amount, 0, type(uint256).max - depositFeesRecipient.balance);
-
-        vm.deal(address(this), _amount);
-
-        uint256 gasBefore = gasleft();
-        (bool success,) = address(feesDepositor).call{ value: _amount }("");
-        uint256 gasUsed = gasBefore - gasleft();
-
-        assertTrue(success, "Receive call should succeed");
-        assertLe(gasUsed, 200_000, "Receive function gas usage should not exceed 200,000 gas");
     }
 }
 
@@ -256,7 +239,7 @@ contract FeesDepositor_SetL2Recipient_Test is FeesDepositor_TestInit {
 /// @title FeesDepositor_SetGasLimit_Test
 /// @notice Tests the setGasLimit function of the `FeesDepositor` contract.
 contract FeesDepositor_SetGasLimit_Test is FeesDepositor_TestInit {
-    function testFuzz_setGasLimit_asOwner_succeeds(uint64 _newGasLimit) external {
+    function testFuzz_setGasLimit_asOwner_succeeds(uint32 _newGasLimit) external {
         address owner = proxyAdmin.owner();
 
         vm.expectEmit(address(feesDepositor));
@@ -272,7 +255,7 @@ contract FeesDepositor_SetGasLimit_Test is FeesDepositor_TestInit {
         address owner = proxyAdmin.owner();
         vm.assume(_caller != owner);
 
-        uint64 newGasLimit = 200_000;
+        uint32 newGasLimit = 200_000;
 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         vm.prank(_caller);

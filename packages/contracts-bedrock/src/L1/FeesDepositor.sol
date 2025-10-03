@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -11,8 +11,8 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /// @title FeesDepositor
 /// @notice A contract that deposits fees to the L2 recipient when the deposit threshold is reached.
 contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
-    /// @notice The portal contract.
-    IOptimismPortal public portal;
+    /// @notice The L1CrossDomainMessenger contract.
+    IL1CrossDomainMessenger public messenger;
 
     /// @notice The threshold at which fees are deposited.
     uint96 public minDepositAmount;
@@ -21,7 +21,7 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
     address public l2Recipient;
 
     /// @notice The gas limit for the deposit transaction.
-    uint64 public gasLimit;
+    uint32 public gasLimit;
 
     /// @notice Emitted when fees are received.
     /// @param sender The sender of the fees.
@@ -47,7 +47,7 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
     /// @notice Emitted when the gas limit is updated.
     /// @param oldGasLimit The old gas limit.
     /// @param newGasLimit The new gas limit.
-    event GasLimitUpdated(uint64 oldGasLimit, uint64 newGasLimit);
+    event GasLimitUpdated(uint32 oldGasLimit, uint32 newGasLimit);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -61,13 +61,13 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
     /// @notice Initializes the FeesDepositor contract.
     /// @param _minDepositAmount The threshold at which fees are deposited.
     /// @param _l2Recipient The L2 recipient of the fees.
-    /// @param _portal The portal contract.
+    /// @param _messenger The L1CrossDomainMessenger contract.
     /// @param _gasLimit The gas limit for the deposit transaction.
     function initialize(
         uint96 _minDepositAmount,
         address _l2Recipient,
-        IOptimismPortal _portal,
-        uint64 _gasLimit
+        IL1CrossDomainMessenger _messenger,
+        uint32 _gasLimit
     )
         external
         reinitializer(initVersion())
@@ -75,22 +75,20 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
-        portal = _portal;
+        messenger = _messenger;
         minDepositAmount = _minDepositAmount;
         l2Recipient = _l2Recipient;
         gasLimit = _gasLimit;
     }
 
-    /// @notice Receives ETH and deposits it to the L2 recipient through the portal when the threshold is reached.
-    /// @dev Be aware that when the DepositTransaction is sent, the `from` address will be the alias of this contract
-    /// address.
+    /// @notice Receives ETH and sends it to the L2 recipient via CrossDomainMessenger when the threshold is reached.
     receive() external payable {
         uint256 balance = address(this).balance;
         emit FundsReceived(msg.sender, msg.value, balance);
 
         if (balance >= minDepositAmount) {
             address recipient = l2Recipient;
-            portal.depositTransaction{ value: balance }(recipient, balance, gasLimit, false, "");
+            messenger.sendMessage{ value: balance }(recipient, hex"", gasLimit);
             emit FeesDeposited(recipient, balance);
         }
     }
@@ -116,9 +114,9 @@ contract FeesDepositor is ProxyAdminOwnedBase, Initializable, ReinitializableBas
 
     /// @notice Updates the gas limit for the deposit transaction.
     /// @param _newGasLimit The new gas limit.
-    function setGasLimit(uint64 _newGasLimit) external {
+    function setGasLimit(uint32 _newGasLimit) external {
         _assertOnlyProxyAdminOwner();
-        uint64 oldGasLimit = gasLimit;
+        uint32 oldGasLimit = gasLimit;
         gasLimit = _newGasLimit;
         emit GasLimitUpdated(oldGasLimit, _newGasLimit);
     }

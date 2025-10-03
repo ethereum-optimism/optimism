@@ -12,9 +12,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint96",
+        "internalType": "uint32",
         "name": "_withdrawalGasLimit",
-        "type": "uint96"
+        "type": "uint32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -79,9 +79,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint96",
+        "internalType": "uint32",
         "name": "_newWithdrawalGasLimit",
-        "type": "uint96"
+        "type": "uint32"
       }
     ],
     "name": "setWithdrawalGasLimit",
@@ -107,9 +107,9 @@
     "name": "withdrawalGasLimit",
     "outputs": [
       {
-        "internalType": "uint96",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint96"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -183,15 +183,15 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint96",
+        "internalType": "uint32",
         "name": "oldWithdrawalGasLimit",
-        "type": "uint96"
+        "type": "uint32"
       },
       {
         "indexed": false,
-        "internalType": "uint96",
+        "internalType": "uint32",
         "name": "newWithdrawalGasLimit",
-        "type": "uint96"
+        "type": "uint32"
       }
     ],
     "name": "WithdrawalGasLimitUpdated",
@@ -219,11 +219,6 @@
   {
     "inputs": [],
     "name": "L1Withdrawer_OnlyProxyAdminOwner",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "L1Withdrawer_WithdrawalGasLimitTooLow",
     "type": "error"
   }
 ]
