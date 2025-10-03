@@ -57,5 +57,9 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		args = append(args, "--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10))
 	}
 
+	if cfg.L1GenesisPath != "" {
+		args = append(args, "--l1-config-path", cfg.L1GenesisPath)
+	}
+
 	return args, nil
 }

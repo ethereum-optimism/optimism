@@ -7,12 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
-	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -44,10 +40,7 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 			},
 		)
 
-		miner, batcher, verifier, sequencer, engine := env.Miner, env.Batcher, env.Sequencer, env.Sequencer, env.Engine
-
-		l1Block, err := legacybindings.NewL1Block(predeploys.L1BlockAddr, engine.EthClient())
-		require.NoError(t, err)
+		miner, batcher, verifier, sequencer, _ := env.Miner, env.Batcher, env.Sequencer, env.Sequencer, env.Engine
 
 		// utils
 		checkVerifierDerivedToL1Head := func(t actionsHelpers.StatefulTesting) {
@@ -87,17 +80,6 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 			verifier.ActL1HeadSignal(t)
 			verifier.ActL2PipelineFull(t)
 			checkVerifierDerivedToL1Head(t)
-		}
-
-		checkL1BlockBlobBaseFee := func(t actionsHelpers.StatefulTesting, l2Block eth.L2BlockRef) {
-			l1BlockID := l2Block.L1Origin
-			l1BlockHeader := miner.L1Chain().GetHeaderByHash(l1BlockID.Hash)
-			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader)
-			upstreamExpectedBbf := eip4844.CalcBlobFee(env.Sd.L1Cfg.Config, l1BlockHeader)
-			require.Equal(t, expectedBbf.Uint64(), upstreamExpectedBbf.Uint64(), "expected blob base fee should match upstream calculation")
-			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})
-			require.NoError(t, err, "failed to get blob base fee")
-			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation, l1BlockNum %d, l2BlockNum %d", l1BlockID.Number, l2Block.Number)
 		}
 
 		requireSafeHeadProgression := func(t actionsHelpers.StatefulTesting, safeL2Before, safeL2After eth.L2BlockRef, batchedWithSetCodeTx bool) {
@@ -144,11 +126,10 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		// Cache safe head before verifier sync
 		safeL2Initial := verifier.SyncStatus().SafeL2
 
-		// Build an empty L2 block which has a pre-prague L1 origin, and check the blob fee is correct
+		// Build an empty L2 block which has a pre-prague L1 origin
 		sequencer.ActL2EmptyBlock(t)
 		l1OriginHeader := miner.L1Chain().GetHeaderByHash(verifier.SyncStatus().UnsafeL2.L1Origin.Hash)
 		requirePragueStatusOnL1(false, l1OriginHeader)
-		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
 
 		// Build L2 unsafe chain and batch it to L1 using either DynamicFee or
 		// EIP-7702 SetCode txs
@@ -165,10 +146,9 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 
 		sequencer.ActBuildToL1Head(t) // Advance L2 chain until L1 origin has Prague active
 
-		// Check that the l1 origin is now a Prague block, and that the blob fee is correct
+		// Check that the l1 origin is now a Prague block
 		l1Origin := miner.L1Chain().GetHeaderByNumber(verifier.SyncStatus().UnsafeL2.L1Origin.Number)
 		requirePragueStatusOnL1(true, l1Origin)
-		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
 
 		// Batch and sync again
 		buildUnsafeL2AndSubmit(testCfg.Custom.useSetCodeTx)

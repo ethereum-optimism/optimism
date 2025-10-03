@@ -775,8 +775,12 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
     )
         external
     {
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the
+        // foundry VM
+        vm.assume(
+            _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+                && _target != foundryVMAddress
+        );
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
@@ -785,7 +789,6 @@ contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessen
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: _revertData });
 
         // Construct the identifier -- using some hardcoded values for the block number, log index,
-
         // and time to avoid stack too deep errors.
         Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
 
