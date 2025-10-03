@@ -215,3 +215,9 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 	el.require.NoError(err, "failed to get payload")
 	return payload
 }
+
+func (el *L2ELNode) InsertPayload(ref *L2ELNode, number uint64) (*eth.PayloadStatusV1, error) {
+	payload := ref.PayloadByNumber(number)
+	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
+	return status, err
+}
