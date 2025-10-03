@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
 	client_mocks "github.com/ethereum-optimism/optimism/op-service/client/mocks"
@@ -61,17 +62,17 @@ func TestBlobsFromSidecars(t *testing.T) {
 
 	// put the sidecars in scrambled order to confirm error
 	sidecars := []*eth.BlobSidecar{sidecar2, sidecar0, sidecar1}
-	_, err := blobsFromSidecars(sidecars, hashes)
+	_, err := blobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// too few sidecars should error
 	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1}
-	_, err = blobsFromSidecars(sidecars, hashes)
+	_, err = blobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// correct order should work
 	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
-	blobs, err := blobsFromSidecars(sidecars, hashes)
+	blobs, err := blobsFromSidecars(sidecars, hashes, false)
 	require.NoError(t, err)
 	// confirm order by checking first blob byte against expected index
 	for i := range blobs {
@@ -82,27 +83,65 @@ func TestBlobsFromSidecars(t *testing.T) {
 	badProof := *sidecar0
 	badProof.KZGProof[11]++
 	sidecars[1] = &badProof
-	_, err = blobsFromSidecars(sidecars, hashes)
+	_, err = blobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// mangle a commitment to make sure it's detected
 	badCommitment := *sidecar0
 	badCommitment.KZGCommitment[13]++
 	sidecars[1] = &badCommitment
-	_, err = blobsFromSidecars(sidecars, hashes)
+	_, err = blobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// mangle a hash to make sure it's detected
 	sidecars[1] = sidecar0
 	hashes[2].Hash[17]++
-	_, err = blobsFromSidecars(sidecars, hashes)
+	_, err = blobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
+
+}
+
+func KZGProofFromHex(s string) (kzg4844.Proof, error) {
+	var out kzg4844.Proof // underlying size is 48 bytes
+	b, err := hexutil.Decode(s)
+	if err != nil {
+		return out, err
+	}
+	if len(b) != 48 {
+		return out, fmt.Errorf("want 48 bytes, got %d", len(b))
+	}
+	copy(out[:], b)
+	return out, nil
+}
+
+func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
+	indices := []uint64{5, 7, 2}
+	index0, sidecar0 := makeTestBlobSidecar(indices[0])
+	index1, sidecar1 := makeTestBlobSidecar(indices[1])
+	index2, sidecar2 := makeTestBlobSidecar(indices[2])
+	hashes := []eth.IndexedBlobHash{index0, index1, index2}
+
+	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+
+	// Set proof to a bad / stubbed value
+	proof, err := KZGProofFromHex("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+	require.NoError(t, err)
+	sidecars[1].KZGProof = eth.Bytes48(proof)
+
+	// Check that verification succeeds when skipBlobVerification is true
+	_, err = blobsFromSidecars(sidecars, hashes, true)
+	require.NoError(t, err)
+
+	// Check that verification fails when skipBlobVerification is false
+	_, err = blobsFromSidecars(sidecars, hashes, false)
+	require.Error(t, err)
+
 }
 
 func TestBlobsFromSidecars_EmptySidecarList(t *testing.T) {
 	hashes := []eth.IndexedBlobHash{}
 	sidecars := []*eth.BlobSidecar{}
-	blobs, err := blobsFromSidecars(sidecars, hashes)
+	blobs, err := blobsFromSidecars(sidecars, hashes, false)
 	require.NoError(t, err)
 	require.Empty(t, blobs, "blobs should be empty when no sidecars are provided")
 }
@@ -134,7 +173,7 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
 	f := mocks.NewBlobSideCarsClient(t)
-	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, false, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 	// Timestamp 12 = Slot 1
@@ -158,7 +197,7 @@ func TestBeaconClientFallback(t *testing.T) {
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
 	f := mocks.NewBlobSideCarsClient(t)
-	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, false, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 	// Timestamp 12 = Slot 1

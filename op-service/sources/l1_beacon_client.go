@@ -37,8 +37,9 @@ type L1BeaconClient struct {
 	pool *ClientPool[apis.BlobSideCarsClient]
 	cfg  L1BeaconClientConfig
 
-	initLock     sync.Mutex
-	timeToSlotFn TimeToSlotFn
+	initLock             sync.Mutex
+	timeToSlotFn         TimeToSlotFn
+	skipBlobVerification bool
 }
 
 // BeaconHTTPClient implements BeaconClient. It provides golang types over the basic Beacon API.
@@ -159,7 +160,7 @@ func (p *ClientPool[T]) MoveToNext() {
 // NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.
 // Fallbacks are optional clients that will be used for fetching blobs. L1BeaconClient will rotate between
 // the `cl` and the fallbacks whenever a client runs into an error while fetching blobs.
-func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, fallbacks ...apis.BlobSideCarsClient) *L1BeaconClient {
+func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, skipBlobVerification bool, fallbacks ...apis.BlobSideCarsClient) *L1BeaconClient {
 	cs := append([]apis.BlobSideCarsClient{cl}, fallbacks...)
 	return &L1BeaconClient{
 		cl:   cl,
@@ -271,14 +272,14 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes)
+	blobs, err := blobsFromSidecars(blobSidecars, hashes, cl.skipBlobVerification)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
 	}
 	return blobs, nil
 }
 
-func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash, skipBlobVerification bool) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}
@@ -296,9 +297,11 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
 		}
 
-		// confirm blob data is valid by verifying its proof against the commitment
-		if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
-			return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
+		if !skipBlobVerification {
+			// confirm blob data is valid by verifying its proof against the commitment
+			if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
+				return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
+			}
 		}
 		out[i] = &sidecar.Blob
 	}

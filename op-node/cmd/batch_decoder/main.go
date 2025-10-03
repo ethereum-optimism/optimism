@@ -87,7 +87,7 @@ func main() {
 				if beaconAddr != "" {
 					beaconClient := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconAddr, nil))
 					beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
-					beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg)
+					beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg, false)
 					_, err := beacon.GetVersion(ctx)
 					if err != nil {
 						log.Fatal(fmt.Errorf("failed to check L1 Beacon API version: %w", err))

@@ -30,7 +30,7 @@ func TestGetVersion(t *testing.T) {
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
 	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
-	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg)
+	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg, false)
 
 	version, err := cl.GetVersion(context.Background())
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func Test404NotFound(t *testing.T) {
 	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
 
 	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
-	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg)
+	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg, false)
 
 	hashes := []eth.IndexedBlobHash{{Index: 1}}
 	_, err := cl.GetBlobs(context.Background(), eth.L1BlockRef{Number: 10, Time: 120}, hashes)
