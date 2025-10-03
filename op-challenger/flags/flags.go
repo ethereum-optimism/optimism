@@ -372,12 +372,10 @@ func CheckCannonBaseFlags(ctx *cli.Context) error {
 	}
 	if ctx.Bool(CannonL2CustomFlag.Name) &&
 		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) &&
-			L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) &&
-			L1GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
+			L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
 		return fmt.Errorf("flag %v, %v and %v must be set when %v is true",
 			RollupConfigFlag.EitherFlagName(types.TraceTypeCannon),
 			L2GenesisFlag.EitherFlagName(types.TraceTypeCannon),
-			L1GenesisFlag.EitherFlagName(types.TraceTypeCannon),
 			CannonL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(CannonBinFlag.Name) {
@@ -445,11 +443,10 @@ func CheckCannonKonaBaseFlags(ctx *cli.Context, traceType types.TraceType) error
 			L1GenesisFlag.SourceFlagName(ctx, types.TraceTypeCannonKona))
 	}
 	if ctx.Bool(CannonKonaL2CustomFlag.Name) &&
-		!(RollupConfigFlag.IsSet(ctx, traceType) && L2GenesisFlag.IsSet(ctx, traceType) && L1GenesisFlag.IsSet(ctx, traceType)) {
+		!(RollupConfigFlag.IsSet(ctx, traceType) && L2GenesisFlag.IsSet(ctx, traceType)) {
 		return fmt.Errorf("flag %v, %v and %v must be set when %v is true",
 			RollupConfigFlag.EitherFlagName(traceType),
 			L2GenesisFlag.EitherFlagName(traceType),
-			L1GenesisFlag.EitherFlagName(traceType),
 			CannonKonaL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(CannonBinFlag.Name) {
@@ -490,11 +487,10 @@ func CheckAsteriscBaseFlags(ctx *cli.Context, traceType types.TraceType) error {
 			L1GenesisFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona))
 	}
 	if ctx.Bool(AsteriscKonaL2CustomFlag.Name) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && L1GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona)) {
+		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeAsteriscKona) && L2GenesisFlag.IsSet(ctx, types.TraceTypeAsteriscKona)) {
 		return fmt.Errorf("flag %v, %v and %v must be set when %v is true",
 			RollupConfigFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona),
 			L2GenesisFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona),
-			L1GenesisFlag.SourceFlagName(ctx, types.TraceTypeAsteriscKona),
 			AsteriscKonaL2CustomFlag.Name)
 	}
 	if !ctx.IsSet(AsteriscBinFlag.Name) {
