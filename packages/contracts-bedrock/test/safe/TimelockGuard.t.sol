@@ -532,7 +532,7 @@ contract TimelockGuard_PendingTransactions_Test is TimelockGuard_TestInit {
 contract TimelockGuard_signCancellation_Test is TimelockGuard_TestInit {
     function test_signCancellation_succeeds() external {
         vm.expectEmit(true, true, true, true);
-        emit Message("This function not meant to be called, did you mean to call cancelTransaction?");
+        emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
         timelockGuard.signCancellation(bytes32(0));
     }
 }
