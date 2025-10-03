@@ -28,7 +28,8 @@ const (
 )
 
 type L1BeaconClientConfig struct {
-	FetchAllSidecars bool
+	FetchAllSidecars     bool
+	SkipBlobVerification bool
 }
 
 // L1BeaconClient is a high level golang client for the Beacon API.
@@ -37,9 +38,8 @@ type L1BeaconClient struct {
 	pool *ClientPool[apis.BlobSideCarsClient]
 	cfg  L1BeaconClientConfig
 
-	initLock             sync.Mutex
-	timeToSlotFn         TimeToSlotFn
-	skipBlobVerification bool
+	initLock     sync.Mutex
+	timeToSlotFn TimeToSlotFn
 }
 
 // BeaconHTTPClient implements BeaconClient. It provides golang types over the basic Beacon API.
@@ -160,13 +160,12 @@ func (p *ClientPool[T]) MoveToNext() {
 // NewL1BeaconClient returns a client for making requests to an L1 consensus layer node.
 // Fallbacks are optional clients that will be used for fetching blobs. L1BeaconClient will rotate between
 // the `cl` and the fallbacks whenever a client runs into an error while fetching blobs.
-func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, skipBlobVerification bool, fallbacks ...apis.BlobSideCarsClient) *L1BeaconClient {
+func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, fallbacks ...apis.BlobSideCarsClient) *L1BeaconClient {
 	cs := append([]apis.BlobSideCarsClient{cl}, fallbacks...)
 	return &L1BeaconClient{
-		cl:                   cl,
-		pool:                 NewClientPool(cs...),
-		cfg:                  cfg,
-		skipBlobVerification: skipBlobVerification,
+		cl:   cl,
+		pool: NewClientPool(cs...),
+		cfg:  cfg,
 	}
 }
 
@@ -273,7 +272,7 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes, cl.skipBlobVerification)
+	blobs, err := blobsFromSidecars(blobSidecars, hashes, cl.cfg.SkipBlobVerification)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
 	}

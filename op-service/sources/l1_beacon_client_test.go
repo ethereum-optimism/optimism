@@ -174,7 +174,7 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
 	f := mocks.NewBlobSideCarsClient(t)
-	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, false, f)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 	// Timestamp 12 = Slot 1
@@ -198,7 +198,7 @@ func TestBeaconClientFallback(t *testing.T) {
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
 	f := mocks.NewBlobSideCarsClient(t)
-	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, false, f)
+	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 	// Timestamp 12 = Slot 1
@@ -246,14 +246,14 @@ func TestBeaconClientSkipBlobVerification(t *testing.T) {
 
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-	clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{}, false)
+	clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{SkipBlobVerification: false})
 	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 	_, err := clientWithValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
 	assert.Error(t, err)
 
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-	clientWithoutValidation := NewL1BeaconClient(p, L1BeaconClientConfig{}, true)
+	clientWithoutValidation := NewL1BeaconClient(p, L1BeaconClientConfig{SkipBlobVerification: true})
 	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 	_, err = clientWithoutValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
 	assert.NoError(t, err)

@@ -362,9 +362,10 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *config.Config) error 
 		return fmt.Errorf("failed to setup L1 Beacon API client: %w", err)
 	}
 	beaconCfg := sources.L1BeaconClientConfig{
-		FetchAllSidecars: cfg.Beacon.ShouldFetchAllSidecars(),
+		FetchAllSidecars:     cfg.Beacon.ShouldFetchAllSidecars(),
+		SkipBlobVerification: cfg.Beacon.ShouldSkipBlobVerification(),
 	}
-	n.beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg, cfg.Beacon.ShouldSkipBlobVerification(), fallbacks...)
+	n.beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
 
 	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
 	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {
