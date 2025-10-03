@@ -163,9 +163,10 @@ func (p *ClientPool[T]) MoveToNext() {
 func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, skipBlobVerification bool, fallbacks ...apis.BlobSideCarsClient) *L1BeaconClient {
 	cs := append([]apis.BlobSideCarsClient{cl}, fallbacks...)
 	return &L1BeaconClient{
-		cl:   cl,
-		pool: NewClientPool(cs...),
-		cfg:  cfg,
+		cl:                   cl,
+		pool:                 NewClientPool(cs...),
+		cfg:                  cfg,
+		skipBlobVerification: skipBlobVerification,
 	}
 }
 
