@@ -71,6 +71,15 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_TestInit {
         );
     }
 }
+/// @title ProtocolVersions_Version_Test
+/// @notice Test contract for ProtocolVersions `version` getter.
+
+contract ProtocolVersions_Version_Test is ProtocolVersions_TestInit {
+    /// @notice Tests that the version getter returns a valid string.
+    function test_version_succeeds() external view {
+        assertGt(bytes(protocolVersions.version()).length, 0);
+    }
+}
 
 /// @title ProtocolVersions_SetRequired_Test
 /// @notice Test contract for ProtocolVersions `setRequired` function.
