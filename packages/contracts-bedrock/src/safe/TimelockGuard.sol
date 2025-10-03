@@ -610,6 +610,6 @@ contract TimelockGuard is IGuard, ISemver {
     /// @notice Dummy function provided as a utility to facilitate signing cancelTransaction data in
     ///         the Safe UI.
     function signCancellation(bytes32) public {
-        emit Message("This function not meant to be called, did you mean to call cancelTransaction?");
+        emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
     }
 }
