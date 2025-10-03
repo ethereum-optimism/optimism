@@ -73,7 +73,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			SuperchainConfigProxy:           proxyAddress,
 			ProtocolVersionsProxy:           protocolVersionsAddress,
 			SuperchainProxyAdmin:            proxyAdminAddress,
-			L1PAO:                           common.BigToAddress(big.NewInt(13)),
+			L1ProxyAdminOwner:               common.BigToAddress(big.NewInt(13)),
 			Challenger:                      common.BigToAddress(big.NewInt(14)),
 		})
 

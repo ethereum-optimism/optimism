@@ -83,7 +83,7 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			SuperchainProxyAdmin:            proxyAdminOwner,
-			L1PAO:                           proxyAdminOwner,
+			L1ProxyAdminOwner:               proxyAdminOwner,
 			Challenger:                      common.Address{'C'},
 			CacheDir:                        cacheDir,
 		})

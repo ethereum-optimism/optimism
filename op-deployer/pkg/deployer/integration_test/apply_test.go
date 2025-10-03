@@ -103,7 +103,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
-			L1PAO:                           superchainPAO,
+			L1ProxyAdminOwner:               superchainPAO,
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,

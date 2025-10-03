@@ -45,7 +45,7 @@ type ImplementationsConfig struct {
 	FaultGameMaxClockDuration       uint64             `cli:"fault-game-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
-	L1PAO                           common.Address     `cli:"l1-proxy-admin-owner"`
+	L1ProxyAdminOwner               common.Address     `cli:"l1-proxy-admin-owner"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
@@ -115,7 +115,7 @@ func (c *ImplementationsConfig) Check() error {
 	if c.ProtocolVersionsProxy == (common.Address{}) {
 		return errors.New("protocol versions proxy must be specified")
 	}
-	if c.L1PAO == (common.Address{}) {
+	if c.L1ProxyAdminOwner == (common.Address{}) {
 		return errors.New("l1 proxy admin owner must be specified")
 	}
 	if c.SuperchainProxyAdmin == (common.Address{}) {
@@ -232,7 +232,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-			L1PAO:                           cfg.L1PAO,
+			L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
 			Challenger:                      cfg.Challenger,
 		},
 	); err != nil {
