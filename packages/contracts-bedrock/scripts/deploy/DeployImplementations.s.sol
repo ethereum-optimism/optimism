@@ -40,7 +40,6 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployImplementations is Script {
@@ -701,7 +700,7 @@ contract DeployImplementations is Script {
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) private view {
+    function assertValidOutput(Input memory _input, Output memory _output) private {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -781,8 +780,7 @@ contract DeployImplementations is Script {
             _isProxy: false
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
-        // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
-        ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }

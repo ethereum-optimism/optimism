@@ -617,10 +617,10 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     }
 }
 
-/// @title L1CrossDomainMessenger_Unclassified_Test
+/// @title DeputyPauseModule_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `DeputyPauseModule`
 ///         contract or are testing multiple functions at once.
-contract DeputyPauseModule_Unclassified_Test is DeputyPauseModule_TestInit {
+contract DeputyPauseModule_Uncategorized_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that the getters work.
     function test_getters_works() external view {
         assertEq(address(deputyPauseModule.guardianSafe()), address(guardianSafeInstance.safe));

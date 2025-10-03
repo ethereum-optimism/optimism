@@ -304,6 +304,17 @@ func (s *L1Miner) ActEmptyBlock(t Testing) *types.Block {
 	return s.ActL1EndBlock(t)
 }
 
+func (s *L1Miner) ActBuildToOsaka(t Testing) *types.Block {
+	t.Helper()
+	require.NotNil(t, s.l1Cfg.Config.OsakaTime, "cannot activate OsakaTime when it is not scheduled")
+	h := s.L1Chain().CurrentHeader()
+	for h.Time < *s.l1Cfg.Config.OsakaTime {
+		h = s.ActEmptyBlock(t).Header()
+	}
+	require.True(t, s.l1Cfg.Config.IsOsaka(h.Number, h.Time), "Osaka not active at block", h.Number)
+	return s.L1Chain().GetBlockByHash(h.Hash())
+}
+
 func (s *L1Miner) Close() error {
 	return s.L1Replica.Close()
 }

@@ -39,7 +39,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
+		txData, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		tx := types.NewTx(txData)
 		block := api.addBlock(tx)
@@ -57,7 +57,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		txData, err := derive.L1InfoDeposit(rollupCfg, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
+		txData, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 1, eth.HeaderBlockInfo(genesis), 0)
 		api.assert.NoError(err)
 		txData.Gas = uint64(gasLimit + 1)
 		tx := types.NewTx(txData)

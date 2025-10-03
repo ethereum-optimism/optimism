@@ -9,11 +9,12 @@ import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 import { DelegateCaller } from "test/mocks/Callers.sol";
 
 // Scripts
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
+import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
+import { Types } from "scripts/libraries/Types.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -1694,79 +1695,57 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
 
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
-    function setUp() public override {
-        DeployOPChain_TestBase.setUp();
-
-        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
-        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
-        doi.set(doi.batcher.selector, batcher);
-        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
-        doi.set(doi.proposer.selector, proposer);
-        doi.set(doi.challenger.selector, challenger);
-        doi.set(doi.basefeeScalar.selector, basefeeScalar);
-        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
-        doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opcm.selector, address(opcm));
-        doi.set(doi.gasLimit.selector, gasLimit);
-
-        doi.set(doi.disputeGameType.selector, disputeGameType);
-        doi.set(doi.disputeAbsolutePrestate.selector, disputeAbsolutePrestate);
-        doi.set(doi.disputeMaxGameDepth.selector, disputeMaxGameDepth);
-        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
-        doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
-        doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
-    }
-
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
     // to the input struct type defined in OPContractsManager.sol.
-    function toOPCMDeployInput(DeployOPChainInput _doi)
+    function toOPCMDeployInput(Types.DeployOPChainInput memory _doi)
         internal
-        view
         returns (IOPContractsManager.DeployInput memory)
     {
+        bytes memory startingAnchorRoot = new DeployOPChain().startingAnchorRoot();
         return IOPContractsManager.DeployInput({
             roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
-                systemConfigOwner: _doi.systemConfigOwner(),
-                batcher: _doi.batcher(),
-                unsafeBlockSigner: _doi.unsafeBlockSigner(),
-                proposer: _doi.proposer(),
-                challenger: _doi.challenger()
+                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner,
+                systemConfigOwner: _doi.systemConfigOwner,
+                batcher: _doi.batcher,
+                unsafeBlockSigner: _doi.unsafeBlockSigner,
+                proposer: _doi.proposer,
+                challenger: _doi.challenger
             }),
-            basefeeScalar: _doi.basefeeScalar(),
-            blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId(),
-            startingAnchorRoot: _doi.startingAnchorRoot(),
-            saltMixer: _doi.saltMixer(),
-            gasLimit: _doi.gasLimit(),
-            disputeGameType: _doi.disputeGameType(),
-            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
-            disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
-            disputeSplitDepth: _doi.disputeSplitDepth(),
-            disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
+            basefeeScalar: _doi.basefeeScalar,
+            blobBasefeeScalar: _doi.blobBaseFeeScalar,
+            l2ChainId: _doi.l2ChainId,
+            startingAnchorRoot: startingAnchorRoot,
+            saltMixer: _doi.saltMixer,
+            gasLimit: _doi.gasLimit,
+            disputeGameType: _doi.disputeGameType,
+            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate,
+            disputeMaxGameDepth: _doi.disputeMaxGameDepth,
+            disputeSplitDepth: _doi.disputeSplitDepth,
+            disputeClockExtension: _doi.disputeClockExtension,
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration
         });
     }
 
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = 0;
+        IOPContractsManager.DeployInput memory input = toOPCMDeployInput(deployOPChainInput);
+        input.l2ChainId = 0;
+
         vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
+        opcm.deploy(input);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
-        deployInput.l2ChainId = block.chainid;
+        IOPContractsManager.DeployInput memory input = toOPCMDeployInput(deployOPChainInput);
+        input.l2ChainId = block.chainid;
 
         vm.expectRevert(IOPContractsManager.InvalidChainId.selector);
-        opcm.deploy(deployInput);
+        opcm.deploy(input);
     }
 
     function test_deploy_succeeds() public {
         vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
-        emit Deployed(doi.l2ChainId(), address(this), bytes(""));
-        opcm.deploy(toOPCMDeployInput(doi));
+        emit Deployed(deployOPChainInput.l2ChainId, address(this), bytes(""));
+        opcm.deploy(toOPCMDeployInput(deployOPChainInput));
     }
 }
 
