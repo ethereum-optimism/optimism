@@ -11,5 +11,4 @@
 # Policies
 
 - [Solidity Upgrades](./policies/solidity-upgrades.md)
-- [Code Freezes](./policies/code-freezes.md)
 - [Versioning](./policies/versioning.md)
