@@ -61,5 +61,9 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		args = append(args, "--l1-config-path", cfg.L1GenesisPath)
 	}
 
+	if cfg.L1BeaconSkipBlobVerification {
+		args = append(args, "--l1-beacon-skip-blob-verification")
+	}
+
 	return args, nil
 }

@@ -20,8 +20,8 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	toPairs := func(args []string) map[string]string {
 		pairs := make(map[string]string, len(args)/2)
 		for i := 0; i < len(args); i += 2 {
-			// l2.custom is a boolean flag so can't accept a value after a space
-			if args[i] == "--l2.custom" {
+			// Boolean flags can't accept a value after a space
+			if args[i] == "--l2.custom" || args[i] == "--l1.beacon.skip-blob-verification" {
 				pairs[args[i]] = "true"
 				i--
 				continue
@@ -217,4 +217,18 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 			require.Equal(t, pairs["--log.level"], logTest.arg)
 		})
 	}
+
+	t.Run("WithoutL1BeaconSkipBlobVerification", func(t *testing.T) {
+		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+			c.L1BeaconSkipBlobVerification = false
+		})
+		require.NotContains(t, pairs, "--l1.beacon.skip-blob-verification")
+	})
+
+	t.Run("WithL1BeaconSkipBlobVerification", func(t *testing.T) {
+		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
+			c.L1BeaconSkipBlobVerification = true
+		})
+		require.Equal(t, "true", pairs["--l1.beacon.skip-blob-verification"])
+	})
 }
