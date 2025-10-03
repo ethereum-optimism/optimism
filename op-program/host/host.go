@@ -80,9 +80,6 @@ func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV
 	if !cfg.FetchingEnabled() {
 		return nil, nil
 	}
-	if cfg.L1BeaconSkipBlobVerification {
-		logger.Warn("Blob verification is DISABLED. This should only be used for testing and development. NOT FOR PRODUCTION USE.")
-	}
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
 	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialAttempts(10))
 	if err != nil {

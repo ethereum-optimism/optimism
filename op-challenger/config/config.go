@@ -67,7 +67,7 @@ const (
 type Config struct {
 	L1EthRpc                     string           // L1 RPC Url
 	L1Beacon                     string           // L1 Beacon API Url
-	L1BeaconSkipBlobVerification bool             // Skip blob verification when fetching blobs from L1 beacon (testing only)
+	L1BeaconSkipBlobVerification bool             // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
 	GameFactoryAddress           common.Address   // Address of the dispute game factory
 	GameAllowlist                []common.Address // Allowlist of fault game addresses
 	GameWindow                   time.Duration    // Maximum time duration to look for games to progress

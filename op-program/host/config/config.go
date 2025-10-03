@@ -63,7 +63,7 @@ type Config struct {
 	L1Head                       common.Hash
 	L1URL                        string
 	L1BeaconURL                  string
-	L1BeaconSkipBlobVerification bool // Skip verification of KZG proofs for blobs. NOT FOR PRODUCTION USE
+	L1BeaconSkipBlobVerification bool // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
 	L1TrustRPC                   bool
 	L1RPCKind                    sources.RPCProviderKind
 

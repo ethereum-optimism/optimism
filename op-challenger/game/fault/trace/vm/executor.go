@@ -51,7 +51,7 @@ type Config struct {
 	// Host Configuration
 	L1                           string
 	L1Beacon                     string
-	L1BeaconSkipBlobVerification bool // Skip blob verification when fetching blobs from L1 beacon (testing only)
+	L1BeaconSkipBlobVerification bool // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
 	L2s                          []string
 	L2Experimental               string
 	Server                       string // Path to the executable that provides the pre-image oracle server

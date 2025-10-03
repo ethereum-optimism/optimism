@@ -284,9 +284,8 @@ var (
 		Value:   config.DefaultResponseDelayAfter,
 	}
 	L1BeaconSkipBlobVerificationFlag = &cli.BoolFlag{
-		Name: "l1-beacon-skip-blob-verification",
-		Usage: "Skip blob verification when fetching blobs from the L1 beacon client. " +
-			"WARNING: This is NOT FOR PRODUCTION and must only be used for testing purposes.",
+		Name:    "l1-beacon-skip-blob-verification",
+		Usage:   "Skip verification of the KZG proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
 		EnvVars: prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
 		Value:   false,
 		Hidden:  true,

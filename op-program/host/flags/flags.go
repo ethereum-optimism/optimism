@@ -114,7 +114,7 @@ var (
 	}
 	L1BeaconSkipBlobVerification = &cli.BoolFlag{
 		Name:    "l1.beacon.skip-blob-verification",
-		Usage:   "Skip verification of the kzg_proof for each blob returned by the Beacon node. NOT FOR USE IN PRODUCTION",
+		Usage:   "Skip verification of the kzg_proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
 		Value:   false,
 		EnvVars: prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
 	}
