@@ -56,10 +56,10 @@ func (*noopMetrics) RecordUnsafeDABytes(int64) {}
 func (*noopMetrics) RecordThrottleControllerState(error, integral, derivative float64) {}
 func (*noopMetrics) RecordThrottleResponseTime(duration time.Duration)                 {}
 
-func (*noopMetrics) RecordBatchTxSubmitted() {}
-func (*noopMetrics) RecordBatchTxSuccess()   {}
-func (*noopMetrics) RecordBatchTxFailed()    {}
-func (*noopMetrics) RecordBlobUsedBytes(int) {}
+func (*noopMetrics) RecordBatchTxSubmitted(string) {}
+func (*noopMetrics) RecordBatchTxSuccess(string)   {}
+func (*noopMetrics) RecordBatchTxFailed(string)    {}
+func (*noopMetrics) RecordBlobUsedBytes(int)       {}
 func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Address) io.Closer {
 	return nil
 }
@@ -78,3 +78,5 @@ func (nm *ThrottlingMetrics) PendingDABytes() float64 {
 }
 
 func (*noopMetrics) ClearAllStateMetrics() {}
+
+func (*noopMetrics) RecordFailoverToEthDA() {}

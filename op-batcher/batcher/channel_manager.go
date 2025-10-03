@@ -147,16 +147,18 @@ func (s *channelManager) TxFailed(_id txID) {
 func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 
 	id := _id.String()
+	daType := DaTypeCalldata
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		if timedOut := channel.TxConfirmed(id, inclusionBlock); timedOut {
 			s.log.Warn("channel timed out on chain", "channel_id", channel.ID(), "tx_id", id)
 			s.handleChannelInvalidated(channel)
 		}
+		daType = channel.cfg.DaType
 	} else {
 		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
 	}
-	s.metr.RecordBatchTxSubmitted()
+	s.metr.RecordBatchTxSubmitted(daType.String())
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 }
 

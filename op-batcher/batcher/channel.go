@@ -81,7 +81,6 @@ func (c *channel) rewindAltDAFrameCursor(txData txData) {
 // It rewinds the channelBuilder's frameCursor to the first frame of the failed txData,
 // so that the frames can be resubmitted. failoverToEthDA should be set to true when using altDA
 // and altDA is down. This will switch the channel to submit frames to ethDA instead.
-// TODO: add a metric for altDA submission failures.
 func (c *channel) AltDASubmissionFailed(id string, failoverToEthDA bool) {
 	// We coopt TxFailed to rewind the frame cursor.
 	// This will force a resubmit of all the following frames as well,
@@ -100,6 +99,7 @@ func (c *channel) AltDASubmissionFailed(id string, failoverToEthDA bool) {
 		// batcherService.initChannelConfig function stateless so that we can reuse it.
 		c.log.Info("Failing over to calldata txs", "id", c.ID())
 		c.cfg.DaType = DaTypeCalldata
+		c.metr.RecordFailoverToEthDA()
 	}
 }
 
@@ -124,13 +124,13 @@ func (c *channel) TxFailed(id string) {
 	} else {
 		c.log.Warn("unknown transaction marked as failed", "id", id)
 	}
-	c.metr.RecordBatchTxFailed()
+	c.metr.RecordBatchTxFailed(c.cfg.DaType.String())
 }
 
 // TxConfirmed marks a transaction as confirmed on L1. Returns a bool indicating
 // whether the channel timed out on chain.
 func (c *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) bool {
-	c.metr.RecordBatchTxSuccess()
+	c.metr.RecordBatchTxSuccess(c.cfg.DaType.String())
 	c.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := c.pendingTransactions[id]; !ok {
 		c.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)

@@ -59,15 +59,17 @@ type Metricer interface {
 	// It should be called when clearing the ChannelManager state.
 	ClearAllStateMetrics()
 
-	RecordBatchTxSubmitted()
-	RecordBatchTxSuccess()
-	RecordBatchTxFailed()
+	RecordBatchTxSubmitted(daType string)
+	RecordBatchTxSuccess(daType string)
+	RecordBatchTxFailed(daType string)
 
 	RecordBlobUsedBytes(num int)
 
 	Document() []opmetrics.DocumentedMetric
 
 	PendingDABytes() float64
+
+	RecordFailoverToEthDA()
 }
 
 type Metrics struct {
@@ -122,6 +124,8 @@ type Metrics struct {
 	pidControllerIntegral   prometheus.Gauge
 	pidControllerDerivative prometheus.Gauge
 	pidResponseTime         prometheus.Histogram
+
+	eigenDAFailoverToEthDA prometheus.Counter
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -235,7 +239,7 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 14),
 		}),
 
-		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
+		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage", "datype"}),
 
 		throttleIntensity: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -297,6 +301,11 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "unsafe_da_bytes",
 			Help:      "The estimated number of unsafe DA bytes",
+		}),
+		eigenDAFailoverToEthDA: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "eigenda_failover_total",
+			Help:      "Total number of failovers to EthDA",
 		}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
@@ -428,16 +437,16 @@ func (m *Metrics) RecordChannelTimedOut(id derive.ChannelID) {
 	m.channelEvs.Record(StageTimedOut)
 }
 
-func (m *Metrics) RecordBatchTxSubmitted() {
-	m.batcherTxEvs.Record(TxStageSubmitted)
+func (m *Metrics) RecordBatchTxSubmitted(daType string) {
+	m.batcherTxEvs.Record(TxStageSubmitted, daType)
 }
 
-func (m *Metrics) RecordBatchTxSuccess() {
-	m.batcherTxEvs.Record(TxStageSuccess)
+func (m *Metrics) RecordBatchTxSuccess(daType string) {
+	m.batcherTxEvs.Record(TxStageSuccess, daType)
 }
 
-func (m *Metrics) RecordBatchTxFailed() {
-	m.batcherTxEvs.Record(TxStageFailed)
+func (m *Metrics) RecordBatchTxFailed(daType string) {
+	m.batcherTxEvs.Record(TxStageFailed, daType)
 }
 
 func (m *Metrics) RecordBlobUsedBytes(num int) {
@@ -510,4 +519,9 @@ func (m *Metrics) RecordThrottleControllerState(error, integral, derivative floa
 // RecordThrottleResponseTime records the response time of the PID controller
 func (m *Metrics) RecordThrottleResponseTime(duration time.Duration) {
 	m.pidResponseTime.Observe(duration.Seconds())
+}
+
+// RecordFailoverToEthDA records when the system fails over to EthDA
+func (m *Metrics) RecordFailoverToEthDA() {
+	m.eigenDAFailoverToEthDA.Inc()
 }
