@@ -143,8 +143,13 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 
 		require := p.Require()
 
+		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		require.True(ok, "l1 network required")
+
 		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
 		require.True(ok, "l2 network required")
+
+		l1ChainConfig := l1Net.genesis.Config
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
@@ -168,6 +173,11 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NoError(err, "must write rollup config")
 		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
 
+		tempL1CfgPath := filepath.Join(tempKonaDir, "l1-chain-config.json")
+		l1CfgData, err := json.Marshal(l1ChainConfig)
+		p.Require().NoError(err, "must write l1 chain config")
+		p.Require().NoError(err, os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
+
 		envVars := []string{
 			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
@@ -176,6 +186,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
 			"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
+			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 			"KONA_NODE_P2P_NO_DISCOVERY=true",
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 			"KONA_NODE_RPC_ADDR=127.0.0.1",

@@ -107,6 +107,14 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
 		Category: L1RPCCategory,
 	}
+	BeaconSkipBlobVerification = &cli.BoolFlag{
+		Name:     "l1.beacon.skip-blob-verification",
+		Usage:    "If true, skips the verification of the kzg_proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
+		Required: false,
+		Value:    false,
+		EnvVars:  prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
+		Category: L1RPCCategory,
+	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
 		Usage:   fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
@@ -186,6 +194,12 @@ var (
 		EnvVars:  prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
+	}
+	L1ChainConfig = &cli.PathFlag{
+		Name:     "rollup.l1-chain-config",
+		Usage:    "Path to .json file with the chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary / will be ignored if using Ethereum mainnet or Sepolia as an L1.",
+		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
+		Category: RollupCategory,
 	}
 	L2EngineKind = &cli.GenericFlag{
 		Name: "l2.enginekind",
@@ -428,6 +442,7 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
+	BeaconSkipBlobVerification,
 	SyncModeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
@@ -456,6 +471,7 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	L1ChainConfig,
 	L2EngineKind,
 	L2EngineRpcTimeout,
 	InteropRPCAddr,

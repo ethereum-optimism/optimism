@@ -3,6 +3,7 @@ package boot
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -24,6 +25,7 @@ type BootInfo struct {
 
 	L2ChainConfig *params.ChainConfig
 	RollupConfig  *rollup.Config
+	L1ChainConfig *params.ChainConfig
 }
 
 type BootstrapClient struct {
@@ -41,6 +43,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(L2ClaimBlockNumberLocalIndex))
 	l2ChainID := eth.ChainIDFromUInt64(binary.BigEndian.Uint64(br.r.Get(L2ChainIDLocalIndex)))
 
+	var l1ChainConfig *params.ChainConfig
 	var l2ChainConfig *params.ChainConfig
 	var rollupConfig *rollup.Config
 	if l2ChainID == CustomChainIDIndicator {
@@ -54,13 +57,27 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		if err != nil {
 			panic("failed to bootstrap rollup config")
 		}
+		l1ChainConfig = new(params.ChainConfig)
+		err = json.Unmarshal(br.r.Get(L1ChainConfigLocalIndex), l1ChainConfig)
+		if err != nil {
+			panic("failed to bootstrap l1ChainConfig: " + fmt.Sprintf("%v", err))
+		}
+		if l1ChainConfig.ChainID.Cmp(rollupConfig.L1ChainID) != 0 {
+			panic(fmt.Sprintf("l1ChainConfig chain ID does not match rollup config L1 chain ID: %v != %v",
+				l1ChainConfig.ChainID, rollupConfig.L1ChainID))
+		}
 	} else {
 		var err error
 		rollupConfig, err = chainconfig.RollupConfigByChainID(l2ChainID)
 		if err != nil {
 			panic(err)
 		}
-		l2ChainConfig, err = chainconfig.ChainConfigByChainID(l2ChainID)
+		l1ChainID := eth.ChainIDFromBig(rollupConfig.L1ChainID)
+		l1ChainConfig, err = chainconfig.L1ChainConfigByChainID(l1ChainID)
+		if err != nil {
+			panic(err)
+		}
+		l2ChainConfig, err = chainconfig.L2ChainConfigByChainID(l2ChainID)
 		if err != nil {
 			panic(err)
 		}
@@ -74,5 +91,6 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		L2ChainID:          l2ChainID,
 		L2ChainConfig:      l2ChainConfig,
 		RollupConfig:       rollupConfig,
+		L1ChainConfig:      l1ChainConfig,
 	}
 }
