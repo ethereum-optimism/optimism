@@ -297,13 +297,14 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
 		}
 
-		if skipBlobVerification { // interpreting "skip verification" as "do inefficient but effective verification without using the proof from the sidecar"
-			blobProof, err := kzg4844.ComputeBlobProof(sidecar.Blob.KZGBlob(), kzg4844.Commitment(sidecar.KZGCommitment))
+		if skipBlobVerification { // interpreting "skip verification" as "do simpler verification which doesn't require the proof from the sidecar"
+			// recompute the commitment from the blob data and check it matches the commitment from the sidecar
+			recomputedCommitment, err := kzg4844.BlobToCommitment(sidecar.Blob.KZGBlob())
 			if err != nil {
-				return nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d: %w", i, err)
+				return nil, fmt.Errorf("cannot compute KZG commitment for blob %d: %w", i, err)
 			}
-			if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), blobProof); err != nil {
-				return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
+			if recomputedCommitment != kzg4844.Commitment(sidecar.KZGCommitment) {
+				return nil, fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitment, kzg4844.Commitment(sidecar.KZGCommitment))
 			}
 		} else {
 			// confirm blob data is valid by verifying its proof against the commitment
