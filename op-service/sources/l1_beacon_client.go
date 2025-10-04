@@ -297,7 +297,15 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
 		}
 
-		if !skipBlobVerification {
+		if skipBlobVerification { // interpreting "skip verification" as "do inefficient but effective verification without using the proof from the sidecar"
+			blobProof, err := kzg4844.ComputeBlobProof(sidecar.Blob.KZGBlob(), kzg4844.Commitment(sidecar.KZGCommitment))
+			if err != nil {
+				return nil, fmt.Errorf("cannot compute KZG cell proofs for blob %d: %w", i, err)
+			}
+			if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), blobProof); err != nil {
+				return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
+			}
+		} else {
 			// confirm blob data is valid by verifying its proof against the commitment
 			if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
 				return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
