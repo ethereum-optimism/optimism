@@ -19,23 +19,27 @@ url.workspace = true
 sha2.workspace = true
 
 reth-optimism-payload-builder.workspace = true
+reth-rpc-eth-types.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-eth.workspace = true
+alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
 alloy-serde.workspace = true
+alloy-rpc-client = { workspace = true, features = ["hyper"]}
+alloy-transport = {workspace = true}
+alloy-transport-http = {workspace = true, features = ["hyper", "hyper-tls"]}
 
 tokio-tungstenite.workspace = true
 metrics-derive.workspace = true
 testcontainers.workspace = true
 
-# TODO: update to latest release when it is published
-# jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
-jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = [
-    "server",
-    "http-client",
-    "macros",
-] }
+# rpc
+jsonrpsee = { version = "0.26.0", features = ["server", "http-client", "macros"] }
+jsonrpsee-core = "0.26.0"
+jsonrpsee-server = "0.26.0"
+jsonrpsee-http-client = "0.26.0"
+jsonrpsee-types = "0.26.0"
 moka = { version = "0.12.10", features = ["future"] }
 http = "1.1.0"
 dotenvy = "0.15.7"

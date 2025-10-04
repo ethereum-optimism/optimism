@@ -1,3 +1,4 @@
 pub mod auth;
-pub mod http;
+pub mod error;
+pub mod proxy_rpc;
 pub mod rpc;
