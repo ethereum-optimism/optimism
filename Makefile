@@ -330,3 +330,19 @@ test: go-tests ## Runs comprehensive Go tests (alias for go-tests)
 update-op-geth: ## Updates the Geth version used in the project
 	./ops/scripts/update-op-geth.py
 .PHONY: update-op-geth
+
+mise.sha256sum: mise.toml Containerfile.mise ## Update the sumfile used by `make shell`
+	docker build -f Containerfile.mise --output type=local,dest=/tmp/mise-build --target mise-lock --build-arg GITHUB_TOKEN=$(GITHUB_TOKEN) .
+	cp /tmp/mise-build/mise.sha256sum .
+
+pip.sha256sum: requirements-tools.txt Containerfile.mise ## Update the sumfile used to install Python dependencies
+	docker build -f Containerfile.mise --output type=local,dest=/tmp/mise-build --target mise-lock --build-arg GITHUB_TOKEN=$(GITHUB_TOKEN) .
+	cp /tmp/mise-build/pip.sha256sum .
+	cp /tmp/mise-build/requirements-tools.freeze.txt .
+
+# NOTE: This should _not_ depend on mise.sha256sum, to avoid automatically
+# updating the lockfile w/o review.
+shell: ## Spawn a shell with all necessary development tools accessible
+	docker build -f Containerfile.mise --tag optimism-shell --target mise-shell --build-arg GITHUB_TOKEN=$(GITHUB_TOKEN) .
+	docker run -it optimism-shell /bin/bash
+.PHONY: shell

@@ -1,0 +1,57 @@
+ARG GITHUB_TOKEN
+
+# Rust 1.88, stagex 2025.08.0
+FROM stagex/pallet-rust@sha256:b9021d2b75eac64fe8b931d96dde63ef11792e5023cee77c3471ccc34a95a377 AS build
+
+# If the version changes, the hash will also change.
+ARG MISE_HASH=252f669ed2b2272984ac64761b01df78a4c69eab0b108b33254104012d6c776a
+ARG MISE_VERSION=2025.9.16
+ADD --checksum=sha256:${MISE_HASH} https://github.com/jdx/mise/archive/refs/tags/v${MISE_VERSION}.tar.gz /build/
+
+# Unpack the release, as Docker does not do this automatically for downloaded tarballs
+WORKDIR /build
+RUN --network=none tar xzf v${MISE_VERSION}.tar.gz && rm v${MISE_VERSION}.tar.gz
+
+# Fetch locked dependencies while online, but build offline
+WORKDIR /build/mise-${MISE_VERSION}
+RUN cargo fetch
+# Enable static binaries, so it can be copied to a stock Debian container
+ENV RUSTFLAGS="-C target-feature=+crt-static"
+ENV CARGO_TARGET_DIR=/tmp/cargo-target
+RUN --network=none --mount=type=cache,target=/tmp/cargo-target cargo build --frozen --release --bin mise --target x86_64-unknown-linux-musl && cp /tmp/cargo-target/x86_64-unknown-linux-musl/release/mise /build/mise
+
+FROM debian:trixie AS mise-rt
+COPY --from=build /build/mise /opt/mise/bin/mise
+RUN apt update && apt install -y libunwind8 binutils ca-certificates curl git python3 python3-pip
+
+ADD . /optimism
+WORKDIR /optimism
+ENV MISE_DATA_DIR=/opt/mise/data
+ENV MISE_CACHE_DIR=/opt/mise/var/cache
+ARG GITHUB_TOKEN
+ENV MISE_GITHUB_TOKEN=${GITHUB_TOKEN}
+RUN /opt/mise/bin/mise trust -a
+RUN --mount=type=cache,target=/opt/mise/var/cache /opt/mise/bin/mise install -y
+
+FROM mise-rt AS mise-locker
+RUN find /opt/mise/data -type f -exec sha256sum {} + > /mise.sha256sum
+RUN pip install -r requirements-tools.txt --break-system-packages
+RUN pip freeze -r requirements-tools.txt > requirements-tools.freeze.txt
+RUN find /usr/local | grep -E "(/__pycache__|\.pyc|\.pyo|RECORD)$" | xargs rm -rf
+RUN find /usr/local -type f -exec sha256sum {} + > /pip.sha256sum
+
+FROM scratch AS mise-lock
+COPY --from=mise-locker /mise.sha256sum /
+COPY --from=mise-locker /pip.sha256sum /
+COPY --from=mise-locker /optimism/requirements-tools.freeze.txt /
+
+FROM mise-rt AS mise-shell
+ADD mise.sha256sum /mise.sha256sum
+ADD pip.sha256sum /pip.sha256sum
+ADD requirements-tools.freeze.txt .
+WORKDIR /optimism
+ENV MISE_DATA_DIR=/opt/mise/data
+ENV MISE_CACHE_DIR=/opt/mise/var/cache
+RUN pip install -r requirements-tools.freeze.txt --break-system-packages
+RUN sha256sum --quiet -c /pip.sha256sum
+RUN sha256sum --quiet -c /mise.sha256sum
