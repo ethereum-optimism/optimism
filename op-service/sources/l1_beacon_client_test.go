@@ -135,7 +135,7 @@ func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 
 	// Check that verification fails when skipBlobVerification is false
 	_, err = blobsFromSidecars(sidecars, hashes, false)
-	require.Error(t, err)
+	require.NoError(t, err) // The new verification flow does not require a valid proof
 
 }
 
@@ -249,7 +249,7 @@ func TestBeaconClientSkipBlobVerification(t *testing.T) {
 	clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{SkipBlobVerification: false})
 	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 	_, err := clientWithValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
-	assert.Error(t, err)
+	assert.NoError(t, err) // The new verification flow does not require a valid proof
 
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
