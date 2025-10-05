@@ -1686,7 +1686,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                         _l2ChainId: block.timestamp,
                         _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
-                        _contractName: "DelayedWETH-Interop-Cannon"
+                        _contractName: "DelayedWETH-Interop-Permissionless"
                     })
                 )
             );

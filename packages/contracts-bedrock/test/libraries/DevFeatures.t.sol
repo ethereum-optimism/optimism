@@ -7,7 +7,7 @@ import { Test } from "forge-std/Test.sol";
 // Target contract
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
-contract DevFeatures_isEnabled_Test is Test {
+contract DevFeatures_isDevFeatureEnabled_Test is Test {
     bytes32 internal constant FEATURE_A = bytes32(0x0000000000000000000000000000000000000000000000000000000000000001);
     bytes32 internal constant FEATURE_B = bytes32(0x0000000000000000000000000000000000000000000000000000000000000100);
     bytes32 internal constant FEATURE_C = bytes32(0x1000000000000000000000000000000000000000000000000000000000000000);

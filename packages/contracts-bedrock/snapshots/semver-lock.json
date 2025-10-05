@@ -21,7 +21,7 @@
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
     "initCodeHash": "0x826f2ec9b645da8ce9dd3347b2782187366b9325eb47fc962aa5fceba92f0359",
-    "sourceCodeHash": "0xca44f9ebbc85da6ed77f8672dcccabea6373b53b5040eb3e9af81a956d1a9a8b"
+    "sourceCodeHash": "0x4a4fb2833850605ab3f464bddf2d0c4abd7638e2a73fa57a513a529074bf530f"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x3720362c8dfe4c175a4bb4ee2139b6373b16dc41f015cebb046603d2c7060ffe",
@@ -210,6 +210,10 @@
   "src/safe/LivenessModule2.sol:LivenessModule2": {
     "initCodeHash": "0x4679b41e5648a955a883efd0271453c8b13ff4846f853d372527ebb1e0905ab5",
     "sourceCodeHash": "0xd3084fb5446782cb6d0adb4278ef0a12c418dd538b4b14b90407b971b44cc35b"
+  },
+  "src/safe/TimelockGuard.sol:TimelockGuard": {
+    "initCodeHash": "0x1f8188872de93ce59e8f0bd415d4fbf30209bc668c09623f61d6fe592eee895a",
+    "sourceCodeHash": "0x0dada93f051d29dabbb6de3e1c1ece14b95cd20dc854454926d19ea1ebcae436"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",

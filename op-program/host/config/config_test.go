@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	validL1ChainConfig   = params.SepoliaChainConfig
 	validRollupConfig    = chaincfg.OPSepolia()
 	validL2Genesis       = chainconfig.OPSepoliaChainConfig()
 	validL1Head          = common.Hash{0xaa}
@@ -234,8 +235,9 @@ func TestCustomL2ChainID(t *testing.T) {
 		require.Equal(t, cfg.L2ChainID, eth.ChainIDFromBig(validL2Genesis.ChainID))
 	})
 	t.Run("custom", func(t *testing.T) {
-		customChainConfig := &params.ChainConfig{ChainID: big.NewInt(0x1212121212)}
-		cfg := NewSingleChainConfig(validRollupConfig, customChainConfig, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
+		customL1ChainConfig := &params.ChainConfig{ChainID: big.NewInt(0x1212121212)}
+		customL2ChainConfig := &params.ChainConfig{ChainID: big.NewInt(0x2323232323)}
+		cfg := NewSingleChainConfig(validRollupConfig, customL1ChainConfig, customL2ChainConfig, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
 		require.Equal(t, cfg.L2ChainID, boot.CustomChainIDIndicator)
 	})
 }
@@ -296,7 +298,7 @@ func TestDBFormat(t *testing.T) {
 }
 
 func validConfig() *Config {
-	cfg := NewSingleChainConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
+	cfg := NewSingleChainConfig(validRollupConfig, validL2Genesis, validL1ChainConfig, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
 	cfg.DataDir = "/tmp/configTest"
 	return cfg
 }
@@ -307,4 +309,25 @@ func validInteropConfig() *Config {
 	cfg.AgreedPrestate = validAgreedPrestate
 	cfg.L2OutputRoot = crypto.Keccak256Hash(cfg.AgreedPrestate)
 	return cfg
+}
+
+func TestL1BeaconSkipBlobVerification(t *testing.T) {
+	t.Run("DefaultIsFalse", func(t *testing.T) {
+		cfg := validConfig()
+		require.False(t, cfg.L1BeaconSkipBlobVerification, "L1BeaconSkipBlobVerification should default to false")
+	})
+
+	t.Run("CanBeSetToTrue", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.L1BeaconSkipBlobVerification = true
+		require.True(t, cfg.L1BeaconSkipBlobVerification)
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("WorksWithInterop", func(t *testing.T) {
+		cfg := validInteropConfig()
+		cfg.L1BeaconSkipBlobVerification = true
+		require.True(t, cfg.L1BeaconSkipBlobVerification)
+		require.NoError(t, cfg.Check())
+	})
 }

@@ -97,7 +97,7 @@ func listChain(chainID eth.ChainID) error {
 		return err
 	}
 	// Double check the L2 genesis is really available
-	_, err = chainconfig.ChainConfigByChainID(chainID)
+	_, err = chainconfig.L2ChainConfigByChainID(chainID)
 	if err != nil {
 		return err
 	}
@@ -131,12 +131,17 @@ func CheckCustomChains(ctx *cli.Context) error {
 			errs = append(errs, err)
 			continue
 		}
-		_, err = chainconfig.ChainConfigByChainID(chainID)
+		_, err = chainconfig.L2ChainConfigByChainID(chainID)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-
+		l1ChainID := eth.ChainIDFromBig(cfg.L1ChainID)
+		_, err = chainconfig.L1ChainConfigByChainID(l1ChainID)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
 		if cfg.InteropTime != nil {
 			depset, err := chainconfig.DependencySetByChainID(chainID)
 			if err != nil {

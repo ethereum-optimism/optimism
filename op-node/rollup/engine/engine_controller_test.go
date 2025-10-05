@@ -17,11 +17,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 func TestInvalidPayloadDropsHead(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, &testutils.MockL1Source{}, emitter)
 
 	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		BlockHash: common.Hash{0x01},
@@ -92,7 +93,7 @@ func buildSimpleCfgAndPayload(t *testing.T) (*rollup.Config, eth.L2BlockRef, eth
 		InfoRoot:        testutils.RandomHash(rng),
 		InfoGasUsed:     rng.Uint64(),
 	}
-	a1L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, aL1Info, refA1.Time)
+	a1L1Info, err := derive.L1InfoDepositBytes(cfg, params.SepoliaChainConfig, cfg.Genesis.SystemConfig, refA1.SequenceNumber, aL1Info, refA1.Time)
 	require.NoError(t, err)
 
 	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -109,7 +110,7 @@ func TestOnUnsafePayload_EnqueueEmit(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter)
 
 	emitter.ExpectOnce(PayloadInvalidEvent{})
 	emitter.ExpectOnce(ForkchoiceUpdateEvent{})
@@ -126,7 +127,7 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	mockEngine := &testutils.MockEngine{}
-	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, emitter)
+	cl := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	// queue payload A1
 	emitter.ExpectOnceType("UnsafeUpdateEvent")
@@ -155,7 +156,7 @@ func TestLowestQueuedUnsafeBlock(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	// empty -> zero
 	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
@@ -170,7 +171,7 @@ func TestLowestQueuedUnsafeBlock(t *testing.T) {
 func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = ec.unsafePayloads.Push(bad)
@@ -179,7 +180,7 @@ func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 
 func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
-	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, emitter)
+	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	// Head payload (lower block number)
 	head := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
