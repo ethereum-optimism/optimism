@@ -55,3 +55,4 @@ ENV MISE_CACHE_DIR=/opt/mise/var/cache
 RUN pip install -r requirements-tools.freeze.txt --break-system-packages
 RUN sha256sum --quiet -c /pip.sha256sum
 RUN sha256sum --quiet -c /mise.sha256sum
+RUN /opt/mise/bin/mise activate >> /etc/bash.bashrc
