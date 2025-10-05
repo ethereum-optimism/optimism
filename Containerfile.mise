@@ -24,8 +24,9 @@ FROM debian:trixie AS mise-rt
 COPY --from=build /build/mise /opt/mise/bin/mise
 RUN apt update && apt install -y libunwind8 binutils ca-certificates curl git python3 python3-pip
 
-ADD . /optimism
 WORKDIR /optimism
+ADD mise.toml /optimism
+ADD requirements-tools.txt /optimism
 ENV MISE_DATA_DIR=/opt/mise/data
 ENV MISE_CACHE_DIR=/opt/mise/var/cache
 ARG GITHUB_TOKEN

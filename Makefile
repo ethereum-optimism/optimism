@@ -344,5 +344,5 @@ pip.sha256sum: requirements-tools.txt Containerfile.mise ## Update the sumfile u
 # updating the lockfile w/o review.
 shell: ## Spawn a shell with all necessary development tools accessible
 	docker build -f Containerfile.mise --tag optimism-shell --target mise-shell --build-arg GITHUB_TOKEN=$(GITHUB_TOKEN) .
-	docker run -it optimism-shell /bin/bash
+	docker run -it -v $(PWD):/optimism optimism-shell /bin/bash
 .PHONY: shell
