@@ -37,8 +37,8 @@ func TestCheckMixedAvailability(t *testing.T) {
 	require.Equal(t, int64(2), l.AttrValue("notFoundCount"))
 	require.Equal(t, int64(1), l.AttrValue("errorCount"))
 
-	// Info log for summary
-	levelFilter = testlog.NewLevelFilter(log.LevelInfo)
+	// Warn log for summary
+	levelFilter = testlog.NewLevelFilter(log.LevelWarn)
 	messageFilter = testlog.NewMessageFilter("Mixed availability summary")
 	l = capturedLogs.FindLog(levelFilter, messageFilter)
 	require.NotNil(t, l)

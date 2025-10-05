@@ -37,6 +37,6 @@ func (m *MixedAvailability) CheckMixedAvailability(games []*types.EnrichedGameDa
 	m.metrics.RecordMixedAvailabilityGames(count)
 
 	if count > 0 {
-		m.logger.Info("Mixed availability summary", "gamesWithMixedAvailability", count, "totalGames", len(games))
+		m.logger.Warn("Mixed availability summary", "gamesWithMixedAvailability", count, "totalGames", len(games))
 	}
 }
