@@ -34,14 +34,6 @@ func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.Enric
 	}
 
 	errorCount := len(uniqueEndpointErrors)
-	if errorCount > 0 {
-		m.logger.Warn("Found rollup node endpoint errors",
-			"unique_endpoint_count", errorCount,
-			"endpoints", getEndpointList(uniqueEndpointErrors))
-	} else {
-		m.logger.Debug("No rollup node endpoint errors found")
-	}
-
 	m.metrics.RecordNodeEndpointErrors(errorCount)
 }
 

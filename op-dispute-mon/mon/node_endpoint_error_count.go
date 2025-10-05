@@ -28,14 +28,6 @@ func (m *NodeEndpointErrorCountMonitor) CheckNodeEndpointErrorCount(games []*typ
 		totalErrors += game.RollupEndpointErrorCount
 	}
 
-	if totalErrors > 0 {
-		m.logger.Warn("Found rollup node endpoint errors",
-			"total_error_count", totalErrors,
-			"games_with_errors", countGamesWithErrors(games))
-	} else {
-		m.logger.Debug("No rollup node endpoint errors found")
-	}
-
 	m.metrics.RecordNodeEndpointErrorCount(totalErrors)
 }
 

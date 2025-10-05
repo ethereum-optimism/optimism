@@ -19,17 +19,12 @@ func TestCheckNodeEndpointErrors_NoErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LvlDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
 
 	require.Equal(t, 0, metrics.recordedCount)
-
-	levelFilter := testlog.NewLevelFilter(log.LevelDebug)
-	messageFilter := testlog.NewMessageFilter("No rollup node endpoint errors found")
-	l := capturedLogs.FindLog(levelFilter, messageFilter)
-	require.NotNil(t, l)
 }
 
 func TestCheckNodeEndpointErrors_SingleGameWithErrors(t *testing.T) {
@@ -45,22 +40,12 @@ func TestCheckNodeEndpointErrors_SingleGameWithErrors(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LvlDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
 
 	require.Equal(t, 2, metrics.recordedCount)
-
-	levelFilter := testlog.NewLevelFilter(log.LevelWarn)
-	messageFilter := testlog.NewMessageFilter("Found rollup node endpoint errors")
-	l := capturedLogs.FindLog(levelFilter, messageFilter)
-	require.NotNil(t, l)
-	require.Equal(t, int64(2), l.AttrValue("unique_endpoint_count"))
-	endpoints := l.AttrValue("endpoints").([]string)
-	require.Len(t, endpoints, 2)
-	require.Contains(t, endpoints, "endpoint_1")
-	require.Contains(t, endpoints, "endpoint_2")
 }
 
 func TestCheckNodeEndpointErrors_MultipleGamesWithOverlappingErrors(t *testing.T) {
@@ -88,26 +73,13 @@ func TestCheckNodeEndpointErrors_MultipleGamesWithOverlappingErrors(t *testing.T
 	}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LvlDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
 
 	// Should count unique endpoints across all games (endpoint_1, endpoint_2, endpoint_3, endpoint_4)
 	require.Equal(t, 4, metrics.recordedCount)
-
-	// Check warn log for errors found
-	levelFilter := testlog.NewLevelFilter(log.LevelWarn)
-	messageFilter := testlog.NewMessageFilter("Found rollup node endpoint errors")
-	l := capturedLogs.FindLog(levelFilter, messageFilter)
-	require.NotNil(t, l)
-	require.Equal(t, int64(4), l.AttrValue("unique_endpoint_count"))
-	endpoints := l.AttrValue("endpoints").([]string)
-	require.Len(t, endpoints, 4)
-	require.Contains(t, endpoints, "endpoint_1")
-	require.Contains(t, endpoints, "endpoint_2")
-	require.Contains(t, endpoints, "endpoint_3")
-	require.Contains(t, endpoints, "endpoint_4")
 }
 
 func TestCheckNodeEndpointErrors_MixedGamesWithAndWithoutErrors(t *testing.T) {
@@ -141,18 +113,12 @@ func TestCheckNodeEndpointErrors_EmptyGamesList(t *testing.T) {
 	games := []*types.EnrichedGameData{}
 
 	metrics := &stubNodeEndpointErrorsMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LvlDebug)
 	monitor := NewNodeEndpointErrorsMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointErrors(games)
 
 	require.Equal(t, 0, metrics.recordedCount)
-
-	// Check debug log for no errors
-	levelFilter := testlog.NewLevelFilter(log.LevelDebug)
-	messageFilter := testlog.NewMessageFilter("No rollup node endpoint errors found")
-	l := capturedLogs.FindLog(levelFilter, messageFilter)
-	require.NotNil(t, l)
 }
 
 type stubNodeEndpointErrorsMetrics struct {
