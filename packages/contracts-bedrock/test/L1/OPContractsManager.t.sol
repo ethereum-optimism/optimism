@@ -7,6 +7,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 import { DelegateCaller } from "test/mocks/Callers.sol";
+import { console } from "forge-std/console.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -1498,6 +1499,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
 contract OPContractsManager_Upgrade_CannonKonaEnabled_Test is OPContractsManager_Upgrade_Harness {
     function setUp() public override {
+        skipIfNotOpFork("OPContractsManager_Upgrade_CannonKonaEnabled_Test");
         setDevFeatureEnabled(DevFeatures.CANNON_KONA);
         super.setUp();
 
