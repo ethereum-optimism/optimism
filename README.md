@@ -45,9 +45,11 @@ We will implement a new parallel blobs submission mechanism which is compatible 
 
 ### 2. Failover (for Liveness)
 
-The upstream altda code does not support failover. If the EigenDA network goes down, the rollup will be stuck.
+We have implemented an automatic failover mechanism that ensures rollup liveness if EigenDA is unavailable:
 
-We will implement a failover mechanism to allow the rollup to continue processing transactions even if the EigenDA network is down.
+- **Automatic Detection**: The batcher detects EigenDA unavailability when the proxy returns HTTP 503 (Service Unavailable) responses
+- **Seamless Failover**: When EigenDA is unavailable, the batcher posts batch data as Ethereum calldata
+- **Tested**: Comprehensive end-to-end tests verify the failover behavior works correctly in both unit tests and Kurtosis devnet environments
 
 ### 3. Security (for Safety)
 
