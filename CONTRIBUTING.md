@@ -4,7 +4,7 @@
 
 Welcome to the Optimism Monorepo Contributing Guide!
 If you're reading this then you might be interested in contributing to the Optimism Monorepo.
-Before diving into the specifics of this repository, you might be interested in taking a quick look at just a few of the ways that you can contribute.
+Before diving into the specifics of this repository, you should take a quick look at just a few of the ways that you can contribute.
 You can:
 
 - Report issues in this repository. Great bug reports are detailed and give clear instructions for how a developer can reproduce the problem. Write good bug reports and developers will love you.
