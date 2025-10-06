@@ -99,7 +99,9 @@ contract LivenessModule2 is ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    function version() public pure virtual returns (string memory) {
+        return "2.0.0";
+    }
 
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     ///         0 if not.
@@ -146,7 +148,14 @@ contract LivenessModule2 is ISemver {
         _cancelChallenge(msg.sender);
 
         emit ModuleConfigured(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
+
+        // Verify that any other extensions which are enabled on the Safe are configured correctly.
+        _checkCombinedConfig(Safe(payable(msg.sender)));
     }
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
+    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    function _checkCombinedConfig(Safe _safe) internal view virtual { }
 
     /// @notice Clears the module configuration for a Safe.
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges.

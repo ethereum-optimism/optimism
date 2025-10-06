@@ -127,7 +127,9 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    function version() public pure virtual returns (string memory) {
+        return "1.0.0";
+    }
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -208,6 +210,10 @@ contract TimelockGuard is IGuard, ISemver {
         address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
         return guard == address(this);
     }
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
+    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    function _checkCombinedConfig(Safe _safe) internal view virtual { }
 
     ////////////////////////////////////////////////////////////////
     //                  External View Functions                   //
@@ -451,6 +457,9 @@ contract TimelockGuard is IGuard, ISemver {
         // Initialize (or reset) the cancellation threshold to 1.
         _resetCancellationThreshold(callingSafe);
         emit GuardConfigured(callingSafe, _timelockDelay);
+
+        // Verify that any other extensions which are enabled on the Safe are configured correctly.
+        _checkCombinedConfig(callingSafe);
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.

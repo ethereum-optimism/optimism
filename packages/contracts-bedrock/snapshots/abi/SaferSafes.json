@@ -49,6 +49,51 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "challenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "challengeStartTime",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "changeOwnershipToFallback",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_txHash",
         "type": "bytes32"
@@ -128,6 +173,38 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "clearLivenessModule",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "livenessResponsePeriod",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "fallbackOwner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct LivenessModule2.ModuleConfig",
+        "name": "_config",
+        "type": "tuple"
+      }
+    ],
+    "name": "configureLivenessModule",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -138,6 +215,49 @@
     "name": "configureTimelockGuard",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "getChallengePeriodEnd",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "livenessSafeConfiguration",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "livenessResponsePeriod",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -240,6 +360,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "respond",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -480,6 +607,57 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      }
+    ],
+    "name": "ChallengeCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "challengeStartTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "name": "ChallengeSucceeded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "contract GnosisSafe",
         "name": "safe",
         "type": "address"
@@ -505,6 +683,44 @@
       }
     ],
     "name": "Message",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      }
+    ],
+    "name": "ModuleCleared",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "livenessResponsePeriod",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "name": "ModuleConfigured",
     "type": "event"
   },
   {
@@ -569,6 +785,66 @@
     ],
     "name": "TransactionScheduled",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ChallengeAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ChallengeDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_InvalidFallbackOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_InvalidResponsePeriod",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ModuleNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ModuleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ModuleStillEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_OwnershipTransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ResponsePeriodActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ResponsePeriodEnded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_UnauthorizedCaller",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SaferSafes_InsufficientLivenessResponsePeriod",
+    "type": "error"
   },
   {
     "inputs": [],
