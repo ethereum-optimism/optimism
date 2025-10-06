@@ -33,7 +33,7 @@ contract DeployImplementations_Test is Test {
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-    address l1PAO = makeAddr("l1PAO");
+    address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
@@ -157,7 +157,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            l1PAO,
+            l1ProxyAdminOwner,
             challenger
         );
 
@@ -319,7 +319,7 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.l1PAO = address(0);
+        input.l1ProxyAdminOwner = address(0);
         vm.expectRevert("DeployImplementations: L1PAO not set");
         deployImplementations.run(input);
     }
@@ -557,7 +557,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            l1PAO,
+            l1ProxyAdminOwner,
             challenger
         );
     }
