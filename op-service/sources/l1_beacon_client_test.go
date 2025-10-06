@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
@@ -292,4 +293,15 @@ func TestClientPoolSeveral(t *testing.T) {
 		require.Equal(t, i%4, p.Get())
 		p.MoveToNext()
 	}
+}
+
+func TestVerifyBlob(t *testing.T) {
+	blob := eth.Blob{}
+	blob[0] = byte(7)
+	versionedHash := common.HexToHash("0x0164e32184169f11528f72aeb318f94d958aa28fba0731a52aead6df0104a98e")
+	require.NoError(t, verifyBlob(&blob, versionedHash))
+
+	differentBlob := eth.Blob{}
+	differentBlob[0] = byte(8)
+	require.Error(t, verifyBlob(&differentBlob, versionedHash))
 }
