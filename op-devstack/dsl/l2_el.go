@@ -53,6 +53,14 @@ func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
 	return block
 }
 
+func (el *L2ELNode) BlockRefByHash(hash common.Hash) eth.L2BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	block, err := el.inner.L2EthClient().L2BlockRefByHash(ctx, hash)
+	el.require.NoError(err, "block not found using block hash")
+	return block
+}
+
 func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
 	return func() error {
 		initial := el.BlockRefByLabel(label)
@@ -216,8 +224,18 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 	return payload
 }
 
-func (el *L2ELNode) InsertPayload(ref *L2ELNode, number uint64) (*eth.PayloadStatusV1, error) {
+func (el *L2ELNode) NewPayload(ref *L2ELNode, number uint64) *NewPayloadResult {
 	payload := ref.PayloadByNumber(number)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
-	return status, err
+	return &NewPayloadResult{T: el.t, Status: status, Err: err}
+}
+
+func (el *L2ELNode) ForkchoiceUpdate(ref *L2ELNode, unsafe, safe, finalized uint64, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
+	state := &eth.ForkchoiceState{
+		HeadBlockHash:      ref.BlockRefByNumber(unsafe).Hash,
+		SafeBlockHash:      ref.BlockRefByNumber(safe).Hash,
+		FinalizedBlockHash: ref.BlockRefByNumber(finalized).Hash,
+	}
+	result, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
+	return &ForkchoiceUpdateResult{T: el.t, Result: result, Err: err}
 }
