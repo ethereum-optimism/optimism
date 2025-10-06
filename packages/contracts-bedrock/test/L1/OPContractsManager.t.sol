@@ -1933,3 +1933,17 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         assertEq(permissionedProxy.challenger(), opcmInput.roles.challenger, "Challenger should match");
     }
 }
+
+/// @title OPContractsManager_Version_Test
+/// @notice Tests the `version` function of the `OPContractsManager` contract.
+contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
+    OPContractsManager.AddGameInput[] internal gameInput;
+
+    function setUp() public override {
+        super.setUp();
+    }
+
+    function test_semver_works() public view {
+        assertNotEq(abi.encode(opcm.version()), abi.encode(0));
+    }
+}
