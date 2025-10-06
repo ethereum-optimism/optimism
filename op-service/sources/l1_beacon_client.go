@@ -292,7 +292,7 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
 		}
 		if !skipBlobVerification {
-			if err := verifyBlobProof(&sidecar.Blob, ih.Hash); err != nil {
+			if err := verifyBlob(&sidecar.Blob, ih.Hash); err != nil {
 				return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
 			}
 		}
@@ -301,9 +301,9 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 	return out, nil
 }
 
-// verifyBlobProof verifies that the blob data corresponds to the provided commitment.
+// verifyBlob verifies that the blob data corresponds to the provided commitment.
 // It recomputes the commitment from the blob data and checks it matches the expected commitment hash.
-func verifyBlobProof(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
+func verifyBlob(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
 	recomputedCommitment, err := blob.ComputeKZGCommitment()
 	if err != nil {
 		return fmt.Errorf("cannot compute KZG commitment for blob: %w", err)
