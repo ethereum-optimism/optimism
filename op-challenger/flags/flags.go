@@ -737,6 +737,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
+			VmType:            types.TraceTypeCannonKona,
 			L1:                l1EthRpc,
 			L1Beacon:          l1Beacon,
 			L2s:               l2Rpcs,
