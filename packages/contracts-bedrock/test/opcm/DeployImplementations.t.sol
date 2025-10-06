@@ -320,7 +320,7 @@ contract DeployImplementations_Test is Test {
 
         input = defaultInput();
         input.l1ProxyAdminOwner = address(0);
-        vm.expectRevert("DeployImplementations: L1PAO not set");
+        vm.expectRevert("DeployImplementations: L1ProxyAdminOwner not set");
         deployImplementations.run(input);
     }
 
