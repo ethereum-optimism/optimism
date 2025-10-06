@@ -52,4 +52,9 @@ func TestVerifierManualSync(gt *testing.T) {
 		require.Equal(block.Hash, sys.L2ELB.BlockRefByNumber(blockNum).Hash)
 		require.Equal(blockNum, sys.L2ELB.BlockRefByHash(block.Hash).Number)
 	}
+
+	// Check correctly synced by comparing with sequencer EL
+	res := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	require.Equal(startBlockNum+delta, res.Number)
+	require.Equal(sys.L2EL.BlockRefByNumber(startBlockNum+delta).Hash, res.Hash)
 }
