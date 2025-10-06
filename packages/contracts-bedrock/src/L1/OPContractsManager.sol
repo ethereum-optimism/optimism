@@ -2024,8 +2024,7 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
     /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    /// @dev This function is intended to be DELEGATECALLed by an address that is the common owner of every chain in
-    ///      `_opChainConfigs`'s ProxyAdmin.
+    /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
