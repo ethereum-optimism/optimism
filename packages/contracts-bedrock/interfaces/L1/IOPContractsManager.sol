@@ -179,9 +179,6 @@ interface IOPContractsManager {
         IPermissionedDisputeGame permissionedDisputeGame;
         IDelayedWETH delayedWETHPermissionedGameProxy;
         IDelayedWETH delayedWETHPermissionlessGameProxy;
-        // V2 dispute game contracts (deployed when DEPLOY_V2_DISPUTE_GAMES flag is set)
-        IFaultDisputeGameV2 faultDisputeGameV2;
-        IPermissionedDisputeGameV2 permissionedDisputeGameV2;
     }
 
     /// @notice Addresses of ERC-5202 Blueprint contracts. There are used for deploying full size

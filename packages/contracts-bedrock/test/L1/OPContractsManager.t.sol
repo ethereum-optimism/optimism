@@ -1842,10 +1842,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         IOPContractsManager.DeployOutput memory output = opcm.deploy(opcmInput);
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-        // Check that v2 implementations are not set (since flag is not enabled by default)
-        assertEq(address(output.permissionedDisputeGameV2), address(0));
-        assertEq(address(output.faultDisputeGameV2), address(0));
-
         // Check that v1 implementation is registered for PERMISSIONED_CANNON
         address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertEq(registeredImpl, address(output.permissionedDisputeGame));
