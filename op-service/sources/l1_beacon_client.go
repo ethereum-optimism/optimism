@@ -302,8 +302,8 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 }
 
 // verifyBlobProof verifies that the blob data corresponds to the provided commitment.
+// It recomputes the commitment from the blob data and checks it matches the expected commitment hash.
 func verifyBlobProof(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
-	// recompute the commitment from the blob data and check it matches the commitment from the sidecar
 	recomputedCommitment, err := blob.ComputeKZGCommitment()
 	if err != nil {
 		return fmt.Errorf("cannot compute KZG commitment for blob: %w", err)
