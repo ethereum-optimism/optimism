@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -279,37 +279,40 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	return blobs, nil
 }
 
+// blobsFromSidecars fetches blobs from the given blob sidecars, verifiy the blob data against the hash of the commitment
+// (if skipBlobVerification is false).
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash, skipBlobVerification bool) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}
-
 	out := make([]*eth.Blob, len(hashes))
 	for i, ih := range hashes {
 		sidecar := blobSidecars[i]
 		if sidx := uint64(sidecar.Index); sidx != ih.Index {
 			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
 		}
-
-		// make sure the blob's kzg commitment hashes to the expected value
-		hash := eth.KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
-		if hash != ih.Hash {
-			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
-		}
-
 		if !skipBlobVerification {
-			// recompute the commitment from the blob data and check it matches the commitment from the sidecar
-			recomputedCommitment, err := kzg4844.BlobToCommitment(sidecar.Blob.KZGBlob())
-			if err != nil {
-				return nil, fmt.Errorf("cannot compute KZG commitment for blob %d: %w", i, err)
-			}
-			if recomputedCommitment != kzg4844.Commitment(sidecar.KZGCommitment) {
-				return nil, fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitment, kzg4844.Commitment(sidecar.KZGCommitment))
+			if err := verifyBlobProof(&sidecar.Blob, ih.Hash); err != nil {
+				return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
 			}
 		}
 		out[i] = &sidecar.Blob
 	}
 	return out, nil
+}
+
+// verifyBlobProof verifies that the blob data corresponds to the provided commitment.
+func verifyBlobProof(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
+	// recompute the commitment from the blob data and check it matches the commitment from the sidecar
+	recomputedCommitment, err := blob.ComputeKZGCommitment()
+	if err != nil {
+		return fmt.Errorf("cannot compute KZG commitment for blob: %w", err)
+	}
+	recomputedCommitmentHash := eth.KZGToVersionedHash(recomputedCommitment)
+	if recomputedCommitmentHash != expectedCommitmentHash {
+		return fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitmentHash, expectedCommitmentHash)
+	}
+	return nil
 }
 
 // GetVersion fetches the version of the Beacon-node.
