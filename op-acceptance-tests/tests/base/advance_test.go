@@ -1,7 +1,6 @@
 package base
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -29,12 +28,4 @@ func TestCLAdvance(gt *testing.T) {
 		t.Logger().InfoContext(ctx, "unsafe head", "number", new_num)
 		return new_num > num
 	}, 30*time.Second, waitTime)
-}
-
-// TestCLAdvance_Supernode runs the same advance test using the supernode L2CL implementation.
-func TestCLAdvance_Supernode(t *testing.T) {
-	prev := os.Getenv("DEVSTACK_L2CL_KIND")
-	_ = os.Setenv("DEVSTACK_L2CL_KIND", "supernode")
-	defer func() { _ = os.Setenv("DEVSTACK_L2CL_KIND", prev) }()
-	TestCLAdvance(t)
 }

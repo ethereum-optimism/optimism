@@ -170,6 +170,49 @@ func DefaultTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator]
 	return opt
 }
 
+// DefaultSupernodeTwoL2System runs two L2 chains that share a single supernode instance for their CL,
+// wiring thin L2CL wrappers that route via the supernode RPC router.
+func DefaultSupernodeTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultTwoL2SystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up (supernode)")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2AEL))
+	opt.Add(WithL2ELNode(ids.L2BEL))
+
+	// Shared supernode for both L2 chains
+	opt.Add(WithSharedSupernodeCLs([]L2CLs{{CLID: ids.L2ACL, ELID: ids.L2AEL}, {CLID: ids.L2BCL, ELID: ids.L2BEL}}, ids.L1CL, ids.L1EL))
+
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, nil))
+
+	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 type DefaultMinimalSystemWithSyncTesterIDs struct {
 	DefaultMinimalSystemIDs
 

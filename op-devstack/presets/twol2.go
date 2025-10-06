@@ -2,6 +2,7 @@ package presets
 
 import (
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -31,6 +32,10 @@ func WithTwoL2() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}))
 }
 
+func WithTwoL2Supernode() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSupernodeTwoL2System(&sysgo.DefaultTwoL2SystemIDs{}))
+}
+
 func NewTwoL2(t devtest.T) *TwoL2 {
 	system := shim.NewSystem(t)
 	orch := Orchestrator()
@@ -41,6 +46,8 @@ func NewTwoL2(t devtest.T) *TwoL2 {
 	l2b := system.L2Network(match.Assume(t, match.L2ChainB))
 	l2aCL := l2a.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
 	l2bCL := l2b.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+
+	require.NotEqual(t, l2a.ChainID(), l2b.ChainID())
 
 	return &TwoL2{
 		Log:          t.Logger(),

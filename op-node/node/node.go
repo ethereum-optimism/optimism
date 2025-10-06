@@ -189,19 +189,9 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 	return n, nil
 }
 
-<<<<<<< HEAD
 type InitializationOverrides struct {
 	L1Source   L1Source
 	Beacon     L1Beacon
-=======
-// InitOverload allows callers to provide pre-made resources for initialization.
-// This enables resource sharing (e.g., shared L1Client across multiple nodes)
-// without duplicating connections or caches. If a field is nil, the default
-// initialization is used to create that resource.
-type InitOverload struct {
-	L1Source   L1Client
-	Beacon     BeaconClient
->>>>>>> 4c6bad806c (op-supernode: RPC Router Resource for Virtual Nodes)
 	RPCHandler *oprpc.Handler
 }
 
@@ -209,6 +199,7 @@ type InitOverload struct {
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
+
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 
 	var err error
@@ -282,37 +273,8 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		}
 	}
 
-<<<<<<< HEAD
 	n.metricsSrv, err = initMetricsServer(cfg, n)
 	if err != nil {
-=======
-	if err := n.initL2(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init L2: %w", err)
-	}
-	if err := n.initL1Handlers(cfg); err != nil {
-		return fmt.Errorf("failed to init L1 Handlers: %w", err)
-	}
-	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
-		return fmt.Errorf("failed to init the runtime config: %w", err)
-	}
-	if err := n.initP2PSigner(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the P2P signer: %w", err)
-	}
-	if err := n.initP2P(cfg); err != nil {
-		return fmt.Errorf("failed to init the P2P stack: %w", err)
-	}
-	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	if overload != nil && overload.RPCHandler != nil {
-		if err := n.registerToRPCServer(cfg, overload.RPCHandler); err != nil {
-			return fmt.Errorf("failed to register RPC on injected handler: %w", err)
-		}
-	} else {
-		if err := n.initRPCServer(cfg); err != nil {
-			return fmt.Errorf("failed to init the RPC server: %w", err)
-		}
-	}
-	if err := n.initMetricsServer(cfg); err != nil {
->>>>>>> 4c6bad806c (op-supernode: RPC Router Resource for Virtual Nodes)
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
 
@@ -677,33 +639,7 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 	return nil
 }
 
-<<<<<<< HEAD
 func initMetricsServer(cfg *config.Config, node *OpNode) (*httputil.HTTPServer, error) {
-=======
-func (n *OpNode) registerToRPCServer(cfg *config.Config, handler *oprpc.Handler) error {
-	// Register the op-node APIs on the provided handler (no server start).
-	if err := handler.AddAPI(rpc.API{
-		Namespace: "optimism",
-		Service:   NewNodeAPI(&cfg.Rollup, cfg.DependencySet, n.l2Source.L2Client, n.l2Driver, n.safeDB, n.log),
-	}); err != nil {
-		return fmt.Errorf("failed to add optimism API to injected handler: %w", err)
-	}
-	if cfg.RPC.EnableAdmin {
-		if err := handler.AddAPI(rpc.API{
-			Namespace: "admin",
-			Service:   NewAdminAPI(n.l2Driver, n.log),
-		}); err != nil {
-			return fmt.Errorf("failed to add admin API to injected handler: %w", err)
-		}
-		n.log.Info("Admin RPC enabled (injected handler)")
-	}
-	// The node does not own an HTTP server in this mode.
-	n.server = nil
-	return nil
-}
-
-func (n *OpNode) initMetricsServer(cfg *config.Config) error {
->>>>>>> 4c6bad806c (op-supernode: RPC Router Resource for Virtual Nodes)
 	if !cfg.Metrics.Enabled {
 		node.log.Info("metrics disabled")
 		return nil, nil

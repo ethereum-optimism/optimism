@@ -39,7 +39,7 @@ type simpleChainContainer struct {
 	chainID            types.ChainID
 	initOverload       *rollupNode.InitOverload             // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
-	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the proxyfor the chain
+	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
 }
@@ -87,7 +87,7 @@ func (c *simpleChainContainer) subPath(path string) string {
 func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
 	for {
-		// create a fresh handler per (re)start, swap it into the proxy, and inject into overload
+		// create a fresh handler per (re)start, swap it into the router, and inject into overload
 		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
 		if c.setHandler != nil {
 			c.setHandler(c.chainID.String(), h)
