@@ -988,6 +988,8 @@ jobs:
             - "/root/.cache/go-build"
       - notify-failures-on-develop
 
+  # AI Contracts Test Maintenance System
+  # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
   ai-contracts-test:
     circleci_ip_ranges: true
     docker:
