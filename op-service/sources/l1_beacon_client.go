@@ -28,8 +28,7 @@ const (
 )
 
 type L1BeaconClientConfig struct {
-	FetchAllSidecars     bool
-	SkipBlobVerification bool
+	FetchAllSidecars bool
 }
 
 // L1BeaconClient is a high level golang client for the Beacon API.
@@ -272,16 +271,14 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes, cl.cfg.SkipBlobVerification)
+	blobs, err := blobsFromSidecars(blobSidecars, hashes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
 	}
 	return blobs, nil
 }
 
-// blobsFromSidecars fetches blobs from the given blob sidecars, verifiy the blob data against the hash of the commitment
-// (if skipBlobVerification is false).
-func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash, skipBlobVerification bool) ([]*eth.Blob, error) {
+func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}
@@ -291,10 +288,8 @@ func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlob
 		if sidx := uint64(sidecar.Index); sidx != ih.Index {
 			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
 		}
-		if !skipBlobVerification {
-			if err := verifyBlob(&sidecar.Blob, ih.Hash); err != nil {
-				return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
-			}
+		if err := verifyBlob(&sidecar.Blob, ih.Hash); err != nil {
+			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
 		}
 		out[i] = &sidecar.Blob
 	}
