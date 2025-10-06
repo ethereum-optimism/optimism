@@ -404,7 +404,7 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
             }
 
-            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy);
+            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
             if (faultDisputeGameImpl != address(0)) {
                 // permissionless fault proofs installed
                 _fo.set(_fo.faultDisputeGameImpl.selector, faultDisputeGameImpl);
@@ -418,6 +418,7 @@ contract FetchChainInfo is Script {
                 _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
             if (faultDisputeGameCannonKonaImpl != address(0)) {
                 _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, faultDisputeGameCannonKonaImpl);
+                // if we have CANNON_KONA, we must also have CANNON
             }
         } else {
             // some older chains have L2OutputOracle instead of DisputeGameFactory.
@@ -488,14 +489,6 @@ contract FetchChainInfo is Script {
     function _getSuperchainConfigProxy(address _optimismPortalProxy) internal view returns (address) {
         try IFetcher(_optimismPortalProxy).superchainConfig() returns (address superchainConfigProxy_) {
             return superchainConfigProxy_;
-        } catch {
-            return address(0);
-        }
-    }
-
-    function _getFaultDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
-        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address faultDisputeGame_) {
-            return faultDisputeGame_;
         } catch {
             return address(0);
         }
