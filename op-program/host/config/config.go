@@ -60,12 +60,11 @@ type Config struct {
 	DataFormat types.DataFormat
 
 	// L1Head is the block hash of the L1 chain head block
-	L1Head                       common.Hash
-	L1URL                        string
-	L1BeaconURL                  string
-	L1BeaconSkipBlobVerification bool // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
-	L1TrustRPC                   bool
-	L1RPCKind                    sources.RPCProviderKind
+	L1Head      common.Hash
+	L1URL       string
+	L1BeaconURL string
+	L1TrustRPC  bool
+	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot for pre-interop mode
 	L2Head common.Hash
@@ -397,29 +396,28 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	}
 
 	return &Config{
-		L2ChainID:                    l2ChainID,
-		Rollups:                      rollupCfgs,
-		L1ChainConfig:                l1ChainConfig,
-		DataDir:                      ctx.String(flags.DataDir.Name),
-		DataFormat:                   dbFormat,
-		L2URLs:                       ctx.StringSlice(flags.L2NodeAddr.Name),
-		L2ExperimentalURLs:           ctx.StringSlice(flags.L2NodeExperimentalAddr.Name),
-		L2ChainConfigs:               l2ChainConfigs,
-		L2Head:                       l2Head,
-		L2OutputRoot:                 l2OutputRoot,
-		AgreedPrestate:               agreedPrestate,
-		DependencySet:                dependencySet,
-		L2Claim:                      l2Claim,
-		L2ClaimBlockNumber:           l2ClaimBlockNum,
-		L1Head:                       l1Head,
-		L1URL:                        ctx.String(flags.L1NodeAddr.Name),
-		L1BeaconURL:                  ctx.String(flags.L1BeaconAddr.Name),
-		L1BeaconSkipBlobVerification: ctx.Bool(flags.L1BeaconSkipBlobVerification.Name),
-		L1TrustRPC:                   ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:                    sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
-		ExecCmd:                      ctx.String(flags.Exec.Name),
-		ServerMode:                   ctx.Bool(flags.Server.Name),
-		InteropEnabled:               interopEnabled,
+		L2ChainID:          l2ChainID,
+		Rollups:            rollupCfgs,
+		L1ChainConfig:      l1ChainConfig,
+		DataDir:            ctx.String(flags.DataDir.Name),
+		DataFormat:         dbFormat,
+		L2URLs:             ctx.StringSlice(flags.L2NodeAddr.Name),
+		L2ExperimentalURLs: ctx.StringSlice(flags.L2NodeExperimentalAddr.Name),
+		L2ChainConfigs:     l2ChainConfigs,
+		L2Head:             l2Head,
+		L2OutputRoot:       l2OutputRoot,
+		AgreedPrestate:     agreedPrestate,
+		DependencySet:      dependencySet,
+		L2Claim:            l2Claim,
+		L2ClaimBlockNumber: l2ClaimBlockNum,
+		L1Head:             l1Head,
+		L1URL:              ctx.String(flags.L1NodeAddr.Name),
+		L1BeaconURL:        ctx.String(flags.L1BeaconAddr.Name),
+		L1TrustRPC:         ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:          sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
+		ExecCmd:            ctx.String(flags.Exec.Name),
+		ServerMode:         ctx.Bool(flags.Server.Name),
+		InteropEnabled:     interopEnabled,
 	}, nil
 }
 

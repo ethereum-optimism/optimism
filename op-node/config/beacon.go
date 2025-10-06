@@ -19,17 +19,15 @@ type L1BeaconEndpointSetup interface {
 	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
 	ShouldIgnoreBeaconCheck() bool
 	ShouldFetchAllSidecars() bool
-	ShouldSkipBlobVerification() bool
 	Check() error
 }
 
 type L1BeaconEndpointConfig struct {
-	BeaconAddr                 string   // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
-	BeaconHeader               string   // Optional HTTP header for all requests to L1 Beacon
-	BeaconFallbackAddrs        []string // Addresses of L1 Beacon-API fallback endpoints (only for blob sidecars retrieval)
-	BeaconCheckIgnore          bool     // When false, halt startup if the beacon version endpoint fails
-	BeaconFetchAllSidecars     bool     // Whether to fetch all blob sidecars and filter locally
-	BeaconSkipBlobVerification bool     // Whether to skip the verification of the kzg_proof for each blob returned by the Beacon node
+	BeaconAddr             string   // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+	BeaconHeader           string   // Optional HTTP header for all requests to L1 Beacon
+	BeaconFallbackAddrs    []string // Addresses of L1 Beacon-API fallback endpoints (only for blob sidecars retrieval)
+	BeaconCheckIgnore      bool     // When false, halt startup if the beacon version endpoint fails
+	BeaconFetchAllSidecars bool     // Whether to fetch all blob sidecars and filter locally
 }
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
@@ -66,10 +64,6 @@ func (cfg *L1BeaconEndpointConfig) ShouldIgnoreBeaconCheck() bool {
 
 func (cfg *L1BeaconEndpointConfig) ShouldFetchAllSidecars() bool {
 	return cfg.BeaconFetchAllSidecars
-}
-
-func (cfg *L1BeaconEndpointConfig) ShouldSkipBlobVerification() bool {
-	return cfg.BeaconSkipBlobVerification
 }
 
 func parseHTTPHeader(headerStr string) (http.Header, error) {

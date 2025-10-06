@@ -65,17 +65,16 @@ const (
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc                     string           // L1 RPC Url
-	L1Beacon                     string           // L1 Beacon API Url
-	L1BeaconSkipBlobVerification bool             // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
-	GameFactoryAddress           common.Address   // Address of the dispute game factory
-	GameAllowlist                []common.Address // Allowlist of fault game addresses
-	GameWindow                   time.Duration    // Maximum time duration to look for games to progress
-	Datadir                      string           // Data Directory
-	MaxConcurrency               uint             // Maximum number of threads to use when progressing games
-	PollInterval                 time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
-	AllowInvalidPrestate         bool             // Whether to allow responding to games where the prestate does not match
-	MinUpdateInterval            time.Duration    // Minimum duration the L1 head block time must advance before scheduling a new update cycle
+	L1EthRpc             string           // L1 RPC Url
+	L1Beacon             string           // L1 Beacon API Url
+	GameFactoryAddress   common.Address   // Address of the dispute game factory
+	GameAllowlist        []common.Address // Allowlist of fault game addresses
+	GameWindow           time.Duration    // Maximum time duration to look for games to progress
+	Datadir              string           // Data Directory
+	MaxConcurrency       uint             // Maximum number of threads to use when progressing games
+	PollInterval         time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
+	AllowInvalidPrestate bool             // Whether to allow responding to games where the prestate does not match
+	MinUpdateInterval    time.Duration    // Minimum duration the L1 head block time must advance before scheduling a new update cycle
 
 	AdditionalBondClaimants []common.Address // List of addresses to claim bonds for in addition to the tx manager sender
 
@@ -152,46 +151,42 @@ func NewInteropConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:                       types.TraceTypeCannon,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          l2Rpcs,
-			SnapshotFreq:                 DefaultCannonSnapshotFreq,
-			InfoFreq:                     DefaultCannonInfoFreq,
-			DebugInfo:                    true,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		CannonKona: vm.Config{
-			VmType:                       types.TraceTypeCannonKona,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          l2Rpcs,
-			SnapshotFreq:                 DefaultCannonSnapshotFreq,
-			InfoFreq:                     DefaultCannonInfoFreq,
-			DebugInfo:                    true,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeCannonKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
-			VmType:                       types.TraceTypeAsterisc,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          l2Rpcs,
-			SnapshotFreq:                 DefaultAsteriscSnapshotFreq,
-			InfoFreq:                     DefaultAsteriscInfoFreq,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeAsterisc,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
 		},
 		AsteriscKona: vm.Config{
-			VmType:                       types.TraceTypeAsteriscKona,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          l2Rpcs,
-			SnapshotFreq:                 DefaultAsteriscSnapshotFreq,
-			InfoFreq:                     DefaultAsteriscInfoFreq,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeAsteriscKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
 		},
 		GameWindow: DefaultGameWindow,
 	}
@@ -226,46 +221,42 @@ func NewConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:                       types.TraceTypeCannon,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          []string{l2EthRpc},
-			SnapshotFreq:                 DefaultCannonSnapshotFreq,
-			InfoFreq:                     DefaultCannonInfoFreq,
-			DebugInfo:                    true,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		CannonKona: vm.Config{
-			VmType:                       types.TraceTypeCannonKona,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          []string{l2EthRpc},
-			SnapshotFreq:                 DefaultCannonSnapshotFreq,
-			InfoFreq:                     DefaultCannonInfoFreq,
-			DebugInfo:                    true,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeCannonKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
-			VmType:                       types.TraceTypeAsterisc,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          []string{l2EthRpc},
-			SnapshotFreq:                 DefaultAsteriscSnapshotFreq,
-			InfoFreq:                     DefaultAsteriscInfoFreq,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeAsterisc,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
 		},
 		AsteriscKona: vm.Config{
-			VmType:                       types.TraceTypeAsteriscKona,
-			L1:                           l1EthRpc,
-			L1Beacon:                     l1BeaconApi,
-			L1BeaconSkipBlobVerification: false,
-			L2s:                          []string{l2EthRpc},
-			SnapshotFreq:                 DefaultAsteriscSnapshotFreq,
-			InfoFreq:                     DefaultAsteriscInfoFreq,
-			BinarySnapshots:              true,
+			VmType:          types.TraceTypeAsteriscKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             []string{l2EthRpc},
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
 		},
 		GameWindow: DefaultGameWindow,
 	}

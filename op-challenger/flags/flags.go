@@ -285,13 +285,6 @@ var (
 		EnvVars: prefixEnvVars("RESPONSE_DELAY_AFTER"),
 		Value:   config.DefaultResponseDelayAfter,
 	}
-	L1BeaconSkipBlobVerificationFlag = &cli.BoolFlag{
-		Name:    "l1-beacon-skip-blob-verification",
-		Usage:   "Skip verification of the KZG proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
-		EnvVars: prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
-		Value:   false,
-		Hidden:  true,
-	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -338,7 +331,6 @@ var optionalFlags = []cli.Flag{
 	UnsafeAllowInvalidPrestate,
 	ResponseDelayFlag,
 	ResponseDelayAfterFlag,
-	L1BeaconSkipBlobVerificationFlag,
 }
 
 func init() {
@@ -705,31 +697,28 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 	networks := ctx.StringSlice(flags.NetworkFlagName)
 	l1EthRpc := ctx.String(L1EthRpcFlag.Name)
 	l1Beacon := ctx.String(L1BeaconFlag.Name)
-	l1BeaconSkipBlobVerification := ctx.Bool(L1BeaconSkipBlobVerificationFlag.Name)
 	l2Rpcs := ctx.StringSlice(L2EthRpcFlag.Name)
 	l2Experimental := ctx.String(L2ExperimentalEthRpcFlag.Name)
 	return &config.Config{
 		// Required Flags
-		L1EthRpc:                     l1EthRpc,
-		L1Beacon:                     l1Beacon,
-		L1BeaconSkipBlobVerification: l1BeaconSkipBlobVerification,
-		TraceTypes:                   traceTypes,
-		GameFactoryAddress:           gameFactoryAddress,
-		GameAllowlist:                allowedGames,
-		GameWindow:                   ctx.Duration(GameWindowFlag.Name),
-		MaxConcurrency:               maxConcurrency,
-		L2Rpcs:                       l2Rpcs,
-		MaxPendingTx:                 ctx.Uint64(MaxPendingTransactionsFlag.Name),
-		PollInterval:                 ctx.Duration(HTTPPollInterval.Name),
-		MinUpdateInterval:            ctx.Duration(MinUpdateInterval.Name),
-		AdditionalBondClaimants:      claimants,
-		RollupRpc:                    ctx.String(RollupRpcFlag.Name),
-		SupervisorRPC:                ctx.String(SupervisorRpcFlag.Name),
+		L1EthRpc:                l1EthRpc,
+		L1Beacon:                l1Beacon,
+		TraceTypes:              traceTypes,
+		GameFactoryAddress:      gameFactoryAddress,
+		GameAllowlist:           allowedGames,
+		GameWindow:              ctx.Duration(GameWindowFlag.Name),
+		MaxConcurrency:          maxConcurrency,
+		L2Rpcs:                  l2Rpcs,
+		MaxPendingTx:            ctx.Uint64(MaxPendingTransactionsFlag.Name),
+		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
+		AdditionalBondClaimants: claimants,
+		RollupRpc:               ctx.String(RollupRpcFlag.Name),
+		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
 		Cannon: vm.Config{
 			VmType:                       types.TraceTypeCannon,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
-			L1BeaconSkipBlobVerification: l1BeaconSkipBlobVerification,
 			L2s:                          l2Rpcs,
 			L2Experimental:               l2Experimental,
 			VmBin:                        ctx.String(CannonBinFlag.Name),
@@ -748,10 +737,8 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPreStatesURL,
 		CannonKona: vm.Config{
-			VmType:                       types.TraceTypeCannonKona,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
-			L1BeaconSkipBlobVerification: l1BeaconSkipBlobVerification,
 			L2s:                          l2Rpcs,
 			L2Experimental:               l2Experimental,
 			VmBin:                        ctx.String(CannonBinFlag.Name),
@@ -766,7 +753,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			InfoFreq:                     ctx.Uint(CannonInfoFreqFlag.Name),
 			DebugInfo:                    true,
 			BinarySnapshots:              true,
-		},
 		CannonKonaAbsolutePreState:        ctx.String(CannonKonaPreStateFlag.Name),
 		CannonKonaAbsolutePreStateBaseURL: cannonKonaPreStatesURL,
 		Datadir:                           ctx.String(DatadirFlag.Name),
@@ -774,7 +760,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			VmType:                       types.TraceTypeAsterisc,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
-			L1BeaconSkipBlobVerification: l1BeaconSkipBlobVerification,
 			L2s:                          l2Rpcs,
 			L2Experimental:               l2Experimental,
 			VmBin:                        ctx.String(AsteriscBinFlag.Name),
@@ -794,7 +779,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			VmType:                       types.TraceTypeAsteriscKona,
 			L1:                           l1EthRpc,
 			L1Beacon:                     l1Beacon,
-			L1BeaconSkipBlobVerification: l1BeaconSkipBlobVerification,
 			L2s:                          l2Rpcs,
 			L2Experimental:               l2Experimental,
 			VmBin:                        ctx.String(AsteriscBinFlag.Name),

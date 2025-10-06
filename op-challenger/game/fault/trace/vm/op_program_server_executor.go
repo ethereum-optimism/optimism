@@ -75,8 +75,5 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 	if cfg.L1GenesisPath != "" {
 		args = append(args, "--l1.config", cfg.L1GenesisPath)
 	}
-	if cfg.L1BeaconSkipBlobVerification {
-		args = append(args, "--l1.beacon.skip-blob-verification")
-	}
 	return args, nil
 }

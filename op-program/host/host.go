@@ -95,10 +95,7 @@ func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV
 
 	logger.Info("Connecting to L1 beacon", "l1", cfg.L1BeaconURL)
 	l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
-	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{
-		FetchAllSidecars:     false,
-		SkipBlobVerification: cfg.L1BeaconSkipBlobVerification,
-	})
+	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
 
 	logger.Info("Initializing L2 clients")
 	sources, err := prefetcher.NewRetryingL2SourcesFromURLs(ctx, logger, cfg.Rollups, cfg.L2URLs, cfg.L2ExperimentalURLs)
