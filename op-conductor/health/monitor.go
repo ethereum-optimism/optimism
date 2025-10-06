@@ -300,7 +300,7 @@ func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
 	case client.HealthStatusPartial:
 		if hm.rollupBoostPartialHealthinessToleranceCounter != nil && hm.rollupBoostPartialHealthinessToleranceCounter.CurrentValue() < hm.rollupBoostPartialHealthinessToleranceLimit {
 			latestValue := hm.rollupBoostPartialHealthinessToleranceCounter.Increment()
-			hm.log.Debug("Rollup-boost partial unhealthiness failure tolerated", "currentValue", latestValue, "limit", hm.rollupBoostPartialHealthinessToleranceLimit)
+			hm.log.Debug("Rollup boost partial unhealthiness failure tolerated", "currentValue", latestValue, "limit", hm.rollupBoostPartialHealthinessToleranceLimit)
 			return nil
 		}
 		hm.log.Error("Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
