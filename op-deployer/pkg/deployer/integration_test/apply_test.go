@@ -146,12 +146,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	}
 
 	t.Run("default tagged artifacts", func(t *testing.T) {
-		op_e2e.InitParallel(t)
 		apply(t, artifacts.DefaultL1ContractsLocator)
 	})
 
 	t.Run("local artifacts", func(t *testing.T) {
-		op_e2e.InitParallel(t)
 		loc, _ := testutil.LocalArtifacts(t)
 		apply(t, loc)
 	})
