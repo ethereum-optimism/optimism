@@ -19,9 +19,6 @@ var inboxDepth = 100_000
 
 var ErrLogNotFound = errors.New("log not found")
 
-// TODO: make this configurable
-var updateInterval = 1 * time.Second
-
 type UpdaterClient interface {
 	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
 }
@@ -50,6 +47,9 @@ type RPCUpdater struct {
 	jobs      sync.Map
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
+	// interval to process and reevaluate jobs
+	updateInterval time.Duration
+
 	log log.Logger
 }
 
@@ -57,16 +57,21 @@ func NewUpdater(
 	chainID eth.ChainID,
 	client UpdaterClient,
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash],
-	log log.Logger) *RPCUpdater {
+	log log.Logger,
+	updateInterval time.Duration) *RPCUpdater {
+	if updateInterval == 0 {
+		updateInterval = 1 * time.Second
+	}
 	return &RPCUpdater{
 		chainID: chainID,
 		client:  client,
 		log:     log.New("component", "rpc_updater", "chain_id", chainID),
 		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
-		inbox:      make(chan *Job, inboxDepth),
-		closed:     make(chan struct{}),
-		expireTime: 2 * time.Minute,
-		finalized:  finalized,
+		inbox:          make(chan *Job, inboxDepth),
+		closed:         make(chan struct{}),
+		expireTime:     2 * time.Minute,
+		finalized:      finalized,
+		updateInterval: updateInterval,
 	}
 }
 
@@ -76,7 +81,7 @@ func (t *RPCUpdater) Start(ctx context.Context) error {
 }
 
 func (t *RPCUpdater) Run(ctx context.Context) {
-	processTicker := time.NewTicker(updateInterval)
+	processTicker := time.NewTicker(t.updateInterval)
 	defer processTicker.Stop()
 	defer t.log.Info("updater closed")
 
@@ -107,7 +112,7 @@ func (t *RPCUpdater) processJobs() {
 		if t.ShouldExpire(job) {
 			t.log.Trace("job should expire", "job", job.String())
 			toExpire = append(toExpire, id)
-		} else if time.Since(job.LastEvaluated()) >= updateInterval {
+		} else if time.Since(job.LastEvaluated()) >= t.updateInterval {
 			t.log.Trace("job should update", "job", job.String())
 			toUpdate = append(toUpdate, job)
 		} else {
