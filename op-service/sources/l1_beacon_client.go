@@ -272,14 +272,14 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes, cl.cfg.SkipBlobVerification)
+	blobs, err := BlobsFromSidecars(blobSidecars, hashes, cl.cfg.SkipBlobVerification)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
 	}
 	return blobs, nil
 }
 
-func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash, skipBlobVerification bool) ([]*eth.Blob, error) {
+func BlobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash, skipBlobVerification bool) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}

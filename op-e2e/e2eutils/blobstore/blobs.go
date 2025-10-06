@@ -5,10 +5,12 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // Store is a simple in-memory store of blobs, for testing purposes
@@ -31,19 +33,11 @@ func (store *Store) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlobHash,
 }
 
 func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	out := make([]*eth.Blob, 0, len(hashes))
-	m, ok := store.blobs[ref.Time]
-	if !ok {
-		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
+	out, err := store.GetBlobSidecars(ctx, ref, hashes)
+	if err != nil {
+		return nil, err
 	}
-	for _, h := range hashes {
-		b, ok := m[h]
-		if !ok {
-			return nil, fmt.Errorf("blob %d %s is not in store: %w", h.Index, h.Hash, ethereum.NotFound)
-		}
-		out = append(out, b)
-	}
-	return out, nil
+	return sources.BlobsFromSidecars(out, hashes, false)
 }
 
 func (store *Store) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
@@ -65,10 +59,11 @@ func (store *Store) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, has
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert blob to commitment: %w", err)
 		}
-		proof, err := kzg4844.ComputeBlobProof(b.KZGBlob(), commitment)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute blob proof: %w", err)
-		}
+
+		// From Fulu onwards, a blob proof is not provided.
+		// Derivation should not rely on a valid proof here.
+		proof := kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+
 		out = append(out, &eth.BlobSidecar{
 			Index:         eth.Uint64String(h.Index),
 			Blob:          *b,

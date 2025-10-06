@@ -63,17 +63,17 @@ func TestBlobsFromSidecars(t *testing.T) {
 
 	// put the sidecars in scrambled order to confirm error
 	sidecars := []*eth.BlobSidecar{sidecar2, sidecar0, sidecar1}
-	_, err := blobsFromSidecars(sidecars, hashes, false)
+	_, err := BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// too few sidecars should error
 	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1}
-	_, err = blobsFromSidecars(sidecars, hashes, false)
+	_, err = BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// correct order should work
 	sidecars = []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
-	blobs, err := blobsFromSidecars(sidecars, hashes, false)
+	blobs, err := BlobsFromSidecars(sidecars, hashes, false)
 	require.NoError(t, err)
 	// confirm order by checking first blob byte against expected index
 	for i := range blobs {
@@ -84,20 +84,20 @@ func TestBlobsFromSidecars(t *testing.T) {
 	badProof := *sidecar0
 	badProof.KZGProof[11]++
 	sidecars[1] = &badProof
-	_, err = blobsFromSidecars(sidecars, hashes, false)
+	_, err = BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// mangle a commitment to make sure it's detected
 	badCommitment := *sidecar0
 	badCommitment.KZGCommitment[13]++
 	sidecars[1] = &badCommitment
-	_, err = blobsFromSidecars(sidecars, hashes, false)
+	_, err = BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 	// mangle a hash to make sure it's detected
 	sidecars[1] = sidecar0
 	hashes[2].Hash[17]++
-	_, err = blobsFromSidecars(sidecars, hashes, false)
+	_, err = BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 }
@@ -130,11 +130,11 @@ func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 	sidecars[1].KZGProof = eth.Bytes48(badProof)
 
 	// Check that verification succeeds when skipBlobVerification is true
-	_, err := blobsFromSidecars(sidecars, hashes, true)
+	_, err := BlobsFromSidecars(sidecars, hashes, true)
 	require.NoError(t, err)
 
 	// Check that verification fails when skipBlobVerification is false
-	_, err = blobsFromSidecars(sidecars, hashes, false)
+	_, err = BlobsFromSidecars(sidecars, hashes, false)
 	require.Error(t, err)
 
 }
@@ -142,7 +142,7 @@ func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 func TestBlobsFromSidecars_EmptySidecarList(t *testing.T) {
 	hashes := []eth.IndexedBlobHash{}
 	sidecars := []*eth.BlobSidecar{}
-	blobs, err := blobsFromSidecars(sidecars, hashes, false)
+	blobs, err := BlobsFromSidecars(sidecars, hashes, false)
 	require.NoError(t, err)
 	require.Empty(t, blobs, "blobs should be empty when no sidecars are provided")
 }
