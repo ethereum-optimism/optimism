@@ -188,7 +188,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log, ms.PollInterval)
 		ms.updaters[chainID] = updater
 	}
 	return nil
