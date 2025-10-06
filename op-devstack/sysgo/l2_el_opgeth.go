@@ -29,6 +29,7 @@ type OpGeth struct {
 	jwtSecret     [32]byte
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
+	readOnly      bool
 
 	authRPC string
 	userRPC string
@@ -57,10 +58,14 @@ func (n *OpGeth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(n.jwtSecret))
-	engineCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC, client.WithGethRPCOptions(auth))
-	require.NoError(err)
-	system.T().Cleanup(engineCl.Close)
+	// ReadOnly cannot expose auth RPC
+	var engineCl client.RPC
+	if !n.readOnly {
+		auth := rpc.WithHTTPAuth(gn.NewJWTAuth(n.jwtSecret))
+		engineCl, err = client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC, client.WithGethRPCOptions(auth))
+		require.NoError(err)
+		system.T().Cleanup(engineCl.Close)
+	}
 
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
