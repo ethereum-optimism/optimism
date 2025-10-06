@@ -133,10 +133,10 @@ func TestBlobsFromSidecars_SkipBlobVerification(t *testing.T) {
 	_, err := blobsFromSidecars(sidecars, hashes, true)
 	require.NoError(t, err)
 
-	// Check that verification fails when skipBlobVerification is false
+	// Check that verification succeeds when skipBlobVerification is false
+	// (even though the proof is bad, it is not actually used in the verification)
 	_, err = blobsFromSidecars(sidecars, hashes, false)
-	require.NoError(t, err) // The new verification flow does not require a valid proof
-
+	require.NoError(t, err)
 }
 
 func TestBlobsFromSidecars_EmptySidecarList(t *testing.T) {
