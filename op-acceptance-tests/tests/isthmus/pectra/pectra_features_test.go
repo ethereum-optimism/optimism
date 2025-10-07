@@ -167,7 +167,7 @@ func runBlockHistoryConsistencyTest(t devtest.T, l2EL *dsl.L2ELNode) {
 	require.NotEmpty(code, "Block history contract not deployed")
 
 	// Get the slot containing the parent block hash
-	parentHashSlotNum := (latestBlock.NumberU64() - 1) % (params.HistoryServeWindow - 1)
+	parentHashSlotNum := (latestBlock.NumberU64() - 1) % params.HistoryServeWindow
 
 	// Turn the uint64 into a 32-byte array
 	parentHashSlot := make([]byte, 32)
