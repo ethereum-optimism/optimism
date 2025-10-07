@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
@@ -12,13 +12,7 @@ import { DelegateCaller } from "test/mocks/Callers.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
-import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
-import { Types } from "scripts/libraries/Types.sol";
-import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
-import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
-import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
-import { ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -62,6 +56,8 @@ import {
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
 import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
+import { IPermissionedDisputeGameV2 } from "../../interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
+import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";
 
 /// @title OPContractsManager_Harness
 /// @notice Exposes internal functions for testing.
@@ -314,33 +310,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
 /// @title OPContractsManager_Init
 /// @notice Base contract for OPContractsManager tests that need v2 functionality
-contract OPContractsManager_Init is DeployOPChain_TestBase {
+contract OPContractsManager_TestBase is DeployOPChain_TestBase {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
     IDelayedWETH internal standaloneDelayedWETH;
 
     function setUp() public virtual override {
         DeployOPChain_TestBase.setUp();
-
-        // Initialize DOI with necessary values
-        // Set the test contract as the owner for delegatecall compatibility
-        doi.set(doi.opChainProxyAdminOwner.selector, address(this));
-        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
-        doi.set(doi.batcher.selector, batcher);
-        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
-        doi.set(doi.proposer.selector, proposer);
-        doi.set(doi.challenger.selector, challenger);
-        doi.set(doi.basefeeScalar.selector, basefeeScalar);
-        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
-        doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opcm.selector, address(opcm));
-        doi.set(doi.gasLimit.selector, gasLimit);
-        doi.set(doi.disputeGameType.selector, disputeGameType);
-        doi.set(doi.disputeAbsolutePrestate.selector, disputeAbsolutePrestate);
-        doi.set(doi.disputeMaxGameDepth.selector, disputeMaxGameDepth);
-        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
-        doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
-        doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
 
         chainDeployOutput1 = createChainContracts(100);
         chainDeployOutput2 = createChainContracts(101);
@@ -370,84 +346,11 @@ contract OPContractsManager_Init is DeployOPChain_TestBase {
         return IDelayedWETH(payable(delayedWETHProxy));
     }
 
-    /// @notice Helper function to deploy OPCM with v2 flag enabled
-    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
-        // Deploy Superchain contracts first
-        DeploySuperchain deploySuperchain = new DeploySuperchain();
-        DeploySuperchain.Output memory dso = deploySuperchain.run(
-            DeploySuperchain.Input({
-                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
-                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
-                guardian: makeAddr("guardian"),
-                paused: false,
-                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
-                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
-            })
-        );
-
-        // Deploy implementations with v2 flag enabled
-        DeployImplementations deployImplementations = new DeployImplementations();
-        DeployImplementations.Output memory dio = deployImplementations.run(
-            DeployImplementations.Input({
-                withdrawalDelaySeconds: 100,
-                minProposalSizeBytes: 200,
-                challengePeriodSeconds: 300,
-                proofMaturityDelaySeconds: 400,
-                disputeGameFinalityDelaySeconds: 500,
-                mipsVersion: StandardConstants.MIPS_VERSION,
-                faultGameV2MaxGameDepth: 73,
-                faultGameV2SplitDepth: 30,
-                faultGameV2ClockExtension: 10800,
-                faultGameV2MaxClockDuration: 302400,
-                superchainConfigProxy: dso.superchainConfigProxy,
-                protocolVersionsProxy: dso.protocolVersionsProxy,
-                superchainProxyAdmin: dso.superchainProxyAdmin,
-                upgradeController: dso.superchainProxyAdmin.owner(),
-                proposer: proposer,
-                challenger: challenger,
-                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-             })
-        );
-
-        return dio.opcm;
-    }
-
-    /// @notice Helper function to convert DOI to OPCM deploy input
-    function toOPCMDeployInput(DeployOPChainInput _doi)
-        internal
-        view
-        virtual
-        returns (IOPContractsManager.DeployInput memory)
-    {
-        return IOPContractsManager.DeployInput({
-            roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
-                systemConfigOwner: _doi.systemConfigOwner(),
-                batcher: _doi.batcher(),
-                unsafeBlockSigner: _doi.unsafeBlockSigner(),
-                proposer: _doi.proposer(),
-                challenger: _doi.challenger()
-            }),
-            basefeeScalar: _doi.basefeeScalar(),
-            blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId(),
-            startingAnchorRoot: _doi.startingAnchorRoot(),
-            saltMixer: _doi.saltMixer(),
-            gasLimit: _doi.gasLimit(),
-            disputeGameType: _doi.disputeGameType(),
-            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
-            disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
-            disputeSplitDepth: _doi.disputeSplitDepth(),
-            disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
-        });
-    }
-
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
     /// @param _l2ChainId The L2 chain ID to deploy the contracts for.
     function createChainContracts(uint256 _l2ChainId) internal returns (IOPContractsManager.DeployOutput memory) {
-        doi.set(doi.l2ChainId.selector, _l2ChainId);
-        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
+        deployOPChainInput.l2ChainId = _l2ChainId;
+        IOPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(deployOPChainInput);
         deployInput.saltMixer = string.concat("test-", vm.toString(_l2ChainId));
 
         return opcm.deploy(deployInput);
@@ -597,7 +500,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
 
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
-contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
+contract OPContractsManager_AddGameType_Test is OPContractsManager_TestBase {
     event GameTypeAdded(
         uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
     );
@@ -783,7 +686,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
     }
 
     /// @notice Test that addGameType with v2 flag uses v2 implementation for PERMISSIONED_CANNON
-    function test_addGameType_withV2Flag_permissionedCannon_succeeds() public {
+    function test_addGameType_permissionedCannonV2_succeeds() public {
         // Deploy OPCM with v2 flag enabled
         IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
 
@@ -871,7 +774,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_Init {
     }
 
     /// @notice Test that addGameType with v2 flag uses v2 implementation for CANNON (permissionless)
-    function test_addGameType_withV2Flag_permissionlessCannon_succeeds() public {
+    function test_addGameType_permissionlessCannonV2_succeeds() public {
         // Deploy OPCM with v2 flag enabled
         IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
 
@@ -1920,100 +1823,17 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     }
 }
 
-contract OPContractsManager_DeployBase is DeployOPChain_TestBase {
-    using stdStorage for StdStorage;
-
-    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
-
-    // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
-    // to the input struct type defined in OPContractsManager.sol.
-    function toOPCMDeployInput(Types.DeployOPChainInput memory _doi)
-        internal
-        view
-        virtual
-        returns (IOPContractsManager.DeployInput memory)
-    {
-        bytes memory startingAnchorRoot = new DeployOPChain().startingAnchorRoot();
-        return IOPContractsManager.DeployInput({
-            roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner,
-                systemConfigOwner: _doi.systemConfigOwner,
-                batcher: _doi.batcher,
-                unsafeBlockSigner: _doi.unsafeBlockSigner,
-                proposer: _doi.proposer,
-                challenger: _doi.challenger
-            }),
-            basefeeScalar: _doi.basefeeScalar,
-            blobBasefeeScalar: _doi.blobBaseFeeScalar,
-            l2ChainId: _doi.l2ChainId,
-            startingAnchorRoot: startingAnchorRoot,
-            saltMixer: _doi.saltMixer,
-            gasLimit: _doi.gasLimit,
-            disputeGameType: _doi.disputeGameType,
-            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate,
-            disputeMaxGameDepth: _doi.disputeMaxGameDepth,
-            disputeSplitDepth: _doi.disputeSplitDepth,
-            disputeClockExtension: _doi.disputeClockExtension,
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration
-        });
-    }
-
-    /// @notice Helper function to deploy OPCM with v2 flag enabled
-    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
-        // Deploy Superchain contracts first
-        DeploySuperchain deploySuperchain = new DeploySuperchain();
-        DeploySuperchain.Output memory dso = deploySuperchain.run(
-            DeploySuperchain.Input({
-                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
-                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
-                guardian: makeAddr("guardian"),
-                paused: false,
-                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
-                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
-            })
-        );
-
-        // Deploy implementations with v2 flag enabled
-        DeployImplementations deployImplementations = new DeployImplementations();
-        DeployImplementations.Output memory dio = deployImplementations.run(
-            DeployImplementations.Input({
-                withdrawalDelaySeconds: 100,
-                minProposalSizeBytes: 200,
-                challengePeriodSeconds: 300,
-                proofMaturityDelaySeconds: 400,
-                disputeGameFinalityDelaySeconds: 500,
-                mipsVersion: StandardConstants.MIPS_VERSION,
-                faultGameV2MaxGameDepth: 73,
-                faultGameV2SplitDepth: 30,
-                faultGameV2ClockExtension: 10800,
-                faultGameV2MaxClockDuration: 302400,
-                superchainConfigProxy: dso.superchainConfigProxy,
-                protocolVersionsProxy: dso.protocolVersionsProxy,
-                superchainProxyAdmin: dso.superchainProxyAdmin,
-                upgradeController: dso.superchainProxyAdmin.owner(),
-                proposer: proposer,
-                challenger: challenger,
-                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-             })
-        );
-
-        return dio.opcm;
-    }
-}
-
 /// @title OPContractsManager_Version_Test
 /// @notice Tests the `version` function of the `OPContractsManager` contract.
 contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
-    IOPContractsManager internal prestateUpdater;
     OPContractsManager.AddGameInput[] internal gameInput;
 
     function setUp() public override {
         super.setUp();
-        prestateUpdater = opcm;
     }
 
     function test_semver_works() public view {
-        assertNotEq(abi.encode(prestateUpdater.version()), abi.encode(0));
+        assertNotEq(abi.encode(opcm.version()), abi.encode(0));
     }
 }
 
@@ -2025,7 +1845,7 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 ///      the existing test setup to deploy OPContractsManager. We do however inherit from
 ///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
 ///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
+contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         IOPContractsManager.DeployInput memory input = toOPCMDeployInput(deployOPChainInput);
         input.l2ChainId = 0;
@@ -2087,10 +1907,19 @@ contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
         vm.stopPrank();
 
         // Verify that v2 dispute game contracts are deployed and non-zero
-        assertTrue(
-            address(output.permissionedDisputeGameV2) != address(0), "PermissionedDisputeGameV2 should be deployed"
+        assertTrue(address(output.permissionedDisputeGame) != address(0), "PermissionedDisputeGame should be deployed");
+        assertTrue(address(output.faultDisputeGame) != address(0), "FaultDisputeGame should be deployed");
+
+        assertEq(
+            output.permissionedDisputeGame.version(),
+            IPermissionedDisputeGameV2(impls.permissionedDisputeGameV2Impl).version(),
+            "PermissionedDisputeGame should use V2"
         );
-        assertTrue(address(output.faultDisputeGameV2) != address(0), "FaultDisputeGameV2 should be deployed");
+        assertEq(
+            output.faultDisputeGame.version(),
+            IFaultDisputeGame(impls.faultDisputeGameV2Impl).version(),
+            "FaultDisputeGame should use V2"
+        );
 
         // Verify that v1 permissioned dispute game is still deployed (for backward compatibility)
         assertTrue(
@@ -2102,22 +1931,8 @@ contract OPContractsManager_Deploy_Test is OPContractsManager_DeployBase {
             address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertEq(
             registeredPermissionedImpl,
-            address(output.permissionedDisputeGameV2),
+            address(output.permissionedDisputeGame),
             "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON"
         );
-    }
-}
-
-/// @title OPContractsManager_Version_Test
-/// @notice Tests the `version` function of the `OPContractsManager` contract.
-contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
-    OPContractsManager.AddGameInput[] internal gameInput;
-
-    function setUp() public override {
-        super.setUp();
-    }
-
-    function test_semver_works() public view {
-        assertNotEq(abi.encode(opcm.version()), abi.encode(0));
     }
 }

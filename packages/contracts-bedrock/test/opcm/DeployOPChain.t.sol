@@ -7,10 +7,12 @@ import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployOPChain_TestBase is Test {
     DeploySuperchain deploySuperchain;
@@ -55,6 +57,8 @@ contract DeployOPChain_TestBase is Test {
     Duration disputeClockExtension = Duration.wrap(3 hours);
     Duration disputeMaxClockDuration = Duration.wrap(3.5 days);
     IOPContractsManager opcm;
+
+    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
     function setUp() public virtual {
         deploySuperchain = new DeploySuperchain();
@@ -120,6 +124,77 @@ contract DeployOPChain_TestBase is Test {
             allowCustomDisputeParameters: false,
             operatorFeeScalar: 0,
             operatorFeeConstant: 0
+        });
+    }
+
+    /// @notice Helper function to deploy OPCM with v2 flag enabled
+    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
+        // Deploy Superchain contracts first
+        DeploySuperchain.Output memory dso = deploySuperchain.run(
+            DeploySuperchain.Input({
+                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
+                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
+                guardian: makeAddr("guardian"),
+                paused: false,
+                requiredProtocolVersion: requiredProtocolVersion,
+                recommendedProtocolVersion: recommendedProtocolVersion
+            })
+        );
+
+        // Deploy implementations with v2 flag enabled
+        DeployImplementations.Output memory dio = deployImplementations.run(
+            DeployImplementations.Input({
+                withdrawalDelaySeconds: 100,
+                minProposalSizeBytes: 200,
+                challengePeriodSeconds: 300,
+                proofMaturityDelaySeconds: 400,
+                disputeGameFinalityDelaySeconds: 500,
+                mipsVersion: StandardConstants.MIPS_VERSION,
+                faultGameV2MaxGameDepth: 73,
+                faultGameV2SplitDepth: 30,
+                faultGameV2ClockExtension: 10800,
+                faultGameV2MaxClockDuration: 302400,
+                superchainConfigProxy: dso.superchainConfigProxy,
+                protocolVersionsProxy: dso.protocolVersionsProxy,
+                superchainProxyAdmin: dso.superchainProxyAdmin,
+                upgradeController: dso.superchainProxyAdmin.owner(),
+                challenger: challenger,
+                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
+             })
+        );
+
+        return dio.opcm;
+    }
+
+    // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
+    // to the input struct type defined in OPContractsManager.sol.
+    function toOPCMDeployInput(Types.DeployOPChainInput memory _doi)
+        internal
+        view
+        virtual
+        returns (IOPContractsManager.DeployInput memory)
+    {
+        return IOPContractsManager.DeployInput({
+            roles: IOPContractsManager.Roles({
+                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner,
+                systemConfigOwner: _doi.systemConfigOwner,
+                batcher: _doi.batcher,
+                unsafeBlockSigner: _doi.unsafeBlockSigner,
+                proposer: _doi.proposer,
+                challenger: _doi.challenger
+            }),
+            basefeeScalar: _doi.basefeeScalar,
+            blobBasefeeScalar: _doi.blobBaseFeeScalar,
+            l2ChainId: _doi.l2ChainId,
+            startingAnchorRoot: abi.encode(ScriptConstants.DEFAULT_OUTPUT_ROOT()),
+            saltMixer: _doi.saltMixer,
+            gasLimit: _doi.gasLimit,
+            disputeGameType: _doi.disputeGameType,
+            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate,
+            disputeMaxGameDepth: _doi.disputeMaxGameDepth,
+            disputeSplitDepth: _doi.disputeSplitDepth,
+            disputeClockExtension: _doi.disputeClockExtension,
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration
         });
     }
 }
