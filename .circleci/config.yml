@@ -2454,7 +2454,7 @@ workflows:
           requires:
             - contracts-bedrock-build
       - go-tests:
-          name: go-tests-short
+          name: go-tests-short <<matrix.dev_features>>
           parallelism: 4
           no_output_timeout: 19m
           test_timeout: 20m
@@ -2508,7 +2508,7 @@ workflows:
             - op-program-docker-build
             - op-supervisor-docker-build
             - op-test-sequencer-docker-build
-            - go-tests-short-main
+            - go-tests-short main
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
