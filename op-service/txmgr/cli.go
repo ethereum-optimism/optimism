@@ -9,6 +9,7 @@ import (
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
@@ -352,7 +353,7 @@ func (m CLIConfig) Check() error {
 	return nil
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	return CLIConfig{
 		L1RPCURL:                   ctx.String(L1RPCFlagName),
 		Mnemonic:                   ctx.String(MnemonicFlagName),
