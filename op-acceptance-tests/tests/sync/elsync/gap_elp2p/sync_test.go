@@ -50,6 +50,8 @@ import (
 //   - NewPayload alone never initiates ELP2P/EL sync, but can build a non canonical chain if state exists.
 //   - FCU is the mechanism that (a) promotes non canonical chain blocks to canonical when they are
 //     already fully validated, and (b) triggers EL sync when ancestors are missing.
+//   - Previously submitted NewPayloads that returned SYNCING are not retained to automatically
+//     assemble a non canonical chain later.
 //   - With ELP2P enabled, repeated FCU attempts eventually validate and advance the canonical chain.
 func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	t := devtest.SerialT(gt)
@@ -111,6 +113,14 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	require.Equal(blockRef.Hash, nonCan.Hash)
 	// Still targetNum block is non canonicalized
 	_, err := sys.L2ELB.Escape().L2EthClient().BlockRefByNumber(t.Ctx(), targetNum)
+	require.ErrorIs(err, ethereum.NotFound)
+
+	// Previously inserted payloads are not used to make non-canonical chain automatically
+	blockRef = sys.L2EL.BlockRefByNumber(startNum + 3)
+	_, err = sys.L2ELB.Escape().EthClient().BlockRefByHash(t.Ctx(), blockRef.Hash)
+	require.ErrorIs(err, ethereum.NotFound)
+	blockRef = sys.L2EL.BlockRefByNumber(startNum + 5)
+	_, err = sys.L2ELB.Escape().EthClient().BlockRefByHash(t.Ctx(), blockRef.Hash)
 	require.ErrorIs(err, ethereum.NotFound)
 
 	// No FCU yet so head not advanced yet
