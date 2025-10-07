@@ -37,7 +37,7 @@ func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []e
 	if err != nil {
 		return nil, err
 	}
-	return sources.BlobsFromSidecars(out, hashes, false)
+	return sources.BlobsFromSidecars(out, hashes)
 }
 
 func (store *Store) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {

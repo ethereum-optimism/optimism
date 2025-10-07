@@ -312,7 +312,7 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 		if err != nil {
 			return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
 		}
-		blobs, err := blobsFromSidecars(blobSidecars, hashes)
+		blobs, err := BlobsFromSidecars(blobSidecars, hashes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
 		}
@@ -326,8 +326,8 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	return blobs, nil
 }
 
-// blobsFromSidecars pulls the blobs from the sidecars and verifies them against the supplied hashes.
-func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+// BlobsFromSidecars pulls the blobs from the sidecars and verifies them against the supplied hashes.
+func BlobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}
