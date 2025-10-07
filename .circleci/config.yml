@@ -2419,14 +2419,11 @@ workflows:
   acceptance-tests:
     when:
       or:
+        - equal: ["webhook", << pipeline.trigger_source >>]
+        # Manual dispatch
         - and:
-          - or:
-              - equal: ["develop", <<pipeline.git.branch>>]
-              - matches: { pattern: "^proposal/.*", value: <<pipeline.git.branch>> }
-          - equal: ["webhook",<< pipeline.trigger_source >>]
-        - and:
-          - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-          - equal: ["api",<< pipeline.trigger_source >>]
+            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+            - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
