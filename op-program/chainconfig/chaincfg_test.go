@@ -51,6 +51,23 @@ func TestGetCustomL1ChainConfig_Missing(t *testing.T) {
 	require.ErrorIs(t, err, ErrMissingChainConfig)
 }
 
+func TestGetCustomL1ChainConfig_KnownChainID(t *testing.T) {
+	knownChainIds := []eth.ChainID{
+		eth.ChainIDFromUInt64(1),        // Mainnet
+		eth.ChainIDFromUInt64(11155111), // Sepolia
+		eth.ChainIDFromUInt64(17000),    // Holesky
+		eth.ChainIDFromUInt64(560048),   // Hoodi
+	}
+	for _, chainID := range knownChainIds {
+		cfg, err := L1ChainConfigByChainID(chainID)
+		require.NoError(t, err)
+		require.True(t, chainID.Cmp(eth.ChainIDFromBig(cfg.ChainID)) == 0)
+	}
+	unknownChainId := eth.ChainIDFromUInt64(11111)
+	_, err := L1ChainConfigByChainID(unknownChainId)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
+}
+
 func TestGetCustomDependencySetConfig(t *testing.T) {
 	depSet, err := dependencySetByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
 	require.NoError(t, err)

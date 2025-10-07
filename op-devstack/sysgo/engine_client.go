@@ -64,6 +64,10 @@ func (e *engineClient) GetPayloadV4(id engine.PayloadID) (*engine.ExecutionPaylo
 	return e.getPayload(id, "engine_getPayloadV4")
 }
 
+func (e *engineClient) GetPayloadV5(id engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error) {
+	return e.getPayload(id, "engine_getPayloadV5")
+}
+
 func (e *engineClient) NewPayloadV2(data engine.ExecutableData) (engine.PayloadStatusV1, error) {
 	var result engine.PayloadStatusV1
 	if err := e.inner.CallContext(context.Background(), &result, "engine_newPayloadV2", data); err != nil {

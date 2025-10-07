@@ -31,3 +31,11 @@ func WithSafeDBEnabled() stack.CommonOption {
 				cfg.SafeDBPath = p.TempDir()
 			})))
 }
+
+func WithReqRespSyncDisabled() stack.CommonOption {
+	return stack.MakeCommon(
+		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.EnableReqRespSync = false
+			})))
+}
