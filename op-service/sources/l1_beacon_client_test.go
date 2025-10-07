@@ -249,7 +249,7 @@ func TestBeaconClientBadProof(t *testing.T) {
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(nil, errors.New("the sky is falling"))
 		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 		_, err := client.GetBlobs(ctx, ref, hashes)
-		assert.NoError(t, err) // The verification flow does not require a valid proof
+		assert.NoError(t, err)
 	})
 
 	t.Run("BeaconBlobs", func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestBeaconClientBadProof(t *testing.T) {
 		ref := eth.L1BlockRef{Time: 12}
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(blobs, nil)
 		_, err := client.GetBlobs(ctx, ref, hashes)
-		assert.NoError(t, err) // The verification flow does not require a valid proof
+		assert.NoError(t, err)
 	})
 }
 
