@@ -218,6 +218,10 @@ func (el *L2ELNode) PeerWith(peer *L2ELNode) {
 	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
 
+func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
+	sysgo.DisconnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
+}
+
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {
 	payload, err := el.inner.L2EthExtendedClient().PayloadByNumber(el.ctx, number)
 	el.require.NoError(err, "failed to get payload")
@@ -226,6 +230,7 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 
 // NewPayload fetches payload for target number from the reference EL Node, and inserts the payload
 func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResult {
+	el.log.Info("NewPayload", "number", number, "refNode", refNode)
 	payload := refNode.PayloadByNumber(number)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
@@ -233,11 +238,19 @@ func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResu
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
 func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized uint64, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
-	state := &eth.ForkchoiceState{
-		HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
-		SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,
-		FinalizedBlockHash: refNode.BlockRefByNumber(finalized).Hash,
+	result := &ForkchoiceUpdateResult{T: el.t}
+	refresh := func() {
+		el.log.Info("ForkchoiceUpdate", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "refNode", refNode)
+		state := &eth.ForkchoiceState{
+			HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
+			SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,
+			FinalizedBlockHash: refNode.BlockRefByNumber(finalized).Hash,
+		}
+		res, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
+		result.Result = res
+		result.Err = err
 	}
-	result, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
-	return &ForkchoiceUpdateResult{T: el.t, Result: result, Err: err}
+	result.Refresh = refresh
+	result.Refresh()
+	return result
 }

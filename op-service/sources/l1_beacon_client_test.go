@@ -233,20 +233,36 @@ func TestBeaconClientBadProof(t *testing.T) {
 
 	hashes := []eth.IndexedBlobHash{index0, index1, index2}
 	sidecars := []*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}
+	blobs := []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob}
 
 	// invalidate proof
 	sidecar1.KZGProof = eth.Bytes48(badProof)
 	apiSidecars := toAPISideCars(sidecars)
 
-	ctx := context.Background()
-	p := mocks.NewBeaconClient(t)
+	t.Run("fallback to BeaconBlobSideCars", func(t *testing.T) {
+		ctx := context.Background()
+		p := mocks.NewBeaconClient(t)
+		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		ref := eth.L1BlockRef{Time: 12}
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(nil, errors.New("the sky is falling"))
+		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
+		_, err := client.GetBlobs(ctx, ref, hashes)
+		assert.NoError(t, err)
+	})
 
-	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
-	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-	clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{})
-	p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
-	_, err := clientWithValidation.GetBlobs(ctx, eth.L1BlockRef{Time: 12}, hashes)
-	assert.NoError(t, err) // The verification flow does not require a valid proof
+	t.Run("BeaconBlobs", func(t *testing.T) {
+		ctx := context.Background()
+		p := mocks.NewBeaconClient(t)
+		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		ref := eth.L1BlockRef{Time: 12}
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(blobs, nil)
+		_, err := client.GetBlobs(ctx, ref, hashes)
+		assert.NoError(t, err)
+	})
 }
 
 func TestBeaconHTTPClient(t *testing.T) {

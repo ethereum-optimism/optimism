@@ -72,6 +72,16 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_TestInit {
     }
 }
 
+/// @title ProtocolVersions_Version_Test
+/// @notice Test contract for ProtocolVersions `version` constant.
+contract ProtocolVersions_Version_Test is ProtocolVersions_TestInit {
+    /// @notice Tests that the version function returns a valid string. We avoid testing
+    ///         the specific value as it changes frequently.
+    function test_version_succeeds() external view {
+        assertGt(bytes(protocolVersions.version()).length, 0);
+    }
+}
+
 /// @title ProtocolVersions_SetRequired_Test
 /// @notice Test contract for ProtocolVersions `setRequired` function.
 contract ProtocolVersions_SetRequired_Test is ProtocolVersions_TestInit {
