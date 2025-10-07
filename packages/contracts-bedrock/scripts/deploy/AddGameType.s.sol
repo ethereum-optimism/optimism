@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
@@ -61,21 +62,12 @@ contract AddGameType is Script {
         // Etch DummyCaller contract
         address prank = _agi.prank;
 
-        if (address(_agi.opcmImpl) == 0x1B25F566336F47BC5E0036D66E142237DcF4640b) {
+        if (SemverComp.lt(_agi.opcmImpl.version(), "4.1.0")) {
             bytes memory code = vm.getDeployedCode("AddGameType.s.sol:OldDummyCaller");
             vm.etch(prank, code);
-        } else {
-            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
-            vm.etch(prank, code);
-        }
-        vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
-        vm.label(prank, "DummyCaller");
+            vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
+            vm.label(prank, "DummyCaller");
 
-        // Call into the DummyCaller to perform the delegatecall
-        vm.broadcast(msg.sender);
-        bytes memory result;
-        bool success;
-        if (address(_agi.opcmImpl) == 0x1B25F566336F47BC5E0036D66E142237DcF4640b) {
             // Create the game input
             IOldOPContractsManager.AddGameInput[] memory gameConfigs = new IOldOPContractsManager.AddGameInput[](1);
             gameConfigs[0] = IOldOPContractsManager.AddGameInput({
@@ -94,9 +86,23 @@ contract AddGameType is Script {
                 permissioned: _agi.permissioned
             });
 
-            (success, result) = OldDummyCaller(prank).addGameType(gameConfigs);
+            // Call into the DummyCaller to perform the delegatecall
+            vm.broadcast(msg.sender);
+
+            (bool success, bytes memory result) = OldDummyCaller(prank).addGameType(gameConfigs);
             require(success, "AddGameType: addGameType failed");
+
+            // Decode the result and set it in the output
+            OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
+            require(outputs.length == 1, "AddGameType: unexpected number of outputs");
+            return
+                Output({ delayedWETHProxy: outputs[0].delayedWETH, faultDisputeGameProxy: outputs[0].faultDisputeGame });
         } else {
+            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
+            vm.etch(prank, code);
+            vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
+            vm.label(prank, "DummyCaller");
+
             // Create the game input
             OPContractsManager.AddGameInput[] memory gameConfigs = new OPContractsManager.AddGameInput[](1);
             gameConfigs[0] = OPContractsManager.AddGameInput({
@@ -114,14 +120,18 @@ contract AddGameType is Script {
                 permissioned: _agi.permissioned
             });
 
-            (success, result) = DummyCaller(prank).addGameType(gameConfigs);
-            require(success, "AddGameType: addGameType failed");
-        }
+            // Call into the DummyCaller to perform the delegatecall
+            vm.broadcast(msg.sender);
 
-        // Decode the result and set it in the output
-        OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
-        require(outputs.length == 1, "AddGameType: unexpected number of outputs");
-        return Output({ delayedWETHProxy: outputs[0].delayedWETH, faultDisputeGameProxy: outputs[0].faultDisputeGame });
+            (bool success, bytes memory result) = DummyCaller(prank).addGameType(gameConfigs);
+            require(success, "AddGameType: addGameType failed");
+
+            // Decode the result and set it in the output
+            OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
+            require(outputs.length == 1, "AddGameType: unexpected number of outputs");
+            return
+                Output({ delayedWETHProxy: outputs[0].delayedWETH, faultDisputeGameProxy: outputs[0].faultDisputeGame });
+        }
     }
 
     function checkOutput(Output memory _ago) internal view {

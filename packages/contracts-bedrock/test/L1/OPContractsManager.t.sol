@@ -21,6 +21,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -211,13 +212,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         bytes memory delegateCallerCode = address(_delegateCaller).code;
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
+        string memory OPCM_VERSION = _opcm.version();
+
         // Expect the revert if one is specified.
         if (_revertBytes.length > 0) {
             vm.expectRevert(_revertBytes);
         }
 
         // Execute the chain upgrade.
-        if (address(_opcm) == 0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D) {
+        if (SemverComp.lt(OPCM_VERSION, "4.1.0")) {
             IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
             opChains[0] = IOldOPContractsManager.OpChainConfig({
                 systemConfigProxy: systemConfig,

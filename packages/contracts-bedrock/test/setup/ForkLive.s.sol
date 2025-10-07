@@ -17,6 +17,7 @@ import { Config } from "scripts/libraries/Config.sol";
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -233,7 +234,7 @@ contract ForkLive is Deployer, StdAssertions {
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Upgrade the chain.
-        if (address(_opcm) == 0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D) {
+        if (SemverComp.lt(_opcm.version(), "4.1.0")) {
             IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
             opChains[0] = IOldOPContractsManager.OpChainConfig({
                 systemConfigProxy: systemConfig,

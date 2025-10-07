@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;
@@ -51,30 +52,34 @@ contract UpgradeOPChain is Script {
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _uoci.prank();
-        if (address(opcm) == 0xaf334F4537E87F5155d135392Ff6D52f1866465E) {
+        if (SemverComp.lt(opcm.version(), "4.1.0")) {
             bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:OldDummyCaller");
             vm.etch(prank, code);
-        } else {
-            bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
-            vm.etch(prank, code);
-        }
-        vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
-        vm.label(prank, "DummyCaller");
 
-        // Call into the DummyCaller. This will perform the delegatecall under the hood and
-        // return the result.
-        if (address(opcm) == 0xaf334F4537E87F5155d135392Ff6D52f1866465E) {
+            vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
+            vm.label(prank, "DummyCaller");
+
             IOldOPContractsManager.OpChainConfig[] memory opChainConfigs =
                 abi.decode(_uoci.opChainConfigs(), (IOldOPContractsManager.OpChainConfig[]));
 
+            // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
+
             (bool success,) = OldDummyCaller(prank).upgrade(opChainConfigs);
             require(success, "UpgradeOPChain: upgrade failed");
         } else {
+            bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
+            vm.etch(prank, code);
+
+            vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
+            vm.label(prank, "DummyCaller");
+
             OPContractsManager.OpChainConfig[] memory opChainConfigs =
                 abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
 
+            // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
+
             (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
             require(success, "UpgradeOPChain: upgrade failed");
         }
