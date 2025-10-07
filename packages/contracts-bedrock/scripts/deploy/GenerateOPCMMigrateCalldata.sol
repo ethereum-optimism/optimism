@@ -121,16 +121,11 @@ contract GenerateOPCMMigrateCalldata is Script {
         for (uint256 i = 0; i < j.length; i++) {
             opChainConfigs[i] = IOPContractsManager.OpChainConfig({
                 systemConfigProxy: ISystemConfig(j[i].systemConfigProxy),
-                proxyAdmin: IProxyAdmin(j[i].proxyAdmin),
                 absolutePrestate: Claim.wrap(absolutePrestate)
             });
             require(
                 opChainConfigs[i].systemConfigProxy != ISystemConfig(address(0)),
                 "GenerateOPCMMigrateCalldata: systemConfigProxy cannot be 0"
-            );
-            require(
-                opChainConfigs[i].proxyAdmin != IProxyAdmin(address(0)),
-                "GenerateOPCMMigrateCalldata: proxyAdmin cannot be 0"
             );
         }
 

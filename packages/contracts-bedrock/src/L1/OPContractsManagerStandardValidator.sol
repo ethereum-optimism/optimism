@@ -112,7 +112,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Struct containing the input parameters for the validation process.
     struct ValidationInput {
-        IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
@@ -260,8 +259,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
-        _errors = internalRequire(getProxyAdmin(address(_sysCfg)) == _admin, "SYSCON-130", _errors);
-        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-140", _errors);
+        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
         return _errors;
     }
 
@@ -760,22 +758,24 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         string memory _errors = "";
 
+        IProxyAdmin _proxyAdmin = _input.sysCfg.proxyAdmin();
+
         _errors = assertValidSuperchainConfig(_errors);
-        _errors = assertValidProxyAdmin(_errors, _input.proxyAdmin, _overrides);
-        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin, _overrides);
+        _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
         _errors = assertValidPermissionedDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _proxyAdmin, _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _proxyAdmin, _overrides
         );
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;

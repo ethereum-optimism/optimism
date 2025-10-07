@@ -198,7 +198,6 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     function _validate(bool _allowFailure) internal view returns (string memory) {
         return opcm.validate(
             IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
                 l2ChainID: l2ChainId
@@ -220,7 +219,6 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     {
         return opcm.validateWithOverrides(
             IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
                 l2ChainID: l2ChainId
@@ -473,21 +471,12 @@ contract OPContractsManagerStandardValidator_SystemConfig_Test is OPContractsMan
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         SystemConfig proxyAdmin is invalid.
-    function test_validate_systemConfigInvalidProxyAdmin_succeeds() public {
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
-        );
-        assertEq("SYSCON-130", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
     ///         SystemConfig superchainConfig is invalid.
     function test_validate_systemConfigInvalidSuperchainConfig_succeeds() public {
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(address(0xbad))
         );
-        assertEq("SYSCON-140", _validate(true));
+        assertEq("SYSCON-130", _validate(true));
     }
 }
 

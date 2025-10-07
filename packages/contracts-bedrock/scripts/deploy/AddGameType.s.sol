@@ -62,7 +62,6 @@ contract AddGameType is Script {
         gameConfigs[0] = OPContractsManager.AddGameInput({
             saltMixer: _agi.saltMixer,
             systemConfig: _agi.systemConfigProxy,
-            proxyAdmin: _agi.opChainProxyAdmin,
             delayedWETH: _agi.delayedWETHProxy,
             disputeGameType: _agi.disputeGameType,
             disputeAbsolutePrestate: _agi.disputeAbsolutePrestate,

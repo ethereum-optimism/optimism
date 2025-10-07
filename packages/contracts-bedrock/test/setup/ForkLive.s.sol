@@ -27,7 +27,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager, IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -200,13 +200,6 @@ contract ForkLive is Deployer, StdAssertions {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
 
-        IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
-        opChains[0] = IOPContractsManager.OpChainConfig({
-            systemConfigProxy: systemConfig,
-            proxyAdmin: proxyAdmin,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
-        });
-
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
         // SuperchainConfig contract.
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
@@ -240,9 +233,26 @@ contract ForkLive is Deployer, StdAssertions {
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Upgrade the chain.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
-        );
+        if (address(_opcm) == 0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D) {
+            IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
+            opChains[0] = IOldOPContractsManager.OpChainConfig({
+                systemConfigProxy: systemConfig,
+                proxyAdmin: proxyAdmin,
+                absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            });
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOldOPContractsManager.upgrade, (opChains))
+            );
+        } else {
+            IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
+            opChains[0] = IOPContractsManager.OpChainConfig({
+                systemConfigProxy: systemConfig,
+                absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            });
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
+            );
+        }
 
         // Reset the upgrader to the original code.
         vm.etch(_delegateCaller, upgraderCode);

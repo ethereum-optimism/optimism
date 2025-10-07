@@ -429,7 +429,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     payable(
                         deployProxy(
                             l2ChainId,
-                            gameConfig.proxyAdmin,
+                            gameConfig.systemConfig.proxyAdmin(),
                             gameConfig.saltMixer,
                             string.concat("DelayedWETH-", Strings.toString(uint256(gameTypeInt)))
                         )
@@ -438,7 +438,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
                 // Initialize the proxy.
                 upgradeToAndCall(
-                    gameConfig.proxyAdmin,
+                    gameConfig.systemConfig.proxyAdmin(),
                     address(outputs[i].delayedWETH),
                     getImplementations().delayedWETHImpl,
                     abi.encodeCall(IDelayedWETH.initialize, (gameConfig.systemConfig))
@@ -639,7 +639,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     disputeAbsolutePrestate: prestate,
                     saltMixer: reusableSaltMixer(_prestateUpdateInputs[i].systemConfigProxy),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
-                    proxyAdmin: _prestateUpdateInputs[i].systemConfigProxy.proxyAdmin(),
                     delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
                     disputeGameType: gameParams.gameType,
                     disputeMaxGameDepth: gameParams.maxGameDepth,
@@ -723,8 +722,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     )
         internal
     {
+        // Get the proxyAdmin from the systemConfig.
+        IProxyAdmin proxyAdmin = _opChainConfig.systemConfigProxy.proxyAdmin();
+
         // Upgrade the SystemConfig first.
-        upgradeTo(_opChainConfig.proxyAdmin, address(_opChainConfig.systemConfigProxy), _impls.systemConfigImpl);
+        upgradeTo(proxyAdmin, address(_opChainConfig.systemConfigProxy), _impls.systemConfigImpl);
 
         // Grab the OptimismPortal contract.
         IOptimismPortal optimismPortal = IOptimismPortal(payable(_opChainConfig.systemConfigProxy.optimismPortal()));
@@ -733,7 +735,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
             // This does NOT run in production.
             // Upgrade the OptimismPortal contract implementation.
-            upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalInteropImpl);
+            upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalInteropImpl);
 
             // If we don't already have an ETHLockbox, deploy and initialize it.
             IETHLockbox ethLockbox = optimismPortal.ethLockbox();
@@ -742,7 +744,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 ethLockbox = IETHLockbox(
                     deployProxy({
                         _l2ChainId: _l2ChainId,
-                        _proxyAdmin: _opChainConfig.proxyAdmin,
+                        _proxyAdmin: proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfig.systemConfigProxy),
                         _contractName: "ETHLockbox-U16a"
                     })
@@ -752,7 +754,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
                 portals[0] = optimismPortal;
                 upgradeToAndCall(
-                    _opChainConfig.proxyAdmin,
+                    proxyAdmin,
                     address(ethLockbox),
                     _impls.ethLockboxImpl,
                     abi.encodeCall(IETHLockbox.initialize, (_opChainConfig.systemConfigProxy, portals))
@@ -770,12 +772,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             IOptimismPortalInterop(payable(optimismPortal)).upgrade(anchorStateRegistry, ethLockbox);
         } else {
             // This runs in production.
-            upgradeTo(_opChainConfig.proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
+            upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
         // Upgrade the OptimismMintableERC20Factory contract.
         upgradeTo(
-            _opChainConfig.proxyAdmin,
+            proxyAdmin,
             _opChainConfig.systemConfigProxy.optimismMintableERC20Factory(),
             _impls.optimismMintableERC20FactoryImpl
         );
@@ -784,7 +786,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
         // Need to upgrade the DisputeGameFactory implementation, no internal upgrade call.
-        upgradeTo(_opChainConfig.proxyAdmin, address(dgf), _impls.disputeGameFactoryImpl);
+        upgradeTo(proxyAdmin, address(dgf), _impls.disputeGameFactoryImpl);
 
         // Separate context to avoid stack too deep.
         {
@@ -794,24 +796,20 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Upgrade the L1CrossDomainMessenger contract.
             upgradeTo(
-                _opChainConfig.proxyAdmin,
+                proxyAdmin,
                 address(IL1CrossDomainMessenger(opChainAddrs.l1CrossDomainMessenger)),
                 _impls.l1CrossDomainMessengerImpl
             );
 
             // Upgrade the L1StandardBridge contract.
             upgradeTo(
-                _opChainConfig.proxyAdmin,
+                proxyAdmin,
                 address(IL1StandardBridge(payable(opChainAddrs.l1StandardBridge))),
                 _impls.l1StandardBridgeImpl
             );
 
             // Upgrade the L1ERC721Bridge contract.
-            upgradeTo(
-                _opChainConfig.proxyAdmin,
-                address(IL1ERC721Bridge(opChainAddrs.l1ERC721Bridge)),
-                _impls.l1ERC721BridgeImpl
-            );
+            upgradeTo(proxyAdmin, address(IL1ERC721Bridge(opChainAddrs.l1ERC721Bridge)), _impls.l1ERC721BridgeImpl);
         }
 
         // All chains have the PermissionedDisputeGame, grab that.
@@ -880,7 +878,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Verifies that all OpChainConfig inputs are valid and reverts if any are invalid.
     function assertValidOpChainConfig(OPContractsManager.OpChainConfig memory _config) internal view {
         assertValidContractAddress(address(_config.systemConfigProxy));
-        assertValidContractAddress(address(_config.proxyAdmin));
     }
 
     /// @notice Deploys and sets a new dispute game implementation
@@ -1452,11 +1449,14 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     ///      you know what you're doing and that you are prepared to fully execute this migration.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public virtual {
+        // Get the proxyAdmin from the first system config.
+        IProxyAdmin proxyAdmin = _input.opChainConfigs[0].systemConfigProxy.proxyAdmin();
+
         // Check that all of the configs have the same proxy admin owner and prestate.
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
             // Different chains might actually have different ProxyAdmin contracts, but it's fine
             // as long as the owner of all of those contracts is the same.
-            if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
+            if (_input.opChainConfigs[i].systemConfigProxy.proxyAdmin().owner() != proxyAdmin.owner()) {
                 revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
             }
             if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
@@ -1481,7 +1481,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         // ProxyAdmin contract as the ProxyAdmin for all of the newly shared contracts. This is
         // safe because we already checked that all of the provided chains have the same ProxyAdmin
         // owner and therefore have the same access models.
-        address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
+        address proxyAdminOwner = proxyAdmin.owner();
 
         // Deploy the new ETHLockbox.
         // NOTE that here and in the rest of this function we use block.timestamp as a fake chain
@@ -1492,7 +1492,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         IETHLockbox newEthLockbox = IETHLockbox(
             deployProxy({
                 _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _proxyAdmin: proxyAdmin,
                 _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "ETHLockbox-Interop"
             })
@@ -1509,7 +1509,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Initialize the new ETHLockbox.
             // Note that this authorizes the portals to use the ETHLockbox.
             upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
+                proxyAdmin,
                 address(newEthLockbox),
                 getImplementations().ethLockboxImpl,
                 abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), castedPortals))
@@ -1520,7 +1520,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         IDisputeGameFactory newDisputeGameFactory = IDisputeGameFactory(
             deployProxy({
                 _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _proxyAdmin: proxyAdmin,
                 _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "DisputeGameFactory-Interop"
             })
@@ -1528,7 +1528,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // Initialize the new DisputeGameFactory.
         upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
+            proxyAdmin,
             address(newDisputeGameFactory),
             getImplementations().disputeGameFactoryImpl,
             abi.encodeCall(IDisputeGameFactory.initialize, (proxyAdminOwner))
@@ -1538,7 +1538,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
             deployProxy({
                 _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _proxyAdmin: proxyAdmin,
                 _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                 _contractName: "AnchorStateRegistry-Interop"
             })
@@ -1555,7 +1555,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
         // Initialize the new AnchorStateRegistry.
         upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
+            proxyAdmin,
             address(newAnchorStateRegistry),
             getImplementations().anchorStateRegistryImpl,
             abi.encodeCall(
@@ -1597,7 +1597,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 payable(
                     deployProxy({
                         _l2ChainId: block.timestamp,
-                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                        _proxyAdmin: proxyAdmin,
                         _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                         _contractName: "DelayedWETH-Interop-Permissioned"
                     })
@@ -1606,11 +1606,14 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Initialize the new DelayedWETH proxy.
             upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
+                proxyAdmin,
                 address(newPermissionedDelayedWETHProxy),
                 getImplementations().delayedWETHImpl,
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
+
+            // Fix stack too deep
+            MigrateInput memory input = _input;
 
             // Deploy the new SuperPermissionedDisputeGame.
             // NOTE that we use a chain id of 0 here (instead of the block timestamp) because the
@@ -1623,24 +1626,24 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     blueprints().superPermissionedDisputeGame2,
                     computeSalt(
                         block.timestamp,
-                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
+                        reusableSaltMixer(input.opChainConfigs[0].systemConfigProxy),
                         "SuperPermissionedDisputeGame"
                     ),
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
+                            absolutePrestate: input.opChainConfigs[0].absolutePrestate,
+                            maxGameDepth: input.gameParameters.maxGameDepth,
+                            splitDepth: input.gameParameters.splitDepth,
+                            clockExtension: input.gameParameters.clockExtension,
+                            maxClockDuration: input.gameParameters.maxClockDuration,
                             vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionedDelayedWETHProxy,
                             anchorStateRegistry: newAnchorStateRegistry,
                             l2ChainId: 0
                         }),
-                        _input.gameParameters.proposer,
-                        _input.gameParameters.challenger
+                        input.gameParameters.proposer,
+                        input.gameParameters.challenger
                     )
                 )
             );
@@ -1649,7 +1652,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setImplementation(
                 GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
             );
-            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, input.gameParameters.initBond);
         }
 
         // If the permissionless game is being used, set that up too.
@@ -1659,7 +1662,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 payable(
                     deployProxy({
                         _l2ChainId: block.timestamp,
-                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                        _proxyAdmin: proxyAdmin,
                         _saltMixer: reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
                         _contractName: "DelayedWETH-Interop-Permissionless"
                     })
@@ -1668,11 +1671,14 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Initialize the new DelayedWETH proxy.
             upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
+                proxyAdmin,
                 address(newPermissionlessDelayedWETHProxy),
                 getImplementations().delayedWETHImpl,
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
+
+            // Fix stack too deep
+            MigrateInput memory input = _input;
 
             // Deploy the new SuperFaultDisputeGame.
             ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
@@ -1681,17 +1687,17 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     blueprints().superPermissionlessDisputeGame2,
                     computeSalt(
                         block.timestamp,
-                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
+                        reusableSaltMixer(input.opChainConfigs[0].systemConfigProxy),
                         "SuperFaultDisputeGame"
                     ),
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
+                            absolutePrestate: input.opChainConfigs[0].absolutePrestate,
+                            maxGameDepth: input.gameParameters.maxGameDepth,
+                            splitDepth: input.gameParameters.splitDepth,
+                            clockExtension: input.gameParameters.clockExtension,
+                            maxClockDuration: input.gameParameters.maxClockDuration,
                             vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionlessDelayedWETHProxy,
                             anchorStateRegistry: newAnchorStateRegistry,
@@ -1703,7 +1709,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Register the new SuperFaultDisputeGame.
             newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
-            newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, input.gameParameters.initBond);
         }
     }
 }
@@ -1803,7 +1809,6 @@ contract OPContractsManager is ISemver {
     /// @notice The input required to identify a chain for upgrading, along with new prestate hashes
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
     }
 
@@ -1817,7 +1822,6 @@ contract OPContractsManager is ISemver {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -1837,9 +1841,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.0.0
+    /// @custom:semver 4.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "4.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

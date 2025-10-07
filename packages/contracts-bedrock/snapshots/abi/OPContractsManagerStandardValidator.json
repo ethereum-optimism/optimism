@@ -336,11 +336,6 @@
       {
         "components": [
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",
             "type": "address"
@@ -381,11 +376,6 @@
     "inputs": [
       {
         "components": [
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
           {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",

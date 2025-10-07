@@ -38,9 +38,13 @@ import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerInteropMigrator,
-    IOPContractsManagerUpgrader
+    IOPContractsManagerUpgrader,
+    IOldOPContractsManager
 } from "interfaces/L1/IOPContractsManager.sol";
-import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import {
+    IOPContractsManagerStandardValidator,
+    IOldOPContractsManagerStandardValidator
+} from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
@@ -136,11 +140,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         opChainConfigs.push(
-            IOPContractsManager.OpChainConfig({
-                systemConfigProxy: systemConfig,
-                proxyAdmin: proxyAdmin,
-                absolutePrestate: absolutePrestate
-            })
+            IOPContractsManager.OpChainConfig({ systemConfigProxy: systemConfig, absolutePrestate: absolutePrestate })
         );
 
         // Retrieve the l2ChainId, which was read from the superchain-registry, and saved in
@@ -217,9 +217,21 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Execute the chain upgrade.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
+        if (address(_opcm) == 0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D) {
+            IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
+            opChains[0] = IOldOPContractsManager.OpChainConfig({
+                systemConfigProxy: systemConfig,
+                proxyAdmin: proxyAdmin,
+                absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            });
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOldOPContractsManager.upgrade, (opChains))
+            );
+        } else {
+            DelegateCaller(_delegateCaller).dcForward(
+                address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
+            );
+        }
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
@@ -261,15 +273,26 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Run the StandardValidator checks.
-        validator.validate(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: opChainConfigs[0].proxyAdmin,
-                sysCfg: opChainConfigs[0].systemConfigProxy,
-                absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                l2ChainID: l2ChainId
-            }),
-            false
-        );
+        if (address(validator) == 0x845FEF377Fa9C678B3eBe33B024678538f1215dD) {
+            IOldOPContractsManagerStandardValidator(address(validator)).validate(
+                IOldOPContractsManagerStandardValidator.ValidationInput({
+                    proxyAdmin: opChainConfigs[0].systemConfigProxy.proxyAdmin(),
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
+                    l2ChainID: l2ChainId
+                }),
+                false
+            );
+        } else {
+            validator.validate(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
+                    l2ChainID: l2ChainId
+                }),
+                false
+            );
+        }
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -398,7 +421,6 @@ contract OPContractsManager_TestInit is CommonTest {
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             delayedWETH: IDelayedWETH(payable(address(0))),
             disputeGameType: _gameType,
             disputeAbsolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
@@ -1483,12 +1505,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         });
 
         IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](2);
-        opChainConfigs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, absolutePrestate1
-        );
-        opChainConfigs[1] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput2.systemConfigProxy, chainDeployOutput2.opChainProxyAdmin, absolutePrestate1
-        );
+        opChainConfigs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, absolutePrestate1);
+        opChainConfigs[1] = IOPContractsManager.OpChainConfig(chainDeployOutput2.systemConfigProxy, absolutePrestate1);
 
         return IOPContractsManagerInteropMigrator.MigrateInput({
             usePermissionlessGame: true,
@@ -1781,12 +1799,12 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Mock out the owners of the ProxyAdmins to be different.
         vm.mockCall(
-            address(input.opChainConfigs[0].proxyAdmin),
+            address(input.opChainConfigs[0].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
-            address(input.opChainConfigs[1].proxyAdmin),
+            address(input.opChainConfigs[1].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(5678))
         );

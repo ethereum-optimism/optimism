@@ -262,11 +262,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "Claim",
             "name": "absolutePrestate",
             "type": "bytes32"

@@ -221,7 +221,6 @@ interface IOPContractsManager {
     /// @notice The input required to identify a chain for upgrading.
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
     }
 
@@ -235,7 +234,6 @@ interface IOPContractsManager {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -389,4 +387,14 @@ interface IOPContractsManager {
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
+}
+
+interface IOldOPContractsManager {
+    struct OpChainConfig {
+        ISystemConfig systemConfigProxy;
+        IProxyAdmin proxyAdmin;
+        Claim absolutePrestate;
+    }
+
+    function upgrade(OpChainConfig[] memory _opChainConfigs) external;
 }
