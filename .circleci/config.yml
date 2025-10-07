@@ -2508,7 +2508,7 @@ workflows:
             - op-program-docker-build
             - op-supervisor-docker-build
             - op-test-sequencer-docker-build
-            - go-tests-short
+            - go-tests-short-main
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
