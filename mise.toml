@@ -15,6 +15,7 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka release.
 "go:gotest.tools/gotestsum" = "1.12.1"
 "go:github.com/vektra/mockery/v2" = "2.46.0"
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "1.64.8"
@@ -37,7 +38,7 @@ anvil = "1.1.0"
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.11.2"
 kurtosis = "1.8.1"
-op-acceptor = "op-acceptor/v3.4.2"
+op-acceptor = "op-acceptor/v3.5.0"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't

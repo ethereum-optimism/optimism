@@ -49,18 +49,17 @@ type Config struct {
 	BinarySnapshots bool   // Whether to use binary snapshots instead of JSON
 
 	// Host Configuration
-	L1                           string
-	L1Beacon                     string
-	L1BeaconSkipBlobVerification bool // Skip verification of the KZG proof for each blob. Not recommended unless the provided beacon endpoints are trusted.
-	L2s                          []string
-	L2Experimental               string
-	Server                       string // Path to the executable that provides the pre-image oracle server
-	Networks                     []string
-	L2Custom                     bool
-	RollupConfigPaths            []string
-	L1GenesisPath                string
-	L2GenesisPaths               []string
-	DepsetConfigPath             string
+	L1                string
+	L1Beacon          string
+	L2s               []string
+	L2Experimental    string
+	Server            string // Path to the executable that provides the pre-image oracle server
+	Networks          []string
+	L2Custom          bool
+	RollupConfigPaths []string
+	L1GenesisPath     string
+	L2GenesisPaths    []string
+	DepsetConfigPath  string
 }
 
 func (c *Config) Check() error {

@@ -59,6 +59,9 @@ parameters:
   sync_test_op_node_dispatch:
     type: boolean
     default: false
+  ai_contracts_test_dispatch:
+    type: boolean
+    default: false
   github-event-type:
     type: string
     default: "__not_set__"
@@ -983,6 +986,28 @@ jobs:
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
+      - notify-failures-on-develop
+
+  # AI Contracts Test Maintenance System
+  # Runbook: https://github.com/ethereum-optimism/optimism/blob/develop/ops/ai-eng/contracts-test-maintenance/docs/runbook.md
+  ai-contracts-test:
+    circleci_ip_ranges: true
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
+    steps:
+      - checkout-from-workspace
+      - run:
+          name: Check Python version
+          command: python3 --version
+      - run:
+          name: Run AI Contracts Test System
+          command: just ai-contracts-test
+          working_directory: ops/ai-eng
+          no_output_timeout: 60m
+      - store_artifacts:
+          path: ops/ai-eng/contracts-test-maintenance/log.jsonl
+          destination: log.jsonl
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
@@ -3074,3 +3099,17 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - oplabs-tools-data-public-metrics-bucket
+
+  ai-contracts-test-workflow:
+    when:
+      equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
+    jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - ai-contracts-test:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - devin-api
+          requires:
+            - initialize

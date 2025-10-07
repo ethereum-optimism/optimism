@@ -315,8 +315,7 @@ interface IOPContractsManager {
         IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     )
         external;
 
@@ -391,6 +390,4 @@ interface IOPContractsManager {
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
-
-    function upgradeController() external view returns (address);
 }
