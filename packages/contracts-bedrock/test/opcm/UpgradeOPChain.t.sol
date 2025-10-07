@@ -123,6 +123,10 @@ contract MockOPCM {
             address(_opChainConfigs[0].systemConfigProxy), Claim.unwrap(_opChainConfigs[0].absolutePrestate)
         );
     }
+
+    function version() public pure returns (string memory) {
+        return "4.1.0";
+    }
 }
 
 contract UpgradeOPChain_Test is Test {
