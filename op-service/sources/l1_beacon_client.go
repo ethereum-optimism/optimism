@@ -184,8 +184,8 @@ func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, fallbacks
 
 type TimeToSlotFn func(timestamp uint64) (uint64, error)
 
-// GetTimeToSlotFn returns a function that converts a timestamp to a slot number.
-func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, error) {
+// getTimeToSlotFn returns a function that converts a timestamp to a slot number.
+func (cl *L1BeaconClient) getTimeToSlotFn(ctx context.Context) (TimeToSlotFn, error) {
 	cl.initLock.Lock()
 	defer cl.initLock.Unlock()
 	if cl.timeToSlotFn != nil {
@@ -217,7 +217,7 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 }
 
 func (cl *L1BeaconClient) timeToSlot(ctx context.Context, timestamp uint64) (uint64, error) {
-	slotFn, err := cl.GetTimeToSlotFn(ctx)
+	slotFn, err := cl.getTimeToSlotFn(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get time to slot fn: %w", err)
 	}
