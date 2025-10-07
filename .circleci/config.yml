@@ -1297,12 +1297,18 @@ jobs:
         description: Number machines to distribute the tests across
         type: integer
         default: 1
+      dev_features:
+        description: Comma-separated list of dev features to enable
+        type: string
+        default: ""
     machine: true
     resource_class: <<parameters.resource_class>>
     circleci_ip_ranges: true
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout-from-workspace
+      - setup-dev-features:
+          dev_features: <<parameters.dev_features>>
       - run:
           name: Run Go tests via Makefile
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -2460,6 +2466,9 @@ workflows:
           filters:
             branches:
               ignore: develop # Run on all branches EXCEPT develop (PR branches only)
+          matrix:
+            parameters:
+              dev_features: ["main", "CANNON_KONA"]
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short

@@ -468,3 +468,29 @@ func (wb *worldBuilder) WriteState(st *state.State) error {
 	wb.output = st
 	return nil
 }
+
+// devFeatureBitmapFromEnv reads DEV_FEATURE__* env vars and composes the bitmap used by op-deployer.
+func devFeatureBitmapFromEnv() common.Hash {
+	var out common.Hash
+	// OPTIMISM_PORTAL_INTEROP => 0x...0001 (last byte 0x01)
+	if envTruthy("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP") {
+		out[31] |= 0x01
+	}
+	// CANNON_KONA => 0x...0010 (last byte 0x10)
+	if envTruthy("DEV_FEATURE__CANNON_KONA") {
+		out[31] |= 0x10
+	}
+	// DEPLOY_V2_DISPUTE_GAMES => 0x...0100 (second-to-last byte 0x01)
+	if envTruthy("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES") {
+		out[30] |= 0x01
+	}
+	return out
+}
+
+func envTruthy(name string) bool {
+	v, ok := os.LookupEnv(name)
+	if !ok {
+		return false
+	}
+	return v == "1" || v == "true" || v == "TRUE"
+}

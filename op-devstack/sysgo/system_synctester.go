@@ -41,6 +41,7 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+			WithDevFeatureBitmap(devFeatureBitmapFromEnv()),
 		),
 	)
 
