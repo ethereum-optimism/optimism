@@ -299,6 +299,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error InvalidDevFeatureAccess(bytes32 devFeature);
+
     // -------- Methods --------
 
     function __constructor__(
