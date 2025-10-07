@@ -157,9 +157,7 @@ func runBlockHistoryConsistencyTest(t devtest.T, l2EL *dsl.L2ELNode) {
 	l2Client := l2EL.Escape().EthClient()
 
 	// Get the latest block number
-	latestBlock, err := l2Client.InfoByLabel(t.Ctx(), eth.Unsafe)
-	require.NoError(err)
-	require.Greater(latestBlock.NumberU64(), uint64(1), "Need at least 2 blocks for history test")
+	latestBlock := l2EL.WaitForBlockNumber(2) // Need at least 2 blocks for history test.
 
 	// Get the block history contract code
 	code, err := l2Client.CodeAtHash(t.Ctx(), params.HistoryStorageAddress, latestBlock.Hash())
