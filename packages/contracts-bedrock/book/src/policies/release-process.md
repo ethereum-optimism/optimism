@@ -39,10 +39,7 @@ The process is as follows:
 1. Make the fixes on `develop`. Increment the contracts semver as normal.
 1. Create a new release branch, named `proposal/op-contracts/vX.Y.Z` off of the rc tag (all subsequent `-rc` tags
    will be made from this branch).
-1. Cherry pick the fixes from `develop` into that branch. Instead of incrementing the semver as normal,
-   append `-patch.n` to the end of the version number. The value of `n` should start at 1 and be
-   incremented for each additional patch. This suffix prevents a situation where two different implementations of the same
-   contract have the same semver.
+1. Cherry pick the fixes from `develop` into the release branch, and increment the semver as normal. If this increment results in any contract's semver being equal to or greater than it is on `develop`, then the semver should immediately be increased on `develop` to be greater than on the release branch.
 1. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n`.
    Create a new release for this tag per the instructions above.
 
