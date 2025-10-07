@@ -7,7 +7,7 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
 1. Checkout the commit
 1. Run `git tag <tag-string>`
 1. Run `git push origin <tag-string>`
-   This may require special authorization. Once pushed a tag cannot be deleted, so please be sure it is correct.
+   Repo [rules](https://github.com/ethereum-optimism/optimism/rules/8196346?ref=refs%2Ftags%2Fop-contracts) require this is done by someone who is a [release-manager](https://github.com/orgs/ethereum-optimism/teams/release-managers). Once pushed a tag cannot be deleted, so please be sure it is correct.
 1. Create release notes in Github:
    - Go to the [Releases page](https://github.com/ethereum-optimism/optimism/releases), enter or select `<tag-string>`
      from the dropdown.
@@ -37,7 +37,7 @@ efforts on the trunk branch.
 The process is as follows:
 
 1. Make the fixes on `develop`. Increment the contracts semver as normal.
-1. Create a new release branch, named `proposal/op-contracts/X.Y.Z` off of the rc tag (all subsequent `-rc` tags
+1. Create a new release branch, named `proposal/op-contracts/vX.Y.Z` off of the rc tag (all subsequent `-rc` tags
    will be made from this branch).
 1. Cherry pick the fixes from `develop` into that branch. Instead of incrementing the semver as normal,
    append `-patch.n` to the end of the version number. The value of `n` should start at 1 and be
