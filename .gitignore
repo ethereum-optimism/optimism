@@ -27,6 +27,9 @@ packages/contracts-bedrock/deployments/anvil
 # vim
 *.sw*
 
+# vscode
+.vscode/
+
 # jetbrains
 .idea/
 
