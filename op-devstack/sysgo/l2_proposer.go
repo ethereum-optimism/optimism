@@ -81,6 +81,9 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 	l1EL, ok := orch.l1ELs.Get(l1ELID)
 	require.True(ok)
 
+	l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+	require.True(ok)
+
 	l2Net, ok := orch.l2Nets.Get(proposerID.ChainID())
 	require.True(ok)
 	disputeGameFactoryAddr := l2Net.deployment.DisputeGameFactoryProxyAddr()
@@ -95,7 +98,7 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		L2OOAddress:       "", // legacy, not used, fault-proofs support only for now.
 		PollInterval:      500 * time.Millisecond,
 		AllowNonFinalized: true,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
+		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret, *l1Net.genesis.Config.OsakaTime),
 		RPCConfig: oprpc.CLIConfig{
 			ListenAddr: "127.0.0.1",
 		},

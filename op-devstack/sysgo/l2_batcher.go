@@ -97,7 +97,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			ApproxComprRatio:         0.4,
 			SubSafetyMargin:          4,
 			PollInterval:             500 * time.Millisecond,
-			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), batcherSecret),
+			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), batcherSecret, *l1Net.genesis.Config.OsakaTime),
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LevelInfo,
 				Format: oplog.FormatText,

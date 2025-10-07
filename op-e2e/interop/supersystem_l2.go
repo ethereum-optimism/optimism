@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
+	"math"
 	"math/big"
 	"time"
 
@@ -240,7 +241,7 @@ func (s *interopE2ESystem) newProposerForL2(
 		ProposalInterval:  6 * time.Second,
 		DisputeGameType:   4, // Super Permissionless game type is the only one currently deployed
 		PollInterval:      500 * time.Millisecond,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(s.L1().UserRPC(), &key),
+		TxMgrConfig:       setuputils.NewTxMgrConfig(s.L1().UserRPC(), &key, math.MaxUint64), // proposer does not use blobs, so no need to set cell proof time
 		AllowNonFinalized: true,
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LvlInfo,
@@ -266,6 +267,7 @@ func (s *interopE2ESystem) newBatcherForL2(
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	l2Geth *geth.GethInstance,
 	opNode *opnode.Opnode,
+	cellProofTime uint64,
 ) *bss.BatcherService {
 	batcherSecret := operatorKeys[devkeys.BatcherRole]
 	logger := s.logger.New("role", "batcher"+id)
@@ -285,7 +287,7 @@ func (s *interopE2ESystem) newBatcherForL2(
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret),
+		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret, cellProofTime),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
