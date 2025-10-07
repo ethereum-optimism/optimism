@@ -194,6 +194,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initia
 		n.l1Source = overrides.L1Source
 	}
 
+	// initL2 may use side effects to register interop subsystem to the node.EventSystem
 	l2Source, interopSys, l2Driver, safeDB, err := initL2(ctx, cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
@@ -211,12 +212,10 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initia
 	n.l1SafeSub = l1SafeSub
 	n.l1FinalizedSub = l1FinalizedSub
 
-	runCfg, runtimeConfigReloaderDone, err := initRuntimeConfig(ctx, cfg, n)
-	if err != nil { // depends on L2, to signal initial runtime values to
+	// initRuntimeConfig relies on side effects to set the runCfg, node.halted and call node.cancel if needed
+	if err := initRuntimeConfig(ctx, cfg, n); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
-	n.runCfg = runCfg
-	n.runtimeConfigReloaderDone = runtimeConfigReloaderDone
 
 	p2pSigner, err := initP2PSigner(ctx, cfg, n)
 	if err != nil {
@@ -346,9 +345,13 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 	return l1HeadsSub, l1SafeSub, l1FinalizedSub, nil
 }
 
-func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) (*runcfg.RuntimeConfig, chan struct{}, error) {
+// initRuntimeConfig initializes the runtime config and starts a background loop to reload it at the configured interval.
+// note: this function relies on side effects to set node.runCfg
+func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) error {
 	// attempt to load runtime config, repeat N times
 	runCfg := runcfg.NewRuntimeConfig(node.log, node.l1Source, &cfg.Rollup)
+	// Set node.runCfg early so handleProtocolVersionsUpdate can access it during initialization
+	node.runCfg = runCfg
 
 	confDepth := cfg.Driver.VerifierConfDepth
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
@@ -393,7 +396,7 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) (*
 		}
 		return err
 	}); err != nil {
-		return nil, nil, fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
+		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
 	}
 
 	// start a background loop, to keep reloading it at the configured reload interval
@@ -431,13 +434,11 @@ func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) (*
 		}
 	}
 
-	runtimeConfigReloaderDone := make(chan struct{})
 	// Manages the lifetime of reloader. In order to safely Close the OpNode
 	go func(ctx context.Context, reloadInterval time.Duration) {
 		reloader(ctx, reloadInterval)
-		close(runtimeConfigReloaderDone)
 	}(node.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
-	return runCfg, runtimeConfigReloaderDone, nil
+	return nil
 }
 
 func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.L1BeaconClient, error) {
