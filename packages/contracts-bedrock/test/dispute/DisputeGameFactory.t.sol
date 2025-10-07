@@ -84,7 +84,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         Claim _absolutePrestate,
         AlphabetVM _vm,
         GameType _gameType,
-        uint256 l2ChainId
+        uint256 _l2ChainId
     )
         internal
         view
@@ -100,7 +100,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm: _vm,
             weth: delayedWeth,
             anchorStateRegistry: anchorStateRegistry,
-            l2ChainId: l2ChainId
+            l2ChainId: _l2ChainId
         });
     }
 
@@ -203,13 +203,25 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            return setupFaultDisputeGameV2(_absolutePrestate);
+        } else {
+            return setupFaultDisputeGameV1(_absolutePrestate);
+        }
+    }
+
+    /// @notice Sets up a fault game implementation
+    function setupFaultDisputeGameV1(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
         (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__,
-                    (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON, 0))
+                    (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON, l2ChainId))
                 )
             )
         });
