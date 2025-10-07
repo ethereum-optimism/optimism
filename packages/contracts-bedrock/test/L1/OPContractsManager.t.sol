@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 import { DelegateCaller } from "test/mocks/Callers.sol";
 
@@ -376,7 +377,7 @@ contract OPContractsManager_TestInit is CommonTest {
 /// @title OPContractsManager_ChainIdToBatchInboxAddress_Test
 /// @notice Tests the `chainIdToBatchInboxAddress` function of the `OPContractsManager` contract.
 /// @dev These tests use the harness which exposes internal functions for testing.
-contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
+contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlags {
     OPContractsManager_Harness opcmHarness;
     address challenger = makeAddr("challenger");
 
@@ -390,8 +391,9 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
+        resolveFeaturesFromEnv();
         OPContractsManagerContractsContainer container =
-            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, bytes32(0));
+            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, devFeatureBitmap);
 
         OPContractsManager.Implementations memory __opcmImplementations = container.implementations();
         OPContractsManagerStandardValidator.Implementations memory opcmImplementations;
@@ -1744,49 +1746,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         });
     }
 
-    /// @notice Helper function to deploy OPCM with v2 flag enabled
-    function _deployOPCMWithV2Flag() internal returns (IOPContractsManager) {
-        // Deploy Superchain contracts first
-        DeploySuperchain deploySuperchain = new DeploySuperchain();
-        DeploySuperchain.Output memory dso = deploySuperchain.run(
-            DeploySuperchain.Input({
-                superchainProxyAdminOwner: makeAddr("superchainProxyAdminOwner"),
-                protocolVersionsOwner: makeAddr("protocolVersionsOwner"),
-                guardian: makeAddr("guardian"),
-                paused: false,
-                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(1))),
-                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(ProtocolVersion.wrap(2)))
-            })
-        );
-
-        // Deploy implementations with v2 flag enabled
-        DeployImplementations deployImplementations = new DeployImplementations();
-        DeployImplementations.Output memory dio = deployImplementations.run(
-            DeployImplementations.Input({
-                withdrawalDelaySeconds: 100,
-                minProposalSizeBytes: 200,
-                challengePeriodSeconds: 300,
-                proofMaturityDelaySeconds: 400,
-                disputeGameFinalityDelaySeconds: 500,
-                mipsVersion: StandardConstants.MIPS_VERSION,
-                faultGameV2MaxGameDepth: 73,
-                faultGameV2SplitDepth: 30,
-                faultGameV2ClockExtension: 10800,
-                faultGameV2MaxClockDuration: 302400,
-                superchainConfigProxy: dso.superchainConfigProxy,
-                protocolVersionsProxy: dso.protocolVersionsProxy,
-                superchainProxyAdmin: dso.superchainProxyAdmin,
-                upgradeController: dso.superchainProxyAdmin.owner(),
-                challenger: challenger,
-                devFeatureBitmap: DevFeatures.DEPLOY_V2_DISPUTE_GAMES // Enable v2 flag here
-             })
-        );
-
-        return dio.opcm;
-    }
-
-    /// @notice Helper function to create a permissioned game v2 through the factory
-    function _createPermissionedGameV2(
+    /// @notice Helper function to create a permissioned game through the factory
+    function _createPermissionedGame(
         IDisputeGameFactory factory,
         address proposer
     )
@@ -1835,98 +1796,50 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         opcm.deploy(toOPCMDeployInput(deployOPChainInput));
     }
 
-    /// @notice Test that deploy without v2 flag doesn't set v2 implementations for PERMISSIONED_CANNON
-    function test_deployPermissionedWithoutV2Flag_succeeds() public {
-        // Convert DOI to OPCM input and deploy
-        IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
-        IOPContractsManager.DeployOutput memory output = opcm.deploy(opcmInput);
+    /// @notice Test that deploy sets the permissioned dispute game implementation
+    function test_deployPermissioned_succeeds() public {
+        bool isV2 = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
+        // Sanity-check setup is consistent with devFeatures flag
         IOPContractsManager.Implementations memory impls = opcm.implementations();
+        bool expectEmptyV2Implementations = isV2 ? false : true;
+        assertEq(address(impls.permissionedDisputeGameV2Impl) == address(0), expectEmptyV2Implementations);
+        assertEq(address(impls.faultDisputeGameV2Impl) == address(0), expectEmptyV2Implementations);
 
-        // Check that v1 implementation is registered for PERMISSIONED_CANNON
-        address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
-        assertEq(registeredImpl, address(output.permissionedDisputeGame));
-
-        address registeredPermissionedImpl =
-            address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
-        assertNotEq(
-            registeredPermissionedImpl,
-            address(0),
-            "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON"
-        );
-        assertEq(
-            registeredPermissionedImpl, address(output.permissionedDisputeGame), "Should be using v2 implementation"
-        );
-
-        // Create a game proxy to test immutable fields
-        IPermissionedDisputeGame gameV2Proxy =
-            _createPermissionedGameV2(output.disputeGameFactoryProxy, opcmInput.roles.proposer);
-
-        // Verify immutable fields on the game proxy
-        assertEq(address(gameV2Proxy.vm()), address(impls.mipsImpl), "VM should match MIPS implementation");
-        assertEq(
-            address(gameV2Proxy.anchorStateRegistry()), address(output.anchorStateRegistryProxy), "ASR should match"
-        );
-        assertEq(address(gameV2Proxy.weth()), address(output.delayedWETHPermissionedGameProxy), "WETH should match");
-        assertEq(gameV2Proxy.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
-
-        // For permissioned game, check proposer and challenger
-        IPermissionedDisputeGame permissionedProxy = IPermissionedDisputeGame(address(gameV2Proxy));
-        assertEq(permissionedProxy.proposer(), opcmInput.roles.proposer, "Proposer should match");
-        assertEq(permissionedProxy.challenger(), opcmInput.roles.challenger, "Challenger should match");
-    }
-
-    /// @notice Test that deploy with v2 flag would set v2 implementations for PERMISSIONED_CANNON
-    function test_deployPermissionedWithV2Flag_succeeds() public {
-        IOPContractsManager opcmV2 = _deployOPCMWithV2Flag();
-
-        assertTrue(opcmV2.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES), "V2 flag should be enabled");
-
-        IOPContractsManager.Implementations memory impls = opcmV2.implementations();
-
-        // Verify that v2 implementations are set (non-zero)
-        assertTrue(
-            address(impls.permissionedDisputeGameV2Impl) != address(0),
-            "PermissionedDisputeGameV2 implementation should be non-zero"
-        );
-        assertTrue(
-            address(impls.faultDisputeGameV2Impl) != address(0), "FaultDisputeGameV2 implementation should be non-zero"
-        );
-
-        // Set up deploy input for the v2-enabled OPCM
-        deployOPChainInput.opcm = address(opcmV2);
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
-        IOPContractsManager.DeployOutput memory output = opcmV2.deploy(opcmInput);
+        IOPContractsManager.DeployOutput memory opcmOutput = opcm.deploy(opcmInput);
 
-        // Verify that the DisputeGameFactory has registered the v2 implementation for PERMISSIONED_CANNON game type
-        address registeredPermissionedImpl =
-            address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
-        assertNotEq(
-            registeredPermissionedImpl,
-            address(0),
-            "DisputeGameFactory should have v2 PermissionedDisputeGame registered for PERMISSIONED_CANNON"
-        );
-        assertEq(
-            registeredPermissionedImpl,
-            address(impls.permissionedDisputeGameV2Impl),
-            "Should be using v2 implementation"
-        );
+        // Verify that the DisputeGameFactory has registered an implementation for the PERMISSIONED_CANNON game type
+        address expectedPDGAddress =
+            isV2 ? impls.permissionedDisputeGameV2Impl : address(opcmOutput.permissionedDisputeGame);
+        address actualPDGAddress = address(opcmOutput.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        assertNotEq(actualPDGAddress, address(0), "DisputeGameFactory should have a registered PERMISSIONED_CANNON");
+        assertEq(actualPDGAddress, address(expectedPDGAddress));
 
         // Create a game proxy to test immutable fields
-        IPermissionedDisputeGame gameV2Proxy =
-            _createPermissionedGameV2(output.disputeGameFactoryProxy, opcmInput.roles.proposer);
+        IPermissionedDisputeGame permissionedGame =
+            _createPermissionedGame(opcmOutput.disputeGameFactoryProxy, opcmInput.roles.proposer);
 
         // Verify immutable fields on the game proxy
-        assertEq(address(gameV2Proxy.vm()), address(impls.mipsImpl), "VM should match MIPS implementation");
         assertEq(
-            address(gameV2Proxy.anchorStateRegistry()), address(output.anchorStateRegistryProxy), "ASR should match"
+            permissionedGame.absolutePrestate().raw(),
+            opcmInput.disputeAbsolutePrestate.raw(),
+            "Absolute prestate should match input"
         );
-        assertEq(address(gameV2Proxy.weth()), address(output.delayedWETHPermissionedGameProxy), "WETH should match");
-        assertEq(gameV2Proxy.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
+        assertEq(address(permissionedGame.vm()), address(impls.mipsImpl), "VM should match MIPS implementation");
+        assertEq(
+            address(permissionedGame.anchorStateRegistry()),
+            address(opcmOutput.anchorStateRegistryProxy),
+            "ASR should match"
+        );
+        assertEq(
+            address(permissionedGame.weth()), address(opcmOutput.delayedWETHPermissionedGameProxy), "WETH should match"
+        );
+        assertEq(permissionedGame.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
 
         // For permissioned game, check proposer and challenger
-        IPermissionedDisputeGame permissionedProxy = IPermissionedDisputeGame(address(gameV2Proxy));
-        assertEq(permissionedProxy.proposer(), opcmInput.roles.proposer, "Proposer should match");
-        assertEq(permissionedProxy.challenger(), opcmInput.roles.challenger, "Challenger should match");
+        assertEq(permissionedGame.proposer(), opcmInput.roles.proposer, "Proposer should match");
+        assertEq(permissionedGame.challenger(), opcmInput.roles.challenger, "Challenger should match");
     }
 }
 
