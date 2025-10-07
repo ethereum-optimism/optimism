@@ -719,18 +719,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             chainDeployOutput1.disputeGameFactoryProxy.initBonds(agi.disputeGameType), agi.initialBond, "bond mismatch"
         );
     }
-}
-
-/// @title OPContractsManager_AddGameTypeCannonKonaEnabled_Test
-/// @notice Tests the `addGameType` function of the `OPContractsManager` contract with CANNON_KONA enabled.
-contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsManager_AddGameType_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_cannonKonaGameType_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
 
@@ -751,6 +743,7 @@ contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsMan
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_superCannonKonaGameType_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
 
@@ -1035,18 +1028,10 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             abi.encodeWithSelector(IOPContractsManager.PrestateRequired.selector)
         );
     }
-}
-
-/// @title OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test
-/// @notice Tests the `updatePrestate` function of the `OPContractsManager` contract with CANNON_KONA enabled.
-contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContractsManager_UpdatePrestate_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     /// @notice Tests that we can update the prestate for both CANNON and CANNON_KONA game types.
     function test_updatePrestate_bothGamesAndCannonKonaWithValidInput_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Add a FaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         addGameType(input);
@@ -1065,6 +1050,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     }
 
     function test_updatePrestate_cannonKonaWithSuperGame_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
         // SuperPermissionedDisputeGame implementation.
         vm.mockCall(
@@ -1152,6 +1138,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that we can update the prestate when both the PermissionedDisputeGame and
     ///        FaultDisputeGame exist, and the FaultDisputeGame is of type CANNON_KONA.
     function test_updatePrestate_pdgAndCannonKonaOnly_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1167,6 +1154,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is for
     ///       mixed game types (i.e. CANNON and SUPER_CANNON_KONA).
     function test_updatePrestate_cannonKonaMixedGameTypes_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Add a SuperFaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
         addGameType(input);
@@ -1189,6 +1177,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     function test_updatePrestate_presetCannonKonaWhenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts()
         public
     {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1206,6 +1195,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
     ///         zero hash.
     function test_updatePrestate_whenCannonKonaPrestateIsZero_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1834,17 +1824,9 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
             input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
         );
     }
-}
-
-/// @title OPContractsManager_Migrate_CannonKonaEnabled_Test
-/// @notice Tests the `migrate` function of the `OPContractsManager` contract.
-contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager_Migrate_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     function test_migrate_zerosOutCannonKonaGameTypes_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Grab the existing DisputeGameFactory for each chain.
