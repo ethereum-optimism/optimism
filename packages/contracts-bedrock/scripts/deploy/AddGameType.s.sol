@@ -65,7 +65,7 @@ contract AddGameType is Script {
         // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
         // both interface variants.
         if (SemverComp.lt(_agi.opcmImpl.version(), "4.1.0")) {
-            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:OldDummyCaller");
+            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCallerPreOPCM4_1_0");
             vm.etch(prank, code);
             vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
             vm.label(prank, "DummyCaller");
