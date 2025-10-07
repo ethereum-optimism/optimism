@@ -780,7 +780,9 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
         gameProxy = IFaultDisputeGame(
-            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), hex"")))
+            payable(
+                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
+            )
         );
     }
 
