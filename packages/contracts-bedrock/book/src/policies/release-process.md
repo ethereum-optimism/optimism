@@ -51,6 +51,6 @@ The process is as follows:
 Once a release has passed governance, a new tag should be created without the `-rc.n` suffix. To do this follow the
 instructions in "Creating a tagged release" once again. It should not be necessary to redeploy the contracts with `op-deployer`,
 but a new entry will be required in the superchain-registry's toml files regardless.
-When creating release notes, _uncheck_ the `Set as a pre-release`  option, and _check_ the
-   `Set as the latest release` option.
+When creating release notes, _uncheck_ the `Set as a pre-release`  option, and _uncheck_ the
+   `Set as the latest release` option (latest releases are reserved for non-contract packages). 
 
