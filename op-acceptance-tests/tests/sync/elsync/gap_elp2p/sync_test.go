@@ -20,7 +20,7 @@ import (
 // Expectations covered by this test
 //
 //	NewPayload without parents present:
-//	  - Does NOT trigger ELP2P sync.
+//	  - Does NOT trigger EL sync.
 //	  - Returns SYNCING for future blocks (startNum+3/5/4/6).
 //
 //	NewPayload on a non canonical chain with available state:
@@ -47,7 +47,7 @@ import (
 //	    until an FCU is issued, which initially returns SYNCING.
 //
 // Insights
-//   - NewPayload alone never initiates ELP2P/EL sync, but can build a non canonical chain if state exists.
+//   - NewPayload alone never initiates EL sync, but can build a non canonical chain if state exists.
 //   - FCU is the mechanism that (a) promotes non canonical chain blocks to canonical when they are
 //     already fully validated, and (b) triggers EL sync when ancestors are missing.
 //   - Previously submitted NewPayloads that returned SYNCING are not retained to automatically
@@ -67,21 +67,21 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	// At this point, L2ELB has no ELP2P, and L2CL connection
 	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
 
-	// NewPayload does not trigger the ELP2P Sync
+	// NewPayload does not trigger the EL Sync
 	// Example logs from L2EL(geth)
 	//  New skeleton head announced
 	//  Ignoring payload with missing parent
 	targetNum := startNum + 3
 	sys.L2ELB.NewPayload(sys.L2EL, targetNum).IsSyncing()
 
-	// NewPayload does not trigger the ELP2P Sync
+	// NewPayload does not trigger the EL Sync
 	// Example logs from L2EL(geth)
 	//  New skeleton head announced
 	//  Ignoring payload with missing parent
 	targetNum = startNum + 5
 	sys.L2ELB.NewPayload(sys.L2EL, targetNum).IsSyncing()
 
-	// NewPayload does not trigger the ELP2P Sync
+	// NewPayload does not trigger the EL Sync
 	// Example logs from L2EL(geth)
 	//  New skeleton head announced
 	//  Ignoring payload with missing parent
@@ -126,7 +126,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	// No FCU yet so head not advanced yet
 	require.Equal(startNum, sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number)
 
-	// NewPayload does not trigger the ELP2P Sync
+	// NewPayload does not trigger the EL Sync
 	// Example logs from L2EL(geth)
 	//  New skeleton head announced
 	//  Ignoring payload with missing parent
