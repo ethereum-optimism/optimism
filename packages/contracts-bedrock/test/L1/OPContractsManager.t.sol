@@ -1749,7 +1749,9 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     /// @notice Helper function to create a permissioned game through the factory
     function _createPermissionedGame(
         IDisputeGameFactory factory,
-        address proposer
+        address proposer,
+        Claim claim,
+        uint256 l2BlockNumber
     )
         internal
         returns (IPermissionedDisputeGame)
@@ -1765,9 +1767,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         // We use vm.startPrank to set both msg.sender and tx.origin to the proposer
         vm.startPrank(proposer, proposer);
 
-        IDisputeGame gameProxy = factory.create{ value: initBond }(
-            GameTypes.PERMISSIONED_CANNON, Claim.wrap(bytes32(uint256(1))), abi.encode(bytes32(uint256(2)))
-        );
+        IDisputeGame gameProxy =
+            factory.create{ value: initBond }(GameTypes.PERMISSIONED_CANNON, claim, abi.encode(bytes32(l2BlockNumber)));
 
         vm.stopPrank();
 
@@ -1817,29 +1818,38 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         assertEq(actualPDGAddress, address(expectedPDGAddress));
 
         // Create a game proxy to test immutable fields
-        IPermissionedDisputeGame permissionedGame =
-            _createPermissionedGame(opcmOutput.disputeGameFactoryProxy, opcmInput.roles.proposer);
+        Claim claim = Claim.wrap(bytes32(uint256(9876)));
+        uint256 l2BlockNumber = uint256(123);
+        IPermissionedDisputeGame pdg =
+            _createPermissionedGame(opcmOutput.disputeGameFactoryProxy, opcmInput.roles.proposer, claim, l2BlockNumber);
 
         // Verify immutable fields on the game proxy
+        // Constructor args
+        assertEq(pdg.gameType().raw(), GameTypes.PERMISSIONED_CANNON.raw(), "Game type should match");
+        assertEq(pdg.clockExtension().raw(), opcmInput.disputeClockExtension.raw(), "Clock extension should match");
         assertEq(
-            permissionedGame.absolutePrestate().raw(),
+            pdg.maxClockDuration().raw(), opcmInput.disputeMaxClockDuration.raw(), "Max clock duration should match"
+        );
+        assertEq(pdg.splitDepth(), opcmInput.disputeSplitDepth, "Split depth should match");
+        assertEq(pdg.maxGameDepth(), opcmInput.disputeMaxGameDepth, "Max game depth should match");
+        // Clone-with-immutable-args
+        assertEq(pdg.gameCreator(), opcmInput.roles.proposer, "Game creator should match");
+        assertEq(pdg.rootClaim().raw(), claim.raw(), "Claim should match");
+        assertEq(pdg.l1Head().raw(), blockhash(block.number - 1), "L1 head should match");
+        assertEq(pdg.l2BlockNumber(), l2BlockNumber, "L2 Block number should match");
+        assertEq(
+            pdg.absolutePrestate().raw(),
             opcmInput.disputeAbsolutePrestate.raw(),
             "Absolute prestate should match input"
         );
-        assertEq(address(permissionedGame.vm()), address(impls.mipsImpl), "VM should match MIPS implementation");
-        assertEq(
-            address(permissionedGame.anchorStateRegistry()),
-            address(opcmOutput.anchorStateRegistryProxy),
-            "ASR should match"
-        );
-        assertEq(
-            address(permissionedGame.weth()), address(opcmOutput.delayedWETHPermissionedGameProxy), "WETH should match"
-        );
-        assertEq(permissionedGame.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
+        assertEq(address(pdg.vm()), address(impls.mipsImpl), "VM should match MIPS implementation");
+        assertEq(address(pdg.anchorStateRegistry()), address(opcmOutput.anchorStateRegistryProxy), "ASR should match");
+        assertEq(address(pdg.weth()), address(opcmOutput.delayedWETHPermissionedGameProxy), "WETH should match");
+        assertEq(pdg.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
 
         // For permissioned game, check proposer and challenger
-        assertEq(permissionedGame.proposer(), opcmInput.roles.proposer, "Proposer should match");
-        assertEq(permissionedGame.challenger(), opcmInput.roles.challenger, "Challenger should match");
+        assertEq(pdg.proposer(), opcmInput.roles.proposer, "Proposer should match");
+        assertEq(pdg.challenger(), opcmInput.roles.challenger, "Challenger should match");
     }
 }
 
