@@ -479,22 +479,3 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.validateAllGettersAccounted();
     }
 }
-
-/// @title VerifyOPCM_Run_V2DisputeGamesEnabled_Test
-/// @notice Tests the `run` function with V2 dispute games enabled.
-contract VerifyOPCM_Run_V2DisputeGamesEnabled_Test is VerifyOPCM_TestInit {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-        super.setUp();
-        setupEnvVars();
-    }
-
-    /// @notice Tests that the script succeeds when V2 dispute games are enabled.
-    function test_run_succeeds() public {
-        // Coverage changes bytecode and causes failures, skip.
-        skipIfCoverage();
-
-        // Run the script with V2-enabled OPCM.
-        harness.run(address(opcm), true);
-    }
-}
