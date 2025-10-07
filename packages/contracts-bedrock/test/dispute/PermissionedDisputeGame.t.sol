@@ -252,7 +252,7 @@ contract PermissionedDisputeGame_Step_Test is PermissionedDisputeGame_TestInit {
 
 /// @title PermissionedDisputeGame_Initialize_Test
 /// @notice Tests the initialization of the `PermissionedDisputeGame` contract.
-contract PermissionedDisputeGameV2_Initialize_Test is PermissionedDisputeGame_TestInit {
+contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_TestInit {
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         caused by extraData of the wrong length
     function test_initialize_wrongExtradataLength_reverts(uint256 _extraDataLen) public {
