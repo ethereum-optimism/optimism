@@ -1483,7 +1483,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_absolutePrestateOverrideWithCannonKona_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.CANNON_KONA);
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
         ).absolutePrestate();
