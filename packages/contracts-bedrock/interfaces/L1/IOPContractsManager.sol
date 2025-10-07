@@ -389,7 +389,7 @@ interface IOPContractsManager {
     function implementations() external view returns (Implementations memory);
 }
 
-interface IOldOPContractsManager {
+interface IOPContractsManagerPre4_1_0 {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;

@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
@@ -52,6 +52,9 @@ contract UpgradeOPChain is Script {
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _uoci.prank();
+
+        // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
+        // both interface variants.
         if (SemverComp.lt(opcm.version(), "4.1.0")) {
             bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:OldDummyCaller");
             vm.etch(prank, code);
@@ -59,13 +62,13 @@ contract UpgradeOPChain is Script {
             vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
             vm.label(prank, "DummyCaller");
 
-            IOldOPContractsManager.OpChainConfig[] memory opChainConfigs =
-                abi.decode(_uoci.opChainConfigs(), (IOldOPContractsManager.OpChainConfig[]));
+            IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChainConfigs =
+                abi.decode(_uoci.opChainConfigs(), (IOPContractsManagerPre4_1_0.OpChainConfig[]));
 
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
 
-            (bool success,) = OldDummyCaller(prank).upgrade(opChainConfigs);
+            (bool success,) = DummyCallerPreOPCM4_1_0(prank).upgrade(opChainConfigs);
             require(success, "UpgradeOPChain: upgrade failed");
         } else {
             bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
@@ -86,6 +89,9 @@ contract UpgradeOPChain is Script {
     }
 }
 
+/// @title DummyCaller
+/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
+/// @dev This contract is used for OPCM versions 4.1.0 and above.
 contract DummyCaller {
     address internal _opcmAddr;
 
@@ -96,14 +102,17 @@ contract DummyCaller {
     }
 }
 
-contract OldDummyCaller {
+/// @title DummyCallerPreOPCM4_1_0
+/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
+/// @dev This contract is used for OPCM versions 4.1.0 and below.
+contract DummyCallerPreOPCM4_1_0 {
     address internal _opcmAddr;
 
-    function upgrade(IOldOPContractsManager.OpChainConfig[] memory _opChainConfigs)
+    function upgrade(IOPContractsManagerPre4_1_0.OpChainConfig[] memory _opChainConfigs)
         external
         returns (bool, bytes memory)
     {
-        bytes memory data = abi.encodeCall(OldDummyCaller.upgrade, _opChainConfigs);
+        bytes memory data = abi.encodeCall(DummyCallerPreOPCM4_1_0.upgrade, _opChainConfigs);
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }

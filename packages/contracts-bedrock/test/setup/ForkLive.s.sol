@@ -28,7 +28,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IOPContractsManager, IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager, IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
@@ -234,15 +234,18 @@ contract ForkLive is Deployer, StdAssertions {
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Upgrade the chain.
+        // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
+        // both interface variants.
         if (SemverComp.lt(_opcm.version(), "4.1.0")) {
-            IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
-            opChains[0] = IOldOPContractsManager.OpChainConfig({
+            IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChains =
+                new IOPContractsManagerPre4_1_0.OpChainConfig[](1);
+            opChains[0] = IOPContractsManagerPre4_1_0.OpChainConfig({
                 systemConfigProxy: systemConfig,
                 proxyAdmin: proxyAdmin,
                 absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
             });
             DelegateCaller(_delegateCaller).dcForward(
-                address(_opcm), abi.encodeCall(IOldOPContractsManager.upgrade, (opChains))
+                address(_opcm), abi.encodeCall(IOPContractsManagerPre4_1_0.upgrade, (opChains))
             );
         } else {
             IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);

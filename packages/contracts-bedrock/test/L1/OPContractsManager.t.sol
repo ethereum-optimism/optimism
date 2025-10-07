@@ -40,11 +40,11 @@ import {
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerInteropMigrator,
     IOPContractsManagerUpgrader,
-    IOldOPContractsManager
+    IOPContractsManagerPre4_1_0
 } from "interfaces/L1/IOPContractsManager.sol";
 import {
     IOPContractsManagerStandardValidator,
-    IOldOPContractsManagerStandardValidator
+    IOPContractsManagerStandardValidatorPreOPCM4_1_0
 } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -220,15 +220,18 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Execute the chain upgrade.
+        // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
+        // both interface variants.
         if (SemverComp.lt(OPCM_VERSION, "4.1.0")) {
-            IOldOPContractsManager.OpChainConfig[] memory opChains = new IOldOPContractsManager.OpChainConfig[](1);
-            opChains[0] = IOldOPContractsManager.OpChainConfig({
+            IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChains =
+                new IOPContractsManagerPre4_1_0.OpChainConfig[](1);
+            opChains[0] = IOPContractsManagerPre4_1_0.OpChainConfig({
                 systemConfigProxy: systemConfig,
                 proxyAdmin: proxyAdmin,
                 absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
             });
             DelegateCaller(_delegateCaller).dcForward(
-                address(_opcm), abi.encodeCall(IOldOPContractsManager.upgrade, (opChains))
+                address(_opcm), abi.encodeCall(IOPContractsManagerPre4_1_0.upgrade, (opChains))
             );
         } else {
             DelegateCaller(_delegateCaller).dcForward(
@@ -266,6 +269,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
+        string memory SV_VERSION = validator.version();
+
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
         // user is requesting to use the existing prestate. We could avoid the error by grabbing
@@ -276,9 +281,11 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Run the StandardValidator checks.
-        if (address(validator) == 0x845FEF377Fa9C678B3eBe33B024678538f1215dD) {
-            IOldOPContractsManagerStandardValidator(address(validator)).validate(
-                IOldOPContractsManagerStandardValidator.ValidationInput({
+        // From StandardValidator version 1.19.0, the proxyAdmin was removed from the ValidationInput struct so we do
+        // create support for both variants.
+        if (SemverComp.lt(SV_VERSION, "1.19.0")) {
+            IOPContractsManagerStandardValidatorPreOPCM4_1_0(address(validator)).validate(
+                IOPContractsManagerStandardValidatorPreOPCM4_1_0.ValidationInput({
                     proxyAdmin: opChainConfigs[0].systemConfigProxy.proxyAdmin(),
                     sysCfg: opChainConfigs[0].systemConfigProxy,
                     absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),

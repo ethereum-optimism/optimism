@@ -10,7 +10,7 @@ import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -62,6 +62,8 @@ contract AddGameType is Script {
         // Etch DummyCaller contract
         address prank = _agi.prank;
 
+        // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
+        // both interface variants.
         if (SemverComp.lt(_agi.opcmImpl.version(), "4.1.0")) {
             bytes memory code = vm.getDeployedCode("AddGameType.s.sol:OldDummyCaller");
             vm.etch(prank, code);
@@ -69,8 +71,9 @@ contract AddGameType is Script {
             vm.label(prank, "DummyCaller");
 
             // Create the game input
-            IOldOPContractsManager.AddGameInput[] memory gameConfigs = new IOldOPContractsManager.AddGameInput[](1);
-            gameConfigs[0] = IOldOPContractsManager.AddGameInput({
+            IOPContractsManagerPre4_1_0.AddGameInput[] memory gameConfigs =
+                new IOPContractsManagerPre4_1_0.AddGameInput[](1);
+            gameConfigs[0] = IOPContractsManagerPre4_1_0.AddGameInput({
                 saltMixer: _agi.saltMixer,
                 systemConfig: _agi.systemConfigProxy,
                 proxyAdmin: _agi.opChainProxyAdmin,
@@ -89,7 +92,7 @@ contract AddGameType is Script {
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
 
-            (bool success, bytes memory result) = OldDummyCaller(prank).addGameType(gameConfigs);
+            (bool success, bytes memory result) = DummyCallerPreOPCM4_1_0(prank).addGameType(gameConfigs);
             require(success, "AddGameType: addGameType failed");
 
             // Decode the result and set it in the output
@@ -140,20 +143,25 @@ contract AddGameType is Script {
     }
 }
 
-/// @title DummyCaller
-contract OldDummyCaller {
+/// @title DummyCallerPreOPCM4_1_0
+/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
+/// @dev This contract is used for OPCM versions 4.1.0 and below.
+contract DummyCallerPreOPCM4_1_0 {
     address internal _opcmAddr;
 
-    function addGameType(IOldOPContractsManager.AddGameInput[] memory _gameConfigs)
+    function addGameType(IOPContractsManagerPre4_1_0.AddGameInput[] memory _gameConfigs)
         external
         returns (bool, bytes memory)
     {
-        bytes memory data = abi.encodeCall(OldDummyCaller.addGameType, _gameConfigs);
+        bytes memory data = abi.encodeCall(DummyCallerPreOPCM4_1_0.addGameType, _gameConfigs);
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }
 }
 
+/// @title DummyCaller
+/// @notice This contract is used to mimic the contract that is used as the source of the delegatecall to the OPCM.
+/// @dev This contract is used for OPCM versions 4.1.0 and above.
 contract DummyCaller {
     address internal _opcmAddr;
 

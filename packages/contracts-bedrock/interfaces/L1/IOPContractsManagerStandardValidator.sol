@@ -75,7 +75,7 @@ interface IOPContractsManagerStandardValidator {
         external;
 }
 
-interface IOldOPContractsManagerStandardValidator {
+interface IOPContractsManagerStandardValidatorPreOPCM4_1_0 {
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
