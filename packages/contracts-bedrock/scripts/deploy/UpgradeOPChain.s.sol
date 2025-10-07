@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
@@ -45,23 +46,35 @@ contract UpgradeOPChainInput is BaseDeployIO {
 contract UpgradeOPChain is Script {
     function run(UpgradeOPChainInput _uoci) external {
         OPContractsManager opcm = _uoci.opcm();
-        OPContractsManager.OpChainConfig[] memory opChainConfigs =
-            abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
         address prank = _uoci.prank();
-        bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
-        vm.etch(prank, code);
+        if (address(opcm) == 0xaf334F4537E87F5155d135392Ff6D52f1866465E) {
+            bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:OldDummyCaller");
+            vm.etch(prank, code);
+        } else {
+            bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
+            vm.etch(prank, code);
+        }
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
 
         // Call into the DummyCaller. This will perform the delegatecall under the hood and
         // return the result.
         vm.broadcast(msg.sender);
-        (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
-        require(success, "UpgradeChain: upgrade failed");
+        if (address(opcm) == 0xaf334F4537E87F5155d135392Ff6D52f1866465E) {
+            IOldOPContractsManager.OpChainConfig[] memory opChainConfigs =
+                abi.decode(_uoci.opChainConfigs(), (IOldOPContractsManager.OpChainConfig[]));
+            (bool success,) = OldDummyCaller(prank).upgrade(opChainConfigs);
+            require(success, "UpgradeOPChain: upgrade failed");
+        } else {
+            OPContractsManager.OpChainConfig[] memory opChainConfigs =
+                abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
+            (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
+            require(success, "UpgradeOPChain: upgrade failed");
+        }
     }
 }
 
@@ -70,6 +83,19 @@ contract DummyCaller {
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external returns (bool, bytes memory) {
         bytes memory data = abi.encodeCall(DummyCaller.upgrade, _opChainConfigs);
+        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
+        return (success, result);
+    }
+}
+
+contract OldDummyCaller {
+    address internal _opcmAddr;
+
+    function upgrade(IOldOPContractsManager.OpChainConfig[] memory _opChainConfigs)
+        external
+        returns (bool, bytes memory)
+    {
+        bytes memory data = abi.encodeCall(OldDummyCaller.upgrade, _opChainConfigs);
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }
