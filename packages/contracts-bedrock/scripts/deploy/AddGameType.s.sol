@@ -9,6 +9,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOldOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -57,34 +58,65 @@ contract AddGameType is Script {
     }
 
     function run(Input memory _agi) public returns (Output memory) {
-        // Create the game input
-        OPContractsManager.AddGameInput[] memory gameConfigs = new OPContractsManager.AddGameInput[](1);
-        gameConfigs[0] = OPContractsManager.AddGameInput({
-            saltMixer: _agi.saltMixer,
-            systemConfig: _agi.systemConfigProxy,
-            delayedWETH: _agi.delayedWETHProxy,
-            disputeGameType: _agi.disputeGameType,
-            disputeAbsolutePrestate: _agi.disputeAbsolutePrestate,
-            disputeMaxGameDepth: _agi.disputeMaxGameDepth,
-            disputeSplitDepth: _agi.disputeSplitDepth,
-            disputeClockExtension: _agi.disputeClockExtension,
-            disputeMaxClockDuration: _agi.disputeMaxClockDuration,
-            initialBond: _agi.initialBond,
-            vm: _agi.vm,
-            permissioned: _agi.permissioned
-        });
-
         // Etch DummyCaller contract
         address prank = _agi.prank;
-        bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
-        vm.etch(prank, code);
+
+        if (address(_agi.opcmImpl) == 0x1B25F566336F47BC5E0036D66E142237DcF4640b) {
+            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:OldDummyCaller");
+            vm.etch(prank, code);
+        } else {
+            bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
+            vm.etch(prank, code);
+        }
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
         vm.label(prank, "DummyCaller");
 
         // Call into the DummyCaller to perform the delegatecall
         vm.broadcast(msg.sender);
-        (bool success, bytes memory result) = DummyCaller(prank).addGameType(gameConfigs);
-        require(success, "AddGameType: addGameType failed");
+        bytes memory result;
+        bool success;
+        if (address(_agi.opcmImpl) == 0x1B25F566336F47BC5E0036D66E142237DcF4640b) {
+            // Create the game input
+            IOldOPContractsManager.AddGameInput[] memory gameConfigs = new IOldOPContractsManager.AddGameInput[](1);
+            gameConfigs[0] = IOldOPContractsManager.AddGameInput({
+                saltMixer: _agi.saltMixer,
+                systemConfig: _agi.systemConfigProxy,
+                proxyAdmin: _agi.opChainProxyAdmin,
+                delayedWETH: _agi.delayedWETHProxy,
+                disputeGameType: _agi.disputeGameType,
+                disputeAbsolutePrestate: _agi.disputeAbsolutePrestate,
+                disputeMaxGameDepth: _agi.disputeMaxGameDepth,
+                disputeSplitDepth: _agi.disputeSplitDepth,
+                disputeClockExtension: _agi.disputeClockExtension,
+                disputeMaxClockDuration: _agi.disputeMaxClockDuration,
+                initialBond: _agi.initialBond,
+                vm: _agi.vm,
+                permissioned: _agi.permissioned
+            });
+
+            (success, result) = OldDummyCaller(prank).addGameType(gameConfigs);
+            require(success, "AddGameType: addGameType failed");
+        } else {
+            // Create the game input
+            OPContractsManager.AddGameInput[] memory gameConfigs = new OPContractsManager.AddGameInput[](1);
+            gameConfigs[0] = OPContractsManager.AddGameInput({
+                saltMixer: _agi.saltMixer,
+                systemConfig: _agi.systemConfigProxy,
+                delayedWETH: _agi.delayedWETHProxy,
+                disputeGameType: _agi.disputeGameType,
+                disputeAbsolutePrestate: _agi.disputeAbsolutePrestate,
+                disputeMaxGameDepth: _agi.disputeMaxGameDepth,
+                disputeSplitDepth: _agi.disputeSplitDepth,
+                disputeClockExtension: _agi.disputeClockExtension,
+                disputeMaxClockDuration: _agi.disputeMaxClockDuration,
+                initialBond: _agi.initialBond,
+                vm: _agi.vm,
+                permissioned: _agi.permissioned
+            });
+
+            (success, result) = DummyCaller(prank).addGameType(gameConfigs);
+            require(success, "AddGameType: addGameType failed");
+        }
 
         // Decode the result and set it in the output
         OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
@@ -99,6 +131,19 @@ contract AddGameType is Script {
 }
 
 /// @title DummyCaller
+contract OldDummyCaller {
+    address internal _opcmAddr;
+
+    function addGameType(IOldOPContractsManager.AddGameInput[] memory _gameConfigs)
+        external
+        returns (bool, bytes memory)
+    {
+        bytes memory data = abi.encodeCall(OldDummyCaller.addGameType, _gameConfigs);
+        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
+        return (success, result);
+    }
+}
+
 contract DummyCaller {
     address internal _opcmAddr;
 
