@@ -490,6 +490,12 @@ func devFeatureBitmapFromEnv() common.Hash {
 	if out != (common.Hash{}) {
 		log.Info("devFeatureBitmap composed", "bitmap", out.Hex())
 	}
+
+	// temp
+	// enable cannon kona and deploy v2 dispute games
+	out[31] |= 0x10
+	out[30] |= 0x01
+	log.Info("DEV_FEATURE__CANNON_KONA and DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled")
 	return out
 }
 
