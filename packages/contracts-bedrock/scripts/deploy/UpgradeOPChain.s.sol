@@ -63,15 +63,18 @@ contract UpgradeOPChain is Script {
 
         // Call into the DummyCaller. This will perform the delegatecall under the hood and
         // return the result.
-        vm.broadcast(msg.sender);
         if (address(opcm) == 0xaf334F4537E87F5155d135392Ff6D52f1866465E) {
             IOldOPContractsManager.OpChainConfig[] memory opChainConfigs =
                 abi.decode(_uoci.opChainConfigs(), (IOldOPContractsManager.OpChainConfig[]));
+
+            vm.broadcast(msg.sender);
             (bool success,) = OldDummyCaller(prank).upgrade(opChainConfigs);
             require(success, "UpgradeOPChain: upgrade failed");
         } else {
             OPContractsManager.OpChainConfig[] memory opChainConfigs =
                 abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
+
+            vm.broadcast(msg.sender);
             (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
             require(success, "UpgradeOPChain: upgrade failed");
         }
