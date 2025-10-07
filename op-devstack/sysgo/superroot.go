@@ -175,6 +175,9 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				delegateCallProxy,
 				oldDisputeGameFactories,
 			)
+
+			transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, superchainProxyAdmin, oldSuperchainProxyAdminOwner)
+
 			superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
 			t.Require().Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
 
