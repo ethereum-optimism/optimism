@@ -244,11 +244,11 @@ func TestBeaconClientBadProof(t *testing.T) {
 		p := mocks.NewBeaconClient(t)
 		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-		clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(nil, errors.New("the sky is falling"))
 		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
-		_, err := clientWithValidation.GetBlobs(ctx, ref, hashes)
+		_, err := client.GetBlobs(ctx, ref, hashes)
 		assert.NoError(t, err) // The verification flow does not require a valid proof
 	})
 
@@ -257,10 +257,10 @@ func TestBeaconClientBadProof(t *testing.T) {
 		p := mocks.NewBeaconClient(t)
 		p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
-		clientWithValidation := NewL1BeaconClient(p, L1BeaconClientConfig{})
+		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
 		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(blobs, nil)
-		_, err := clientWithValidation.GetBlobs(ctx, ref, hashes)
+		_, err := client.GetBlobs(ctx, ref, hashes)
 		assert.NoError(t, err) // The verification flow does not require a valid proof
 	})
 }
