@@ -394,7 +394,15 @@ abstract contract OPContractsManagerBase {
     /// @param _dgf The dispute game factory
     /// @param _gameType The game type
     /// @param _newGame The new game implementation
-    /// @param _gameArgs Optional game arguments. If empty, calls without gameArgs
+    function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
+        _dgf.setImplementation(_gameType, _newGame);
+    }
+
+    /// @notice Sets a game implementation on the dispute game factory
+    /// @param _dgf The dispute game factory
+    /// @param _gameType The game type
+    /// @param _newGame The new game implementation
+    /// @param _gameArgs Game arguments for this game type
     function setDGFImplementation(
         IDisputeGameFactory _dgf,
         GameType _gameType,
@@ -403,11 +411,10 @@ abstract contract OPContractsManagerBase {
     )
         internal
     {
-        if (_gameArgs.length > 0) {
-            _dgf.setImplementation(_gameType, _newGame, _gameArgs);
-        } else {
-            _dgf.setImplementation(_gameType, _newGame);
+        if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            revert OPContractsManager.InvalidDevFeatureAccess(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         }
+        _dgf.setImplementation(_gameType, _newGame, _gameArgs);
     }
 }
 
@@ -597,9 +604,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
-            setDGFImplementation(
-                dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)), bytes("")
-            );
+            setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)));
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
             // Emit event for the newly added game type with the new and old implementations.
@@ -986,7 +991,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
         // Set the new implementation.
-        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame), bytes(""));
+        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 }
 
@@ -1215,8 +1220,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             setDGFImplementation(
                 output.disputeGameFactoryProxy,
                 GameTypes.PERMISSIONED_CANNON,
-                IDisputeGame(address(output.permissionedDisputeGame)),
-                bytes("")
+                IDisputeGame(address(output.permissionedDisputeGame))
             );
         }
 
@@ -1938,6 +1942,9 @@ contract OPContractsManager is ISemver {
 
     /// @notice Thrown when the prestate of a permissioned disputed game is 0.
     error PrestateRequired();
+
+    /// @notice Thrown if logic gated by a dev feature flag is incorrectly accessed.
+    error InvalidDevFeatureAccess(bytes32 devFeature);
 
     // -------- Methods --------
 
