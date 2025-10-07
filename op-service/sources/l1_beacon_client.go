@@ -326,7 +326,7 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	return blobs, nil
 }
 
-// blobsFromSidecars pulls the blobs from the sidecars and verifies the commitments and indices.
+// blobsFromSidecars pulls the blobs from the sidecars and verifies them against the supplied hashes.
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
