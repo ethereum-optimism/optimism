@@ -69,8 +69,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     )
         OPContractsManager(
             _opcmGameTypeAdder,
@@ -80,8 +79,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmStandardValidator,
             _superchainConfig,
             _protocolVersions,
-            _superchainProxyAdmin,
-            _upgradeController
+            _superchainProxyAdmin
         )
     { }
 
@@ -332,7 +330,6 @@ contract OPContractsManager_TestInit is CommonTest {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
@@ -428,7 +425,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-        address upgradeController = makeAddr("upgradeController");
         OPContractsManager.Blueprints memory emptyBlueprints;
         OPContractsManager.Implementations memory emptyImpls;
         vm.etch(address(superchainConfigProxy), hex"01");
@@ -453,8 +449,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             ),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
-            _superchainProxyAdmin: superchainProxyAdmin,
-            _upgradeController: upgradeController
+            _superchainProxyAdmin: superchainProxyAdmin
         });
     }
 
@@ -1249,7 +1244,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
 
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);

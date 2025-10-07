@@ -3,12 +3,15 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
 	html_pkg "html"
+	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -78,6 +81,7 @@ func main() {
 }
 
 func run(inputPattern, outputDir string, verbose bool) error {
+	logger := log.New(os.Stdout, "[flake-shake-aggregator] ", log.LstdFlags)
 	// Create output directory
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -109,9 +113,9 @@ func run(inputPattern, outputDir string, verbose bool) error {
 	}
 
 	if verbose {
-		fmt.Printf("Found %d report files to aggregate:\n", len(reportFiles))
+		logger.Printf("Found %d report files to aggregate:", len(reportFiles))
 		for _, f := range reportFiles {
-			fmt.Printf("  - %s\n", f)
+			logger.Printf("  - %s", f)
 		}
 	}
 
@@ -123,18 +127,18 @@ func run(inputPattern, outputDir string, verbose bool) error {
 
 	for _, reportFile := range reportFiles {
 		if verbose {
-			fmt.Printf("Processing %s...\n", reportFile)
+			logger.Printf("Processing %s...", reportFile)
 		}
 
 		data, err := os.ReadFile(reportFile)
 		if err != nil {
-			fmt.Printf("Warning: failed to read %s: %v\n", reportFile, err)
+			logger.Printf("Warning: failed to read %s: %v", reportFile, err)
 			continue
 		}
 
 		var report FlakeShakeReport
 		if err := json.Unmarshal(data, &report); err != nil {
-			fmt.Printf("Warning: failed to parse %s: %v\n", reportFile, err)
+			logger.Printf("Warning: failed to parse %s: %v", reportFile, err)
 			continue
 		}
 
@@ -168,10 +172,10 @@ func run(inputPattern, outputDir string, verbose bool) error {
 				stats.durationSum += time.Duration(test.AvgDuration) * time.Duration(test.TotalRuns)
 				stats.durationCount += test.TotalRuns
 
-				// Merge failure logs (keep first 10)
+				// Merge failure logs (keep first 50)
 				stats.FailureLogs = append(stats.FailureLogs, test.FailureLogs...)
-				if len(stats.FailureLogs) > 10 {
-					stats.FailureLogs = stats.FailureLogs[:10]
+				if len(stats.FailureLogs) > 50 {
+					stats.FailureLogs = stats.FailureLogs[:50]
 				}
 
 				// Update last failure time
@@ -268,13 +272,13 @@ func run(inputPattern, outputDir string, verbose bool) error {
 		return fmt.Errorf("failed to write HTML report: %w", err)
 	}
 
-	fmt.Printf("✅ Aggregation complete!\n")
-	fmt.Printf("   - Processed %d worker reports\n", len(reportFiles))
-	fmt.Printf("   - Aggregated %d unique tests\n", len(finalTests))
-	fmt.Printf("   - Total iterations: %d\n", totalIterations)
-	fmt.Printf("   - Reports saved to:\n")
-	fmt.Printf("     • %s\n", jsonFile)
-	fmt.Printf("     • %s\n", htmlFile)
+	logger.Printf("✅ Aggregation complete!")
+	logger.Printf("   - Processed %d worker reports", len(reportFiles))
+	logger.Printf("   - Aggregated %d unique tests", len(finalTests))
+	logger.Printf("   - Total iterations: %d", totalIterations)
+	logger.Printf("   - Reports saved to:")
+	logger.Printf("     • %s", jsonFile)
+	logger.Printf("     • %s", htmlFile)
 
 	// Print summary statistics
 	stableCount := 0
@@ -287,22 +291,22 @@ func run(inputPattern, outputDir string, verbose bool) error {
 		}
 	}
 
-	fmt.Printf("\n📊 Test Stability Summary:\n")
+	logger.Printf("\n📊 Test Stability Summary:")
 	if len(finalTests) > 0 {
-		fmt.Printf("   - STABLE: %d tests (%.1f%%)\n", stableCount,
+		logger.Printf("   - STABLE: %d tests (%.1f%%)", stableCount,
 			float64(stableCount)/float64(len(finalTests))*100)
-		fmt.Printf("   - UNSTABLE: %d tests (%.1f%%)\n", unstableCount,
+		logger.Printf("   - UNSTABLE: %d tests (%.1f%%)", unstableCount,
 			float64(unstableCount)/float64(len(finalTests))*100)
 	} else {
-		fmt.Printf("   - No tests found\n")
+		logger.Printf("   - No tests found")
 	}
 
 	// List unstable tests if any
 	if unstableCount > 0 && verbose {
-		fmt.Printf("\n⚠️  Unstable tests:\n")
+		logger.Printf("\n⚠️  Unstable tests:")
 		for _, test := range finalTests {
 			if test.Recommendation == "UNSTABLE" {
-				fmt.Printf("   - %s (%.1f%% pass rate)\n",
+				logger.Printf("   - %s (%.1f%% pass rate)",
 					strings.TrimPrefix(test.TestName, test.Package+"::"),
 					test.PassRate)
 			}
@@ -450,6 +454,84 @@ func generateHTMLReport(report *FlakeShakeReport) string {
 	html.WriteString(`
             </tbody>
         </table>
+`)
+
+	// Append grouped failure details
+	html.WriteString(`
+        <h2>Failure Details</h2>
+`)
+
+	normalizer := regexp.MustCompile(`(?m)^\s*\[?\d{4}-\d{2}-\d{2}.*$|\bt=\d{4}-\d{2}-\d{2}.*$|\b(duration|elapsed|took)[:=].*$`)
+	classify := func(s string) string {
+		ls := strings.ToLower(s)
+		switch {
+		case strings.Contains(ls, "context deadline exceeded"):
+			return "context deadline"
+		case strings.Contains(ls, "deadline exceeded"):
+			return "deadline exceeded"
+		case strings.Contains(ls, "timeout"):
+			return "timeout"
+		case strings.Contains(ls, "connection refused"):
+			return "connection refused"
+		case strings.Contains(ls, "connection reset"):
+			return "connection reset"
+		case strings.Contains(ls, "rpc error") || strings.Contains(ls, "rpc call failed"):
+			return "rpc error"
+		case strings.Contains(ls, "assert") || strings.Contains(ls, "require"):
+			return "assertion"
+		default:
+			return "unknown"
+		}
+	}
+	for _, test := range report.Tests {
+		if len(test.FailureLogs) == 0 {
+			continue
+		}
+		html.WriteString(fmt.Sprintf(`<details><summary>%s — %s (failures: %d)</summary>`,
+			html_pkg.EscapeString(test.TestName), html_pkg.EscapeString(test.Package), test.Failures))
+
+		groups := map[string]struct {
+			Count  int
+			Sample string
+			Type   string
+		}{}
+		typeSummary := map[string]int{}
+		for _, raw := range test.FailureLogs {
+			norm := normalizer.ReplaceAllString(raw, "")
+			norm = strings.TrimSpace(norm)
+			sum := sha256.Sum256([]byte(norm))
+			key := fmt.Sprintf("%x", sum[:])
+			g := groups[key]
+			if g.Count == 0 {
+				g.Sample = norm
+				g.Type = classify(norm)
+			}
+			g.Count++
+			groups[key] = g
+		}
+		// Build type summary
+		for _, g := range groups {
+			typeSummary[g.Type] += g.Count
+		}
+		// Render summary
+		html.WriteString(`<div class="failure-group">`)
+		html.WriteString(`<strong>Summary:</strong><ul>`)
+		for t, c := range typeSummary {
+			html.WriteString(fmt.Sprintf(`<li>%s: %d</li>`, html_pkg.EscapeString(t), c))
+		}
+		html.WriteString(`</ul></div>`)
+		// Render groups
+		for _, g := range groups {
+			html.WriteString(`<div class="failure-group">`)
+			html.WriteString(fmt.Sprintf(`<div><strong>Type:</strong> %s</div>`, html_pkg.EscapeString(g.Type)))
+			html.WriteString(fmt.Sprintf(`<div><strong>Occurrences:</strong> %d</div>`, g.Count))
+			html.WriteString(`<pre>` + html_pkg.EscapeString(g.Sample) + `</pre>`)
+			html.WriteString(`</div>`)
+		}
+		html.WriteString(`</details>`)
+	}
+
+	html.WriteString(`
     </div>
 </body>
 </html>`)

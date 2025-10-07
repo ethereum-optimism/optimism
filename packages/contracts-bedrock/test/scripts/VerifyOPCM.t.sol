@@ -419,18 +419,15 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         address expectedSuperchainConfig = address(0x1111);
         address expectedProtocolVersions = address(0x2222);
         address expectedSuperchainProxyAdmin = address(0x3333);
-        address expectedUpgradeController = address(0x4444);
 
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(expectedUpgradeController));
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
         _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
         _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
-        _assertOnOpcmGetter(IOPContractsManager.upgradeController.selector);
 
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();

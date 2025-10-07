@@ -105,6 +105,9 @@ def _make_request(url, headers, data=None, method="GET"):
             print(f"Request failed: {method} {url}")
             print(f"Error: {e}")
             raise
+    except TimeoutError as e:
+        print(f"Request timeout - will retry")
+        return None
     except Exception as e:
         print(f"Request failed: {method} {url}")
         print(f"Error: {e}")

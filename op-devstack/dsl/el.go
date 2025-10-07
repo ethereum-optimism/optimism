@@ -103,6 +103,18 @@ func (el *elNode) waitForNextBlock(blocksFromNow uint64) eth.BlockRef {
 	return newRef
 }
 
+// WaitForTime waits until the chain has reached or surpassed the given timestamp.
+func (el *elNode) WaitForTime(timestamp uint64) eth.BlockRef {
+	for range time.Tick(500 * time.Millisecond) {
+		ref, err := el.inner.EthClient().BlockRefByLabel(el.ctx, eth.Unsafe)
+		el.require.NoError(err)
+		if ref.Time >= timestamp {
+			return ref
+		}
+	}
+	return eth.BlockRef{} // Should never be reached.
+}
+
 func (el *elNode) stackEL() stack.ELNode {
 	return el.inner
 }

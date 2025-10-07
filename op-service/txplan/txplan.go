@@ -8,6 +8,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum"
@@ -54,6 +55,9 @@ type PlannedTx struct {
 	Value      plan.Lazy[*big.Int]
 	AccessList plan.Lazy[types.AccessList]             // resolves to nil if not an attribute
 	AuthList   plan.Lazy[[]types.SetCodeAuthorization] // resolves to nil if not a 7702 tx
+	BlobFeeCap plan.Lazy[*uint256.Int]                 // resolves to nil if not a blob tx
+	BlobHashes plan.Lazy[[]common.Hash]                // resolves to nil if not a blob tx
+	Sidecar    plan.Lazy[*types.BlobTxSidecar]         // resolves to nil if not a blob tx
 }
 
 func (ptx *PlannedTx) String() string {
@@ -384,6 +388,29 @@ func WithChainID(cl ChainID) Option {
 	}
 }
 
+func WithBlobs(blobs []*eth.Blob, config *params.ChainConfig) Option {
+	return func(tx *PlannedTx) {
+		tx.Type.Set(types.BlobTxType)
+		tx.BlobFeeCap.DependOn(&tx.AgainstBlock)
+		tx.BlobFeeCap.Fn(func(_ context.Context) (*uint256.Int, error) {
+			return uint256.MustFromBig(tx.AgainstBlock.Value().BlobBaseFee(config)), nil
+		})
+		var blobHashes []common.Hash
+		tx.Sidecar.Fn(func(_ context.Context) (*types.BlobTxSidecar, error) {
+			sidecar, hashes, err := txmgr.MakeSidecar(blobs, true)
+			if err != nil {
+				return nil, fmt.Errorf("make blob tx sidecar: %w", err)
+			}
+			blobHashes = hashes
+			return sidecar, nil
+		})
+		tx.BlobHashes.DependOn(&tx.Sidecar)
+		tx.BlobHashes.Fn(func(_ context.Context) ([]common.Hash, error) {
+			return blobHashes, nil
+		})
+	}
+}
+
 func (tx *PlannedTx) Defaults() {
 	tx.Type.Set(types.DynamicFeeTxType)
 	tx.To.Set(nil)
@@ -421,6 +448,10 @@ func (tx *PlannedTx) Defaults() {
 		return crypto.PubkeyToAddress(tx.Priv.Value().PublicKey), nil
 	})
 
+	tx.BlobFeeCap.Set(nil)
+	tx.BlobHashes.Set(nil)
+	tx.Sidecar.Set(nil)
+
 	// Automatically build tx from the individual attributes
 	tx.Unsigned.DependOn(
 		&tx.Sender,
@@ -435,6 +466,9 @@ func (tx *PlannedTx) Defaults() {
 		&tx.Value,
 		&tx.AccessList,
 		&tx.AuthList,
+		&tx.BlobFeeCap,
+		&tx.BlobHashes,
+		&tx.Sidecar,
 	)
 	tx.Unsigned.Fn(func(ctx context.Context) (types.TxData, error) {
 		chainID := tx.ChainID.Value()
@@ -501,7 +535,23 @@ func (tx *PlannedTx) Defaults() {
 				S:          nil,
 			}, nil
 		case types.BlobTxType:
-			return nil, errors.New("blob tx not supported")
+			return &types.BlobTx{
+				ChainID:    uint256.MustFromBig(chainID.ToBig()),
+				Nonce:      tx.Nonce.Value(),
+				GasTipCap:  uint256.MustFromBig(tx.GasTipCap.Value()),
+				GasFeeCap:  uint256.MustFromBig(tx.GasFeeCap.Value()),
+				Gas:        tx.Gas.Value(),
+				To:         *tx.To.Value(),
+				Value:      uint256.MustFromBig(tx.Value.Value()),
+				Data:       tx.Data.Value(),
+				AccessList: tx.AccessList.Value(),
+				BlobFeeCap: tx.BlobFeeCap.Value(),
+				BlobHashes: tx.BlobHashes.Value(),
+				Sidecar:    tx.Sidecar.Value(),
+				V:          nil,
+				R:          nil,
+				S:          nil,
+			}, nil
 		case types.DepositTxType:
 			return nil, errors.New("deposit tx not supported")
 		default:

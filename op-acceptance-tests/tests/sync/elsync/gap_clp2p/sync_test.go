@@ -1,4 +1,4 @@
-package elsync
+package gap_clp2p
 
 import (
 	"testing"

@@ -48,6 +48,9 @@ func SealL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error {
 		},
 		L1ChainID:          eth.ChainIDFromUInt64(intent.L1ChainID),
 		L1PragueTimeOffset: l1DevParams.PragueTimeOffset,
+		L1OsakaTimeOffset:  l1DevParams.OsakaTimeOffset,
+		L1BPO1TimeOffset:   l1DevParams.BPO1TimeOffset,
+		BlobScheduleConfig: l1DevParams.BlobSchedule,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create dev L1 genesis template: %w", err)
