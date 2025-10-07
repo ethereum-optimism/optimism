@@ -21,7 +21,7 @@ func NewApp(versionWithMeta string) *cli.App {
 	app.Usage = "Tool to configure and deploy OP Chains."
 	app.Flags = cliapp.ProtectFlags(deployer.GlobalFlags)
 	app.Before = func(context *cli.Context) error {
-		if err := deployer.EnsureDefaultCacheDir(); err != nil {
+		if err := deployer.CreateCacheDir(context.String(deployer.CacheDirFlagName)); err != nil {
 			return err
 		}
 		return nil

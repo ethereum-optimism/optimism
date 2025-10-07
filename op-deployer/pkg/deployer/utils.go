@@ -53,8 +53,7 @@ func DefaultCacheDir() string {
 	return cacheDir
 }
 
-func EnsureDefaultCacheDir() error {
-	cacheDir := DefaultCacheDir()
+func CreateCacheDir(cacheDir string) error {
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cache directory %s: %w", cacheDir, err)
 	}
