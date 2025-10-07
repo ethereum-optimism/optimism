@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -49,6 +51,24 @@ type closableSafeDB interface {
 	io.Closer
 }
 
+// L1Source provides the necessary L1 blockchain data for the node.
+type L1Source interface {
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
+	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	Close()
+}
+
+// L1Beacon provides access to L1 beacon chain data, specifically for blob data retrieval.
+type L1Beacon interface {
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
+
 type OpNode struct {
 	// Retain the config to test for active features rather than test for runtime state.
 	cfg        *config.Config
@@ -63,7 +83,7 @@ type OpNode struct {
 	eventSys   event.System
 	eventDrain driver.Drain
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
+	l1Source  L1Source              // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
 	server    *oprpc.Server         // RPC server hosting the rollup-node API
@@ -79,7 +99,7 @@ type OpNode struct {
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
 
-	beacon *sources.L1BeaconClient
+	beacon L1Beacon
 
 	interopSys interop.SubSystem
 
@@ -120,7 +140,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
-	err := n.init(ctx, cfg)
+	err := n.init(ctx, cfg, nil)
 	if err != nil {
 		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
@@ -132,11 +152,20 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	return n, nil
 }
 
+type initializationOverrides struct {
+	L1Source   L1Source
+	Beacon     L1Beacon
+	RPCHandler *oprpc.Handler
+}
+
 // init progressively creates and sets up all the components of the OpNode
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
-func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
+func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+	if overrides == nil {
+		overrides = &initializationOverrides{}
+	}
 
 	eventSys, eventDrain, err := initEventSystem(n)
 	if err != nil {
@@ -145,17 +174,25 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.eventSys = eventSys
 	n.eventDrain = eventDrain
 
-	beacon, err := initL1BeaconAPI(ctx, cfg, n)
-	if err != nil {
-		return err
+	if overrides.Beacon == nil {
+		beacon, err := initL1BeaconAPI(ctx, cfg, n)
+		if err != nil {
+			return err
+		}
+		n.beacon = beacon
+	} else {
+		n.beacon = overrides.Beacon
 	}
-	n.beacon = beacon
 
-	l1Source, err := initL1Source(ctx, cfg, n)
-	if err != nil {
-		return fmt.Errorf("failed to init L1 Source: %w", err)
+	if overrides.L1Source == nil {
+		l1Source, err := initL1Source(ctx, cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init L1 Source: %w", err)
+		}
+		n.l1Source = l1Source
+	} else {
+		n.l1Source = overrides.L1Source
 	}
-	n.l1Source = l1Source
 
 	l2Source, interopSys, l2Driver, safeDB, err := initL2(ctx, cfg, n)
 	if err != nil {
@@ -194,11 +231,23 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.p2pNode = p2pNode
 
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	server, err := initRPCServer(cfg, n)
-	if err != nil {
-		return fmt.Errorf("failed to init the RPC server: %w", err)
+	if overrides.RPCHandler == nil {
+		server, err := initRPCServer(cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init the RPC server: %w", err)
+		}
+		n.server = server
+	} else {
+		// the node registers to an existing RPC server's handler if provided
+		// the node assumes the RPC server is already started
+		n.server = nil
+		err := registerAPIs(cfg, n, overrides.RPCHandler)
+		if err != nil {
+			// panic here is to match the behavior of oprcp.Server.AddAPI,
+			// which wraps the Handler and panics if the API can't be added.
+			panic(fmt.Errorf("invalid API: %w", err))
+		}
 	}
-	n.server = server
 
 	metricsSrv, err := initMetricsServer(cfg, n)
 	if err != nil {
@@ -522,26 +571,10 @@ func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		node.l2Source.L2Client, node.l2Driver, node.safeDB,
 		node.log, node.metrics, node.appVersion)
-	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
-		server.AddAPI(rpc.API{
-			Namespace: p2p.NamespaceRPC,
-			Service:   p2p.NewP2PAPIBackend(p2pNode, node.log),
-		})
-		node.log.Info("P2P RPC enabled")
-	}
-	if cfg.ExperimentalOPStackAPI {
-		server.AddAPI(rpc.API{
-			Namespace: "opstack",
-			Service:   NewOpstackAPI(node.l2Driver.SyncDeriver.Engine, node),
-		})
-		node.log.Info("Experimental OP stack API enabled")
-	}
-	if cfg.RPC.EnableAdmin {
-		server.AddAPI(rpc.API{
-			Namespace: "admin",
-			Service:   NewAdminAPI(node.l2Driver, node.log),
-		})
-		node.log.Info("Admin RPC enabled")
+	if err := registerAPIs(cfg, node, server.Handler); err != nil {
+		// panic here is to match the behavior of oprcp.Server.AddAPI,
+		// which wraps the Handler and panics if the API can't be added.
+		panic(fmt.Errorf("invalid API: %w", err))
 	}
 	node.log.Info("Starting JSON-RPC server")
 	if err := server.Start(); err != nil {
@@ -549,6 +582,37 @@ func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	}
 	node.log.Info("Started JSON-RPC server", "addr", server.Endpoint())
 	return server, nil
+}
+
+func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) error {
+	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
+		if err := handler.AddAPI(rpc.API{
+			Namespace: p2p.NamespaceRPC,
+			Service:   p2p.NewP2PAPIBackend(p2pNode, node.log),
+		}); err != nil {
+			return fmt.Errorf("failed to add P2P API: %w", err)
+		}
+		node.log.Info("P2P RPC enabled")
+	}
+	if cfg.ExperimentalOPStackAPI {
+		if err := handler.AddAPI(rpc.API{
+			Namespace: "opstack",
+			Service:   NewOpstackAPI(node.l2Driver.SyncDeriver.Engine, node),
+		}); err != nil {
+			return fmt.Errorf("failed to add Experimental OP stack API: %w", err)
+		}
+		node.log.Info("Experimental OP stack API enabled")
+	}
+	if cfg.RPC.EnableAdmin {
+		if err := handler.AddAPI(rpc.API{
+			Namespace: "admin",
+			Service:   NewAdminAPI(node.l2Driver, node.log),
+		}); err != nil {
+			return fmt.Errorf("failed to add Admin API: %w", err)
+		}
+		node.log.Info("Admin RPC enabled")
+	}
+	return nil
 }
 
 func initMetricsServer(cfg *config.Config, node *OpNode) (*httputil.HTTPServer, error) {
