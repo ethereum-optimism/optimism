@@ -475,14 +475,20 @@ func devFeatureBitmapFromEnv() common.Hash {
 	// OPTIMISM_PORTAL_INTEROP => 0x...0001 (last byte 0x01)
 	if envTruthy("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP") {
 		out[31] |= 0x01
+		log.Info("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP enabled")
 	}
 	// CANNON_KONA => 0x...0010 (last byte 0x10)
 	if envTruthy("DEV_FEATURE__CANNON_KONA") {
 		out[31] |= 0x10
+		log.Info("DEV_FEATURE__CANNON_KONA enabled")
 	}
 	// DEPLOY_V2_DISPUTE_GAMES => 0x...0100 (second-to-last byte 0x01)
 	if envTruthy("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES") {
 		out[30] |= 0x01
+		log.Info("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled")
+	}
+	if out != (common.Hash{}) {
+		log.Info("devFeatureBitmap composed", "bitmap", out.Hex())
 	}
 	return out
 }

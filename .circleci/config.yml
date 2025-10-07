@@ -2468,7 +2468,7 @@ workflows:
               ignore: develop # Run on all branches EXCEPT develop (PR branches only)
           matrix:
             parameters:
-              dev_features: ["main", "CANNON_KONA"]
+              dev_features: ["main", "CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES"]
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
