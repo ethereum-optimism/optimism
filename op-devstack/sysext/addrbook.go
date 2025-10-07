@@ -12,9 +12,9 @@ const (
 	ProtocolVersionsAddressName = "ProtocolVersionsProxy"
 	SuperchainConfigAddressName = "SuperchainConfigProxy"
 
-	SystemConfigAddressName   = "SystemConfigProxy"
-	DisputeGameFactoryName    = "DisputeGameFactoryProxy"
-	L1StandardBridgeProxyName = "L1StandardBridgeProxy"
+	SystemConfigAddressName   = "systemConfigProxy"
+	DisputeGameFactoryName    = "disputeGameFactoryProxy"
+	L1StandardBridgeProxyName = "l1StandardBridgeProxy"
 )
 
 type l1AddressBook struct {
@@ -43,8 +43,7 @@ type l2AddressBook struct {
 	l1StandardBridge   common.Address
 }
 
-func newL2AddressBook(t devtest.T, l1Addresses descriptors.AddressMap) *l2AddressBook {
-	// TODO(#15817) op-devstack: sysext: fix address book
+func newL2AddressBook(l1Addresses descriptors.AddressMap) *l2AddressBook {
 	return &l2AddressBook{
 		systemConfig:       l1Addresses[SystemConfigAddressName],
 		disputeGameFactory: l1Addresses[DisputeGameFactoryName],
