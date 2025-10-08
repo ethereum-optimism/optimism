@@ -607,16 +607,16 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 
 // FetchAndInsertRemotePayloadIfMissing queries a block from the remote L2 safe source by label.
 // If the block is missing locally or the local chain has diverged, it fetches and inserts the
-// payload via NewPayload. Returns the block hash and block ref to use in ForkchoiceUpdate.
-func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, error) {
+// payload via NewPayload. Returns the block hash, block ref, and whether a reorg is needed.
+func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, bool, error) {
 	if e.safeSourceL2Client == nil {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("safe source L2 client not configured")
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("safe source L2 client not configured")
 	}
 
 	// Query block ref from remote L2 to get the block number and hash
 	remoteRef, err := e.safeSourceL2Client.L2BlockRefByLabel(ctx, label)
 	if err != nil {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("failed to fetch %s block from remote L2: %w", label, err)
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("failed to fetch %s block from remote L2: %w", label, err)
 	}
 
 	// Check if local EL has this block at this number (canonical chain check)
@@ -624,7 +624,7 @@ func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Cont
 	if err == nil && localRef.Hash == remoteRef.Hash {
 		// Block already exists locally on canonical chain
 		e.log.Debug("Remote L2 block already exists locally", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
-		return remoteRef.Hash, remoteRef, nil
+		return remoteRef.Hash, remoteRef, false, nil
 	}
 
 	// Either block doesn't exist or local chain has diverged - need to fetch and insert
@@ -645,16 +645,16 @@ func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Cont
 	// Fetch the full execution payload from remote L2
 	envelope, err := e.safeSourceL2Client.PayloadByHash(ctx, remoteRef.Hash)
 	if err != nil {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("failed to fetch payload from remote L2: %w", err)
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("failed to fetch payload from remote L2: %w", err)
 	}
 
 	// Insert payload into local EL
 	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("failed to insert remote payload into local EL: %w", err)
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("failed to insert remote payload into local EL: %w", err)
 	}
 	if status.Status == eth.ExecutionInvalid {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("remote payload is invalid: %w", eth.NewPayloadErr(envelope.ExecutionPayload, status))
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("remote payload is invalid: %w", eth.NewPayloadErr(envelope.ExecutionPayload, status))
 	}
 	if status.Status == eth.ExecutionValid {
 		if needsReorg {
@@ -667,14 +667,14 @@ func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Cont
 		// This is expected when the remote safe head is ahead of what the local EL has
 		e.log.Info("Remote L2 block insertion pending", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number, "status", status.Status)
 	} else {
-		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("unexpected payload status %s: %w", status.Status, eth.NewPayloadErr(envelope.ExecutionPayload, status))
+		return common.Hash{}, eth.L2BlockRef{}, false, fmt.Errorf("unexpected payload status %s: %w", status.Status, eth.NewPayloadErr(envelope.ExecutionPayload, status))
 	}
 
 	// Note: We don't set unsafe/safe heads here. The caller (safeSourceL2Ticker) handles
 	// updating all heads atomically after fetching both safe and finalized blocks.
 	// This ensures the invariant that safe <= unsafe is maintained.
 
-	return remoteRef.Hash, remoteRef, nil
+	return remoteRef.Hash, remoteRef, needsReorg, nil
 }
 
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
