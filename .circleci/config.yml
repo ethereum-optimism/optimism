@@ -79,7 +79,7 @@ parameters:
     default: false
   flake-shake-iterations:
     type: integer
-    default: 100
+    default: 200
   flake-shake-workers:
     type: integer
     default: 10
@@ -1759,8 +1759,8 @@ jobs:
               --days 3 \
               --gate flake-shake \
               --min-runs 300 \
-              --max-failure-rate 0.01 \
-              --min-age-days 3 \
+              --max-failure-rate 0.0 \
+              --min-age-days 2 \
               --dry-run=false \
               --require-clean-24h \
               --out ./final-promotion \
