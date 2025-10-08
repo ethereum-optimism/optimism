@@ -324,12 +324,12 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
 		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
 
-		// Fetch the blob sidecar for the indexed blob hash passed in the hint.
+		// Fetch the blob for the indexed blob hash passed in the hint.
 		indexedBlobHash := eth.IndexedBlobHash{
 			Hash:  blobVersionHash,
 			Index: blobHashIndex,
 		}
-		// We pass an `eth.L1BlockRef`, but `GetBlobSidecars` only uses the timestamp, which we received in the hint.
+		// We pass an `eth.L1BlockRef`, but `GetBlobs` only uses the timestamp, which we received in the hint.
 		blobs, err := p.l1BlobFetcher.GetBlobs(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
 		if err != nil || len(blobs) != 1 {
 			return fmt.Errorf("failed to fetch blobs for %s %d: %w", blobVersionHash, blobHashIndex, err)
