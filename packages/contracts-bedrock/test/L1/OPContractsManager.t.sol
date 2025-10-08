@@ -21,7 +21,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -39,13 +38,9 @@ import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerInteropMigrator,
-    IOPContractsManagerUpgrader,
-    IOPContractsManagerPre4_1_0
+    IOPContractsManagerUpgrader
 } from "interfaces/L1/IOPContractsManager.sol";
-import {
-    IOPContractsManagerStandardValidator,
-    IOPContractsManagerStandardValidatorPreOPCM4_1_0
-} from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
@@ -212,32 +207,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         bytes memory delegateCallerCode = address(_delegateCaller).code;
         vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        string memory OPCM_VERSION = _opcm.version();
-
         // Expect the revert if one is specified.
         if (_revertBytes.length > 0) {
             vm.expectRevert(_revertBytes);
         }
 
         // Execute the chain upgrade.
-        // From OPCM version 4.1.0, the proxyAdmin was removed from the OpChainConfig struct so we do create support for
-        // both interface variants.
-        if (SemverComp.lt(OPCM_VERSION, "4.1.0")) {
-            IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChains =
-                new IOPContractsManagerPre4_1_0.OpChainConfig[](1);
-            opChains[0] = IOPContractsManagerPre4_1_0.OpChainConfig({
-                systemConfigProxy: systemConfig,
-                proxyAdmin: proxyAdmin,
-                absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
-            });
-            DelegateCaller(_delegateCaller).dcForward(
-                address(_opcm), abi.encodeCall(IOPContractsManagerPre4_1_0.upgrade, (opChains))
-            );
-        } else {
-            DelegateCaller(_delegateCaller).dcForward(
-                address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-            );
-        }
+        DelegateCaller(_delegateCaller).dcForward(
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
+        );
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
@@ -269,8 +247,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
-        string memory SV_VERSION = validator.version();
-
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
         // user is requesting to use the existing prestate. We could avoid the error by grabbing
@@ -281,28 +257,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Run the StandardValidator checks.
-        // From StandardValidator version 1.19.0, the proxyAdmin was removed from the ValidationInput struct so we do
-        // create support for both variants.
-        if (SemverComp.lt(SV_VERSION, "1.19.0")) {
-            IOPContractsManagerStandardValidatorPreOPCM4_1_0(address(validator)).validate(
-                IOPContractsManagerStandardValidatorPreOPCM4_1_0.ValidationInput({
-                    proxyAdmin: opChainConfigs[0].systemConfigProxy.proxyAdmin(),
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                    l2ChainID: l2ChainId
-                }),
-                false
-            );
-        } else {
-            validator.validate(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                    l2ChainID: l2ChainId
-                }),
-                false
-            );
-        }
+        validator.validate(
+            IOPContractsManagerStandardValidator.ValidationInput({
+                sysCfg: opChainConfigs[0].systemConfigProxy,
+                absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
+                l2ChainID: l2ChainId
+            }),
+            false
+        );
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -311,14 +273,11 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     ///         upgrades from this function once they've been executed on mainnet and the
     ///         simulation block has been bumped beyond the execution block.
     /// @param _delegateCaller The address of the delegate caller to use for the upgrade.
-    function runPastUpgrades(address _delegateCaller) internal {
+    function runPastUpgrades(address _delegateCaller) internal view {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // U16a
-            _runOpcmUpgradeAndChecks(
-                IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), _delegateCaller, bytes("")
-            );
+            _delegateCaller;
         } else {
             revert UnsupportedChainId();
         }
