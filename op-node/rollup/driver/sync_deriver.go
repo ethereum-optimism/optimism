@@ -233,9 +233,7 @@ func (s *SyncDeriver) SyncStep() {
 	}
 
 	if s.SyncCfg.SafeSource == sync.SafeSourceL2 {
-		// The pipeline cannot move forwards when using L2 safe source (derivation is skipped).
-		// Reset backoff to keep processing steps (especially TryUpdateEngine for unsafe blocks) frequently.
-		// The backoff mechanism still works for actual errors via TemporaryErrorEvent handlers.
+		// The pipeline cannot move forwards when using L2 safe source.
 		s.Log.Debug("Rollup driver is backing off because using L2 safe source.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		s.StepDeriver.ResetStepBackoff(s.Ctx)
