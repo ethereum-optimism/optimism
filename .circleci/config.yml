@@ -2913,6 +2913,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-program
                 - op-proposer
@@ -2941,6 +2942,7 @@ workflows:
               op_component:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-program
                 - op-proposer
