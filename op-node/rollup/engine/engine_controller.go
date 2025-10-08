@@ -605,11 +605,10 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	return nil
 }
 
-// fetchAndEnsureRemoteL2BlockWithRef queries a block from the remote L2 safe source by label,
-// and ensures it exists in the local EL by calling NewPayload if necessary.
-// If the local chain has diverged, this triggers a reorg by setting the unsafe head.
-// Returns the block hash and block ref to use in ForkchoiceUpdate.
-func (e *EngineController) FetchAndEnsureRemoteL2BlockWithRef(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, error) {
+// FetchAndInsertRemotePayloadIfMissing queries a block from the remote L2 safe source by label.
+// If the block is missing locally or the local chain has diverged, it fetches and inserts the
+// payload via NewPayload. Returns the block hash and block ref to use in ForkchoiceUpdate.
+func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, error) {
 	if e.safeSourceL2Client == nil {
 		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("safe source L2 client not configured")
 	}

@@ -370,14 +370,15 @@ func (s *Driver) eventLoop() {
 	}
 }
 
-// syncSafeHeadFromL2 fetches safe and finalized heads from a remote L2 node
+// syncSafeHeadFromL2 fetches safe, finalized, and unsafe heads from a remote L2 node
 // and updates the local engine state when using safe-source=l2.
 func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
-	s.log.Debug("syncSafeHeadFromL2: fetching finalized/safe from remote L2")
+	s.log.Debug("syncSafeHeadFromL2: fetching finalized/safe/unsafe from remote L2")
 
-	// Fetch finalized first, then safe to maintain the invariant finalized <= safe
-	_, remoteFinalizedRef, finalizedErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Finalized)
-	_, remoteSafeRef, safeErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Safe)
+	// Fetch in order: finalized, safe, unsafe to maintain the invariant finalized <= safe <= unsafe
+	_, remoteFinalizedRef, finalizedErr := s.SyncDeriver.Engine.FetchAndInsertRemotePayloadIfMissing(ctx, eth.Finalized)
+	_, remoteSafeRef, safeErr := s.SyncDeriver.Engine.FetchAndInsertRemotePayloadIfMissing(ctx, eth.Safe)
+	_, remoteUnsafeRef, unsafeErr := s.SyncDeriver.Engine.FetchAndInsertRemotePayloadIfMissing(ctx, eth.Unsafe)
 
 	// Log any errors
 	if finalizedErr != nil {
@@ -386,12 +387,16 @@ func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
 	if safeErr != nil {
 		s.log.Warn("Failed to fetch safe block from remote L2", "err", safeErr)
 	}
+	if unsafeErr != nil {
+		s.log.Warn("Failed to fetch unsafe block from remote L2", "err", unsafeErr)
+	}
 
-	// Only update if both succeeded
-	if safeErr == nil && finalizedErr == nil {
+	// Only update if all three succeeded
+	if safeErr == nil && finalizedErr == nil && unsafeErr == nil {
 		s.SyncDeriver.Engine.SetFinalizedHead(remoteFinalizedRef)
 		s.SyncDeriver.Engine.SetSafeHead(remoteSafeRef)
 		s.SyncDeriver.Engine.SetLocalSafeHead(remoteSafeRef)
+		s.SyncDeriver.Engine.SetUnsafeHead(remoteUnsafeRef)
 		s.SyncDeriver.Engine.RequestForkchoiceUpdate(ctx)
 		return nil
 	}
@@ -400,7 +405,10 @@ func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
 	if finalizedErr != nil {
 		return finalizedErr
 	}
-	return safeErr
+	if safeErr != nil {
+		return safeErr
+	}
+	return unsafeErr
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
