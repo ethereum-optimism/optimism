@@ -89,8 +89,8 @@ def _make_request(url, headers, data=None, method="GET"):
         with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        if e.code == 504:
-            print(f"Server timeout (504) - will retry")
+        if e.code in [502, 504]:
+            print(f"Server error ({e.code}) - will retry")
             return None
         else:
             print(f"Request failed: {method} {url}")
@@ -183,13 +183,18 @@ def monitor_session(session_id):
                 last_status = current_status
 
             # Stop monitoring for non-working statuses
-            if current_status in ["blocked", "expired", "finished"]:
+            if current_status in ["blocked", "expired", "finished", "suspend_requested", "suspend_requested_frontend"]:
+                # Handle user stopping the session
+                if current_status in ["suspend_requested", "suspend_requested_frontend"]:
+                    print("Session stopped by user")
+                    return
+
                 print(f"Session finished with status: {current_status}")
 
                 # If a PR was created, treat as success even if blocked
-                # (blocked typically means CI is failing due to review requirements)
+                # (blocked typically means can't merge due to review requirements)
                 effective_status = current_status
-                if current_status == "blocked" and status.get("pull_request", {}).get("url"):
+                if current_status == "blocked" and status and status.get("pull_request", {}).get("url"):
                     print("PR was created successfully - treating blocked status as finished")
                     effective_status = "finished"
 
