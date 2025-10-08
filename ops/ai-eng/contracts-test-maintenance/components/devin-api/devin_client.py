@@ -12,14 +12,6 @@ from pathlib import Path
 import time
 import urllib.request
 
-# Load .env file
-if os.path.exists(".env"):
-    with open(".env") as f:
-        for line in f:
-            if "=" in line and not line.strip().startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value.strip("\"'").strip()
-
 
 def find_prompt_file():
     """Find the latest generated prompt file from the prompt renderer output."""
@@ -41,9 +33,8 @@ def load_prompt_from_file(file_path):
         return f.read().strip()
 
 
-def log_session(session_id, status, session_data):
-    """Log PR link and final status to JSONL file."""
-    # Extract run_id and selected files from existing data
+def write_log(session_id, status, session_data):
+    """Write log with full session information."""
     try:
         prompt_file = find_prompt_file()
         run_id = os.path.basename(prompt_file).replace("_prompt.md", "")
@@ -87,8 +78,8 @@ def log_session(session_id, status, session_data):
         if pr_url:
             log_entry["pull_request_url"] = pr_url
 
-    with open("../../log.jsonl", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
+    with open("../../log.json", "w") as f:
+        json.dump(log_entry, f)
 
 
 def _make_request(url, headers, data=None, method="GET"):
@@ -156,6 +147,7 @@ def monitor_session(session_id):
     headers = _create_headers(api_key)
     last_status = None
     retry_delay = 60  # Start with 1 minute
+    setup_printed = False
 
     while True:
         try:
@@ -174,9 +166,16 @@ def monitor_session(session_id):
 
             # Handle Devin setup phase (status_enum is None but we got a response)
             if current_status is None:
-                print("Devin is setting up...")
+                if not setup_printed:
+                    print("Devin is setting up...")
+                    setup_printed = True
                 time.sleep(5)
                 continue
+
+            # Print setup completion message once
+            if setup_printed and current_status:
+                print("Devin finished setup")
+                setup_printed = False
 
             # Only print when status changes and is meaningful
             if current_status and current_status != last_status:
@@ -186,7 +185,15 @@ def monitor_session(session_id):
             # Stop monitoring for non-working statuses
             if current_status in ["blocked", "expired", "finished"]:
                 print(f"Session finished with status: {current_status}")
-                log_session(session_id, current_status, status)
+
+                # If a PR was created, treat as success even if blocked
+                # (blocked typically means CI is failing due to review requirements)
+                effective_status = current_status
+                if current_status == "blocked" and status.get("pull_request", {}).get("url"):
+                    print("PR was created successfully - treating blocked status as finished")
+                    effective_status = "finished"
+
+                write_log(session_id, effective_status, status)
                 return
 
             time.sleep(5)

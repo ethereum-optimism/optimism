@@ -1011,8 +1011,8 @@ jobs:
           working_directory: ops/ai-eng
           no_output_timeout: 60m
       - store_artifacts:
-          path: ops/ai-eng/contracts-test-maintenance/log.jsonl
-          destination: log.jsonl
+          path: ops/ai-eng/contracts-test-maintenance/log.json
+          destination: log.json
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
@@ -3156,6 +3156,7 @@ workflows:
       - ai-contracts-test:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
             - devin-api
           requires:
             - initialize

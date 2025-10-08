@@ -7,11 +7,14 @@ calculating staleness metrics, and generating ranked output.
 
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
 import tomllib
 from typing import Optional
+import urllib.request
+import urllib.error
 
 
 # === Git Utilities ===
@@ -184,26 +187,39 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
         # File exclusion - store as Path object in set for O(1) lookup
         excluded_files.add(Path(file_path))
 
-    # Add recently processed files from log.jsonl (avoid immediate duplicates)
-    log_file = Path(__file__).parent.parent.parent / "log.jsonl"
-    if log_file.exists():
-        cutoff = time.time() - (7 * 24 * 3600)  # 7 days
+    # Add recently processed file from CircleCI artifact (avoid immediate duplicates)
+    circleci_token = os.getenv("CIRCLE_API_TOKEN")
+    if circleci_token:
         try:
-            with open(log_file) as f:
-                for line in f:
-                    entry = json.loads(line.strip())
-                    if (
-                        entry.get("status") in ["finished", "blocked", "failed"]
-                        and entry.get("run_time")
-                        and datetime.strptime(
-                            entry["run_time"], "%Y-%m-%d %H:%M:%S"
-                        ).timestamp()
-                        > cutoff
-                    ):
-                        test_path = entry.get("selected_files", {}).get("test_path")
-                        if test_path:
-                            excluded_files.add(Path(test_path))
-        except (json.JSONDecodeError, ValueError, KeyError):
+            # Get recent successful builds (limit 5 for ~10 days of 2-day cadence)
+            api_url = "https://circleci.com/api/v1.1/project/github/ethereum-optimism/optimism?limit=5&filter=successful"
+            req = urllib.request.Request(api_url, headers={"Circle-Token": circleci_token})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                builds = json.loads(response.read().decode())
+
+            # Find most recent ai-contracts-test build
+            for build in builds:
+                if build.get("workflows", {}).get("job_name") == "ai-contracts-test":
+                    build_num = build["build_num"]
+
+                    # Get artifacts for this build
+                    artifacts_url = f"https://circleci.com/api/v1.1/project/github/ethereum-optimism/optimism/{build_num}/artifacts"
+                    req = urllib.request.Request(artifacts_url, headers={"Circle-Token": circleci_token})
+                    with urllib.request.urlopen(req, timeout=10) as response:
+                        artifacts = json.loads(response.read().decode())
+
+                    # Download log.json artifact
+                    for artifact in artifacts:
+                        if artifact["path"].endswith("log.json"):
+                            req = urllib.request.Request(artifact["url"], headers={"Circle-Token": circleci_token})
+                            with urllib.request.urlopen(req, timeout=10) as response:
+                                data = json.loads(response.read().decode())
+                                test_path = data.get("test_path")
+                                if test_path:
+                                    excluded_files.add(Path(test_path))
+                            break
+                    break
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError):
             pass
 
     return excluded_dirs, excluded_files
