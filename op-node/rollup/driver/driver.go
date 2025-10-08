@@ -328,6 +328,12 @@ func (s *Driver) eventLoop() {
 		case <-safeSourceL2Ticker.C:
 			// Sync safe/finalized from remote L2 when using safe-source=l2
 			if s.SyncDeriver.SyncCfg.SafeSource == sync.SafeSourceL2 {
+				// Skip if EL is syncing - consistent with SyncStep behavior
+				if s.SyncDeriver.Engine.IsEngineSyncing() {
+					s.log.Debug("Skipping safeSourceL2Ticker update because engine is syncing")
+					continue
+				}
+
 				ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 
 				s.log.Debug("safeSourceTicker: fetching safe/finalized from remote L2")
