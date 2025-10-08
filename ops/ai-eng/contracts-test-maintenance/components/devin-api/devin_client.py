@@ -148,6 +148,7 @@ def monitor_session(session_id):
     last_status = None
     retry_delay = 60  # Start with 1 minute
     setup_printed = False
+    timeout_count = 0
 
     while True:
         try:
@@ -155,13 +156,19 @@ def monitor_session(session_id):
 
             # Handle server timeout (no response) - retry with backoff
             if status is None:
-                print(f"Retrying in {retry_delay} seconds...")
+                timeout_count += 1
+                # Only print after 3rd consecutive timeout to reduce noise
+                if timeout_count >= 3:
+                    print(f"API slow to respond, still monitoring session... (retry in {retry_delay}s)")
                 time.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 480)  # Cap at 8 minutes
                 continue
 
-            # Reset retry delay on successful request
+            # Reset retry delay and timeout count on successful request
             retry_delay = 60
+            if timeout_count > 0:
+                timeout_count = 0
+
             current_status = status.get("status_enum")
 
             # Handle Devin setup phase (status_enum is None but we got a response)
@@ -183,23 +190,27 @@ def monitor_session(session_id):
                 last_status = current_status
 
             # Stop monitoring for non-working statuses
-            if current_status in ["blocked", "expired", "finished", "suspend_requested", "suspend_requested_frontend"]:
+            if current_status in ["blocked", "expired", "suspend_requested", "suspend_requested_frontend"]:
                 # Handle user stopping the session
                 if current_status in ["suspend_requested", "suspend_requested_frontend"]:
                     print("Session stopped by user")
                     return
 
-                print(f"Session finished with status: {current_status}")
+                # Blocked = PR created successfully (can't auto-merge due to review policy)
+                if current_status == "blocked":
+                    if status and status.get("pull_request", {}).get("url"):
+                        print("Session completed successfully - PR created")
+                        write_log(session_id, "finished", status)
+                    else:
+                        print(f"Session blocked without PR - check Devin web interface")
+                        write_log(session_id, "blocked", status)
+                    return
 
-                # If a PR was created, treat as success even if blocked
-                # (blocked typically means can't merge due to review requirements)
-                effective_status = current_status
-                if current_status == "blocked" and status and status.get("pull_request", {}).get("url"):
-                    print("PR was created successfully - treating blocked status as finished")
-                    effective_status = "finished"
-
-                write_log(session_id, effective_status, status)
-                return
+                # Expired = session timed out
+                if current_status == "expired":
+                    print(f"Session expired")
+                    write_log(session_id, "expired", status)
+                    return
 
             time.sleep(5)
         except KeyboardInterrupt:
