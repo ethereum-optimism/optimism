@@ -190,6 +190,7 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
     # Add recently processed file from CircleCI artifact (avoid immediate duplicates)
     circleci_token = os.getenv("CIRCLE_API_TOKEN")
     if circleci_token:
+        print("Checking CircleCI for previous run artifacts...")
         try:
             # Get recent successful builds (limit 5 for ~10 days of 2-day cadence)
             api_url = "https://circleci.com/api/v1.1/project/github/ethereum-optimism/optimism?limit=5&filter=successful"
@@ -201,6 +202,7 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
             for build in builds:
                 if build.get("workflows", {}).get("job_name") == "ai-contracts-test":
                     build_num = build["build_num"]
+                    print(f"Found previous ai-contracts-test build: {build_num}")
 
                     # Get artifacts for this build
                     artifacts_url = f"https://circleci.com/api/v1.1/project/github/ethereum-optimism/optimism/{build_num}/artifacts"
@@ -211,16 +213,20 @@ def load_exclusions(contracts_bedrock: Path) -> tuple[list[Path], set[Path]]:
                     # Download log.json artifact
                     for artifact in artifacts:
                         if artifact["path"].endswith("log.json"):
+                            print(f"Downloading artifact: {artifact['path']}")
                             req = urllib.request.Request(artifact["url"], headers={"Circle-Token": circleci_token})
                             with urllib.request.urlopen(req, timeout=10) as response:
                                 data = json.loads(response.read().decode())
-                                test_path = data.get("test_path")
+                                test_path = data.get("selected_files", {}).get("test_path")
                                 if test_path:
+                                    print(f"Excluding recently processed file: {test_path}")
                                     excluded_files.add(Path(test_path))
                             break
                     break
-        except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError):
-            pass
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"Could not fetch CircleCI artifacts: {e}")
+    else:
+        print("CIRCLE_API_TOKEN not found - skipping artifact check")
 
     return excluded_dirs, excluded_files
 
