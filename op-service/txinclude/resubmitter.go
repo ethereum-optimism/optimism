@@ -3,7 +3,6 @@ package txinclude
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -40,8 +39,8 @@ func NewResubmitter(inner Sender, blockTime time.Duration, opts ...ResubmitterOp
 		opt(cfg)
 	}
 	return &Resubmitter{
-		cfg:       cfg,
-		inner:     inner,
+		cfg: cfg,
+		inner: inner,
 		blockTime: blockTime,
 	}
 }
@@ -57,15 +56,15 @@ var fatalErrs = []error{
 	txpool.ErrReplaceUnderpriced,
 	txpool.ErrUnderpriced,
 
-	// Transaction limits.
+	// Transaction limits
 	txpool.ErrOversizedData,
 	core.ErrMaxInitCodeSizeExceeded,
 	legacypool.ErrAuthorityReserved,
 	legacypool.ErrFutureReplacePending,
 
-	// Validity.
+	// Validity
 	txpool.ErrInvalidSender,
-	txpool.ErrGasLimit, // This one could be transient, but in practice it's usually fatal.
+	txpool.ErrGasLimit,
 	txpool.ErrNegativeValue,
 	core.ErrInsufficientFunds,
 	core.ErrInsufficientFundsForTransfer,
@@ -79,33 +78,38 @@ var fatalErrs = []error{
 	core.ErrFeeCapTooLow,
 	core.ErrSenderNoEOA,
 	core.ErrTxTypeNotSupported,
-	// Blobs.
+
+	// Blobs
 	core.ErrBlobFeeCapTooLow,
 	core.ErrMissingBlobHashes,
 	core.ErrBlobTxCreate,
-	// 7702.
+
+	// 7702
 	core.ErrEmptyAuthList,
 	core.ErrSetCodeTxCreate,
-	// Interop.
+
+	// Interop
 	core.ErrTxFilteredOut,
 }
 
 var recognizedErrs = append([]error{
 	txpool.ErrAlreadyKnown,
 	legacypool.ErrTxPoolOverflow,
-	// Account limits.
+	// Account Limits
 	txpool.ErrAlreadyReserved,
 	txpool.ErrAccountLimitExceeded,
 	txpool.ErrInflightTxLimitReached,
 }, fatalErrs...)
 
+// tryToRecognizeError attempts to match the given error against known error types.
+// It uses errors.Is for proper error unwrapping and typ checking, which handles
+// wrapped errors correctly and is more performant than string comparisons.
 func tryToRecognizeError(err error) error {
 	if err == nil {
 		return nil
 	}
 	for _, recognizedErr := range recognizedErrs {
-		// TODO(13408): we should not need to use strings.Contains.
-		if strings.Contains(err.Error(), recognizedErr.Error()) {
+		if errors.Is(err, recognizedErr) {
 			return recognizedErr
 		}
 	}
@@ -113,7 +117,7 @@ func tryToRecognizeError(err error) error {
 }
 
 // SendTransaction implements Sender. It will continue resubmitting unless an error is hit
-// that the resubmitter considers unfixable with resubmissions alone (e.g., requiring modifications to tx)
+// that the resubmitter considers unfixable with resubmissions alone ( requiring modifications to tx)
 // See fatalErrs for the list of these errors.
 func (r *Resubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
 	for {
