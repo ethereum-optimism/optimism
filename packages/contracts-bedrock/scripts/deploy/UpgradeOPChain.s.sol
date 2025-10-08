@@ -13,44 +13,32 @@ contract UpgradeOPChainInput is BaseDeployIO {
 
     // Setter for OPContractsManager type
     function set(bytes4 _sel, address _value) public {
-        require(address(_value) != address(0), "UpgradeOPCMInput: cannot set zero address");
+        require(address(_value) != address(0), "UpgradeOPChainInput: cannot set zero address");
 
         if (_sel == this.prank.selector) _prank = _value;
         else if (_sel == this.opcm.selector) _opcm = IOPContractsManager(_value);
-        else revert("UpgradeOPCMInput: unknown selector");
+        else revert("UpgradeOPChainInput: unknown selector");
     }
 
     function set(bytes4 _sel, bytes memory _value) public {
-        require(_value.length > 0, "UpgradeOPCMInput: cannot set empty array");
+        require(_value.length > 0, "UpgradeOPChainInput: cannot set empty array");
 
         if (_sel == this.opChainConfigs.selector) _opChainConfigs = _value;
-        else revert("UpgradeOPCMInput: unknown selector");
+        else revert("UpgradeOPChainInput: unknown selector");
     }
 
     function prank() public view returns (address) {
-        require(address(_prank) != address(0), "UpgradeOPCMInput: prank not set");
+        require(address(_prank) != address(0), "UpgradeOPChainInput: prank not set");
         return _prank;
     }
 
     function opcm() public view returns (IOPContractsManager) {
-        require(address(_opcm) != address(0), "UpgradeOPCMInput: opcm not set");
+        require(address(_opcm) != address(0), "UpgradeOPChainInput: opcm not set");
         return _opcm;
     }
 
     function opChainConfigs() public view returns (bytes memory) {
-        require(_opChainConfigs.length > 0, "UpgradeOPCMInput: opChainConfigs not set");
-        // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 64 bytes
-        // (systemConfigProxy and absolutePrestate)
-        require((_opChainConfigs.length - 64) % 64 == 0, "UpgradeOPCMInput: opChainConfigs Unexpected length");
-
-        return _opChainConfigs;
-    }
-
-    function opChainConfigsPre4_1_0() public view returns (bytes memory) {
-        require(_opChainConfigs.length > 0, "UpgradeOPCMInput: opChainConfigsPre4_1_0 not set");
-        // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 96 bytes
-        // (systemConfigProxy, proxyAdmin and absolutePrestate)
-        require((_opChainConfigs.length - 64) % 96 == 0, "UpgradeOPCMInput: opChainConfigsPre4_1_0 Unexpected length");
+        require(_opChainConfigs.length > 0, "UpgradeOPChainInput: opChainConfigs not set");
 
         return _opChainConfigs;
     }
@@ -74,14 +62,22 @@ contract UpgradeOPChain is Script {
             vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
             vm.label(prank, "DummyCaller");
 
+            bytes memory encoded = _uoci.opChainConfigs();
             IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChainConfigs =
-                abi.decode(_uoci.opChainConfigsPre4_1_0(), (IOPContractsManagerPre4_1_0.OpChainConfig[]));
+                abi.decode(encoded, (IOPContractsManagerPre4_1_0.OpChainConfig[]));
+
+            // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 96 bytes
+            // (systemConfigProxy, proxyAdmin and absolutePrestate)
+            require(
+                (((encoded.length - 64) / 96) == opChainConfigs.length) && (((encoded.length - 64) % 96) == 0),
+                "UpgradeOPChain: opChainConfigsPre410 Unexpected encoding"
+            );
 
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
 
             (bool success,) = DummyCallerPreOPCM4_1_0(prank).upgrade(opChainConfigs);
-            require(success, "UpgradeOPChainPre4_1_0: upgrade failed");
+            require(success, "UpgradeOPChain: Pre4_1_0 upgrade failed");
         } else {
             bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
             vm.etch(prank, code);
@@ -89,8 +85,16 @@ contract UpgradeOPChain is Script {
             vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
             vm.label(prank, "DummyCaller");
 
+            bytes memory encoded = _uoci.opChainConfigs();
             IOPContractsManager.OpChainConfig[] memory opChainConfigs =
-                abi.decode(_uoci.opChainConfigs(), (IOPContractsManager.OpChainConfig[]));
+                abi.decode(encoded, (IOPContractsManager.OpChainConfig[]));
+
+            // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 64 bytes
+            // (systemConfigProxy and absolutePrestate)
+            require(
+                ((encoded.length - 64) / 64 == opChainConfigs.length) && (((encoded.length - 64) % 64) == 0),
+                "UpgradeOPChain: opChainConfigs Unexpected encoding"
+            );
 
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);

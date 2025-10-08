@@ -5,8 +5,9 @@ import { Test } from "forge-std/Test.sol";
 import { Claim } from "src/dispute/lib/Types.sol";
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager, IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
 import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
 contract UpgradeOPChainInput_Test is Test {
@@ -17,17 +18,14 @@ contract UpgradeOPChainInput_Test is Test {
     }
 
     function test_getters_whenNotSet_reverts() public {
-        vm.expectRevert("UpgradeOPCMInput: prank not set");
+        vm.expectRevert("UpgradeOPChainInput: prank not set");
         input.prank();
 
-        vm.expectRevert("UpgradeOPCMInput: opcm not set");
+        vm.expectRevert("UpgradeOPChainInput: opcm not set");
         input.opcm();
 
-        vm.expectRevert("UpgradeOPCMInput: opChainConfigs not set");
+        vm.expectRevert("UpgradeOPChainInput: opChainConfigs not set");
         input.opChainConfigs();
-
-        vm.expectRevert("UpgradeOPCMInput: opChainConfigsPre4_1_0 not set");
-        input.opChainConfigsPre4_1_0();
     }
 
     function test_setAddress_succeeds() public {
@@ -83,20 +81,20 @@ contract UpgradeOPChainInput_Test is Test {
     }
 
     function test_setAddress_withZeroAddress_reverts() public {
-        vm.expectRevert("UpgradeOPCMInput: cannot set zero address");
+        vm.expectRevert("UpgradeOPChainInput: cannot set zero address");
         input.set(input.prank.selector, address(0));
 
-        vm.expectRevert("UpgradeOPCMInput: cannot set zero address");
+        vm.expectRevert("UpgradeOPChainInput: cannot set zero address");
         input.set(input.opcm.selector, address(0));
     }
 
     function test_setOpChainConfigs_withEmptyArray_reverts() public {
-        vm.expectRevert("UpgradeOPCMInput: cannot set empty array");
+        vm.expectRevert("UpgradeOPChainInput: cannot set empty array");
         input.set(input.opChainConfigs.selector, new bytes(0));
     }
 
     function test_set_withInvalidSelector_reverts() public {
-        vm.expectRevert("UpgradeOPCMInput: unknown selector");
+        vm.expectRevert("UpgradeOPChainInput: unknown selector");
         input.set(bytes4(0xdeadbeef), makeAddr("test"));
 
         // Create a single config for testing invalid selector
@@ -111,7 +109,7 @@ contract UpgradeOPChainInput_Test is Test {
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
-        vm.expectRevert("UpgradeOPCMInput: unknown selector");
+        vm.expectRevert("UpgradeOPChainInput: unknown selector");
         input.set(bytes4(0xdeadbeef), abi.encode(configs));
     }
 }
@@ -130,19 +128,36 @@ contract MockOPCM {
     }
 }
 
+contract MockOPCMPre410 {
+    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+
+    function upgrade(IOPContractsManagerPre4_1_0.OpChainConfig[] memory _opChainConfigs) public {
+        emit UpgradeCalled(
+            address(_opChainConfigs[0].systemConfigProxy),
+            address(_opChainConfigs[0].proxyAdmin),
+            Claim.unwrap(_opChainConfigs[0].absolutePrestate)
+        );
+    }
+
+    function version() public pure returns (string memory) {
+        return "4.0.0";
+    }
+}
+
 contract UpgradeOPChain_Test is Test {
-    MockOPCM mockOPCM;
+    address mockOPCM;
     UpgradeOPChainInput uoci;
     IOPContractsManager.OpChainConfig config;
     UpgradeOPChain upgradeOPChain;
     address prank;
 
     event UpgradeCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
+    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
 
     function setUp() public virtual {
-        mockOPCM = new MockOPCM();
+        mockOPCM = address(new MockOPCM());
         uoci = new UpgradeOPChainInput();
-        uoci.set(uoci.opcm.selector, address(mockOPCM));
+        uoci.set(uoci.opcm.selector, mockOPCM);
         config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
             absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
@@ -156,9 +171,33 @@ contract UpgradeOPChain_Test is Test {
     }
 
     function test_upgrade_succeeds() public {
+        // For opcm >= 4.1.0
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
         emit UpgradeCalled(address(config.systemConfigProxy), Claim.unwrap(config.absolutePrestate));
         upgradeOPChain.run(uoci);
+
+        // For opcm < 4.1.0
+        IOPContractsManagerPre4_1_0.OpChainConfig memory configPre410 = IOPContractsManagerPre4_1_0.OpChainConfig({
+            systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
+            proxyAdmin: IProxyAdmin(makeAddr("proxyAdmin")),
+            absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
+        });
+        IOPContractsManagerPre4_1_0.OpChainConfig[] memory configsPre410 =
+            new IOPContractsManagerPre4_1_0.OpChainConfig[](1);
+        configsPre410[0] = configPre410;
+        uoci.set(uoci.opChainConfigs.selector, abi.encode(configsPre410));
+        mockOPCM = address(new MockOPCMPre410());
+        uoci.set(uoci.opcm.selector, mockOPCM);
+        // UpgradeCalled should be emitted by the prank since it's a delegate call.
+        vm.expectEmit(address(prank));
+        emit UpgradeCalled(
+            address(configPre410.systemConfigProxy),
+            address(configPre410.proxyAdmin),
+            Claim.unwrap(configPre410.absolutePrestate)
+        );
+        upgradeOPChain.run(uoci);
     }
+
+    function test_upgrade_unexpectedEncoding_reverts() public { }
 }
