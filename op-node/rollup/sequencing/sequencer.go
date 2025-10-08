@@ -458,17 +458,27 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		d.latest = BuildingState{}
 	}
 	if x.UnsafeL2Head.Number > d.latestHead.Number {
-		d.nextActionOK = true
-		now := d.timeNow()
-		blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
-		payloadTime := time.Unix(int64(x.UnsafeL2Head.Time+d.rollupCfg.BlockTime), 0)
-		remainingTime := payloadTime.Sub(now)
-		if remainingTime > blockTime {
-			// if we have too much time, then wait before starting the build
-			d.nextAction = payloadTime.Add(-blockTime)
+		// Only enable next action if safe lag is within threshold
+		lagged := false
+		if maxSafeLag := d.maxSafeLag.Load(); maxSafeLag > 0 && x.SafeL2Head.Number+maxSafeLag <= x.UnsafeL2Head.Number {
+			lagged = true
+		}
+		if !lagged {
+			d.nextActionOK = true
+			now := d.timeNow()
+			blockTime := time.Duration(d.rollupCfg.BlockTime) * time.Second
+			payloadTime := time.Unix(int64(x.UnsafeL2Head.Time+d.rollupCfg.BlockTime), 0)
+			remainingTime := payloadTime.Sub(now)
+			if remainingTime > blockTime {
+				// if we have too much time, then wait before starting the build
+				d.nextAction = payloadTime.Add(-blockTime)
+			} else {
+				// otherwise start instantly
+				d.nextAction = now
+			}
 		} else {
-			// otherwise start instantly
-			d.nextAction = now
+			// keep stall active; do not change nextAction
+			d.nextActionOK = false
 		}
 	}
 	d.setLatestHead(x.UnsafeL2Head)
