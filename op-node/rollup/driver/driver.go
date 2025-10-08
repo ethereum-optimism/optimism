@@ -62,16 +62,16 @@ func NewDriver(
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	// Initialize remote L2 client for safe-source=l2 mode
-	var safeSourceL2Client *sources.EngineClient
+	var safeSourceL2Client *sources.L2Client
 	if syncCfg.SafeSource == sync.SafeSourceL2 {
 		rpcClient, err := client.NewRPC(driverCtx, log, syncCfg.SafeSourceL2RPC)
 		if err != nil {
 			log.Crit("Failed to create safe source L2 RPC client", "err", err)
 		}
 
-		safeSourceL2Client, err = sources.NewEngineClient(rpcClient, log, nil, sources.EngineClientDefaultConfig(cfg))
+		safeSourceL2Client, err = sources.NewL2Client(rpcClient, log, nil, sources.L2ClientDefaultConfig(cfg, true))
 		if err != nil {
-			log.Crit("Failed to create safe source L2 engine client", "err", err)
+			log.Crit("Failed to create safe source L2 client", "err", err)
 		}
 
 		log.Info("Initialized safe source L2 client", "rpc", syncCfg.SafeSourceL2RPC)
@@ -220,6 +220,12 @@ func (s *Driver) Start() error {
 		if err := s.sequencer.Init(s.driverCtx, !s.driverConfig.SequencerStopped); err != nil {
 			return fmt.Errorf("persist initial sequencer state: %w", err)
 		}
+	}
+
+	// When safe-source=l2 is enabled, trigger an engine reset to sync forkchoice state from remote L2
+	if s.SyncDeriver.SyncCfg.SafeSource == sync.SafeSourceL2 {
+		s.log.Info("Safe-source L2 mode enabled, triggering engine reset to sync from remote L2")
+		s.emitter.Emit(s.driverCtx, engine.ResetEngineRequestEvent{})
 	}
 
 	s.wg.Add(1)

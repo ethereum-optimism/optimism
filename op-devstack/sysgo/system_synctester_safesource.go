@@ -67,26 +67,31 @@ func DefaultSimpleSystemWithSyncTesterSafeSourceL2(dest *DefaultSimpleSystemWith
 	// Create a SyncTesterEL with the same chain ID as the EL node
 	opt.Add(WithSyncTesterL2ELNode(ids.SyncTesterL2EL, ids.L2EL))
 
-	// Create L2CL2 with safe-source=l2 pointing to L2CL
+	// Create L2CL2 with safe-source=l2 pointing to L2CL and setup P2P connection
 	// We need to set the RPC URL after L2CL is started
 	opt.Add(stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		// Get L2CL to extract its RPC URL
-		l2CL, ok := orch.l2CLs.Get(ids.L2CL)
-		require.True(ok, "L2CL node must exist before creating L2CL2 with safe-source=l2")
+		// Get L2EL to extract its RPC URL for safe-source=l2
+		l2EL, ok := orch.l2ELs.Get(ids.L2EL)
+		require.True(ok, "L2EL node must exist before creating L2CL2 with safe-source=l2")
 
 		// Create L2CL2 with safe-source=l2 configuration
 		safeSourceOpt := L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
 			cfg.SafeSource = nodeSync.SafeSourceL2
-			cfg.SafeSourceL2RPC = l2CL.UserRPC()
+			cfg.SafeSourceL2RPC = l2EL.UserRPC()
 		})
 
-		WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, ids.SyncTesterL2EL, safeSourceOpt).Deploy(orch)
-	}))
+		// Create the node by calling both Deploy and AfterDeploy
+		nodeOpt := WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, ids.SyncTesterL2EL, safeSourceOpt)
+		nodeOpt.Deploy(orch)
+		nodeOpt.AfterDeploy(orch)
 
-	// P2P Connect CLs to signal unsafe heads
-	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CL2))
+		// P2P Connect CLs to signal unsafe heads - done in same AfterDeploy after node creation
+		p2pOpt := WithL2CLP2PConnection(ids.L2CL, ids.L2CL2)
+		p2pOpt.Deploy(orch)
+		p2pOpt.AfterDeploy(orch)
+	}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

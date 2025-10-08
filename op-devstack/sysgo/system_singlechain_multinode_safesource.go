@@ -31,27 +31,35 @@ func DefaultSingleChainMultiNodeWithSafeSourceL2System(dest *DefaultSingleChainM
 
 	opt.Add(WithL2ELNode(ids.L2ELB))
 
-	// Create L2CLB with safe-source=l2 pointing to L2CL
+	// Create L2CLB with safe-source=l2 pointing to L2CL and setup P2P connections
 	// We need to set the RPC URL after L2CL is started
 	opt.Add(stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		// Get L2CL to extract its RPC URL
-		l2CL, ok := orch.l2CLs.Get(ids.L2CL)
-		require.True(ok, "L2CL node must exist before creating L2CLB with safe-source=l2")
+		// Get L2EL to extract its RPC URL for safe-source=l2
+		l2EL, ok := orch.l2ELs.Get(ids.L2EL)
+		require.True(ok, "L2EL node must exist before creating L2CLB with safe-source=l2")
 
 		// Create L2CLB with safe-source=l2 configuration
 		safeSourceOpt := L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
 			cfg.SafeSource = nodeSync.SafeSourceL2
-			cfg.SafeSourceL2RPC = l2CL.UserRPC()
+			cfg.SafeSourceL2RPC = l2EL.UserRPC()
 		})
 
-		WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, safeSourceOpt).Deploy(orch)
-	}))
+		// Create the node by calling both Deploy and AfterDeploy
+		nodeOpt := WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, safeSourceOpt)
+		nodeOpt.Deploy(orch)
+		nodeOpt.AfterDeploy(orch)
 
-	// P2P connect L2CL nodes
-	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
-	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB))
+		// P2P connect L2CL nodes - done in same AfterDeploy after node creation
+		p2pOpt1 := WithL2CLP2PConnection(ids.L2CL, ids.L2CLB)
+		p2pOpt1.Deploy(orch)
+		p2pOpt1.AfterDeploy(orch)
+
+		p2pOpt2 := WithL2ELP2PConnection(ids.L2EL, ids.L2ELB)
+		p2pOpt2.Deploy(orch)
+		p2pOpt2.AfterDeploy(orch)
+	}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
