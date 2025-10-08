@@ -431,32 +431,6 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 }
 
 func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
-	// When using L2 safe source, always fetch safe/finalized from remote L2
-	// This needs to run even when no FCU is needed, to keep safe/finalized heads updated
-	if e.syncCfg.SafeSource == sync.SafeSourceL2 && e.safeSourceL2Client != nil {
-		e.log.Info("tryUpdateEngine: fetching safe/finalized from remote L2")
-		_, remoteSafeRef, err := e.fetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Safe)
-		if err != nil {
-			e.log.Warn("Failed to fetch and ensure safe block from remote L2, using local safe", "err", err)
-		} else {
-			// Update internal safe head state to match remote L2
-			e.SetSafeHead(remoteSafeRef)
-			e.SetLocalSafeHead(remoteSafeRef)
-			// Request FCU to notify the engine of the new safe head
-			e.requestForkchoiceUpdate(ctx)
-		}
-
-		_, remoteFinalizedRef, err := e.fetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Finalized)
-		if err != nil {
-			e.log.Warn("Failed to fetch and ensure finalized block from remote L2, using local finalized", "err", err)
-		} else {
-			// Update internal finalized head state to match remote L2
-			e.SetFinalizedHead(remoteFinalizedRef)
-			// Request FCU to notify the engine of the new finalized head
-			e.requestForkchoiceUpdate(ctx)
-		}
-	}
-
 	if !e.needFCUCall {
 		return ErrNoFCUNeeded
 	}
@@ -635,7 +609,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 // and ensures it exists in the local EL by calling NewPayload if necessary.
 // If the local chain has diverged, this triggers a reorg by setting the unsafe head.
 // Returns the block hash and block ref to use in ForkchoiceUpdate.
-func (e *EngineController) fetchAndEnsureRemoteL2BlockWithRef(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, error) {
+func (e *EngineController) FetchAndEnsureRemoteL2BlockWithRef(ctx context.Context, label eth.BlockLabel) (common.Hash, eth.L2BlockRef, error) {
 	if e.safeSourceL2Client == nil {
 		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("safe source L2 client not configured")
 	}

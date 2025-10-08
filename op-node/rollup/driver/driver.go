@@ -295,6 +295,11 @@ func (s *Driver) eventLoop() {
 	defer altSyncTicker.Stop()
 	lastUnsafeL2 := s.SyncDeriver.Engine.UnsafeL2Head()
 
+	// Create a ticker to sync safe/finalized from remote L2 when using safe-source=l2
+	// Unlike altSyncTicker, this does NOT reset based on chain progress - it always fires
+	safeSourceL2Ticker := time.NewTicker(4 * time.Second)
+	defer safeSourceL2Ticker.Stop()
+
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
 			return
@@ -319,6 +324,35 @@ func (s *Driver) eventLoop() {
 			cancel()
 			if err != nil {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
+			}
+		case <-safeSourceL2Ticker.C:
+			// Sync safe/finalized from remote L2 when using safe-source=l2
+			if s.SyncDeriver.SyncCfg.SafeSource == sync.SafeSourceL2 {
+				ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
+
+				s.log.Debug("safeSourceTicker: fetching safe/finalized from remote L2")
+
+				// Fetch both safe and finalized
+				_, remoteSafeRef, safeErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Safe)
+				_, remoteFinalizedRef, finalizedErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Finalized)
+
+				// Log any errors
+				if safeErr != nil {
+					s.log.Warn("Failed to fetch safe block from remote L2", "err", safeErr)
+				}
+				if finalizedErr != nil {
+					s.log.Warn("Failed to fetch finalized block from remote L2", "err", finalizedErr)
+				}
+
+				// Only update if both succeeded
+				if safeErr == nil && finalizedErr == nil {
+					s.SyncDeriver.Engine.SetSafeHead(remoteSafeRef)
+					s.SyncDeriver.Engine.SetLocalSafeHead(remoteSafeRef)
+					s.SyncDeriver.Engine.SetFinalizedHead(remoteFinalizedRef)
+					s.SyncDeriver.Engine.RequestForkchoiceUpdate(ctx)
+				}
+
+				cancel()
 			}
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
