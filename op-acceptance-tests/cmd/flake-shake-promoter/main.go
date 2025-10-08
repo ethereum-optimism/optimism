@@ -108,6 +108,7 @@ type testEntry struct {
 	Package  string                 `yaml:"package"`
 	Timeout  string                 `yaml:"timeout,omitempty"`
 	Metadata map[string]interface{} `yaml:"metadata,omitempty"`
+	Owner    string                 `yaml:"owner,omitempty"`
 }
 
 // Aggregated per test across days
@@ -130,6 +131,7 @@ type promoteCandidate struct {
 	PassRate     float64 `json:"pass_rate"`
 	Timeout      string  `json:"timeout"`
 	FirstSeenDay string  `json:"first_seen_day"`
+	Owner        string  `json:"owner,omitempty"`
 }
 
 // Map tests in flake-shake: key -> (timeout, name)
@@ -137,6 +139,7 @@ type testInfo struct {
 	Timeout   string
 	Name      string
 	Meta      map[string]interface{}
+	Owner     string
 	GateIndex int
 	TestIndex int
 }
@@ -490,7 +493,14 @@ func buildFlakeTests(cfg *acceptanceYAML, gateID, yamlPath string) (map[string]t
 	flakeTests := map[string]testInfo{}
 	for ti, t := range flakeGate.Tests {
 		key := keyFor(t.Package, t.Name)
-		flakeTests[key] = testInfo{Timeout: t.Timeout, Name: t.Name, Meta: t.Metadata, GateIndex: indexOfGate(cfg, gateID), TestIndex: ti}
+		// Prefer explicit YAML field owner; fallback to metadata.owner
+		owner := t.Owner
+		if owner == "" && t.Metadata != nil {
+			if v, ok := t.Metadata["owner"]; ok {
+				owner = fmt.Sprintf("%v", v)
+			}
+		}
+		flakeTests[key] = testInfo{Timeout: t.Timeout, Name: t.Name, Meta: t.Metadata, Owner: owner, GateIndex: indexOfGate(cfg, gateID), TestIndex: ti}
 	}
 	return flakeTests, flakeGate, gateIndex
 }
@@ -568,6 +578,14 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if totalRuns > 0 {
 			passRate = float64(totalPasses) / float64(totalRuns)
 		}
+		owner := info.Owner
+		if owner == "" {
+			if info.Meta != nil {
+				if v, ok := info.Meta["owner"]; ok {
+					owner = fmt.Sprintf("%v", v)
+				}
+			}
+		}
 		candidates = append(candidates, promoteCandidate{
 			Package:      pkg,
 			TestName:     "",
@@ -575,6 +593,7 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 			PassRate:     passRate * 100.0,
 			Timeout:      info.Timeout,
 			FirstSeenDay: earliest,
+			Owner:        owner,
 		})
 	}
 	for key, s := range agg {
@@ -624,6 +643,14 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if s.TotalRuns > 0 {
 			passRate = float64(s.Passes) / float64(s.TotalRuns)
 		}
+		owner := info.Owner
+		if owner == "" {
+			if info.Meta != nil {
+				if v, ok := info.Meta["owner"]; ok {
+					owner = fmt.Sprintf("%v", v)
+				}
+			}
+		}
 		candidates = append(candidates, promoteCandidate{
 			Package:      s.Package,
 			TestName:     s.TestName,
@@ -631,6 +658,7 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 			PassRate:     passRate * 100.0,
 			Timeout:      info.Timeout,
 			FirstSeenDay: s.FirstSeenDay,
+			Owner:        owner,
 		})
 	}
 	return candidates, reasons

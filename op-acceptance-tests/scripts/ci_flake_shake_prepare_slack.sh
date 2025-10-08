@@ -62,10 +62,11 @@ if [ -f "$PROMO_JSON" ]; then
     --arg url "${REPORT_ARTIFACTS_URL}" \
     --slurpfile meta "${PROMO_JSON%/*}/metadata.json" '
     def name_or_pkg(t): (if ((t.test_name|tostring)|length) == 0 then "(package)" else t.test_name end);
+    def owner_or_unknown(t): (if ((t.owner|tostring)|length) == 0 then "unknown" else t.owner end);
     def testblocks(t): [
       {"type":"section","fields":[
         {"type":"mrkdwn","text":"*Test:*\n\(name_or_pkg(t))"},
-        {"type":"mrkdwn","text":"*Package:*\n\(t.package)"}
+        {"type":"mrkdwn","text":"*Owner:*\n\(owner_or_unknown(t))"}
       ]},
       {"type":"section","fields":[
         {"type":"mrkdwn","text":"*Runs:*\n\(t.total_runs)"},
