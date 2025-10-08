@@ -1544,10 +1544,10 @@ contract PreimageOracle_SqueezeLPP_Test is PreimageOracle_TestInit {
     }
 }
 
-/// @title PreimageOracle_Unclassified_Test
+/// @title PreimageOracle_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `PreimageOracle`
 ///         contract or are testing multiple functions at once.
-contract PreimageOracle_Unclassified_Test is PreimageOracle_TestInit {
+contract PreimageOracle_Uncategorized_Test is PreimageOracle_TestInit {
     /// @notice Test the pre-image key computation with a known pre-image.
     function test_keccak256PreimageKey_succeeds() public pure {
         bytes memory preimage = hex"deadbeef";

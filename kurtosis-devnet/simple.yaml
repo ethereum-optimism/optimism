@@ -43,6 +43,7 @@ optimism_package:
         fjord_time_offset: 0
         granite_time_offset: 0
         holocene_time_offset: 0
+        isthmus_time_offset: 0
         fund_dev_accounts: true
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
@@ -73,6 +74,7 @@ ethereum_package:
   participants:
     - el_type: geth
       cl_type: teku
+      cl_image: consensys/teku:25.7.1
   network_params:
     preset: minimal
     genesis_delay: 5

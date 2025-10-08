@@ -25,7 +25,6 @@ index.html
 
 !op-deployer/pkg/deployer/artifacts
 
-
 packages/contracts-bedrock/deployments/anvil
 
 # vim
@@ -48,8 +47,10 @@ packages/contracts-bedrock/deployments/anvil
 
 coverage.out
 
-
 __pycache__
 
 # Ignore echidna artifacts
 crytic-export
+
+# ignore local asdf config
+.tool-versions

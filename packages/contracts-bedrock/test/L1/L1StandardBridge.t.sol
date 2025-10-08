@@ -14,6 +14,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -217,71 +218,6 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
     }
 }
 
-/// @title L1StandardBridge_Upgrade_Test
-/// @notice Reusable test for the current upgrade() function in the L1StandardBridge contract. If
-///         the upgrade() function is changed, tests inside of this contract should be updated to
-///         reflect the new function. If the upgrade() function is removed, remove the
-///         corresponding tests but leave this contract in place so it's easy to add tests back
-///         in the future.
-contract L1StandardBridge_Upgrade_Test is CommonTest {
-    /// @notice Tests that the upgrade() function succeeds.
-    function test_upgrade_succeeds() external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
-
-        // Set the initialized slot to 0.
-        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
-
-        // Verify the initial systemConfig slot is non-zero.
-        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1StandardBridge", "systemConfig");
-        vm.store(address(l1StandardBridge), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
-        assertNotEq(address(l1StandardBridge.systemConfig()), address(0));
-        assertNotEq(vm.load(address(l1StandardBridge), bytes32(systemConfigSlot.slot)), bytes32(0));
-
-        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
-
-        // Trigger upgrade().
-        vm.prank(address(l1StandardBridge.proxyAdmin()));
-        l1StandardBridge.upgrade(newSystemConfig);
-
-        // Verify that the systemConfig was updated.
-        assertEq(address(l1StandardBridge.systemConfig()), address(newSystemConfig));
-    }
-
-    /// @notice Tests that the upgrade() function reverts if called a second time.
-    function test_upgrade_upgradeTwice_reverts() external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
-
-        // Set the initialized slot to 0.
-        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
-
-        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
-
-        // Trigger first upgrade.
-        vm.prank(address(l1StandardBridge.proxyAdmin()));
-        l1StandardBridge.upgrade(newSystemConfig);
-
-        // Try to trigger second upgrade.
-        vm.prank(address(l1StandardBridge.proxyAdmin()));
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1StandardBridge.upgrade(newSystemConfig);
-    }
-
-    /// @notice Verifies upgrade reverts with random unauthorized addresses
-    /// @param _sender Random address for access control test
-    function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
-
-        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
-        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
-
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
-        vm.prank(_sender);
-        l1StandardBridge.upgrade(ISystemConfig(address(0xdeadbeef)));
-    }
-}
-
 /// @title L1StandardBridge_Paused_Test
 /// @notice Tests the `paused` function of the `L1StandardBridge` contract.
 contract L1StandardBridge_Paused_Test is CommonTest {
@@ -421,8 +357,13 @@ contract L1StandardBridge_Receive_Test is CommonTest {
         vm.prank(alice, alice);
         (bool success,) = address(l1StandardBridge).call{ value: 100 }(hex"");
         assertEq(success, true);
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 100);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 100);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 100);
+        }
     }
 
     /// @notice Verifies receive function reverts when called by contracts
@@ -448,8 +389,13 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that depositing ETH succeeds for an EOA using 7702 delegation.
@@ -461,8 +407,13 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that depositing ETH reverts if the call is not from an EOA.
@@ -487,8 +438,13 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 600);
+        }
     }
 
     /// @notice Verifies depositETHTo succeeds with various recipients and amounts
@@ -500,10 +456,17 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
 
         vm.deal(alice, _amount);
 
+        uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
+
         vm.prank(alice);
         l1StandardBridge.depositETHTo{ value: _amount }(_to, 60000, hex"dead");
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _amount);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _amount);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + _amount);
+        }
     }
 }
 
@@ -820,8 +783,13 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.bridgeETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that bridging ETH to a different address succeeds.
@@ -834,8 +802,13 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 600);
+        }
     }
 
     /// @notice Tests that finalizing bridged ETH succeeds.

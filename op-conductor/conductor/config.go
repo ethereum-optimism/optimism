@@ -150,6 +150,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	if executionP2pRpcUrl == "" {
 		executionP2pRpcUrl = ctx.String(flags.ExecutionRPC.Name)
 	}
+	executionP2pCheckApi := ctx.String(flags.HealthcheckExecutionP2pCheckApi.Name)
+	if executionP2pCheckApi == "" {
+		executionP2pCheckApi = "net"
+	}
 
 	return &Config{
 		ConsensusAddr: ctx.String(flags.ConsensusAddr.Name),
@@ -180,6 +184,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			ExecutionP2pEnabled:      ctx.Bool(flags.HealthcheckExecutionP2pEnabled.Name),
 			ExecutionP2pMinPeerCount: ctx.Uint64(flags.HealthcheckExecutionP2pMinPeerCount.Name),
 			ExecutionP2pRPCUrl:       executionP2pRpcUrl,
+			ExecutionP2pCheckApi:     executionP2pCheckApi,
+			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
+			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
 		RollupCfg:           *rollupCfg,
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
@@ -215,8 +222,17 @@ type HealthCheckConfig struct {
 	// ExecutionP2pRPC is the HTTP provider URL for EL P2P.
 	ExecutionP2pRPCUrl string
 
+	// ExecutionP2pCheckApi is the API to use for EL P2P checks.
+	ExecutionP2pCheckApi string
+
 	// ExecutionP2pMinPeerCount is the minimum number of EL P2P peers required for the sequencer to be healthy.
 	ExecutionP2pMinPeerCount uint64
+
+	// RollupBoostPartialHealthinessToleranceLimit is the amount of rollup-boost partial unhealthiness failures to tolerate within a configurable time frame
+	RollupBoostPartialHealthinessToleranceLimit uint64
+
+	// RollupBoostPartialHealthinessToleranceIntervalSeconds is the time frame within which `RollupBoostToleratePartialHealthinessToleranceIntervalLimit` is evaluated
+	RollupBoostPartialHealthinessToleranceIntervalSeconds uint64
 }
 
 func (c *HealthCheckConfig) Check() error {
@@ -236,6 +252,15 @@ func (c *HealthCheckConfig) Check() error {
 		if c.ExecutionP2pRPCUrl == "" {
 			return fmt.Errorf("missing el p2p rpc")
 		}
+		if c.ExecutionP2pCheckApi == "" {
+			return fmt.Errorf("missing el p2p check api")
+		}
+		if c.ExecutionP2pCheckApi != "net" && c.ExecutionP2pCheckApi != "admin" {
+			return fmt.Errorf("invalid el p2p check api")
+		}
+	}
+	if (c.RollupBoostPartialHealthinessToleranceLimit != 0 && c.RollupBoostPartialHealthinessToleranceIntervalSeconds == 0) || (c.RollupBoostPartialHealthinessToleranceLimit == 0 && c.RollupBoostPartialHealthinessToleranceIntervalSeconds != 0) {
+		return fmt.Errorf("only one of RollupBoostPartialHealthinessToleranceLimit or RollupBoostPartialHealthinessToleranceIntervalSeconds found to be defined. Either define both of them or none.")
 	}
 	return nil
 }

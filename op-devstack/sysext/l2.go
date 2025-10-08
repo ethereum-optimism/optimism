@@ -119,11 +119,40 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	clService, ok := node.Services[CLServiceName]
 	require.True(ok, "need L2 CL service for chain", l2ID)
 
+	var endpointString string
+	// Parse the endpoint from the service descriptor.
+	for proto, endpoint := range clService.Endpoints {
+		if proto == RPCProtocol {
+			port := endpoint.Port
+			if o.usePrivatePorts {
+				port = endpoint.PrivatePort
+			}
+			scheme := endpoint.Scheme
+			if scheme == "" {
+				scheme = HTTPProtocol
+			}
+			host := endpoint.Host
+			path := ""
+			if strings.Contains(host, "/") {
+				parts := strings.SplitN(host, "/", 2)
+				host = parts[0]
+				path = "/" + parts[1]
+			}
+			endpointString = fmt.Sprintf("%s://%s:%d%s", scheme, host, port, path)
+			break
+		}
+	}
+
+	require.NotEmpty(endpointString, "no endpoint found for CL service", clService.Name)
+
+	l2Net.Logger().Info("Found endpoint for CL service", "endpoint", endpointString)
+
 	clClient := o.rpcClient(l2Net.T(), clService, RPCProtocol, "/", opts...)
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID:           stack.NewL2CLNodeID(clService.Name, l2ID.ChainID()),
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       clClient,
+		UserRPC:      endpointString,
 	})
 	l2Net.AddL2CLNode(l2CL)
 	l2CL.(stack.LinkableL2CLNode).LinkEL(l2EL)
@@ -177,7 +206,7 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 	associatedConductorService, ok := node.Services[ConductorServiceName]
 	require.True(ok, "L2 rbuilder service must have an associated conductor service", l2ID)
 
-	flashblocksWsUrl, _, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
+	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
 	require.NoError(err, "failed to find websocket service for rbuilder")
 
 	flashblocksBuilder := shim.NewFlashblocksBuilderNode(shim.FlashblocksBuilderNodeConfig{
@@ -187,8 +216,9 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
-		Conductor:        l2Net.Conductor(stack.ConductorID(associatedConductorService.Name)),
-		FlashblocksWsUrl: flashblocksWsUrl,
+		Conductor:            l2Net.Conductor(stack.ConductorID(associatedConductorService.Name)),
+		FlashblocksWsUrl:     flashblocksWsUrl,
+		FlashblocksWsHeaders: flashblocksWsHeaders,
 	})
 
 	l2Net.AddFlashblocksBuilder(flashblocksBuilder)
@@ -231,13 +261,14 @@ func (o *Orchestrator) hydrateFlashblocksWebsocketProxyMaybe(net *descriptors.L2
 	}
 
 	for _, instance := range fbWsProxyService {
-		wsUrl, _, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
+		wsUrl, wsHeaders, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
 		require.NoError(err, "failed to get the websocket url for the flashblocks websocket proxy", "service", instance.Name)
 
 		fbWsProxyShim := shim.NewFlashblocksWebsocketProxy(shim.FlashblocksWebsocketProxyConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewFlashblocksWebsocketProxyID(instance.Name, l2ID.ChainID()),
 			WsUrl:        wsUrl,
+			WsHeaders:    wsHeaders,
 		})
 		fbWsProxyShim.SetLabel(match.LabelVendor, string(match.FlashblocksWebsocketProxy))
 		l2Net.AddFlashblocksWebsocketProxy(fbWsProxyShim)

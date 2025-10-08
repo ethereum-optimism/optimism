@@ -377,6 +377,18 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
+	// When Osaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1OsakaTimeOffset,omitempty"`
+	// When BPO1 activates. Relative to L1 genesis.
+	L1BPO1TimeOffset *hexutil.Uint64 `json:"l1BPO1TimeOffset,omitempty"`
+	// When BPO2 activates. Relative to L1 genesis.
+	L1BPO2TimeOffset *hexutil.Uint64 `json:"l1BPO2TimeOffset,omitempty"`
+	// When BPO3 activates. Relative to L1 genesis.
+	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
+	// When BPO4 activates. Relative to L1 genesis.
+	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// Blob schedule config.
+	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)
@@ -1156,6 +1168,7 @@ type L1Deployments struct {
 	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalInterop             common.Address `json:"OptimismPortalInterop"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
 	ETHLockbox                        common.Address `json:"ETHLockbox"`
 	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
@@ -1183,6 +1196,7 @@ func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deplo
 		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
 		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
 		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortalInterop:             contracts.OptimismPortalInteropImpl,
 		OptimismPortalProxy:               contracts.OptimismPortalProxy,
 		ETHLockbox:                        contracts.EthLockboxImpl,
 		ETHLockboxProxy:                   contracts.EthLockboxProxy,

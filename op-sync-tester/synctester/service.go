@@ -147,8 +147,8 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	endpoint := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort))
 	// middleware to initialize session
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r, err := parseSession(r, s.log)
-		if errors.Is(err, ErrInvalidSessionIDFormat) || errors.Is(err, ErrInvalidParams) {
+		r, err := parseSession(r)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -213,9 +213,16 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) SyncTesterEndpoint(chainID eth.ChainID) string {
-	uuid := uuid.New()
-	return fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
+func (s *Service) SyncTesterRPC(chainID eth.ChainID, withSessionID bool) string {
+	return s.RPC() + s.SyncTesterRPCPath(chainID, withSessionID)
+}
+
+func (s *Service) SyncTesterRPCPath(chainID eth.ChainID, withSessionID bool) string {
+	path := fmt.Sprintf("/chain/%s/synctest", chainID)
+	if withSessionID {
+		path = fmt.Sprintf("%s/%s", path, uuid.New())
+	}
+	return path
 }
 
 func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {

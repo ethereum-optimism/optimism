@@ -27,6 +27,9 @@ type L2CLConfig struct {
 
 	IsSequencer  bool
 	IndexingMode bool
+
+	// EnableReqRespSync is the flag to enable/disable req-resp sync.
+	EnableReqRespSync bool
 }
 
 func L2CLSequencer() L2CLOption {
@@ -48,6 +51,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		SafeDBPath:        "",
 		IsSequencer:       false,
 		IndexingMode:      false,
+		EnableReqRespSync: true,
 	}
 }
 

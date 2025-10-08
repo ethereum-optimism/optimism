@@ -92,6 +92,25 @@
   {
     "inputs": [
       {
+        "internalType": "GameType",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "name": "gameArgs",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
@@ -330,6 +349,29 @@
         "type": "uint32"
       },
       {
+        "internalType": "contract IDisputeGame",
+        "name": "_impl",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_args",
+        "type": "bytes"
+      }
+    ],
+    "name": "setImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      },
+      {
         "internalType": "uint256",
         "name": "_initBond",
         "type": "uint256"
@@ -389,6 +431,25 @@
       }
     ],
     "name": "DisputeGameCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "args",
+        "type": "bytes"
+      }
+    ],
+    "name": "ImplementationArgsSet",
     "type": "event"
   },
   {

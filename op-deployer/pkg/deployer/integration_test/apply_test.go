@@ -3,16 +3,16 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"log/slog"
 	"math/big"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -35,7 +35,6 @@ import (
 
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -45,6 +44,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
+
+const testCustomGasLimit = uint64(90_123_456)
 
 type deployerKey struct{}
 
@@ -56,17 +57,6 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
-func defaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicDevKeys) {
-	pkHex := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	pk, err := crypto.HexToECDSA(pkHex)
-	require.NoError(t, err)
-
-	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-
-	return pkHex, pk, dk
-}
-
 // TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
 // local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
 // or backports branches, since those are the only branches with an SLA to support tagged artifacts.
@@ -75,7 +65,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	pkHex, pk, dk := defaultPrivkey(t)
+	pkHex, pk, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID := uint256.NewInt(1)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
@@ -110,9 +100,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
-			UpgradeController:               superchainPAO,
+			L1ProxyAdminOwner:               superchainPAO,
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,
@@ -120,7 +111,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
 		intent.OPCMAddress = &impls.Opcm
 
@@ -143,13 +134,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	}
 
 	t.Run("default tagged artifacts", func(t *testing.T) {
-		op_e2e.InitParallel(t)
-		testutils.RunOnBranch(t, regexp.MustCompile(`^(backports/op-deployer|proposal/op-contracts)/*`))
 		apply(t, artifacts.DefaultL1ContractsLocator)
 	})
 
 	t.Run("local artifacts", func(t *testing.T) {
-		op_e2e.InitParallel(t)
 		loc, _ := testutil.LocalArtifacts(t)
 		apply(t, loc)
 	})
@@ -160,7 +148,7 @@ func TestEndToEndApply(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	_, pk, dk := defaultPrivkey(t)
+	_, pk, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
@@ -171,7 +159,7 @@ func TestEndToEndApply(t *testing.T) {
 	defer cancel()
 
 	t.Run("two chains one after another", func(t *testing.T) {
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 		cg := ethClientCodeGetter(ctx, l1Client)
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -190,7 +178,7 @@ func TestEndToEndApply(t *testing.T) {
 
 		// create a new environment with wiped state to ensure we can continue using the
 		// state from the previous deployment
-		intent.Chains = append(intent.Chains, newChainIntent(t, dk, l1ChainID, l2ChainID2))
+		intent.Chains = append(intent.Chains, shared.NewChainIntent(t, dk, l1ChainID, l2ChainID2, testCustomGasLimit))
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -211,7 +199,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 		mockPreStateBuilder := devnet.NewMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -247,7 +235,6 @@ func TestGlobalOverrides(t *testing.T) {
 	defer cancel()
 
 	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
-	expectedGasLimit := strings.ToLower("0x1C9C380")
 	expectedBaseFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	expectedL1FeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000002")
 	expectedSequencerFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000003")
@@ -259,7 +246,6 @@ func TestGlobalOverrides(t *testing.T) {
 	expectedUseFaultProofs := false
 	intent.GlobalDeployOverrides = map[string]interface{}{
 		"l2BlockTime":                         float64(3),
-		"l2GenesisBlockGasLimit":              expectedGasLimit,
 		"baseFeeVaultRecipient":               expectedBaseFeeVaultRecipient,
 		"l1FeeVaultRecipient":                 expectedL1FeeVaultRecipient,
 		"sequencerFeeVaultRecipient":          expectedSequencerFeeVaultRecipient,
@@ -276,7 +262,6 @@ func TestGlobalOverrides(t *testing.T) {
 	cfg, err := state.CombineDeployConfig(intent, intent.Chains[0], st, st.Chains[0])
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
-	require.Equal(t, expectedGasLimit, strings.ToLower(cfg.L2InitializationConfig.L2GenesisBlockDeployConfig.L2GenesisBlockGasLimit.String()), "L2 Genesis Block Gas Limit should be 30_000_000")
 	require.Equal(t, expectedBaseFeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.BaseFeeVaultRecipient, "Base Fee Vault Recipient should be the expected address")
 	require.Equal(t, expectedL1FeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.L1FeeVaultRecipient, "L1 Fee Vault Recipient should be the expected address")
 	require.Equal(t, expectedSequencerFeeVaultRecipient, cfg.L2InitializationConfig.L2VaultsDeployConfig.SequencerFeeVaultRecipient, "Sequencer Fee Vault Recipient should be the expected address")
@@ -642,7 +627,7 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 
 	loc, _ := testutil.LocalArtifacts(t)
 
-	intent, st := newIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc)
+	intent, st := shared.NewIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
@@ -657,63 +642,6 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 	}
 
 	return opts, intent, st
-}
-
-func addrFor(t *testing.T, dk *devkeys.MnemonicDevKeys, key devkeys.Key) common.Address {
-	addr, err := dk.Address(key)
-	require.NoError(t, err)
-	return addr
-}
-
-func newIntent(
-	t *testing.T,
-	l1ChainID *big.Int,
-	dk *devkeys.MnemonicDevKeys,
-	l2ChainID *uint256.Int,
-	l1Loc *artifacts.Locator,
-	l2Loc *artifacts.Locator,
-) (*state.Intent, *state.State) {
-	intent := &state.Intent{
-		ConfigType: state.IntentTypeCustom,
-		L1ChainID:  l1ChainID.Uint64(),
-		SuperchainRoles: &addresses.SuperchainRoles{
-			SuperchainProxyAdminOwner: addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
-			ProtocolVersionsOwner:     addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
-			SuperchainGuardian:        addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
-			Challenger:                addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
-		},
-		FundDevAccounts:    false,
-		L1ContractsLocator: l1Loc,
-		L2ContractsLocator: l2Loc,
-		Chains: []*state.ChainIntent{
-			newChainIntent(t, dk, l1ChainID, l2ChainID),
-		},
-	}
-	st := &state.State{
-		Version: 1,
-	}
-	return intent, st
-}
-
-func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.Int, l2ChainID *uint256.Int) *state.ChainIntent {
-	return &state.ChainIntent{
-		ID:                         l2ChainID.Bytes32(),
-		BaseFeeVaultRecipient:      addrFor(t, dk, devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
-		L1FeeVaultRecipient:        addrFor(t, dk, devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
-		SequencerFeeVaultRecipient: addrFor(t, dk, devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
-		Eip1559DenominatorCanyon:   standard.Eip1559DenominatorCanyon,
-		Eip1559Denominator:         standard.Eip1559Denominator,
-		Eip1559Elasticity:          standard.Eip1559Elasticity,
-		Roles: state.ChainRoles{
-			L1ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			L2ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			SystemConfigOwner: addrFor(t, dk, devkeys.SystemConfigOwner.Key(l1ChainID)),
-			UnsafeBlockSigner: addrFor(t, dk, devkeys.SequencerP2PRole.Key(l1ChainID)),
-			Batcher:           addrFor(t, dk, devkeys.BatcherRole.Key(l1ChainID)),
-			Proposer:          addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
-			Challenger:        addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
-		},
-	}
 }
 
 type codeGetter func(t *testing.T, addr common.Address) []byte
@@ -771,6 +699,7 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 	implAddrs := []addrTuple{
 		{"DelayedWethImpl", st.ImplementationsDeployment.DelayedWethImpl},
 		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImpl},
+		{"OptimismPortalInteropImpl", st.ImplementationsDeployment.OptimismPortalInteropImpl},
 		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImpl},
 		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImpl},
 		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1Erc721BridgeImpl},
@@ -840,6 +769,12 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 			require.False(t, ok, "governance token should not be deployed by default")
 		}
 
+		genesis, rollup, err := inspect.GenesisAndRollup(st, chainState.ID)
+		require.NoError(t, err)
+		require.Equal(t, rollup.Genesis.SystemConfig.GasLimit, testCustomGasLimit, "rollup gasLimit")
+		require.Equal(t, genesis.GasLimit, testCustomGasLimit, "genesis gasLimit")
+
+		require.Equal(t, chainIntent.GasLimit, testCustomGasLimit, "chainIntent gasLimit")
 		require.Equal(t, int(chainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
 		require.Equal(t, int(chainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
 	}

@@ -38,6 +38,7 @@ type taskExecutor interface {
 	RunDerivation(
 		logger log.Logger,
 		rollupCfg *rollup.Config,
+		l1ChainConfig *params.ChainConfig,
 		depSet depset.DependencySet,
 		l2ChainConfig *params.ChainConfig,
 		l1Head common.Hash,
@@ -107,7 +108,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 	} else if transitionState.Step == ConsolidateStep {
 		logger.Info("Running consolidate step")
 		// sanity check
-		if len(transitionState.PendingProgress) >= ConsolidateStep {
+		if len(transitionState.PendingProgress) > ConsolidateStep {
 			return common.Hash{}, fmt.Errorf("%w: pending progress length does not match the expected step", ErrInvalidPrestate)
 		}
 		expectedSuperRoot, err := RunConsolidation(
@@ -153,7 +154,11 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	}
 	l2ChainConfig, err := bootInfo.Configs.ChainConfig(chainAgreedPrestate.ChainID)
 	if err != nil {
-		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+		return types.OptimisticBlock{}, fmt.Errorf("no l2 chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+	}
+	l1ChainConfig, err := bootInfo.Configs.L1ChainConfig(eth.ChainIDFromBig(rollupCfg.L1ChainID))
+	if err != nil {
+		return types.OptimisticBlock{}, fmt.Errorf("no l1 chain config available for chain ID %v: %w", eth.ChainIDFromBig(rollupCfg.L1ChainID), err)
 	}
 	depSet, err := bootInfo.Configs.DependencySet(chainAgreedPrestate.ChainID)
 	if err != nil {
@@ -166,6 +171,7 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	derivationResult, err := tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		l1ChainConfig,
 		depSet,
 		l2ChainConfig,
 		bootInfo.L1Head,
@@ -194,6 +200,7 @@ type interopTaskExecutor struct {
 func (t *interopTaskExecutor) RunDerivation(
 	logger log.Logger,
 	rollupCfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 	depSet depset.DependencySet,
 	l2ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
@@ -205,6 +212,7 @@ func (t *interopTaskExecutor) RunDerivation(
 	return tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		l1ChainConfig,
 		depSet,
 		l2ChainConfig,
 		l1Head,

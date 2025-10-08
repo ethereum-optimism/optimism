@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -95,11 +96,11 @@ func NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultMin
 	minimal := NewDefaultMinimalSystemIDs(l1ID, l2ID)
 	return DefaultMinimalSystemWithSyncTesterIDs{
 		DefaultMinimalSystemIDs: minimal,
-		SyncTester:              stack.NewSyncTesterID("s", l2ID),
+		SyncTester:              stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 }
 
-func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs) stack.Option[*Orchestrator] {
+func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs, fcu eth.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID)
@@ -135,7 +136,7 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 		ids.L2EL,
 	}))
 
-	opt.Add(WithSyncTesters([]stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
@@ -331,6 +332,7 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
+			WithDevFeatureBitmap(deployer.OptimismPortalInteropDevFlag),
 		}, deployerOpts...)...))
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))

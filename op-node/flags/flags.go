@@ -171,7 +171,7 @@ var (
 	L1CacheSize = &cli.UintFlag{
 		Name: "l1.cache-size",
 		Usage: "Cache size for blocks, receipts and transactions. " +
-			"If this flag is set to 0, 2/3 of the sequencing window size is used (usually 2400). " +
+			"If this flag is set to 0, 3/2 of the sequencing window size is used (usually 2400). " +
 			"The default value of 900 (~3h of L1 blocks) is good for (high-throughput) networks that see frequent safe head increments. " +
 			"On (low-throughput) networks with infrequent safe head increments, it is recommended to set this value to 0, " +
 			"or a value that well covers the typical span between safe head increments. " +
@@ -186,6 +186,12 @@ var (
 		EnvVars:  prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:    time.Second * 12,
 		Category: L1RPCCategory,
+	}
+	L1ChainConfig = &cli.PathFlag{
+		Name:     "rollup.l1-chain-config",
+		Usage:    "Path to .json file with the chain configuration for the L1, either in the direct format or genesis.json format (i.e. embedded under the .config property). Not necessary / will be ignored if using Ethereum mainnet or Sepolia as an L1.",
+		EnvVars:  prefixEnvVars("ROLLUP_L1_CHAIN_CONFIG"),
+		Category: RollupCategory,
 	}
 	L2EngineKind = &cli.GenericFlag{
 		Name: "l2.enginekind",
@@ -456,6 +462,7 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	L1ChainConfig,
 	L2EngineKind,
 	L2EngineRpcTimeout,
 	InteropRPCAddr,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,6 +36,8 @@ func TestBuilder(t *testing.T) {
 
 	// Configure L1
 	pragueOffset := uint64(100)
+	osakaOffset := uint64(200)
+	bpo1Offset := uint64(300)
 	alice := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	aliceFunds := uint256.NewInt(10000)
 	l1Params := state.L1DevGenesisParams{
@@ -44,6 +47,8 @@ func TestBuilder(t *testing.T) {
 			ExcessBlobGas: 123,
 		},
 		PragueTimeOffset: &pragueOffset,
+		OsakaTimeOffset:  &osakaOffset,
+		BPO1TimeOffset:   &bpo1Offset,
 		Prefund: map[common.Address]*hexutil.U256{
 			alice: (*hexutil.U256)(aliceFunds),
 		},
@@ -54,6 +59,8 @@ func TestBuilder(t *testing.T) {
 	l1Config.WithGasLimit(l1Params.BlockParams.GasLimit)
 	l1Config.WithExcessBlobGas(l1Params.BlockParams.ExcessBlobGas)
 	l1Config.WithPragueOffset(*l1Params.PragueTimeOffset)
+	l1Config.WithOsakaOffset(*l1Params.OsakaTimeOffset)
+	l1Config.WithBPO1Offset(*l1Params.BPO1TimeOffset)
 	l1Config.WithPrefundedAccount(alice, *aliceFunds)
 
 	// Configure L2
@@ -157,6 +164,7 @@ func TestBuilder(t *testing.T) {
 				Eip1559DenominatorCanyon: 250,
 				Eip1559Denominator:       50,
 				Eip1559Elasticity:        10,
+				GasLimit:                 standard.GasLimit,
 				OperatorFeeScalar:        100,
 				OperatorFeeConstant:      200,
 				DeployOverrides: map[string]any{

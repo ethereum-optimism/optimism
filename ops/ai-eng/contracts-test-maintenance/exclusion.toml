@@ -1,0 +1,26 @@
+# Exclusion configuration for contract test maintenance
+# Separate configuration for directories and individual files
+
+[exclusions]
+# Directory exclusions (exclude all files within these directories)
+directories = [
+    "test/invariants/",
+    "test/opcm/",
+    "test/scripts/",
+    "test/setup/"
+]
+
+# Individual file exclusions
+files = [
+    "test/L1/OPContractsManagerContractsContainer.t.sol",
+    "test/dispute/lib/LibClock.t.sol",
+    "test/dispute/lib/LibGameId.t.sol",
+    "test/integration/ExecutingMessageEmitted.t.sol",
+    "test/invariants/Burn.Eth.t.sol",
+    "test/invariants/Burn.Gas.t.sol",
+    "test/libraries/DeployUtils.t.sol",
+    "test/universal/BenchmarkTest.t.sol",
+    "test/universal/ExtendedPause.t.sol",
+    "test/vendor/Initializable.t.sol",
+    "test/vendor/InitializableOZv5.t.sol"
+]

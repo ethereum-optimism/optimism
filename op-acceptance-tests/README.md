@@ -54,7 +54,6 @@ just acceptance-test "" base
 
 # Run against Kurtosis devnets (requires Docker + Kurtosis)
 just acceptance-test simple base
-just acceptance-test isthmus isthmus
 just acceptance-test interop interop
 ```
 
@@ -68,7 +67,7 @@ just
 just acceptance-test <devnet> <gate>
 
 # Use specific op-acceptor version
-ACCEPTOR_VERSION=v1.0.0 just acceptance-test simple base
+ACCEPTOR_VERSION=v1.0.0 just acceptance-test "" base
 ```
 
 ### Direct CLI Usage
@@ -96,7 +95,8 @@ For rapid test development, use in-process testing:
 
 ```bash
 cd op-acceptance-tests
-just acceptance-test "" base  # Uses sysgo orchestrator - faster!
+# Not providing a network uses the sysgo orchestrator (in-memory network) which is faster and easier to iterate with.
+just acceptance-test "" base
 ```
 
 ### Testing Against External Devnets
@@ -105,7 +105,7 @@ For integration testing against realistic networks:
 
 1. **Automated approach** (rebuilds devnet each time):
    ```bash
-   just acceptance-test isthmus isthmus
+   just acceptance-test interop interop
    ```
 
 2. **Manual approach** (once-off)
@@ -155,13 +155,121 @@ LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervis
 
 To add new acceptance tests:
 
-1. Create your test in the appropriate Go package (as a regular Go test)
+1. Create your test in the appropriate Go package under `tests` (as a regular Go test)
 2. Register the test in `acceptance-tests.yaml` under the appropriate gate
 3. Follow the existing pattern for test registration:
    ```yaml
    - name: YourTestName
-     package: github.com/ethereum-optimism/optimism/your/package/path
+     package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/your/package/path
    ```
+
+## Flake-Shake: Test Stability Validation
+
+Flake-shake is a test stability validation system that runs tests multiple times to detect flakiness before they reach production gates. It serves as a quarantine area where new or potentially unstable tests must prove their reliability.
+
+### Purpose
+
+- Detect flaky tests through repeated execution (100+ iterations)
+- Prevent unstable tests from disrupting CI/CD pipelines
+- Provide data-driven decisions for test promotion to production gates
+
+### How It Works
+
+Flake-shake runs tests multiple times and aggregates results to determine stability:
+- **STABLE**: Tests with 100% pass rate across all iterations
+- **UNSTABLE**: Tests with any failures (<100% pass rate)
+
+### Running Flake-Shake
+
+Flake-shake is integrated into op-acceptor and can be run locally or in CI:
+
+```bash
+# Run flake-shake with op-acceptor (requires op-acceptor v3.4.0+)
+op-acceptor \
+  --validators ./acceptance-tests.yaml \
+  --gate flake-shake \
+  --flake-shake \
+  --flake-shake-iterations 10 \
+  --orchestrator sysgo
+
+# Run with more iterations for thorough testing
+op-acceptor \
+  --validators ./acceptance-tests.yaml \
+  --gate flake-shake \
+  --flake-shake \
+  --flake-shake-iterations 100 \
+  --orchestrator sysgo
+```
+
+### Adding Tests to Flake-Shake
+
+Add new or suspicious tests to the flake-shake gate in `acceptance-tests.yaml`:
+
+```yaml
+gates:
+  - id: flake-shake
+    description: "Test stability validation gate"
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/yourtest
+        timeout: 10m
+        metatada:
+          owner: stefano
+```
+
+### Understanding Reports
+
+Flake-shake stores a daily summary artifact per run:
+- **`final-report/daily-summary.json`**: Aggregated counts of stable/unstable tests and per-test pass/fail tallies.
+
+### CI Integration
+
+In CI, flake-shake runs tests across multiple parallel workers:
+- 10 workers each run 10 iterations (100 total by default)
+- Results are aggregated using the `flake-shake-aggregator` tool
+- Reports are stored as CircleCI artifacts
+
+### Automated Promotion (Promoter CLI)
+
+We provide a small CLI that aggregates the last N daily summaries from CircleCI and proposes YAML edits to promote stable tests out of the `flake-shake` gate:
+
+```bash
+export CIRCLE_API_TOKEN=...  # CircleCI API token (read artifacts)
+go build -o ./op-acceptance-tests/flake-shake-promoter ./op-acceptance-tests/cmd/flake-shake-promoter/main.go
+./op-acceptance-tests/flake-shake-promoter \
+  --org ethereum-optimism --repo optimism --branch develop \
+  --workflow scheduled-flake-shake --report-job op-acceptance-tests-flake-shake-report \
+  --days 3 --gate flake-shake --min-runs 300 --max-failure-rate 0.01 --min-age-days 3 \
+  --out ./final-promotion --dry-run
+```
+
+Outputs written to `--out`:
+- `aggregate.json`: Per-test aggregated totals across days
+- `promotion-ready.json`: Candidates and skip reasons
+- `promotion.yaml`: Proposed edits to `op-acceptance-tests/acceptance-tests.yaml`
+
+### Promotion Criteria
+
+Tests should remain in flake-shake until they demonstrate consistent stability:
+- **Immediate promotion**: 100% pass rate across 100+ iterations
+- **Investigation needed**: Any failures require fixing before promotion
+- **Minimum soak time**: 3 days in flake-shake gate recommended
+
+### Quick Development
+
+For rapid development and testing:
+
+```bash
+cd op-acceptance-tests
+
+# Run all tests (sysgo gateless mode) - most comprehensive coverage
+just acceptance-test "" ""
+
+# Run specific gate-based tests (traditional mode)
+just acceptance-test "" base        # In-process (sysgo) with gate
+just acceptance-test simple base    # External devnet (sysext) with gate
+```
+
+Using an empty gate (`""`) triggers gateless mode with the sysgo orchestrator, auto-discovering all tests.
 
 ## Further Information
 

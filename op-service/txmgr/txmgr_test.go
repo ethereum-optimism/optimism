@@ -131,7 +131,7 @@ type gasPricer struct {
 	mineAtEpoch   int64
 	baseGasTipFee *big.Int
 	baseBaseFee   *big.Int
-	excessBlobGas uint64
+	blobBaseFee   *big.Int
 	err           error
 	mu            sync.Mutex
 }
@@ -146,9 +146,7 @@ func newGasPricer(mineAtEpoch int64) *gasPricer {
 		mineAtEpoch:   mineAtEpoch,
 		baseGasTipFee: big.NewInt(baseGasTipFee),
 		baseBaseFee:   big.NewInt(baseBaseFee),
-		// Simulate 100 excess blobs, which results in a blobBaseFee of 50 wei.  This default means
-		// blob txs will be subject to the geth minimum blobgas fee of 1 gwei.
-		excessBlobGas: 100 * (params.BlobTxBlobGasPerBlob),
+		blobBaseFee:   big.NewInt(50),
 	}
 }
 
@@ -158,9 +156,8 @@ func (g *gasPricer) expGasFeeCap() *big.Int {
 }
 
 func (g *gasPricer) expBlobFeeCap() *big.Int {
-	_, _, excessBlobGas := g.feesForEpoch(g.mineAtEpoch)
-	// Needs to be adjusted when Prague gas pricing is needed.
-	return eth.CalcBlobFeeCancun(excessBlobGas)
+	_, _, blobBaseFee := g.feesForEpoch(g.mineAtEpoch)
+	return blobBaseFee
 }
 
 func (g *gasPricer) shouldMine(gasFeeCap *big.Int) bool {
@@ -171,13 +168,14 @@ func (g *gasPricer) shouldMineBlobTx(gasFeeCap, blobFeeCap *big.Int) bool {
 	return g.shouldMine(gasFeeCap) && g.expBlobFeeCap().Cmp(blobFeeCap) <= 0
 }
 
-func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int, uint64) {
+func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int, *big.Int) {
 	e := big.NewInt(epoch)
 	epochBaseFee := new(big.Int).Mul(g.baseBaseFee, e)
 	epochGasTipCap := new(big.Int).Mul(g.baseGasTipFee, e)
 	epochGasFeeCap := calcGasFeeCap(epochBaseFee, epochGasTipCap)
-	epochExcessBlobGas := g.excessBlobGas * uint64(epoch)
-	return epochGasTipCap, epochGasFeeCap, epochExcessBlobGas
+	epochBlobBaseFee := new(big.Int).Mul(g.blobBaseFee, new(big.Int).Exp(big.NewInt(2), e, nil))
+
+	return epochGasTipCap, epochGasFeeCap, epochBlobBaseFee
 }
 
 func (g *gasPricer) baseFee() *big.Int {
@@ -186,20 +184,14 @@ func (g *gasPricer) baseFee() *big.Int {
 	return new(big.Int).Mul(g.baseBaseFee, big.NewInt(g.epoch))
 }
 
-func (g *gasPricer) excessblobgas() uint64 {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.excessBlobGas * uint64(g.epoch)
-}
-
-func (g *gasPricer) sample() (*big.Int, *big.Int, uint64) {
+func (g *gasPricer) sample() (*big.Int, *big.Int, *big.Int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	g.epoch++
-	epochGasTipCap, epochGasFeeCap, epochExcessBlobGas := g.feesForEpoch(g.epoch)
+	epochGasTipCap, epochGasFeeCap, epochBlobBaseFee := g.feesForEpoch(g.epoch)
 
-	return epochGasTipCap, epochGasFeeCap, epochExcessBlobGas
+	return epochGasTipCap, epochGasFeeCap, epochBlobBaseFee
 }
 
 type minedTxInfo struct {
@@ -274,11 +266,9 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	if number != nil {
 		num.Set(number)
 	}
-	bg := b.g.excessblobgas()
 	return &types.Header{
-		Number:        num,
-		BaseFee:       b.g.baseFee(),
-		ExcessBlobGas: &bg,
+		Number:  num,
+		BaseFee: b.g.baseFee(),
 	}, nil
 }
 
@@ -344,6 +334,10 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 }
 
 func (b *mockBackend) Close() {
+}
+
+func (b *mockBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
 }
 
 type testSendVariantsFn func(ctx context.Context, h *testHarness, tx TxCandidate) (*types.Receipt, error)
@@ -511,9 +505,7 @@ func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 
 	h := newTestHarness(t)
 
-	gasTipCap, gasFeeCap, excessBlobGas := h.gasPricer.sample()
-	// Needs to be adjusted when testing with Prague activated on L1.
-	blobFeeCap := eth.CalcBlobFeeCancun(excessBlobGas)
+	gasTipCap, gasFeeCap, blobFeeCap := h.gasPricer.sample()
 	t.Log("Blob fee cap:", blobFeeCap, "gasFeeCap:", gasFeeCap)
 
 	tx := types.NewTx(&types.BlobTx{
@@ -1016,11 +1008,10 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 // first call but a success on the second call. This allows us to test that the
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
-	returnSuccessBlockNumber bool
-	returnSuccessHeader      bool
-	returnSuccessReceipt     bool
-	baseFee, gasTip          *big.Int
-	excessBlobGas            *uint64
+	returnSuccessBlockNumber     bool
+	returnSuccessHeader          bool
+	returnSuccessReceipt         bool
+	baseFee, gasTip, blobBaseFee *big.Int
 }
 
 // BlockNumber for the failingBackend returns errRpcFailure on the first
@@ -1057,9 +1048,8 @@ func (b *failingBackend) HeaderByNumber(ctx context.Context, _ *big.Int) (*types
 	}
 
 	return &types.Header{
-		Number:        big.NewInt(1),
-		BaseFee:       b.baseFee,
-		ExcessBlobGas: b.excessBlobGas,
+		Number:  big.NewInt(1),
+		BaseFee: b.baseFee,
 	}, nil
 }
 
@@ -1092,6 +1082,10 @@ func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
 }
 
 func (b *failingBackend) Close() {
+}
+
+func (b *failingBackend) BlobBaseFee(ctx context.Context) (*big.Int, error) {
+	return b.blobBaseFee, nil
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to
@@ -1315,12 +1309,10 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 
 	borkedTip := int64(10)
 	borkedFee := int64(45)
-	// simulate 100 excess blobs which yields a 50 wei blob base fee
-	borkedExcessBlobGas := uint64(100 * params.BlobTxBlobGasPerBlob)
 	borkedBackend := failingBackend{
 		gasTip:              big.NewInt(borkedTip),
 		baseFee:             big.NewInt(borkedFee),
-		excessBlobGas:       &borkedExcessBlobGas,
+		blobBaseFee:         big.NewInt(50),
 		returnSuccessHeader: true,
 	}
 
@@ -1736,7 +1728,9 @@ func TestMakeSidecar(t *testing.T) {
 	for i := 0; i < 4096; i++ {
 		blob[32*i] &= 0b0011_1111
 	}
-	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob})
+
+	// Pre Fusaka, blob proof sidecar is Version0
+	sidecar, hashes, err := MakeSidecar([]*eth.Blob{&blob}, false)
 	require.NoError(t, err)
 	require.Equal(t, len(hashes), 1)
 	require.Equal(t, len(sidecar.Blobs), len(hashes))
@@ -1745,6 +1739,19 @@ func TestMakeSidecar(t *testing.T) {
 
 	for i, commit := range sidecar.Commitments {
 		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
+		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
+	}
+
+	// Post Fusaka, blob proof sidecar is Version1
+	sidecar, hashes, err = MakeSidecar([]*eth.Blob{&blob}, true)
+	require.NoError(t, err)
+	require.Equal(t, len(hashes), 1)
+	require.Equal(t, len(sidecar.Blobs), len(hashes))
+	require.Equal(t, len(sidecar.Proofs), len(hashes)*kzg4844.CellProofsPerBlob)
+	require.Equal(t, len(sidecar.Commitments), len(hashes))
+
+	require.NoError(t, kzg4844.VerifyCellProofs(sidecar.Blobs, sidecar.Commitments, sidecar.Proofs), "cell proof must be valid")
+	for i, commit := range sidecar.Commitments {
 		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
 	}
 }

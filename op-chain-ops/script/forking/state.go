@@ -298,8 +298,8 @@ func (fst *ForkableState) GetRefund() uint64 {
 	return fst.selected.GetRefund()
 }
 
-func (fst *ForkableState) GetCommittedState(address common.Address, hash common.Hash) common.Hash {
-	return fst.stateFor(address).GetCommittedState(address, hash)
+func (fst *ForkableState) GetStateAndCommittedState(address common.Address, hash common.Hash) (common.Hash, common.Hash) {
+	return fst.stateFor(address).GetStateAndCommittedState(address, hash)
 }
 
 func (fst *ForkableState) GetState(address common.Address, k common.Hash) common.Hash {
