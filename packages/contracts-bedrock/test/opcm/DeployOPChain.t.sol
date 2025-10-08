@@ -59,6 +59,8 @@ contract DeployOPChain_TestBase is Test, FeatureFlags {
     Duration disputeMaxClockDuration = Duration.wrap(3.5 days);
     IOPContractsManager opcm;
 
+    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
+
     function setUp() public virtual {
         resolveFeaturesFromEnv();
         deploySuperchain = new DeploySuperchain();

@@ -571,55 +571,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 outputs[i].delayedWETH = gameConfig.delayedWETH;
             }
 
-            // Determine the contract name and blueprints for the game type.
-            string memory gameContractName;
-            address blueprint1;
-            address blueprint2;
-            uint256 gameL2ChainId;
-
-            // Separate context to avoid stack too deep.
-            {
-                // Grab the blueprints once since we'll need it multiple times below.
-                OPContractsManager.Blueprints memory bps = getBlueprints();
-
-                // Determine the contract name and blueprints for the game type.
-                if (
-                    gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
-                        || (
-                            isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-                                && gameConfig.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()
-                        )
-                ) {
-                    gameContractName = "FaultDisputeGame";
-                    blueprint1 = bps.permissionlessDisputeGame1;
-                    blueprint2 = bps.permissionlessDisputeGame2;
-                    gameL2ChainId = l2ChainId;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                    gameContractName = "PermissionedDisputeGame";
-                    blueprint1 = bps.permissionedDisputeGame1;
-                    blueprint2 = bps.permissionedDisputeGame2;
-                    gameL2ChainId = l2ChainId;
-                } else if (
-                    gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()
-                        || (
-                            isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-                                && gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
-                        )
-                ) {
-                    gameContractName = "SuperFaultDisputeGame";
-                    blueprint1 = bps.superPermissionlessDisputeGame1;
-                    blueprint2 = bps.superPermissionlessDisputeGame2;
-                    gameL2ChainId = 0;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-                    gameContractName = "SuperPermissionedDisputeGame";
-                    blueprint1 = bps.superPermissionedDisputeGame1;
-                    blueprint2 = bps.superPermissionedDisputeGame2;
-                    gameL2ChainId = 0;
-                } else {
-                    revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
-                }
-            }
-
             // Grab the DisputeGameFactory and AnchorStateRegistry for the chain.
             IDisputeGameFactory dgf = getDisputeGameFactory(gameConfig.systemConfig);
 
@@ -627,55 +578,153 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             IFaultDisputeGame existingGame =
                 IFaultDisputeGame(address(getGameImplementation(dgf, gameConfig.disputeGameType)));
 
-            // Encode the constructor data for the game type.
-            bytes memory constructorData;
-            if (gameConfig.permissioned) {
-                constructorData = encodePermissionedFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
-                        outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
-                        gameL2ChainId
-                    ),
-                    getProposerV1(IPermissionedDisputeGame(address(existingGame))),
-                    getChallengerV1(IPermissionedDisputeGame(address(existingGame)))
-                );
+            // Super games don't support V2 contracts yet so fallback to the V1 contracts for those game types.
+            if (
+                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                    && gameConfig.disputeGameType.raw() != GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                    && gameConfig.disputeGameType.raw() != GameTypes.SUPER_CANNON.raw()
+                    && gameConfig.disputeGameType.raw() != GameTypes.SUPER_CANNON_KONA.raw()
+            ) {
+                if (
+                    gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
+                        || (
+                            isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+                                && gameConfig.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()
+                        )
+                ) {
+                    address impl = implementations().faultDisputeGameV2Impl;
+                    bytes memory gameArgs = abi.encodePacked(
+                        gameConfig.disputeAbsolutePrestate, // 32 bytes
+                        gameConfig.vm, // 20 bytes
+                        address(getAnchorStateRegistry(dgf, IDisputeGame(impl), gameConfig.disputeGameType)), // 20
+                            // bytes
+                        address(outputs[i].delayedWETH), // 20 bytes
+                        l2ChainId // 32 bytes
+                    );
+                    setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(impl), gameArgs);
+                    outputs[i].faultDisputeGame = IFaultDisputeGame(impl);
+                } else if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                    address impl = implementations().permissionedDisputeGameV2Impl;
+                    bytes memory gameArgs = abi.encodePacked(
+                        gameConfig.disputeAbsolutePrestate, // 32 bytes
+                        gameConfig.vm, // 20 bytes
+                        address(getAnchorStateRegistry(dgf, IDisputeGame(impl), gameConfig.disputeGameType)), // 20
+                            // bytes
+                        address(outputs[i].delayedWETH), // 20 bytes
+                        l2ChainId, // 32 bytes
+                        getProposer(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType), // 20
+                            // bytes
+                        getChallenger(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType) // 20
+                            // bytes
+                    );
+                    setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(impl), gameArgs);
+                    outputs[i].faultDisputeGame = IFaultDisputeGame(payable(impl));
+                } else {
+                    revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
+                }
             } else {
-                constructorData = encodePermissionlessFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
-                        outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
-                        gameL2ChainId
+                // Determine the contract name and blueprints for the game type.
+                string memory gameContractName;
+                address blueprint1;
+                address blueprint2;
+                uint256 gameL2ChainId;
+
+                // Separate context to avoid stack too deep.
+                {
+                    // Grab the blueprints once since we'll need it multiple times below.
+                    OPContractsManager.Blueprints memory bps = getBlueprints();
+
+                    // Determine the contract name and blueprints for the game type.
+                    if (
+                        gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()
+                            || (
+                                isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+                                    && gameConfig.disputeGameType.raw() == GameTypes.CANNON_KONA.raw()
+                            )
+                    ) {
+                        gameContractName = "FaultDisputeGame";
+                        blueprint1 = bps.permissionlessDisputeGame1;
+                        blueprint2 = bps.permissionlessDisputeGame2;
+                        gameL2ChainId = l2ChainId;
+                    } else if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                        gameContractName = "PermissionedDisputeGame";
+                        blueprint1 = bps.permissionedDisputeGame1;
+                        blueprint2 = bps.permissionedDisputeGame2;
+                        gameL2ChainId = l2ChainId;
+                    } else if (
+                        gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()
+                            || (
+                                isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+                                    && gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+                            )
+                    ) {
+                        gameContractName = "SuperFaultDisputeGame";
+                        blueprint1 = bps.superPermissionlessDisputeGame1;
+                        blueprint2 = bps.superPermissionlessDisputeGame2;
+                        gameL2ChainId = 0;
+                    } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+                        gameContractName = "SuperPermissionedDisputeGame";
+                        blueprint1 = bps.superPermissionedDisputeGame1;
+                        blueprint2 = bps.superPermissionedDisputeGame2;
+                        gameL2ChainId = 0;
+                    } else {
+                        revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
+                    }
+                }
+
+                // Encode the constructor data for the game type.
+                bytes memory constructorData;
+                if (gameConfig.permissioned) {
+                    constructorData = encodePermissionedFDGConstructor(
+                        IFaultDisputeGame.GameConstructorParams(
+                            gameConfig.disputeGameType,
+                            gameConfig.disputeAbsolutePrestate,
+                            gameConfig.disputeMaxGameDepth,
+                            gameConfig.disputeSplitDepth,
+                            gameConfig.disputeClockExtension,
+                            gameConfig.disputeMaxClockDuration,
+                            gameConfig.vm,
+                            outputs[i].delayedWETH,
+                            getAnchorStateRegistry(gameConfig.systemConfig),
+                            gameL2ChainId
+                        ),
+                        getProposerV1(IPermissionedDisputeGame(address(existingGame))),
+                        getChallengerV1(IPermissionedDisputeGame(address(existingGame)))
+                    );
+                } else {
+                    constructorData = encodePermissionlessFDGConstructor(
+                        IFaultDisputeGame.GameConstructorParams(
+                            gameConfig.disputeGameType,
+                            gameConfig.disputeAbsolutePrestate,
+                            gameConfig.disputeMaxGameDepth,
+                            gameConfig.disputeSplitDepth,
+                            gameConfig.disputeClockExtension,
+                            gameConfig.disputeMaxClockDuration,
+                            gameConfig.vm,
+                            outputs[i].delayedWETH,
+                            getAnchorStateRegistry(gameConfig.systemConfig),
+                            gameL2ChainId
+                        )
+                    );
+                }
+
+                // Deploy the new game type.
+                outputs[i].faultDisputeGame = IFaultDisputeGame(
+                    Blueprint.deployFrom(
+                        blueprint1,
+                        blueprint2,
+                        computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
+                        constructorData
                     )
+                );
+
+                // As a last step, register the new game type with the DisputeGameFactory. If the game
+                // type already exists, then its implementation will be overwritten.
+                setDGFImplementation(
+                    dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame))
                 );
             }
 
-            // Deploy the new game type.
-            outputs[i].faultDisputeGame = IFaultDisputeGame(
-                Blueprint.deployFrom(
-                    blueprint1,
-                    blueprint2,
-                    computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
-                    constructorData
-                )
-            );
-
-            // As a last step, register the new game type with the DisputeGameFactory. If the game
-            // type already exists, then its implementation will be overwritten.
-            setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)));
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
             // Emit event for the newly added game type with the new and old implementations.
