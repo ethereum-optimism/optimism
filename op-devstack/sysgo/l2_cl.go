@@ -33,6 +33,11 @@ type L2CLConfig struct {
 
 	// NoDiscovery is the flag to enable/disable discovery
 	NoDiscovery bool
+
+	// SafeSource determines where the safe head comes from (L1 derivation or L2 RPC)
+	SafeSource nodeSync.SafeSource
+	// SafeSourceL2RPC is the RPC endpoint for L2 safe source (when SafeSource is L2)
+	SafeSourceL2RPC string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -56,6 +61,8 @@ func DefaultL2CLConfig() *L2CLConfig {
 		IndexingMode:      false,
 		EnableReqRespSync: true,
 		NoDiscovery:       false,
+		SafeSource:        nodeSync.SafeSourceL1,
+		SafeSourceL2RPC:   "",
 	}
 }
 
