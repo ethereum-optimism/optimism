@@ -53,6 +53,7 @@ type jobList struct {
 type job struct {
 	Name      string `json:"name"`
 	JobNumber int    `json:"job_number"`
+	WebURL    string `json:"web_url"`
 }
 
 type artifactsList struct {
@@ -264,7 +265,14 @@ func main() {
 	title := "chore(op-acceptance-tests): flake-shake; test promotions"
 	var body bytes.Buffer
 	body.WriteString("## 🤖 Automated Flake-Shake Test Promotion\n\n")
+
+	// Attempt to resolve the CircleCI report job web URL for artifacts page
+	reportArtifactsURL := resolveReportArtifactsURL(opts, ctx)
+
 	body.WriteString(fmt.Sprintf("Promoting %d test(s) from gate `"+opts.gateID+"` based on stability criteria.\n\n", len(candidates)))
+	if reportArtifactsURL != "" {
+		body.WriteString(fmt.Sprintf("Artifacts: %s\n\n", reportArtifactsURL))
+	}
 	body.WriteString("### Tests Being Promoted\n\n")
 	body.WriteString("| Test | Package | Total Runs | Pass Rate |\n|---|---|---:|---:|\n")
 	for _, c := range candidates {
@@ -826,6 +834,71 @@ func listJobs(ctx *apiCtx, workflowID string) (jobList, error) {
 		return jobList{}, err
 	}
 	return jl, nil
+}
+
+// resolveReportArtifactsURL attempts to find the web URL to the report job's artifacts page
+// by scanning recent pipelines/workflows for the configured workflow/report job names.
+// Returns an empty string if not found.
+func resolveReportArtifactsURL(opts promoterOpts, ctx *apiCtx) string {
+	// Scan the latest pipelines on the given branch; reuse collectReports traversal but short-circuit on first match
+	basePipelines := fmt.Sprintf("https://circleci.com/api/v2/project/gh/%s/%s/pipeline?branch=%s", url.PathEscape(opts.org), url.PathEscape(opts.repo), url.QueryEscape(opts.branch))
+	pageURL := basePipelines
+	now := time.Now().UTC()
+	since := now.AddDate(0, 0, -opts.daysBack)
+	for {
+		pl, nextToken, err := getPipelinesPage(ctx, pageURL)
+		if err != nil {
+			return ""
+		}
+		for _, p := range pl.Items {
+			if p.CreatedAt.Before(since) {
+				return ""
+			}
+			wfl, err := listWorkflows(ctx, p.ID)
+			if err != nil {
+				return ""
+			}
+			for _, w := range wfl.Items {
+				if w.Name != opts.workflowName {
+					continue
+				}
+				jl, err := listJobs(ctx, w.ID)
+				if err != nil {
+					return ""
+				}
+				for _, j := range jl.Items {
+					if j.Name != opts.reportJobName {
+						continue
+					}
+					if j.WebURL != "" {
+						url := j.WebURL
+						if !strings.Contains(url, "/artifacts") {
+							if strings.HasSuffix(url, "/") {
+								url = url + "artifacts"
+							} else {
+								url = url + "/artifacts"
+							}
+						}
+						return url
+					}
+					// Fallback: build URL from job number if web_url missing
+					if j.JobNumber != 0 {
+						url := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s?branch=%s", opts.org, opts.repo, url.QueryEscape(opts.branch))
+						_ = url // keep for future; better to use job-specific URL
+						// More specific URL pattern commonly used in UI includes workflow id; not available here.
+						// As a fallback, return the legacy build URL on circleci.com if org/repo/job present.
+						legacy := fmt.Sprintf("https://circleci.com/gh/%s/%s/%d", opts.org, opts.repo, j.JobNumber)
+						return legacy + "/artifacts"
+					}
+				}
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+		pageURL = basePipelines + "&page-token=" + url.QueryEscape(nextToken)
+	}
+	return ""
 }
 
 func listArtifacts(ctx *apiCtx, org, repo string, jobNumber int, verbose bool) (artifactsList, error) {
