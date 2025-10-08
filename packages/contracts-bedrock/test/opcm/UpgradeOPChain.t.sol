@@ -222,8 +222,11 @@ contract UpgradeOPChain_Test is Test {
         assertFalse(success, "UpgradeOPChain_Test: call should revert");
         assertTrue(
             keccak256(result)
-                == keccak256(abi.encodeWithSignature("Error(string)", "UpgradeOPChain: opChainConfigs Unexpected encoding"))
-                || keccak256(result) == keccak256(""),
+                == keccak256(
+                    bytes.concat(
+                        bytes4(keccak256("Error(string)")), abi.encode("UpgradeOPChain: opChainConfigs Unexpected encoding")
+                    )
+                ) || keccak256(result) == keccak256(""),
             "UpgradeOPChain_Test: result should be the expected error"
         );
 
@@ -240,7 +243,10 @@ contract UpgradeOPChain_Test is Test {
         assertTrue(
             keccak256(result)
                 == keccak256(
-                    abi.encodeWithSignature("Error(string)", "UpgradeOPChain: opChainConfigsPre410 Unexpected encoding")
+                    bytes.concat(
+                        bytes4(keccak256("Error(string)")),
+                        abi.encode("UpgradeOPChain: opChainConfigsPre410 Unexpected encoding")
+                    )
                 ) || keccak256(result) == keccak256(""),
             "UpgradeOPChain_Test: opChainConfigsPre410 result should be the expected error"
         );
