@@ -101,15 +101,15 @@ func (cl *BeaconHTTPClient) BeaconGenesis(ctx context.Context) (eth.APIGenesisRe
 	return genesisResp, nil
 }
 
-func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error) {
 	reqQuery := url.Values{}
 	for _, hash := range hashes {
 		reqQuery.Add("versioned_hashes", hash.Hash.Hex())
 	}
 	reqPath := path.Join(blobsMethodPrefix, strconv.FormatUint(slot, 10))
-	var blobsResp []*eth.Blob
+	var blobsResp eth.APIBeaconBlobsResponse
 	if err := cl.apiReq(ctx, &blobsResp, reqPath, reqQuery); err != nil {
-		return nil, err
+		return eth.APIBeaconBlobsResponse{}, err
 	}
 	return blobsResp, nil
 }
@@ -303,7 +303,7 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, err
 	}
-	blobs, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
+	resp, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
 	if err != nil {
 		// We would normally check for an explicit error like "method not found", but the Beacon
 		// API doesn't standardize such a response. Thus, we interpret all errors as
@@ -318,10 +318,15 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 		}
 		return blobs, nil
 	}
-	for i, blob := range blobs {
+	if len(resp.Data) != len(hashes) {
+		return nil, fmt.Errorf("expected %d blobs but got %d", len(hashes), len(resp.Data))
+	}
+	var blobs []*eth.Blob
+	for i, blob := range resp.Data {
 		if err := verifyBlob(blob, hashes[i].Hash); err != nil {
 			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
 		}
+		blobs = append(blobs, blob)
 	}
 	return blobs, nil
 }

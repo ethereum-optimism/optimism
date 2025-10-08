@@ -82,24 +82,22 @@ func (_c *BeaconClient_BeaconBlobSideCars_Call) RunAndReturn(run func(context.Co
 }
 
 // BeaconBlobs provides a mock function with given fields: ctx, slot, hashes
-func (_m *BeaconClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (_m *BeaconClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error) {
 	ret := _m.Called(ctx, slot, hashes)
 
 	if len(ret) == 0 {
 		panic("no return value specified for BeaconBlobs")
 	}
 
-	var r0 []*eth.Blob
+	var r0 eth.APIBeaconBlobsResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) ([]*eth.Blob, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error)); ok {
 		return rf(ctx, slot, hashes)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) []*eth.Blob); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, uint64, []eth.IndexedBlobHash) eth.APIBeaconBlobsResponse); ok {
 		r0 = rf(ctx, slot, hashes)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*eth.Blob)
-		}
+		r0 = ret.Get(0).(eth.APIBeaconBlobsResponse)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, uint64, []eth.IndexedBlobHash) error); ok {
@@ -131,12 +129,12 @@ func (_c *BeaconClient_BeaconBlobs_Call) Run(run func(ctx context.Context, slot 
 	return _c
 }
 
-func (_c *BeaconClient_BeaconBlobs_Call) Return(_a0 []*eth.Blob, _a1 error) *BeaconClient_BeaconBlobs_Call {
+func (_c *BeaconClient_BeaconBlobs_Call) Return(_a0 eth.APIBeaconBlobsResponse, _a1 error) *BeaconClient_BeaconBlobs_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *BeaconClient_BeaconBlobs_Call) RunAndReturn(run func(context.Context, uint64, []eth.IndexedBlobHash) ([]*eth.Blob, error)) *BeaconClient_BeaconBlobs_Call {
+func (_c *BeaconClient_BeaconBlobs_Call) RunAndReturn(run func(context.Context, uint64, []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error)) *BeaconClient_BeaconBlobs_Call {
 	_c.Call.Return(run)
 	return _c
 }
