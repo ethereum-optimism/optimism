@@ -22,8 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -59,9 +61,28 @@ func NewDriver(
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
+	// Initialize remote L2 client for safe-source=l2 mode
+	var safeSourceL2Client *sources.EngineClient
+	if syncCfg.SafeSource == sync.SafeSourceL2 {
+		rpcClient, err := client.NewRPC(driverCtx, log, syncCfg.SafeSourceL2RPC)
+		if err != nil {
+			log.Crit("Failed to create safe source L2 RPC client", "err", err)
+		}
+
+		safeSourceL2Client, err = sources.NewEngineClient(rpcClient, log, nil, sources.EngineClientDefaultConfig(cfg))
+		if err != nil {
+			log.Crit("Failed to create safe source L2 engine client", "err", err)
+		}
+
+		log.Info("Initialized safe source L2 client", "rpc", syncCfg.SafeSourceL2RPC)
+	}
+
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil))
 	// TODO(#17115): Refactor dependency cycles
 	ec.SetCrossUpdateHandler(statusTracker)
+	if safeSourceL2Client != nil {
+		ec.SetSafeSourceL2Client(safeSourceL2Client)
+	}
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
@@ -95,6 +116,7 @@ func NewDriver(
 		L1:                  l1,
 		L1Tracker:           l1Tracker,
 		L2:                  l2,
+		SafeSourceL2Client:  safeSourceL2Client,
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,

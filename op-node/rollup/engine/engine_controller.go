@@ -106,6 +106,9 @@ type EngineController struct {
 	// L1 chain for reset functionality
 	l1 sync.L1Chain
 
+	// Remote L2 client for safe-source=l2 mode (optional)
+	safeSourceL2Client ExecEngine
+
 	ctx     context.Context
 	emitter event.Emitter
 
@@ -531,6 +534,24 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		SafeBlockHash:      e.safeHead.Hash,
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
+
+	// When using L2 safe source, query safe/finalized from remote L2
+	if e.syncCfg.SafeSource == sync.SafeSourceL2 && e.safeSourceL2Client != nil {
+		remoteSafeHash, err := e.fetchRemoteL2BlockHash(ctx, eth.Safe)
+		if err != nil {
+			e.log.Warn("Failed to fetch safe block from remote L2, using local safe", "err", err)
+		} else {
+			fc.SafeBlockHash = remoteSafeHash
+		}
+
+		remoteFinalizedHash, err := e.fetchRemoteL2BlockHash(ctx, eth.Finalized)
+		if err != nil {
+			e.log.Warn("Failed to fetch finalized block from remote L2, using local finalized", "err", err)
+		} else {
+			fc.FinalizedBlockHash = remoteFinalizedHash
+		}
+	}
+
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
 		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
@@ -588,6 +609,23 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime))
 
 	return nil
+}
+
+// fetchRemoteL2BlockHash queries a block hash from the remote L2 safe source by label.
+// TODO: Implement full payload fetching and NewPayload if block doesn't exist locally.
+func (e *EngineController) fetchRemoteL2BlockHash(ctx context.Context, label eth.BlockLabel) (common.Hash, error) {
+	if e.safeSourceL2Client == nil {
+		return common.Hash{}, fmt.Errorf("safe source L2 client not configured")
+	}
+
+	// Query block ref from remote L2
+	remoteRef, err := e.safeSourceL2Client.L2BlockRefByLabel(ctx, label)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch %s block from remote L2: %w", label, err)
+	}
+
+	e.log.Debug("Fetched block hash from remote L2", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+	return remoteRef.Hash, nil
 }
 
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
@@ -834,6 +872,11 @@ func (e *EngineController) SetPipelineResetter(resetter PipelineForceResetter) {
 // SetOriginSelectorResetter sets the origin selector component that needs force reset notifications
 func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForceResetter) {
 	e.originSelectorResetter = resetter
+}
+
+// SetSafeSourceL2Client sets the remote L2 client for safe-source=l2 mode
+func (e *EngineController) SetSafeSourceL2Client(client ExecEngine) {
+	e.safeSourceL2Client = client
 }
 
 // ForceReset performs a forced reset to the specified block references, acquiring lock

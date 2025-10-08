@@ -36,6 +36,9 @@ type SyncDeriver struct {
 	L1Tracker *status.L1Tracker
 	L2        L2Chain
 
+	// Remote L2 client for safe-source=l2 mode (optional)
+	SafeSourceL2Client L2Chain
+
 	Emitter event.Emitter
 
 	Log log.Logger
@@ -227,6 +230,14 @@ func (s *SyncDeriver) SyncStep() {
 	if s.Engine.IsEngineSyncing() {
 		// The pipeline cannot move forwards if doing EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
+			"unsafe_head", s.Engine.UnsafeL2Head())
+		s.StepDeriver.ResetStepBackoff(s.Ctx)
+		return
+	}
+
+	if s.SyncCfg.SafeSource == sync.SafeSourceL2 {
+		// The pipeline cannot move forwards when using L2 safe source (derivation is skipped).
+		s.Log.Debug("Rollup driver is backing off because using L2 safe source.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		s.StepDeriver.ResetStepBackoff(s.Ctx)
 		return
