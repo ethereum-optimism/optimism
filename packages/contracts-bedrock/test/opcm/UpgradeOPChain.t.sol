@@ -89,6 +89,10 @@ contract UpgradeOPChainInput_Test is Test {
     }
 
     function test_setOpChainConfigs_withEmptyArray_reverts() public {
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](0);
+        vm.expectRevert("UpgradeOPChainInput: cannot set empty array");
+        input.set(input.opChainConfigs.selector, abi.encode(configs));
+
         vm.expectRevert("UpgradeOPChainInput: cannot set empty array");
         input.set(input.opChainConfigs.selector, new bytes(0));
     }
@@ -199,5 +203,46 @@ contract UpgradeOPChain_Test is Test {
         upgradeOPChain.run(uoci);
     }
 
-    function test_upgrade_unexpectedEncoding_reverts() public { }
+    function test_upgrade_unexpectedEncoding_reverts(
+        IOPContractsManager.OpChainConfig[] memory _opChainConfigs,
+        IOPContractsManagerPre4_1_0.OpChainConfig[] memory _opChainConfigsPre410
+    )
+        public
+    {
+        vm.assume(_opChainConfigsPre410.length > 0);
+        vm.assume(_opChainConfigs.length > 0);
+
+        // Currently the mockOPCM set in the input contract is that of a version >= 4.1.0
+        // So lets try to set opChainConfigs to be one of < 4.1.0 and expect a revert.
+        uoci.set(uoci.opChainConfigs.selector, abi.encode(_opChainConfigsPre410));
+        // It can revert because it could not decode the opChainConfigs (this happens if it expects an address but sees
+        // a value with upper 12 bits dirty). If it does not see this it will still revert with a custom string error
+        // because it decoded into the wrong type.
+        (bool success, bytes memory result) = address(upgradeOPChain).call(abi.encodeCall(upgradeOPChain.run, (uoci)));
+        assertFalse(success, "UpgradeOPChain_Test: call should revert");
+        assertTrue(
+            keccak256(result)
+                == keccak256(abi.encodeWithSignature("Error(string)", "UpgradeOPChain: opChainConfigs Unexpected encoding"))
+                || keccak256(result) == keccak256(""),
+            "UpgradeOPChain_Test: result should be the expected error"
+        );
+
+        // Now lets set the mockOPCM to be a version < 4.1.0 and expect a revert when we set the opChainConfigs to be
+        // that of version >= 4.1.0 and calling run.
+        mockOPCM = address(new MockOPCMPre410());
+        uoci.set(uoci.opcm.selector, mockOPCM);
+        uoci.set(uoci.opChainConfigs.selector, abi.encode(_opChainConfigs));
+        // It can revert because it could not decode the opChainConfigs (this happens if it expects an address but sees
+        // a value with upper 12 bits dirty). If it does not see this it will still revert with a custom string error
+        // because it decoded into the wrong type.
+        (success, result) = address(upgradeOPChain).call(abi.encodeCall(upgradeOPChain.run, (uoci)));
+        assertFalse(success, "UpgradeOPChain_Test: opChainConfigsPre410 call should revert");
+        assertTrue(
+            keccak256(result)
+                == keccak256(
+                    abi.encodeWithSignature("Error(string)", "UpgradeOPChain: opChainConfigsPre410 Unexpected encoding")
+                ) || keccak256(result) == keccak256(""),
+            "UpgradeOPChain_Test: opChainConfigsPre410 result should be the expected error"
+        );
+    }
 }

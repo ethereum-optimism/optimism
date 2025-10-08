@@ -21,7 +21,7 @@ contract UpgradeOPChainInput is BaseDeployIO {
     }
 
     function set(bytes4 _sel, bytes memory _value) public {
-        require(_value.length > 0, "UpgradeOPChainInput: cannot set empty array");
+        require(_value.length > 64, "UpgradeOPChainInput: cannot set empty array");
 
         if (_sel == this.opChainConfigs.selector) _opChainConfigs = _value;
         else revert("UpgradeOPChainInput: unknown selector");
