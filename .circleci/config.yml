@@ -1966,6 +1966,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+            - contracts-bedrock-build
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2099,6 +2100,11 @@ workflows:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      - contracts-bedrock-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2133,6 +2139,7 @@ workflows:
             - oplabs-gcr-release
           requires:
             - initialize
+            - contracts-bedrock-build
       # Checks for cross-platform images go here
       - check-cross-platform:
           matrix:
@@ -2336,12 +2343,18 @@ workflows:
       - initialize:
           context:
             - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-build:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - docker-build:
           matrix:
             parameters:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-program
                 - op-proposer
@@ -2363,12 +2376,14 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+            - contracts-bedrock-build
       - check-cross-platform:
           matrix:
             parameters:
               op_component:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-program
                 - op-proposer
