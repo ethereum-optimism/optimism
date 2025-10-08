@@ -74,27 +74,3 @@ interface IOPContractsManagerStandardValidator {
     )
         external;
 }
-
-interface IOPContractsManagerStandardValidatorPreOPCM4_1_0 {
-    struct ValidationInput {
-        IProxyAdmin proxyAdmin;
-        ISystemConfig sysCfg;
-        bytes32 absolutePrestate;
-        uint256 l2ChainID;
-    }
-
-    struct ValidationOverrides {
-        address l1PAOMultisig;
-        address challenger;
-    }
-
-    function validateWithOverrides(
-        ValidationInput memory _input,
-        bool _allowFailure,
-        ValidationOverrides memory _overrides
-    )
-        external
-        view
-        returns (string memory);
-    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
-}
