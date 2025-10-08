@@ -118,6 +118,22 @@ var (
 		}(),
 		Category: RollupCategory,
 	}
+	SafeSourceFlag = &cli.GenericFlag{
+		Name:    "safe-source",
+		Usage:   fmt.Sprintf("Source for safe head determination (options: %s)", openum.EnumString(sync.SafeSourceStrings)),
+		EnvVars: prefixEnvVars("SAFE_SOURCE"),
+		Value: func() *sync.SafeSource {
+			out := sync.SafeSourceL1
+			return &out
+		}(),
+		Category: RollupCategory,
+	}
+	SafeSourceL2RPCFlag = &cli.StringFlag{
+		Name:     "safe-source.l2-rpc",
+		Usage:    "RPC endpoint of the L2 node to use as safe head source (required when --safe-source=l2)",
+		EnvVars:  prefixEnvVars("SAFE_SOURCE_L2_RPC"),
+		Category: RollupCategory,
+	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
 		Usage:    "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
@@ -448,6 +464,8 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
+	SafeSourceFlag,
+	SafeSourceL2RPCFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,

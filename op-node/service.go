@@ -346,10 +346,32 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	}
 
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
+
+	// Parse safe source config
+	safeSource := sync.SafeSourceL1
+	if ctx.IsSet(flags.SafeSourceFlag.Name) {
+		safeSource = *ctx.Generic(flags.SafeSourceFlag.Name).(*sync.SafeSource)
+	}
+	safeSourceL2RPC := ctx.String(flags.SafeSourceL2RPCFlag.Name)
+
+	// Validate safe source configuration
+	if safeSource == sync.SafeSourceL2 && safeSourceL2RPC == "" {
+		return nil, fmt.Errorf("--safe-source.l2-rpc is required when --safe-source=l2")
+	}
+	if safeSource == sync.SafeSourceL2 && mode == sync.ELSync {
+		return nil, fmt.Errorf("--safe-source=l2 is not compatible with --syncmode=execution-layer")
+	}
+	if safeSource == sync.SafeSourceL2 {
+		log.Warn("Using L2 safe source mode - trusting remote node for safe/finalized heads!",
+			"remote_rpc", safeSourceL2RPC)
+	}
+
 	cfg := &sync.Config{
 		SyncMode:                       mode,
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
+		SafeSource:                     safeSource,
+		SafeSourceL2RPC:                safeSourceL2RPC,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
