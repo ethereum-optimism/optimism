@@ -23,7 +23,7 @@ func WithSingleChainMultiNodeWithSafeSourceL2() stack.CommonOption {
 
 func NewSingleChainMultiNodeWithSafeSourceL2(t devtest.T) *SingleChainMultiNodeWithSafeSourceL2 {
 	preset := NewSingleChainMultiNodeWithSafeSourceL2WithoutCheck(t)
-	// Ensure the follower node is in sync with the sequencer before starting tests
+	// Ensure the L2 sourced node is in sync with the sequencer before starting tests
 	dsl.CheckAll(t,
 		preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, 30),
 		preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, 30),

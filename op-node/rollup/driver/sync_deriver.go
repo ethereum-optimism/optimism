@@ -233,10 +233,11 @@ func (s *SyncDeriver) SyncStep() {
 	}
 
 	if s.SyncCfg.SafeSource == sync.SafeSourceL2 {
-		// The pipeline cannot move forwards when using L2 safe source.
-		s.Log.Debug("Rollup driver is backing off because using L2 safe source.",
+		// The derivation pipeline cannot move forwards when using L2 safe source.
+		// However, we don't reset the step backoff here because we still want the
+		// unsafe head to progress at max speed via P2P gossip.
+		s.Log.Debug("Skipping derivation pipeline because using L2 safe source.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
-		s.StepDeriver.ResetStepBackoff(s.Ctx)
 		return
 	}
 

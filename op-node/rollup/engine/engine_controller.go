@@ -658,7 +658,11 @@ func (e *EngineController) FetchAndEnsureRemoteL2BlockWithRef(ctx context.Contex
 		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("remote payload is invalid: %w", eth.NewPayloadErr(envelope.ExecutionPayload, status))
 	}
 	if status.Status == eth.ExecutionValid {
-		e.log.Info("Successfully inserted remote L2 block into local EL", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+		if needsReorg {
+			e.log.Warn("Successfully inserted diverged block from remote L2", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+		} else {
+			e.log.Info("Successfully inserted remote L2 block into local EL", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+		}
 	} else if status.Status == eth.ExecutionSyncing || status.Status == eth.ExecutionAccepted {
 		// EL is syncing or accepted the block but hasn't fully processed it yet
 		// This is expected when the remote safe head is ahead of what the local EL has
@@ -667,11 +671,9 @@ func (e *EngineController) FetchAndEnsureRemoteL2BlockWithRef(ctx context.Contex
 		return common.Hash{}, eth.L2BlockRef{}, fmt.Errorf("unexpected payload status %s: %w", status.Status, eth.NewPayloadErr(envelope.ExecutionPayload, status))
 	}
 
-	// If we detected a divergence, trigger reorg by setting unsafe head
-	if needsReorg {
-		e.SetUnsafeHead(remoteRef)
-		e.log.Info("Set unsafe head to remote block to trigger reorg", "hash", remoteRef.Hash, "number", remoteRef.Number)
-	}
+	// Note: We don't set unsafe/safe heads here. The caller (safeSourceL2Ticker) handles
+	// updating all heads atomically after fetching both safe and finalized blocks.
+	// This ensures the invariant that safe <= unsafe is maintained.
 
 	return remoteRef.Hash, remoteRef, nil
 }
