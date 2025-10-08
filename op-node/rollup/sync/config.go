@@ -61,53 +61,31 @@ func (m *Mode) Clone() any {
 	return &cpy
 }
 
-type SafeSource int
+type SafeSource string
 
 // SafeSource determines where the safe head comes from:
 //  1. In L1 safe source, the op-node derives the safe head from L1 data (default, trustless).
 //  2. In L2 safe source, the op-node trusts another L2 node's safe head via RPC (fast follower mode).
 const (
-	SafeSourceL1 SafeSource = iota
-	SafeSourceL2
+	SafeSourceL1 SafeSource = "l1"
+	SafeSourceL2 SafeSource = "l2"
 )
-
-const (
-	SafeSourceL1String string = "l1"
-	SafeSourceL2String string = "l2"
-)
-
-var SafeSources = []SafeSource{SafeSourceL1, SafeSourceL2}
-var SafeSourceStrings = []string{SafeSourceL1String, SafeSourceL2String}
-
-func StringToSafeSource(s string) (SafeSource, error) {
-	switch strings.ToLower(s) {
-	case SafeSourceL1String:
-		return SafeSourceL1, nil
-	case SafeSourceL2String:
-		return SafeSourceL2, nil
-	default:
-		return 0, fmt.Errorf("unknown safe source: %s", s)
-	}
-}
 
 func (s SafeSource) String() string {
-	switch s {
-	case SafeSourceL1:
-		return SafeSourceL1String
-	case SafeSourceL2:
-		return SafeSourceL2String
-	default:
-		return "unknown"
-	}
+	return string(s)
 }
 
 func (s *SafeSource) Set(value string) error {
-	v, err := StringToSafeSource(value)
-	if err != nil {
-		return err
+	switch strings.ToLower(value) {
+	case "l1":
+		*s = SafeSourceL1
+		return nil
+	case "l2":
+		*s = SafeSourceL2
+		return nil
+	default:
+		return fmt.Errorf("unknown safe source: %s (valid options: l1, l2)", value)
 	}
-	*s = v
-	return nil
 }
 
 func (s *SafeSource) Clone() any {

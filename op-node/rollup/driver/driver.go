@@ -335,30 +335,12 @@ func (s *Driver) eventLoop() {
 				}
 
 				ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
-
-				s.log.Debug("safeSourceTicker: fetching finalized/safe from remote L2")
-
-				// Fetch finalized first, then safe to maintain the invariant finalized <= safe
-				_, remoteFinalizedRef, finalizedErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Finalized)
-				_, remoteSafeRef, safeErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Safe)
-
-				// Log any errors
-				if finalizedErr != nil {
-					s.log.Warn("Failed to fetch finalized block from remote L2", "err", finalizedErr)
-				}
-				if safeErr != nil {
-					s.log.Warn("Failed to fetch safe block from remote L2", "err", safeErr)
-				}
-
-				// Only update if both succeeded
-				if safeErr == nil && finalizedErr == nil {
-					s.SyncDeriver.Engine.SetFinalizedHead(remoteFinalizedRef)
-					s.SyncDeriver.Engine.SetSafeHead(remoteSafeRef)
-					s.SyncDeriver.Engine.SetLocalSafeHead(remoteSafeRef)
-					s.SyncDeriver.Engine.RequestForkchoiceUpdate(ctx)
-				}
-
+				err := s.syncSafeHeadFromL2(ctx)
 				cancel()
+
+				if err != nil {
+					s.log.Warn("Failed to sync safe head from L2", "err", err)
+				}
 			}
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
@@ -386,6 +368,39 @@ func (s *Driver) eventLoop() {
 			return
 		}
 	}
+}
+
+// syncSafeHeadFromL2 fetches safe and finalized heads from a remote L2 node
+// and updates the local engine state when using safe-source=l2.
+func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
+	s.log.Debug("syncSafeHeadFromL2: fetching finalized/safe from remote L2")
+
+	// Fetch finalized first, then safe to maintain the invariant finalized <= safe
+	_, remoteFinalizedRef, finalizedErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Finalized)
+	_, remoteSafeRef, safeErr := s.SyncDeriver.Engine.FetchAndEnsureRemoteL2BlockWithRef(ctx, eth.Safe)
+
+	// Log any errors
+	if finalizedErr != nil {
+		s.log.Warn("Failed to fetch finalized block from remote L2", "err", finalizedErr)
+	}
+	if safeErr != nil {
+		s.log.Warn("Failed to fetch safe block from remote L2", "err", safeErr)
+	}
+
+	// Only update if both succeeded
+	if safeErr == nil && finalizedErr == nil {
+		s.SyncDeriver.Engine.SetFinalizedHead(remoteFinalizedRef)
+		s.SyncDeriver.Engine.SetSafeHead(remoteSafeRef)
+		s.SyncDeriver.Engine.SetLocalSafeHead(remoteSafeRef)
+		s.SyncDeriver.Engine.RequestForkchoiceUpdate(ctx)
+		return nil
+	}
+
+	// Return first error encountered
+	if finalizedErr != nil {
+		return finalizedErr
+	}
+	return safeErr
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.

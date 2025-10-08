@@ -120,7 +120,7 @@ var (
 	}
 	SafeSourceFlag = &cli.GenericFlag{
 		Name:    "safe-source",
-		Usage:   fmt.Sprintf("Source for safe head determination (options: %s)", openum.EnumString(sync.SafeSourceStrings)),
+		Usage:   "Source for safe head determination (options: l1, l2)",
 		EnvVars: prefixEnvVars("SAFE_SOURCE"),
 		Value: func() *sync.SafeSource {
 			out := sync.SafeSourceL1
