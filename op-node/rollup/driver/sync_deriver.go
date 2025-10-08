@@ -36,9 +36,6 @@ type SyncDeriver struct {
 	L1Tracker *status.L1Tracker
 	L2        L2Chain
 
-	// Remote L2 client for safe-source=l2 mode (optional)
-	SafeSourceL2Client L2Chain
-
 	Emitter event.Emitter
 
 	Log log.Logger

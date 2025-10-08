@@ -62,6 +62,15 @@ type ExecEngine interface {
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+}
+
+// SafeSourceL2Client is the interface required for safe-source=l2 mode.
+// It extends ExecEngine with methods to fetch full payloads.
+type SafeSourceL2Client interface {
+	ExecEngine
+	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 // Metrics interface for CLSync functionality
@@ -107,7 +116,7 @@ type EngineController struct {
 	l1 sync.L1Chain
 
 	// Remote L2 client for safe-source=l2 mode (optional)
-	safeSourceL2Client ExecEngine
+	safeSourceL2Client SafeSourceL2Client
 
 	ctx     context.Context
 	emitter event.Emitter
@@ -535,18 +544,18 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		FinalizedBlockHash: e.finalizedHead.Hash,
 	}
 
-	// When using L2 safe source, query safe/finalized from remote L2
+	// When using L2 safe source, query safe/finalized from remote L2 and ensure blocks exist locally
 	if e.syncCfg.SafeSource == sync.SafeSourceL2 && e.safeSourceL2Client != nil {
-		remoteSafeHash, err := e.fetchRemoteL2BlockHash(ctx, eth.Safe)
+		remoteSafeHash, err := e.fetchAndEnsureRemoteL2Block(ctx, eth.Safe)
 		if err != nil {
-			e.log.Warn("Failed to fetch safe block from remote L2, using local safe", "err", err)
+			e.log.Warn("Failed to fetch and ensure safe block from remote L2, using local safe", "err", err)
 		} else {
 			fc.SafeBlockHash = remoteSafeHash
 		}
 
-		remoteFinalizedHash, err := e.fetchRemoteL2BlockHash(ctx, eth.Finalized)
+		remoteFinalizedHash, err := e.fetchAndEnsureRemoteL2Block(ctx, eth.Finalized)
 		if err != nil {
-			e.log.Warn("Failed to fetch finalized block from remote L2, using local finalized", "err", err)
+			e.log.Warn("Failed to fetch and ensure finalized block from remote L2, using local finalized", "err", err)
 		} else {
 			fc.FinalizedBlockHash = remoteFinalizedHash
 		}
@@ -611,20 +620,72 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	return nil
 }
 
-// fetchRemoteL2BlockHash queries a block hash from the remote L2 safe source by label.
-// TODO: Implement full payload fetching and NewPayload if block doesn't exist locally.
-func (e *EngineController) fetchRemoteL2BlockHash(ctx context.Context, label eth.BlockLabel) (common.Hash, error) {
+// fetchAndEnsureRemoteL2Block queries a block from the remote L2 safe source by label,
+// and ensures it exists in the local EL by calling NewPayload if necessary.
+// If the local chain has diverged, this triggers a reorg by setting the unsafe head.
+// Returns the block hash to use in ForkchoiceUpdate.
+func (e *EngineController) fetchAndEnsureRemoteL2Block(ctx context.Context, label eth.BlockLabel) (common.Hash, error) {
 	if e.safeSourceL2Client == nil {
 		return common.Hash{}, fmt.Errorf("safe source L2 client not configured")
 	}
 
-	// Query block ref from remote L2
+	// Query block ref from remote L2 to get the block number and hash
 	remoteRef, err := e.safeSourceL2Client.L2BlockRefByLabel(ctx, label)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch %s block from remote L2: %w", label, err)
 	}
 
-	e.log.Debug("Fetched block hash from remote L2", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+	// Check if local EL has this block at this number (canonical chain check)
+	localRef, err := e.engine.L2BlockRefByNumber(ctx, remoteRef.Number)
+	if err == nil && localRef.Hash == remoteRef.Hash {
+		// Block already exists locally on canonical chain
+		e.log.Debug("Remote L2 block already exists locally", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+		return remoteRef.Hash, nil
+	}
+
+	// Either block doesn't exist or local chain has diverged - need to fetch and insert
+	needsReorg := false
+	if err == nil && localRef.Hash != remoteRef.Hash {
+		// Local chain has diverged at this block number
+		e.log.Warn("Local chain diverged from remote L2, triggering reorg",
+			"label", label,
+			"remote_hash", remoteRef.Hash,
+			"local_hash", localRef.Hash,
+			"number", remoteRef.Number)
+		needsReorg = true
+	} else if errors.Is(err, ethereum.NotFound) {
+		// Block doesn't exist locally yet
+		e.log.Info("Fetching missing block from remote L2", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+	} else if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to check local EL for block at number %d: %w", remoteRef.Number, err)
+	}
+
+	// Fetch the full execution payload from remote L2
+	envelope, err := e.safeSourceL2Client.PayloadByHash(ctx, remoteRef.Hash)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch payload from remote L2: %w", err)
+	}
+
+	// Insert payload into local EL
+	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to insert remote payload into local EL: %w", err)
+	}
+	if status.Status == eth.ExecutionInvalid {
+		return common.Hash{}, fmt.Errorf("remote payload is invalid: %w", eth.NewPayloadErr(envelope.ExecutionPayload, status))
+	}
+	if status.Status != eth.ExecutionValid && status.Status != eth.ExecutionSyncing {
+		return common.Hash{}, fmt.Errorf("unexpected payload status %s: %w", status.Status, eth.NewPayloadErr(envelope.ExecutionPayload, status))
+	}
+
+	e.log.Info("Successfully inserted remote L2 block into local EL", "label", label, "hash", remoteRef.Hash, "number", remoteRef.Number)
+
+	// If we detected a divergence, trigger reorg by setting unsafe head
+	if needsReorg {
+		e.SetUnsafeHead(remoteRef)
+		e.log.Info("Set unsafe head to remote block to trigger reorg", "hash", remoteRef.Hash, "number", remoteRef.Number)
+	}
+
 	return remoteRef.Hash, nil
 }
 
@@ -875,7 +936,7 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 }
 
 // SetSafeSourceL2Client sets the remote L2 client for safe-source=l2 mode
-func (e *EngineController) SetSafeSourceL2Client(client ExecEngine) {
+func (e *EngineController) SetSafeSourceL2Client(client SafeSourceL2Client) {
 	e.safeSourceL2Client = client
 }
 
