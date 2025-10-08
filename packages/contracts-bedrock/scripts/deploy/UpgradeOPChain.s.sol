@@ -2,14 +2,13 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager, IOPContractsManagerPre4_1_0 } from "interfaces/L1/IOPContractsManager.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;
-    OPContractsManager internal _opcm;
+    IOPContractsManager internal _opcm;
     bytes _opChainConfigs;
 
     // Setter for OPContractsManager type
@@ -17,14 +16,14 @@ contract UpgradeOPChainInput is BaseDeployIO {
         require(address(_value) != address(0), "UpgradeOPCMInput: cannot set zero address");
 
         if (_sel == this.prank.selector) _prank = _value;
-        else if (_sel == this.opcm.selector) _opcm = OPContractsManager(_value);
+        else if (_sel == this.opcm.selector) _opcm = IOPContractsManager(_value);
         else revert("UpgradeOPCMInput: unknown selector");
     }
 
-    function set(bytes4 _sel, OPContractsManager.OpChainConfig[] memory _value) public {
+    function set(bytes4 _sel, bytes memory _value) public {
         require(_value.length > 0, "UpgradeOPCMInput: cannot set empty array");
 
-        if (_sel == this.opChainConfigs.selector) _opChainConfigs = abi.encode(_value);
+        if (_sel == this.opChainConfigs.selector) _opChainConfigs = _value;
         else revert("UpgradeOPCMInput: unknown selector");
     }
 
@@ -33,20 +32,33 @@ contract UpgradeOPChainInput is BaseDeployIO {
         return _prank;
     }
 
-    function opcm() public view returns (OPContractsManager) {
-        require(address(_opcm) != address(0), "UpgradeOPCMInput: not set");
+    function opcm() public view returns (IOPContractsManager) {
+        require(address(_opcm) != address(0), "UpgradeOPCMInput: opcm not set");
         return _opcm;
     }
 
     function opChainConfigs() public view returns (bytes memory) {
-        require(_opChainConfigs.length > 0, "UpgradeOPCMInput: not set");
+        require(_opChainConfigs.length > 0, "UpgradeOPCMInput: opChainConfigs not set");
+        // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 64 bytes
+        // (systemConfigProxy and absolutePrestate)
+        require((_opChainConfigs.length - 64) % 64 == 0, "UpgradeOPCMInput: opChainConfigs Unexpected length");
+
+        return _opChainConfigs;
+    }
+
+    function opChainConfigsPre4_1_0() public view returns (bytes memory) {
+        require(_opChainConfigs.length > 0, "UpgradeOPCMInput: opChainConfigsPre4_1_0 not set");
+        // apart from the offset and length that take up 64 bytes, the rest should be a multiple of 96 bytes
+        // (systemConfigProxy, proxyAdmin and absolutePrestate)
+        require((_opChainConfigs.length - 64) % 96 == 0, "UpgradeOPCMInput: opChainConfigsPre4_1_0 Unexpected length");
+
         return _opChainConfigs;
     }
 }
 
 contract UpgradeOPChain is Script {
     function run(UpgradeOPChainInput _uoci) external {
-        OPContractsManager opcm = _uoci.opcm();
+        IOPContractsManager opcm = _uoci.opcm();
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
@@ -63,13 +75,13 @@ contract UpgradeOPChain is Script {
             vm.label(prank, "DummyCaller");
 
             IOPContractsManagerPre4_1_0.OpChainConfig[] memory opChainConfigs =
-                abi.decode(_uoci.opChainConfigs(), (IOPContractsManagerPre4_1_0.OpChainConfig[]));
+                abi.decode(_uoci.opChainConfigsPre4_1_0(), (IOPContractsManagerPre4_1_0.OpChainConfig[]));
 
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
 
             (bool success,) = DummyCallerPreOPCM4_1_0(prank).upgrade(opChainConfigs);
-            require(success, "UpgradeOPChain: upgrade failed");
+            require(success, "UpgradeOPChainPre4_1_0: upgrade failed");
         } else {
             bytes memory code = vm.getDeployedCode("UpgradeOPChain.s.sol:DummyCaller");
             vm.etch(prank, code);
@@ -77,8 +89,8 @@ contract UpgradeOPChain is Script {
             vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
             vm.label(prank, "DummyCaller");
 
-            OPContractsManager.OpChainConfig[] memory opChainConfigs =
-                abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
+            IOPContractsManager.OpChainConfig[] memory opChainConfigs =
+                abi.decode(_uoci.opChainConfigs(), (IOPContractsManager.OpChainConfig[]));
 
             // Call into the DummyCaller to perform the delegatecall
             vm.broadcast(msg.sender);
@@ -95,7 +107,10 @@ contract UpgradeOPChain is Script {
 contract DummyCaller {
     address internal _opcmAddr;
 
-    function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external returns (bool, bytes memory) {
+    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs)
+        external
+        returns (bool, bytes memory)
+    {
         bytes memory data = abi.encodeCall(DummyCaller.upgrade, _opChainConfigs);
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);

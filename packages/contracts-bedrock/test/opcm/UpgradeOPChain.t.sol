@@ -6,7 +6,7 @@ import { Claim } from "src/dispute/lib/Types.sol";
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
 
 contract UpgradeOPChainInput_Test is Test {
@@ -20,11 +20,14 @@ contract UpgradeOPChainInput_Test is Test {
         vm.expectRevert("UpgradeOPCMInput: prank not set");
         input.prank();
 
-        vm.expectRevert("UpgradeOPCMInput: not set");
+        vm.expectRevert("UpgradeOPCMInput: opcm not set");
         input.opcm();
 
-        vm.expectRevert("UpgradeOPCMInput: not set");
+        vm.expectRevert("UpgradeOPCMInput: opChainConfigs not set");
         input.opChainConfigs();
+
+        vm.expectRevert("UpgradeOPCMInput: opChainConfigsPre4_1_0 not set");
+        input.opChainConfigsPre4_1_0();
     }
 
     function test_setAddress_succeeds() public {
@@ -43,7 +46,7 @@ contract UpgradeOPChainInput_Test is Test {
 
     function test_setOpChainConfigs_succeeds() public {
         // Create sample OpChainConfig array
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](2);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](2);
 
         // Setup mock addresses and contracts for first config
         address systemConfig1 = makeAddr("systemConfig1");
@@ -51,7 +54,7 @@ contract UpgradeOPChainInput_Test is Test {
         vm.etch(systemConfig1, hex"01");
         vm.etch(proxyAdmin1, hex"01");
 
-        configs[0] = OPContractsManager.OpChainConfig({
+        configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
@@ -62,19 +65,19 @@ contract UpgradeOPChainInput_Test is Test {
         vm.etch(systemConfig2, hex"01");
         vm.etch(proxyAdmin2, hex"01");
 
-        configs[1] = OPContractsManager.OpChainConfig({
+        configs[1] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
             absolutePrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
-        input.set(input.opChainConfigs.selector, configs);
+        input.set(input.opChainConfigs.selector, abi.encode(configs));
 
         bytes memory storedConfigs = input.opChainConfigs();
         assertEq(storedConfigs, abi.encode(configs));
 
         // Additional verification of stored claims if needed
-        OPContractsManager.OpChainConfig[] memory decodedConfigs =
-            abi.decode(storedConfigs, (OPContractsManager.OpChainConfig[]));
+        IOPContractsManager.OpChainConfig[] memory decodedConfigs =
+            abi.decode(storedConfigs, (IOPContractsManager.OpChainConfig[]));
         assertEq(Claim.unwrap(decodedConfigs[0].absolutePrestate), bytes32(uint256(1)));
         assertEq(Claim.unwrap(decodedConfigs[1].absolutePrestate), bytes32(uint256(2)));
     }
@@ -88,10 +91,8 @@ contract UpgradeOPChainInput_Test is Test {
     }
 
     function test_setOpChainConfigs_withEmptyArray_reverts() public {
-        OPContractsManager.OpChainConfig[] memory emptyConfigs = new OPContractsManager.OpChainConfig[](0);
-
         vm.expectRevert("UpgradeOPCMInput: cannot set empty array");
-        input.set(input.opChainConfigs.selector, emptyConfigs);
+        input.set(input.opChainConfigs.selector, new bytes(0));
     }
 
     function test_set_withInvalidSelector_reverts() public {
@@ -99,26 +100,26 @@ contract UpgradeOPChainInput_Test is Test {
         input.set(bytes4(0xdeadbeef), makeAddr("test"));
 
         // Create a single config for testing invalid selector
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         address mockSystemConfig = makeAddr("systemConfig");
         address mockProxyAdmin = makeAddr("proxyAdmin");
         vm.etch(mockSystemConfig, hex"01");
         vm.etch(mockProxyAdmin, hex"01");
 
-        configs[0] = OPContractsManager.OpChainConfig({
+        configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
         vm.expectRevert("UpgradeOPCMInput: unknown selector");
-        input.set(bytes4(0xdeadbeef), configs);
+        input.set(bytes4(0xdeadbeef), abi.encode(configs));
     }
 }
 
 contract MockOPCM {
     event UpgradeCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
 
-    function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
+    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
         emit UpgradeCalled(
             address(_opChainConfigs[0].systemConfigProxy), Claim.unwrap(_opChainConfigs[0].absolutePrestate)
         );
@@ -132,7 +133,7 @@ contract MockOPCM {
 contract UpgradeOPChain_Test is Test {
     MockOPCM mockOPCM;
     UpgradeOPChainInput uoci;
-    OPContractsManager.OpChainConfig config;
+    IOPContractsManager.OpChainConfig config;
     UpgradeOPChain upgradeOPChain;
     address prank;
 
@@ -142,13 +143,13 @@ contract UpgradeOPChain_Test is Test {
         mockOPCM = new MockOPCM();
         uoci = new UpgradeOPChainInput();
         uoci.set(uoci.opcm.selector, address(mockOPCM));
-        config = OPContractsManager.OpChainConfig({
+        config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
             absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
         });
-        OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
+        IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
         configs[0] = config;
-        uoci.set(uoci.opChainConfigs.selector, configs);
+        uoci.set(uoci.opChainConfigs.selector, abi.encode(configs));
         prank = makeAddr("prank");
         uoci.set(uoci.prank.selector, prank);
         upgradeOPChain = new UpgradeOPChain();
