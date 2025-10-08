@@ -6,6 +6,7 @@ import (
 	mrand "math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -208,3 +209,157 @@ func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {
 }
 
 // note: nil-envelope behavior is not tested to match current implementation
+
+// Mock implementations for safe-source=l2 tests
+
+type mockSafeSourceL2Client struct {
+	blockRefs      map[eth.BlockLabel]eth.L2BlockRef
+	payloads       map[common.Hash]*eth.ExecutionPayloadEnvelope
+	blockRefByNum  map[uint64]eth.L2BlockRef
+	blockRefErrors map[eth.BlockLabel]error
+}
+
+func newMockSafeSourceL2Client() *mockSafeSourceL2Client {
+	return &mockSafeSourceL2Client{
+		blockRefs:      make(map[eth.BlockLabel]eth.L2BlockRef),
+		payloads:       make(map[common.Hash]*eth.ExecutionPayloadEnvelope),
+		blockRefByNum:  make(map[uint64]eth.L2BlockRef),
+		blockRefErrors: make(map[eth.BlockLabel]error),
+	}
+}
+
+func (m *mockSafeSourceL2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	if err, ok := m.blockRefErrors[label]; ok {
+		return eth.L2BlockRef{}, err
+	}
+	if ref, ok := m.blockRefs[label]; ok {
+		return ref, nil
+	}
+	return eth.L2BlockRef{}, context.DeadlineExceeded
+}
+
+func (m *mockSafeSourceL2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if ref, ok := m.blockRefByNum[num]; ok {
+		return ref, nil
+	}
+	return eth.L2BlockRef{}, context.DeadlineExceeded
+}
+
+func (m *mockSafeSourceL2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
+func (m *mockSafeSourceL2Client) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	if payload, ok := m.payloads[hash]; ok {
+		return payload, nil
+	}
+	return nil, context.DeadlineExceeded
+}
+
+func (m *mockSafeSourceL2Client) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, context.DeadlineExceeded
+}
+
+func (m *mockSafeSourceL2Client) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (m *mockSafeSourceL2Client) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	return nil, nil
+}
+
+func (m *mockSafeSourceL2Client) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+}
+
+// Tests for fetchAndEnsureRemoteL2Block
+
+func TestFetchAndEnsureRemoteL2Block_AlreadyExists(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(1234))
+	remoteRef := testutils.RandomL2BlockRef(rng)
+
+	mockRemote := newMockSafeSourceL2Client()
+	mockRemote.blockRefs[eth.Safe] = remoteRef
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, remoteRef, nil)
+
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{}
+	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
+	ec.safeSourceL2Client = mockRemote
+
+	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, remoteRef.Hash, hash)
+}
+
+func TestFetchAndEnsureRemoteL2Block_Divergence(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(1234))
+	remoteRef := testutils.RandomL2BlockRef(rng)
+	localRef := remoteRef
+	localRef.Hash = testutils.RandomHash(rng) // Different hash at same number
+
+	mockRemote := newMockSafeSourceL2Client()
+	mockRemote.blockRefs[eth.Safe] = remoteRef
+	mockRemote.payloads[remoteRef.Hash] = &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:   remoteRef.Hash,
+			BlockNumber: eth.Uint64Quantity(remoteRef.Number),
+		},
+	}
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, localRef, nil)
+	mockEngine.ExpectNewPayload(&eth.ExecutionPayload{
+		BlockHash:   remoteRef.Hash,
+		BlockNumber: eth.Uint64Quantity(remoteRef.Number),
+	}, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{}
+	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
+	ec.safeSourceL2Client = mockRemote
+
+	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, remoteRef.Hash, hash)
+	// Verify unsafe head was set (reorg triggered)
+	require.Equal(t, remoteRef, ec.unsafeHead)
+}
+
+func TestFetchAndEnsureRemoteL2Block_MissingBlock(t *testing.T) {
+	rng := mrand.New(mrand.NewSource(1234))
+	remoteRef := testutils.RandomL2BlockRef(rng)
+
+	mockRemote := newMockSafeSourceL2Client()
+	mockRemote.blockRefs[eth.Safe] = remoteRef
+	mockRemote.payloads[remoteRef.Hash] = &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockHash:   remoteRef.Hash,
+			BlockNumber: eth.Uint64Quantity(remoteRef.Number),
+		},
+	}
+
+	mockEngine := &testutils.MockEngine{}
+	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, eth.L2BlockRef{}, ethereum.NotFound)
+	mockEngine.ExpectNewPayload(&eth.ExecutionPayload{
+		BlockHash:   remoteRef.Hash,
+		BlockNumber: eth.Uint64Quantity(remoteRef.Number),
+	}, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
+
+	emitter := &testutils.MockEmitter{}
+	cfg := &rollup.Config{}
+	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
+
+	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
+	ec.safeSourceL2Client = mockRemote
+
+	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, remoteRef.Hash, hash)
+}
