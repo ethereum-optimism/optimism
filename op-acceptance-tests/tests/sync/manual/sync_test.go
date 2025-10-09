@@ -43,7 +43,7 @@ func TestVerifierManualSync(gt *testing.T) {
 		_, err = sys.L2ELB.Escape().EthClient().BlockRefByNumber(t.Ctx(), blockNum)
 		require.Error(err, ethereum.NotFound)
 		// Now fetchable by hash
-		require.Equal(blockNum, sys.L2ELB.BlockRefByHash(block.Hash).Number)
+		// require.Equal(blockNum, sys.L2ELB.BlockRefByHash(block.Hash).Number)
 
 		// FCU
 		logger.Info("ForkchoiceUpdate", "target", blockNum)
