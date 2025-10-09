@@ -7,6 +7,7 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
@@ -336,6 +337,15 @@ abstract contract LivenessModule2 {
     ///      guard is enabled.
     /// @param _targetSafe The Safe instance to disable this guard from.
     function _disableThisGuard(Safe _targetSafe) internal {
+        // set the timelock delay to 0 to clear the configuration
+        _targetSafe.execTransactionFromModule({
+            to: address(this),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(TimelockGuard.configureTimelockGuard, (0))
+        });
+
+        // Check if the guard is enabled
         // keccak256("guard_manager.guard.address") from GuardManager
         bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
         address guard = abi.decode(_targetSafe.getStorageAt(uint256(guardSlot), 1), (address));
@@ -352,6 +362,14 @@ abstract contract LivenessModule2 {
     /// @notice Internal function to disable this module from the given Safe.
     /// @param _targetSafe The Safe instance to disable this module from.
     function _disableThisModule(Safe _targetSafe) internal {
+        // Clear the module configuration
+        _targetSafe.execTransactionFromModule({
+            to: address(this),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(LivenessModule2.clearLivenessModule, ())
+        });
+
         // Get current modules
         // This might not work if you have more than 100 modules, but that's a you problem.
         (address[] memory modules, ) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
