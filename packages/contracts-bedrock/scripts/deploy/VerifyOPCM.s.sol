@@ -107,10 +107,7 @@ contract VerifyOPCM is Script {
     /// @notice Setup flag.
     bool internal ready;
 
-    /// @notice The OPCM address being verified, stored to access during contract verification.
-    address internal currentOpcmAddress;
     /// @notice Populates override mappings.
-
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
@@ -182,9 +179,18 @@ contract VerifyOPCM is Script {
     /// @param _name Name of the contract to verify.
     /// @param _addr Address of the contract to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
-    function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+    function runSingle(
+        IOPContractsManager _opcm,
+        string memory _name,
+        address _addr,
+        bool _skipConstructorVerification
+    )
+        public
+    {
         _verifyOpcmContractRef(
-            OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }), _skipConstructorVerification
+            _opcm,
+            OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }),
+            _skipConstructorVerification
         );
     }
 
@@ -204,9 +210,6 @@ contract VerifyOPCM is Script {
             console.log("         Do NOT do this in production");
         }
 
-        // Store OPCM address for use in verification functions
-        currentOpcmAddress = _opcmAddress;
-
         // Fetch Implementations & Blueprints from OPCM
         IOPContractsManager opcm = IOPContractsManager(_opcmAddress);
 
@@ -222,7 +225,7 @@ contract VerifyOPCM is Script {
         // Verify each reference.
         bool success = true;
         for (uint256 i = 0; i < refs.length; i++) {
-            success = _verifyOpcmContractRef(refs[i], _skipConstructorVerification) && success;
+            success = _verifyOpcmContractRef(opcm, refs[i], _skipConstructorVerification) && success;
         }
 
         // Final Result
@@ -394,6 +397,7 @@ contract VerifyOPCM is Script {
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     /// @return True if the contract reference is verified, false otherwise.
     function _verifyOpcmContractRef(
+        IOPContractsManager _opcm,
         OpcmContractRef memory _target,
         bool _skipConstructorVerification
     )
@@ -404,9 +408,7 @@ contract VerifyOPCM is Script {
         console.log(string.concat("Checking Contract: ", _target.field));
         // Check if this is a V2 dispute game that should be skipped
         if (_isV2DisputeGameImplementation(_target.name)) {
-            IOPContractsManager opcm = IOPContractsManager(currentOpcmAddress);
-
-            if (!_isV2DisputeGamesEnabled(opcm)) {
+            if (!_isV2DisputeGamesEnabled(_opcm)) {
                 if (_target.addr == address(0)) {
                     console.log("  [SKIP] V2 dispute game not deployed (feature disabled)");
                     console.log(string.concat("  Contract: ", _target.name));
