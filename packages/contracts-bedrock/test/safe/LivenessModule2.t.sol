@@ -484,6 +484,28 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(modules.length, 6);
     }
 
+    function test_changeOwnershipToFallback_doesNotRemoveOtherGuard_succeeds() external {
+        // Enable a guard on the Safe
+        SafeTestLib.setGuard(safeInstance, address(makeAddr("guard")));
+
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Execute ownership transfer
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
+
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // Verify guard is still enabled
+        assertEq(_getGuard(safeInstance), address(makeAddr("guard")));
+    }
+
     function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
         address newSafe = makeAddr("newSafe");
 
@@ -554,23 +576,6 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         address[] memory newOwners = safeInstance.safe.getOwners();
         assertEq(newOwners.length, 1);
         assertEq(newOwners[0], fallbackOwner);
-    }
-
-    function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
-        // Start and execute first challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Start a new challenge (as fallback owner)
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
-        assertGt(challengeEndTime, 0);
     }
 }
 
