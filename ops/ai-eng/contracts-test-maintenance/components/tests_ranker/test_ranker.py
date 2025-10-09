@@ -226,7 +226,7 @@ def fetch_last_processed_from_circleci() -> list[Path]:
     try:
         headers = {"Circle-Token": circleci_token}
         project_slug = "gh/ethereum-optimism/optimism"
-        branch = os.getenv("CIRCLE_BRANCH", "ari/ctms-update-033")
+        branch = os.getenv("CIRCLE_BRANCH", "develop")
         two_weeks_ago = time.time() - (14 * 24 * 3600)
 
         # Get recent pipelines

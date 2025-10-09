@@ -3148,7 +3148,9 @@ workflows:
 
   ai-contracts-test-workflow:
     when:
-      equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
+      or:
+        - equal: [build_mon_thu, <<pipeline.schedule.name>>]
+        - equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
     jobs:
       - initialize:
           context:
