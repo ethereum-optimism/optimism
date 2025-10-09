@@ -480,7 +480,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(_getGuard(safeInstance), address(0));
 
         // Verify extra modules are still enabled
-        (address[] memory modules, ) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
+        (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
         assertEq(modules.length, 6);
     }
 
@@ -576,6 +576,44 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         address[] memory newOwners = safeInstance.safe.getOwners();
         assertEq(newOwners.length, 1);
         assertEq(newOwners[0], fallbackOwner);
+    }
+
+    function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
+        // Start and execute first challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // Re-enable the module
+        vm.prank(fallbackOwner);
+        safeInstance.safe.execTransaction(
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(ModuleManager.enableModule, (address(livenessModule2))),
+            Enum.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            payable(address(0)),
+            abi.encodePacked(bytes32(uint256(uint160(fallbackOwner))), bytes32(0), uint8(1))
+        );
+
+        // Re-configure the module
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configureLivenessModule(
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
+
+        // Start a new challenge (as fallback owner)
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
+        assertGt(challengeEndTime, 0);
     }
 }
 
