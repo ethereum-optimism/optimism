@@ -342,6 +342,8 @@ abstract contract LivenessModule2 {
     /// @param _targetSafe The Safe instance to disable this module from.
     function _disableThisModule(Safe _targetSafe) internal {
         // Get current modules
+        // We use SENTINEL_OWNER because it's already defined in this contract, and has the same value
+        // as the SENTINEL_MODULES address used in ModuleManager.
         // This might not work if you have more than 100 modules, but what are you even doing if that's the case?
         (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
 
