@@ -372,7 +372,7 @@ abstract contract LivenessModule2 {
 
         // Get current modules
         // This might not work if you have more than 100 modules, but that's a you problem.
-        (address[] memory modules, ) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
+        (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
 
         // find the index of this module
         bool moduleFound = false;
@@ -387,7 +387,8 @@ abstract contract LivenessModule2 {
         if (moduleFound) {
             // If the module is the first in the list, then the previous module is the sentinel.
             address prevModule = SENTINEL_OWNER;
-            // If the module is not the first in the list, then the previous module is the module before in in the array.
+            // If the module is not the first in the list, then the previous module is the module before in in the
+            // array.
             if (moduleIndex > 0) {
                 prevModule = modules[moduleIndex - 1];
             }
