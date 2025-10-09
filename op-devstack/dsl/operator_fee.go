@@ -136,15 +136,13 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(of.ctx)
-
 	of.require.NoError(err)
 	of.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	blockHash := receipt.BlockHash
 	blockRef, err := from.el.stackEL().EthClient().BlockRefByHash(of.ctx, blockHash)
 	of.require.NoError(err)
-	blockTimestamp := blockRef.Time
-	isJovian:= of.l2Network.IsForkActive(rollup.Jovian, blockTimestamp)
+	isJovian:= of.l2Network.IsForkActive(rollup.Jovian, blockRef.Time)
 
 	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
 	of.require.NoError(err)
