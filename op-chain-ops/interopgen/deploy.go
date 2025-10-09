@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -27,10 +28,6 @@ var (
 	// sysGenesisDeployer is used as tx.origin/msg.sender on system genesis script calls.
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
-
-	// OptimismPortalInteropDevFlag is the feature bitmap that enables the OptimismPortalInterop contract.
-	OptimismPortalInteropDevFlag = common.Hash{31: 0x01} // 0x0000000000000000000000000000000000000000000000000000000000000001
-
 )
 
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
@@ -195,7 +192,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
+		DevFeatureBitmap:                deployer.OptimismPortalInteropDevFlag,
 		FaultGameV2MaxGameDepth:         big.NewInt(73),
 		FaultGameV2SplitDepth:           big.NewInt(30),
 		FaultGameV2ClockExtension:       big.NewInt(10800),

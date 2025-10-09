@@ -30,15 +30,43 @@ PROMO_JSON=${1:-./final-promotion/promotion-ready.json}
 
 SLACK_BLOCKS="[]"
 if [ -f "$PROMO_JSON" ]; then
+  # Determine URL to the flake-shake report job (artifacts live there),
+  # falling back to the current job URL if not resolvable.
+  REPORT_JOB_URL="${CIRCLE_BUILD_URL:-}"
+  if [ -n "${CIRCLE_WORKFLOW_ID:-}" ] && [ -n "${CIRCLE_API_TOKEN:-}" ]; then
+    JOBS_JSON=$(curl -sfL -H "Circle-Token: ${CIRCLE_API_TOKEN}" "https://circleci.com/api/v2/workflow/${CIRCLE_WORKFLOW_ID}/jobs?limit=100" || true)
+    if [ -n "${JOBS_JSON:-}" ]; then
+      # Prefer web_url if available; otherwise construct URL from job_number
+      REPORT_WEB_URL=$(printf '%s' "$JOBS_JSON" | jq -r '.items[] | select(.name=="op-acceptance-tests-flake-shake-report") | .web_url // empty' | head -n1)
+      if [ -n "$REPORT_WEB_URL" ] && [ "$REPORT_WEB_URL" != "null" ]; then
+        REPORT_JOB_URL="$REPORT_WEB_URL"
+      else
+        REPORT_JOB_NUM=$(printf '%s' "$JOBS_JSON" | jq -r '.items[] | select(.name=="op-acceptance-tests-flake-shake-report") | .job_number // empty' | head -n1)
+        if [ -n "$REPORT_JOB_NUM" ] && [ "$REPORT_JOB_NUM" != "null" ] && [ -n "${CIRCLE_PROJECT_USERNAME:-}" ] && [ -n "${CIRCLE_PROJECT_REPONAME:-}" ]; then
+          REPORT_JOB_URL="https://circleci.com/gh/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${REPORT_JOB_NUM}"
+        fi
+      fi
+    fi
+  fi
+
+  # Ensure URL points to the artifacts page of the report job
+  REPORT_ARTIFACTS_URL="$REPORT_JOB_URL"
+  if [ -n "$REPORT_ARTIFACTS_URL" ]; then
+    if ! printf '%s' "$REPORT_ARTIFACTS_URL" | grep -q '/artifacts\($\|[?#]\)'; then
+      REPORT_ARTIFACTS_URL="${REPORT_ARTIFACTS_URL%/}/artifacts"
+    fi
+  fi
+
   # Build Block Kit blocks (header + link + divider + per-candidate sections)
   SLACK_BLOCKS=$(jq -c \
-    --arg url "${CIRCLE_BUILD_URL:-}" \
+    --arg url "${REPORT_ARTIFACTS_URL}" \
     --slurpfile meta "${PROMO_JSON%/*}/metadata.json" '
     def name_or_pkg(t): (if ((t.test_name|tostring)|length) == 0 then "(package)" else t.test_name end);
+    def owner_or_unknown(t): (if ((t.owner|tostring)|length) == 0 then "unknown" else t.owner end);
     def testblocks(t): [
       {"type":"section","fields":[
         {"type":"mrkdwn","text":"*Test:*\n\(name_or_pkg(t))"},
-        {"type":"mrkdwn","text":"*Package:*\n\(t.package)"}
+        {"type":"mrkdwn","text":"*Owner:*\n\(owner_or_unknown(t))"}
       ]},
       {"type":"section","fields":[
         {"type":"mrkdwn","text":"*Runs:*\n\(t.total_runs)"},

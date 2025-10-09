@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -51,7 +52,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	depSet, err := NewDependencySetFromCLI(ctx)
+	depSet, err := NewDependencySetFromCLI(ctx, ctx.Context)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +149,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	return cfg, nil
 }
 
-func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
+func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
 	return &interop.Config{
 		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
 		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
@@ -156,7 +157,7 @@ func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
 	}
 }
 
-func NewBeaconEndpointConfig(ctx *cli.Context) config.L1BeaconEndpointSetup {
+func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {
 	return &config.L1BeaconEndpointConfig{
 		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
 		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
@@ -166,7 +167,7 @@ func NewBeaconEndpointConfig(ctx *cli.Context) config.L1BeaconEndpointSetup {
 	}
 }
 
-func NewL1EndpointConfig(ctx *cli.Context) *config.L1EndpointConfig {
+func NewL1EndpointConfig(ctx cliiface.Context) *config.L1EndpointConfig {
 	return &config.L1EndpointConfig{
 		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
@@ -179,7 +180,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *config.L1EndpointConfig {
 	}
 }
 
-func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*config.L2EndpointConfig, error) {
+func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2EndpointConfig, error) {
 	l2Addr := ctx.String(flags.L2EngineAddr.Name)
 	fileName := ctx.String(flags.L2EngineJWTSecret.Name)
 	secret, err := rpc.ObtainJWTSecret(logger, fileName, true)
@@ -194,7 +195,7 @@ func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*config.L2Endpoin
 	}, nil
 }
 
-func NewConfigPersistence(ctx *cli.Context) config.ConfigPersistence {
+func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
 	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
 	if stateFile == "" {
 		return config.DisabledConfigPersistence{}
@@ -202,7 +203,7 @@ func NewConfigPersistence(ctx *cli.Context) config.ConfigPersistence {
 	return config.NewConfigPersistence(stateFile)
 }
 
-func NewDriverConfig(ctx *cli.Context) *driver.Config {
+func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 	return &driver.Config{
 		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
@@ -213,7 +214,7 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfigFromCLI(log log.Logger, ctx cliiface.Context) (*rollup.Config, error) {
 	network := ctx.String(opflags.NetworkFlagName)
 	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
@@ -257,7 +258,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	return &rollupConfig, nil
 }
 
-func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
+func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
 	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
 		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
 		rollupConfig.CanyonTime = &canyon
@@ -300,7 +301,7 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 	}
 }
 
-func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*params.ChainConfig, error) {
+func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*params.ChainConfig, error) {
 	if chainId == nil {
 		panic("l1 chain id is nil")
 	}
@@ -323,7 +324,7 @@ func NewL1ChainConfig(chainId *big.Int, ctx *cli.Context, log log.Logger) (*para
 	return cf, nil
 }
 
-func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainConfig, error) {
+func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.ChainConfig, error) {
 	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
 	file, err := os.Open(l1ChainConfigPath)
 	if err != nil {
@@ -344,15 +345,15 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx *cli.Context) (*params.ChainCon
 	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
-func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {
-	if !ctx.IsSet(flags.InteropDependencySet.Name) {
+func NewDependencySetFromCLI(cli cliiface.Context, ctx context.Context) (depset.DependencySet, error) {
+	if !cli.IsSet(flags.InteropDependencySet.Name) {
 		return nil, nil
 	}
-	loader := &depset.JSONDependencySetLoader{Path: ctx.Path(flags.InteropDependencySet.Name)}
-	return loader.LoadDependencySet(ctx.Context)
+	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
+	return loader.LoadDependencySet(ctx)
 }
 
-func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
+func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
 		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {

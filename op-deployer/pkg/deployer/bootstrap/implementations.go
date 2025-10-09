@@ -94,7 +94,7 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
 	// Check V2 fault game parameters only if V2 dispute games feature is enabled
-	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGames)
+	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGamesDevFlag)
 	if deployV2Games {
 		if c.FaultGameMaxGameDepth == 0 {
 			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
