@@ -12,49 +12,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/lmittmann/w3"
-	"github.com/lmittmann/w3/module/eth"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
-
-// getAddressesOnchain reads addresses from on-chain contracts (using chainConfig to get entrypoints)
-func getAddressesOnchain(ctx context.Context, rpcURL string, chainConfig *superchain.ChainConfig) (delayedWETHProxy common.Address, err error) {
-	var gameImplsFn = w3.MustNewFunc("gameImpls(uint32)", "address")
-	var wethFn = w3.MustNewFunc("weth()", "address")
-
-	client, err := w3.Dial(rpcURL)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to connect to RPC: %w", err)
-	}
-	defer client.Close()
-
-	disputeGameFactoryProxy := *chainConfig.Addresses.DisputeGameFactoryProxy
-
-	// Read permissionless dispute game address from disputeGameFactoryProxy.gameImpls(0)
-	// GameTypes.CANNON = 0 (permissionless)
-	var permissionlessDisputeGame common.Address
-	err = client.CallCtx(ctx, eth.CallFunc(disputeGameFactoryProxy, gameImplsFn, uint32(0)).Returns(&permissionlessDisputeGame))
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to read gameImpls(0) from DisputeGameFactory: %w", err)
-	}
-
-	// Read DelayedWETHProxy from permissionlessDisputeGame.weth()
-	err = client.CallCtx(ctx, eth.CallFunc(permissionlessDisputeGame, wethFn).Returns(&delayedWETHProxy))
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to read weth from permissionless dispute game: %w", err)
-	}
-
-	return delayedWETHProxy, nil
-}
 
 func TestAddGameType(t *testing.T) {
 	// Since the opcm version is not yet on sepolia, we create a fork of sepolia then deploy the opcm via deploy implementations.
