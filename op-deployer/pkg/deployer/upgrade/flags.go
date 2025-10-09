@@ -5,6 +5,7 @@ import (
 	v200 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	v300 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v3_0_0"
 	v400 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_0_0"
+	v410 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_1_0"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/urfave/cli/v2"
 )
@@ -50,5 +51,15 @@ var Commands = cli.Commands{
 			OverrideArtifactsURLFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: UpgradeCLI(v400.DefaultUpgrader),
+	},
+	&cli.Command{
+		Name:  "v4.1.0",
+		Usage: "upgrades a chain to version v4.1.0 (U16a)",
+		Flags: append([]cli.Flag{
+			deployer.L1RPCURLFlag,
+			ConfigFlag,
+			OverrideArtifactsURLFlag,
+		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		Action: UpgradeCLI(v410.DefaultUpgrader),
 	},
 }
