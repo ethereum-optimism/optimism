@@ -65,27 +65,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
 
     /// @notice Internal function to disable this guard from the given Safe.
     /// @param _targetSafe The Safe instance to disable this guard from.
-    function _disableThisGuard(Safe _targetSafe) internal override {
-        SafeState storage safeState = _safeState[_targetSafe];
-        // set the timelock delay to 0 to clear the configuration
-        safeState.timelockDelay = 0;
-
-        // Reset the cancellation threshold, 1 is the default value for all safes.
-        safeState.cancellationThreshold = 1;
-
-        // Get the address of the current guard
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_targetSafe.getStorageAt(uint256(guardSlot), 1), (address));
-
-        // If the current guard is this guard, disable it
-        if (guard == address(this)) {
-            _targetSafe.execTransactionFromModule({
-                to: address(_targetSafe),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(GuardManager.setGuard, (address(0)))
-            });
-        }
+    function _disableThisGuard(Safe _targetSafe) internal override(TimelockGuard, LivenessModule2) {
+        TimelockGuard._disableThisGuard(_targetSafe);
     }
 }
