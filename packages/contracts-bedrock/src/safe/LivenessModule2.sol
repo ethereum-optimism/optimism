@@ -363,18 +363,14 @@ abstract contract LivenessModule2 {
     /// @param _targetSafe The Safe instance to disable this module from.
     function _disableThisModule(Safe _targetSafe) internal {
         // Clear the module configuration
-        _targetSafe.execTransactionFromModule({
-            to: address(this),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(LivenessModule2.clearLivenessModule, ())
-        });
+        // Erase the configuration data for this safe
+        delete livenessSafeConfiguration[address(_targetSafe)];
 
         // Get current modules
-        // This might not work if you have more than 100 modules, but that's a you problem.
+        // This might not work if you have more than 100 modules, but what are you even doing if that's the case?
         (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
 
-        // find the index of this module
+        // Find the index of this module
         bool moduleFound = false;
         uint256 moduleIndex = 0;
         for (uint256 i = 0; i < modules.length; i++) {
