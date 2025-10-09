@@ -5,6 +5,8 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
@@ -274,6 +276,17 @@ abstract contract LivenessModule2 {
             )
         });
 
+        // Deactivate the guard
+        targetSafe.execTransactionFromModule({
+            to: address(targetSafe),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+        });
+
+        // Disable this module from the Safe
+        _disableThisModule(targetSafe);
+
         // Sanity check: verify the fallback owner is now the only owner
         address[] memory finalOwners = targetSafe.getOwners();
         if (finalOwners.length != 1 || finalOwners[0] != livenessSafeConfiguration[_safe].fallbackOwner) {
@@ -321,5 +334,39 @@ abstract contract LivenessModule2 {
 
         delete challengeStartTime[_safe];
         emit ChallengeCancelled(_safe);
+    }
+
+    /// @notice Internal function to disable this module from the given Safe.
+    /// @param _targetSafe The Safe instance to disable this module from.
+    function _disableThisModule(Safe _targetSafe) internal {
+        // Get current modules
+        // This might not work if you have more than 100 modules, but that's a you problem.
+        (address[] memory modules, ) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
+
+        // find the index of this module
+        bool moduleFound = false;
+        uint256 moduleIndex = 0;
+        for (uint256 i = 0; i < modules.length; i++) {
+            if (modules[i] == address(this)) {
+                moduleIndex = i;
+                moduleFound = true;
+                break;
+            }
+        }
+        if (moduleFound) {
+            // If the module is the first in the list, then the previous module is the sentinel.
+            address prevModule = SENTINEL_OWNER;
+            // If the module is not the first in the list, then the previous module is the module before in in the array.
+            if (moduleIndex > 0) {
+                prevModule = modules[moduleIndex - 1];
+            }
+            // Disable the module
+            _targetSafe.execTransactionFromModule({
+                to: address(_targetSafe),
+                value: 0,
+                operation: Enum.Operation.Call,
+                data: abi.encodeCall(ModuleManager.disableModule, (prevModule, address(this)))
+            });
+        }
     }
 }
