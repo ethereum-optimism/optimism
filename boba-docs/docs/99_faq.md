@@ -63,7 +63,7 @@ Only if the centralized exchange supports Boba Network. For exchanges that do no
 
 ### Where can I find RPC endpoints and connection details?
 
-Connection details for our Mainnet and Sepolia network are [here for ETH](./addresses/network-eth) and [here for BNB](./addresses/network-bnb).
+Connection details for our Mainnet and Sepolia network are [here](./addresses/network-eth).
 
 ### Are multicall contracts supported on Boba?
 
@@ -175,7 +175,7 @@ When you make an Ethereum transaction, the user will be given an expected fee fo
 
 Here, Boba is looking out for you. Before that unexpected increased fee goes through, Boba throws an error message and prevents the payment from going through. If the transaction fee is at least three times what the expected cost was (in this example, your transaction fee of 3 USD jumped to 9 USD), the transaction will fail and saves you from the increased fee.
 
-[Here's more info on fees](./fees/fee-scheme#for-frontend-and-wallet-developers).
+[Here's more info on fees](./fees/fee-scheme)
 
 ### DAPPs require an XYZ gas amount to deploy. However, Boba's block gas limit of only 11,000,000 makes it impossible to deploy a smart contract. What can I do to deploy this smart contract on Boba?
 
