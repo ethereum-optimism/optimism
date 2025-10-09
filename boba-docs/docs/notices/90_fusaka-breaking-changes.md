@@ -14,6 +14,6 @@ Node operators will need to upgrade to the respective releases before the activa
 * op-geth at [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1)
 * op-erigon currently does not have Fusaka support, operators are advised to migrate to op-geth
 
-> [!NOTE]
->
-> The op-geth database layout has changed since the last required update.  You may experience elevated CPU usage while first deploying the new op-geth images, but the CPU should return to normal after a few hours.
+:::note
+The op-geth database layout has changed since the last required update.  You may experience elevated CPU usage while first deploying the new op-geth images, but the CPU should return to normal after a few hours.
+:::
