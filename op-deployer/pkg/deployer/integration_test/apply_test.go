@@ -208,7 +208,8 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// First run upgradeSuperchainConfig
+		// First run upgradeSuperchainConfig because the version on the fork is < than that
+		// of the contracts-bedrock folder so upgrading directly would revert.
 		t.Run("upgrade superchain config", func(t *testing.T) {
 			upgradeConfig := v5_0_0.UpgradeSuperchainConfigInput{
 				Prank:                superchainProxyAdminOwner,
