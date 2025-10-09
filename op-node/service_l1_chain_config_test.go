@@ -127,13 +127,13 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 
 	t.Run("nil-blob-schedule-config-returns-error", func(t *testing.T) {
 		cfg, err := runWithPath(directFaultyPath)
-		require.NotNil(t, cfg)
+		require.Nil(t, cfg)
 		require.Error(t, err)
 	})
 
 	t.Run("nil-blob-schedule-config-returns-no-error-for-l2-chain-config", func(t *testing.T) {
 		cfg, err := runWithPath(customOPStackPath)
-		require.Nil(t, cfg)
+		require.NotNil(t, cfg)
 		require.NoError(t, err)
 	})
 }
