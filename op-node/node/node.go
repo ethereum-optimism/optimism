@@ -140,7 +140,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
-	err := n.init(ctx, cfg, nil)
+	err := n.init(ctx, cfg, initializationOverrides{})
 	if err != nil {
 		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
@@ -161,18 +161,15 @@ type initializationOverrides struct {
 // init progressively creates and sets up all the components of the OpNode
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
-func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initializationOverrides) error {
+func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides initializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
-	if overrides == nil {
-		overrides = &initializationOverrides{}
-	}
 
-	eventSys, eventDrain, err := initEventSystem(n)
+	var err error
+
+	n.eventSys, n.eventDrain, err = initEventSystem(n)
 	if err != nil {
 		return fmt.Errorf("failed to init event system: %w", err)
 	}
-	n.eventSys = eventSys
-	n.eventDrain = eventDrain
 
 	if overrides.Beacon == nil {
 		beacon, err := initL1BeaconAPI(ctx, cfg, n)
@@ -195,47 +192,37 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initia
 	}
 
 	// initL2 may use side effects to register interop subsystem to the node.EventSystem
-	l2Source, interopSys, l2Driver, safeDB, err := initL2(ctx, cfg, n)
+	n.l2Source, n.interopSys, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
-	n.l2Source = l2Source
-	n.interopSys = interopSys
-	n.l2Driver = l2Driver
-	n.safeDB = safeDB
 
-	l1HeadsSub, l1SafeSub, l1FinalizedSub, err := initL1Handlers(cfg, n)
+	n.l1HeadsSub, n.l1SafeSub, n.l1FinalizedSub, err = initL1Handlers(cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init L1 Source: %w", err)
 	}
-	n.l1HeadsSub = l1HeadsSub
-	n.l1SafeSub = l1SafeSub
-	n.l1FinalizedSub = l1FinalizedSub
 
 	// initRuntimeConfig relies on side effects to set the runCfg, node.halted and call node.cancel if needed
 	if err := initRuntimeConfig(ctx, cfg, n); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
 
-	p2pSigner, err := initP2PSigner(ctx, cfg, n)
+	n.p2pSigner, err = initP2PSigner(ctx, cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init the P2P signer: %w", err)
 	}
-	n.p2pSigner = p2pSigner
 
-	p2pNode, err := initP2P(cfg, n)
+	n.p2pNode, err = initP2P(cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
-	n.p2pNode = p2pNode
 
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
 	if overrides.RPCHandler == nil {
-		server, err := initRPCServer(cfg, n)
+		n.server, err = initRPCServer(cfg, n)
 		if err != nil {
 			return fmt.Errorf("failed to init the RPC server: %w", err)
 		}
-		n.server = server
 	} else {
 		// the node registers to an existing RPC server's handler if provided
 		// the node assumes the RPC server is already started
@@ -248,20 +235,18 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides *initia
 		}
 	}
 
-	metricsSrv, err := initMetricsServer(cfg, n)
+	n.metricsSrv, err = initMetricsServer(cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
-	n.metricsSrv = metricsSrv
 
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
 
-	pprofService, err := initPProf(cfg, n)
+	n.pprofService, err = initPProf(cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
-	n.pprofService = pprofService
 
 	return nil
 }
