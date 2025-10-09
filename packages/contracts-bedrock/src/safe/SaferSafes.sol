@@ -66,8 +66,11 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Internal function to disable this guard from the given Safe.
     /// @param _targetSafe The Safe instance to disable this guard from.
     function _disableThisGuard(Safe _targetSafe) internal override {
-        // set the timelock delay to 0 to clear the configuration
         SafeState storage safeState = _safeState[_targetSafe];
+        // set the timelock delay to 0 to clear the configuration
+        safeState.timelockDelay = 0;
+
+        // Reset the cancellation threshold, 1 is the default value for all safes.
         safeState.cancellationThreshold = 1;
 
         // Get the address of the current guard
