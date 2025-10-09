@@ -74,7 +74,8 @@ def write_log(session_id, status, session_data):
 
     # Only add PR link if status is finished
     if status == "finished" and session_data:
-        pr_url = session_data.get("pull_request", {}).get("url")
+        pr_data = session_data.get("pull_request") or {}
+        pr_url = pr_data.get("url")
         if pr_url:
             log_entry["pull_request_url"] = pr_url
 
@@ -189,8 +190,8 @@ def monitor_session(session_id):
                 print(f"Status: {current_status}")
                 last_status = current_status
 
-            # Stop monitoring for non-working statuses
-            if current_status in ["blocked", "expired", "suspend_requested", "suspend_requested_frontend"]:
+            # Stop monitoring for terminal statuses (only if we have valid status data)
+            if status and current_status in ["blocked", "expired", "suspend_requested", "suspend_requested_frontend"]:
                 # Handle user stopping the session
                 if current_status in ["suspend_requested", "suspend_requested_frontend"]:
                     print("Session stopped by user")
@@ -198,7 +199,8 @@ def monitor_session(session_id):
 
                 # Blocked = PR created successfully (can't auto-merge due to review policy)
                 if current_status == "blocked":
-                    if status and status.get("pull_request", {}).get("url"):
+                    pr_data = status.get("pull_request") or {}
+                    if pr_data.get("url"):
                         print("Session completed successfully - PR created")
                         write_log(session_id, "finished", status)
                     else:
