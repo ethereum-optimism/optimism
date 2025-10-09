@@ -16,10 +16,6 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { Types } from "scripts/libraries/Types.sol";
-import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
-import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
-import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
-import { ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
