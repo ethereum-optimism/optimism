@@ -151,7 +151,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlock(lgr, 9366100)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
