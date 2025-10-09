@@ -124,8 +124,8 @@ contract DeployOPChain is Script {
 
     // -------- Features --------
 
-    function isDevFeatureV2DisputeGamesEnabled(address opcmAddr) internal view returns (bool) {
-        IOPContractsManager opcm = IOPContractsManager(opcmAddr);
+    function isDevFeatureV2DisputeGamesEnabled(address _opcmAddr) internal view returns (bool) {
+        IOPContractsManager opcm = IOPContractsManager(_opcmAddr);
         return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
     }
 
