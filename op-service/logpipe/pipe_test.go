@@ -1,9 +1,8 @@
 package logpipe
 
 import (
-	"bytes"
 	"io"
-	"sync"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,35 +12,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestPipeLogs(t *testing.T) {
+func TestWriteToLogProcessor(t *testing.T) {
 	logger, capt := testlog.CaptureLogger(t, log.LevelTrace)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(2)
-
-	r, w := io.Pipe()
-	// Write the log output to the pipe
-	go func() {
-		defer wg.Done()
-		_, err := io.Copy(w, bytes.NewReader([]byte(`{"level": "DEBUG", "fields": {"message": "hello", "foo": 1}}`+"\n")))
-		require.NoError(t, err)
-		_, err = io.Copy(w, bytes.NewReader([]byte(`test invalid JSON`+"\n")))
-		require.NoError(t, err)
-		_, err = io.Copy(w, bytes.NewReader([]byte(`{"fields": {"message": "world", "bar": "sunny"}, "level": "INFO"}`+"\n")))
-		require.NoError(t, err)
-		require.NoError(t, w.Close())
-	}()
-	// Read the log output from the pipe
-	go func() {
-		defer wg.Done()
-		toLogger := ToLogger(logger)
-		logProc := func(line []byte) {
-			toLogger(ParseRustStructuredLogs(line))
-		}
-		err := PipeLogs(r, logProc)
-		require.NoError(t, err)
-	}()
-	wg.Wait()
+	logProc := LogProcessor(func(line []byte) {
+		ToLogger(logger)(ParseRustStructuredLogs(line))
+	})
+	_, err := io.Copy(logProc, strings.NewReader(`{"level": "DEBUG", "fields": {"message": "hello", "foo": 1}}`+"\n"))
+	require.NoError(t, err)
+	_, err = io.Copy(logProc, strings.NewReader(`test invalid JSON`+"\n"))
+	require.NoError(t, err)
+	_, err = io.Copy(logProc, strings.NewReader(`{"fields": {"message": "world", "bar": "sunny"}, "level": "INFO"}`+"\n"))
+	require.NoError(t, err)
 
 	entry1 := capt.FindLog(
 		testlog.NewLevelFilter(log.LevelDebug),
