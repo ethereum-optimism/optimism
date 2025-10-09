@@ -404,25 +404,10 @@ contract VerifyOPCM is Script {
         internal
         returns (bool)
     {
+        bool success = true;
+
         console.log();
         console.log(string.concat("Checking Contract: ", _target.field));
-        // Check if this is a V2 dispute game that should be skipped
-        if (_isV2DisputeGameImplementation(_target.name)) {
-            if (!_isV2DisputeGamesEnabled(_opcm)) {
-                if (_target.addr == address(0)) {
-                    console.log("  [SKIP] V2 dispute game not deployed (feature disabled)");
-                    console.log(string.concat("  Contract: ", _target.name));
-                    return true; // Consider this "verified" when feature is off
-                } else {
-                    console.log("  [FAIL] V2 dispute game deployed but feature disabled");
-                    console.log(string.concat("  Contract: ", _target.name));
-                    console.log(string.concat("  Address: ", vm.toString(_target.addr)));
-                    return false;
-                }
-            }
-            // If feature is enabled, continue with normal verification
-        }
-
         console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
         console.log(string.concat("  Contract: ", _target.name));
         console.log(string.concat("  Address: ", vm.toString(_target.addr)));
@@ -430,6 +415,20 @@ contract VerifyOPCM is Script {
         // Build the expected path to the artifact file.
         string memory artifactPath = _buildArtifactPath(_target.name);
         console.log(string.concat("  Expected Runtime Artifact: ", artifactPath));
+
+        // Check if this is a V2 dispute game that should be skipped
+        if (_isV2DisputeGameImplementation(_target.name)) {
+            if (!_isV2DisputeGamesEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] V2 dispute game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: V2 dispute game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
 
         // Load artifact information (bytecode, immutable refs) for detailed comparison
         ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);
@@ -472,7 +471,7 @@ contract VerifyOPCM is Script {
         }
 
         // Perform detailed bytecode comparison.
-        bool success = _compareBytecode(actualCode, expectedCode, _target.name, artifact, !_target.blueprint);
+        success = _compareBytecode(actualCode, expectedCode, _target.name, artifact, !_target.blueprint) && success;
 
         // If requested and this is not a blueprint, we also need to check the creation code.
         if (!_target.blueprint && !_skipConstructorVerification) {
