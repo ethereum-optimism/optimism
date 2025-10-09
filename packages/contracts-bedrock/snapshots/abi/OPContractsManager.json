@@ -427,16 +427,6 @@
             "internalType": "contract IDelayedWETH",
             "name": "delayedWETHPermissionlessGameProxy",
             "type": "address"
-          },
-          {
-            "internalType": "contract IFaultDisputeGameV2",
-            "name": "faultDisputeGameV2",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IPermissionedDisputeGameV2",
-            "name": "permissionedDisputeGameV2",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.DeployOutput",
@@ -1009,6 +999,17 @@
   {
     "inputs": [],
     "name": "InvalidChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "devFeature",
+        "type": "bytes32"
+      }
+    ],
+    "name": "InvalidDevFeatureAccess",
     "type": "error"
   },
   {
