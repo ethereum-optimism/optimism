@@ -4,7 +4,7 @@ pub use payload::{
     ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, FlashBlockDecoder,
     Metadata,
 };
-pub use service::FlashBlockService;
+pub use service::{FlashBlockBuildInfo, FlashBlockService};
 pub use ws::{WsConnect, WsFlashBlockStream};
 
 mod consensus;
@@ -28,3 +28,6 @@ pub type PendingBlockRx<N> = tokio::sync::watch::Receiver<Option<PendingFlashBlo
 /// [`FlashBlock`]: crate::FlashBlock
 pub type FlashBlockCompleteSequenceRx =
     tokio::sync::broadcast::Receiver<FlashBlockCompleteSequence>;
+
+/// Receiver that signals whether a [`FlashBlock`] is currently being built.
+pub type InProgressFlashBlockRx = tokio::sync::watch::Receiver<Option<FlashBlockBuildInfo>>;

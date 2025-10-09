@@ -42,7 +42,7 @@ where
     async fn local_pending_block(
         &self,
     ) -> Result<Option<BlockAndReceipts<Self::Primitives>>, Self::Error> {
-        if let Ok(Some(pending)) = self.pending_flashblock() {
+        if let Ok(Some(pending)) = self.pending_flashblock().await {
             return Ok(Some(pending.into_block_and_receipts()));
         }
 
@@ -70,7 +70,7 @@ where
     where
         Self: SpawnBlocking,
     {
-        let Ok(Some(pending_block)) = self.pending_flashblock() else {
+        let Ok(Some(pending_block)) = self.pending_flashblock().await else {
             return Ok(None);
         };
 

@@ -13,7 +13,7 @@ use crate::{
     OpEthApiError, SequencerClient,
 };
 use alloy_consensus::BlockHeader;
-use alloy_primitives::U256;
+use alloy_primitives::{B256, U256};
 use eyre::WrapErr;
 use op_alloy_network::Optimism;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
@@ -23,8 +23,8 @@ use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
-    ExecutionPayloadBaseV1, FlashBlockCompleteSequenceRx, FlashBlockService, PendingBlockRx,
-    WsFlashBlockStream,
+    ExecutionPayloadBaseV1, FlashBlockBuildInfo, FlashBlockCompleteSequenceRx, FlashBlockService,
+    InProgressFlashBlockRx, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
@@ -43,9 +43,17 @@ use reth_tasks::{
     pool::{BlockingTaskGuard, BlockingTaskPool},
     TaskSpawner,
 };
-use std::{fmt, fmt::Formatter, marker::PhantomData, sync::Arc, time::Instant};
-use tokio::sync::watch;
+use std::{
+    fmt::{self, Formatter},
+    marker::PhantomData,
+    sync::Arc,
+    time::Duration,
+};
+use tokio::{sync::watch, time};
 use tracing::info;
+
+/// Maximum duration to wait for a fresh flashblock when one is being built.
+const MAX_FLASHBLOCK_WAIT_DURATION: Duration = Duration::from_millis(50);
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -79,6 +87,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         min_suggested_priority_fee: U256,
         pending_block_rx: Option<PendingBlockRx<N::Primitives>>,
         flashblock_rx: Option<FlashBlockCompleteSequenceRx>,
+        in_progress_rx: Option<InProgressFlashBlockRx>,
     ) -> Self {
         let inner = Arc::new(OpEthApiInner {
             eth_api,
@@ -86,6 +95,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             min_suggested_priority_fee,
             pending_block_rx,
             flashblock_rx,
+            in_progress_rx,
         });
         Self { inner }
     }
@@ -109,15 +119,57 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblock_rx.as_ref().map(|rx| rx.resubscribe())
     }
 
+    /// Returns information about the flashblock currently being built, if any.
+    fn flashblock_build_info(&self) -> Option<FlashBlockBuildInfo> {
+        self.inner.in_progress_rx.as_ref().and_then(|rx| *rx.borrow())
+    }
+
+    /// Extracts pending block if it matches the expected parent hash.
+    fn extract_matching_block(
+        &self,
+        block: Option<&PendingFlashBlock<N::Primitives>>,
+        parent_hash: B256,
+    ) -> Option<PendingBlock<N::Primitives>> {
+        block.filter(|b| b.block().parent_hash() == parent_hash).map(|b| b.pending.clone())
+    }
+
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
     pub const fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
     }
 
+    /// Awaits a fresh flashblock if one is being built, otherwise returns current.
+    async fn flashblock(
+        &self,
+        parent_hash: B256,
+    ) -> eyre::Result<Option<PendingBlock<N::Primitives>>> {
+        let Some(rx) = self.inner.pending_block_rx.as_ref() else { return Ok(None) };
+
+        // Check if a flashblock is being built
+        if let Some(build_info) = self.flashblock_build_info() {
+            let current_index = rx.borrow().as_ref().map(|b| b.last_flashblock_index);
+
+            // Check if this is the first flashblock or the next consecutive index
+            let is_next_index = current_index.is_none_or(|idx| build_info.index == idx + 1);
+
+            // Wait only for relevant flashblocks: matching parent and next in sequence
+            if build_info.parent_hash == parent_hash && is_next_index {
+                let mut rx_clone = rx.clone();
+                // Wait up to MAX_FLASHBLOCK_WAIT_DURATION for a new flashblock to arrive
+                let _ = time::timeout(MAX_FLASHBLOCK_WAIT_DURATION, rx_clone.changed()).await;
+            }
+        }
+
+        // Fall back to current block
+        Ok(self.extract_matching_block(rx.borrow().as_ref(), parent_hash))
+    }
+
     /// Returns a [`PendingBlock`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
-    pub fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlock<N::Primitives>>>
+    ///
+    /// It may wait up to 50ms for a fresh flashblock if one is currently being built.
+    pub async fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlock<N::Primitives>>>
     where
         OpEthApiError: FromEvmError<N::Evm>,
         Rpc: RpcConvert<Primitives = N::Primitives>,
@@ -128,21 +180,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
             PendingBlockEnvOrigin::DerivedFromLatest(parent) => parent,
         };
 
-        let Some(rx) = self.inner.pending_block_rx.as_ref() else { return Ok(None) };
-        let pending_block = rx.borrow();
-        let Some(pending_block) = pending_block.as_ref() else { return Ok(None) };
-
-        let now = Instant::now();
-
-        // Is the pending block not expired and latest is its parent?
-        if pending.evm_env.block_env.number == U256::from(pending_block.block().number()) &&
-            parent.hash() == pending_block.block().parent_hash() &&
-            now <= pending_block.expires_at
-        {
-            return Ok(Some(pending_block.pending.clone()));
-        }
-
-        Ok(None)
+        self.flashblock(parent.hash()).await
     }
 }
 
@@ -330,6 +368,8 @@ pub struct OpEthApiInner<N: RpcNodeCore, Rpc: RpcConvert> {
     ///
     /// If set, then it provides sequences of flashblock built.
     flashblock_rx: Option<FlashBlockCompleteSequenceRx>,
+    /// Receiver that signals when a flashblock is being built
+    in_progress_rx: Option<InProgressFlashBlockRx>,
 }
 
 impl<N: RpcNodeCore, Rpc: RpcConvert> fmt::Debug for OpEthApiInner<N, Rpc> {
@@ -465,24 +505,28 @@ where
             None
         };
 
-        let rxs = if let Some(ws_url) = flashblocks_url {
-            info!(target: "reth:cli", %ws_url,  "Launching flashblocks service");
-            let (tx, pending_block_rx) = watch::channel(None);
-            let stream = WsFlashBlockStream::new(ws_url);
-            let service = FlashBlockService::new(
-                stream,
-                ctx.components.evm_config().clone(),
-                ctx.components.provider().clone(),
-                ctx.components.task_executor().clone(),
-            );
-            let flashblock_rx = service.subscribe_block_sequence();
-            ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
-            Some((pending_block_rx, flashblock_rx))
-        } else {
-            None
-        };
+        let (pending_block_rx, flashblock_rx, in_progress_rx) =
+            if let Some(ws_url) = flashblocks_url {
+                info!(target: "reth:cli", %ws_url, "Launching flashblocks service");
 
-        let (pending_block_rx, flashblock_rx) = rxs.unzip();
+                let (tx, pending_rx) = watch::channel(None);
+                let stream = WsFlashBlockStream::new(ws_url);
+                let service = FlashBlockService::new(
+                    stream,
+                    ctx.components.evm_config().clone(),
+                    ctx.components.provider().clone(),
+                    ctx.components.task_executor().clone(),
+                );
+
+                let flashblock_rx = service.subscribe_block_sequence();
+                let in_progress_rx = service.subscribe_in_progress();
+
+                ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
+
+                (Some(pending_rx), Some(flashblock_rx), Some(in_progress_rx))
+            } else {
+                (None, None, None)
+            };
 
         let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 
@@ -492,6 +536,7 @@ where
             U256::from(min_suggested_priority_fee),
             pending_block_rx,
             flashblock_rx,
+            in_progress_rx,
         ))
     }
 }
