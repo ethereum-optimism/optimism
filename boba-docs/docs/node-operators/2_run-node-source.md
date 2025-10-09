@@ -107,28 +107,11 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
   ```
 
-  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz).
+  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst).
 
   ```bash
-  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz
+  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
   ```
-
-- OP Mainnet
-
-  The **erigon** db can be downloaded from [Test in Prod OP Mainnet](https://op-erigon-backup.mainnet.testinprod.io).
-
-- OP Sepolia
-
-  The **erigon** db can be downloaded from [optimism sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/optimism-sepolia-erigon-db.tgz).
-
-  Or you can download the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json) and initialize the data directory with it.
-
-  ```bash
-  curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
-  erigon init --datadir=/db genesis.json
-  ```
-
-  The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
 
 ## Create a JWT Secret
 
