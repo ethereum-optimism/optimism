@@ -462,6 +462,7 @@ func generateHTMLReport(report *FlakeShakeReport) string {
 `)
 
 	normalizer := regexp.MustCompile(`(?m)^\s*\[?\d{4}-\d{2}-\d{2}.*$|\bt=\d{4}-\d{2}-\d{2}.*$|\b(duration|elapsed|took)[:=].*$`)
+	ansiStrip := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	classify := func(s string) string {
 		ls := strings.ToLower(s)
 		switch {
@@ -497,8 +498,27 @@ func generateHTMLReport(report *FlakeShakeReport) string {
 		}{}
 		typeSummary := map[string]int{}
 		for _, raw := range test.FailureLogs {
-			norm := normalizer.ReplaceAllString(raw, "")
+			// Extract human-readable content from Go test JSON events by keeping only non-empty Output fields.
+			processed := strings.TrimSpace(raw)
+			if strings.HasPrefix(processed, "{") {
+				var ev struct {
+					Output string `json:"Output"`
+				}
+				if json.Unmarshal([]byte(processed), &ev) == nil {
+					processed = strings.TrimSpace(ev.Output)
+				}
+			}
+			if processed == "" {
+				continue
+			}
+			// Strip ANSI color codes for readability
+			processed = ansiStrip.ReplaceAllString(processed, "")
+			// Normalize noisy timestamps/durations and trim
+			norm := normalizer.ReplaceAllString(processed, "")
 			norm = strings.TrimSpace(norm)
+			if norm == "" {
+				continue
+			}
 			sum := sha256.Sum256([]byte(norm))
 			key := fmt.Sprintf("%x", sum[:])
 			g := groups[key]
