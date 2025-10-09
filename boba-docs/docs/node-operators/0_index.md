@@ -14,7 +14,7 @@ The Rollup Node is responsible for taking data from Layer 1 (L1) and use it to c
 
 ### Execution Client
 
-The Execution Client takes care of running the block information it gets from the Rollup Node. It does this through a common method called JSON-RPC, using a set of rules known as the [Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions). Boba allows the use of either geth or erigon as the Execution Client.
+The Execution Client takes care of running the block information it gets from the Rollup Node. It does this through a common method called JSON-RPC, using a set of rules known as the [Engine API](https://github.com/ethereum/execution-apis/blob/main/src/engine/common.md#engine-api----common-definitions).
 
 ### Legacy Geth
 

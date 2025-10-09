@@ -28,6 +28,7 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
 | Geth   | 2024-01-18    | 2MB   | [Link](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz) | `b229c8e51e41a26bb21a84b329d3134ae5cc6541b04eb160aebd573f0e6b94ae` |
 | Erigon | 2024-02-13    | 586M  | [Link](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-snapshot-1126371.tgz) | `688fd431656b673d3f2c690d79277b6d659a51c48c7b73a5e36bb8fbfdbdea80` |
 | Erigon | 2024-3-01     | 956M  | [Link](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-snapshot-1857820.tgz) | `3464fa9c1f669ad3d26359e5c463c33d3d60735a7aafb8e10d2dfd4719a71c07` |
+| Geth   | 2025-10-02    | 135GB   | [Link](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst) | `578cdc9ae438986a7895e3c16485e8268c2eae9fafa622dd3f0c778b30a2a5a8` |
 
 ### BOBA Sepolia Testnet (Legacy)
 

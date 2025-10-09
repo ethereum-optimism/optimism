@@ -2,7 +2,7 @@
 
 This page provides a list of the necessary versions of node software and instructions on how to keep them updated.
 
-Our latest releases, notes and changelogs can be found on Github. `op-node` releases can be found [here](https://github.com/bobanetwork/boba/tags) and `op-erigon` release can be found [here](https://github.com/bobanetwork/op-erigon/releases).
+Our latest releases, notes and changelogs can be found on Github. `op-node` releases can be found [here](https://github.com/bobanetwork/boba/tags) and `op-geth` release can be found [here](https://github.com/bobanetwork/op-geth/releases).
 
 ## Required Version by Network
 
@@ -11,35 +11,33 @@ These are the minimal required versions for the `op-node`, `op-erigon` and `op-g
 | Network          | op-node                                                      | op-erigon                                                    | op-geth                                                      |
 | ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | Boba Mainnet | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Boba Sepolia | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Op Mainnet   | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Op Sepolia   | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
+| Boba Sepolia | [v1.14.1](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.6.17) | currently unsupported | [v1.101603.1](https://github.com/bobanetwork/op-geth/releases/tag/v1.101603.1) |
 
-## [op-node v1.6.17](https://github.com/bobanetwork/boba/releases/tag/v1.6.17)
+## [op-node v1.14.1](https://github.com/bobanetwork/boba/releases/tag/op-node/v1.14.1)
 
 **Description**
 
-This is a mandatory release for node operators on Boba Networks to support the L1 Pectra upgrade.
+This is a mandatory release for node operators on Boba Networks to support the L1 Fusaka upgrade.
 
 **Required Action**
 
 Upgrade your `op-node` software.
 
-## [op-erigon v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1)
+## op-erigon
 
 **Description**
 
-This is a mandatory release for node operators on Boba Networks to support the L1 Pectra upgrade.
+Unfortunately, op-erigon does not currently support Fusaka, once support is available, this page will be updated.
 
 **Required Action**
 
-Upgrade your `op-erigon` software.
+Migrate to op-geth for uninterrupted support
 
-## [op-geth v1.101503.0](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101503.0)
+## [op-geth v1.101603.1](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101603.1)
 
 **Description**
 
-This is a mandatory release for node operators on Boba Networks to support the L1 Pectra upgrade.
+This is a mandatory release for node operators on Boba Networks to support the L1 Fusaka upgrade.
 
 **Required Action**
 
