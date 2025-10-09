@@ -20,12 +20,18 @@ import (
 var oneHundred = new(big.Int).SetUint64(100)
 var oneMillion = new(big.Int).SetUint64(1_000_000)
 
-// IsthmusCostOracle implements OPCostOracle for the Isthmus and Jovian hard forks.
-type IsthmusCostOracle struct {
+type ForkName string
+const (
+	Isthmus ForkName = "isthmus"
+	Jovian  ForkName = "jovian"
+)
+
+// CostOracle implements OPCostOracle for the Isthmus and Jovian hard forks.
+type CostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
-	isJovian   bool // Indicates whether to use the Jovian formula (multiply by 100) instead of Isthmus formula (divide by 1e6)
+	fork ForkName
 }
 
 type costParams struct {
@@ -37,25 +43,25 @@ type costParams struct {
 	OperatorFeeConstant *big.Int
 }
 
-var _ OPCostOracle = (*IsthmusCostOracle)(nil)
+var _ OPCostOracle = (*CostOracle)(nil)
 
-func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCostOracle {
-	return &IsthmusCostOracle{
+func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *CostOracle {
+	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
-		isJovian:  false, // Default to Isthmus formula
+		fork: Isthmus,
 	}
 }
 
-func NewJovianCostOracle(client RPCClient, blockTime time.Duration) *IsthmusCostOracle {
-	return &IsthmusCostOracle{
+func NewJovianCostOracle(client RPCClient, blockTime time.Duration) *CostOracle {
+	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
-		isJovian:  true, // Use Jovian formula
+		fork: Jovian,
 	}
 }
 
-func (i *IsthmusCostOracle) Start(ctx context.Context) {
+func (i *CostOracle) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -66,7 +72,7 @@ func (i *IsthmusCostOracle) Start(ctx context.Context) {
 	}
 }
 
-func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
+func (i *CostOracle) SetParams(ctx context.Context) error {
 	batch := []rpc.BatchElem{
 		newCall("basefee()"),
 		newCall("baseFeeScalar()"),
@@ -94,7 +100,7 @@ func (i *IsthmusCostOracle) SetParams(ctx context.Context) error {
 	return nil
 }
 
-func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
+func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	params := i.costParams.Load()
 
 	l1CostFunc := types.NewL1CostFuncFjord(params.L1BaseFee, params.L1BlobBaseFee, params.L1BaseFeeScalar, params.L1BlobBaseFeeScalar)
@@ -103,13 +109,18 @@ func (i *IsthmusCostOracle) OPCost(tx *types.Transaction) *big.Int {
 	operatorCost := new(big.Int).SetUint64(tx.Gas())
 	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
 
-	if i.isJovian {
+
+	switch i.fork {
+	case Jovian:
 		// Jovian formula: multiply by 100
 		operatorCost.Mul(operatorCost, oneHundred)
-	} else {
+	case Isthmus:
 		// Isthmus formula: divide by 1e6
 		operatorCost.Div(operatorCost, oneMillion)
+	default:
+		panic(fmt.Sprintf("unknown fork: %s", i.fork))
 	}
+
 
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
 
