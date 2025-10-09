@@ -33,6 +33,7 @@ type pipelineList struct {
 type pipeline struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+	Number    int       `json:"number"`
 }
 
 type workflowList struct {
@@ -898,26 +899,12 @@ func resolveReportArtifactsURL(opts promoterOpts, ctx *apiCtx) string {
 					if j.Name != opts.reportJobName {
 						continue
 					}
-					if j.WebURL != "" {
-						url := j.WebURL
-						if !strings.Contains(url, "/artifacts") {
-							if strings.HasSuffix(url, "/") {
-								url = url + "artifacts"
-							} else {
-								url = url + "/artifacts"
-							}
-						}
-						return url
+					// Prefer constructing the app.circleci.com artifacts URL from pipeline number + workflow id + job number
+					if p.Number != 0 && j.JobNumber != 0 {
+						u := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s/%d/workflows/%s/jobs/%d/artifacts", opts.org, opts.repo, p.Number, w.ID, j.JobNumber)
+						return u
 					}
-					// Fallback: build URL from job number if web_url missing
-					if j.JobNumber != 0 {
-						url := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s?branch=%s", opts.org, opts.repo, url.QueryEscape(opts.branch))
-						_ = url // keep for future; better to use job-specific URL
-						// More specific URL pattern commonly used in UI includes workflow id; not available here.
-						// As a fallback, return the legacy build URL on circleci.com if org/repo/job present.
-						legacy := fmt.Sprintf("https://circleci.com/gh/%s/%s/%d", opts.org, opts.repo, j.JobNumber)
-						return legacy + "/artifacts"
-					}
+					return ""
 				}
 			}
 		}
