@@ -49,9 +49,9 @@ contract SaferSafes_TestInit is Test, SafeTestTools {
     }
 }
 
-/// @title SaferSafes_Configure_Test
+/// @title SaferSafes_Uncategorized_Test
 /// @notice Tests for SaferSafes configuration functionality.
-contract SaferSafes_Configure_Test is SaferSafes_TestInit {
+contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
     /// @notice Test successful configuration when liveness response period is at least 2x timelock delay.
     function test_configure_livenessModuleFirst_succeeds() public {
         uint256 timelockDelay = 7 days;
