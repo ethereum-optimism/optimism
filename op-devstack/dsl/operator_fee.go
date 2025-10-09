@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -135,8 +136,15 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(of.ctx)
+
 	of.require.NoError(err)
 	of.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+
+	blockHash := receipt.BlockHash
+	blockRef, err := from.el.stackEL().EthClient().BlockRefByHash(of.ctx, blockHash)
+	of.require.NoError(err)
+	blockTimestamp := blockRef.Time
+	isJovian:= of.l2Network.IsForkActive(rollup.Jovian, blockTimestamp)
 
 	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
 	of.require.NoError(err)
@@ -147,15 +155,16 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	if expectedScalar == 0 && expectedConstant == 0 {
 		expectedOperatorFee = big.NewInt(0)
 	} else {
-		// Check if Jovian is active to determine which formula to use
-		isJovian, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
+		isJovianinGPO, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
 		of.require.NoError(err)
 
 		operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))
 		if isJovian {
+			of.require.Equal(isJovianinGPO, true)
 			// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
 			operatorFee.Mul(operatorFee, big.NewInt(100))
 		} else {
+			of.require.Equal(isJovianinGPO, false)
 			// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
 			operatorFee.Div(operatorFee, big.NewInt(1000000))
 		}
@@ -183,4 +192,48 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 
 func (of *OperatorFee) RestoreOriginalConfig() {
 	of.SetOperatorFee(of.originalScalar, of.originalConstant)
+}
+
+func RunOperatorFeeTest(t devtest.T, l2Chain *L2Network, l1EL *L1ELNode, funderL1, funderL2 *Funder) {
+	fundAmount := eth.OneTenthEther
+	alice := funderL2.NewFundedEOA(fundAmount)
+	alice.WaitForBalance(fundAmount)
+	bob := funderL2.NewFundedEOA(eth.ZeroWei)
+
+	operatorFee := NewOperatorFee(t, l2Chain, l1EL)
+	operatorFee.CheckCompatibility()
+	systemOwner := operatorFee.GetSystemOwner()
+	funderL1.FundAtLeast(systemOwner, fundAmount)
+
+	// First, ensure L2 is synced with current L1 state before starting tests
+	t.Log("Ensuring L2 is synced with current L1 state...")
+	operatorFee.WaitForL2SyncWithCurrentL1State()
+
+	testCases := []struct {
+		name     string
+		scalar   uint32
+		constant uint64
+	}{
+		{"ZeroFees", 0, 0},
+		{"NonZeroFees", 300, 400},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t devtest.T) {
+			operatorFee.SetOperatorFee(tc.scalar, tc.constant)
+			operatorFee.WaitForL2Sync(tc.scalar, tc.constant)
+			operatorFee.VerifyL2Config(tc.scalar, tc.constant)
+
+			result := operatorFee.ValidateTransactionFees(alice, bob, big.NewInt(1000), tc.scalar, tc.constant)
+
+			t.Log("Test completed successfully:",
+				"testCase", tc.name,
+				"gasUsed", result.TransactionReceipt.GasUsed,
+				"actualTotalFee", result.ActualTotalFee.String(),
+				"expectedOperatorFee", result.ExpectedOperatorFee.String(),
+				"vaultBalanceIncrease", result.VaultBalanceIncrease.String())
+		})
+	}
+
+	operatorFee.RestoreOriginalConfig()
 }
