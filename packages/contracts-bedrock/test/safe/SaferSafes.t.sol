@@ -75,6 +75,7 @@ contract SaferSafes_Configure_Test is SaferSafes_TestInit {
             saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
         assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 
     function test_configure_timelockGuardFirst_succeeds() public {
@@ -99,9 +100,11 @@ contract SaferSafes_Configure_Test is SaferSafes_TestInit {
             saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
         assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 
-    /// @notice Test that attempting to enable the second component with incompatible config fails.
+    /// @notice Test that attempting to incorrectly configure the timelock guard after first configuring the liveness module
+    ///         fails.
     /// @dev This test would fail if timelock guard configuration also triggered validation
     function test_configure_livenessModuleFirstInvalidConfig_reverts() public {
         uint256 timelockDelay = 7 days;
@@ -116,8 +119,7 @@ contract SaferSafes_Configure_Test is SaferSafes_TestInit {
         vm.prank(address(safeInstance.safe));
         saferSafes.configureLivenessModule(moduleConfig);
 
-        // Now configure timelock guard - this depends on when validation is triggered
-        // Based on current behavior, this should succeed because validation doesn't happen during reconfiguration
+        // Now configure timelock guard
         vm.prank(address(safeInstance.safe));
         vm.expectRevert(SaferSafes.SaferSafes_InsufficientLivenessResponsePeriod.selector);
         saferSafes.configureTimelockGuard(timelockDelay);
