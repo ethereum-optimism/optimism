@@ -13,6 +13,12 @@ import { TimelockGuard } from "./TimelockGuard.sol";
 /// @dev This contract can be enabled simultaneously as both a module and a guard on a Safe:
 ///      - As a module: provides liveness challenge functionality to prevent multisig deadlock
 ///      - As a guard: provides timelock functionality for transaction delays and cancellation
+///      The two components in this contract are almost entirely independent of each other, and can be treated as
+///      separate extensions to the Safe. The only shared logic is the _checkCombinedConfig which runs at the end of the
+///      configuration functions for both components and ensures that the resulting configuration is valid.
+///      Either component can be enabled or disabled independently of the other.
+///      When installing either component, it should first be enabled, and then configured. If a component's
+///      functionality is not desired, then there is no need to enable or configure it.
 contract SaferSafes is LivenessModule2, TimelockGuard {
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
@@ -49,8 +55,8 @@ contract SaferSafes is LivenessModule2, TimelockGuard {
         }
 
         // The liveness response period must be at least twice the timelock delay, this is necessary to prevent a
-        // situation in which a
-        // Safe is not able to respond to a challenge.
+        // situation in which a Safe is not able to respond because there is insufficient time to respond to a challenge
+        // after the timelock delay has expired.
         if (livenessResponsePeriod < 2 * timelockDelay) {
             revert SaferSafes_InsufficientLivenessResponsePeriod();
         }
