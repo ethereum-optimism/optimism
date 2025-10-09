@@ -11,6 +11,10 @@ type FCUState struct {
 	Finalized uint64 `json:"finalized"`
 }
 
+type ELSyncPolicy interface {
+	ELSyncStatus(num uint64) ExecutePayloadStatus
+}
+
 type SyncTesterSession struct {
 	sync.Mutex
 
@@ -23,11 +27,10 @@ type SyncTesterSession struct {
 	// payloads
 	Payloads map[PayloadID]*ExecutionPayloadEnvelope `json:"-"`
 
-	ELSyncTarget uint64 `json:"el_sync_target"`
-	ELSyncActive bool   `json:"el_sync_active"`
+	ELSyncPolicy ELSyncPolicy `json:"-"`
+	ELSyncActive bool         `json:"el_sync_active"`
 
-	InitialState        FCUState `json:"initial_state"`
-	InitialELSyncActive bool     `json:"initial_el_sync_active"`
+	InitialState FCUState `json:"initial_state"`
 }
 
 func (s *SyncTesterSession) UpdateFCULatest(latest uint64) {
@@ -42,23 +45,17 @@ func (s *SyncTesterSession) UpdateFCUFinalized(finalized uint64) {
 	s.CurrentState.Finalized = finalized
 }
 
-func (s *SyncTesterSession) FinishELSync(target uint64) {
-	s.ELSyncActive = false
-	s.Validated = target
-}
-
-func (s *SyncTesterSession) IsELSyncFinished() bool {
-	return !s.ELSyncActive
-}
-
 func (s *SyncTesterSession) ResetSession() {
 	s.CurrentState = s.InitialState
 	s.Validated = s.InitialState.Latest
 	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
-	s.ELSyncActive = s.InitialELSyncActive
 }
 
-func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarget uint64, elSyncActive bool) *SyncTesterSession {
+func (s *SyncTesterSession) IsELSyncActive() bool {
+	return s.ELSyncActive
+}
+
+func NewSyncTesterSession(sessionID string, latest, safe, finalized uint64, elSyncActive bool, elSyncState ELSyncPolicy) *SyncTesterSession {
 	return &SyncTesterSession{
 		SessionID: sessionID,
 		Validated: latest,
@@ -68,13 +65,12 @@ func NewSyncTesterSession(sessionID string, latest, safe, finalized, elSyncTarge
 			Finalized: finalized,
 		},
 		Payloads:     make(map[PayloadID]*ExecutionPayloadEnvelope),
-		ELSyncTarget: elSyncTarget,
 		ELSyncActive: elSyncActive,
+		ELSyncPolicy: elSyncState,
 		InitialState: FCUState{
 			Latest:    latest,
 			Safe:      safe,
 			Finalized: finalized,
 		},
-		InitialELSyncActive: elSyncActive,
 	}
 }

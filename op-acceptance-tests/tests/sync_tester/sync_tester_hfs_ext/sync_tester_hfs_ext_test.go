@@ -191,7 +191,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 		}
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
-			presets.WithELSyncTarget(targetBlock),
+			presets.WithELSyncActive(),
 			presets.WithSyncTesterELInitialState(eth.FCUState{
 				Latest: blk,
 				Safe:   0,
