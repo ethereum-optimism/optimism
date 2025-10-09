@@ -276,13 +276,8 @@ abstract contract LivenessModule2 {
             )
         });
 
-        // Deactivate the guard
-        targetSafe.execTransactionFromModule({
-            to: address(targetSafe),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
-        });
+        // Disable this guard from the Safe (if and only if it is enabled).
+        _disableThisGuard(targetSafe);
 
         // Disable this module from the Safe
         _disableThisModule(targetSafe);
@@ -334,6 +329,24 @@ abstract contract LivenessModule2 {
 
         delete challengeStartTime[_safe];
         emit ChallengeCancelled(_safe);
+    }
+
+    /// @notice Internal function to disable this guard from the given Safe.
+    /// @dev Only disables the guard if it is enabled, otherwise does nothing in case another
+    ///      guard is enabled.
+    /// @param _targetSafe The Safe instance to disable this guard from.
+    function _disableThisGuard(Safe _targetSafe) internal {
+        // keccak256("guard_manager.guard.address") from GuardManager
+        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+        address guard = abi.decode(_targetSafe.getStorageAt(uint256(guardSlot), 1), (address));
+        if (guard == address(this)) {
+            _targetSafe.execTransactionFromModule({
+                to: address(_targetSafe),
+                value: 0,
+                operation: Enum.Operation.Call,
+                data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+            });
+        }
     }
 
     /// @notice Internal function to disable this module from the given Safe.
