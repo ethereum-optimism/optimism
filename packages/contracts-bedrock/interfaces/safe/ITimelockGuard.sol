@@ -82,7 +82,6 @@ interface ITimelockGuard {
         bytes memory _signatures
     )
         external;
-    function version() external view returns (string memory);
     function timelockConfiguration(address _safe) external view returns (uint256 timelockDelay);
     function maxCancellationThreshold(address _safe) external view returns (uint256);
     function pendingTransactions(address _safe)

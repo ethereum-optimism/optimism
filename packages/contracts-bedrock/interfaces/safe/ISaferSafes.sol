@@ -3,8 +3,9 @@ pragma solidity 0.8.15;
 
 import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
 import {Enum} from "safe-contracts/common/Enum.sol";
+import {ISemver} from "interfaces/universal/ISemver.sol";
 
-interface ISaferSafes {
+interface ISaferSafes is ISemver {
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
         address fallbackOwner;

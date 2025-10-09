@@ -7,6 +7,7 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 // Safe Extensions
 import { LivenessModule2 } from "./LivenessModule2.sol";
 import { TimelockGuard } from "./TimelockGuard.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title SaferSafes
 /// @notice Combined Safe extensions providing both liveness module and timelock guard functionality
@@ -19,15 +20,13 @@ import { TimelockGuard } from "./TimelockGuard.sol";
 ///      Either component can be enabled or disabled independently of the other.
 ///      When installing either component, it should first be enabled, and then configured. If a component's
 ///      functionality is not desired, then there is no need to enable or configure it.
-contract SaferSafes is LivenessModule2, TimelockGuard {
-    /// @notice Error for when the liveness response period is insufficient.
-    error SaferSafes_InsufficientLivenessResponsePeriod();
-
+contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
-    function version() public pure override(LivenessModule2, TimelockGuard) returns (string memory) {
-        return "1.0.0";
-    }
+    string public constant version = "1.0.0";
+
+    /// @notice Error for when the liveness response period is insufficient.
+    error SaferSafes_InsufficientLivenessResponsePeriod();
 
     /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
     ///         configuration is valid in the context of other extensions that are enabled on the Safe.

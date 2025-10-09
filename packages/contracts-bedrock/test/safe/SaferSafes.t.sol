@@ -103,8 +103,8 @@ contract SaferSafes_Configure_Test is SaferSafes_TestInit {
         assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 
-    /// @notice Test that attempting to incorrectly configure the timelock guard after first configuring the liveness module
-    ///         fails.
+    /// @notice Test that attempting to incorrectly configure the timelock guard after first configuring the liveness
+    /// module fails.
     /// @dev This test would fail if timelock guard configuration also triggered validation
     function test_configure_livenessModuleFirstInvalidConfig_reverts() public {
         uint256 timelockDelay = 7 days;
