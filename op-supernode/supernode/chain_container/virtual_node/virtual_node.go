@@ -13,8 +13,12 @@ import (
 )
 
 // defaultInnerNodeFactory is the default factory that creates a real op-node
-func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitOverload) (innerNode, error) {
-	return rollupNode.NewWithOverload(ctx, cfg, log, appVersion, m, initOverload)
+func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
+	var overrides rollupNode.InitializationOverrides
+	if initOverload != nil {
+		overrides = *initOverload
+	}
+	return rollupNode.NewWithOverride(ctx, cfg, log, appVersion, m, overrides)
 }
 
 var (
@@ -34,7 +38,7 @@ type innerNode interface {
 	Stop(ctx context.Context) error
 }
 
-type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitOverload) (innerNode, error)
+type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
 
 type VNState int
 
@@ -49,10 +53,10 @@ type simpleVirtualNode struct {
 	vnID       string
 	appVersion string
 
-	inner            innerNode                // Inner node instance
-	cfg              *opnodecfg.Config        // op-node config for the virtual node
-	initOverload     *rollupNode.InitOverload // Shared resources which are overridden by the supernode
-	innerNodeFactory innerNodeFactory         // Factory function to create inner node (overloadable for testing)
+	inner            innerNode                           // Inner node instance
+	cfg              *opnodecfg.Config                   // op-node config for the virtual node
+	initOverload     *rollupNode.InitializationOverrides // Shared resources which are overridden by the supernode
+	innerNodeFactory innerNodeFactory                    // Factory function to create inner node (overloadable for testing)
 
 	mu     sync.Mutex         // Protects state transitions
 	state  VNState            // Current lifecycle state
@@ -63,7 +67,7 @@ func generateVirtualNodeID() string {
 	return uuid.New().String()[:4]
 }
 
-func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitOverload, appVersion string) *simpleVirtualNode {
+func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) *simpleVirtualNode {
 	vnID := generateVirtualNodeID()
 	l := log.New("chain_id", cfg.Rollup.L2ChainID.String(), "vn_id", vnID)
 	return &simpleVirtualNode{

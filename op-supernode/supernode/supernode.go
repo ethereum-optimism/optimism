@@ -48,7 +48,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	}
 
 	// Initialize chain containers for each configured chain ID
-	// Pass shared resources via InitOverload to all containers
+	// Pass shared resources via InitializationOverrides to all containers
 	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
 	for _, id := range cfg.Chains {
@@ -57,12 +57,12 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			continue
 		}
 		chainID := types.ChainID(id)
-		initOverload := &rollupNode.InitOverload{
+		initOverrides := &rollupNode.InitializationOverrides{
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
 		}
 		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverload, nil, s.rpcRouter.SetHandler)
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.rpcServer = &http.Server{Addr: addr, Handler: s.rpcRouter}

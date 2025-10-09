@@ -65,7 +65,7 @@ func createTestLogger() gethlog.Logger {
 }
 
 func createMockFactory(mock *mockInnerNode) innerNodeFactory {
-	return func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitOverload) (innerNode, error) {
+	return func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error) {
 		return mock, nil
 	}
 }
@@ -76,7 +76,7 @@ func TestVirtualNode_Constructor(t *testing.T) {
 
 	cfg := createTestConfig()
 	log := createTestLogger()
-	initOverload := &rollupNode.InitOverload{}
+	initOverload := &rollupNode.InitializationOverrides{}
 	appVersion := "v1.0.0"
 
 	t.Run("creates node with correct config", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestVirtualNode_Lifecycle(t *testing.T) {
 
 	log := createTestLogger()
 	cfg := createTestConfig()
-	initOverload := &rollupNode.InitOverload{}
+	initOverload := &rollupNode.InitializationOverrides{}
 	appVersion := "test"
 
 	t.Run("Start with nil config returns error", func(t *testing.T) {
@@ -247,7 +247,7 @@ func TestVirtualNode_InnerNodeIntegration(t *testing.T) {
 
 	log := createTestLogger()
 	cfg := createTestConfig()
-	initOverload := &rollupNode.InitOverload{}
+	initOverload := &rollupNode.InitializationOverrides{}
 	appVersion := "test"
 
 	t.Run("Start calls inner node Start", func(t *testing.T) {

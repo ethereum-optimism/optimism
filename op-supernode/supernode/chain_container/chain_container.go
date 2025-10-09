@@ -26,7 +26,7 @@ type ChainContainer interface {
 	Resume(ctx context.Context) error
 }
 
-type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitOverload, appVersion string) virtual_node.VirtualNode
+type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
 
 type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
@@ -37,7 +37,7 @@ type simpleChainContainer struct {
 	stopped            chan struct{}
 	log                gethlog.Logger
 	chainID            types.ChainID
-	initOverload       *rollupNode.InitOverload             // Base shared resources for all virtual nodes
+	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
 	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
 	appVersion         string
@@ -49,7 +49,7 @@ func NewChainContainer(
 	vncfg *opnodecfg.Config,
 	log gethlog.Logger,
 	cfg config.CLIConfig,
-	initOverload *rollupNode.InitOverload,
+	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
 	setHandler func(chainID string, h http.Handler)) ChainContainer {
 	c := &simpleChainContainer{
@@ -76,7 +76,7 @@ func NewChainContainer(
 }
 
 // defaultVirtualNodeFactory is the default factory that creates a real VirtualNode
-func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitOverload, appVersion string) virtual_node.VirtualNode {
+func defaultVirtualNodeFactory(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode {
 	return virtual_node.NewVirtualNode(cfg, log, initOverload, appVersion)
 }
 
