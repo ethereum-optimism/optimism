@@ -76,7 +76,7 @@ func parseSession(r *http.Request) (*http.Request, error) {
 			return r, err
 		}
 		elSyncActive := query.Get(ELSyncActiveKey) == "true"
-		elSyncState := backend.NewWindowSyncPolicy(3, 5)
+		elSyncState := backend.NewWindowSyncPolicy(2, 5)
 		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncActive, elSyncState)
 		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
