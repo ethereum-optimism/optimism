@@ -113,9 +113,7 @@ func (n *SuperNode) Start() {
 
 	// Create Supernode instance
 	ctx, cancel := context.WithCancel(n.p.Ctx())
-	sn, err := supernode.New(ctx, n.logger, "devstack", func(err error) {
-		n.p.Require().NoError(err, "supernode critical error")
-	}, cfg, vnCfgs)
+	sn, err := supernode.New(ctx, n.logger, "devstack", func(err error) { n.p.Require().NoError(err, "supernode critical error") }, cfg, vnCfgs)
 	n.p.Require().NoError(err, "supernode failed to create")
 	n.sn = sn
 	n.cancel = cancel

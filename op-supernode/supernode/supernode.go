@@ -52,16 +52,16 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
 	for _, id := range cfg.Chains {
-		if vnCfgs[types.ChainID(id)] == nil {
-			log.Error("missing virtual node config for chain", "chain", id)
-			continue
-		}
 		chainID := types.ChainID(id)
 		initOverrides := &rollupNode.InitializationOverrides{
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
 		}
 		// no rpc handler is passed to the chain container, it will create a new one per (re)start using rpcRouter.SetHandler
+		if vnCfgs[chainID] == nil {
+			log.Error("missing virtual node config for chain", "chain", id)
+			continue
+		}
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))

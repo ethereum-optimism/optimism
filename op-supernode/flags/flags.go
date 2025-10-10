@@ -5,6 +5,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -80,4 +81,28 @@ func CheckRequired(ctx *cli.Context) error {
 		}
 	}
 	return nil
+}
+
+// FullDynamicFlags returns the base supernode flags plus dynamically-generated
+// vn.* flags cloned from op-node flags for all-chains and per-chain IDs.
+func FullDynamicFlags(chains []uint64) []cli.Flag {
+	// start with the base supernode flags
+	final := make([]cli.Flag, 0, len(Flags)+len(opnodeflags.Flags)*(1+len(chains)))
+	final = append(final, Flags...)
+
+	// for each op-node flag, add vn.all.<name> and vn.<id>.<name> variants
+	for _, f := range opnodeflags.Flags {
+		baseName := f.Names()[0]
+		// vn.all.* env var/alias prefixing
+		allEnvs := prefixEnvVar(f, "VN_ALL_")
+		allAliases := prefixAliases(f, VNFlagGlobalPrefix)
+		final = append(final, renameFlagWithEnv(f, VNFlagGlobalPrefix+baseName, allEnvs, allAliases))
+		// per-chain
+		for _, id := range chains {
+			perChainEnvs := prefixEnvVar(f, fmt.Sprintf("VN_%d_", id))
+			perAliases := prefixAliases(f, fmt.Sprintf("%s%d.", VNFlagNamePrefix, id))
+			final = append(final, renameFlagWithEnv(f, fmt.Sprintf("%s%d.%s", VNFlagNamePrefix, id, baseName), perChainEnvs, perAliases))
+		}
+	}
+	return final
 }

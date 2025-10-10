@@ -18,7 +18,6 @@ type CLIConfig struct {
 	DataDir       string
 	L1NodeAddr    string
 	L1BeaconAddr  string
-	VNFlags       flags.VNFlagMap
 	RPCConfig     oprpc.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -45,14 +44,13 @@ func (c *CLIConfig) Check() error {
 	return nil
 }
 
-func NewConfig(ctx *cli.Context, vnFlags flags.VNFlagMap) *CLIConfig {
+func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		Sample:        ctx.String(flags.SampleFlag.Name),
 		Chains:        ctx.Uint64Slice(flags.ChainsFlag.Name),
 		DataDir:       ctx.String(flags.DataDirFlag.Name),
 		L1NodeAddr:    ctx.String(flags.L1NodeAddr.Name),
 		L1BeaconAddr:  ctx.String(flags.L1BeaconAddr.Name),
-		VNFlags:       vnFlags,
 		RPCConfig:     oprpc.ReadCLIConfig(ctx),
 		LogConfig:     oplog.ReadCLIConfig(ctx),
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),

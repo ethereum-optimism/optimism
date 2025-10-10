@@ -18,7 +18,7 @@ func LoadSignerSetup(ctx cliiface.Context, logger log.Logger) (p2p.SignerSetup, 
 	key := ctx.String(flags.SequencerP2PKeyName)
 	signerCfg := opsigner.ReadCLIConfig(ctx)
 	if key != "" && signerCfg.Enabled() {
-		return nil, fmt.Errorf("cannot specify both a private key and a remote signer for sequencer p2p")
+		return nil, fmt.Errorf("cannot specify both a private key and a remote signer for sequencer p2p. %v %v", key, signerCfg)
 	}
 	if key != "" {
 		// Mnemonics are bad because they leak *all* keys when they leak.

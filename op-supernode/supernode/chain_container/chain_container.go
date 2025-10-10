@@ -64,13 +64,9 @@ func NewChainContainer(
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
-	// TODO: Enable P2P for Virtual Nodes
-	// (can be delayed assuming lite-node operates unsafe)
-	vncfg.P2P = &p2p.Config{
-		DisableP2P: true,
-	}
+	// Disable P2P and inherit paths from supernode base config
+	vncfg.P2P = &p2p.Config{DisableP2P: true}
 	vncfg.SafeDBPath = c.subPath("safe_db")
-	// inheret RPC config from the supernode
 	vncfg.RPC = cfg.RPCConfig
 	return c
 }
@@ -87,6 +83,10 @@ func (c *simpleChainContainer) subPath(path string) string {
 func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
 	for {
+		// Refresh per-start derived fields
+		c.vncfg.P2P = &p2p.Config{DisableP2P: true}
+		c.vncfg.SafeDBPath = c.subPath("safe_db")
+		c.vncfg.RPC = c.cfg.RPCConfig
 		// create a fresh handler per (re)start, swap it into the router, and inject into overload
 		h := oprpc.NewHandler("", oprpc.WithLogger(c.log.New("chain_id", c.chainID.String())))
 		if c.setHandler != nil {
