@@ -677,6 +677,27 @@ func (e *EngineController) FetchAndInsertRemotePayloadIfMissing(ctx context.Cont
 	return remoteRef.Hash, remoteRef, needsReorg, nil
 }
 
+// FetchRemoteL2BlockRef queries a block ref from the remote L2 safe source by label.
+// This is a lightweight version of FetchAndInsertRemotePayloadIfMissing that only fetches
+// the block reference without inserting the payload into the local EL.
+func (e *EngineController) FetchRemoteL2BlockRef(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	if e.safeSourceL2Client == nil {
+		return eth.L2BlockRef{}, fmt.Errorf("safe source L2 client not configured")
+	}
+
+	remoteRef, err := e.safeSourceL2Client.L2BlockRefByLabel(ctx, label)
+	if err != nil {
+		return eth.L2BlockRef{}, fmt.Errorf("failed to fetch %s block from remote L2: %w", label, err)
+	}
+
+	return remoteRef, nil
+}
+
+// L2BlockRefByNumber queries a block ref from the local EL by number.
+func (e *EngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return e.engine.L2BlockRefByNumber(ctx, num)
+}
+
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
 // Returns boolean which decides to trigger FCU.
 func (e *EngineController) shouldTryBackupUnsafeReorg() bool {

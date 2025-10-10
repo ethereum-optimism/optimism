@@ -375,22 +375,28 @@ func (s *Driver) eventLoop() {
 func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
 	s.log.Debug("syncSafeHeadFromL2: fetching finalized/safe from remote L2")
 
-	// Fetch finalized first, then safe to maintain the invariant finalized <= safe
-	_, remoteFinalizedRef, _, finalizedErr := s.SyncDeriver.Engine.FetchAndInsertRemotePayloadIfMissing(ctx, eth.Finalized)
-	_, remoteSafeRef, safeNeedsReorg, safeErr := s.SyncDeriver.Engine.FetchAndInsertRemotePayloadIfMissing(ctx, eth.Safe)
-
-	// Log and return on any errors
-	if finalizedErr != nil {
-		s.log.Warn("Failed to fetch finalized block from remote L2", "err", finalizedErr)
-		return finalizedErr
-	}
-	if safeErr != nil {
-		s.log.Warn("Failed to fetch safe block from remote L2", "err", safeErr)
-		return safeErr
+	// Fetch finalized and safe refs from remote L2
+	remoteFinalizedRef, err := s.SyncDeriver.Engine.FetchRemoteL2BlockRef(ctx, eth.Finalized)
+	if err != nil {
+		s.log.Warn("Failed to fetch finalized block from remote L2", "err", err)
+		return err
 	}
 
-	// If safe block caused a divergence, set unsafe head to safe head to trigger reorg
-	if safeNeedsReorg {
+	remoteSafeRef, err := s.SyncDeriver.Engine.FetchRemoteL2BlockRef(ctx, eth.Safe)
+	if err != nil {
+		s.log.Warn("Failed to fetch safe block from remote L2", "err", err)
+		return err
+	}
+
+	// Check if remote safe block is on our canonical chain
+	localRef, err := s.SyncDeriver.Engine.L2BlockRefByNumber(ctx, remoteSafeRef.Number)
+	if err != nil || localRef.Hash != remoteSafeRef.Hash {
+		// Either we don't have the block yet, or it's a different hash (reorg needed)
+		s.log.Info("Remote safe block not on canonical chain, advancing unsafe head",
+			"remote_safe", remoteSafeRef.Number,
+			"remote_hash", remoteSafeRef.Hash,
+			"local_err", err,
+			"needs_reorg", err == nil && localRef.Hash != remoteSafeRef.Hash)
 		s.SyncDeriver.Engine.SetUnsafeHead(remoteSafeRef)
 	}
 
