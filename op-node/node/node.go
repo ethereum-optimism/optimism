@@ -275,7 +275,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		}
 	}
 
-	// Expose metrics registry to external supervisor if requested
+	// Expose metrics registry to provided registry if requested
 	if overrides.MetricsRegistry != nil && n.metrics != nil {
 		if reg := n.metrics.Registry(); reg != nil {
 			overrides.MetricsRegistry(reg)
@@ -618,6 +618,16 @@ func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 }
 
 func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) error {
+	// Register the main optimism namespace API
+	// The optimism namespace may already be registered
+	api := NewNodeAPI(&cfg.Rollup, cfg.DependencySet, node.l2Source.L2Client, node.l2Driver, node.safeDB, node.log)
+	if err := handler.AddAPI(rpc.API{
+		Namespace: "optimism",
+		Service:   api,
+	}); err != nil {
+		return fmt.Errorf("failed to add Optimism API: %w", err)
+	}
+
 	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
 		if err := handler.AddAPI(rpc.API{
 			Namespace: p2p.NamespaceRPC,
@@ -651,16 +661,6 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 func initMetricsServer(cfg *config.Config, node *OpNode) (*httputil.HTTPServer, error) {
 	if !cfg.Metrics.Enabled {
 		node.log.Info("metrics disabled")
-		// Even if disabled, expose registry to external supervisor if available
-		if node.metrics != nil && node.metrics.Registry() != nil && node != nil && cfg != nil {
-			if overrides := node; overrides != nil {
-				// noop: registry exposure handled below when enabled, and when MetricsRegistry override is set
-			}
-		}
-		if node != nil && node.metrics != nil && node.metrics.Registry() != nil && cfg != nil {
-			// Call override if provided
-			// Note: we don't have direct access to InitializationOverrides here; pass via node? handled earlier in init
-		}
 		return nil, nil
 	}
 	node.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)

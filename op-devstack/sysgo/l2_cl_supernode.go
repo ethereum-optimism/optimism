@@ -206,6 +206,10 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
+		// Get L1 network to access L1 chain config
+		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
+		require.True(ok, "l1 network required")
+
 		_, jwtSecret := orch.writeDefaultJWT()
 
 		logger := p.Logger()
@@ -225,6 +229,7 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 					MaxConcurrency:   10,
 					CacheSize:        0,
 				},
+				L1ChainConfig: l1Net.genesis.Config,
 				L2: &config.L2EndpointConfig{
 					L2EngineAddr:      l2EngineAddr,
 					L2EngineJWTSecret: jwtSecret,
@@ -294,7 +299,7 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			deadline := time.Now().Add(15 * time.Second)
 			for {
 				if time.Now().After(deadline) {
-					break
+					require.FailNow(fmt.Sprintf("timed out waiting for RPC to be ready at %s", u))
 				}
 				rpcCl, err := client.NewRPC(p.Ctx(), logger, u, client.WithLazyDial())
 				if err == nil {
