@@ -15,6 +15,6 @@ Node operators will need to upgrade to the respective releases before the activa
 
 * op-erigon at [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1)
 
-> [!NOTE]
->
-> Full node operators, meaning those who are running op-geth with `gc-mode=full`, will need to reference the [`op-geth v1.101411.8`release notes](https://github.com/bobanetwork/op-geth/releases/tag/v1.101411.8) to handle an intermediate upgrade step before upgrading to the latest release. Archive node operators, `gc-mode=archive`, can skip this step and upgrade directly to the latest release.
+:::note
+Full node operators, meaning those who are running op-geth with `gc-mode=full`, will need to reference the [`op-geth v1.101411.8`release notes](https://github.com/bobanetwork/op-geth/releases/tag/v1.101411.8) to handle an intermediate upgrade step before upgrading to the latest release. Archive node operators, `gc-mode=archive`, can skip this step and upgrade directly to the latest release.
+:::
