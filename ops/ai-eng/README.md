@@ -29,7 +29,7 @@ just ai-contracts-test
 AI-powered code review rules for Solidity files in pull requests.
 
 - **Purpose**: Automated PR reviews following project standards
-- **Status**: 🔧 Configuration
+- **Status**: ✅ Active
 - **Tech**: Graphite + Diamond
 - **Docs**: [graphite/rules.md](graphite/rules.md)
 
