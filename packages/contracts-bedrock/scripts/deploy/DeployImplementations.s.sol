@@ -40,7 +40,6 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployImplementations is Script {
@@ -61,7 +60,7 @@ contract DeployImplementations is Script {
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
-        address upgradeController;
+        address l1ProxyAdminOwner;
         address challenger;
     }
 
@@ -95,6 +94,12 @@ contract DeployImplementations is Script {
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
 
     // -------- Core Deployment Methods --------
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
 
     function run(Input memory _input) public returns (Output memory output_) {
         assertValidInput(_input);
@@ -200,8 +205,7 @@ contract DeployImplementations is Script {
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin,
-                    _input.upgradeController
+                    _input.superchainProxyAdmin
                 )
             )
         );
@@ -627,7 +631,7 @@ contract DeployImplementations is Script {
                         (
                             opcmImplementations,
                             _input.superchainConfigProxy,
-                            _input.upgradeController, // Proxy admin owner
+                            _input.l1ProxyAdminOwner,
                             _input.challenger,
                             _input.withdrawalDelaySeconds,
                             _input.devFeatureBitmap
@@ -692,10 +696,10 @@ contract DeployImplementations is Script {
         require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
-        require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
+        require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) private view {
+    function assertValidOutput(Input memory _input, Output memory _output) private {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -775,8 +779,7 @@ contract DeployImplementations is Script {
             _isProxy: false
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
-        // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
-        ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }

@@ -59,7 +59,7 @@ interface IOPContractsManagerGameTypeAdder {
         returns (IOPContractsManager.AddGameOutput[] memory);
 
     function updatePrestate(
-        IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs,
+        IOPContractsManager.UpdatePrestateInput[] memory _prestateUpdateInputs,
         address _superchainConfig
     )
         external;
@@ -225,6 +225,13 @@ interface IOPContractsManager {
         Claim absolutePrestate;
     }
 
+    /// @notice The input required to identify a chain for updating prestates
+    struct UpdatePrestateInput {
+        ISystemConfig systemConfigProxy;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
+    }
+
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
@@ -307,8 +314,7 @@ interface IOPContractsManager {
         IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     )
         external;
 
@@ -345,8 +351,8 @@ interface IOPContractsManager {
     function addGameType(AddGameInput[] memory _gameConfigs) external returns (AddGameOutput[] memory);
 
     /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
-    /// @param _prestateUpdateInputs The new prestate hash to use
-    function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) external;
+    /// @param _prestateUpdateInputs The new prestates to use
+    function updatePrestate(UpdatePrestateInput[] memory _prestateUpdateInputs) external;
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
@@ -383,6 +389,4 @@ interface IOPContractsManager {
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
-
-    function upgradeController() external view returns (address);
 }

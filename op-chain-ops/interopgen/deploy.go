@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -27,10 +28,6 @@ var (
 	// sysGenesisDeployer is used as tx.origin/msg.sender on system genesis script calls.
 	// At the end we verify none of the deployed contracts persist (there may be temporary ones, to insert bytecode).
 	sysGenesisDeployer = common.Address(crypto.Keccak256([]byte("System genesis deployer"))[12:])
-
-	// OptimismPortalInteropDevFlag is the feature bitmap that enables the OptimismPortalInterop contract.
-	OptimismPortalInteropDevFlag = common.Hash{31: 0x01} // 0x0000000000000000000000000000000000000000000000000000000000000001
-
 )
 
 func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, cfg *WorldConfig) (*WorldDeployment, *WorldOutput, error) {
@@ -195,7 +192,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		DevFeatureBitmap:                OptimismPortalInteropDevFlag,
+		DevFeatureBitmap:                deployer.OptimismPortalInteropDevFlag,
 		FaultGameV2MaxGameDepth:         big.NewInt(73),
 		FaultGameV2SplitDepth:           big.NewInt(30),
 		FaultGameV2ClockExtension:       big.NewInt(10800),
@@ -203,7 +200,7 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
-		UpgradeController:               superCfg.ProxyAdminOwner,
+		L1ProxyAdminOwner:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
@@ -229,7 +226,12 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
+	deployOPChainScript, err := opcm.NewDeployOPChainScript(l1Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
+	}
+
+	output, err := deployOPChainScript.Run(opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
 		SystemConfigOwner:            cfg.SystemConfigOwner,
 		Batcher:                      cfg.BatchSenderAddress,
@@ -244,8 +246,8 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		GasLimit:                     cfg.GasLimit,
 		DisputeGameType:              cfg.DisputeGameType,
 		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:            cfg.DisputeSplitDepth,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(cfg.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(cfg.DisputeSplitDepth),
 		DisputeClockExtension:        cfg.DisputeClockExtension,
 		DisputeMaxClockDuration:      cfg.DisputeMaxClockDuration,
 		AllowCustomDisputeParameters: true,
@@ -258,7 +260,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	// Collect deployment addresses
 	return &L2Deployment{
-		L2OpchainDeployment: L2OpchainDeployment(output),
+		L2OpchainDeployment: NewL2OPChainDeploymentFromDeployOPChainOutput(output),
 	}, nil
 }
 

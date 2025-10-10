@@ -360,17 +360,17 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
+            "internalType": "Claim",
+            "name": "cannonPrestate",
+            "type": "bytes32"
           },
           {
             "internalType": "Claim",
-            "name": "absolutePrestate",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           }
         ],
-        "internalType": "struct OPContractsManager.OpChainConfig[]",
+        "internalType": "struct OPContractsManager.UpdatePrestateInput[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
       }

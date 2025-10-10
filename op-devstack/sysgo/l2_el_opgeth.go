@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
@@ -25,8 +26,10 @@ type OpGeth struct {
 	id            stack.L2ELNodeID
 	l2Net         *L2Network
 	jwtPath       string
+	jwtSecret     [32]byte
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
+	readOnly      bool
 
 	authRPC string
 	userRPC string
@@ -55,6 +58,15 @@ func (n *OpGeth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
+	// ReadOnly cannot expose auth RPC
+	var engineCl client.RPC
+	if !n.readOnly {
+		auth := rpc.WithHTTPAuth(gn.NewJWTAuth(n.jwtSecret))
+		engineCl, err = client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC, client.WithGethRPCOptions(auth))
+		require.NoError(err)
+		system.T().Cleanup(engineCl.Close)
+	}
+
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
@@ -63,7 +75,8 @@ func (n *OpGeth) hydrate(system stack.ExtensibleSystem) {
 			Client:       rpcCl,
 			ChainID:      n.id.ChainID(),
 		},
-		ID: n.id,
+		EngineClient: engineCl,
+		ID:           n.id,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
@@ -138,7 +151,7 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
 		L2ELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
 
-		jwtPath, _ := orch.writeDefaultJWT()
+		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
 		useInterop := l2Net.genesis.Config.InteropTime != nil
 
@@ -158,6 +171,7 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			logger:        logger,
 			l2Net:         l2Net,
 			jwtPath:       jwtPath,
+			jwtSecret:     jwtSecret,
 			supervisorRPC: supervisorRPC,
 		}
 		l2EL.Start()

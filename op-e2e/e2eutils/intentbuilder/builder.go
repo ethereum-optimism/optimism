@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -28,6 +29,9 @@ type L1Configurator interface {
 	WithGasLimit(v uint64) L1Configurator
 	WithExcessBlobGas(v uint64) L1Configurator
 	WithPragueOffset(v uint64) L1Configurator
+	WithOsakaOffset(v uint64) L1Configurator
+	WithBPO1Offset(v uint64) L1Configurator
+	WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
 }
 
@@ -300,6 +304,24 @@ func (c *l1Configurator) WithExcessBlobGas(v uint64) L1Configurator {
 func (c *l1Configurator) WithPragueOffset(v uint64) L1Configurator {
 	c.initL1DevGenesisParams()
 	c.builder.intent.L1DevGenesisParams.PragueTimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithOsakaOffset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.OsakaTimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithBPO1Offset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BPO1TimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BlobSchedule = schedule
 	return c
 }
 

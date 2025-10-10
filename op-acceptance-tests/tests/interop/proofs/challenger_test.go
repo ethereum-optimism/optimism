@@ -15,7 +15,6 @@ import (
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
-	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,

@@ -1,17 +1,16 @@
-import os
+"""
+Script to create and monitor Devin AI sessions for contract test maintenance.
+Loads prompt from the prompt renderer output and sends it to the Devin API,
+then monitors the session until completion while logging the results.
+"""
+
+from datetime import datetime
+import glob
 import json
+import os
+from pathlib import Path
 import time
 import urllib.request
-import glob
-from datetime import datetime
-
-# Load .env file
-if os.path.exists(".env"):
-    with open(".env") as f:
-        for line in f:
-            if "=" in line and not line.strip().startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value.strip("\"'").strip()
 
 
 def find_prompt_file():
@@ -34,9 +33,8 @@ def load_prompt_from_file(file_path):
         return f.read().strip()
 
 
-def log_session(session_id, status, session_data):
-    """Log PR link and final status to JSONL file."""
-    # Extract run_id and selected files from existing data
+def write_log(session_id, status, session_data):
+    """Write log with full session information."""
     try:
         prompt_file = find_prompt_file()
         run_id = os.path.basename(prompt_file).replace("_prompt.md", "")
@@ -57,7 +55,16 @@ def log_session(session_id, status, session_data):
         run_time = None
         selected_files = {}
 
+    # Read system version
+    version_file = Path(__file__).parent.parent.parent / "VERSION"
+    try:
+        with open(version_file, "r") as f:
+            system_version = f.read().strip()
+    except (FileNotFoundError, IOError):
+        system_version = "unknown"
+
     log_entry = {
+        "system_version": system_version,
         "run_id": run_id,
         "run_time": run_time,
         "devin_session_id": session_id,
@@ -67,20 +74,32 @@ def log_session(session_id, status, session_data):
 
     # Only add PR link if status is finished
     if status == "finished" and session_data:
-        pr_url = session_data.get("pull_request", {}).get("url")
+        pr_data = session_data.get("pull_request") or {}
+        pr_url = pr_data.get("url")
         if pr_url:
             log_entry["pull_request_url"] = pr_url
 
-    with open("../../log.jsonl", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
+    with open("../../log.json", "w") as f:
+        json.dump(log_entry, f)
 
 
 def _make_request(url, headers, data=None, method="GET"):
     """Make HTTP request to Devin API and return JSON response."""
     try:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code in [502, 504]:
+            print(f"Server error ({e.code}) - will retry")
+            return None
+        else:
+            print(f"Request failed: {method} {url}")
+            print(f"Error: {e}")
+            raise
+    except TimeoutError as e:
+        print(f"Request timeout - will retry")
+        return None
     except Exception as e:
         print(f"Request failed: {method} {url}")
         print(f"Error: {e}")
@@ -128,22 +147,72 @@ def monitor_session(session_id):
     api_key, base_url = _validate_environment()
     headers = _create_headers(api_key)
     last_status = None
+    retry_delay = 60  # Start with 1 minute
+    setup_printed = False
+    timeout_count = 0
 
     while True:
         try:
             status = _make_request(f"{base_url}/sessions/{session_id}", headers)
+
+            # Handle server timeout (no response) - retry with backoff
+            if status is None:
+                timeout_count += 1
+                # Only print after 3rd consecutive timeout to reduce noise
+                if timeout_count >= 3:
+                    print(f"API slow to respond, still monitoring session... (retry in {retry_delay}s)")
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 480)  # Cap at 8 minutes
+                continue
+
+            # Reset retry delay and timeout count on successful request
+            retry_delay = 60
+            if timeout_count > 0:
+                timeout_count = 0
+
             current_status = status.get("status_enum")
+
+            # Handle Devin setup phase (status_enum is None but we got a response)
+            if current_status is None:
+                if not setup_printed:
+                    print("Devin is setting up...")
+                    setup_printed = True
+                time.sleep(5)
+                continue
+
+            # Print setup completion message once
+            if setup_printed and current_status:
+                print("Devin finished setup")
+                setup_printed = False
 
             # Only print when status changes and is meaningful
             if current_status and current_status != last_status:
                 print(f"Status: {current_status}")
                 last_status = current_status
 
-            # Stop monitoring for non-working statuses
-            if current_status in ["blocked", "expired", "finished"]:
-                print(f"Session finished with status: {current_status}")
-                log_session(session_id, current_status, status)
-                return
+            # Stop monitoring for terminal statuses (only if we have valid status data)
+            if status and current_status in ["blocked", "expired", "suspend_requested", "suspend_requested_frontend"]:
+                # Handle user stopping the session
+                if current_status in ["suspend_requested", "suspend_requested_frontend"]:
+                    print("Session stopped by user")
+                    return
+
+                # Blocked = PR created successfully (can't auto-merge due to review policy)
+                if current_status == "blocked":
+                    pr_data = status.get("pull_request") or {}
+                    if pr_data.get("url"):
+                        print("Session completed successfully - PR created")
+                        write_log(session_id, "finished", status)
+                    else:
+                        print(f"Session blocked without PR - check Devin web interface")
+                        write_log(session_id, "blocked", status)
+                    return
+
+                # Expired = session timed out
+                if current_status == "expired":
+                    print(f"Session expired")
+                    write_log(session_id, "expired", status)
+                    return
 
             time.sleep(5)
         except KeyboardInterrupt:

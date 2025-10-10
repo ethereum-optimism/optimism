@@ -40,11 +40,6 @@
         "internalType": "contract IProxyAdmin",
         "name": "_superchainProxyAdmin",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_upgradeController",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -774,17 +769,17 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
+            "internalType": "Claim",
+            "name": "cannonPrestate",
+            "type": "bytes32"
           },
           {
             "internalType": "Claim",
-            "name": "absolutePrestate",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           }
         ],
-        "internalType": "struct OPContractsManager.OpChainConfig[]",
+        "internalType": "struct OPContractsManager.UpdatePrestateInput[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
       }
@@ -822,19 +817,6 @@
     "name": "upgrade",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "upgradeController",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

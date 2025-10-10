@@ -139,6 +139,12 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		DevL1DeployConfig:  config.DevL1DeployConfig,
 		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
 		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
+		L1OsakaTimeOffset:  (*uint64)(config.L1OsakaTimeOffset),
+		L1BPO1TimeOffset:   (*uint64)(config.L1BPO1TimeOffset),
+		L1BPO2TimeOffset:   (*uint64)(config.L1BPO2TimeOffset),
+		L1BPO3TimeOffset:   (*uint64)(config.L1BPO3TimeOffset),
+		L1BPO4TimeOffset:   (*uint64)(config.L1BPO4TimeOffset),
+		BlobScheduleConfig: config.L1BlobScheduleConfig,
 	})
 }
 
@@ -148,6 +154,18 @@ type DevL1DeployConfigMinimal struct {
 	L1ChainID eth.ChainID
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *uint64
+	// When Osaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *uint64
+	// When BPO1 activates. Relative to L1 genesis.
+	L1BPO1TimeOffset *uint64
+	// When BPO2 activates. Relative to L1 genesis.
+	L1BPO2TimeOffset *uint64
+	// When BPO3 activates. Relative to L1 genesis.
+	L1BPO3TimeOffset *uint64
+	// When BPO4 activates. Relative to L1 genesis.
+	L1BPO4TimeOffset *uint64
+	// Blob schedule config.
+	BlobScheduleConfig *params.BlobScheduleConfig
 }
 
 // NewL1GenesisMinimal creates a L1 dev genesis template.
@@ -202,6 +220,29 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.L1PragueTimeOffset != nil {
 		pragueTime := uint64(timestamp) + uint64(*config.L1PragueTimeOffset)
 		chainConfig.PragueTime = &pragueTime
+	}
+	if config.L1OsakaTimeOffset != nil {
+		osakaTime := uint64(timestamp) + uint64(*config.L1OsakaTimeOffset)
+		chainConfig.OsakaTime = &osakaTime
+	}
+	if config.L1BPO1TimeOffset != nil {
+		bpo1Time := uint64(timestamp) + uint64(*config.L1BPO1TimeOffset)
+		chainConfig.BPO1Time = &bpo1Time
+	}
+	if config.L1BPO2TimeOffset != nil {
+		bpo2Time := uint64(timestamp) + uint64(*config.L1BPO2TimeOffset)
+		chainConfig.BPO2Time = &bpo2Time
+	}
+	if config.L1BPO3TimeOffset != nil {
+		bpo3Time := uint64(timestamp) + uint64(*config.L1BPO3TimeOffset)
+		chainConfig.BPO3Time = &bpo3Time
+	}
+	if config.L1BPO4TimeOffset != nil {
+		bpo4Time := uint64(timestamp) + uint64(*config.L1BPO4TimeOffset)
+		chainConfig.BPO4Time = &bpo4Time
+	}
+	if config.BlobScheduleConfig != nil {
+		chainConfig.BlobScheduleConfig = config.BlobScheduleConfig
 	}
 	// Note: excess-blob-gas, blob-gas-used, withdrawals-hash, requests-hash are set to reasonable defaults for L1 by the ToBlock() function
 	return &core.Genesis{

@@ -332,10 +332,10 @@ contract PermissionedDisputeGameV2_Initialize_Test is PermissionedDisputeGameV2_
     }
 }
 
-/// @title PermissionedDisputeGameV2_Unclassified_Test
+/// @title PermissionedDisputeGameV2_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `PermissionedDisputeGame` contract or are testing multiple functions at once.
-contract PermissionedDisputeGameV2_Unclassified_Test is PermissionedDisputeGameV2_TestInit {
+contract PermissionedDisputeGameV2_Uncategorized_Test is PermissionedDisputeGameV2_TestInit {
     /// @notice Tests that the proposer can create a permissioned dispute game.
     function test_createGame_proposer_succeeds() public {
         vm.prank(PROPOSER, PROPOSER);
