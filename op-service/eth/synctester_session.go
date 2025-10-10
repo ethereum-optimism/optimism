@@ -11,6 +11,19 @@ type FCUState struct {
 	Finalized uint64 `json:"finalized"`
 }
 
+// ELSyncPolicy defines the policy for determining the synchronization status
+// of the execution layer (EL) during EL Sync, as triggered exclusively by
+// ForkchoiceUpdated (FCU) calls.
+//
+// In the EL Sync process, the consensus layer (CL) notifies the EL of the
+// current head via FCU. The EL then evaluates its internal sync state and
+// reports whether it is still syncing or fully in sync. An ELSyncPolicy
+// implementation encapsulates this decision logic.
+//
+// The purpose of this interface is to provide a configurable or mockable
+// strategy for how the EL responds to FCU-triggered sync checks—useful in
+// testing, simulation, or devnet environments where the real EL behavior
+// needs to be emulated.
 type ELSyncPolicy interface {
 	ELSyncStatus(num uint64) ExecutePayloadStatus
 }
