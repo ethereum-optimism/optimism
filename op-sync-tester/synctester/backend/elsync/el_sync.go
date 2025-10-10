@@ -1,4 +1,4 @@
-package backend
+package elsync
 
 import (
 	"fmt"
@@ -13,6 +13,10 @@ type WindowSyncPolicy struct {
 	cache   []uint64
 	cnt     int
 	maxSize int
+}
+
+func DefaultELSyncPolicy() eth.ELSyncPolicy {
+	return NewWindowSyncPolicy(2, 5)
 }
 
 func NewWindowSyncPolicy(cnt, maxSize int) *WindowSyncPolicy {

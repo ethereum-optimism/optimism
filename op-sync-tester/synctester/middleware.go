@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/elsync"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	"github.com/google/uuid"
 )
@@ -76,7 +76,7 @@ func parseSession(r *http.Request) (*http.Request, error) {
 			return r, err
 		}
 		elSyncActive := query.Get(ELSyncActiveKey) == "true"
-		elSyncState := backend.NewWindowSyncPolicy(2, 5)
+		elSyncState := elsync.DefaultELSyncPolicy() // May be configurable
 		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncActive, elSyncState)
 		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
