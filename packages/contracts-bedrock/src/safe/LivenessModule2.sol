@@ -277,12 +277,6 @@ abstract contract LivenessModule2 {
             )
         });
 
-        // Disable this guard from the Safe (if and only if it is enabled).
-        _disableThisGuard(targetSafe);
-
-        // Disable this module from the Safe
-        _disableThisModule(targetSafe);
-
         // Sanity check: verify the fallback owner is now the only owner
         address[] memory finalOwners = targetSafe.getOwners();
         if (finalOwners.length != 1 || finalOwners[0] != livenessSafeConfiguration[_safe].fallbackOwner) {
@@ -291,8 +285,16 @@ abstract contract LivenessModule2 {
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
-
         emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
+
+        // Now we will disable the guard and module from the Safe, so that the Safe is set to a
+        // minimal state, which is as simple as possible for the fallback owner to reason about.
+
+        // Disable this guard from the Safe (if and only if it is enabled).
+        _disableThisGuard(targetSafe);
+
+        // Disable this module from the Safe
+        _disableThisModule(targetSafe);
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
