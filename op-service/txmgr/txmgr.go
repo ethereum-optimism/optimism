@@ -366,6 +366,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 		// Use configuration to determine whether to enable cell proofs
 		useCellProofs := m.cfg.CellProofTime < uint64(time.Now().Unix())
+		m.l.Debug("crafting Blob transaction", "useCellProofs", useCellProofs)
 		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, useCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
