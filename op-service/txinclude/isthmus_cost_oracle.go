@@ -21,6 +21,7 @@ var oneHundred = new(big.Int).SetUint64(100)
 var oneMillion = new(big.Int).SetUint64(1_000_000)
 
 type ForkName string
+
 const (
 	Isthmus ForkName = "isthmus"
 	Jovian  ForkName = "jovian"
@@ -31,7 +32,7 @@ type CostOracle struct {
 	client     RPCClient
 	blockTime  time.Duration
 	costParams atomic.Pointer[costParams]
-	fork ForkName
+	fork       ForkName
 }
 
 type costParams struct {
@@ -49,7 +50,7 @@ func NewIsthmusCostOracle(client RPCClient, blockTime time.Duration) *CostOracle
 	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
-		fork: Isthmus,
+		fork:      Isthmus,
 	}
 }
 
@@ -57,7 +58,7 @@ func NewJovianCostOracle(client RPCClient, blockTime time.Duration) *CostOracle 
 	return &CostOracle{
 		client:    client,
 		blockTime: blockTime,
-		fork: Jovian,
+		fork:      Jovian,
 	}
 }
 
@@ -109,7 +110,6 @@ func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	operatorCost := new(big.Int).SetUint64(tx.Gas())
 	operatorCost.Mul(operatorCost, params.OperatorFeeScalar)
 
-
 	switch i.fork {
 	case Jovian:
 		// Jovian formula: multiply by 100
@@ -120,7 +120,6 @@ func (i *CostOracle) OPCost(tx *types.Transaction) *big.Int {
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", i.fork))
 	}
-
 
 	operatorCost.Add(operatorCost, params.OperatorFeeConstant)
 

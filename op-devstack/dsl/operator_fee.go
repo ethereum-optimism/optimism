@@ -142,7 +142,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	blockHash := receipt.BlockHash
 	blockRef, err := from.el.stackEL().EthClient().BlockRefByHash(of.ctx, blockHash)
 	of.require.NoError(err)
-	isJovian:= of.l2Network.IsForkActive(rollup.Jovian, blockRef.Time)
+	isJovian := of.l2Network.IsForkActive(rollup.Jovian, blockRef.Time)
 
 	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
 	of.require.NoError(err)
