@@ -227,8 +227,9 @@ contract ResourceMetering_Metered_Test is ResourceMetering_TestInit {
 
         meter.use(target / 2);
 
-        (, uint64 prevBoughtGas,) = meter.params();
+        (uint128 prevBaseFee, uint64 prevBoughtGas,) = meter.params();
         assertEq(prevBoughtGas, target / 2);
+        assertGt(prevBaseFee, 0);
     }
 
     /// @notice Tests that base fee decreases when gas usage is below target.
