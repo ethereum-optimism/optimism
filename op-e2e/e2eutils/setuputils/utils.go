@@ -2,6 +2,7 @@ package setuputils
 
 import (
 	"crypto/ecdsa"
+	"math"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -17,7 +18,7 @@ func hexPriv(in *ecdsa.PrivateKey) string {
 	return hexutil.Encode(b)
 }
 
-func NewTxMgrConfig(l1Addr endpoint.RPC, privKey *ecdsa.PrivateKey, cellProofTime uint64) txmgr.CLIConfig {
+func NewTxMgrConfig(l1Addr endpoint.RPC, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
 		L1RPCURL:                  l1Addr.RPC(),
 		PrivateKey:                hexPriv(privKey),
@@ -29,6 +30,6 @@ func NewTxMgrConfig(l1Addr endpoint.RPC, privKey *ecdsa.PrivateKey, cellProofTim
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NetworkTimeout:            2 * time.Second,
 		TxNotInMempoolTimeout:     2 * time.Minute,
-		CellProofTime:             cellProofTime,
+		CellProofTime:             math.MaxUint64,
 	}
 }

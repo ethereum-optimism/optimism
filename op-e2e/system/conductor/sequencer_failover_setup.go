@@ -296,7 +296,7 @@ func setupBatcher(t *testing.T, sys *e2esys.System, conductors map[string]*condu
 		ApproxComprRatio:       0.4,
 		SubSafetyMargin:        4,
 		PollInterval:           1 * time.Second,
-		TxMgrConfig:            setuputils.NewTxMgrConfig(sys.EthInstances["l1"].UserRPC(), sys.Cfg.Secrets.Batcher, *sys.L1GenesisCfg.Config.OsakaTime),
+		TxMgrConfig:            setuputils.NewTxMgrConfig(sys.EthInstances["l1"].UserRPC(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelDebug,
 			Format: oplog.FormatText,

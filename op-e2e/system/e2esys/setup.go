@@ -361,7 +361,6 @@ type System struct {
 	RollupConfig *rollup.Config
 
 	L2GenesisCfg *core.Genesis
-	L1GenesisCfg *core.Genesis
 
 	// Connections to running nodes
 	EthInstances      map[string]services.EthInstance
@@ -931,7 +930,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			ProposalInterval:  6 * time.Second,
 			DisputeGameType:   254, // Fast game type
 			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer, *sys.L1GenesisCfg.Config.OsakaTime),
+			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
@@ -944,7 +943,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 			L2OOAddress:       config.L1Deployments(cfg.AllocType).L2OutputOracleProxy.Hex(),
 			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer, *sys.L1GenesisCfg.Config.OsakaTime),
+			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
