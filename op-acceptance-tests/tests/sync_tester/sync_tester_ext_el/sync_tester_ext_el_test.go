@@ -98,6 +98,7 @@ func TestSyncTesterExtEL(gt *testing.T) {
 		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
 		attempts = 5
 		// Signal L2CL for triggering EL Sync
+		// Must send consecutive three payloads due to default EL Sync policy
 		for i := 2; i >= 0; i-- {
 			sys.L2CL.SignalTarget(sys.L2ELReadOnly, target-uint64(i))
 		}
