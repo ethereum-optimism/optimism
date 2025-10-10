@@ -48,15 +48,15 @@ func TestFallbackToOsakaCellProofTimeIfKnown(t *testing.T) {
 	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(big.NewInt(1), math.MaxUint64)
 	require.Equal(t, uint64(18446744073709551615), cellProofTime)
 
-	// No override, but we detect the L1 is Sepolia (no Osaka time yet)
+	// No override, but we detect the L1 is Sepolia
 	cellProofTime = fallbackToOsakaCellProofTimeIfKnown(big.NewInt(11155111), math.MaxUint64)
-	require.Equal(t, uint64(18446744073709551615), cellProofTime)
+	require.Equal(t, uint64(1760427360), cellProofTime)
 
 	// Override is set, so we ignore known L1 config and use the override
 	cellProofTime = fallbackToOsakaCellProofTimeIfKnown(big.NewInt(1), 654321)
 	require.Equal(t, uint64(654321), cellProofTime)
 
 	// No override set, but L1 Network is not known, so we never use cell proofs
-	cellProofTime = fallbackToOsakaCellProofTimeIfKnown(big.NewInt(11155111), math.MaxUint64)
+	cellProofTime = fallbackToOsakaCellProofTimeIfKnown(big.NewInt(33), math.MaxUint64)
 	require.Equal(t, uint64(18446744073709551615), cellProofTime)
 }
