@@ -368,7 +368,10 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 			// EL Sync complete so advance non canonical chain first
 			session.Validated = candLatestNum
 			logger.Info("Non canonical chain advanced because of EL Sync", "validated", session.Validated)
-			// Still early return here with SYNCING to mimic the asynchronous EL behavior
+			// Equivalent to SetCanonical
+			session.UpdateFCULatest(session.Validated)
+			logger.Info("Canonical chain advanced because of EL Sync", "latest", session.CurrentState.Latest)
+			// Still return SYNCING to mimic the asynchronous EL behavior
 			// The EL will eventually return VALID with the identical unsafe target with the next FCU call
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		case eth.ExecutionSyncing:
