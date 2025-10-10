@@ -42,6 +42,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var ErrAlreadyClosed = errors.New("node is already closed")
@@ -190,9 +191,10 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 }
 
 type InitializationOverrides struct {
-	L1Source   L1Source
-	Beacon     L1Beacon
-	RPCHandler *oprpc.Handler
+	L1Source        L1Source
+	Beacon          L1Beacon
+	RPCHandler      *oprpc.Handler
+	MetricsRegistry func(*prometheus.Registry)
 }
 
 // init progressively creates and sets up all the components of the OpNode
@@ -270,6 +272,13 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 			// panic here is to match the behavior of oprcp.Server.AddAPI,
 			// which wraps the Handler and panics if the API can't be added.
 			panic(fmt.Errorf("invalid API: %w", err))
+		}
+	}
+
+	// Expose metrics registry to external supervisor if requested
+	if overrides.MetricsRegistry != nil && n.metrics != nil {
+		if reg := n.metrics.Registry(); reg != nil {
+			overrides.MetricsRegistry(reg)
 		}
 	}
 
@@ -642,6 +651,16 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 func initMetricsServer(cfg *config.Config, node *OpNode) (*httputil.HTTPServer, error) {
 	if !cfg.Metrics.Enabled {
 		node.log.Info("metrics disabled")
+		// Even if disabled, expose registry to external supervisor if available
+		if node.metrics != nil && node.metrics.Registry() != nil && node != nil && cfg != nil {
+			if overrides := node; overrides != nil {
+				// noop: registry exposure handled below when enabled, and when MetricsRegistry override is set
+			}
+		}
+		if node != nil && node.metrics != nil && node.metrics.Registry() != nil && cfg != nil {
+			// Call override if provided
+			// Note: we don't have direct access to InitializationOverrides here; pass via node? handled earlier in init
+		}
 		return nil, nil
 	}
 	node.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)

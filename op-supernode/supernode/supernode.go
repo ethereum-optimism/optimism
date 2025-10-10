@@ -32,6 +32,9 @@ type Supernode struct {
 	beaconClient *sources.L1BeaconClient
 	rpcServer    *http.Server
 	rpcRouter    *resources.Router
+	// Metrics router/server for per-chain metrics
+	metrics       *resources.MetricsService
+	metricsRouter *resources.MetricsRouter
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[types.ChainID]*opnodecfg.Config) (*Supernode, error) {
@@ -51,6 +54,8 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Pass shared resources via InitializationOverrides to all containers
 	// Build RPC router first; we'll attach per-chain handlers at runtime via SetHandler
 	s.rpcRouter = resources.NewRouter(log, resources.RouterConfig{})
+	// Build metrics router; attach per-chain registries later
+	s.metricsRouter = resources.NewMetricsRouter(log)
 	for _, id := range cfg.Chains {
 		chainID := types.ChainID(id)
 		initOverrides := &rollupNode.InitializationOverrides{
@@ -62,10 +67,15 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
-		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler)
+		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
 	s.rpcServer = &http.Server{Addr: addr, Handler: s.rpcRouter}
+
+	// Optionally build metrics service
+	if cfg.MetricsConfig.Enabled {
+		s.metrics = resources.NewMetricsService(log, cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort, s.metricsRouter)
+	}
 	return s, nil
 }
 
@@ -84,6 +94,16 @@ func (s *Supernode) Start(ctx context.Context) error {
 				}
 			}
 		}()
+	}
+	// Start metrics service
+	if s.metrics != nil {
+		s.wg.Add(1)
+		s.metrics.Start(func(err error) {
+			defer s.wg.Done()
+			if s.requestStop != nil {
+				s.requestStop(err)
+			}
+		})
 	}
 	for chainID, chain := range s.chains {
 		s.wg.Add(1)
@@ -111,9 +131,21 @@ func (s *Supernode) Stop(ctx context.Context) error {
 			s.log.Error("error shutting down rpc server", "error", err)
 		}
 	}
+	if s.metrics != nil {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 0)
+		defer cancel()
+		if err := s.metrics.Stop(shutdownCtx); err != nil {
+			s.log.Error("error shutting down metrics server", "error", err)
+		}
+	}
 	if s.rpcRouter != nil {
 		if err := s.rpcRouter.Close(); err != nil {
 			s.log.Error("error closing rpc router", "error", err)
+		}
+	}
+	if s.metricsRouter != nil {
+		if err := s.metricsRouter.Close(); err != nil {
+			s.log.Error("error closing metrics router", "error", err)
 		}
 	}
 

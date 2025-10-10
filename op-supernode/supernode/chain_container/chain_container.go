@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const virtualNodeVersion = "0.0.0"
@@ -40,6 +42,7 @@ type simpleChainContainer struct {
 	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
 	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
+	setMetricsHandler  func(chainID string, h http.Handler) // Set the metrics handler on the router for the chain
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
 }
@@ -51,7 +54,9 @@ func NewChainContainer(
 	cfg config.CLIConfig,
 	initOverload *rollupNode.InitializationOverrides,
 	rpcHandler *oprpc.Handler,
-	setHandler func(chainID string, h http.Handler)) ChainContainer {
+	setHandler func(chainID string, h http.Handler),
+	setMetricsHandler func(chainID string, h http.Handler),
+) ChainContainer {
 	c := &simpleChainContainer{
 		vncfg:              vncfg,
 		cfg:                cfg,
@@ -61,6 +66,7 @@ func NewChainContainer(
 		initOverload:       initOverload,
 		rpcHandler:         rpcHandler,
 		setHandler:         setHandler,
+		setMetricsHandler:  setMetricsHandler,
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
@@ -94,6 +100,19 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
+
+		// Disable per-VN metrics server and provide metrics registry hook
+		c.vncfg.Metrics.Enabled = false
+		if c.initOverload != nil {
+			chainID := c.chainID.String()
+			c.initOverload.MetricsRegistry = func(reg *prometheus.Registry) {
+				if c.setMetricsHandler != nil {
+					// Mount per-chain metrics handler at /{chain}/metrics via router
+					handler := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+					c.setMetricsHandler(chainID, handler)
+				}
+			}
+		}
 		c.vn = c.virtualNodeFactory(c.vncfg, c.log, c.initOverload, c.appVersion)
 		if c.pause.Load() {
 			c.log.Info("chain container paused")
