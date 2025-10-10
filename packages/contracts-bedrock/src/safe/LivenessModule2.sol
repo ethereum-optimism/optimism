@@ -289,7 +289,7 @@ abstract contract LivenessModule2 {
         // minimal state, which is as simple as possible for the fallback owner to reason about.
 
         // Disable this guard from the Safe (if and only if it is enabled).
-        _disableThisGuard(targetSafe);
+        _disableGuard(targetSafe);
 
         // Disable this module from the Safe
         _disableThisModule(targetSafe);
@@ -336,7 +336,7 @@ abstract contract LivenessModule2 {
     /// @dev Only disables the guard if it is enabled, otherwise does nothing in case another
     ///      guard is enabled.
     /// @param _targetSafe The Safe instance to disable this guard from.
-    function _disableThisGuard(Safe _targetSafe) internal virtual;
+    function _disableGuard(Safe _targetSafe) internal virtual;
 
     /// @notice Internal function to disable this module from the given Safe.
     /// @param _targetSafe The Safe instance to disable this module from.

@@ -66,7 +66,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Internal function to disable the guard from the given Safe.
     /// @dev This function is intended for use in the SaferSafes contract, which extends this contract.
     /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableThisGuard(Safe _targetSafe) internal override {
+    function _disableGuard(Safe _targetSafe) internal override {
         SafeState storage safeState = _safeState[_targetSafe];
         // set the timelock delay to 0 to clear the configuration
         safeState.timelockDelay = 0;
