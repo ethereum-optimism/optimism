@@ -418,7 +418,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         address expectedSuperchainProxyAdmin = address(0x3333);
 
         // Use vm.mockCall instead of vm.setEnv to avoid global env mutation. We need to ignore
-        // semgrep here because vm.envAddress has multiple potential signatures so we can't juse
+        // semgrep here because envAddress has multiple potential signatures so we can't use
         // abi.encodeCall.
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(
