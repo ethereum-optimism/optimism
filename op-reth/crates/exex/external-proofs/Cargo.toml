@@ -14,11 +14,21 @@ workspace = true
 [dependencies]
 reth-exex.workspace = true
 
+# ethereum
+alloy-primitives = { workspace = true }
+
 # reth
-reth-provider.workspace = true
+reth-db-api.workspace = true
 reth-node-types.workspace = true
 reth-node-api.workspace = true
+reth-primitives-traits.workspace = true
+reth-provider.workspace = true
+reth-trie.workspace = true
 
 # misc
+auto_impl.workspace = true
+async-trait.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
+serde.workspace = true
+thiserror.workspace = true

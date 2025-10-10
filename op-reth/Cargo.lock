@@ -3597,12 +3597,20 @@ dependencies = [
 name = "external-proofs"
 version = "0.1.0"
 dependencies = [
+ "alloy-primitives",
+ "async-trait",
+ "auto_impl",
  "eyre",
  "futures-util",
+ "reth-db-api",
  "reth-exex",
  "reth-node-api",
  "reth-node-types",
+ "reth-primitives-traits",
  "reth-provider",
+ "reth-trie",
+ "serde",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
