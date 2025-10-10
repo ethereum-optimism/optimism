@@ -8,6 +8,6 @@ import (
 
 func TestMain(m *testing.M) {
 	// TODO(#17810): Use the new v2 dispute game flag via presets.WithDisputeGameV2()
-	//presets.DoMain(m, presets.WithMinimal(), presets.WithDisputeGameV2())
-	presets.DoMain(m, presets.WithMinimal())
+	//presets.DoMain(m, presets.WithProofs(), presets.WithDisputeGameV2())
+	presets.DoMain(m, presets.WithProofs())
 }

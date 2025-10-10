@@ -134,9 +134,11 @@ func WithDeployer() stack.Option[*Orchestrator] {
 }
 
 type L2Deployment struct {
-	systemConfigProxyAddr   common.Address
-	disputeGameFactoryProxy common.Address
-	l1StandardBridgeProxy   common.Address
+	systemConfigProxyAddr          common.Address
+	disputeGameFactoryProxy        common.Address
+	l1StandardBridgeProxy          common.Address
+	proxyAdmin                     common.Address
+	permissionlessDelayedWETHProxy common.Address
 }
 
 var _ stack.L2Deployment = &L2Deployment{}
@@ -151,6 +153,14 @@ func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
 
 func (d *L2Deployment) L1StandardBridgeProxyAddr() common.Address {
 	return d.l1StandardBridgeProxy
+}
+
+func (d *L2Deployment) ProxyAdminAddr() common.Address {
+	return d.proxyAdmin
+}
+
+func (d *L2Deployment) PermissionlessDelayedWETHProxyAddr() common.Address {
+	return d.permissionlessDelayedWETHProxy
 }
 
 type InteropMigration struct {
@@ -384,9 +394,11 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	for _, ch := range wb.output.Chains {
 		chainID := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Deployment[chainID] = &L2Deployment{
-			systemConfigProxyAddr:   ch.SystemConfigProxy,
-			disputeGameFactoryProxy: ch.DisputeGameFactoryProxy,
-			l1StandardBridgeProxy:   ch.L1StandardBridgeProxy,
+			systemConfigProxyAddr:          ch.SystemConfigProxy,
+			disputeGameFactoryProxy:        ch.DisputeGameFactoryProxy,
+			l1StandardBridgeProxy:          ch.L1StandardBridgeProxy,
+			proxyAdmin:                     ch.OpChainProxyAdminImpl,
+			permissionlessDelayedWETHProxy: ch.DelayedWethPermissionlessGameProxy,
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
