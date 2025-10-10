@@ -39,7 +39,6 @@ type SuperNode struct {
 	userRPC          string
 	interopEndpoint  string
 	interopJwtSecret eth.Bytes32
-	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
 	el               *stack.L2ELNodeID // Optional: nil when using SyncTester

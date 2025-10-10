@@ -121,7 +121,9 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	// Run inner node in goroutine
 	// and await any signal to exit (Stop(), parent ctx, or inner error)
 	go func() {
-		v.inner.Start(runCtx)
+		if err := v.inner.Start(runCtx); err != nil {
+			v.log.Error("error starting inner node", "err", err)
+		}
 	}()
 	<-runCtx.Done()
 
