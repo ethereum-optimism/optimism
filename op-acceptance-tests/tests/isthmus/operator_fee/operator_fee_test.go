@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
+
 func TestOperatorFee(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
