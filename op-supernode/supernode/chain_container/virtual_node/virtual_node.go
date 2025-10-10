@@ -176,10 +176,3 @@ func (v *simpleVirtualNode) State() VNState {
 	defer v.mu.Unlock()
 	return v.state
 }
-
-// setState allows tests to directly control the state for edge case testing
-func (v *simpleVirtualNode) setState(state VNState) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.state = state
-}
