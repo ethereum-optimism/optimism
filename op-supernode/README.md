@@ -35,7 +35,6 @@ just op-supernode
 Run multiple chains:
 ```bash
 ./bin/op-supernode \
-  --sample example \
   --chains 901,902 \
   --data-dir ./supernode-data \
   --l1 http://localhost:8545 \
@@ -50,7 +49,6 @@ Run multiple chains:
 Environment variables:
 ```bash
 export OP_SUPERNODE_CHAINS=901,902,903
-export OP_SUPERNODE_SAMPLE=production
 export OP_SUPERNODE_DATA_DIR=/var/lib/supernode
 export OP_SUPERNODE_L1_ETH_RPC=$L1_RPC
 export OP_SUPERNODE_L1_BEACON=$L1_BEACON
@@ -62,7 +60,7 @@ export OP_SUPERNODE_L1_BEACON=$L1_BEACON
 ```
 
 ### Configuration
-- Required: `--sample`, `--chains`, `--l1`
+- Required: `--chains`, `--l1`
 - Optional: `--l1.beacon`, `--data-dir` (default `./datadir`), standard op-service flags (logging, metrics, pprof, RPC)
 
 Per-chain flags are prefixed:

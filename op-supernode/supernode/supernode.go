@@ -80,7 +80,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 }
 
 func (s *Supernode) Start(ctx context.Context) error {
-	s.log.Info("supernode starting", "version", s.version, "sample", s.cfg.Sample)
+	s.log.Info("supernode starting", "version", s.version)
 	// Start RPC server
 	if s.rpcServer != nil {
 		s.wg.Add(1)

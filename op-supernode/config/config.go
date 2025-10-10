@@ -13,7 +13,6 @@ import (
 )
 
 type CLIConfig struct {
-	Sample        string
 	Chains        []uint64
 	DataDir       string
 	L1NodeAddr    string
@@ -35,9 +34,6 @@ func (c *CLIConfig) Check() error {
 	if err := c.PprofConfig.Check(); err != nil {
 		return err
 	}
-	if c.Sample == "" {
-		return errors.New("sample is required")
-	}
 	if c.L1NodeAddr == "" {
 		return errors.New("l1 node address is required")
 	}
@@ -46,7 +42,6 @@ func (c *CLIConfig) Check() error {
 
 func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
-		Sample:        ctx.String(flags.SampleFlag.Name),
 		Chains:        ctx.Uint64Slice(flags.ChainsFlag.Name),
 		DataDir:       ctx.String(flags.DataDirFlag.Name),
 		L1NodeAddr:    ctx.String(flags.L1NodeAddr.Name),

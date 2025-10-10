@@ -20,12 +20,6 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	SampleFlag = &cli.StringFlag{
-		Name:     "sample",
-		Usage:    "A sample string configuration for op-supernode",
-		EnvVars:  prefixEnvVars("SAMPLE"),
-		Required: true,
-	}
 	ChainsFlag = &cli.Uint64SliceFlag{
 		Name:    "chains",
 		Usage:   "List of chain IDs to run (repeatable or comma-separated)",
@@ -54,7 +48,6 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	SampleFlag,
 	ChainsFlag,
 	L1NodeAddr,
 }
