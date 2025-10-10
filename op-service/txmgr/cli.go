@@ -82,7 +82,10 @@ type DefaultFlagValues struct {
 	CellProofTime             uint64
 }
 
+
+
 var (
+	defaultCellProofTime uint64 = math.MaxUint64
 	DefaultBatcherFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(10),
 		SafeAbortNonceTooLowCount: uint64(3),
@@ -98,7 +101,7 @@ var (
 		TxSendTimeout:             0, // Try sending txs indefinitely, to preserve tx ordering for Holocene
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
-		CellProofTime:             math.MaxUint64,
+		CellProofTime:             defaultCellProofTime,
 	}
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
@@ -114,7 +117,7 @@ var (
 		TxSendTimeout:             2 * time.Minute,
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
-		CellProofTime:             math.MaxUint64,
+		CellProofTime:             defaultCellProofTime,
 	}
 
 	// geth enforces a 1 gwei minimum for blob tx fee
@@ -246,7 +249,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		},
 		&cli.Uint64Flag{
 			Name:    CellProofTimeFlagName,
-			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet or Sepolia L1s.",
+			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet, Sepolia, Holesky, or Hoodi L1s.",
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},
@@ -484,21 +487,14 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 }
 
 func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {
-	if cellProofTime != defaults.CellProofTime {
+	if cellProofTime != defaultCellProofTime {
 		return cellProofTime // We only fallback if nothing is set
 	}
-	var osakaTime *uint64
-	if chainID.Cmp(params.MainnetChainConfig.ChainID) == 0 {
-		osakaTime = params.MainnetChainConfig.OsakaTime
-	} else if chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
-		osakaTime = params.SepoliaChainConfig.OsakaTime
+	l1ChainConfig := eth.L1ChainConfigByChainID(eth.ChainIDFromBig(chainID))
+	if l1ChainConfig != nil && l1ChainConfig.OsakaTime != nil {
+		return *l1ChainConfig.OsakaTime
 	}
-	if osakaTime != nil {
-		return *osakaTime
-	}
-
 	return math.MaxUint64 // Network not known and no override specified, so we never use cell proofs
-
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
