@@ -82,11 +82,9 @@ type DefaultFlagValues struct {
 	CellProofTime             uint64
 }
 
-
-
 var (
-	defaultCellProofTime uint64 = math.MaxUint64
-	DefaultBatcherFlagValues = DefaultFlagValues{
+	defaultCellProofTime     uint64 = math.MaxUint64
+	DefaultBatcherFlagValues        = DefaultFlagValues{
 		NumConfirmations:          uint64(10),
 		SafeAbortNonceTooLowCount: uint64(3),
 		FeeLimitMultiplier:        uint64(5),
