@@ -390,7 +390,7 @@ contract VerifyOPCM is Script {
     }
 
     /// @notice Verifies a single OPCM contract reference (implementation or bytecode).
-    /// @param _opcm The opcm that contains the target contract reference.
+    /// @param _opcm The OPCM contract that contains the target contract reference.
     /// @param _target The target contract reference to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
     /// @return True if the contract reference is verified, false otherwise.
