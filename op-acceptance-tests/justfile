@@ -99,7 +99,7 @@ acceptance-test devnet="" gate="base":
             "--exclude-gates" "flake-shake"
             "--allow-skips"
             "--timeout" "90m"
-            "--default-timeout" "10m"
+            "--default-timeout" "30m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )

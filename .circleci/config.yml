@@ -1639,7 +1639,6 @@ jobs:
     machine:
       image: ubuntu-2404:current
     resource_class: large
-    circleci_ip_ranges: true
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
       - checkout-from-workspace
