@@ -47,19 +47,13 @@ just rank               # Test ranking only
 
 | Document | Purpose | Location |
 |----------|---------|----------|
-| **[📐 Design Doc](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Design-Doc-24ff153ee1628035a3fccb0fa3e3b157)** | Business context, vision, and product decisions | Notion |
-| **[📖 Tech Spec](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Technical-Specification-25af153ee162807895a9ffdb0452cfa2)** | Technical architecture and implementation | Notion |
 | **[🛠️ Runbook](docs/runbook.md)** | Operational guide and troubleshooting | Repository |
 | **[🎯 Prompt Template](prompt/prompt.md)** | AI instructions (~2000 lines) | Repository |
 | **[⚙️ Exclusion Config](exclusion.toml)** | Configure excluded tests | Repository |
 
 ### Quick Links
 
-**Design & Architecture** (Notion):
-- [Design Document](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Design-Doc-24ff153ee1628035a3fccb0fa3e3b157) - Why we built this, business value, vision
-- [Technical Specification](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Technical-Specification-25af153ee162807895a9ffdb0452cfa2) - Architecture, algorithms, API contracts
-
-**Operational Guide** (Repository):
+**Operational Guide**:
 - [CI Integration](docs/runbook.md#ci-integration) - How it runs in CircleCI
 - [Configuration](docs/runbook.md#configuration) - Exclusions and scoring
 - [Monitoring](docs/runbook.md#monitoring-and-debugging) - Check system health

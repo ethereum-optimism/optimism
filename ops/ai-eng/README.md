@@ -17,8 +17,6 @@ Automated system for maintaining and improving Solidity test coverage in `contra
 - **Tech**: Python + Devin AI API
 - **Docs**:
   - [README](contracts-test-maintenance/README.md) - Overview and quick start
-  - [Design Doc](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Design-Doc-24ff153ee1628035a3fccb0fa3e3b157) (Notion) - Business context and vision
-  - [Tech Spec](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Technical-Specification-25af153ee162807895a9ffdb0452cfa2) (Notion) - Technical architecture
   - [Runbook](contracts-test-maintenance/docs/runbook.md) - Operational guide
 
 **Quick Start**:

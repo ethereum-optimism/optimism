@@ -1,6 +1,6 @@
 # AI Contract Test Maintenance System - Runbook
 
-> **Operational guide** for using and maintaining the system. For design rationale and technical architecture, see the [Design Doc](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Design-Doc-24ff153ee1628035a3fccb0fa3e3b157) and [Tech Spec](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Technical-Specification-25af153ee162807895a9ffdb0452cfa2) in Notion.
+> **Operational guide** for using and maintaining the system.
 
 ## Overview
 
@@ -582,11 +582,7 @@ cat log.json | jq .
 
 ## Related Documentation
 
-**Design & Architecture** (Notion):
-- [Design Document](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Design-Doc-24ff153ee1628035a3fccb0fa3e3b157) - Business context, vision, and product decisions
-- [Technical Specification](https://www.notion.so/oplabs/AI-Contracts-Test-Maintenance-System-Technical-Specification-25af153ee162807895a9ffdb0452cfa2) - Technical architecture and implementation details
-
-**Configuration & Code** (Repository):
+**Repository Files**:
 - **Prompt Template**: `prompt/prompt.md` - Complete AI instructions (~2000 lines)
 - **CI Configuration**: `.circleci/config.yml` - Workflow definition
 - **Exclusion Config**: `exclusion.toml` - Static exclusion rules
