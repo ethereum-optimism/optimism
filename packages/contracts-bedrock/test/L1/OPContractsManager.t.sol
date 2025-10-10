@@ -60,6 +60,8 @@ import {
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
+import { DisputeGames } from "../setup/DisputeGames.sol";
+import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 
 /// @title OPContractsManager_Harness
 /// @notice Exposes internal functions for testing.
@@ -421,11 +423,16 @@ abstract contract OPContractsManager_TestInit is CommonTest {
         uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
     );
 
+    address proposer;
+    address challenger;
+
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
     function setUp() public virtual override {
         super.setUp();
+        proposer = address(this);
+        challenger = address(this);
 
         chainDeployOutput1 = createChainContracts(100);
         chainDeployOutput2 = createChainContracts(101);
@@ -451,8 +458,8 @@ abstract contract OPContractsManager_TestInit is CommonTest {
                     systemConfigOwner: address(this),
                     batcher: address(this),
                     unsafeBlockSigner: address(this),
-                    proposer: address(this),
-                    challenger: address(this)
+                    proposer: proposer,
+                    challenger: challenger
                 }),
                 basefeeScalar: 1,
                 blobBasefeeScalar: 1,
@@ -577,7 +584,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
 
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
-contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
+contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, DisputeGames {
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
@@ -585,15 +592,14 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
-        assertValidGameType(input, output);
+        IFaultDisputeGame newFDG = assertValidGameType(input, output);
 
         // Check the values on the new game type.
-        IPermissionedDisputeGame newPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
-        IPermissionedDisputeGame oldPDG = chainDeployOutput1.permissionedDisputeGame;
+        IPermissionedDisputeGame newPDG = IPermissionedDisputeGame(address(newFDG));
 
         // Check the proposer and challenger values.
-        assertEq(newPDG.proposer(), oldPDG.proposer(), "proposer mismatch");
-        assertEq(newPDG.challenger(), oldPDG.challenger(), "challenger mismatch");
+        assertEq(newPDG.proposer(), proposer, "proposer mismatch");
+        assertEq(newPDG.challenger(), challenger, "challenger mismatch");
 
         // L2 chain ID call should not revert because this is not a Super game.
         assertNotEq(newPDG.l2ChainId(), 0, "l2ChainId should not be zero");
@@ -606,10 +612,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
-        assertValidGameType(input, output);
+        IFaultDisputeGame newGame = assertValidGameType(input, output);
 
         // Check the values on the new game type.
-        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
+        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(newGame));
 
         // Proposer call should revert because this is a permissionless game.
         vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
@@ -642,17 +648,28 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             abi.encodeCall(IDisputeGame.gameType, ()),
             abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
         );
+        // Mock the proposer and challenger calls to behave like SuperPermissionedDisputeGame
+        // When V2 contracts are used the permissioned game may be the V2 contract and not have proposer and challenger
+        // in the implementation contract.
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.proposer, ()),
+            abi.encode(proposer)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
+            abi.encode(challenger)
+        );
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
         vm.clearMockedCalls();
-        assertValidGameType(input, output);
-
+        IFaultDisputeGame newGame = assertValidGameType(input, output);
         // Check the values on the new game type.
-        IPermissionedDisputeGame newPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
-        IPermissionedDisputeGame oldPDG = chainDeployOutput1.permissionedDisputeGame;
-        assertEq(newPDG.proposer(), oldPDG.proposer(), "proposer mismatch");
-        assertEq(newPDG.challenger(), oldPDG.challenger(), "challenger mismatch");
+        IPermissionedDisputeGame newPDG = IPermissionedDisputeGame(address(newGame));
+        assertEq(newPDG.proposer(), proposer, "proposer mismatch");
+        assertEq(newPDG.challenger(), challenger, "challenger mismatch");
 
         // Super games don't have the l2ChainId function.
         vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
@@ -956,31 +973,32 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         IOPContractsManager.AddGameOutput memory ago
     )
         internal
-        view
+        returns (IFaultDisputeGame)
     {
         // Check the config for the game itself
         assertEq(ago.faultDisputeGame.gameType().raw(), agi.disputeGameType.raw(), "gameType mismatch");
 
-        // TODO: This doesn't work with V2 contracts as the prestate is set via game args.
-        assertEq(
-            ago.faultDisputeGame.absolutePrestate().raw(),
-            agi.disputeAbsolutePrestate.raw(),
-            "absolutePrestate mismatch"
+        // Create a game so we can assert on game args which aren't baked into the implementation contract
+        IFaultDisputeGame game = IFaultDisputeGame(
+            payable(
+                createGame(
+                    chainDeployOutput1.disputeGameFactoryProxy,
+                    agi.disputeGameType,
+                    proposer,
+                    Claim.wrap(bytes32(uint256(9876))),
+                    uint256(123)
+                )
+            )
         );
-        assertEq(ago.faultDisputeGame.maxGameDepth(), agi.disputeMaxGameDepth, "maxGameDepth mismatch");
-        assertEq(ago.faultDisputeGame.splitDepth(), agi.disputeSplitDepth, "splitDepth mismatch");
+        assertEq(game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "absolutePrestate mismatch");
+        assertEq(game.maxGameDepth(), agi.disputeMaxGameDepth, "maxGameDepth mismatch");
+        assertEq(game.splitDepth(), agi.disputeSplitDepth, "splitDepth mismatch");
+        assertEq(game.clockExtension().raw(), agi.disputeClockExtension.raw(), "clockExtension mismatch");
+        assertEq(game.maxClockDuration().raw(), agi.disputeMaxClockDuration.raw(), "maxClockDuration mismatch");
+        assertEq(address(game.vm()), address(agi.vm), "vm address mismatch");
+        assertEq(address(game.weth()), address(ago.delayedWETH), "delayedWETH address mismatch");
         assertEq(
-            ago.faultDisputeGame.clockExtension().raw(), agi.disputeClockExtension.raw(), "clockExtension mismatch"
-        );
-        assertEq(
-            ago.faultDisputeGame.maxClockDuration().raw(),
-            agi.disputeMaxClockDuration.raw(),
-            "maxClockDuration mismatch"
-        );
-        assertEq(address(ago.faultDisputeGame.vm()), address(agi.vm), "vm address mismatch");
-        assertEq(address(ago.faultDisputeGame.weth()), address(ago.delayedWETH), "delayedWETH address mismatch");
-        assertEq(
-            address(ago.faultDisputeGame.anchorStateRegistry()),
+            address(game.anchorStateRegistry()),
             address(chainDeployOutput1.anchorStateRegistryProxy),
             "ASR address mismatch"
         );
@@ -996,10 +1014,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             address(ago.faultDisputeGame),
             "gameImpl address mismatch"
         );
-        assertEq(address(ago.faultDisputeGame.weth()), address(ago.delayedWETH), "weth address mismatch");
         assertEq(
             chainDeployOutput1.disputeGameFactoryProxy.initBonds(agi.disputeGameType), agi.initialBond, "bond mismatch"
         );
+        return game;
     }
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
@@ -2160,7 +2178,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 ///      the existing test setup to deploy OPContractsManager. We do however inherit from
 ///      DeployOPChain_TestBase so we can use its setup to deploy the implementations similarly
 ///      to how a real deployment would happen.
-contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
+contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames {
     using stdStorage for StdStorage;
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
@@ -2192,35 +2210,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             disputeClockExtension: _doi.disputeClockExtension,
             disputeMaxClockDuration: _doi.disputeMaxClockDuration
         });
-    }
-
-    /// @notice Helper function to create a permissioned game through the factory
-    function _createPermissionedGame(
-        IDisputeGameFactory factory,
-        address proposer,
-        Claim claim,
-        uint256 l2BlockNumber
-    )
-        internal
-        returns (IPermissionedDisputeGame)
-    {
-        // Check if there's an init bond required for the game type
-        uint256 initBond = factory.initBonds(GameTypes.PERMISSIONED_CANNON);
-
-        // Fund the proposer if needed
-        if (initBond > 0) {
-            vm.deal(proposer, initBond);
-        }
-
-        // We use vm.startPrank to set both msg.sender and tx.origin to the proposer
-        vm.startPrank(proposer, proposer);
-
-        IDisputeGame gameProxy =
-            factory.create{ value: initBond }(GameTypes.PERMISSIONED_CANNON, claim, abi.encode(bytes32(l2BlockNumber)));
-
-        vm.stopPrank();
-
-        return IPermissionedDisputeGame(address(gameProxy));
     }
 
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
@@ -2274,8 +2263,17 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         // Create a game proxy to test immutable fields
         Claim claim = Claim.wrap(bytes32(uint256(9876)));
         uint256 l2BlockNumber = uint256(123);
-        IPermissionedDisputeGame pdg =
-            _createPermissionedGame(opcmOutput.disputeGameFactoryProxy, opcmInput.roles.proposer, claim, l2BlockNumber);
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
+            payable(
+                createGame(
+                    opcmOutput.disputeGameFactoryProxy,
+                    GameTypes.PERMISSIONED_CANNON,
+                    opcmInput.roles.proposer,
+                    claim,
+                    l2BlockNumber
+                )
+            )
+        );
 
         // Verify immutable fields on the game proxy
         // Constructor args
