@@ -94,6 +94,11 @@ func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
+	// Sync Tester EL is always writable, and needs no auth
+	engineCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC)
+	require.NoError(err)
+	system.T().Cleanup(engineCl.Close)
+
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
@@ -102,7 +107,8 @@ func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
 			Client:       rpcCl,
 			ChainID:      n.id.ChainID(),
 		},
-		ID: n.id,
+		EngineClient: engineCl,
+		ID:           n.id,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, "sync-tester")
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
