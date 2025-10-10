@@ -6,8 +6,6 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
