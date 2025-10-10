@@ -245,7 +245,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		},
 		&cli.Uint64Flag{
 			Name:    CellProofTimeFlagName,
-			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Set to the L1 Fusaka time. May be left blank for Ethereum Mainnet or Sepolia L1s.",
+			Usage:   "Enables cell proofs in blob transactions for Fusaka (EIP-7742) compatibility from the provided unix timestamp. Should be set to the L1 Fusaka time. May be left blank for Ethereum Mainnet or Sepolia L1s.",
 			EnvVars: prefixEnvVars("TXMGR_CELL_PROOF_TIME"),
 			Value:   defaults.CellProofTime,
 		},
@@ -483,23 +483,17 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 }
 
 func fallbackToOsakaCellProofTimeIfKnown(chainID *big.Int, cellProofTime uint64) uint64 {
-	if cellProofTime != math.MaxUint64 {
+	if cellProofTime != defaults.CellProofTime {
 		return cellProofTime // We only fallback if nothing is set
 	}
+	var osakaTime *uint64
 	if chainID.Cmp(params.MainnetChainConfig.ChainID) == 0 {
-		if params.MainnetChainConfig.OsakaTime == nil {
-			return math.MaxUint64 // not yet scheduled, so we never use cell proofs
-		} else {
-			return *(params.MainnetChainConfig.OsakaTime)
-		}
+		osakaTime = params.MainnetChainConfig.OsakaTime
+	} else if chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
+		osakaTime = params.SepoliaChainConfig.OsakaTime
 	}
-
-	if chainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
-		if params.SepoliaChainConfig.OsakaTime == nil {
-			return math.MaxUint64
-		} else {
-			return *(params.SepoliaChainConfig.OsakaTime)
-		}
+	if osakaTime != nil {
+		return *osakaTime
 	}
 
 	return math.MaxUint64 // Network not known and no override specified, so we never use cell proofs
