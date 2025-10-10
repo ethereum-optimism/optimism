@@ -1966,19 +1966,25 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
 
         // Sanity-check setup is consistent with devFeatures flag
         IOPContractsManager.Implementations memory impls = opcm.implementations();
-        bool expectEmptyV2Implementations = isV2 ? false : true;
-        assertEq(address(impls.permissionedDisputeGameV2Impl) == address(0), expectEmptyV2Implementations);
-        assertEq(address(impls.faultDisputeGameV2Impl) == address(0), expectEmptyV2Implementations);
+        address pdgImpl = address(impls.permissionedDisputeGameV2Impl);
+        address fdgImpl = address(impls.faultDisputeGameV2Impl);
+        if (isV2) {
+            assertFalse(pdgImpl == address(0), "PDG implementation address should be non-zero");
+            assertFalse(fdgImpl == address(0), "FDG implementation address should be non-zero");
+        } else {
+            assertTrue(pdgImpl == address(0), "PDG implementation address should be zero");
+            assertTrue(fdgImpl == address(0), "FDG implementation address should be zero");
+        }
 
+        // Run OPCM.deploy
         IOPContractsManager.DeployInput memory opcmInput = toOPCMDeployInput(deployOPChainInput);
         IOPContractsManager.DeployOutput memory opcmOutput = opcm.deploy(opcmInput);
 
         // Verify that the DisputeGameFactory has registered an implementation for the PERMISSIONED_CANNON game type
-        address expectedPDGAddress =
-            isV2 ? impls.permissionedDisputeGameV2Impl : address(opcmOutput.permissionedDisputeGame);
+        address expectedPDGAddress = isV2 ? pdgImpl : address(opcmOutput.permissionedDisputeGame);
         address actualPDGAddress = address(opcmOutput.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
         assertNotEq(actualPDGAddress, address(0), "DisputeGameFactory should have a registered PERMISSIONED_CANNON");
-        assertEq(actualPDGAddress, address(expectedPDGAddress));
+        assertEq(actualPDGAddress, address(expectedPDGAddress), "PDG address should match");
 
         // Create a game proxy to test immutable fields
         Claim claim = Claim.wrap(bytes32(uint256(9876)));
@@ -2009,7 +2015,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         assertEq(address(pdg.anchorStateRegistry()), address(opcmOutput.anchorStateRegistryProxy), "ASR should match");
         assertEq(address(pdg.weth()), address(opcmOutput.delayedWETHPermissionedGameProxy), "WETH should match");
         assertEq(pdg.l2ChainId(), opcmInput.l2ChainId, "L2 chain ID should match");
-
         // For permissioned game, check proposer and challenger
         assertEq(pdg.proposer(), opcmInput.roles.proposer, "Proposer should match");
         assertEq(pdg.challenger(), opcmInput.roles.challenger, "Challenger should match");
