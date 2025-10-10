@@ -155,7 +155,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		if result.notFound && !proposalInFuture {
 			if st := statuses[idx]; st != nil {
 				if game.L2BlockNumber > st.UnsafeL2.Number+lagTolerance {
-					o.log.Debug("Ignoring not found from behind node", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "unsafeL2", st.UnsafeL2.Number, "safeL2", st.SafeL2.Number)
+					o.log.Debug("Ignoring not found from behind node", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "unsafeL2", st.UnsafeL2.Number, "maxUnsafe", maxUnsafe)
 					continue
 				}
 			}
