@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,7 +102,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 	t.Run("AllNodesReturnNotFound", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		for _, client := range clients {
-			client.outputErr = errors.New("not found")
+			client.outputErr = mockNotFoundRPCError()
 		}
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
@@ -117,7 +118,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 	t.Run("SomeNodesOutOfSync", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
-		clients[0].outputErr = errors.New("not found")
+		clients[0].outputErr = mockNotFoundRPCError()
 		clients[1].outputErr = nil
 		clients[2].outputErr = nil
 		game := &types.EnrichedGameData{
@@ -134,8 +135,8 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 	t.Run("MixedResponses_FoundNodesMatchClaimAndSafe", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 4)
-		clients[0].outputErr = errors.New("not found")
-		clients[1].outputErr = errors.New("not found")
+		clients[0].outputErr = mockNotFoundRPCError()
+		clients[1].outputErr = mockNotFoundRPCError()
 		clients[2].outputRoot = mockRootClaim
 		clients[2].safeHeadNum = 100
 		clients[3].outputRoot = mockRootClaim
@@ -155,7 +156,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 	t.Run("MixedResponses_FoundNodesDontMatchClaim", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		differentRoot := common.HexToHash("0x9999")
-		clients[0].outputErr = errors.New("not found")
+		clients[0].outputErr = mockNotFoundRPCError()
 		clients[1].outputRoot = differentRoot
 		clients[2].outputRoot = differentRoot
 		game := &types.EnrichedGameData{
@@ -299,6 +300,18 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		require.Zero(t, metrics.fetchTime)
 	})
 }
+
+// mockNotFoundRPCError creates a minimal rpc.Error that reports a "not found" message
+// to exercise the JSON-RPC application error path in the enricher.
+func mockNotFoundRPCError() rpc.Error { return testRPCError{msg: "not found", code: -32000} }
+
+type testRPCError struct {
+	msg  string
+	code int
+}
+
+func (e testRPCError) Error() string  { return e.msg }
+func (e testRPCError) ErrorCode() int { return e.code }
 
 func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
