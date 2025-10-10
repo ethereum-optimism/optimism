@@ -95,7 +95,6 @@ func (n *SuperNode) Start() {
 
 	// Build CLI config for supernode (single-chain)
 	cfg := &snconfig.CLIConfig{
-		Sample:       "devstack",
 		Chains:       []uint64{eth.EvilChainIDToUInt64(n.id.ChainID())},
 		DataDir:      n.p.TempDir(),
 		L1NodeAddr:   n.l1UserRPC,
@@ -274,7 +273,6 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 		// Start shared supernode with all chains
 		snCfg := &snconfig.CLIConfig{
-			Sample:       "devstack",
 			Chains:       chainIDs,
 			DataDir:      p.TempDir(),
 			L1NodeAddr:   l1EL.UserRPC(),
