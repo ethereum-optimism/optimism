@@ -7,7 +7,7 @@
 Automatically identifies stale test files and uses Devin AI to improve test quality, coverage, and organization. Runs twice weekly (Monday/Thursday) in CircleCI.
 
 **Three-Stage Pipeline**:
-1. **Test Ranking** → Analyzes ~100 tests, calculates staleness scores
+1. **Test Ranking** → Analyzes all available test files, calculates staleness scores
 2. **Prompt Rendering** → Generates AI instructions for highest-priority test
 3. **Devin Execution** → AI improves tests and creates PR
 
@@ -29,6 +29,20 @@ just rank               # Test ranking only
 ```
 
 > 📖 **Full usage instructions**: [Runbook - Usage](docs/runbook.md#usage)
+
+## Available Commands
+
+Commands available via `just` from `ops/ai-eng` directory:
+
+```bash
+# Contract Test Maintenance
+just rank                  # Rank tests by staleness
+just render                # Generate AI prompt
+just devin                 # Execute with Devin
+just ai-contracts-test     # Full pipeline
+```
+
+> See [justfile](../justfile) for complete command list
 
 ### Output
 
@@ -78,9 +92,9 @@ files = ["test/vendor/Initializable.t.sol"]
 cat log.json | jq .
 ```
 
-**CircleCI**: Job `ai-contracts-test` → Check artifacts and console output
+**CircleCI**: [View pipelines](https://app.circleci.com/pipelines/github/ethereum-optimism/optimism?branch=develop) → Find `ai-contracts-test-workflow` → Check `ai-contracts-test` job artifacts and console output
 
-**GitHub PRs**: Search `is:pr author:app/devin ai/improve`
+**GitHub PRs**: [View AI-generated PRs](https://github.com/ethereum-optimism/optimism/pulls?q=is%3Aopen+is%3Apr+author%3Aapp%2Fdevin-ai-integration)
 
 > 📊 **Detailed monitoring**: [Runbook - Monitoring](docs/runbook.md#monitoring-and-debugging)
 

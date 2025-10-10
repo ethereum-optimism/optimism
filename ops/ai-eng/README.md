@@ -33,20 +33,6 @@ AI-powered code review rules for Solidity files in pull requests.
 - **Tech**: Graphite + Diamond
 - **Docs**: [graphite/rules.md](graphite/rules.md)
 
-## Available Commands
-
-Commands available via `just` in this directory:
-
-```bash
-# Contract Test Maintenance
-just rank                  # Rank tests by staleness
-just render                # Generate AI prompt
-just devin                 # Execute with Devin
-just ai-contracts-test     # Full pipeline
-```
-
-> See [justfile](justfile) for complete command list
-
 ## Adding New Projects
 
 When adding a new AI-driven engineering tool:
