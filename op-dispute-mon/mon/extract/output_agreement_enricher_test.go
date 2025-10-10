@@ -38,6 +38,43 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		require.ErrorIs(t, err, ErrRollupRpcRequired)
 	})
 
+	t.Run("IgnoreNotFoundFromBehindNode", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		// Two nodes up-to-date and return output; one node behind and returns not found
+		clients[0].outputErr = mockNotFoundRPCError()
+		clients[0].unsafeL2Num = 10 // behind relative to requested block
+		clients[1].unsafeL2Num = 100
+		clients[2].unsafeL2Num = 100
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("FutureProposal_AllNotFound_DisagreeNoError", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 2)
+		for _, c := range clients {
+			c.outputErr = mockNotFoundRPCError()
+			c.unsafeL2Num = 10 // all behind the proposal
+		}
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.Zero(t, metrics.fetchTime)
+	})
+
 	t.Run("SkipNonOutputRootGameTypes", func(t *testing.T) {
 		gameTypes := []uint32{4, 5, 7, 8, 10, 49812}
 		for _, gameType := range gameTypes {
@@ -351,6 +388,8 @@ type stubRollupClient struct {
 	safeHeadErr error
 	safeHeadNum uint64
 	outputRoot  common.Hash
+	// optional sync status fields for step 2 tests
+	unsafeL2Num uint64
 }
 
 func (s *stubRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
@@ -370,4 +409,10 @@ func (s *stubRollupClient) SafeHeadAtL1Block(_ context.Context, _ uint64) (*eth.
 			Number: s.safeHeadNum,
 		},
 	}, nil
+}
+
+// implement syncStatusProvider optionally
+func (s *stubRollupClient) SyncStatus(_ context.Context) (*eth.SyncStatus, error) {
+	// If unsafeL2Num is zero but we want to simulate status, tests should set it explicitly.
+	return &eth.SyncStatus{UnsafeL2: eth.L2BlockRef{Number: s.unsafeL2Num}}, nil
 }

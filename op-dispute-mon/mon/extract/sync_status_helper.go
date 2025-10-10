@@ -8,7 +8,7 @@ import (
 
 // lagTolerance defines a small tolerance to absorb minor races between
 // output indexing and reported sync status.
-const lagTolerance uint64 = 1
+const lagTolerance uint64 = 10
 
 // syncStatusProvider is an optional capability that some rollup clients implement.
 // It enables classification of a node as "behind" relative to a requested L2 block.

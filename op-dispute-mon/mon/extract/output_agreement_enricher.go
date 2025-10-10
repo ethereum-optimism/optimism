@@ -70,6 +70,36 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		return nil
 	}
 
+	// Pre-fetch sync status to classify future proposals and behind nodes
+	statuses := make([]*eth.SyncStatus, len(o.clients))
+	var maxUnsafe uint64
+	var haveStatus bool
+	{
+		var wgSync sync.WaitGroup
+		for i, client := range o.clients {
+			wgSync.Add(1)
+			go func(i int, client OutputRollupClient) {
+				defer wgSync.Done()
+				if p, ok := any(client).(syncStatusProvider); ok {
+					st, err := p.SyncStatus(ctx)
+					if err == nil && st != nil {
+						statuses[i] = st
+					}
+				}
+			}(i, client)
+		}
+		wgSync.Wait()
+		for _, st := range statuses {
+			if st != nil {
+				haveStatus = true
+				if st.UnsafeL2.Number > maxUnsafe {
+					maxUnsafe = st.UnsafeL2.Number
+				}
+			}
+		}
+	}
+	proposalInFuture := haveStatus && game.L2BlockNumber > maxUnsafe+lagTolerance
+
 	results := make([]outputResult, len(o.clients))
 	var wg sync.WaitGroup
 	for i, client := range o.clients {
@@ -118,6 +148,16 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			continue
 		}
 
+		// If not future, ignore behind-node notFound responses (treated as temporarily unavailable)
+		if result.notFound && !proposalInFuture {
+			if st := statuses[idx]; st != nil {
+				if game.L2BlockNumber > st.UnsafeL2.Number+lagTolerance {
+					o.log.Debug("Ignoring not found from behind node", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "unsafeL2", st.UnsafeL2.Number, "safeL2", st.SafeL2.Number)
+					continue
+				}
+			}
+		}
+
 		validResults = append(validResults, result)
 
 		if !result.notFound {
@@ -125,8 +165,13 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		}
 	}
 
-	// If all results were errors, return an error
+	// If all results were filtered out, treat future proposals as disagreement; else error.
 	if len(validResults) == 0 {
+		if proposalInFuture {
+			game.AgreeWithClaim = false
+			game.ExpectedRootClaim = common.Hash{}
+			return nil
+		}
 		return fmt.Errorf("failed to get output at block: %w", ErrAllNodesUnavailable)
 	}
 
