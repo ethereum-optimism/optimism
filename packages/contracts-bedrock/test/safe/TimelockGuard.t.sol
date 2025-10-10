@@ -7,6 +7,7 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
+import { SaferSafes } from "src/safe/SaferSafes.sol";
 
 using TransactionBuilder for TransactionBuilder.Transaction;
 
@@ -169,8 +170,10 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     function setUp() public virtual {
         vm.warp(INIT_TIME);
 
-        // Deploy the singleton TimelockGuard
-        timelockGuard = new TimelockGuard();
+        // Deploy the combined SaferSafes contract which implements TimelockGuard
+        SaferSafes saferSafesImpl = new SaferSafes();
+        timelockGuard = TimelockGuard(address(saferSafesImpl));
+
         // Set up Safe with owners
         safeInstance = _deploySafe("owners", NUM_OWNERS, THRESHOLD);
         safe = Safe(payable(safeInstance.safe));

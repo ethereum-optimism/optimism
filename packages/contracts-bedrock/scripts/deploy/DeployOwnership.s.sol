@@ -12,6 +12,7 @@ import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
+import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
@@ -241,11 +242,11 @@ contract DeployOwnership is Deploy {
     /// @notice Deploy a LivenessModule2 singleton for use on Security Council Safes
     ///         Note this function does not have the broadcast modifier.
     function deployLivenessModule() public returns (address addr_) {
-        // Deploy the singleton LivenessModule2 (no parameters needed)
-        addr_ = address(new LivenessModule2());
+        // Deploy the singleton SaferSafes contract which implements LivenessModule2 (no parameters needed)
+        addr_ = address(new SaferSafes());
 
         artifacts.save("LivenessModule2", address(addr_));
-        console.log("New LivenessModule2 deployed at %s", address(addr_));
+        console.log("New SaferSafes (LivenessModule2) deployed at %s", address(addr_));
     }
 
     /// @notice Deploy a Security Council Safe.

@@ -86,6 +86,7 @@ func TestMain(m *testing.M) {
 		}),
 		sysgo.WithBatcherOption(func(_ stack.L2BatcherID, cfg *batcher.CLIConfig) {
 			cfg.DataAvailabilityType = flags.BlobsType
+			cfg.TxMgrConfig.CellProofTime = 0 // Force cell proofs to be used
 		}),
 	)))
 }

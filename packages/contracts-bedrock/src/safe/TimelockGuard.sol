@@ -10,9 +10,6 @@ import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
-// Interfaces
-import { ISemver } from "interfaces/universal/ISemver.sol";
-
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
 /// @dev This is a singleton contract, any Safe on the network can use this guard to enforce a timelock delay, and
@@ -67,7 +64,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-contract TimelockGuard is IGuard, ISemver {
+abstract contract TimelockGuard is IGuard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction
@@ -124,10 +121,6 @@ contract TimelockGuard is IGuard, ISemver {
 
     /// @notice Mapping from Safe address to its timelock guard state.
     mapping(Safe => SafeState) internal _safeState;
-
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -208,6 +201,10 @@ contract TimelockGuard is IGuard, ISemver {
         address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
         return guard == address(this);
     }
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
+    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     ////////////////////////////////////////////////////////////////
     //                  External View Functions                   //
@@ -451,6 +448,9 @@ contract TimelockGuard is IGuard, ISemver {
         // Initialize (or reset) the cancellation threshold to 1.
         _resetCancellationThreshold(callingSafe);
         emit GuardConfigured(callingSafe, _timelockDelay);
+
+        // Verify that any other extensions which are enabled on the Safe are configured correctly.
+        _checkCombinedConfig(callingSafe);
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.

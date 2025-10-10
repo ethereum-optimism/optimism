@@ -24,6 +24,18 @@ import (
 
 var logger *log.Logger
 
+// Constants used across the promoter
+const (
+	flakeShakeGateID         = "flake-shake"
+	flakeShakeWorkflowName   = "scheduled-flake-shake"
+	flakeShakeReportJobName  = "op-acceptance-tests-flake-shake-report"
+	flakeShakePRTitle        = "chore(op-acceptance-tests): flake-shake; test promotions"
+	flakeShakePRBranchPrefix = "ci/flake-shake-promote/"
+	flakeShakeLabel          = "M-ci"
+	flakeShakeBotAuthor      = "opgitgovernance"
+	flakeShakeSupersedeDays  = 2
+)
+
 // CircleCI API models
 type pipelineList struct {
 	Items         []pipeline `json:"items"`
@@ -33,6 +45,7 @@ type pipelineList struct {
 type pipeline struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+	Number    int       `json:"number"`
 }
 
 type workflowList struct {
@@ -262,10 +275,10 @@ func main() {
 	// Prepare updated YAML content for PR by editing only the flake-shake gate in-place to preserve comments
 	var updatedYAMLBytes []byte
 
-	prBranch := fmt.Sprintf("ci/flake-shake-promote/%s", time.Now().UTC().Format("2006-01-02-150405"))
+	prBranch := fmt.Sprintf("%s%s", flakeShakePRBranchPrefix, time.Now().UTC().Format("2006-01-02-150405"))
 
 	// Prepare commit message and PR body
-	title := "chore(op-acceptance-tests): flake-shake; test promotions"
+	title := flakeShakePRTitle
 	var body bytes.Buffer
 	body.WriteString("## 🤖 Automated Flake-Shake Test Promotion\n\n")
 
@@ -391,7 +404,7 @@ func main() {
 	}
 
 	// 6) Add labels
-	if _, _, err := ghc.Issues.AddLabelsToIssue(ghCtx, opts.org, opts.repo, pr.GetNumber(), []string{"M-ci", "A-acceptance-tests"}); err != nil {
+	if _, _, err := ghc.Issues.AddLabelsToIssue(ghCtx, opts.org, opts.repo, pr.GetNumber(), []string{flakeShakeLabel, "A-acceptance-tests"}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to add labels: %v\n", err)
 	}
 
@@ -401,6 +414,11 @@ func main() {
 		TeamReviewers: []string{"platforms-team"},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to request reviewers: %v\n", err)
+	}
+
+	// 8) Close any older open flake-shake PRs by this bot as superseded
+	if err := closeSupersededFlakeShakePRs(ghCtx, ghc, opts.org, opts.repo, pr, title, opts.verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to close superseded PRs: %v\n", err)
 	}
 }
 
@@ -427,10 +445,10 @@ func parsePromoterFlags() promoterOpts {
 	flag.StringVar(&opts.org, "org", "ethereum-optimism", "GitHub org")
 	flag.StringVar(&opts.repo, "repo", "optimism", "GitHub repo")
 	flag.StringVar(&opts.branch, "branch", "develop", "Branch to scan")
-	flag.StringVar(&opts.workflowName, "workflow", "scheduled-flake-shake", "Workflow name")
-	flag.StringVar(&opts.reportJobName, "report-job", "op-acceptance-tests-flake-shake-report", "Report job name")
+	flag.StringVar(&opts.workflowName, "workflow", flakeShakeWorkflowName, "Workflow name")
+	flag.StringVar(&opts.reportJobName, "report-job", flakeShakeReportJobName, "Report job name")
 	flag.IntVar(&opts.daysBack, "days", 3, "Number of days to aggregate")
-	flag.StringVar(&opts.gateID, "gate", "flake-shake", "Gate id in acceptance-tests.yaml")
+	flag.StringVar(&opts.gateID, "gate", flakeShakeGateID, "Gate id in acceptance-tests.yaml")
 	flag.IntVar(&opts.minRuns, "min-runs", 300, "Minimum total runs required")
 	flag.Float64Var(&opts.maxFailureRate, "max-failure-rate", 0.01, "Maximum allowed failure rate")
 	flag.IntVar(&opts.minAgeDays, "min-age-days", 2, "Minimum age in days in flake-shake")
@@ -864,6 +882,51 @@ func listJobs(ctx *apiCtx, workflowID string) (jobList, error) {
 	return jl, nil
 }
 
+// closeSupersededFlakeShakePRs finds any open flake-shake promotion PRs created by the bot
+// and closes them with a comment pointing to the newly created PR.
+func closeSupersededFlakeShakePRs(ctx context.Context, ghc *github.Client, org, repo string, newPR *github.PullRequest, title string, verbose bool) error {
+	// Search open PRs in this repo that match our title and bot author
+	// Using Issues.ListByRepo with filters
+	opt := &github.IssueListByRepoOptions{
+		State:       "open",
+		Labels:      []string{flakeShakeLabel},
+		Since:       time.Now().AddDate(0, 0, -flakeShakeSupersedeDays),
+		ListOptions: github.ListOptions{PerPage: 50},
+	}
+	for {
+		issues, resp, err := ghc.Issues.ListByRepo(ctx, org, repo, opt)
+		if err != nil {
+			return err
+		}
+		for _, is := range issues {
+			if is.IsPullRequest() && is.GetNumber() != newPR.GetNumber() {
+				// Check title contains our flake-shake marker; be robust to minor variations
+				// Use the provided title to derive a stable prefix (before the first ';') for matching
+				titlePrefix := strings.TrimSpace(strings.TrimSuffix(title, "; test promotions"))
+				if strings.Contains(strings.ToLower(is.GetTitle()), strings.ToLower(flakeShakeGateID)) && strings.Contains(is.GetTitle(), titlePrefix) {
+					// Author check
+					if is.User != nil && is.User.GetLogin() != flakeShakeBotAuthor {
+						continue
+					}
+					// Comment and close
+					msg := fmt.Sprintf("superseded by #%d", newPR.GetNumber())
+					_, _, _ = ghc.Issues.CreateComment(ctx, org, repo, is.GetNumber(), &github.IssueComment{Body: github.String(msg)})
+					state := "closed"
+					_, _, _ = ghc.PullRequests.Edit(ctx, org, repo, is.GetNumber(), &github.PullRequest{State: &state})
+					if verbose {
+						logger.Printf("Closed superseded PR #%d: %s", is.GetNumber(), is.GetTitle())
+					}
+				}
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return nil
+}
+
 // resolveReportArtifactsURL attempts to find the web URL to the report job's artifacts page
 // by scanning recent pipelines/workflows for the configured workflow/report job names.
 // Returns an empty string if not found.
@@ -898,26 +961,12 @@ func resolveReportArtifactsURL(opts promoterOpts, ctx *apiCtx) string {
 					if j.Name != opts.reportJobName {
 						continue
 					}
-					if j.WebURL != "" {
-						url := j.WebURL
-						if !strings.Contains(url, "/artifacts") {
-							if strings.HasSuffix(url, "/") {
-								url = url + "artifacts"
-							} else {
-								url = url + "/artifacts"
-							}
-						}
-						return url
+					// Prefer constructing the app.circleci.com artifacts URL from pipeline number + workflow id + job number
+					if p.Number != 0 && j.JobNumber != 0 {
+						u := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s/%d/workflows/%s/jobs/%d/artifacts", opts.org, opts.repo, p.Number, w.ID, j.JobNumber)
+						return u
 					}
-					// Fallback: build URL from job number if web_url missing
-					if j.JobNumber != 0 {
-						url := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s?branch=%s", opts.org, opts.repo, url.QueryEscape(opts.branch))
-						_ = url // keep for future; better to use job-specific URL
-						// More specific URL pattern commonly used in UI includes workflow id; not available here.
-						// As a fallback, return the legacy build URL on circleci.com if org/repo/job present.
-						legacy := fmt.Sprintf("https://circleci.com/gh/%s/%s/%d", opts.org, opts.repo, j.JobNumber)
-						return legacy + "/artifacts"
-					}
+					return ""
 				}
 			}
 		}

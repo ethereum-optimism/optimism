@@ -90,6 +90,7 @@ This systematic approach ensures comprehensive test improvements without missing
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
+- Reorganize test contracts to match source function declaration order
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -119,6 +120,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Format: `[method]_[functionName]_[scenario]_[outcome]`
   - Methods: `test`, `testFuzz`, `testDiff`
   - Outcomes: `succeeds`, `reverts`, `fails` (never `works`)
+  - Scenarios: Keep concise (e.g., `expired` not `expiredPause`)
 - ALL parameters use underscore prefix: `_param`
 - Read-only tests MUST have `view` modifier
 
@@ -152,8 +154,12 @@ Uncategorized_Test Contract:
 
 Ask yourself: "What is the PRIMARY behavior I'm testing?" The answer determines the categorization.
 
-**Expected Structure:**
-Helper contracts → TestInit → function tests (in source order) → Uncategorized_Test last
+**Final Organization Structure:**
+1. After all tests are implemented and passing
+2. Map all functions from source contract in declaration order
+3. Reorganize ALL test contracts to match this order
+4. Structure: Helper contracts → TestInit → function tests (in source order) → Uncategorized last
+5. NEVER delete existing tests - only enhance, rename, or reorganize
 
 CRITICAL: Organization happens LAST, after all improvements are complete
 
@@ -477,8 +483,9 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
 - Replace with `vm.expectRevert(ErrorName.selector)` or `vm.expectRevert(bytes("message"))`
 
 *Organization confusion:*
-- Expected order: Helper contracts at top, Uncategorized last
-- Function tests should follow source contract declaration order
+- Read source contract function order first
+- Move test contracts to match that exact order
+- Keep helper contracts at top, Uncategorized last
 
 *Fuzz test failures:*
 - Check if constraints properly bound the values

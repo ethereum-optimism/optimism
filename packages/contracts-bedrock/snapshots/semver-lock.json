@@ -207,13 +207,9 @@
     "initCodeHash": "0xa4a06e8778dbb6883ece8f56538ba15bc01b3031bba9a12ad9d187e7c8aaa942",
     "sourceCodeHash": "0x950725f8b9ad9bb3b6b5e836f67e18db824a7864bac547ee0eeba88ada3de0e9"
   },
-  "src/safe/LivenessModule2.sol:LivenessModule2": {
-    "initCodeHash": "0x4679b41e5648a955a883efd0271453c8b13ff4846f853d372527ebb1e0905ab5",
-    "sourceCodeHash": "0xd3084fb5446782cb6d0adb4278ef0a12c418dd538b4b14b90407b971b44cc35b"
-  },
-  "src/safe/TimelockGuard.sol:TimelockGuard": {
-    "initCodeHash": "0x1f8188872de93ce59e8f0bd415d4fbf30209bc668c09623f61d6fe592eee895a",
-    "sourceCodeHash": "0x0dada93f051d29dabbb6de3e1c1ece14b95cd20dc854454926d19ea1ebcae436"
+  "src/safe/SaferSafes.sol:SaferSafes": {
+    "initCodeHash": "0x22730f6ebe10e0d78b23b3e0f3d58f867f420039981455b09a508755e512c127",
+    "sourceCodeHash": "0xe3d2fd50724baf6d5e83e2c9d89fcfcbc678d966187bd38e2d9a840716bcafa3"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",

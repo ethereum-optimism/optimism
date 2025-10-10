@@ -999,7 +999,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout-from-workspace
       - run:
@@ -1011,8 +1011,8 @@ jobs:
           working_directory: ops/ai-eng
           no_output_timeout: 60m
       - store_artifacts:
-          path: ops/ai-eng/contracts-test-maintenance/log.jsonl
-          destination: log.jsonl
+          path: ops/ai-eng/contracts-test-maintenance/log.json
+          destination: log.json
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
@@ -1639,6 +1639,7 @@ jobs:
     machine:
       image: ubuntu-2404:current
     resource_class: large
+    circleci_ip_ranges: true
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
       - checkout-from-workspace
@@ -1679,7 +1680,7 @@ jobs:
           paths:
             - logs/flake-shake-results-worker-*/
       - store_artifacts:
-          path: ./op-acceptance-tests/logs/flake-shake-results-worker-*
+          path: ./op-acceptance-tests/logs
           destination: flake-shake-workers
 
   op-acceptance-tests-flake-shake-report:
@@ -1713,6 +1714,17 @@ jobs:
           name: Generate summary
           command: |
             bash ./op-acceptance-tests/scripts/ci_flake_shake_generate_summary.sh final-report/flake-shake-report.json final-report
+      - run:
+          name: Bundle consolidated flake-shake worker logs
+          command: |
+            set -euo pipefail
+            # Create a single tarball with all worker logs, if any exist in the workspace
+            if compgen -G "op-acceptance-tests/logs/flake-shake-results-worker-*" > /dev/null; then
+              tar -czf final-report/flake-shake-workers-logs.tar.gz op-acceptance-tests/logs/flake-shake-results-worker-*
+              echo "Created final-report/flake-shake-workers-logs.tar.gz"
+            else
+              echo "No worker log directories found to bundle"
+            fi
       - store_artifacts:
           path: ./final-report
           destination: flake-shake-report
@@ -3148,7 +3160,9 @@ workflows:
 
   ai-contracts-test-workflow:
     when:
-      equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
+      or:
+        - equal: [build_mon_thu, <<pipeline.schedule.name>>]
+        - equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
     jobs:
       - initialize:
           context:
@@ -3156,6 +3170,7 @@ workflows:
       - ai-contracts-test:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
             - devin-api
           requires:
             - initialize

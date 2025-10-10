@@ -318,7 +318,8 @@ func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*
 	if cf.ChainID.Cmp(chainId) != 0 {
 		return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
 	}
-	if cf.BlobScheduleConfig == nil {
+	if !cf.IsOptimism() && cf.BlobScheduleConfig == nil {
+		// No error if the chain config is an OP-Stack chain and doesn't have a blob schedule config
 		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
 	}
 	return cf, nil

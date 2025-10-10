@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -64,6 +65,12 @@ func (r *ForkchoiceUpdateResult) WaitUntilValid(attempts int) *ForkchoiceUpdateR
 		func() error {
 			r.Refresh()
 			tryCnt += 1
+			if r.Err != nil {
+				return fmt.Errorf("forkchoice returned error: %w", r.Err)
+			}
+			if r.Result == nil {
+				return errors.New("forkchoice has empty result")
+			}
 			if r.Result.PayloadStatus.Status != eth.ExecutionValid {
 				r.T.Log("Wait for FCU to return valid", "status", r.Result.PayloadStatus.Status, "try_count", tryCnt)
 				return errors.New("still syncing")
