@@ -176,20 +176,16 @@ contract VerifyOPCM is Script {
     }
 
     /// @notice Entry point for the script when trying to verify a single contract by name.
-    /// @param _opcm The opcm that contains the target contract being verified.
     /// @param _name Name of the contract to verify.
     /// @param _addr Address of the contract to verify.
     /// @param _skipConstructorVerification Whether to skip constructor verification.
-    function runSingle(
-        IOPContractsManager _opcm,
-        string memory _name,
-        address _addr,
-        bool _skipConstructorVerification
-    )
-        public
-    {
+    function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+        // This function is used as part of the release checklist to verify new contracts.
+        // Rather than requiring an opcm input parameter, just pass in an empty reference
+        // as we really only need this for features that are in development.
+        IOPContractsManager emptyOpcm = IOPContractsManager(address(0));
         _verifyOpcmContractRef(
-            _opcm,
+            emptyOpcm,
             OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }),
             _skipConstructorVerification
         );

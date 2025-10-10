@@ -88,6 +88,27 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.run(address(opcm), true);
     }
 
+    /// @notice Tests that the runSingle script succeeds when run against production contracts.
+    function test_runSingle_succeeds() public {
+        VerifyOPCM.OpcmContractRef[][2] memory refsByType;
+        refsByType[0] = harness.getOpcmContractRefs(opcm, "implementations", false);
+        refsByType[1] = harness.getOpcmContractRefs(opcm, "blueprints", true);
+
+        for (uint8 i = 0; i < refsByType.length; i++) {
+            for (uint256 j = 0; j < refsByType[i].length; j++) {
+                VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
+
+                // TODO(#17262): Remove these skips once these contracts are no longer behind a feature flag
+                // This script doesn't work for features that are in-development, so skip for now
+                if (_isDisputeGameV2ContractRef(ref)) {
+                    continue;
+                }
+
+                harness.runSingle(ref.name, ref.addr, true);
+            }
+        }
+    }
+
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
@@ -132,9 +153,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame =
-                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
-            if (isV2DisputeGame && !v2FeatureEnabled) {
+            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
                 continue;
             }
 
@@ -203,9 +222,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
 
             // Skip V2 dispute games when feature disabled
-            bool isV2DisputeGame =
-                LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
-            if (isV2DisputeGame && !v2FeatureEnabled) {
+            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
                 continue;
             }
 
@@ -353,6 +370,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Ensure we actually tested some components (currently: deployer, gameTypeAdder, upgrader, interopMigrator)
         assertGt(componentsWithContainerTested, 0, "Should have tested at least one component");
+    }
+
+    function _isDisputeGameV2ContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
+        return LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
     }
 
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
