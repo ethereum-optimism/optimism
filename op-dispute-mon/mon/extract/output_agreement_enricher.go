@@ -22,9 +22,14 @@ var (
 	ErrAllNodesUnavailable = errors.New("all nodes returned errors")
 )
 
+// lagTolerance defines a small tolerance to absorb minor races between
+// output indexing and reported sync status.
+const lagTolerance uint64 = 10
+
 type OutputRollupClient interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 	SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error)
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 }
 
 type OutputMetrics interface {
@@ -80,11 +85,9 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			wgSync.Add(1)
 			go func(i int, client OutputRollupClient) {
 				defer wgSync.Done()
-				if p, ok := any(client).(syncStatusProvider); ok {
-					st, err := p.SyncStatus(ctx)
-					if err == nil && st != nil {
-						statuses[i] = st
-					}
+				st, err := client.SyncStatus(ctx)
+				if err == nil && st != nil {
+					statuses[i] = st
 				}
 			}(i, client)
 		}
