@@ -203,9 +203,7 @@ contract DeployImplementations is Script {
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
-                    _input.superchainConfigProxy,
-                    _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin
+                    _input.superchainConfigProxy
                 )
             )
         );
@@ -760,15 +758,11 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
-        Types.ContractSet memory proxies;
-        proxies.SuperchainConfig = address(_input.superchainConfigProxy);
-        proxies.ProtocolVersions = address(_input.protocolVersionsProxy);
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
-            _proxies: proxies,
+            _superchainConfigProxy: address(_input.superchainConfigProxy),
             _opcm: IOPContractsManager(address(_output.opcm)),
-            _mips: IMIPS64(address(_output.mipsSingleton)),
-            _superchainProxyAdmin: _input.superchainProxyAdmin
+            _mips: IMIPS64(address(_output.mipsSingleton))
         });
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);

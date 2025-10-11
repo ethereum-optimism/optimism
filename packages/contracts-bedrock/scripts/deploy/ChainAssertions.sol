@@ -375,10 +375,9 @@ library ChainAssertions {
     /// @notice Asserts that the OPContractsManager is setup correctly
     function checkOPContractsManager(
         Types.ContractSet memory _impls,
-        Types.ContractSet memory _proxies,
+        address _superchainConfigProxy,
         IOPContractsManager _opcm,
-        IMIPS64 _mips,
-        IProxyAdmin _superchainProxyAdmin
+        IMIPS64 _mips
     )
         internal
         view
@@ -387,9 +386,7 @@ library ChainAssertions {
         require(address(_opcm) != address(0), "CHECK-OPCM-10");
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
-        require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
-        require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
-        require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
+        require(address(_opcm.superchainConfig()) == _superchainConfigProxy, "CHECK-OPCM-19");
 
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();

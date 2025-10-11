@@ -30,16 +30,6 @@
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
-      },
-      {
-        "internalType": "contract IProtocolVersions",
-        "name": "_protocolVersions",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "_superchainProxyAdmin",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -722,36 +712,10 @@
   },
   {
     "inputs": [],
-    "name": "protocolVersions",
-    "outputs": [
-      {
-        "internalType": "contract IProtocolVersions",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {
         "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "superchainProxyAdmin",
-    "outputs": [
-      {
-        "internalType": "contract IProxyAdmin",
         "name": "",
         "type": "address"
       }

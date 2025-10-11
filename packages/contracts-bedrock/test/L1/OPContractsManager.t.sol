@@ -77,9 +77,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmUpgrader,
             _opcmInteropMigrator,
             _opcmStandardValidator,
-            _superchainConfig,
-            _protocolVersions,
-            _superchainProxyAdmin
+            _superchainConfig
         )
     { }
 
@@ -328,8 +326,6 @@ contract OPContractsManager_TestInit is CommonTest {
     /// @notice Sets up the environment variables for the VerifyOPCM test.
     function setupEnvVars() public {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
@@ -1232,8 +1228,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
         // Set up environment variables with the actual OPCM addresses for tests that need themqq
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
 
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);

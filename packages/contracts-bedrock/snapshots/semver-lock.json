@@ -20,8 +20,8 @@
     "sourceCodeHash": "0xfca613b5d055ffc4c3cbccb0773ddb9030abedc1aa6508c9e2e7727cc0cd617b"
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
-    "initCodeHash": "0x9f9a3738b05cae6597ea9a5c5747f7dbd3a5328b05a319955054fbd8b1aaa791",
-    "sourceCodeHash": "0x154c764083f353e2a56337c0dd5cbcd6f2e12c21966cd0580c7a0f96c4e147dd"
+    "initCodeHash": "0xc0221fd61400a30e9dc46776a6021b594e8dac04cfcd7ec7d2095afa070b3f57",
+    "sourceCodeHash": "0x4a80024d437959346a0ebb7754656cc9bdb3949f8b5695bd804adabf6394857f"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0x57d6a6729d887ead009d518e8f17fa0d26bfc97b8efe1494ab4ef8dbb000d109",

@@ -1837,9 +1837,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.0.0
+    /// @custom:semver 4.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "4.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1854,12 +1854,6 @@ contract OPContractsManager is ISemver {
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     ISuperchainConfig public immutable superchainConfig;
-
-    /// @notice Address of the ProtocolVersions contract shared by all chains.
-    IProtocolVersions public immutable protocolVersions;
-
-    /// @notice Address of the SuperchainProxyAdmin contract shared by all chains.
-    IProxyAdmin public immutable superchainProxyAdmin;
 
     /// @notice The OPContractsManager contract that is currently being used. This is needed in the upgrade function
     /// which is intended to be DELEGATECALLed.
@@ -1914,12 +1908,9 @@ contract OPContractsManager is ISemver {
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
         OPContractsManagerStandardValidator _opcmStandardValidator,
-        ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin
+        ISuperchainConfig _superchainConfig
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
-        _opcmDeployer.assertValidContractAddress(address(_protocolVersions));
         _opcmDeployer.assertValidContractAddress(address(_opcmGameTypeAdder));
         _opcmDeployer.assertValidContractAddress(address(_opcmDeployer));
         _opcmDeployer.assertValidContractAddress(address(_opcmUpgrader));
@@ -1931,8 +1922,6 @@ contract OPContractsManager is ISemver {
         opcmInteropMigrator = _opcmInteropMigrator;
         opcmStandardValidator = _opcmStandardValidator;
         superchainConfig = _superchainConfig;
-        protocolVersions = _protocolVersions;
-        superchainProxyAdmin = _superchainProxyAdmin;
         thisOPCM = this;
     }
 
