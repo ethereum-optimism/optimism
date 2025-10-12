@@ -33,7 +33,7 @@ const (
 	flakeShakePRBranchPrefix = "ci/flake-shake-promote/"
 	flakeShakeLabel          = "M-ci"
 	flakeShakeBotAuthor      = "opgitgovernance"
-	flakeShakeSupersedeDays  = 2
+	flakeShakeSupersedeDays  = 2 // lookback window (days) when closing older PRs as superseded
 )
 
 // CircleCI API models
@@ -572,9 +572,11 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if totalRuns > 0 {
 			failureRate = float64(totalFailures) / float64(totalRuns)
 		}
-		if failureRate > maxFailureRate {
-			reasons[keyFor(pkg, "")] = fmt.Sprintf("failure rate %.4f exceeds max %.4f (pkg)", failureRate, maxFailureRate)
-			continue
+		if !requireClean24h {
+			if failureRate > maxFailureRate {
+				reasons[keyFor(pkg, "")] = fmt.Sprintf("failure rate %.4f exceeds max %.4f (pkg)", failureRate, maxFailureRate)
+				continue
+			}
 		}
 		if requireClean24h && lastFailureAt != nil {
 			if time.Since(*lastFailureAt) < 24*time.Hour {
@@ -637,9 +639,11 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if s.TotalRuns > 0 {
 			failureRate = float64(s.Failures) / float64(s.TotalRuns)
 		}
-		if failureRate > maxFailureRate {
-			reasons[key] = fmt.Sprintf("failure rate %.4f exceeds max %.4f", failureRate, maxFailureRate)
-			continue
+		if !requireClean24h {
+			if failureRate > maxFailureRate {
+				reasons[key] = fmt.Sprintf("failure rate %.4f exceeds max %.4f", failureRate, maxFailureRate)
+				continue
+			}
 		}
 		if requireClean24h && s.LastFailureAt != nil {
 			if time.Since(*s.LastFailureAt) < 24*time.Hour {
