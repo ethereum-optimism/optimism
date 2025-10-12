@@ -62,6 +62,8 @@ import {
 } from "src/L1/OPContractsManager.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IProxy } from "../../interfaces/universal/IProxy.sol";
+import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
 
 /// @title OPContractsManager_Harness
 /// @notice Exposes internal functions for testing.
@@ -734,16 +736,15 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
 
     function test_addGameType_reusedDelayedWETH_succeeds() public {
         IDelayedWETH delayedWETH = IDelayedWETH(
-            payable(
-                address(
-                    DeployUtils.create1({
-                        _name: "DelayedWETH",
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (1)))
-                    })
-                )
-            )
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(this))))
+            })
         );
-        vm.etch(address(delayedWETH), hex"01");
+        IProxy(payable(address(delayedWETH))).upgradeToAndCall(
+            address(opcm.implementations().delayedWETHImpl),
+            abi.encodeCall(IDelayedWETH.initialize, (chainDeployOutput1.systemConfigProxy))
+        );
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         input.delayedWETH = delayedWETH;
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
