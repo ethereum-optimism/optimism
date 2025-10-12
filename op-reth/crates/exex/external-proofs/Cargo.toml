@@ -32,3 +32,18 @@ eyre.workspace = true
 futures-util.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+
+# dev dependencies
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
+test-case.workspace = true
+futures.workspace = true
+
+[features]
+test-utils = [
+    "reth-primitives-traits/test-utils",
+    "reth-db-api/test-utils",
+    "reth-provider/test-utils",
+    "reth-trie/test-utils",
+]
