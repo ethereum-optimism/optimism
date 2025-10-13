@@ -4,8 +4,6 @@
 //! that can be used for testing and development. The implementation uses tokio async `RwLock`
 //! for thread-safe concurrent access and stores all data in memory using `BTreeMap` collections.
 
-#![allow(dead_code, unreachable_pub)]
-
 use alloy_primitives::{map::HashMap, B256, U256};
 use async_trait::async_trait;
 use reth_primitives_traits::Account;

@@ -1,14 +1,18 @@
 //! External Proofs ExEx - processes blocks and tracks state changes
 
+use crate::{backfill::BackfillJob, in_memory::InMemoryExternalStorage};
 use futures_util::TryStreamExt;
+use reth_chainspec::ChainInfo;
+use reth_exex::{ExExContext, ExExEvent};
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
-use reth_provider::StateReader;
+use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
+use std::sync::Arc;
 
-use reth_exex::{ExExContext, ExExEvent};
-
+pub mod backfill;
 pub mod in_memory;
 pub mod storage;
+
 #[cfg(test)]
 mod storage_tests;
 
@@ -19,9 +23,9 @@ mod storage_tests;
 pub struct ExternalProofExEx<Node>
 where
     Node: FullNodeComponents,
-    Node::Provider: StateReader,
 {
     ctx: ExExContext<Node>,
+    storage: Arc<InMemoryExternalStorage>,
 }
 
 impl<Node, Primitives> ExternalProofExEx<Node>
@@ -30,12 +34,18 @@ where
     Primitives: NodePrimitives,
 {
     /// Create a new `ExternalProofExEx` instance
-    pub const fn new(ctx: ExExContext<Node>) -> Self {
-        Self { ctx }
+    pub fn new(ctx: ExExContext<Node>) -> Self {
+        Self { ctx, storage: Arc::new(InMemoryExternalStorage::new()) }
     }
 
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
+        let db_provider =
+            self.ctx.provider().database_provider_ro()?.disable_long_read_transaction_safety();
+        let db_tx = db_provider.into_tx();
+        let ChainInfo { best_number, best_hash } = self.ctx.provider().chain_info()?;
+        BackfillJob::new(self.storage.clone(), &db_tx).run(best_number, best_hash).await?;
+
         while let Some(notification) = self.ctx.notifications.try_next().await? {
             // match &notification {
             //     _ => {}
