@@ -7,6 +7,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { FeeVault_Uncategorized_Test } from "test/L2/FeeVault.t.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @title OperatorFeeVault_Uncategorized_Test
 /// @notice Test contract for the OperatorFeeVault contract's functionality
@@ -18,5 +19,6 @@ contract OperatorFeeVault_Uncategorized_Test is FeeVault_Uncategorized_Test {
         feeVaultName = "OperatorFeeVault";
         minWithdrawalAmount = deploy.cfg().operatorFeeVaultMinimumWithdrawalAmount();
         feeVault = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
+        withdrawalNetwork = Types.WithdrawalNetwork(uint8(deploy.cfg().operatorFeeVaultWithdrawalNetwork()));
     }
 }

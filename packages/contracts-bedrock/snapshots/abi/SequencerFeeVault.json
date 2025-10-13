@@ -1,26 +1,5 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_recipient",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_minWithdrawalAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "_withdrawalNetwork",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
     "stateMutability": "payable",
     "type": "receive"
   },
@@ -61,6 +40,29 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minWithdrawalAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "_withdrawalNetwork",
+        "type": "uint8"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -198,6 +200,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "oldWithdrawalAmount",
         "type": "uint256"
@@ -309,6 +324,16 @@
   {
     "inputs": [],
     "name": "FeeVault_OnlyProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
     "type": "error"
   }
 ]

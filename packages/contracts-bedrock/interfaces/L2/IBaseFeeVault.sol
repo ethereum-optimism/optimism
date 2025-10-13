@@ -6,6 +6,10 @@ import { Types } from "src/libraries/Types.sol";
 interface IBaseFeeVault {
     error FeeVault_OnlyProxyAdminOwner();
 
+    error InvalidInitialization();
+    error NotInitializing();
+
+    event Initialized(uint64 version);
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
     event MinWithdrawalAmountUpdated(uint256 oldWithdrawalAmount, uint256 newWithdrawalAmount);
@@ -16,6 +20,12 @@ interface IBaseFeeVault {
 
     receive() external payable;
 
+    function initialize(
+        address _recipient,
+        uint256 _minWithdrawalAmount,
+        Types.WithdrawalNetwork _withdrawalNetwork
+    )
+        external;
     function MIN_WITHDRAWAL_AMOUNT() external view returns (uint256);
     function RECIPIENT() external view returns (address);
     function WITHDRAWAL_NETWORK() external view returns (Types.WithdrawalNetwork);
@@ -29,11 +39,4 @@ interface IBaseFeeVault {
     function setWithdrawalNetwork(Types.WithdrawalNetwork _newWithdrawalNetwork) external;
 
     function version() external view returns (string memory);
-
-    function __constructor__(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        Types.WithdrawalNetwork _withdrawalNetwork
-    )
-        external;
 }

@@ -4,17 +4,16 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IFeeVault, IFeeVaultConstructor } from "interfaces/L2/IFeeVault.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title FeeVault_Uncategorized_Test
 /// @notice Abstract test contract for fee feeVault testing.
@@ -25,42 +24,35 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
     IFeeVault feeVault;
     string feeVaultName;
     uint256 minWithdrawalAmount;
-    Types.WithdrawalNetwork expectedWithdrawalNetwork;
-
-    /// @dev Sets up the test suite.
-    function setUp() public virtual override {
-        // Default to L1
-        expectedWithdrawalNetwork = Types.WithdrawalNetwork.L1;
-        super.setUp();
-    }
+    Types.WithdrawalNetwork withdrawalNetwork;
 
     /// @notice Helper function to set up L2 withdrawal configuration.
     function _setupL2Withdrawal() internal {
-        // Alter the deployment to use WithdrawalNetwork.L2
-        vm.etch(
-            EIP1967Helper.getImplementation(address(feeVault)),
-            address(
-                DeployUtils.create1({
-                    _name: feeVaultName,
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IFeeVaultConstructor.__constructor__,
-                            (recipient, minWithdrawalAmount, Types.WithdrawalNetwork.L2)
-                        )
-                    )
-                })
-            ).code
-        );
+        // Set the withdrawal network to L2
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
     }
 
     /// @notice Tests that the l1 fee wallet is correct.
     function test_constructor_succeeds() external view {
         assertEq(feeVault.RECIPIENT(), recipient);
-        assertEq(feeVault.recipient(), recipient);
         assertEq(feeVault.MIN_WITHDRAWAL_AMOUNT(), minWithdrawalAmount);
+        assertEq(uint8(feeVault.WITHDRAWAL_NETWORK()), uint8(withdrawalNetwork));
+    }
+
+    /// @notice Tests that the initialize function succeeds.
+    function test_initialize_succeeds() external view {
+        assertEq(feeVault.recipient(), recipient);
         assertEq(feeVault.minWithdrawalAmount(), minWithdrawalAmount);
-        assertEq(uint8(feeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(withdrawalNetwork));
+    }
+
+    /// @notice Tests that the initialize function reverts if the contract is already initialized.
+    function test_initialize_reinitialization_reverts() external {
+        _setupL2Withdrawal();
+
+        vm.expectRevert(IFeeVault.InvalidInitialization.selector);
+        feeVault.initialize(recipient, minWithdrawalAmount, Types.WithdrawalNetwork.L1);
     }
 
     /// @notice Tests that the fee feeVault is able to receive ETH.
@@ -76,8 +68,14 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
 
     /// @notice Tests that `withdraw` reverts if the balance is less than the minimum withdrawal
     ///         amount.
-    function test_withdraw_notEnough_reverts() external {
-        assert(address(feeVault).balance < feeVault.MIN_WITHDRAWAL_AMOUNT());
+    function test_withdraw_notEnough_reverts(uint256 _minWithdrawalAmount) external {
+        // Set the minimum withdrawal amount
+        _minWithdrawalAmount = bound(_minWithdrawalAmount, 1, type(uint256).max);
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setMinWithdrawalAmount(_minWithdrawalAmount);
+
+        // Set the balance to be less than the minimum withdrawal amount
+        vm.deal(address(feeVault), _minWithdrawalAmount - 1);
 
         vm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");
         feeVault.withdraw();
@@ -85,7 +83,20 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
 
     /// @notice Tests that `withdraw` successfully initiates a withdrawal to L1.
     function test_withdraw_toL1_succeeds() external {
-        uint256 amount = feeVault.MIN_WITHDRAWAL_AMOUNT() + 1;
+        // Setup L1 withdrawal
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setWithdrawalNetwork(Types.WithdrawalNetwork.L1);
+
+        // Set recipient
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setRecipient(recipient);
+
+        // Set minimum withdrawal amount
+        vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        feeVault.setMinWithdrawalAmount(minWithdrawalAmount);
+
+        // Set the balance to be greater than the minimum withdrawal amount
+        uint256 amount = feeVault.minWithdrawalAmount() + 1;
         vm.deal(address(feeVault), amount);
 
         // No ether has been withdrawn yet
@@ -97,7 +108,11 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         emit Withdrawal(address(feeVault).balance, recipient, address(this), Types.WithdrawalNetwork.L1);
 
         // The entire feeVault's balance is withdrawn
-        vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(feeVault).balance, hex"");
+        vm.expectCall(
+            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            address(feeVault).balance,
+            abi.encodeCall(IL2ToL1MessagePasser.initiateWithdrawal, (recipient, 400_000, hex""))
+        );
 
         // The message is passed to the correct recipient
         vm.expectEmit(Predeploys.L2_TO_L1_MESSAGE_PASSER);
@@ -132,7 +147,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
     function test_withdraw_toL2_succeeds() public {
         _setupL2Withdrawal();
 
-        uint256 amount = feeVault.MIN_WITHDRAWAL_AMOUNT() + 1;
+        uint256 amount = feeVault.minWithdrawalAmount() + 1;
         vm.deal(address(feeVault), amount);
 
         // No ether has been withdrawn yet
@@ -160,7 +175,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
     function test_withdraw_toL2recipientReverts_fails() external {
         _setupL2Withdrawal();
 
-        uint256 amount = feeVault.MIN_WITHDRAWAL_AMOUNT();
+        uint256 amount = feeVault.minWithdrawalAmount();
 
         vm.deal(address(feeVault), amount);
         // No ether has been withdrawn yet
@@ -177,14 +192,14 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
     }
 
     /// @notice Tests that the owner can successfully set minimum withdrawal amount with fuzz testing.
-    function testFuzz_setMinWithdrawalAmount_succeeds(uint256 _newAmount) external {
+    function testFuzz_setMinWithdrawalAmount_succeeds(uint256 _newMinWithdrawalAmount) external {
         address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
 
         vm.prank(owner);
-        IFeeVault(payable(address(feeVault))).setMinWithdrawalAmount(_newAmount);
+        IFeeVault(payable(address(feeVault))).setMinWithdrawalAmount(_newMinWithdrawalAmount);
 
         // Verify the value was updated
-        assertEq(feeVault.minWithdrawalAmount(), _newAmount);
+        assertEq(feeVault.minWithdrawalAmount(), _newMinWithdrawalAmount);
     }
 
     /// @notice Tests that non-owner cannot set minimum withdrawal amount with fuzz testing.
@@ -260,63 +275,5 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
 
         // Verify the value and boolean flag were NOT changed
         assertEq(uint8(feeVault.withdrawalNetwork()), uint8(initialNetwork));
-    }
-
-    /// @notice Tests that minWithdrawalAmount returns immutable by default, then storage after being set.
-    function test_minWithdrawalAmount_returnsImmutableThenStorage_succeeds() external {
-        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-
-        // Initially should return the immutable value
-        uint256 immutableValue = feeVault.MIN_WITHDRAWAL_AMOUNT();
-        assertEq(feeVault.minWithdrawalAmount(), immutableValue);
-
-        // Set a different value via owner
-        uint256 newValue = immutableValue + 1 ether;
-        vm.prank(owner);
-        IFeeVault(payable(address(feeVault))).setMinWithdrawalAmount(newValue);
-
-        // Now should return the storage value, not the immutable
-        assertEq(feeVault.minWithdrawalAmount(), newValue);
-        assertNotEq(feeVault.minWithdrawalAmount(), immutableValue);
-        assertEq(feeVault.MIN_WITHDRAWAL_AMOUNT(), immutableValue); // immutable unchanged
-    }
-
-    /// @notice Tests that recipient returns immutable by default, then storage after being set.
-    function test_recipient_returnsImmutableThenStorage_succeeds() external {
-        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-
-        // Initially should return the immutable value
-        address immutableValue = feeVault.RECIPIENT();
-        assertEq(feeVault.recipient(), immutableValue);
-
-        // Set a different value via owner
-        address newValue = address(0x123);
-        vm.prank(owner);
-        IFeeVault(payable(address(feeVault))).setRecipient(newValue);
-
-        // Now should return the storage value, not the immutable
-        assertEq(feeVault.recipient(), newValue);
-        assertNotEq(feeVault.recipient(), immutableValue);
-        assertEq(feeVault.RECIPIENT(), immutableValue); // immutable unchanged
-    }
-
-    /// @notice Tests that withdrawalNetwork returns immutable by default, then storage after being set.
-    function test_withdrawalNetwork_returnsImmutableThenStorage_succeeds() external {
-        address owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
-
-        // Initially should return the immutable value
-        Types.WithdrawalNetwork immutableValue = feeVault.WITHDRAWAL_NETWORK();
-        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(immutableValue));
-
-        // Set a different value via owner (toggle between L1 and L2)
-        Types.WithdrawalNetwork newValue =
-            immutableValue == Types.WithdrawalNetwork.L1 ? Types.WithdrawalNetwork.L2 : Types.WithdrawalNetwork.L1;
-        vm.prank(owner);
-        IFeeVault(payable(address(feeVault))).setWithdrawalNetwork(newValue);
-
-        // Now should return the storage value, not the immutable
-        assertEq(uint8(feeVault.withdrawalNetwork()), uint8(newValue));
-        assertNotEq(uint8(feeVault.withdrawalNetwork()), uint8(immutableValue));
-        assertEq(uint8(feeVault.WITHDRAWAL_NETWORK()), uint8(immutableValue)); // immutable unchanged
     }
 }

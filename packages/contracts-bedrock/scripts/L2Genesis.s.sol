@@ -32,7 +32,7 @@ import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
-import { IFeeVault, IFeeVaultConstructor } from "interfaces/L2/IFeeVault.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 
@@ -320,24 +320,16 @@ contract L2Genesis is Script {
             network = Types.WithdrawalNetwork(_input.sequencerFeeVaultWithdrawalNetwork);
         }
 
-        ISequencerFeeVault vault = ISequencerFeeVault(
-            DeployUtils.create1({
-                _name: "SequencerFeeVault",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IFeeVaultConstructor.__constructor__,
-                        (recipient, _input.sequencerFeeVaultMinimumWithdrawalAmount, network)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.SEQUENCER_FEE_WALLET);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
-        vm.etch(impl, address(vault).code);
-
-        /// Reset so its not included state dump
-        vm.etch(address(vault), "");
-        vm.resetNonce(address(vault));
+        /// Initialize the implemenation using max value for min withdrawal amount to make it unusable
+        ISequencerFeeVault(payable(impl)).initialize(address(0), type(uint256).max, Types.WithdrawalNetwork.L1);
+        // Initialize the predeploy
+        ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET)).initialize({
+            _recipient: recipient,
+            _minWithdrawalAmount: _input.sequencerFeeVaultMinimumWithdrawalAmount,
+            _withdrawalNetwork: network
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -418,24 +410,16 @@ contract L2Genesis is Script {
             network = Types.WithdrawalNetwork(_input.baseFeeVaultWithdrawalNetwork);
         }
 
-        IBaseFeeVault vault = IBaseFeeVault(
-            DeployUtils.create1({
-                _name: "BaseFeeVault",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IFeeVaultConstructor.__constructor__,
-                        (recipient, _input.baseFeeVaultMinimumWithdrawalAmount, network)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.BASE_FEE_VAULT);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
-        vm.etch(impl, address(vault).code);
-
-        /// Reset so its not included state dump
-        vm.etch(address(vault), "");
-        vm.resetNonce(address(vault));
+        /// Initialize the implementation using max value for min withdrawal amount to make it unusable
+        IBaseFeeVault(payable(impl)).initialize(address(0), type(uint256).max, Types.WithdrawalNetwork.L1);
+        // Initialize the predeploy
+        IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT)).initialize({
+            _recipient: recipient,
+            _minWithdrawalAmount: _input.baseFeeVaultMinimumWithdrawalAmount,
+            _withdrawalNetwork: network
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #2.
@@ -450,23 +434,16 @@ contract L2Genesis is Script {
             network = Types.WithdrawalNetwork(_input.l1FeeVaultWithdrawalNetwork);
         }
 
-        IL1FeeVault vault = IL1FeeVault(
-            DeployUtils.create1({
-                _name: "L1FeeVault",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IFeeVaultConstructor.__constructor__, (recipient, _input.l1FeeVaultMinimumWithdrawalAmount, network)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.L1_FEE_VAULT);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
-        vm.etch(impl, address(vault).code);
-
-        /// Reset so its not included state dump
-        vm.etch(address(vault), "");
-        vm.resetNonce(address(vault));
+        /// Initialize the implementation using max value for min withdrawal amount to make it unusable
+        IL1FeeVault(payable(impl)).initialize(address(0), type(uint256).max, Types.WithdrawalNetwork.L1);
+        // Initialize the predeploy
+        IL1FeeVault(payable(Predeploys.L1_FEE_VAULT)).initialize({
+            _recipient: recipient,
+            _minWithdrawalAmount: _input.l1FeeVaultMinimumWithdrawalAmount,
+            _withdrawalNetwork: network
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #2.
@@ -481,24 +458,16 @@ contract L2Genesis is Script {
             network = Types.WithdrawalNetwork(_input.operatorFeeVaultWithdrawalNetwork);
         }
 
-        IOperatorFeeVault vault = IOperatorFeeVault(
-            DeployUtils.create1({
-                _name: "OperatorFeeVault",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IFeeVaultConstructor.__constructor__,
-                        (recipient, _input.operatorFeeVaultMinimumWithdrawalAmount, network)
-                    )
-                )
-            })
-        );
+        address impl = _setImplementationCode(Predeploys.OPERATOR_FEE_VAULT);
 
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPERATOR_FEE_VAULT);
-        vm.etch(impl, address(vault).code);
-
-        /// Reset so its not included state dump
-        vm.etch(address(vault), "");
-        vm.resetNonce(address(vault));
+        /// Initialize the implementation using max value for min withdrawal amount to make it unusable
+        IOperatorFeeVault(payable(impl)).initialize(address(0), type(uint256).max, Types.WithdrawalNetwork.L1);
+        // Initialize the predeploy
+        IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT)).initialize({
+            _recipient: recipient,
+            _minWithdrawalAmount: _input.operatorFeeVaultMinimumWithdrawalAmount,
+            _withdrawalNetwork: network
+        });
     }
 
     /// @notice This predeploy is following the safety invariant #2.

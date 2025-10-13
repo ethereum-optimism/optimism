@@ -5,6 +5,10 @@ import { Types } from "src/libraries/Types.sol";
 
 interface IFeeVault {
     error FeeVault_OnlyProxyAdminOwner();
+    error InvalidInitialization();
+    error NotInitializing();
+
+    event Initialized(uint64 version);
 
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
@@ -16,6 +20,12 @@ interface IFeeVault {
 
     receive() external payable;
 
+    function initialize(
+        address _recipient,
+        uint256 _minWithdrawalAmount,
+        Types.WithdrawalNetwork _withdrawalNetwork
+    )
+        external;
     function MIN_WITHDRAWAL_AMOUNT() external view returns (uint256);
     function RECIPIENT() external view returns (address);
     function WITHDRAWAL_NETWORK() external view returns (Types.WithdrawalNetwork);
@@ -29,16 +39,4 @@ interface IFeeVault {
     function setWithdrawalNetwork(Types.WithdrawalNetwork _newWithdrawalNetwork) external;
 
     function __constructor__() external;
-}
-
-interface IFeeVaultConstructor {
-    /// NOTE: This is the real constructor for the FeeVault contract, but can't be added to the main interface because
-    ///       it is an abstract contract, and on the scripts it gets an empty constructor automatically generated that
-    ///       makes the `interfaces-check` script fail.
-    function __constructor__(
-        address __recipient,
-        uint256 __minWithdrawalAmount,
-        Types.WithdrawalNetwork __withdrawalNetwork
-    )
-        external;
 }
