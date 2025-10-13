@@ -18,6 +18,7 @@ type Metricer interface {
 	RecordStartSequencer(success bool)
 	RecordStopSequencer(success bool)
 	RecordHealthCheck(success bool, err error)
+	RecordHealthCheckWithReplicaID(success bool, err error, replicaID string)
 	RecordLoopExecutionTime(duration float64)
 	RecordRollupBoostConnectionAttempts(success bool, source string)
 	RecordWebSocketClientCount(count int)
@@ -54,51 +55,56 @@ func (m *Metrics) Registry() *prometheus.Registry {
 
 var _ Metricer = (*Metrics)(nil)
 
-func NewMetrics() *Metrics {
+func NewMetrics(procName string) *Metrics {
+	if procName == "" {
+		procName = "default"
+	}
+	ns := Namespace + "_" + procName
+
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
 
 	return &Metrics{
-		ns:       Namespace,
+		ns:       ns,
 		registry: registry,
 		factory:  factory,
 
-		RPCMetrics: opmetrics.MakeRPCMetrics(Namespace, factory),
+		RPCMetrics: opmetrics.MakeRPCMetrics(ns, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "info",
 			Help:      "Pseudo-metric tracking version and config info",
 		}, []string{
 			"version",
 		}),
 		up: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "up",
 			Help:      "1 if the op-conductor has finished starting up",
 		}),
 		healthChecks: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "healthchecks_count",
 			Help:      "Number of healthchecks",
-		}, []string{"success", "error"}),
+		}, []string{"success", "error", "replica_id"}),
 		leaderTransfers: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "leader_transfers_count",
 			Help:      "Number of leader transfers",
 		}, []string{"success"}),
 		sequencerStarts: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "sequencer_starts_count",
 			Help:      "Number of sequencer starts",
 		}, []string{"success"}),
 		sequencerStops: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "sequencer_stops_count",
 			Help:      "Number of sequencer stops",
 		}, []string{"success"}),
 		stateChanges: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "state_changes_count",
 			Help:      "Number of state changes",
 		}, []string{
@@ -107,18 +113,18 @@ func NewMetrics() *Metrics {
 			"active",
 		}),
 		loopExecutionTime: factory.NewHistogram(prometheus.HistogramOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "loop_execution_time",
 			Help:      "Time (in seconds) to execute conductor loop iteration",
 			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		}),
 		rollupBoostConnectionAttempts: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "rollup_boost_connection_attempts_count",
 			Help:      "Number of rollup boost connection attempts",
 		}, []string{"success", "source"}),
 		webSocketClients: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "websocket_clients_connected",
 			Help:      "Number of WebSocket clients currently connected to the hub",
 		}),
@@ -146,7 +152,22 @@ func (m *Metrics) RecordHealthCheck(success bool, err error) {
 	if err != nil {
 		errStr = err.Error()
 	}
-	m.healthChecks.WithLabelValues(strconv.FormatBool(success), errStr).Inc()
+	// Use replica_id label to distinguish between different replica instances
+	// This allows monitoring dashboards to aggregate properly when multiple replicas exist
+	replicaID := "default"
+	m.healthChecks.WithLabelValues(strconv.FormatBool(success), errStr, replicaID).Inc()
+}
+
+// RecordHealthCheckWithReplicaID increments the healthChecks counter with a specific replica ID.
+func (m *Metrics) RecordHealthCheckWithReplicaID(success bool, err error, replicaID string) {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	if replicaID == "" {
+		replicaID = "default"
+	}
+	m.healthChecks.WithLabelValues(strconv.FormatBool(success), errStr, replicaID).Inc()
 }
 
 // RecordLeaderTransfer increments the leaderTransfers counter.
