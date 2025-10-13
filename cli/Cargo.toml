@@ -74,6 +74,11 @@ reth-stages = { workspace = true, features = ["test-utils"] }
 reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }
 
 [features]
+default = ["otlp"]
+
+# Opentelemtry feature to activate metrics export
+otlp = ["reth-tracing/otlp", "reth-node-core/otlp"]
+
 asm-keccak = [
     "alloy-primitives/asm-keccak",
     "reth-node-core/asm-keccak",
