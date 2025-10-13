@@ -93,10 +93,10 @@ Always verify snapshots by comparing the sha256sum of the downloaded file to the
   curl -o boba-mainnet-erigon-db-1149019.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-erigon-db-1149019.tgz
   ```
 
-  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz).
+  The **geth** db can be downloaded from [boba mainnet geth db](https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst)
 
   ```bash
-  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-114909.tgz
+  curl -o boba-mainnet-geth-db-114909.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/mainnet/boba-mainnet-geth-db-20251010.tar.zst
   ```
 
 - BOBA Sepolia
