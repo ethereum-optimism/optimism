@@ -104,13 +104,12 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
     }
 
-    function _getGameConstructorParamsV2(GameType _gameType)
+    function _getGameConstructorParamsV2()
         internal
         pure
         returns (IFaultDisputeGameV2.GameConstructorParams memory params_)
     {
         return IFaultDisputeGameV2.GameConstructorParams({
-            gameType: _gameType,
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
@@ -259,7 +258,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(IFaultDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.CANNON)))
+                abi.encodeCall(IFaultDisputeGameV2.__constructor__, (_getGameConstructorParamsV2()))
             )
         });
 
@@ -357,9 +356,7 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON))
-                )
+                abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (_getGameConstructorParamsV2()))
             )
         });
 

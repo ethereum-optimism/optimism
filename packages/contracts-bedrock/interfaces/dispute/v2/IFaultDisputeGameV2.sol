@@ -6,7 +6,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Types } from "src/libraries/Types.sol";
-import { GameType, Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
+import { Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
 
 interface IFaultDisputeGameV2 is IDisputeGame {
     struct ClaimData {
@@ -27,7 +27,6 @@ interface IFaultDisputeGameV2 is IDisputeGame {
     }
 
     struct GameConstructorParams {
-        GameType gameType;
         uint256 maxGameDepth;
         uint256 splitDepth;
         Duration clockExtension;
