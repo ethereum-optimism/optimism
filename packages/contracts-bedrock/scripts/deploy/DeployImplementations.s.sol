@@ -203,7 +203,8 @@ contract DeployImplementations is Script {
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
-                    _input.superchainConfigProxy
+                    _input.superchainConfigProxy,
+                    _input.protocolVersionsProxy
                 )
             )
         );
@@ -758,9 +759,12 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
 
+        Types.ContractSet memory proxies;
+        proxies.SuperchainConfig = address(_input.superchainConfigProxy);
+        proxies.ProtocolVersions = address(_input.protocolVersionsProxy);
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
-            _superchainConfigProxy: address(_input.superchainConfigProxy),
+            _proxies: proxies,
             _opcm: IOPContractsManager(address(_output.opcm)),
             _mips: IMIPS64(address(_output.mipsSingleton))
         });

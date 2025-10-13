@@ -321,7 +321,7 @@ contract Deploy is Deployer {
         });
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
-            _superchainConfigProxy: address(superchainConfigProxy),
+            _proxies: _proxies(),
             _opcm: IOPContractsManager(address(dio.opcm)),
             _mips: IMIPS64(address(dio.mipsSingleton))
         });

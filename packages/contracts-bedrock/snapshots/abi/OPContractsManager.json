@@ -30,6 +30,11 @@
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "contract IProtocolVersions",
+        "name": "_protocolVersions",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -703,6 +708,19 @@
     "outputs": [
       {
         "internalType": "contract OPContractsManagerUpgrader",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "protocolVersions",
+    "outputs": [
+      {
+        "internalType": "contract IProtocolVersions",
         "name": "",
         "type": "address"
       }
