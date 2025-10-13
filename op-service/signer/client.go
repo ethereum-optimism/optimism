@@ -64,6 +64,9 @@ func NewSignerClient(logger log.Logger, endpoint string, headers http.Header, tl
 		httpClient = http.DefaultClient
 	}
 
+	// Set a default timeout to avoid hanging requests if callers omit deadlines.
+	httpClient.Timeout = 30 * time.Second
+	
 	rpcClient, err := rpc.DialOptions(context.Background(), endpoint, rpc.WithHTTPClient(httpClient), rpc.WithHeaders(headers))
 	if err != nil {
 		return nil, err
