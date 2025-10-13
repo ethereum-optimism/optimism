@@ -417,11 +417,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);
+        address expectedProtocolVersions = address(0x2222);
 
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
+        _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
 
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();
