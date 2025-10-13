@@ -75,6 +75,9 @@ type Config struct {
 	// Paused is true if the conductor should start in a paused state.
 	Paused bool
 
+	// ReplicaID is a unique identifier for this replica instance to distinguish metrics in monitoring dashboards.
+	ReplicaID string
+
 	// HealthCheck is the health check configuration.
 	HealthCheck HealthCheckConfig
 
@@ -175,6 +178,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		Paused:                        ctx.Bool(flags.Paused.Name),
+		ReplicaID:                     ctx.String(flags.ReplicaID.Name),
 		HealthCheck: HealthCheckConfig{
 			Interval:                 ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval:           ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
