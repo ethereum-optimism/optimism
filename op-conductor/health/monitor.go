@@ -39,7 +39,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64, replicaID string) HealthMonitor {
 	hm := &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
@@ -55,6 +55,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		p2p:            p2p,
 		supervisor:     supervisor,
 		rb:             rb,
+		replicaID:      replicaID,
 	}
 
 	if elP2pClient != nil {
@@ -108,6 +109,7 @@ type SequencerHealthMonitor struct {
 	elP2p                                         *ElP2pHealthMonitor
 	rollupBoostPartialHealthinessToleranceLimit   uint64
 	rollupBoostPartialHealthinessToleranceCounter *timeBoundedRotatingCounter
+	replicaID                                     string
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -153,7 +155,7 @@ func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			err := hm.healthCheck(ctx)
-			hm.metrics.RecordHealthCheck(err == nil, err)
+			hm.metrics.RecordHealthCheckWithReplicaID(err == nil, err, hm.replicaID)
 			// Ensure that we exit cleanly if told to shutdown while still waiting to publish the health update
 			select {
 			case hm.healthUpdateCh <- err:
