@@ -6,7 +6,7 @@ Here are instructions if you want to run boba erigon version as the replica node
 
 ### Get the data dir
 
-1. The first step is to download the initial data for `op-erigon`. 
+1. The first step is to download the initial data for your execution client.
 
 - BOBA Sepolia
 
@@ -16,41 +16,12 @@ Here are instructions if you want to run boba erigon version as the replica node
   curl -o boba-sepolia-erigon-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-erigon-db.tgz
   ```
 
-  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz).
+  The **geth** db can be downloaded from [boba sepolia geth db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst).
 
   ```bash
-  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db.tgz
+  curl -o boba-sepolia-geth-db.tgz -sL https://boba-db.s3.us-east-2.amazonaws.com/sepolia/boba-sepolia-geth-db-20251002.tar.zst
   ```
 
-- OP Mainnet
-
-  The **erigon** db can be downloaded from [Test in Prod OP Mainnet](https://op-erigon-backup.mainnet.testinprod.io).
-
-- OP Sepolia
-
-  The **erigon** db can be downloaded from [optimism sepolia erigon db](https://boba-db.s3.us-east-2.amazonaws.com/sepolia/optimism-sepolia-erigon-db.tgz).
-
-  Or you can generate the **erigon** db by downloading the genesis file from [Optimsim](https://networks.optimism.io/op-sepolia/genesis.json) and initialize the data directory with it.
-  
-  ```bash
-  curl -o op-sepolia-genesis.json -sL https://networks.optimism.io/op-sepolia/genesis.json
-  erigon init --datadir=/db genesis.json
-  ```
-  
-  The erigon can be built from the [source](https://github.com/bobanetwork/v3-erigon) using `make erigon` .
-  
-  > You can verify the download by running the following command:
-  >
-  > ```
-  > sha256sum boba-sepolia-erigon-db.tgz
-  > ```
-  >
-  > You should see the following output
-  >
-  > ```
-  > b887d2e0318e9299e844da7d39ca32040e3d0fb6a9d7abe2dd2f8624eca1cade  boba-sepolia-erigon-db.tgz
-  > ```
-  >
   > Check the [BOBA Snapshots](https://docs.boba.network/for-developers/node-operators/snapshot-downloads) page for the correct checksum for the snapshot you've downloaded.
 
 2. Extract the data Directory
