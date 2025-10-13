@@ -1,12 +1,11 @@
 //! Helpers for optimism specific RPC implementations.
 
-use crate::SequencerClientError;
+use crate::{SequencerClientError, SequencerMetrics};
 use alloy_json_rpc::{RpcRecv, RpcSend};
 use alloy_primitives::{hex, B256};
 use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use alloy_transport_http::Http;
-use reth_optimism_txpool::supervisor::metrics::SequencerMetrics;
 use std::{str::FromStr, sync::Arc, time::Instant};
 use thiserror::Error;
 use tracing::warn;
