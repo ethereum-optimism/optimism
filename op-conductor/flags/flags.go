@@ -190,6 +190,12 @@ var (
 		Usage:   "The time frame within which rollup-boost partial healthiness tolerance is evaluated",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_ROLLUP_BOOST_PARTIAL_HEALTHINESS_TOLERANCE_INTERVAL_SECONDS"),
 	}
+	ReplicaID = &cli.StringFlag{
+		Name:    "replica-id",
+		Usage:   "Unique identifier for this replica instance to distinguish metrics in monitoring dashboards",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "REPLICA_ID"),
+		Value:   "default",
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -208,6 +214,7 @@ var optionalFlags = []cli.Flag{
 	AdvertisedFullAddr,
 	Paused,
 	RPCEnableProxy,
+	ReplicaID,
 	RaftBootstrap,
 	HealthCheckSafeEnabled,
 	HealthCheckSafeInterval,
