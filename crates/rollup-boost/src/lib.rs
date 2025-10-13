@@ -1,7 +1,7 @@
 #![allow(clippy::complexity)]
 
 mod client;
-pub use client::{auth::*, proxy_rpc::*, rpc::*};
+pub use client::{auth::*, http::*, rpc::*};
 
 mod cli;
 pub use cli::*;

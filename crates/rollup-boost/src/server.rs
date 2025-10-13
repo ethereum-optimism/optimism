@@ -682,7 +682,6 @@ pub fn from_buffered_request(req: BufferedRequest) -> HttpRequest {
 #[allow(clippy::complexity)]
 pub mod tests {
     use super::*;
-    use crate::RpcProxyClient;
     use crate::probe::ProbeLayer;
     use crate::proxy::ProxyLayer;
     use alloy_primitives::hex;
@@ -695,7 +694,6 @@ pub mod tests {
     use jsonrpsee::RpcModule;
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{Server, ServerBuilder, ServerHandle};
-    use jsonrpsee_core::middleware::RpcServiceBuilder;
     use parking_lot::Mutex;
     use std::net::SocketAddr;
     use std::str::FromStr;
@@ -824,14 +822,20 @@ pub mod tests {
 
             let module: RpcModule<()> = rollup_boost.try_into().unwrap();
 
-            let http_middleware = tower::ServiceBuilder::new().layer(probe_layer);
-            let l2_client = RpcProxyClient::new_l2(l2_auth_rpc, jwt_secret, 1);
-            let builder_client = RpcProxyClient::new_builder(builder_auth_rpc, jwt_secret, 1);
-            let rpc_middleware =
-                RpcServiceBuilder::new().layer(ProxyLayer::new(l2_client, builder_client));
+            let http_middleware =
+                tower::ServiceBuilder::new()
+                    .layer(probe_layer)
+                    .layer(ProxyLayer::new(
+                        l2_auth_rpc,
+                        jwt_secret,
+                        1,
+                        builder_auth_rpc,
+                        jwt_secret,
+                        1,
+                    ));
+
             let server = Server::builder()
                 .set_http_middleware(http_middleware)
-                .set_rpc_middleware(rpc_middleware)
                 .build("127.0.0.1:0".parse::<SocketAddr>().unwrap())
                 .await
                 .unwrap();
