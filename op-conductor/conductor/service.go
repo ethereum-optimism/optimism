@@ -43,7 +43,11 @@ var (
 
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
+	procName := cfg.ReplicaID
+	if procName == "" {
+		procName = "default"
+	}
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(procName), version, nil, nil, nil)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -265,6 +269,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
 		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceLimit,
 		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceIntervalSeconds,
+		c.cfg.ReplicaID,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 
