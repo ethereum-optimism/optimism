@@ -14,11 +14,21 @@ contract ReinitializableBase_Harness is ReinitializableBase {
     constructor(uint8 _initVersion) ReinitializableBase(_initVersion) { }
 }
 
+/// @title ReinitializableBase_Constructor_Test
+/// @notice Tests the constructor of the `ReinitializableBase` contract.
+contract ReinitializableBase_Constructor_Test is Test {
+    /// @notice Tests that the contract creation reverts when the init version is zero.
+    function test_constructor_zeroVersion_reverts() public {
+        vm.expectRevert(ReinitializableBase.ReinitializableBase_ZeroInitVersion.selector);
+        new ReinitializableBase_Harness(0);
+    }
+}
+
 /// @title ReinitializableBase_InitVersion_Test
 /// @notice Tests the `initVersion` function of the `ReinitializableBase` contract.
 contract ReinitializableBase_InitVersion_Test is Test {
-    /// @notice Tests that the contract is created correctly and initVersion returns the right
-    ///         value when the provided init version is non-zero.
+    /// @notice Tests that initVersion returns the correct value when the contract
+    ///         is created with a valid non-zero init version.
     /// @param _initVersion The init version to use when creating the contract.
     function testFuzz_initVersion_validVersion_succeeds(uint8 _initVersion) public {
         // Zero version not allowed.
@@ -29,11 +39,5 @@ contract ReinitializableBase_InitVersion_Test is Test {
 
         // Check the init version.
         assertEq(harness.initVersion(), _initVersion);
-    }
-
-    /// @notice Tests that the contract creation reverts when the init version is zero.
-    function test_initVersion_zeroVersion_reverts() public {
-        vm.expectRevert(ReinitializableBase.ReinitializableBase_ZeroInitVersion.selector);
-        new ReinitializableBase_Harness(0);
     }
 }
