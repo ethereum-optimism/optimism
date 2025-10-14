@@ -21,7 +21,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func TestBatcherUsesNewSidecarFormatAfterOsaka(gt *testing.T) {
+// TestBatcherSafeHeadAdvancesAfterOsaka waits for the first unsafe head after the Osaka hardfork
+// to be promoted to safe. This indicates that the batcher is able to include blob txs after Osaka.
+// Note that as of this comment, Geth automatically converts pre-EIP7594 blob txs, but it not all
+// ELs do this.
+func TestBatcherSafeHeadAdvancesAfterOsaka(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	t.Log("Waiting for Osaka to activate")
@@ -34,9 +38,7 @@ func TestBatcherUsesNewSidecarFormatAfterOsaka(gt *testing.T) {
 	//    marked as "safe" yet.
 	sys.L2EL.WaitForBlock()
 
-	// 2. Wait for the batcher to include target in a batch and post it to L1. Because the batch is
-	//    posted after Osaka has activated, it means the batcher must have successfully used the
-	//    new format.
+	// 2. Wait for the safe head to advance to the latest unsafe head.
 	target := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 	blockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	for range time.Tick(blockTime) {
