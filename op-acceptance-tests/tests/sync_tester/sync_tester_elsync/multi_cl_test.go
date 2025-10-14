@@ -15,22 +15,22 @@ func TestSyncTester_MultipleCLsSingleSyncTester(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	require := t.Require()
 
-	sys := presets.NewSimpleWithSyncTester(t)
+	// Use a system with two CLs, each backed by its own SyncTester EL endpoint
+	sys := presets.NewMultiWithSyncTester(t)
 
-	// Sanity: both CLs should advance to a small target using their respective EL backends
-	// L2CL: regular EL; L2CL2: SyncTester-provided EL (unique session)
+	// Sanity: both CLs should advance to a small target using their respective SyncTester EL backends (unique sessions)
 	target := uint64(12)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 60),
-		sys.L2CL2.AdvancedFn(types.LocalUnsafe, target, 60),
+		sys.L2CL_A.AdvancedFn(types.LocalUnsafe, target, 60),
+		sys.L2CL_B.AdvancedFn(types.LocalUnsafe, target, 60),
 	)
 
-	// Cross-check: both CLs unsafe heads must exist on the read-only EL
-	head1 := sys.L2CL.SyncStatus().UnsafeL2
-	head2 := sys.L2CL2.SyncStatus().UnsafeL2
+	// Cross-check: both CLs' unsafe heads must exist on their corresponding SyncTester-backed ELs
+	head1 := sys.L2CL_A.SyncStatus().UnsafeL2
+	head2 := sys.L2CL_B.SyncStatus().UnsafeL2
 
 	require.GreaterOrEqual(head1.Number, target)
 	require.GreaterOrEqual(head2.Number, target)
-	require.Equal(sys.L2EL.BlockRefByNumber(head1.Number).Hash, head1.Hash)
-	require.Equal(sys.L2EL.BlockRefByNumber(head2.Number).Hash, head2.Hash)
+	require.Equal(sys.SyncTesterL2ELA.BlockRefByNumber(head1.Number).Hash, head1.Hash)
+	require.Equal(sys.SyncTesterL2ELB.BlockRefByNumber(head2.Number).Hash, head2.Hash)
 }
