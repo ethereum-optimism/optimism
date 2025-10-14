@@ -22,11 +22,7 @@ contract ReinitializableBase_Constructor_Test is Test {
         vm.expectRevert(ReinitializableBase.ReinitializableBase_ZeroInitVersion.selector);
         new ReinitializableBase_Harness(0);
     }
-}
 
-/// @title ReinitializableBase_InitVersion_Test
-/// @notice Tests the `initVersion` function of the `ReinitializableBase` contract.
-contract ReinitializableBase_InitVersion_Test is Test {
     /// @notice Tests that initVersion returns the correct value when the contract
     ///         is created with a valid non-zero init version.
     /// @param _initVersion The init version to use when creating the contract.
