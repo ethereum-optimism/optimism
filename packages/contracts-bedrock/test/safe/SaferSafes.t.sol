@@ -148,22 +148,17 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
 /// @title SaferSafes_SupportsInterface_Test
 /// @notice Tests ERC165 interface support for SaferSafes
 contract SaferSafes_SupportsInterface_Test is SaferSafes_TestInit {
-    function test_supportsInterface_IModuleGuard_succeeds() external {
-        bytes4 interfaceId = 0x58401ed8; // IModuleGuard interface ID
-        assertTrue(saferSafes.supportsInterface(interfaceId), "Should support IModuleGuard");
-    }
-
-    function test_supportsInterface_ITransactionGuard_succeeds() external {
+    function test_supportsInterface_iTransactionGuard_succeeds() external view {
         bytes4 interfaceId = 0xe6d7a83a; // ITransactionGuard interface ID
         assertTrue(saferSafes.supportsInterface(interfaceId), "Should support ITransactionGuard");
     }
 
-    function test_supportsInterface_IERC165_succeeds() external {
+    function test_supportsInterface_ierc165_succeeds() external view {
         bytes4 interfaceId = 0x01ffc9a7; // IERC165 interface ID
         assertTrue(saferSafes.supportsInterface(interfaceId), "Should support IERC165");
     }
 
-    function test_supportsInterface_InvalidInterface_returns_false() external {
+    function test_supportsInterface_invalidInterface_fails() external view {
         bytes4 interfaceId = 0xffffffff; // Invalid interface ID
         assertFalse(saferSafes.supportsInterface(interfaceId), "Should not support invalid interface");
     }

@@ -22,8 +22,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      functionality is not desired, then there is no need to enable or configure it.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
@@ -63,14 +63,9 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
 
     /// @notice ERC165 interface detection
     /// @dev Combines interface support from both LivenessModule2 and TimelockGuard
-    /// @param interfaceId The interface identifier to check
+    /// @param _interfaceId The interface identifier to check
     /// @return True if the contract implements the interface
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(LivenessModule2, TimelockGuard)
-        returns (bool)
-    {
-        return LivenessModule2.supportsInterface(interfaceId) || TimelockGuard.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 _interfaceId) public view override(TimelockGuard) returns (bool) {
+        return TimelockGuard.supportsInterface(_interfaceId);
     }
 }
