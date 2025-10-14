@@ -8,12 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type NewPayloadResult struct {
-	T      devtest.T
-	Status *eth.PayloadStatusV1
-	Err    error
+	T         devtest.T
+	Status    *eth.PayloadStatusV1
+	BlockHash common.Hash
+	Err       error
 }
 
 func (r *NewPayloadResult) IsPayloadStatus(status eth.ExecutePayloadStatus) *NewPayloadResult {

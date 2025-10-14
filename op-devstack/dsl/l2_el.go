@@ -233,7 +233,22 @@ func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResu
 	el.log.Info("NewPayload", "number", number, "node", el, "refNode", refNode)
 	payload := refNode.PayloadByNumber(number)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
-	return &NewPayloadResult{T: el.t, Status: status, Err: err}
+	return &NewPayloadResult{T: el.t, Status: status, BlockHash: payload.ExecutionPayload.BlockHash, Err: err}
+}
+
+func (el *L2ELNode) NewPayloadWithFault(refNode *L2ELNode, number uint64) *NewPayloadResult {
+	el.log.Info("NewPayloadWithFault", "number", number, "node", el, "refNode", refNode)
+	payload := refNode.PayloadByNumber(number)
+	_, ok := payload.CheckBlockHash()
+	el.require.True(ok)
+	payload.ExecutionPayload.FeeRecipient = common.MaxAddress
+	newBlockHash, ok := payload.CheckBlockHash()
+	el.require.False(ok)
+	payload.ExecutionPayload.BlockHash = newBlockHash
+	_, ok = payload.CheckBlockHash()
+	el.require.True(ok)
+	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
+	return &NewPayloadResult{T: el.t, Status: status, BlockHash: payload.ExecutionPayload.BlockHash, Err: err}
 }
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
@@ -245,6 +260,24 @@ func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized 
 			HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
 			SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,
 			FinalizedBlockHash: refNode.BlockRefByNumber(finalized).Hash,
+		}
+		res, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
+		result.Result = res
+		result.Err = err
+	}
+	result.Refresh = refresh
+	result.Refresh()
+	return result
+}
+
+func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
+	result := &ForkchoiceUpdateResult{T: el.t}
+	refresh := func() {
+		el.log.Info("ForkchoiceUpdateRaw", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el)
+		state := &eth.ForkchoiceState{
+			HeadBlockHash:      unsafe,
+			SafeBlockHash:      safe,
+			FinalizedBlockHash: finalized,
 		}
 		res, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
 		result.Result = res
