@@ -7,8 +7,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 /// @title SafeSend_Constructor_Test
 /// @notice Tests the `constructor` function of the `SafeSend` contract.
 contract SafeSend_Constructor_Test is CommonTest {
-    /// @notice Tests that sending ETH to an EOA succeeds with various amounts.
-    function testFuzz_constructor_toEOA_succeeds(uint256 _amount) public {
+    /// @notice Tests sending ETH to an EOA with various amounts.
+    function testFuzz_constructor_eoaRecipient_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 0, 10000 ether);
 
         assertNotEq(alice, address(0));
@@ -29,8 +29,8 @@ contract SafeSend_Constructor_Test is CommonTest {
         assertEq(bob.balance, bobBalanceBefore + _amount);
     }
 
-    /// @notice Tests that sending ETH to a contract without triggering code.
-    function testFuzz_constructor_toContract_succeeds(uint256 _amount) public {
+    /// @notice Tests sending ETH to a contract without triggering code.
+    function testFuzz_constructor_contractRecipient_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 0, 10000 ether);
 
         // Etch reverting code into bob
@@ -49,8 +49,8 @@ contract SafeSend_Constructor_Test is CommonTest {
         assertEq(bob.balance, bobBalanceBefore + _amount);
     }
 
-    /// @notice Tests that sending to address(0) succeeds.
-    function testFuzz_constructor_toZeroAddress_succeeds(uint256 _amount) public {
+    /// @notice Tests sending to address(0) succeeds.
+    function testFuzz_constructor_zeroAddress_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 0, 10000 ether);
 
         vm.deal(alice, _amount);
