@@ -208,9 +208,13 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 }
 
 func getInteropAbsolutePrestate(t devtest.CommonT) common.Hash {
-	root, err := findMonorepoRoot("op-program/bin/prestate-proof-interop.json")
+	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
+}
+
+func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
+	root, err := findMonorepoRoot(prestatePath)
 	t.Require().NoError(err)
-	p := path.Join(root, "op-program/bin/prestate-proof-interop.json")
+	p := path.Join(root, prestatePath)
 	file, err := os.Open(p)
 	t.Require().NoError(err)
 	decoder := json.NewDecoder(file)

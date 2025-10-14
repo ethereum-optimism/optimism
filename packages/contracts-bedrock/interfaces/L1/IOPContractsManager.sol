@@ -216,6 +216,8 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
@@ -303,6 +305,8 @@ interface IOPContractsManager {
     error PrestateNotSet();
 
     error PrestateRequired();
+
+    error InvalidDevFeatureAccess(bytes32 devFeature);
 
     // -------- Methods --------
 
