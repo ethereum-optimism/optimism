@@ -358,22 +358,21 @@ abstract contract LivenessModule2 {
                 break;
             }
         }
-        if (moduleFound) {
-            // If the module is the first in the list, then the previous module is the sentinel.
-            // If the module is not the first in the list, then the previous module is the module before in in the
-            // array.
-            address prevModule = moduleIndex == 0 ? SENTINEL_MODULE : modules[moduleIndex - 1];
 
-            // Disable the module
-            _targetSafe.execTransactionFromModule({
-                to: address(_targetSafe),
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(ModuleManager.disableModule, (prevModule, address(this)))
-            });
-        }
+        if (!moduleFound) return;
 
-        // Clear the module configuration
+        // If the module is the first in the list, then the previous module is the sentinel.
+        // Otherwise, the previous module is the module before in the array.
+        address prevModule = moduleIndex == 0 ? SENTINEL_MODULE : modules[moduleIndex - 1];
+
+        // Disable the module
+        _targetSafe.execTransactionFromModule({
+            to: address(_targetSafe),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(ModuleManager.disableModule, (prevModule, address(this)))
+        });
+
         // Erase the configuration data for this safe
         delete livenessSafeConfiguration[address(_targetSafe)];
     }
