@@ -15,7 +15,7 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka release.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
 "go:gotest.tools/gotestsum" = "1.12.1"
 "go:github.com/vektra/mockery/v2" = "2.46.0"
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "1.64.8"
