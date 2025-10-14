@@ -52,7 +52,7 @@ contract DummyCaller {
         returns (bool, bytes memory)
     {
         bytes memory data =
-            abi.encodeCall(DummyCaller.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin));
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin));
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }
