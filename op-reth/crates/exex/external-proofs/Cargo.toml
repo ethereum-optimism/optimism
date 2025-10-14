@@ -20,6 +20,7 @@ alloy-primitives = { workspace = true }
 # reth
 reth-chainspec.workspace = true
 reth-db-api.workspace = true
+reth-db.workspace = true
 reth-node-types.workspace = true
 reth-node-api.workspace = true
 reth-primitives-traits.workspace = true
