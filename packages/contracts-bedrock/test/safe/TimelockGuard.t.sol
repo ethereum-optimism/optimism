@@ -880,3 +880,28 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), maxThreshold);
     }
 }
+
+/// @title TimelockGuard_SupportsInterface_Test
+/// @notice Tests ERC165 interface support for TimelockGuard
+contract TimelockGuard_SupportsInterface_Test is TimelockGuard_TestInit {
+    function test_supportsInterface_ITransactionGuard_succeeds() external {
+        bytes4 interfaceId = 0xe6d7a83a; // ITransactionGuard interface ID
+        assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support ITransactionGuard");
+    }
+
+    function test_supportsInterface_IERC165_succeeds() external {
+        bytes4 interfaceId = 0x01ffc9a7; // IERC165 interface ID
+        assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support IERC165");
+    }
+
+    function test_supportsInterface_InvalidInterface_reverts() external {
+        bytes4 interfaceId = 0xffffffff; // Invalid interface ID
+        assertFalse(timelockGuard.supportsInterface(interfaceId), "Should not support invalid interface");
+    }
+
+    function test_supportsInterface_IModuleGuard_succeeds() external {
+        // SaferSafes (which TimelockGuard is deployed as) also supports IModuleGuard
+        bytes4 interfaceId = 0x58401ed8; // IModuleGuard interface ID
+        assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support IModuleGuard");
+    }
+}

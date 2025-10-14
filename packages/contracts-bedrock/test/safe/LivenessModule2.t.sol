@@ -584,3 +584,28 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
         assertTrue(bytes(livenessModule2.version()).length > 0);
     }
 }
+
+/// @title LivenessModule2_SupportsInterface_Test
+/// @notice Tests ERC165 interface support for LivenessModule2
+contract LivenessModule2_SupportsInterface_Test is LivenessModule2_TestInit {
+    function test_supportsInterface_IModuleGuard_succeeds() external {
+        bytes4 interfaceId = 0x58401ed8; // IModuleGuard interface ID
+        assertTrue(livenessModule2.supportsInterface(interfaceId), "Should support IModuleGuard");
+    }
+
+    function test_supportsInterface_IERC165_succeeds() external {
+        bytes4 interfaceId = 0x01ffc9a7; // IERC165 interface ID
+        assertTrue(livenessModule2.supportsInterface(interfaceId), "Should support IERC165");
+    }
+
+    function test_supportsInterface_InvalidInterface_reverts() external {
+        bytes4 interfaceId = 0xffffffff; // Invalid interface ID
+        assertFalse(livenessModule2.supportsInterface(interfaceId), "Should not support invalid interface");
+    }
+
+    function test_supportsInterface_ITransactionGuard_succeeds() external {
+        // SaferSafes (which LivenessModule2 is deployed as) also supports ITransactionGuard
+        bytes4 interfaceId = 0xe6d7a83a; // ITransactionGuard interface ID
+        assertTrue(livenessModule2.supportsInterface(interfaceId), "Should support ITransactionGuard");
+    }
+}

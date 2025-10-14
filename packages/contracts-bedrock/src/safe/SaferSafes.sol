@@ -60,4 +60,17 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
             revert SaferSafes_InsufficientLivenessResponsePeriod();
         }
     }
+
+    /// @notice ERC165 interface detection
+    /// @dev Combines interface support from both LivenessModule2 and TimelockGuard
+    /// @param interfaceId The interface identifier to check
+    /// @return True if the contract implements the interface
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(LivenessModule2, TimelockGuard)
+        returns (bool)
+    {
+        return LivenessModule2.supportsInterface(interfaceId) || TimelockGuard.supportsInterface(interfaceId);
+    }
 }

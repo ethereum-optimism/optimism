@@ -5,10 +5,14 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+
+// Interfaces
+import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
@@ -64,7 +68,7 @@ import { SemverComp } from "src/libraries/SemverComp.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-abstract contract TimelockGuard is IGuard {
+abstract contract TimelockGuard is IGuard, IERC165 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction
@@ -611,5 +615,18 @@ abstract contract TimelockGuard is IGuard {
     ///         the Safe UI.
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                    ERC165 Support                          //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice ERC165 interface detection
+    /// @param interfaceId The interface identifier to check
+    /// @return True if the contract implements the interface
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return
+            interfaceId == type(ITransactionGuard).interfaceId || // 0xe6d7a83a
+            interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }
 }
