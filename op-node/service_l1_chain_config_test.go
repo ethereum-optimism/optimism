@@ -50,6 +50,14 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		BlobScheduleConfig: nil,
 	}
 
+	// Indicative of an L2 chain config
+	// Which is what L3 chains need to provide
+	customOPStack := &params.ChainConfig{
+		ChainID:            testChainID,
+		BlobScheduleConfig: nil,
+		Optimism:           &params.OptimismConfig{},
+	}
+
 	// Prepare temp dir
 	dir := t.TempDir()
 
@@ -75,6 +83,10 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		Config *params.ChainConfig `json:"config"`
 	}
 	encode(embeddedPath, wrapper{Config: custom})
+
+	// Embedded JSON file that contains { "config": <ChainConfig> }
+	customOPStackPath := filepath.Join(dir, "optimism_chain.json")
+	encode(customOPStackPath, wrapper{Config: customOPStack})
 
 	// Helper to run the CLI with a given file path
 	runWithPath := func(path string) (*params.ChainConfig, error) {
@@ -117,5 +129,11 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		cfg, err := runWithPath(directFaultyPath)
 		require.Nil(t, cfg)
 		require.Error(t, err)
+	})
+
+	t.Run("nil-blob-schedule-config-returns-no-error-for-l2-chain-config", func(t *testing.T) {
+		cfg, err := runWithPath(customOPStackPath)
+		require.NotNil(t, cfg)
+		require.NoError(t, err)
 	})
 }

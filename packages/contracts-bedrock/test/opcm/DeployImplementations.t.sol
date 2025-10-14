@@ -33,7 +33,7 @@ contract DeployImplementations_Test is Test {
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-    address upgradeController = makeAddr("upgradeController");
+    address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
@@ -157,7 +157,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1ProxyAdminOwner,
             challenger
         );
 
@@ -319,8 +319,8 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.upgradeController = address(0);
-        vm.expectRevert("DeployImplementations: upgradeController not set");
+        input.l1ProxyAdminOwner = address(0);
+        vm.expectRevert("DeployImplementations: L1ProxyAdminOwner not set");
         deployImplementations.run(input);
     }
 
@@ -557,7 +557,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1ProxyAdminOwner,
             challenger
         );
     }

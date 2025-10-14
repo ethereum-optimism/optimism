@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -49,6 +51,24 @@ type closableSafeDB interface {
 	io.Closer
 }
 
+// L1Source provides the necessary L1 blockchain data for the node.
+type L1Source interface {
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
+	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	Close()
+}
+
+// L1Beacon provides access to L1 beacon chain data, specifically for blob data retrieval.
+type L1Beacon interface {
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
+
 type OpNode struct {
 	// Retain the config to test for active features rather than test for runtime state.
 	cfg        *config.Config
@@ -63,7 +83,7 @@ type OpNode struct {
 	eventSys   event.System
 	eventDrain driver.Drain
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
+	l1Source  L1Source              // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
 	server    *oprpc.Server         // RPC server hosting the rollup-node API
@@ -79,7 +99,7 @@ type OpNode struct {
 	pprofService *oppprof.Service
 	metricsSrv   *httputil.HTTPServer
 
-	beacon *sources.L1BeaconClient
+	beacon L1Beacon
 
 	interopSys interop.SubSystem
 
@@ -120,7 +140,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
-	err := n.init(ctx, cfg)
+	err := n.init(ctx, cfg, initializationOverrides{})
 	if err != nil {
 		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
@@ -132,136 +152,199 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 	return n, nil
 }
 
-func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
+type initializationOverrides struct {
+	L1Source   L1Source
+	Beacon     L1Beacon
+	RPCHandler *oprpc.Handler
+}
+
+// init progressively creates and sets up all the components of the OpNode
+// some later initialization steps depend on the node being partially initialized with other components,
+// so order is important to ensure that all resources are available when needed.
+func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides initializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
-	n.initEventSystem()
-	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
-		return err
+
+	var err error
+
+	n.eventSys, n.eventDrain, err = initEventSystem(n)
+	if err != nil {
+		return fmt.Errorf("failed to init event system: %w", err)
 	}
-	if err := n.initL1Source(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init L1 Source: %w", err)
+
+	if overrides.Beacon == nil {
+		beacon, err := initL1BeaconAPI(ctx, cfg, n)
+		if err != nil {
+			return err
+		}
+		n.beacon = beacon
+	} else {
+		n.beacon = overrides.Beacon
 	}
-	if err := n.initL2(ctx, cfg); err != nil {
+
+	if overrides.L1Source == nil {
+		l1Source, err := initL1Source(ctx, cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init L1 Source: %w", err)
+		}
+		n.l1Source = l1Source
+	} else {
+		n.l1Source = overrides.L1Source
+	}
+
+	// initL2 may use side effects to register interop subsystem to the node.EventSystem
+	n.l2Source, n.interopSys, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
+	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
-	if err := n.initL1Handlers(cfg); err != nil {
-		return fmt.Errorf("failed to init L1 Handlers: %w", err)
+
+	n.l1HeadsSub, n.l1SafeSub, n.l1FinalizedSub, err = initL1Handlers(cfg, n)
+	if err != nil {
+		return fmt.Errorf("failed to init L1 Source: %w", err)
 	}
-	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
+
+	// initRuntimeConfig relies on side effects to set the runCfg, node.halted and call node.cancel if needed
+	if err := initRuntimeConfig(ctx, cfg, n); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
-	if err := n.initP2PSigner(ctx, cfg); err != nil {
+
+	n.p2pSigner, err = initP2PSigner(ctx, cfg, n)
+	if err != nil {
 		return fmt.Errorf("failed to init the P2P signer: %w", err)
 	}
-	if err := n.initP2P(cfg); err != nil {
+
+	n.p2pNode, err = initP2P(cfg, n)
+	if err != nil {
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
+
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	if err := n.initRPCServer(cfg); err != nil {
-		return fmt.Errorf("failed to init the RPC server: %w", err)
+	if overrides.RPCHandler == nil {
+		n.server, err = initRPCServer(cfg, n)
+		if err != nil {
+			return fmt.Errorf("failed to init the RPC server: %w", err)
+		}
+	} else {
+		// the node registers to an existing RPC server's handler if provided
+		// the node assumes the RPC server is already started
+		n.server = nil
+		err := registerAPIs(cfg, n, overrides.RPCHandler)
+		if err != nil {
+			// panic here is to match the behavior of oprcp.Server.AddAPI,
+			// which wraps the Handler and panics if the API can't be added.
+			panic(fmt.Errorf("invalid API: %w", err))
+		}
 	}
-	if err := n.initMetricsServer(cfg); err != nil {
+
+	n.metricsSrv, err = initMetricsServer(cfg, n)
+	if err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
+
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
-	if err := n.initPProf(cfg); err != nil {
+
+	n.pprofService, err = initPProf(cfg, n)
+	if err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
+
 	return nil
 }
 
-func (n *OpNode) initEventSystem() {
+func initEventSystem(node *OpNode) (event.System, driver.Drain, error) {
 	// This executor will be configurable in the future, for parallel event processing
-	executor := event.NewGlobalSynchronous(n.resourcesCtx).WithMetrics(n.metrics)
-	sys := event.NewSystem(n.log, executor)
-	sys.AddTracer(event.NewMetricsTracer(n.metrics))
-	sys.Register("node", event.DeriverFunc(n.onEvent))
-	n.eventSys = sys
-	n.eventDrain = executor
+	executor := event.NewGlobalSynchronous(node.resourcesCtx).WithMetrics(node.metrics)
+	sys := event.NewSystem(node.log, executor)
+	sys.AddTracer(event.NewMetricsTracer(node.metrics))
+	sys.Register("node", event.DeriverFunc(node.onEvent))
+	return sys, executor, nil
 }
 
-func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
+func initL1Source(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.L1Client, error) {
 	// Cache 3/2 worth of sequencing window of receipts and txs
 	defaultCacheSize := int(cfg.Rollup.SeqWindowSize) * 3 / 2
-	l1RPC, l1Cfg, err := cfg.L1.Setup(ctx, n.log, defaultCacheSize, n.metrics)
+	l1RPC, l1Cfg, err := cfg.L1.Setup(ctx, node.log, defaultCacheSize, node.metrics)
 	if err != nil {
-		return fmt.Errorf("failed to get L1 RPC client: %w", err)
+		return nil, fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = sources.NewL1Client(l1RPC, n.log, n.metrics.L1SourceCache, l1Cfg)
+	l1Source, err := sources.NewL1Client(l1RPC, node.log, node.metrics.L1SourceCache, l1Cfg)
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %w", err)
+		return nil, fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL1Config(ctx, n.log, n.l1Source); err != nil {
-		return fmt.Errorf("failed to validate the L1 config: %w", err)
+	if err := cfg.Rollup.ValidateL1Config(ctx, node.log, l1Source); err != nil {
+		return nil, fmt.Errorf("failed to validate the L1 config: %w", err)
 	}
 
-	return nil
+	return l1Source, nil
 }
 
-func (n *OpNode) initL1Handlers(cfg *config.Config) error {
-	if n.l2Driver == nil {
-		return errors.New("l2 driver must be initialized")
+func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, ethereum.Subscription, ethereum.Subscription, error) {
+	if node.l2Driver == nil {
+		return nil, nil, nil, errors.New("l2 driver must be initialized")
 	}
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
 		// TODO(#16917) Remove Event System Refactor Comments
 		//  L1UnsafeEvent fan out is updated to procedural method calls
-		if n.cfg.Tracer != nil {
-			n.cfg.Tracer.OnNewL1Head(ctx, sig)
+		if node.cfg.Tracer != nil {
+			node.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
-		n.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
-		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
-		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
+		node.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
+		node.l2Driver.StatusTracker.OnL1Unsafe(sig)
+		node.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		n.l2Driver.StatusTracker.OnL1Safe(sig)
+		node.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
 		// TODO(#16917) Remove Event System Refactor Comments
 		//  FinalizeL1Event fan out is updated to procedural method calls
-		n.l2Driver.StatusTracker.OnL1Finalized(sig)
-		n.l2Driver.Finalizer.OnL1Finalized(sig)
-		n.l2Driver.SyncDeriver.OnL1Finalized(ctx)
+		node.l2Driver.StatusTracker.OnL1Finalized(sig)
+		node.l2Driver.Finalizer.OnL1Finalized(sig)
+		node.l2Driver.SyncDeriver.OnL1Finalized(ctx)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
-	n.l1HeadsSub = gethevent.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (gethevent.Subscription, error) {
+	l1HeadsSub := gethevent.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (gethevent.Subscription, error) {
 		if err != nil {
-			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
+			node.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(ctx, n.l1Source, onL1Head)
+		return eth.WatchHeadChanges(ctx, node.l1Source, onL1Head)
 	})
 	go func() {
-		err, ok := <-n.l1HeadsSub.Err()
+		err, ok := <-l1HeadsSub.Err()
 		if !ok {
 			return
 		}
-		n.log.Error("l1 heads subscription error", "err", err)
+		node.log.Error("l1 heads subscription error", "err", err)
 	}()
 
 	// Poll for the safe L1 block and finalized block,
 	// which only change once per epoch at most and may be delayed.
-	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Safe, eth.Safe,
+	l1SafeSub := eth.PollBlockChanges(node.log, node.l1Source, onL1Safe, eth.Safe,
 		cfg.L1EpochPollInterval, time.Second*10)
-	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Finalized, eth.Finalized,
+	l1FinalizedSub := eth.PollBlockChanges(node.log, node.l1Source, onL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
 
-	return nil
+	return l1HeadsSub, l1SafeSub, l1FinalizedSub, nil
 }
 
-func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) error {
+// initRuntimeConfig initializes the runtime config and starts a background loop to reload it at the configured interval.
+// note: this function relies on side effects to set node.runCfg
+func initRuntimeConfig(ctx context.Context, cfg *config.Config, node *OpNode) error {
 	// attempt to load runtime config, repeat N times
-	n.runCfg = runcfg.NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
+	runCfg := runcfg.NewRuntimeConfig(node.log, node.l1Source, &cfg.Rollup)
+	// Set node.runCfg early so handleProtocolVersionsUpdate can access it during initialization
+	node.runCfg = runCfg
 
 	confDepth := cfg.Driver.VerifierConfDepth
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
 		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
-		l1Head, err := n.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
+		l1Head, err := node.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
 		fetchCancel()
 		if err != nil {
-			n.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)
+			node.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)
 			return eth.L1BlockRef{}, err
 		}
 
@@ -271,22 +354,22 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 			blNum -= confDepth
 		}
 		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
-		confirmed, err := n.l1Source.L1BlockRefByNumber(fetchCtx, blNum)
+		confirmed, err := node.l1Source.L1BlockRefByNumber(fetchCtx, blNum)
 		fetchCancel()
 		if err != nil {
-			n.log.Error("failed to fetch confirmed L1 block for runtime config loading", "err", err, "number", blNum)
+			node.log.Error("failed to fetch confirmed L1 block for runtime config loading", "err", err, "number", blNum)
 			return eth.L1BlockRef{}, err
 		}
 
 		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
-		err = n.runCfg.Load(fetchCtx, confirmed)
+		err = runCfg.Load(fetchCtx, confirmed)
 		fetchCancel()
 		if err != nil {
-			n.log.Error("failed to fetch runtime config data", "err", err)
+			node.log.Error("failed to fetch runtime config data", "err", err)
 			return l1Head, err
 		}
 
-		err = n.handleProtocolVersionsUpdate(ctx)
+		err = node.handleProtocolVersionsUpdate(ctx)
 		return l1Head, err
 	}
 
@@ -304,7 +387,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 	// start a background loop, to keep reloading it at the configured reload interval
 	reloader := func(ctx context.Context, reloadInterval time.Duration) {
 		if reloadInterval <= 0 {
-			n.log.Debug("not running runtime-config reloading background loop")
+			node.log.Debug("not running runtime-config reloading background loop")
 			return
 		}
 		ticker := time.NewTicker(reloadInterval)
@@ -317,18 +400,18 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 				l1Head, err := reload(ctx)
 				if err != nil {
 					if errors.Is(err, errNodeHalt) {
-						n.halted.Store(true)
-						if n.cancel != nil { // node cancellation is always available when started as CLI app
-							n.cancel(errNodeHalt)
+						node.halted.Store(true)
+						if node.cancel != nil { // node cancellation is always available when started as CLI app
+							node.cancel(errNodeHalt)
 							return
 						} else {
-							n.log.Debug("opted to halt, but cannot halt node", "l1_head", l1Head)
+							node.log.Debug("opted to halt, but cannot halt node", "l1_head", l1Head)
 						}
 					} else {
-						n.log.Warn("failed to reload runtime config", "err", err)
+						node.log.Warn("failed to reload runtime config", "err", err)
 					}
 				} else {
-					n.log.Debug("reloaded runtime config", "l1_head", l1Head)
+					node.log.Debug("reloaded runtime config", "l1_head", l1Head)
 				}
 			case <-ctx.Done():
 				return
@@ -336,41 +419,39 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 		}
 	}
 
-	n.runtimeConfigReloaderDone = make(chan struct{})
 	// Manages the lifetime of reloader. In order to safely Close the OpNode
 	go func(ctx context.Context, reloadInterval time.Duration) {
 		reloader(ctx, reloadInterval)
-		close(n.runtimeConfigReloaderDone)
-	}(n.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
+	}(node.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
 	return nil
 }
 
-func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *config.Config) error {
+func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.L1BeaconClient, error) {
 	// If Ecotone upgrade is not scheduled yet, then there is no need for a Beacon API.
 	if cfg.Rollup.EcotoneTime == nil {
-		return nil
+		return nil, nil
 	}
 	// Once the Ecotone upgrade is scheduled, we must have initialized the Beacon API settings.
 	if cfg.Beacon == nil {
-		return fmt.Errorf("missing L1 Beacon Endpoint configuration: this API is mandatory for Ecotone upgrade at t=%d", *cfg.Rollup.EcotoneTime)
+		return nil, fmt.Errorf("missing L1 Beacon Endpoint configuration: this API is mandatory for Ecotone upgrade at t=%d", *cfg.Rollup.EcotoneTime)
 	}
 
 	// We always initialize a client. We will get an error on requests if the client does not work.
 	// This way the op-node can continue non-L1 functionality when the user chooses to ignore the Beacon API requirement.
-	beaconClient, fallbacks, err := cfg.Beacon.Setup(ctx, n.log)
+	beaconClient, fallbacks, err := cfg.Beacon.Setup(ctx, node.log)
 	if err != nil {
-		return fmt.Errorf("failed to setup L1 Beacon API client: %w", err)
+		return nil, fmt.Errorf("failed to setup L1 Beacon API client: %w", err)
 	}
 	beaconCfg := sources.L1BeaconClientConfig{
 		FetchAllSidecars: cfg.Beacon.ShouldFetchAllSidecars(),
 	}
-	n.beacon = sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
+	beacon := sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
 
 	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
 	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		beaconVersion, err := n.beacon.GetVersion(ctx)
+		beaconVersion, err := beacon.GetVersion(ctx)
 		if err != nil {
 			if errors.Is(err, client.ErrNoEndpoint) {
 				return "", true, nil // don't return an error, we do not have to retry when there is a config issue.
@@ -382,148 +463,160 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *config.Config) error 
 	if missingEndpoint {
 		// Allow the user to continue if they explicitly ignore the requirement of the endpoint.
 		if cfg.Beacon.ShouldIgnoreBeaconCheck() {
-			n.log.Warn("This endpoint is required for the Ecotone upgrade, but is missing, and configured to be ignored. " +
+			node.log.Warn("This endpoint is required for the Ecotone upgrade, but is missing, and configured to be ignored. " +
 				"The node may be unable to retrieve EIP-4844 blobs data.")
-			return nil
+			return beacon, nil
 		} else {
 			// If the client tells us the endpoint was not configured,
 			// then explain why we need it, and what the user can do to ignore this.
-			n.log.Error("The Ecotone upgrade requires a L1 Beacon API endpoint, to retrieve EIP-4844 blobs data. " +
+			node.log.Error("The Ecotone upgrade requires a L1 Beacon API endpoint, to retrieve EIP-4844 blobs data. " +
 				"This can be ignored with the --l1.beacon.ignore option, " +
 				"but the node may be unable to sync from L1 without this endpoint.")
-			return errors.New("missing L1 Beacon API endpoint")
+			return nil, errors.New("missing L1 Beacon API endpoint")
 		}
 	} else if err != nil {
 		if cfg.Beacon.ShouldIgnoreBeaconCheck() {
-			n.log.Warn("Failed to check L1 Beacon API version, but configuration ignores results. "+
+			node.log.Warn("Failed to check L1 Beacon API version, but configuration ignores results. "+
 				"The node may be unable to retrieve EIP-4844 blobs data.", "err", err)
-			return nil
+			return beacon, nil
 		} else {
-			return fmt.Errorf("failed to check L1 Beacon API version: %w", err)
+			return nil, fmt.Errorf("failed to check L1 Beacon API version: %w", err)
 		}
 	} else {
-		n.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.", "version", beaconVersion)
-		return nil
+		node.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.", "version", beaconVersion)
+		return beacon, nil
 	}
 }
 
-func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
-	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup, n.metrics)
+func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.EngineClient, interop.SubSystem, *driver.Driver, closableSafeDB, error) {
+	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, node.log, &cfg.Rollup, node.metrics)
 	if err != nil {
-		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
 
 	rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
 
-	n.l2Source, err = sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache, rpcCfg)
+	l2Source, err := sources.NewEngineClient(rpcClient, node.log, node.metrics.L2SourceCache, rpcCfg)
 	if err != nil {
-		return fmt.Errorf("failed to create Engine client: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
-		return err
+	if err := cfg.Rollup.ValidateL2Config(ctx, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	indexingMode := false
-	sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
+	sys, err := cfg.InteropConfig.Setup(ctx, node.log, &node.cfg.Rollup, node.l1Source, l2Source, node.metrics)
 	if err != nil {
-		return fmt.Errorf("failed to setup interop: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to setup interop: %w", err)
 	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
 		_, indexingMode = sys.(*indexing.IndexingMode)
-		n.interopSys = sys
-		n.eventSys.Register("interop", n.interopSys)
+		node.eventSys.Register("interop", sys)
 	}
 
 	var sequencerConductor conductor.SequencerConductor = &conductor.NoOpConductor{}
 	if cfg.ConductorEnabled {
-		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
+		sequencerConductor = NewConductorClient(cfg, node.log, node.metrics)
 	}
 
 	// if altDA is not explicitly activated in the node CLI, the config + any error will be ignored.
 	rpCfg, err := cfg.Rollup.GetOPAltDAConfig()
 	if cfg.AltDA.Enabled && err != nil {
-		return fmt.Errorf("failed to get altDA config: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get altDA config: %w", err)
 	}
-	altDA := altda.NewAltDA(n.log, cfg.AltDA, rpCfg, n.metrics.AltDAMetrics)
+	altDA := altda.NewAltDA(node.log, cfg.AltDA, rpCfg, node.metrics.AltDAMetrics)
+	var safeDB closableSafeDB
 	if cfg.SafeDBPath != "" {
-		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
-		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
+		node.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
+		safeDB, err = safedb.NewSafeDB(node.log, cfg.SafeDBPath)
 		if err != nil {
-			return fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
 		}
-		n.safeDB = safeDB
 	} else {
-		n.safeDB = safedb.Disabled
+		safeDB = safedb.Disabled
 	}
 
 	if cfg.Rollup.ChainOpConfig == nil {
-		return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, n.l2Source, n.l1Source,
-		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
+	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source,
+		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
-	if n.interopSys != nil {
-		if indexingMode, ok := n.interopSys.(*indexing.IndexingMode); ok {
-			indexingMode.SetEngineController(n.l2Driver.SyncDeriver.Engine)
+	if sys != nil {
+		if indexingMode, ok := sys.(*indexing.IndexingMode); ok {
+			indexingMode.SetEngineController(l2Driver.SyncDeriver.Engine)
 		}
 	}
 
-	return nil
+	return l2Source, sys, l2Driver, safeDB, nil
 }
 
-func (n *OpNode) initRPCServer(cfg *config.Config) error {
+func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
-		n.l2Source.L2Client, n.l2Driver, n.safeDB,
-		n.log, n.metrics, n.appVersion)
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
-		server.AddAPI(rpc.API{
+		node.l2Source.L2Client, node.l2Driver, node.safeDB,
+		node.log, node.metrics, node.appVersion)
+	if err := registerAPIs(cfg, node, server.Handler); err != nil {
+		// panic here is to match the behavior of oprcp.Server.AddAPI,
+		// which wraps the Handler and panics if the API can't be added.
+		panic(fmt.Errorf("invalid API: %w", err))
+	}
+	node.log.Info("Starting JSON-RPC server")
+	if err := server.Start(); err != nil {
+		return nil, fmt.Errorf("unable to start RPC server: %w", err)
+	}
+	node.log.Info("Started JSON-RPC server", "addr", server.Endpoint())
+	return server, nil
+}
+
+func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) error {
+	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
+		if err := handler.AddAPI(rpc.API{
 			Namespace: p2p.NamespaceRPC,
-			Service:   p2p.NewP2PAPIBackend(p2pNode, n.log),
-		})
-		n.log.Info("P2P RPC enabled")
+			Service:   p2p.NewP2PAPIBackend(p2pNode, node.log),
+		}); err != nil {
+			return fmt.Errorf("failed to add P2P API: %w", err)
+		}
+		node.log.Info("P2P RPC enabled")
 	}
 	if cfg.ExperimentalOPStackAPI {
-		server.AddAPI(rpc.API{
+		if err := handler.AddAPI(rpc.API{
 			Namespace: "opstack",
-			Service:   NewOpstackAPI(n.l2Driver.SyncDeriver.Engine, n),
-		})
-		n.log.Info("Experimental OP stack API enabled")
+			Service:   NewOpstackAPI(node.l2Driver.SyncDeriver.Engine, node),
+		}); err != nil {
+			return fmt.Errorf("failed to add Experimental OP stack API: %w", err)
+		}
+		node.log.Info("Experimental OP stack API enabled")
 	}
 	if cfg.RPC.EnableAdmin {
-		server.AddAPI(rpc.API{
+		if err := handler.AddAPI(rpc.API{
 			Namespace: "admin",
-			Service:   NewAdminAPI(n.l2Driver, n.log),
-		})
-		n.log.Info("Admin RPC enabled")
+			Service:   NewAdminAPI(node.l2Driver, node.log),
+		}); err != nil {
+			return fmt.Errorf("failed to add Admin API: %w", err)
+		}
+		node.log.Info("Admin RPC enabled")
 	}
-	n.log.Info("Starting JSON-RPC server")
-	if err := server.Start(); err != nil {
-		return fmt.Errorf("unable to start RPC server: %w", err)
-	}
-	n.log.Info("Started JSON-RPC server", "addr", server.Endpoint())
-	n.server = server
 	return nil
 }
 
-func (n *OpNode) initMetricsServer(cfg *config.Config) error {
+func initMetricsServer(cfg *config.Config, node *OpNode) (*httputil.HTTPServer, error) {
 	if !cfg.Metrics.Enabled {
-		n.log.Info("metrics disabled")
-		return nil
+		node.log.Info("metrics disabled")
+		return nil, nil
 	}
-	n.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
-	metricsSrv, err := n.metrics.StartServer(cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort)
+	node.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
+	metricsSrv, err := node.metrics.StartServer(cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort)
 	if err != nil {
-		return fmt.Errorf("failed to start metrics server: %w", err)
+		return nil, fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	n.log.Info("started metrics server", "addr", metricsSrv.Addr())
-	n.metricsSrv = metricsSrv
-	return nil
+	node.log.Info("started metrics server", "addr", metricsSrv.Addr())
+	return metricsSrv, nil
 }
 
-func (n *OpNode) initPProf(cfg *config.Config) error {
-	n.pprofService = oppprof.New(
+func initPProf(cfg *config.Config, node *OpNode) (*oppprof.Service, error) {
+	pprofService := oppprof.New(
 		cfg.Pprof.ListenEnabled,
 		cfg.Pprof.ListenAddr,
 		cfg.Pprof.ListenPort,
@@ -532,48 +625,49 @@ func (n *OpNode) initPProf(cfg *config.Config) error {
 		cfg.Pprof.ProfileFilename,
 	)
 
-	if err := n.pprofService.Start(); err != nil {
-		return fmt.Errorf("failed to start pprof service: %w", err)
+	if err := pprofService.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start pprof service: %w", err)
 	}
 
-	return nil
+	return pprofService, nil
 }
 
 func (n *OpNode) p2pEnabled() bool {
 	return n.cfg.P2PEnabled()
 }
 
-func (n *OpNode) initP2P(cfg *config.Config) (err error) {
-	n.p2pMu.Lock()
-	defer n.p2pMu.Unlock()
-	if n.p2pNode != nil {
+func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
+	node.p2pMu.Lock()
+	defer node.p2pMu.Unlock()
+	if node.p2pNode != nil {
 		panic("p2p node already initialized")
 	}
-	if n.p2pEnabled() {
-		if n.l2Driver.SyncDeriver == nil {
+	if node.p2pEnabled() {
+		if node.l2Driver.SyncDeriver == nil {
 			panic("SyncDeriver must be initialized")
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
-		rec := p2p.NewBlockReceiver(n.log, n.metrics, n.l2Driver.SyncDeriver, n.cfg.Tracer)
-		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, rec, n.l2Source, n.runCfg, n.metrics)
+		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics)
 		if err != nil {
-			return
+			return nil, err
 		}
-		if n.p2pNode.Dv5Udp() != nil {
-			go n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
+		if p2pNode.Dv5Udp() != nil {
+			go p2pNode.DiscoveryProcess(node.resourcesCtx, node.log, &cfg.Rollup, cfg.P2P.TargetPeers())
 		}
+		return p2pNode, nil
 	}
-	return nil
+	return nil, nil
 }
 
-func (n *OpNode) initP2PSigner(ctx context.Context, cfg *config.Config) (err error) {
+func initP2PSigner(ctx context.Context, cfg *config.Config, node *OpNode) (p2p.Signer, error) {
 	// the p2p signer setup is optional
 	if cfg.P2PSigner == nil {
-		return
+		return nil, nil
 	}
 	// p2pSigner may still be nil, the signer setup may not create any signer, the signer is optional
-	n.p2pSigner, err = cfg.P2PSigner.SetupSigner(ctx)
-	return
+	p2pSigner, err := cfg.P2PSigner.SetupSigner(ctx)
+	return p2pSigner, err
 }
 
 func (n *OpNode) Start(ctx context.Context) error {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -53,7 +53,7 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 }
 
 func (u *Upgrader) ArtifactsURL() string {
-	return "tag://" + standard.ContractsV200Tag
+	return artifacts.CreateHttpLocator("1cec51ed629c0394b8fb17ff2c6fa45c406c30f94ebbd37d4c90ede6c29ad608")
 }
 
 var DefaultUpgrader = new(Upgrader)

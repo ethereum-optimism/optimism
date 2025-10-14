@@ -12,6 +12,8 @@ func TestMain(m *testing.M) {
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithMultiWithSyncTester(),
 		presets.WithELSyncTarget(35),
+		presets.WithSimpleWithSyncTester(),
+		presets.WithELSyncActive(),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }

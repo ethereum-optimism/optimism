@@ -12,5 +12,12 @@
     "offset": 0,
     "slot": "1",
     "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "32",
+    "label": "_safeState",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(contract GnosisSafe => struct TimelockGuard.SafeState)"
   }
 ]

@@ -61,7 +61,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.Equal(t, inputs.L1Head.Hex(), pairs["--l1.head"])
 		require.Equal(t, inputs.L2Claim.Hex(), pairs["--l2.claim"])
 		require.Equal(t, inputs.L2SequenceNumber.String(), pairs["--l2.blocknumber"])
-		require.Equal(t, cfg.L1GenesisPath, pairs["--l1.config"])
+		require.Equal(t, cfg.L1GenesisPath, pairs["--l1.chainconfig"])
 		return pairs
 	}
 

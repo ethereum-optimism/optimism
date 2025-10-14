@@ -212,21 +212,14 @@ gates:
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/yourtest
         timeout: 10m
-        metadata:
-          target_gate: base  # Where to promote once stable
+        metatada:
+          owner: stefano
 ```
 
 ### Understanding Reports
 
-Flake-shake generates comprehensive reports in two formats:
-- **`flake-shake-report.json`**: Machine-readable results for automation
-- **`flake-shake-report.html`**: Human-friendly visualization with charts
-
-Reports include:
-- **Pass rate**: Percentage of successful runs per test
-- **Timing statistics**: Min/avg/max execution duration
-- **Failure patterns**: First few failure logs for debugging
-- **Stability recommendation**: STABLE or UNSTABLE classification
+Flake-shake stores a daily summary artifact per run:
+- **`final-report/daily-summary.json`**: Aggregated counts of stable/unstable tests and per-test pass/fail tallies.
 
 ### CI Integration
 
@@ -234,6 +227,25 @@ In CI, flake-shake runs tests across multiple parallel workers:
 - 10 workers each run 10 iterations (100 total by default)
 - Results are aggregated using the `flake-shake-aggregator` tool
 - Reports are stored as CircleCI artifacts
+
+### Automated Promotion (Promoter CLI)
+
+We provide a small CLI that aggregates the last N daily summaries from CircleCI and proposes YAML edits to promote stable tests out of the `flake-shake` gate:
+
+```bash
+export CIRCLE_API_TOKEN=...  # CircleCI API token (read artifacts)
+go build -o ./op-acceptance-tests/flake-shake-promoter ./op-acceptance-tests/cmd/flake-shake-promoter/main.go
+./op-acceptance-tests/flake-shake-promoter \
+  --org ethereum-optimism --repo optimism --branch develop \
+  --workflow scheduled-flake-shake --report-job op-acceptance-tests-flake-shake-report \
+  --days 3 --gate flake-shake --min-runs 300 --max-failure-rate 0.01 --min-age-days 3 \
+  --out ./final-promotion --dry-run
+```
+
+Outputs written to `--out`:
+- `aggregate.json`: Per-test aggregated totals across days
+- `promotion-ready.json`: Candidates and skip reasons
+- `promotion.yaml`: Proposed edits to `op-acceptance-tests/acceptance-tests.yaml`
 
 ### Promotion Criteria
 

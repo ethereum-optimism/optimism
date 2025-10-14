@@ -112,10 +112,14 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, game)
 }
 
-func (f *DisputeGameFactory) gameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
+func (f *DisputeGameFactory) GameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
 	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, game)
+}
+
+func (f *DisputeGameFactory) GameArgs(gameType challengerTypes.GameType) []byte {
+	return contract.Read(f.dgf.GameArgs(uint32(gameType)))
 }
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
@@ -131,6 +135,7 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
+	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
 	proposalTimestamp := f.supervisor.FetchSyncStatus().SafeTimestamp
 
 	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, challengerTypes.SuperCannonGameType, opts...)
@@ -151,6 +156,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp 
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
+	f.require.NotNil(f.supervisor, "supervisor is required create super games")
 	if !cfg.allowFuture {
 		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
 	}

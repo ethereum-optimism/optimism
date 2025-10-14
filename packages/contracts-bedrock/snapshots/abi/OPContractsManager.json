@@ -40,11 +40,6 @@
         "internalType": "contract IProxyAdmin",
         "name": "_superchainProxyAdmin",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_upgradeController",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -822,19 +817,6 @@
     "name": "upgrade",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "upgradeController",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

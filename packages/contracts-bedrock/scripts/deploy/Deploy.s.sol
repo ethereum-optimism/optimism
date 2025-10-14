@@ -281,7 +281,7 @@ contract Deploy is Deployer {
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
-                upgradeController: superchainProxyAdmin.owner(),
+                l1ProxyAdminOwner: superchainProxyAdmin.owner(),
                 challenger: cfg.l2OutputOracleChallenger()
             })
         );

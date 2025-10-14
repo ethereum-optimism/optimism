@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
@@ -40,6 +41,10 @@ func (m *Minimal) L2Networks() []*dsl.L2Network {
 
 func (m *Minimal) StandardBridge() *dsl.StandardBridge {
 	return dsl.NewStandardBridge(m.T, m.L2Chain, nil, m.L1EL)
+}
+
+func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), nil)
 }
 
 func WithMinimal() stack.CommonOption {
