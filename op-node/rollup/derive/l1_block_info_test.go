@@ -2,6 +2,7 @@ package derive
 
 import (
 	crand "crypto/rand"
+	"encoding/json"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -232,4 +234,30 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
 	})
+}
+
+func TestDecodeDepositTxDataToL1Info(t *testing.T) {
+
+	l1infoLabs := new(L1BlockInfo)
+	l1infoSony := new(L1BlockInfo)
+
+	rawDataOPLABS := "0x098999be0000260800177fef00000000000000000000000068edfd7800000000008f9041000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000001ae5366ffdd520588a2a1c01e179c127903eac47e781602368ff88308a5583208000000000000000000000000f0ab0441c8f4b89b561ae685b98c6ad5175e0cab000000000000000000000000"
+	rawDataSony := "0x098999be0000260800177fef00000000000000000000000068edfd6000000000008f9041000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000019346f2c8f7d954be4bc6e5b911161e7e891e7d4b3a04e878d80154388ad538e7000000000000000000000000f0ab0441c8f4b89b561ae685b98c6ad5175e0cab000000000000000000000000"
+
+	dataLabs, err := hexutil.Decode(rawDataOPLABS)
+	require.NoError(t, err)
+	dataSony, err := hexutil.Decode(rawDataSony)
+	require.NoError(t, err)
+
+	l1infoLabs.unmarshalBinaryIsthmus(dataLabs)
+	l1infoSony.unmarshalBinaryIsthmus(dataSony)
+
+	out, err := json.MarshalIndent(l1infoLabs, "", "  ")
+	require.NoError(t, err)
+	t.Log("labs: " + string(out))
+
+	out, err = json.MarshalIndent(l1infoSony, "", "  ")
+	require.NoError(t, err)
+	t.Log("sony: " + string(out))
+
 }
