@@ -1,6 +1,6 @@
 //! OP Proofs ExEx - processes blocks and tracks state changes
 
-use crate::{backfill::BackfillJob, in_memory::InMemoryProofsStorage};
+use crate::{backfill::BackfillJob, storage::in_memory::InMemoryProofsStorage};
 use futures_util::TryStreamExt;
 use reth_chainspec::ChainInfo;
 use reth_exex::{ExExContext, ExExEvent};
@@ -10,11 +10,7 @@ use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::sync::Arc;
 
 pub mod backfill;
-pub mod in_memory;
 pub mod storage;
-
-#[cfg(test)]
-mod storage_tests;
 
 /// Saves and serves trie nodes to make proofs faster. This handles the process of
 /// saving the current state, new blocks as they're added, and serving proof RPCs

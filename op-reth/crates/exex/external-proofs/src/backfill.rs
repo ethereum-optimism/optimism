@@ -350,9 +350,8 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        in_memory::InMemoryProofsStorage,
-        storage::{OpProofsHashedCursor, OpProofsTrieCursor},
+    use crate::storage::{
+        in_memory::InMemoryProofsStorage, OpProofsHashedCursor, OpProofsTrieCursor,
     };
     use alloy_primitives::{keccak256, Address, U256};
     use reth_db::{test_utils::create_test_rw_db, Database};

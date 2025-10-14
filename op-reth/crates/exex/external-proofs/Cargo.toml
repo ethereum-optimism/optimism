@@ -29,6 +29,7 @@ reth-trie.workspace = true
 # misc
 auto_impl.workspace = true
 async-trait.workspace = true
+bytes.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 serde.workspace = true

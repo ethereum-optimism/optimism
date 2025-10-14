@@ -3600,6 +3600,7 @@ dependencies = [
  "alloy-primitives",
  "async-trait",
  "auto_impl",
+ "bytes",
  "eyre",
  "futures",
  "futures-util",
