@@ -303,20 +303,27 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, err
 	}
+	blobs, errBeaconBlobs := cl.beaconBlobs(ctx, slot, hashes)
+	if errBeaconBlobs == nil {
+		return blobs, nil
+	}
+	// If fetching from the post-Fulu /blobs/ endpoint fails, fall back to /blob_sidecars/.
+	errBeaconBlobs = fmt.Errorf("failed to get blobs: %w", errBeaconBlobs)
+	blobSidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("%w; failed to get blob sidecars for L1BlockRef %s after falling back: %w", errBeaconBlobs, ref, err)
+	}
+	blobs, err = blobsFromSidecars(blobSidecars, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("%w; failed to get blobs from sidecars for L1BlockRef %s after falling back: %w", errBeaconBlobs, ref, err)
+	}
+	return blobs, nil
+}
+
+func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	resp, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
 	if err != nil {
-		// We would normally check for an explicit error like "method not found", but the Beacon
-		// API doesn't standardize such a response. Thus, we interpret all errors as
-		// "method not found" and fall back to fetching sidecars.
-		blobSidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
-		}
-		blobs, err := blobsFromSidecars(blobSidecars, hashes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
-		}
-		return blobs, nil
+		return nil, fmt.Errorf("get blobs from beacon client: %w", err)
 	}
 	if len(resp.Data) != len(hashes) {
 		return nil, fmt.Errorf("expected %d blobs but got %d", len(hashes), len(resp.Data))
