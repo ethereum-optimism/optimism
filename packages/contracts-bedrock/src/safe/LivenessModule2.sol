@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
@@ -13,7 +14,6 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
-
 abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
