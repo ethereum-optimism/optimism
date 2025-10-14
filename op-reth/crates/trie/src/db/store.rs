@@ -1,9 +1,8 @@
-use crate::storage::{
-    mdbx::{MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor},
+use crate::{
+    db::{MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor},
     BlockStateDiff, OpProofsStorage, OpProofsStorageError, OpProofsStorageResult,
 };
 use alloy_primitives::{map::HashMap, B256, U256};
-use async_trait::async_trait;
 use reth_db::{
     mdbx::{init_db_for, DatabaseArguments},
     DatabaseEnv,
@@ -27,7 +26,6 @@ impl MdbxProofsStorage {
     }
 }
 
-#[async_trait]
 impl OpProofsStorage for MdbxProofsStorage {
     type TrieCursor = MdbxTrieCursor;
     type StorageCursor = MdbxStorageCursor;

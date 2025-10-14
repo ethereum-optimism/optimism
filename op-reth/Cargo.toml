@@ -23,6 +23,7 @@ members = [
     "crates/reth/",
     "crates/rpc/",
     "crates/storage/",
+    "crates/trie",
     "crates/txpool/",
 ]
 default-members = ["bin/op-reth"]
@@ -175,6 +176,7 @@ reth-optimism-primitives = { path = "crates/primitives/", default-features = fal
 reth-op = { path = "crates/reth/", default-features = false }
 reth-optimism-rpc = { path = "crates/rpc/" }
 reth-optimism-storage = { path = "crates/storage/" }
+reth-optimism-trie = { path = "crates/trie/" }
 reth-optimism-txpool = { path = "crates/txpool/" }
 
 # ==================== RETH CRATES (from git tag v1.10.2) ====================
@@ -213,6 +215,7 @@ reth-node-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.
 reth-node-core = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-node-events = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-node-metrics = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
+reth-node-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-payload-builder-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }

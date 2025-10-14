@@ -1,12 +1,12 @@
 use alloy_primitives::B256;
-use reth_db_api::{
+use reth_db::{
     table::{Decode, Encode},
     DatabaseError,
 };
 use reth_trie::StoredNibbles;
 use serde::{Deserialize, Serialize};
 
-/// Composite key: (`hashed_address`, `path`) for storage trie branches
+/// Composite key: `(hashed-address, path)` for storage trie branches
 ///
 /// Used to efficiently index storage branches by both account address and trie path.
 /// The encoding ensures lexicographic ordering: first by address, then by path.

@@ -1,4 +1,4 @@
-use crate::storage::{OpProofsHashedCursor, OpProofsStorageResult, OpProofsTrieCursor};
+use crate::{OpProofsHashedCursor, OpProofsStorageResult, OpProofsTrieCursor};
 use alloy_primitives::{B256, U256};
 use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles};

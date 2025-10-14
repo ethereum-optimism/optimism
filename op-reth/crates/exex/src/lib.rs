@@ -1,21 +1,21 @@
-//! OP Proofs ExEx - processes blocks and tracks state changes
+//! ExEx unique for OP-Reth. See also [`reth_exex`] for more op-reth execution extensions.
 
-use crate::{backfill::BackfillJob, storage::in_memory::InMemoryProofsStorage};
+use derive_more::Constructor;
 use futures_util::TryStreamExt;
 use reth_chainspec::ChainInfo;
 use reth_exex::{ExExContext, ExExEvent};
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
+use reth_optimism_trie::{BackfillJob, InMemoryProofsStorage};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::sync::Arc;
 
-pub mod backfill;
-pub mod storage;
-
+/// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
+///
 /// Saves and serves trie nodes to make proofs faster. This handles the process of
 /// saving the current state, new blocks as they're added, and serving proof RPCs
 /// based on the saved data.
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 pub struct OpProofsExEx<Node>
 where
     Node: FullNodeComponents,
@@ -29,11 +29,6 @@ where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
     Primitives: NodePrimitives,
 {
-    /// Create a new `OpProofsExEx` instance
-    pub fn new(ctx: ExExContext<Node>) -> Self {
-        Self { ctx, storage: Arc::new(InMemoryProofsStorage::new()) }
-    }
-
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
         let db_provider =

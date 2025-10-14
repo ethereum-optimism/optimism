@@ -1,56 +1,45 @@
 [package]
-name = "external-proofs"
-version = "0.1.0"
+name = "reth-optimism-exex"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "ExEx to save and serve trie nodes to make proofs faster."
+description = "Execution extensions for OP-Reth"
 
 [lints]
 workspace = true
 
 [dependencies]
-reth-exex.workspace = true
-
-# ethereum
-alloy-primitives = { workspace = true }
-
 # reth
-reth-chainspec.workspace = true
-reth-db-api.workspace = true
-reth-db.workspace = true
+reth-exex.workspace = true
 reth-node-types.workspace = true
 reth-node-api.workspace = true
-reth-primitives-traits.workspace = true
 reth-provider.workspace = true
-reth-trie.workspace = true
+reth-chainspec.workspace = true
+
+# ethereum
+alloy-primitives.workspace = true
+
+# op-reth
+reth-optimism-trie.workspace = true
 
 # misc
-auto_impl.workspace = true
-async-trait.workspace = true
-bytes.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 serde.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
-tracing.workspace = true
+derive_more.workspace = true
 
-# dev dependencies
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
-test-case.workspace = true
 futures.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 
 [features]
 test-utils = [
-    "reth-primitives-traits/test-utils",
-    "reth-db-api/test-utils",
     "reth-provider/test-utils",
-    "reth-trie/test-utils",
     "reth-db/test-utils",
     "reth-chainspec/test-utils",
 ]

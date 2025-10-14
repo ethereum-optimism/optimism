@@ -1,0 +1,42 @@
+[package]
+name = "reth-optimism-trie"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Trie node storage for serving poofs in FP window fast"
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-trie = { workspace = true, features = ["serde"] }
+reth-primitives-traits = { workspace = true, features = ["op"] }
+reth-db = { workspace = true, features = ["mdbx", "op"] }
+
+# ethereum
+alloy-primitives.workspace = true
+
+# async
+tokio = { workspace = true, features = ["sync"] }
+
+# codec
+bytes.workspace = true
+serde.workspace = true
+
+# misc
+thiserror.workspace = true
+auto_impl.workspace = true
+eyre.workspace = true
+tracing.workspace = true
+derive_more.workspace = true
+
+[dev-dependencies]
+reth-codecs = { workspace = true, features = ["test-utils"] }
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
+test-case.workspace = true
+reth-db = { workspace = true, features = ["test-utils"] }
+reth-trie = { workspace = true, features = ["test-utils"] }
