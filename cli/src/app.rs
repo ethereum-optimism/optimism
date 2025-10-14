@@ -121,7 +121,11 @@ where
             #[cfg(feature = "otlp")]
             if let Some(output_type) = &self.cli.traces.otlp {
                 info!(target: "reth::cli", "Starting OTLP tracing export to {:?}", output_type);
-                layers.with_span_layer("reth".to_string(), output_type.clone())?;
+                layers.with_span_layer(
+                    "reth".to_string(),
+                    output_type.clone(),
+                    self.cli.traces.otlp_level,
+                )?;
             }
 
             self.guard = self.cli.logs.init_tracing_with_layers(layers)?;
