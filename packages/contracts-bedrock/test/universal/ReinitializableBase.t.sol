@@ -26,7 +26,7 @@ contract ReinitializableBase_Constructor_Test is Test {
     /// @notice Tests that initVersion returns the correct value when the contract
     ///         is created with a valid non-zero init version.
     /// @param _initVersion The init version to use when creating the contract.
-    function testFuzz_initVersion_validVersion_succeeds(uint8 _initVersion) public {
+    function testFuzz_constructor_validVersion_succeeds(uint8 _initVersion) public {
         // Zero version not allowed.
         _initVersion = uint8(bound(_initVersion, 1, type(uint8).max));
 
