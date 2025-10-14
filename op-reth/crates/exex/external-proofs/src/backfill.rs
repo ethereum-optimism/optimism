@@ -1,6 +1,6 @@
-//! Backfill job for external storage. Handles storing the existing state into the external storage.
+//! Backfill job for proofs storage. Handles storing the existing state into the proofs storage.
 
-use super::storage::ExternalStorage;
+use super::storage::OpProofsStorage;
 use alloy_primitives::B256;
 use reth_db_api::{
     cursor::{DbCursorRO, DbDupCursorRO},
@@ -21,7 +21,7 @@ const BACKFILL_LOG_THRESHOLD: usize = 100000;
 
 /// Backfill job for external storage.
 #[derive(Debug)]
-pub struct BackfillJob<'a, Tx: DbTx, S: ExternalStorage + Send> {
+pub struct BackfillJob<'a, Tx: DbTx, S: OpProofsStorage + Send> {
     storage: S,
     tx: &'a Tx,
 }
@@ -196,7 +196,7 @@ async fn backfill<
     Ok(total_entries)
 }
 
-impl<'a, Tx: DbTx, S: ExternalStorage + Send> BackfillJob<'a, Tx, S> {
+impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
     /// Create a new backfill job.
     pub const fn new(storage: S, tx: &'a Tx) -> Self {
         Self { storage, tx }
@@ -351,8 +351,8 @@ impl<'a, Tx: DbTx, S: ExternalStorage + Send> BackfillJob<'a, Tx, S> {
 mod tests {
     use super::*;
     use crate::{
-        in_memory::InMemoryExternalStorage,
-        storage::{ExternalHashedCursor, ExternalTrieCursor},
+        in_memory::InMemoryProofsStorage,
+        storage::{OpProofsHashedCursor, OpProofsTrieCursor},
     };
     use alloy_primitives::{keccak256, Address, U256};
     use reth_db::{test_utils::create_test_rw_db, Database};
@@ -379,7 +379,7 @@ mod tests {
     #[tokio::test]
     async fn test_backfill_hashed_accounts() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Insert test accounts into database
         let tx = db.tx_mut().unwrap();
@@ -429,7 +429,7 @@ mod tests {
     #[tokio::test]
     async fn test_backfill_hashed_storage() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Insert test storage into database
         let tx = db.tx_mut().unwrap();
@@ -487,7 +487,7 @@ mod tests {
     #[tokio::test]
     async fn test_backfill_accounts_trie() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Insert test trie nodes into database
         let tx = db.tx_mut().unwrap();
@@ -524,7 +524,7 @@ mod tests {
     #[tokio::test]
     async fn test_backfill_storages_trie() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Insert test storage trie nodes into database
         let tx = db.tx_mut().unwrap();
@@ -592,7 +592,7 @@ mod tests {
     #[tokio::test]
     async fn test_full_backfill_run() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Insert some test data
         let tx = db.tx_mut().unwrap();
@@ -674,7 +674,7 @@ mod tests {
     #[tokio::test]
     async fn test_backfill_run_skips_if_already_done() {
         let db = create_test_rw_db();
-        let storage = InMemoryExternalStorage::new();
+        let storage = InMemoryProofsStorage::new();
 
         // Set earliest block to simulate already backfilled
         storage.set_earliest_block_number(50, B256::repeat_byte(0x01)).await.unwrap();

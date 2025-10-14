@@ -1,6 +1,6 @@
-//! In-memory implementation of `ExternalStorage` for testing purposes.
+//! In-memory implementation of `OpProofsStorage` for testing purposes.
 //!
-//! This module provides a complete in-memory implementation of the [`ExternalStorage`] trait
+//! This module provides a complete in-memory implementation of the [`OpProofsStorage`] trait
 //! that can be used for testing and development. The implementation uses tokio async `RwLock`
 //! for thread-safe concurrent access and stores all data in memory using `BTreeMap` collections.
 
@@ -12,13 +12,13 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use super::storage::{
-    BlockStateDiff, ExternalHashedCursor, ExternalStorage, ExternalStorageError,
-    ExternalStorageResult, ExternalTrieCursor,
+    BlockStateDiff, OpProofsHashedCursor, OpProofsStorage, OpProofsStorageError,
+    OpProofsStorageResult, OpProofsTrieCursor,
 };
 
-/// In-memory implementation of `ExternalStorage` for testing purposes
+/// In-memory implementation of `OpProofsStorage` for testing purposes
 #[derive(Debug, Clone)]
-pub struct InMemoryExternalStorage {
+pub struct InMemoryProofsStorage {
     /// Shared state across all instances
     inner: Arc<RwLock<InMemoryStorageInner>>,
 }
@@ -133,20 +133,20 @@ impl InMemoryStorageInner {
     }
 }
 
-impl Default for InMemoryExternalStorage {
+impl Default for InMemoryProofsStorage {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl InMemoryExternalStorage {
-    /// Create a new in-memory external storage instance
+impl InMemoryProofsStorage {
+    /// Create a new in-memory op proofs storage instance
     pub fn new() -> Self {
         Self { inner: Arc::new(RwLock::new(InMemoryStorageInner::default())) }
     }
 }
 
-/// In-memory implementation of `ExternalTrieCursor`
+/// In-memory implementation of `OpProofsTrieCursor`
 #[derive(Debug)]
 pub struct InMemoryTrieCursor {
     /// Current position in the iteration (-1 means not positioned yet)
@@ -213,11 +213,11 @@ impl InMemoryTrieCursor {
     }
 }
 
-impl ExternalTrieCursor for InMemoryTrieCursor {
+impl OpProofsTrieCursor for InMemoryTrieCursor {
     fn seek_exact(
         &mut self,
         path: Nibbles,
-    ) -> ExternalStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
         if let Some(pos) = self.entries.iter().position(|(p, _)| *p == path) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos].clone()))
@@ -229,7 +229,7 @@ impl ExternalTrieCursor for InMemoryTrieCursor {
     fn seek(
         &mut self,
         path: Nibbles,
-    ) -> ExternalStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
         if let Some(pos) = self.entries.iter().position(|(p, _)| *p >= path) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos].clone()))
@@ -238,7 +238,7 @@ impl ExternalTrieCursor for InMemoryTrieCursor {
         }
     }
 
-    fn next(&mut self) -> ExternalStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    fn next(&mut self) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
         self.position += 1;
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize].clone()))
@@ -247,7 +247,7 @@ impl ExternalTrieCursor for InMemoryTrieCursor {
         }
     }
 
-    fn current(&mut self) -> ExternalStorageResult<Option<Nibbles>> {
+    fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize].0))
         } else {
@@ -256,7 +256,7 @@ impl ExternalTrieCursor for InMemoryTrieCursor {
     }
 }
 
-/// In-memory implementation of `ExternalHashedCursor` for storage slots
+/// In-memory implementation of `OpProofsHashedCursor` for storage slots
 #[derive(Debug)]
 pub struct InMemoryStorageCursor {
     /// Current position in the iteration (-1 means not positioned yet)
@@ -303,10 +303,10 @@ impl InMemoryStorageCursor {
     }
 }
 
-impl ExternalHashedCursor for InMemoryStorageCursor {
+impl OpProofsHashedCursor for InMemoryStorageCursor {
     type Value = U256;
 
-    fn seek(&mut self, key: B256) -> ExternalStorageResult<Option<(B256, Self::Value)>> {
+    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
         if let Some(pos) = self.entries.iter().position(|(k, _)| *k >= key) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos]))
@@ -315,7 +315,7 @@ impl ExternalHashedCursor for InMemoryStorageCursor {
         }
     }
 
-    fn next(&mut self) -> ExternalStorageResult<Option<(B256, Self::Value)>> {
+    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
         self.position += 1;
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize]))
@@ -325,7 +325,7 @@ impl ExternalHashedCursor for InMemoryStorageCursor {
     }
 }
 
-/// In-memory implementation of `ExternalHashedCursor` for accounts
+/// In-memory implementation of `OpProofsHashedCursor` for accounts
 #[derive(Debug)]
 pub struct InMemoryAccountCursor {
     /// Current position in the iteration (-1 means not positioned yet)
@@ -363,10 +363,10 @@ impl InMemoryAccountCursor {
     }
 }
 
-impl ExternalHashedCursor for InMemoryAccountCursor {
+impl OpProofsHashedCursor for InMemoryAccountCursor {
     type Value = Account;
 
-    fn seek(&mut self, key: B256) -> ExternalStorageResult<Option<(B256, Self::Value)>> {
+    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
         if let Some(pos) = self.entries.iter().position(|(k, _)| *k >= key) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos]))
@@ -375,7 +375,7 @@ impl ExternalHashedCursor for InMemoryAccountCursor {
         }
     }
 
-    fn next(&mut self) -> ExternalStorageResult<Option<(B256, Self::Value)>> {
+    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
         self.position += 1;
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize]))
@@ -386,7 +386,7 @@ impl ExternalHashedCursor for InMemoryAccountCursor {
 }
 
 #[async_trait]
-impl ExternalStorage for InMemoryExternalStorage {
+impl OpProofsStorage for InMemoryProofsStorage {
     type TrieCursor = InMemoryTrieCursor;
     type StorageCursor = InMemoryStorageCursor;
     type AccountHashedCursor = InMemoryAccountCursor;
@@ -395,7 +395,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         block_number: u64,
         updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (path, branch) in updates {
@@ -410,7 +410,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         block_number: u64,
         hashed_address: B256,
         items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (path, branch) in items {
@@ -424,7 +424,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         accounts: Vec<(B256, Option<Account>)>,
         block_number: u64,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (address, account) in accounts {
@@ -439,7 +439,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
         block_number: u64,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (slot, value) in storages {
@@ -449,12 +449,12 @@ impl ExternalStorage for InMemoryExternalStorage {
         Ok(())
     }
 
-    async fn get_earliest_block_number(&self) -> ExternalStorageResult<Option<(u64, B256)>> {
+    async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read().await;
         Ok(inner.earliest_block)
     }
 
-    async fn get_latest_block_number(&self) -> ExternalStorageResult<Option<(u64, B256)>> {
+    async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         let inner = self.inner.read().await;
         // Find the latest block number from trie_updates
         let latest_block = inner.trie_updates.keys().max().copied();
@@ -470,12 +470,12 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         hashed_address: Option<B256>,
         max_block_number: u64,
-    ) -> ExternalStorageResult<Self::TrieCursor> {
+    ) -> OpProofsStorageResult<Self::TrieCursor> {
         // For synchronous methods, we need to try_read() and handle potential blocking
         let inner = self
             .inner
             .try_read()
-            .map_err(|_| ExternalStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
+            .map_err(|_| OpProofsStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
         Ok(InMemoryTrieCursor::new(&inner, hashed_address, max_block_number))
     }
 
@@ -483,22 +483,22 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         hashed_address: B256,
         max_block_number: u64,
-    ) -> ExternalStorageResult<Self::StorageCursor> {
+    ) -> OpProofsStorageResult<Self::StorageCursor> {
         let inner = self
             .inner
             .try_read()
-            .map_err(|_| ExternalStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
+            .map_err(|_| OpProofsStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
         Ok(InMemoryStorageCursor::new(&inner, hashed_address, max_block_number))
     }
 
     fn account_hashed_cursor(
         &self,
         max_block_number: u64,
-    ) -> ExternalStorageResult<Self::AccountHashedCursor> {
+    ) -> OpProofsStorageResult<Self::AccountHashedCursor> {
         let inner = self
             .inner
             .try_read()
-            .map_err(|_| ExternalStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
+            .map_err(|_| OpProofsStorageError::Other(eyre::eyre!("Failed to acquire read lock")))?;
         Ok(InMemoryAccountCursor::new(&inner, max_block_number))
     }
 
@@ -506,7 +506,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         block_number: u64,
         block_state_diff: BlockStateDiff,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         inner.store_trie_updates(block_number, block_state_diff);
@@ -514,7 +514,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         Ok(())
     }
 
-    async fn fetch_trie_updates(&self, block_number: u64) -> ExternalStorageResult<BlockStateDiff> {
+    async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
         let inner = self.inner.read().await;
 
         let trie_updates = inner.trie_updates.get(&block_number).cloned().unwrap_or_default();
@@ -527,7 +527,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         new_earliest_block_number: u64,
         diff: BlockStateDiff,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         let branches_diff = diff.trie_updates;
@@ -594,7 +594,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         latest_common_block_number: u64,
         blocks_to_add: HashMap<u64, BlockStateDiff>,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         // Remove all updates after latest_common_block_number
@@ -616,7 +616,7 @@ impl ExternalStorage for InMemoryExternalStorage {
         &self,
         block_number: u64,
         hash: B256,
-    ) -> ExternalStorageResult<()> {
+    ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
         inner.earliest_block = Some((block_number, hash));
         Ok(())
@@ -630,8 +630,8 @@ mod tests {
     use reth_primitives_traits::Account;
 
     #[tokio::test]
-    async fn test_in_memory_storage_basic_operations() -> Result<(), ExternalStorageError> {
-        let storage = InMemoryExternalStorage::new();
+    async fn test_in_memory_storage_basic_operations() -> Result<(), OpProofsStorageError> {
+        let storage = InMemoryProofsStorage::new();
 
         // Test setting earliest block
         let block_hash = B256::random();
@@ -652,8 +652,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trie_updates_storage() -> Result<(), ExternalStorageError> {
-        let storage = InMemoryExternalStorage::new();
+    async fn test_trie_updates_storage() -> Result<(), OpProofsStorageError> {
+        let storage = InMemoryProofsStorage::new();
 
         let trie_updates = TrieUpdates::default();
         let post_state = HashedPostState::default();
