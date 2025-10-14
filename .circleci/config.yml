@@ -1638,7 +1638,7 @@ jobs:
         default: "flake-shake"
     machine:
       image: ubuntu-2404:current
-    resource_class: large
+    resource_class: xlarge
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
       - checkout-from-workspace
@@ -1661,7 +1661,7 @@ jobs:
             bash ./op-acceptance-tests/scripts/ci_flake_shake_calc_iterations.sh << pipeline.parameters.flake-shake-iterations >>
       - run:
           name: Run flake-shake iterations
-          no_output_timeout: 2h
+          no_output_timeout: 3h
           working_directory: op-acceptance-tests
           command: |
             OUTPUT_DIR="logs/flake-shake-results-worker-${FLAKE_SHAKE_WORKER_ID}"
