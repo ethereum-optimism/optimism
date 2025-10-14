@@ -327,7 +327,7 @@ func TestGetBlobs(t *testing.T) {
 	hash1, sidecar1 := makeTestBlobSidecar(1)
 	hash2, sidecar2 := makeTestBlobSidecar(2)
 
-	hashes := []eth.IndexedBlobHash{hash0, hash1, hash2}
+	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
 
 	invalidBlob0 := sidecar0.Blob
 	invalidBlob0[10]++
@@ -389,7 +389,7 @@ func TestGetBlobs(t *testing.T) {
 
 			resp, err := client.GetBlobs(ctx, ref, hashes)
 			require.NoError(t, err)
-			require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob}, resp)
+			require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob}, resp)
 		})
 	}
 }

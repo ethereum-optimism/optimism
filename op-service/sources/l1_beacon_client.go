@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -328,12 +329,28 @@ func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes [
 	if len(resp.Data) != len(hashes) {
 		return nil, fmt.Errorf("expected %d blobs but got %d", len(hashes), len(resp.Data))
 	}
-	var blobs []*eth.Blob
-	for i, blob := range resp.Data {
-		if err := verifyBlob(blob, hashes[i].Hash); err != nil {
-			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
+	// This function guarantees that the returned blobs will be ordered according to the provided
+	// hashes. The BeaconBlobs call above has a different ordering. From the getBlobs spec:
+	//   The returned blobs are ordered based on their kzg commitments in the block.
+	// https://ethereum.github.io/beacon-APIs/beacon-node-oapi.yaml
+	//
+	// This loop
+	//   1. verifies the integrity of each blob, and
+	//   2. rearranges the blobs to match the order of the provided hashes.
+	blobs := make([]*eth.Blob, len(hashes))
+	for _, blob := range resp.Data {
+		commitment, err := blob.ComputeKZGCommitment()
+		if err != nil {
+			return nil, fmt.Errorf("compute blob kzg commitment: %w", err)
 		}
-		blobs = append(blobs, blob)
+		got := eth.KZGToVersionedHash(commitment)
+		idx := slices.IndexFunc(hashes, func(indexedHash eth.IndexedBlobHash) bool {
+			return got == indexedHash.Hash
+		})
+		if idx == -1 {
+			return nil, fmt.Errorf("received a blob hash that does not match any expected hash: %s", got)
+		}
+		blobs[idx] = blob
 	}
 	return blobs, nil
 }
