@@ -19,7 +19,7 @@ import (
 )
 
 // TestCLIUpgrade tests the upgrade CLI command for each standard opcm release
-// - forks sepolia at the block immediately after the opcm deployment block
+// - forks sepolia at a block before op-sepolia was upgraded
 // - runs the upgrade CLI command using op-sepolia values to simulate its upgrade
 func TestCLIUpgrade(t *testing.T) {
 	lgr := testlog.Logger(t, slog.LevelDebug)
@@ -32,27 +32,27 @@ func TestCLIUpgrade(t *testing.T) {
 	testCases := []struct {
 		contractTag string
 		version     string
-		forkBlock   uint64 // one block number past the opcm deployment block
+		forkBlock   uint64
 	}{
 		{
 			contractTag: standard.ContractsV200Tag,
 			version:     "v2.0.0",
-			forkBlock:   7792843,
+			forkBlock:   7792843, // one block past the opcm deployment block
 		},
-		//{
-		//contractTag: standard.ContractsV300Tag,
-		//version:     "v3.0.0",
-		//forkBlock:   7853303,
-		//},
+		{
+			contractTag: standard.ContractsV300Tag,
+			version:     "v3.0.0",
+			forkBlock:   8092886, // one block before op-sepolia was upgraded
+		},
 		{
 			contractTag: standard.ContractsV400Tag,
 			version:     "v4.0.0",
-			forkBlock:   8577263,
+			forkBlock:   8577263, // one block past the opcm deployment block
 		},
 		{
 			contractTag: standard.ContractsV410Tag,
 			version:     "v4.1.0",
-			forkBlock:   9165154,
+			forkBlock:   9165154, // one block past the opcm deployment block
 		},
 	}
 
