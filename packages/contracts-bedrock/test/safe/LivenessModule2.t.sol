@@ -465,6 +465,11 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
 
         // Verify guard is deactivated
         assertEq(_getGuard(safeInstance), address(0));
+        TimelockGuard timelockGuard = TimelockGuard(address(livenessModule2));
+
+        // Ensure TimelockGuard properties are cleared
+        assertEq(timelockGuard.timelockConfiguration(safeInstance.safe), 0);
+        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 0);
     }
 
     function test_changeOwnershipToFallback_succeeds() external {

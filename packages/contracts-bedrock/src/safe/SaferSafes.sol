@@ -72,7 +72,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
         safeState.timelockDelay = 0;
 
         // Reset the cancellation threshold, 1 is the default value for all safes.
-        safeState.cancellationThreshold = 1;
+        safeState.cancellationThreshold = 0;
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
