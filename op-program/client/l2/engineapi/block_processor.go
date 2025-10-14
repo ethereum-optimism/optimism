@@ -177,14 +177,6 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		}
 	}
 
-	if cfg.IsJovian(b.header.Time) {
-		gasUsed, err := types.CalcGasUsedJovian(b.transactions, b.header.GasUsed)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to calculate gas used for Jovian block: %w", err)
-		}
-		b.header.GasUsed = gasUsed
-	}
-
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
 	if err != nil {
 		return nil, nil, err

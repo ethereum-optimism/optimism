@@ -178,6 +178,29 @@ func (el *L2ELNode) TransactionTimeout() time.Duration {
 	return el.inner.TransactionTimeout()
 }
 
+// L1OriginReachedFn returns a lambda that waits for the L1 origin to reach the target block number.
+func (el *L2ELNode) L1OriginReachedFn(label eth.BlockLabel, l1OriginTarget uint64, attempts int) CheckFunc {
+	return func() error {
+		logger := el.log.With("id", el.inner.ID(), "chain", el.ChainID(), "label", label, "l1OriginTarget", l1OriginTarget)
+		logger.Info("Expecting L2EL to reach L1 origin")
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
+			func() error {
+				head := el.BlockRefByLabel(label)
+				if head.L1Origin.Number >= l1OriginTarget {
+					logger.Info("L2EL advanced L1 origin", "l1OriginTarget", l1OriginTarget)
+					return nil
+				}
+				logger.Debug("L2EL sync status", "head", head.ID())
+				return fmt.Errorf("L1 origin of %s not advanced yet", label)
+			})
+	}
+}
+
+// WaitL1OriginReached waits for the L1 origin to reach the target block number.
+func (el *L2ELNode) WaitL1OriginReached(label eth.BlockLabel, l1OriginTarget uint64, attempts int) {
+	el.require.NoError(el.L1OriginReachedFn(label, l1OriginTarget, attempts)())
+}
+
 // VerifyWithdrawalHashChangedIn verifies that the withdrawal hash changed between the parent and current block
 // This is used to verify that the withdrawal hash changed in the block where the withdrawal was initiated
 func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {

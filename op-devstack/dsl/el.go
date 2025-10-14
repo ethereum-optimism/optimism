@@ -36,24 +36,42 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 	return el.waitForNextBlock(1)
 }
 
-func (el *elNode) WaitForBlockNumber(targetBlock uint64) eth.BlockRef {
-	var newRef eth.BlockRef
-
+func (el *elNode) WaitForLabel(label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) eth.BlockInfo {
+	var block eth.BlockInfo
 	err := wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
-		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
+		var err error
+		block, err = el.inner.EthClient().InfoByLabel(el.ctx, label)
 		if err != nil {
 			return false, err
 		}
-
-		newRef = eth.InfoToL1BlockRef(newBlock)
-		if newBlock.NumberU64() >= targetBlock {
-			el.log.Info("Target block reached", "chain", el.ChainID(), "block", newRef)
-			return true, nil
+		ok, err := predicate(block)
+		if ok {
+			el.log.Info("Target block reached", "chain", el.ChainID(), "block", eth.ToBlockID(block))
+		} else if err == nil {
+			el.log.Debug("Target block not reached yet", "chain", el.ChainID(), "block", eth.ToBlockID(block))
 		}
-		return false, nil
+		return ok, err
 	})
-	el.require.NoError(err, "Expected to reach target block")
-	return newRef
+	el.require.NoError(err, "Failed to find block")
+	return block
+}
+
+func (el *elNode) WaitForLabelRef(label eth.BlockLabel, predicate func(eth.BlockInfo) (bool, error)) eth.BlockRef {
+	return eth.InfoToL1BlockRef(el.WaitForLabel(label, predicate))
+}
+
+func (el *elNode) WaitForUnsafe(predicate func(eth.BlockInfo) (bool, error)) eth.BlockInfo {
+	return el.WaitForLabel(eth.Unsafe, predicate)
+}
+
+func (el *elNode) WaitForUnsafeRef(predicate func(eth.BlockInfo) (bool, error)) eth.BlockRef {
+	return eth.InfoToL1BlockRef(el.WaitForUnsafe(predicate))
+}
+
+func (el *elNode) WaitForBlockNumber(targetBlock uint64) eth.BlockInfo {
+	return el.WaitForUnsafe(func(info eth.BlockInfo) (bool, error) {
+		return info.NumberU64() >= targetBlock, nil
+	})
 }
 
 func (el *elNode) WaitForOnline() {
@@ -76,43 +94,17 @@ func (el *elNode) waitForNextBlock(blocksFromNow uint64) eth.BlockRef {
 	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 	el.require.NoError(err, "Expected to get latest block from execution client")
 	targetBlock := initial.NumberU64() + blocksFromNow
-	initialRef := eth.InfoToL1BlockRef(initial)
-	var newRef eth.BlockRef
 
-	err = wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
-		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
-		if err != nil {
-			return false, err
-		}
-
-		newRef = eth.InfoToL1BlockRef(newBlock)
-		if newBlock.NumberU64() >= targetBlock {
-			el.log.Info("Target block reached", "block", newRef)
-			return true, nil
-		}
-
-		if initialRef == newRef {
-			el.log.Info("Still same block detected as initial", "block", initialRef)
-			return false, nil
-		} else {
-			el.log.Info("New block detected", "new_block", newRef, "prev_block", initialRef)
-		}
-		return false, nil
+	return el.WaitForUnsafeRef(func(info eth.BlockInfo) (bool, error) {
+		return info.NumberU64() >= targetBlock, nil
 	})
-	el.require.NoError(err, "Expected to reach target block")
-	return newRef
 }
 
 // WaitForTime waits until the chain has reached or surpassed the given timestamp.
 func (el *elNode) WaitForTime(timestamp uint64) eth.BlockRef {
-	for range time.Tick(500 * time.Millisecond) {
-		ref, err := el.inner.EthClient().BlockRefByLabel(el.ctx, eth.Unsafe)
-		el.require.NoError(err)
-		if ref.Time >= timestamp {
-			return ref
-		}
-	}
-	return eth.BlockRef{} // Should never be reached.
+	return el.WaitForUnsafeRef(func(info eth.BlockInfo) (bool, error) {
+		return info.Time() >= timestamp, nil
+	})
 }
 
 func (el *elNode) stackEL() stack.ELNode {
@@ -127,18 +119,7 @@ func (el *elNode) WaitForFinalization() eth.BlockRef {
 	currentBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 	el.require.NoError(err, "Expected to get current block from execution client")
 
-	var finalizedBlock eth.BlockRef
-	el.require.Eventually(func() bool {
-		el.log.Info("Waiting for finalization")
-		block, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Finalized)
-		if err != nil {
-			return false
-		}
-		if block.NumberU64() >= currentBlock.NumberU64() {
-			finalizedBlock = eth.InfoToL1BlockRef(block)
-			return true
-		}
-		return false
-	}, 5*time.Minute, 500*time.Millisecond, "Expected to be online")
-	return finalizedBlock
+	return el.WaitForLabelRef(eth.Finalized, func(info eth.BlockInfo) (bool, error) {
+		return info.NumberU64() >= currentBlock.NumberU64(), nil
+	})
 }
