@@ -360,12 +360,10 @@ abstract contract LivenessModule2 {
         }
         if (moduleFound) {
             // If the module is the first in the list, then the previous module is the sentinel.
-            address prevModule = SENTINEL_OWNER;
             // If the module is not the first in the list, then the previous module is the module before in in the
             // array.
-            if (moduleIndex > 0) {
-                prevModule = modules[moduleIndex - 1];
-            }
+            address prevModule = moduleIndex == 0 ? SENTINEL_MODULE : modules[moduleIndex - 1];
+
             // Disable the module
             _targetSafe.execTransactionFromModule({
                 to: address(_targetSafe),
