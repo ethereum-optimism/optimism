@@ -21,6 +21,7 @@ files = [
     "test/libraries/DeployUtils.t.sol",
     "test/universal/BenchmarkTest.t.sol",
     "test/universal/ExtendedPause.t.sol",
+    "test/universal/ReinitializableBase.t.sol",
     "test/vendor/Initializable.t.sol",
     "test/vendor/InitializableOZv5.t.sol"
 ]

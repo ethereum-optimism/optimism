@@ -230,19 +230,42 @@ def fetch_last_processed_from_circleci() -> list[Path]:
         branch = "develop"
         two_weeks_ago = time.time() - (14 * 24 * 3600)
 
-        # Get recent pipelines
-        pipelines_url = f"https://circleci.com/api/v2/project/{project_slug}/pipeline?branch={branch}"
-        req = urllib.request.Request(pipelines_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            pipelines = json.loads(response.read().decode()).get("items", [])
+        # Get recent pipelines with pagination (API returns max 20 by default)
+        # Keep fetching until we've checked enough pipelines within the 2-week window
+        all_pipelines = []
+        next_page_token = None
 
-        if not pipelines:
+        while True:
+            pipelines_url = f"https://circleci.com/api/v2/project/{project_slug}/pipeline?branch={branch}"
+            if next_page_token:
+                pipelines_url += f"&page-token={next_page_token}"
+
+            req = urllib.request.Request(pipelines_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                pipelines = data.get("items", [])
+                next_page_token = data.get("next_page_token")
+
+                if not pipelines:
+                    break
+
+                all_pipelines.extend(pipelines)
+
+                # Stop paginating if we have no more pages or we've collected enough
+                if not next_page_token or len(all_pipelines) >= 600:
+                    break
+
+        if not all_pipelines:
             print("No previous pipelines found")
             return []
 
+        print(f"Found {len(all_pipelines)} pipelines on {branch}, checking for successful runs...")
+
         # Process recent pipelines (within 2 weeks)
         from datetime import datetime as dt
-        for pipeline in pipelines:
+        pipelines_checked = 0
+        for pipeline in all_pipelines:
+            pipelines_checked += 1
             # Check age
             if pipeline.get("created_at"):
                 pipeline_time = dt.fromisoformat(pipeline["created_at"].replace("Z", "+00:00")).timestamp()
@@ -259,6 +282,7 @@ def fetch_last_processed_from_circleci() -> list[Path]:
             if not job_number:
                 continue
 
+            print(f"Found successful job {job_number}, checking for artifacts...")
             artifacts = _get_job_artifacts(project_slug, job_number, headers)
             for artifact in artifacts:
                 if artifact["path"].endswith("log.json"):
@@ -267,6 +291,8 @@ def fetch_last_processed_from_circleci() -> list[Path]:
                         print(f"Excluding recently processed file: {test_path}")
                         excluded_paths.append(Path(test_path))
                     break
+
+        print(f"Checked {pipelines_checked} pipelines")
 
         if excluded_paths:
             print(f"Excluded {len(excluded_paths)} recently processed file(s)")
