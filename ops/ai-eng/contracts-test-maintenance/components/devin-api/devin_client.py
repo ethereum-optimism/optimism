@@ -9,6 +9,7 @@ import glob
 import json
 import os
 from pathlib import Path
+import sys
 import time
 import urllib.request
 
@@ -203,10 +204,11 @@ def monitor_session(session_id):
                     if pr_data.get("url"):
                         print("Session completed successfully - PR created")
                         write_log(session_id, "finished", status)
+                        return
                     else:
                         print(f"Session blocked without PR - check Devin web interface")
-                        write_log(session_id, "blocked", status)
-                    return
+                        # Don't write log.json so artifact won't be stored for failed sessions
+                        sys.exit(1)  # Exit with error code to mark job as failed
 
                 # Expired = session timed out
                 if current_status == "expired":
