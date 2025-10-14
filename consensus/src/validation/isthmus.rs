@@ -4,7 +4,6 @@ use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
 use alloy_primitives::{address, Address, B256};
 use alloy_trie::EMPTY_ROOT_HASH;
-use core::fmt::Debug;
 use reth_storage_api::{errors::ProviderResult, StorageRootProvider};
 use reth_trie_common::HashedStorage;
 use revm::database::BundleState;
@@ -72,7 +71,7 @@ pub fn verify_withdrawals_root<DB, H>(
 ) -> Result<(), OpConsensusError>
 where
     DB: StorageRootProvider,
-    H: BlockHeader + Debug,
+    H: BlockHeader,
 {
     let header_storage_root =
         header.withdrawals_root().ok_or(OpConsensusError::L2WithdrawalsRootMissing)?;
@@ -110,7 +109,7 @@ pub fn verify_withdrawals_root_prehashed<DB, H>(
 ) -> Result<(), OpConsensusError>
 where
     DB: StorageRootProvider,
-    H: BlockHeader + core::fmt::Debug,
+    H: BlockHeader,
 {
     let header_storage_root =
         header.withdrawals_root().ok_or(OpConsensusError::L2WithdrawalsRootMissing)?;
