@@ -80,7 +80,6 @@ func (v *VirtualCLI) Bool(name string) bool {
 func (v *VirtualCLI) Int(name string) int {
 	cName := v.chainName(name)
 	if v.inner.IsSet(cName) {
-		fmt.Println("returning from chain", name, cName)
 		return v.inner.Int(cName)
 	}
 	gName := v.globalName(name)
