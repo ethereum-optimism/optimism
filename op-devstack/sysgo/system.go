@@ -432,6 +432,6 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := defaultMinimalSystemOpts(&ids, dest)
-	opt.Add(WithGameTypeAdded(ids.L1.ChainID(), ids.L2.ChainID(), ids.L1EL))
+	opt.Add(WithCannonGameTypeAdded(ids.L1EL, ids.L2.ChainID()))
 	return opt
 }
