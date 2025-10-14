@@ -35,6 +35,9 @@ abstract contract LivenessModule2 {
     /// @notice Reserved address used as previous owner to the first owner in a Safe.
     address internal constant SENTINEL_OWNER = address(0x1);
 
+    /// @notice Reserved address used as previous module to the first module in a Safe.
+    address internal constant SENTINEL_MODULE = address(0x1);
+
     /// @notice Error for when module is not enabled for the Safe.
     error LivenessModule2_ModuleNotEnabled();
 
@@ -342,10 +345,8 @@ abstract contract LivenessModule2 {
     /// @param _targetSafe The Safe instance to disable this module from.
     function _disableThisModule(Safe _targetSafe) internal {
         // Get current modules
-        // We use SENTINEL_OWNER because it's already defined in this contract, and has the same value
-        // as the SENTINEL_MODULES address used in ModuleManager.
         // This might not work if you have more than 100 modules, but what are you even doing if that's the case?
-        (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_OWNER, 100);
+        (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_MODULE, 100);
 
         // Find the index of this module
         bool moduleFound = false;
