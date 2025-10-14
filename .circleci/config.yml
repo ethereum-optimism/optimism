@@ -1013,6 +1013,21 @@ jobs:
       - store_artifacts:
           path: ops/ai-eng/contracts-test-maintenance/log.json
           destination: log.json
+      - run:
+          name: Notify Slack on PR creation
+          command: |
+            LOG_FILE="ops/ai-eng/contracts-test-maintenance/log.json"
+            if [ -f "$LOG_FILE" ]; then
+              PR_URL=$(jq -r '.pull_request_url // empty' "$LOG_FILE")
+              TEST_FILE=$(jq -r '.selected_files.test_path | split("/") | .[-1]' "$LOG_FILE")
+              if [ -n "$PR_URL" ]; then
+                curl -X POST -H "Content-Type: application/json" \
+                  -H "Authorization: Bearer ${SLACK_ACCESS_TOKEN}" \
+                  -d "{\"channel\":\"C050F1GUHDG\",\"text\":\"@security-oncall AI Contract Test System created a PR for ${TEST_FILE} - ${PR_URL}\"}" \
+                  https://slack.com/api/chat.postMessage
+              fi
+            fi
+          when: always
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
@@ -3178,5 +3193,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
             - devin-api
+            - slack
           requires:
             - initialize
