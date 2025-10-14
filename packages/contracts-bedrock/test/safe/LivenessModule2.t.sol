@@ -8,6 +8,8 @@ import "test/safe-tools/SafeTestTools.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 
+import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+
 /// @title LivenessModule2_TestInit
 /// @notice Reusable test initialization for `LivenessModule2` tests.
 contract LivenessModule2_TestInit is Test, SafeTestTools {
@@ -447,21 +449,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         );
     }
 
-    function test_changeOwnershipToFallback_succeeds() external {
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
-
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
+    function _assertOwnershipChanged(address _safe) internal {
         // Verify ownership changed
         address[] memory newOwners = safeInstance.safe.getOwners();
         assertEq(newOwners.length, 1);
@@ -477,6 +465,24 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
 
         // Verify guard is deactivated
         assertEq(_getGuard(safeInstance), address(0));
+    }
+
+    function test_changeOwnershipToFallback_succeeds() external {
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Execute ownership transfer
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
+
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        _assertOwnershipChanged(address(safeInstance.safe));
     }
 
     function test_changeOwnershipToFallback_withOtherModules_succeeds() external {
@@ -518,6 +524,41 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Verify extra modules are still enabled
         (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
         assertEq(modules.length, 6);
+
+        _assertOwnershipChanged(address(safeInstance.safe));
+    }
+
+    function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
+        // Create a mock guard
+        address dummyGuard = makeAddr("dummyGuard");
+        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkTransaction.selector), "");
+        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkAfterExecution.selector), "");
+
+        // Enable the mock guard on the Safe
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(GuardManager.setGuard, (dummyGuard)),
+            Enum.Operation.Call
+        );
+
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Execute ownership transfer
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
+
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // These checks include ensuring that the guard is deactivated
+        _assertOwnershipChanged(address(safeInstance.safe));
     }
 
     function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
