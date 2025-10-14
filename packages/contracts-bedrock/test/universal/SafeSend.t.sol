@@ -12,9 +12,14 @@ contract SafeSend_Constructor_Test is CommonTest {
         // Ensure recipient is an EOA (no code)
         vm.assume(_recipient != address(0));
         vm.assume(_recipient.code.length == 0);
+        // Exclude precompiles (0x01-0x09) and predeploys (0x4200...)
+        vm.assume(uint160(_recipient) > 0x09);
+        vm.assume(uint160(_recipient) < uint160(0x4200000000000000000000000000000000000000));
         // Bound value to reasonable range
         _value = bound(_value, 0, type(uint128).max);
 
+        // Reset recipient balance to ensure clean test
+        vm.deal(_recipient, 0);
         vm.deal(alice, _value);
 
         uint256 aliceBalanceBefore = alice.balance;
@@ -32,11 +37,16 @@ contract SafeSend_Constructor_Test is CommonTest {
     /// @notice Tests that sending to a contract with various amounts succeeds.
     function testFuzz_constructor_toContract_succeeds(address _recipient, uint256 _value) public {
         vm.assume(_recipient != address(0));
+        // Exclude precompiles (0x01-0x09) and predeploys (0x4200...)
+        vm.assume(uint160(_recipient) > 0x09);
+        vm.assume(uint160(_recipient) < uint160(0x4200000000000000000000000000000000000000));
         // Etch reverting code into recipient to make it a contract
         vm.etch(_recipient, hex"fe");
         // Bound value to reasonable range
         _value = bound(_value, 0, type(uint128).max);
 
+        // Reset recipient balance to ensure clean test
+        vm.deal(_recipient, 0);
         vm.deal(alice, _value);
 
         uint256 aliceBalanceBefore = alice.balance;
