@@ -1014,20 +1014,39 @@ jobs:
           path: ops/ai-eng/contracts-test-maintenance/log.json
           destination: log.json
       - run:
-          name: Notify Slack on PR creation
+          name: Prepare Slack notification
           command: |
+            set -eo pipefail
             LOG_FILE="ops/ai-eng/contracts-test-maintenance/log.json"
-            if [ -f "$LOG_FILE" ]; then
-              PR_URL=$(jq -r '.pull_request_url // empty' "$LOG_FILE")
-              TEST_FILE=$(jq -r '.selected_files.test_path | split("/") | .[-1]' "$LOG_FILE")
-              if [ -n "$PR_URL" ]; then
-                curl -X POST -H "Content-Type: application/json" \
-                  -H "Authorization: Bearer ${SLACK_ACCESS_TOKEN}" \
-                  -d "{\"channel\":\"C050F1GUHDG\",\"text\":\"@security-oncall AI Contract Test System created a PR for ${TEST_FILE} - ${PR_URL}\"}" \
-                  https://slack.com/api/chat.postMessage
-              fi
+
+            # Check if log file exists and has PR URL
+            if [ ! -f "$LOG_FILE" ]; then
+              echo "Log file not found, skipping Slack notification"
+              echo "export AI_PR_SLACK_TEMPLATE=''" >> $BASH_ENV
+              exit 0
             fi
+
+            PR_URL=$(jq -r '.pull_request_url // empty' "$LOG_FILE")
+            TEST_FILE=$(jq -r '.selected_files.test_path | split("/") | .[-1]' "$LOG_FILE")
+
+            if [ -z "$PR_URL" ] || [ "$PR_URL" = "null" ]; then
+              echo "No PR created, skipping Slack notification"
+              echo "export AI_PR_SLACK_TEMPLATE=''" >> $BASH_ENV
+              exit 0
+            fi
+
+            # Prepare Slack message template
+            MESSAGE="@security-oncall AI Contract Test System created a PR for ${TEST_FILE} - ${PR_URL}"
+            SLACK_JSON=$(jq -n --arg msg "$MESSAGE" '{"text": $msg}')
+
+            echo "export AI_PR_SLACK_TEMPLATE='${SLACK_JSON}'" >> $BASH_ENV
+            echo "Prepared Slack notification: $MESSAGE"
           when: always
+      - slack/notify:
+          channel: C050F1GUHDG
+          event: always
+          mentions: '<@D08TA0Y6WCQ>'
+          template: AI_PR_SLACK_TEMPLATE
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
