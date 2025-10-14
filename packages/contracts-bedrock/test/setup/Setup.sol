@@ -216,14 +216,6 @@ contract Setup is FeatureFlags {
         }
     }
 
-    /// @dev Skips tests when running against a forked production network that is not OP.
-    function skipIfNotOpFork(string memory message) public {
-        if (isForkTest() && !isOpFork()) {
-            vm.skip(true);
-            console.log(string.concat("Skipping non-OP fork test: ", message));
-        }
-    }
-
     /// @dev Skips tests when running against a forked production network using the superchain ops repo.
     function skipIfOpsRepoTest(string memory message) public {
         if (forkLive.useOpsRepo()) {
