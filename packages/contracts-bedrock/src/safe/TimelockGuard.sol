@@ -149,6 +149,9 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Error for when the contract is not at least version 1.3.0
     error TimelockGuard_InvalidVersion();
 
+    /// @notice Error for when the caller is not an owner of the Safe
+    error TimelockGuard_NotOwner();
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -471,6 +474,13 @@ abstract contract TimelockGuard is IGuard {
     )
         external
     {
+        // Limit submission of transactions to owners of the Safe only.
+        // Restrict scheduling to Safe owners for increased security. This ensures that an attacker
+        // cannot simply collect valid signatures, but must also control a private key.
+        if(!_safe.isOwner(tx.origin)){
+            revert TimelockGuard_NotOwner();
+        }
+
         // Check that this guard is enabled on the calling Safe
         if (!_isGuardEnabled(_safe)) {
             revert TimelockGuard_GuardNotEnabled();

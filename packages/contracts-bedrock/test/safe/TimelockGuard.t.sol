@@ -79,6 +79,22 @@ library TransactionBuilder {
 
     /// @notice Schedules the transaction with the supplied TimelockGuard instance.
     function scheduleTransaction(Transaction memory _tx, TimelockGuard _timelockGuard) internal {
+        // Prank as an owner (use the first owner) to satisfy the tx.origin check
+        address owner = _tx.safeInstance.safe.getOwners()[0];
+        Vm(VM_ADDR).prank(owner, owner);
+        _timelockGuard.scheduleTransaction(_tx.safeInstance.safe, _tx.nonce, _tx.params, _tx.signatures);
+    }
+
+    /// @notice Schedules the transaction with the supplied TimelockGuard instance, using a specified owner.
+    function scheduleTransaction(
+        Transaction memory _tx,
+        TimelockGuard _timelockGuard,
+        address _owner
+    )
+        internal
+    {
+        // Prank as the specified owner to satisfy the tx.origin check
+        Vm(VM_ADDR).prank(_owner, _owner);
         _timelockGuard.scheduleTransaction(_tx.safeInstance.safe, _tx.nonce, _tx.params, _tx.signatures);
     }
 
@@ -416,17 +432,21 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         assertEq(timelockGuard.timelockConfiguration(unguardedSafe.safe), 0);
 
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(unguardedSafe);
+        address owner = unguardedSafe.safe.getOwners()[0];
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
-        dummyTx.scheduleTransaction(timelockGuard);
+        dummyTx.scheduleTransaction(timelockGuard, owner);
     }
 
     /// @notice Verifies rescheduling an identical pending transaction reverts.
     function test_scheduleTransaction_reschedulingIdenticalTransaction_reverts() external {
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
 
+        address owner = safeInstance.safe.getOwners()[0];
+        vm.prank(owner, owner);
         timelockGuard.scheduleTransaction(safeInstance.safe, dummyTx.nonce, dummyTx.params, dummyTx.signatures);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
+        vm.prank(owner, owner);
         timelockGuard.scheduleTransaction(dummyTx.safeInstance.safe, dummyTx.nonce, dummyTx.params, dummyTx.signatures);
     }
 
@@ -437,8 +457,21 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         _enableGuard(unguardedSafe);
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(unguardedSafe);
 
+        address owner = unguardedSafe.safe.getOwners()[0];
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotConfigured.selector);
-        dummyTx.scheduleTransaction(timelockGuard);
+        dummyTx.scheduleTransaction(timelockGuard, owner);
+    }
+
+    /// @notice Verifies non-owners cannot schedule transactions even with valid signatures.
+    function test_scheduleTransaction_notOwner_reverts() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+
+        // Create a non-owner address
+        address nonOwner = makeAddr("nonOwner");
+
+        // Attempt to schedule as a non-owner (using tx.origin)
+        vm.expectRevert(TimelockGuard.TimelockGuard_NotOwner.selector);
+        dummyTx.scheduleTransaction(timelockGuard, nonOwner);
     }
 
     /// @notice Demonstrates identical payloads can be scheduled with distinct nonces.
@@ -454,6 +487,8 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
 
         vm.expectEmit(true, true, true, true);
         emit TransactionScheduled(safe, newTx.hash, INIT_TIME + TIMELOCK_DELAY);
+        address owner = safeInstance.safe.getOwners()[0];
+        vm.prank(owner, owner);
         timelockGuard.scheduleTransaction(safeInstance.safe, newTx.nonce, newTx.params, newTx.signatures);
     }
 }
