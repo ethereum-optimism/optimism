@@ -19,6 +19,10 @@ reth-node-api.workspace = true
 reth-provider.workspace = true
 reth-chainspec.workspace = true
 
+# for ethereum types, `serde-bincode-compat` is added by `reth-storage-api`, however this does not work with `op` until
+# `reth-storage-api` is updated to support `op`, so we add it here.
+reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat", "serde"] }
+
 # ethereum
 alloy-primitives.workspace = true
 
