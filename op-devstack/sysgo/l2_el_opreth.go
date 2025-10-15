@@ -217,6 +217,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			"--ipcdisable",
 			"--authrpc.addr=127.0.0.1",
 			"--authrpc.port=0",
+			"--rpc.eth-proof-window=30",
 			"--authrpc.jwtsecret=" + jwtPath,
 			"--txpool.minimum-priority-fee=1",
 			"--txpool.nolocals",

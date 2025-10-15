@@ -187,10 +187,10 @@ func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {
 	parentBlockInfo, err := l2Client.InfoByHash(el.ctx, postBlockWithdrawalInfo.ParentHash())
 	el.require.NoError(err, "failed to get parent block info")
 
-	postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, blockHash.String())
+	postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
 	el.require.NoError(err, "failed to get post-withdrawal storage proof")
 
-	parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, postBlockWithdrawalInfo.ParentHash().String())
+	parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, postBlockWithdrawalInfo.ParentHash().String())
 	el.require.NoError(err, "failed to get parent storage proof")
 
 	el.require.NotEqual(parentProof.StorageHash, postProof.StorageHash, "withdrawal hash should have changed between parent and current block")
