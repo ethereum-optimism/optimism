@@ -162,7 +162,7 @@ abstract contract LivenessModule2 {
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
     ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
     ///      for potential future re-enabling.
-    function clearLivenessModule() external {
+    function clearLivenessModule() public {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
 
@@ -170,11 +170,8 @@ abstract contract LivenessModule2 {
         // This prevents clearing configuration while module is still enabled
         _assertModuleNotEnabled(msg.sender);
 
-        // Erase the configuration data for this safe
-        delete livenessSafeConfiguration[msg.sender];
-        // Also clear any active challenge
-        _cancelChallenge(msg.sender);
-        emit ModuleCleared(msg.sender);
+        // Clear the configuration and any active challenge
+        _clearLivenessModule(Safe(payable(msg.sender)));
     }
 
     /// @notice Challenges an enabled safe.
@@ -336,6 +333,16 @@ abstract contract LivenessModule2 {
         emit ChallengeCancelled(_safe);
     }
 
+    /// @notice Internal function to clear the liveness module configuration and any active challenge.
+    /// @param _safe The Safe instance to clear the configuration for.
+    function _clearLivenessModule(Safe _safe) internal {
+        // Erase the configuration data for this safe
+        delete livenessSafeConfiguration[address(_safe)];
+        // Also clear any active challenge
+        _cancelChallenge(address(_safe));
+        emit ModuleCleared(address(_safe));
+    }
+
     /// @notice Internal function to disable this guard from the given Safe.
     /// @dev Only disables the guard if it is enabled, otherwise does nothing in case another
     ///      guard is enabled.
@@ -375,6 +382,6 @@ abstract contract LivenessModule2 {
         });
 
         // Erase the configuration data for this safe
-        delete livenessSafeConfiguration[address(_targetSafe)];
+        _clearLivenessModule(_targetSafe);
     }
 }

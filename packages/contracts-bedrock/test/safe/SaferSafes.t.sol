@@ -261,6 +261,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
         // Create a mock guard
         address dummyGuard = makeAddr("dummyGuard");
         vm.mockCall(
@@ -349,6 +350,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_onlyFallbackOwner_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
@@ -373,6 +375,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
         // Start and execute first challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
