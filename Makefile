@@ -119,6 +119,10 @@ op-dispute-mon: ## Builds op-dispute-mon binary
 	make -C ./op-dispute-mon op-dispute-mon
 .PHONY: op-dispute-mon
 
+op-supernode: ## Builds op-supernode binary
+	just $(JUSTFLAGS) ./op-supernode/op-supernode
+.PHONY: op-supernode
+
 op-program: ## Builds op-program binary
 	make -C ./op-program op-program
 .PHONY: op-program

@@ -21,31 +21,50 @@ type CLITestRunner struct {
 	privateKeyHex string
 }
 
-// NewCLITestRunner creates a new CLI test runner
-func NewCLITestRunner(t *testing.T) *CLITestRunner {
-	// Create a temporary working directory for tests
-	workDir := t.TempDir()
+// CLITestRunnerOption is a functional option for configuring CLITestRunner
+type CLITestRunnerOption func(*CLITestRunner)
 
+func WithL1RPC(rpcURL string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.l1RPC = rpcURL
+	}
+}
+
+func WithPrivateKey(pkHex string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.privateKeyHex = pkHex
+	}
+}
+
+func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
+	workDir := t.TempDir()
 	return &CLITestRunner{
 		workDir: workDir,
 	}
 }
 
-// NewCLITestRunnerWithNetwork creates a new CLI test runner with network setup
-func NewCLITestRunnerWithNetwork(t *testing.T) *CLITestRunner {
+// NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
+// Defaults can be overridden using functional options.
+func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
 	workDir := t.TempDir()
 
+	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, _ := devnet.DefaultAnvilRPC(t, lgr)
-
-	// Get private key
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 
-	return &CLITestRunner{
+	runner := &CLITestRunner{
 		workDir:       workDir,
 		l1RPC:         l1RPC,
 		privateKeyHex: pkHex,
 	}
+
+	// Apply options to override defaults
+	for _, opt := range opts {
+		opt(runner)
+	}
+
+	return runner
 }
 
 // GetWorkDir returns the working directory for this test runner

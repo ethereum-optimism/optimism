@@ -58,11 +58,20 @@ if [ -f "$PROMO_JSON" ]; then
   fi
 
   # Build Block Kit blocks (header + link + divider + per-candidate sections)
+  # See: https://docs.slack.dev/block-kit
   SLACK_BLOCKS=$(jq -c \
     --arg url "${REPORT_ARTIFACTS_URL}" \
+    --arg job "${REPORT_JOB_URL}" \
     --slurpfile meta "${PROMO_JSON%/*}/metadata.json" '
     def name_or_pkg(t): (if ((t.test_name|tostring)|length) == 0 then "(package)" else t.test_name end);
     def owner_or_unknown(t): (if ((t.owner|tostring)|length) == 0 then "unknown" else t.owner end);
+    def pkg_link(t): (
+      (t.package|tostring) as $p |
+      (if ($p|test("^github\\.com/ethereum-optimism/optimism/")) then
+         ("https://github.com/ethereum-optimism/optimism/tree/develop/" + ($p | sub("^github\\.com/ethereum-optimism/optimism/"; "")))
+       else "" end) as $u |
+      (if $u != "" then ("<" + $u + "|" + $p + ">") else $p end)
+    );
     def testblocks(t): [
       {"type":"section","fields":[
         {"type":"mrkdwn","text":"*Test:*\n\(name_or_pkg(t))"},
@@ -72,7 +81,7 @@ if [ -f "$PROMO_JSON" ]; then
         {"type":"mrkdwn","text":"*Runs:*\n\(t.total_runs)"},
         {"type":"mrkdwn","text":"*Pass Rate:*\n\((t.pass_rate|tostring))%"}
       ]},
-      {"type":"context","elements":[{"type":"mrkdwn","text": t.package }]},
+      {"type":"context","elements":[{"type":"mrkdwn","text": pkg_link(t) }]},
       {"type":"divider"}
     ];
     . as $root |
@@ -83,12 +92,12 @@ if [ -f "$PROMO_JSON" ]; then
     ( if (($meta.flake_gate_tests // 0) == 0) then
         [
           {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: Flake-Shake — Gate Empty"}},
-          {"type":"section","text":{"type":"mrkdwn","text":"No tests in flake-shake gate; nothing to promote. Artifacts: <\($url)|CircleCI Job>"}}
+          {"type":"section","text":{"type":"mrkdwn","text":"No tests in flake-shake gate; nothing to promote. Artifacts: <\($job)|CircleCI Job>"}}
         ]
       elif ($root.candidates|length) == 0 then
         [
           {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: No Flake-Shake Promotion Candidates — \(if $date != "" then $date else (now|strftime("%Y-%m-%d")) end)"}},
-          {"type":"section","text":{"type":"mrkdwn","text":"No promotions today. Artifacts: <\($url)|CircleCI Job>"}}
+          {"type":"section","text":{"type":"mrkdwn","text":"No promotions today. Artifacts: <\($job)|CircleCI Job>"}}
         ]
       else
         (

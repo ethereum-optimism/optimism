@@ -18,6 +18,7 @@ var (
 	// ABI encoding helpers
 	dynBytes, _ = abi.NewType("bytes", "", nil)
 	address, _  = abi.NewType("address", "", nil)
+	uint16T, _  = abi.NewType("uint16", "", nil)
 	uint256T, _ = abi.NewType("uint256", "", nil)
 	addressArgs = abi.Arguments{
 		{Type: address},
@@ -28,6 +29,9 @@ var (
 	twoUint256 = abi.Arguments{
 		{Type: uint256T},
 		{Type: uint256T},
+	}
+	oneUint16 = abi.Arguments{
+		{Type: uint16T},
 	}
 	oneUint256 = abi.Arguments{
 		{Type: uint256T},
@@ -250,15 +254,57 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params: eth.Bytes8{0, 0, 0, 0, 0, 0, 0, 0},
-				MinBaseFee:    minBaseFee,
+				MinBaseFee: minBaseFee,
+			},
+			err: false,
+		},
+		{
+			name: "SystemConfigUpdateDAFootprintGasScalar",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateDAFootprintGasScalar,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				numberData, err := oneUint16.Pack(uint16(100))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				DAFootprintGasScalar: 100,
+			},
+			err: false,
+		},
+		{
+			name: "SystemConfigUpdateDAFootprintGasScalar_default",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateDAFootprintGasScalar,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				numberData, err := oneUint16.Pack(uint16(0))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				DAFootprintGasScalar: eth.DAFootprintGasScalarDefault,
 			},
 			err: false,
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			config := eth.SystemConfig{}
 			rollupCfg := rollup.Config{EcotoneTime: test.ecotoneTime}

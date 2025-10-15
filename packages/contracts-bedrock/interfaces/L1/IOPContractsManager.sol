@@ -216,6 +216,8 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
@@ -263,9 +265,6 @@ interface IOPContractsManager {
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);
 
-    /// @notice Address of the ProxyAdmin contract shared by all chains.
-    function superchainProxyAdmin() external view returns (IProxyAdmin);
-
     // -------- Errors --------
 
     /// @notice Thrown when an address is the zero address.
@@ -304,6 +303,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error InvalidDevFeatureAccess(bytes32 devFeature);
+
     // -------- Methods --------
 
     function __constructor__(
@@ -313,8 +314,7 @@ interface IOPContractsManager {
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin
+        IProtocolVersions _protocolVersions
     )
         external;
 

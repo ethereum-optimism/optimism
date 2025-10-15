@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -16,10 +17,11 @@ func TestSyncTesterELSync(gt *testing.T) {
 	logger := t.Logger()
 	ctx := t.Ctx()
 
-	target := uint64(5)
+	startDelta := uint64(5)
+	attempts := 30
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
-		sys.L2CL2.AdvancedFn(types.LocalUnsafe, target, 30),
+		sys.L2CL.AdvancedFn(types.LocalUnsafe, startDelta, attempts),
+		sys.L2CL2.AdvancedFn(types.LocalUnsafe, startDelta, attempts),
 	)
 
 	// Stop L2CL2 attached to Sync Tester EL Endpoint
@@ -33,10 +35,14 @@ func TestSyncTesterELSync(gt *testing.T) {
 	syncTesterClient := sys.SyncTester.Escape().APIWithSession(sessionID)
 	require.NoError(syncTesterClient.ResetSession(ctx))
 
-	// Wait for L2CL to advance more unsafe blocks
-	sys.L2CL.Advanced(types.LocalUnsafe, target+5, 30)
+	// Reseted and L2CL2 not connected to sync tester session so unsafe head will not advance
+	require.Equal(uint64(0), sys.SyncTesterL2EL.BlockRefByLabel(eth.Unsafe).Number)
 
-	// EL Sync not done yet
+	// Wait for L2CL to advance more unsafe blocks
+	delta := uint64(5)
+	sys.L2CL.Advanced(types.LocalUnsafe, startDelta+delta, attempts)
+
+	// EL Sync active
 	session, err := syncTesterClient.GetSession(ctx)
 	require.NoError(err)
 	require.True(session.ELSyncActive)
@@ -47,13 +53,13 @@ func TestSyncTesterELSync(gt *testing.T) {
 	// Wait until P2P is connected
 	sys.L2CL2.IsP2PConnected(sys.L2CL)
 
-	// Reaches EL Sync Target and advances
-	target = uint64(40)
-	sys.L2CL2.Reached(types.LocalUnsafe, target, 30)
-
-	session, err = syncTesterClient.GetSession(ctx)
-	require.NoError(err)
-	require.False(session.ELSyncActive)
+	// Sequencer EL and SyncTester EL advances together
+	target := sys.L2EL.BlockRefByLabel(eth.Unsafe).Number + 5
+	dsl.CheckAll(t,
+		sys.L2CL2.ReachedFn(types.LocalUnsafe, target, attempts),
+		// EL Sync complete
+		sys.SyncTesterL2EL.ReachedFn(eth.Unsafe, target, attempts),
+	)
 
 	// Check CL2 view is consistent with read only EL
 	unsafeHead := sys.L2CL2.SyncStatus().UnsafeL2

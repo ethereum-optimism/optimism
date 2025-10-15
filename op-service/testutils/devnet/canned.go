@@ -46,3 +46,11 @@ func NewForkedSepolia(lgr log.Logger) (*Anvil, CleanupFunc, error) {
 	}
 	return NewForked(lgr, url)
 }
+
+func NewForkedSepoliaFromBlock(lgr log.Logger, block uint64) (*Anvil, CleanupFunc, error) {
+	url := os.Getenv("SEPOLIA_RPC_URL")
+	if url == "" {
+		return nil, nil, fmt.Errorf("SEPOLIA_RPC_URL not set")
+	}
+	return NewForked(lgr, url, WithForkBlockNumber(block))
+}

@@ -32,7 +32,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -377,8 +376,7 @@ library ChainAssertions {
         Types.ContractSet memory _impls,
         Types.ContractSet memory _proxies,
         IOPContractsManager _opcm,
-        IMIPS64 _mips,
-        IProxyAdmin _superchainProxyAdmin
+        IMIPS64 _mips
     )
         internal
         view
@@ -388,7 +386,6 @@ library ChainAssertions {
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
-        require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
 
         // Ensure that the OPCM impls are correctly saved

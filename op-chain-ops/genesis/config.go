@@ -405,7 +405,6 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 }
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
-
 	switch fork {
 	case rollup.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
@@ -730,6 +729,7 @@ type L2InitializationConfig struct {
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
 	AltDADeployConfig
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1122,6 +1122,9 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
+		// reflect the genesis state and is not used inside derivation.
+		DAFootprintGasScalar: d.DAFootprintGasScalar,
 	}
 }
 
