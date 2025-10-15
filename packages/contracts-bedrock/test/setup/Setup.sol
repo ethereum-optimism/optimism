@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { console2 as console } from "forge-std/console2.sol";
 import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
@@ -67,7 +68,7 @@ import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
 ///      sets the L2 contracts directly at the predeploy addresses instead of setting them
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
-contract Setup {
+contract Setup is FeatureFlags {
     using ForkUtils for Fork;
 
     /// @notice The address of the foundry Vm contract.
@@ -182,6 +183,10 @@ contract Setup {
 
         deploy.setUp();
         forkLive.setUp();
+
+        resolveFeaturesFromEnv();
+        deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
+
         console.log("Setup: L1 setup done!");
 
         if (isForkTest()) {
@@ -260,7 +265,10 @@ contract Setup {
         // Only skip ETHLockbox assignment if we're in a fork test with non-upgraded fork
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
         if (!isForkTest() || deploy.cfg().useUpgradedFork()) {
-            ethLockbox = IETHLockbox(artifacts.mustGetAddress("ETHLockboxProxy"));
+            // Here we use getAddress instead of mustGetAddress because some chains might not have
+            // the ETHLockbox proxy. Chains that don't have the ETHLockbox proxy will just return
+            // address(0) and cause a revert if we use mustGetAddress.
+            ethLockbox = IETHLockbox(artifacts.getAddress("ETHLockboxProxy"));
         }
 
         systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
@@ -291,6 +299,9 @@ contract Setup {
         }
 
         console.log("Setup: registered L1 deployments");
+
+        // Update the SystemConfig address.
+        setSystemConfig(systemConfig);
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.

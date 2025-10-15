@@ -26,6 +26,9 @@ type StateOracle interface {
 	// CodeByHash retrieves the contract code pre-image for a given hash.
 	// codeHash should be retrieved from the world state account for a contract.
 	CodeByHash(codeHash common.Hash, chainID eth.ChainID) []byte
+
+	// Hinter provides an optional interface to provide proactive hints.
+	Hinter() l2Types.OracleHinter
 }
 
 // Oracle defines the high-level API used to retrieve L2 data.
@@ -44,9 +47,6 @@ type Oracle interface {
 	TransitionStateByRoot(root common.Hash) *interopTypes.TransitionState
 
 	ReceiptsByBlockHash(blockHash common.Hash, chainID eth.ChainID) (*types.Block, types.Receipts)
-
-	// Optional interface to provide proactive hints.
-	Hinter() l2Types.OracleHinter
 }
 
 type PreimageOracleHinter struct {
@@ -68,6 +68,10 @@ func (p *PreimageOracleHinter) HintBlockExecution(parentBlockHash common.Hash, a
 // HintWithdrawalsRoot hints that we're about to fetch the storage root of the L2ToL1MessagePasser contract.
 func (p *PreimageOracleHinter) HintWithdrawalsRoot(blockHash common.Hash, chainID eth.ChainID) {
 	p.hint.Hint(AccountProofHint{BlockHash: blockHash, Address: predeploys.L2ToL1MessagePasserAddr, ChainID: chainID})
+}
+
+func (p *PreimageOracleHinter) HintBlockHashLookup(blockNumber uint64, headBlockHash common.Hash, l2ChainID eth.ChainID) {
+	p.hint.Hint(BlockHashLookupHint{BlockNumber: blockNumber, HeadBlockHash: headBlockHash, ChainID: l2ChainID})
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle

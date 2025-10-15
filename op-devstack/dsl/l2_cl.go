@@ -316,6 +316,20 @@ func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 	cl.require.NoError(err, "failed to connect peer")
 }
 
+func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
+	myInfo := cl.PeerInfo()
+	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	err := retry.Do0(cl.ctx, 5, strategy, func() error {
+		for _, p := range peer.Peers().Peers {
+			if p.PeerID == myInfo.PeerID {
+				return nil
+			}
+		}
+		return errors.New("peer not connected yet")
+	})
+	cl.require.NoError(err, "peer not connected")
+}
+
 type safeHeadDbMatchOpts struct {
 	minRequiredL2Block *uint64
 }
@@ -333,4 +347,31 @@ func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args 
 	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before checking safe head db
 	sourceOfTruth.AwaitMinL1Processed(l1Block)
 	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth, opts.minRequiredL2Block)
+}
+
+func (cl *L2CLNode) WaitForNonZeroUnsafeTime(ctx context.Context) *eth.SyncStatus {
+	require := cl.require
+
+	var ss *eth.SyncStatus
+	err := retry.Do0(ctx, 10, retry.Fixed(2*time.Second), func() error {
+		ss = cl.SyncStatus()
+		require.NotNil(ss, "L2CL should have sync status")
+		if ss.UnsafeL2.Time == 0 {
+			return fmt.Errorf("L2CL unsafe time is still zero")
+		}
+		return nil
+	})
+	require.NoError(err, "L2CL unsafe time should be set within retry limit")
+	require.NotZero(ss.UnsafeL2.Time, "L2CL unsafe time should not be zero")
+
+	return ss
+}
+
+func (cl *L2CLNode) SignalTarget(el *L2ELNode, targetNum uint64) {
+	cl.log.Info("Signaling L2CL", "target", targetNum)
+	payload := el.PayloadByNumber(targetNum)
+	err := retry.Do0(cl.ctx, 3, retry.Fixed(2*time.Second), func() error {
+		return cl.inner.RollupAPI().PostUnsafePayload(cl.ctx, payload)
+	})
+	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", targetNum)
 }

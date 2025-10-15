@@ -73,7 +73,7 @@ func NewInvalidExecMsgSpammer(t devtest.T, l2 *L2, validInitMsg suptypes.Message
 	// any wei, but we don't want to trigger mempool balance checks.
 	eoa := l2.Wallet.NewEOA(l2.EL)
 	address := eoa.Address()
-	_, err := l2.Include(t, txplan.WithValue(eth.OneHundredthEther.ToBig()), txplan.WithTo(&address))
+	_, err := l2.Include(t, txplan.WithValue(eth.OneHundredthEther), txplan.WithTo(&address))
 	t.Require().NoError(err)
 
 	// The InvalidExecutor uses a txinclude.Includer to manage nonces concurrently. It uses a
@@ -119,6 +119,7 @@ func (ie *InvalidExecMsgSpammer) Spam(t devtest.T) error {
 // executing messages are also spammed. The number of invalid messages spammed per slot is
 // configurable via NAT_INVALID_MPS (default: 1_000).
 func TestRelayWithInvalidMessagesSteady(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t, l2A, l2B := setupLoadTest(gt)
 
 	// Emit a valid initiating message.

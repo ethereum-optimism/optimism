@@ -52,6 +52,9 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when there are getter functions in the ABI that are not being checked.
     error VerifyOPCM_UnaccountedGetters(string[] _unaccountedGetters);
 
+    /// @notice Thrown when the dev feature bitmap is not empty on mainnet.
+    error VerifyOPCM_DevFeatureBitmapNotEmpty();
+
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
@@ -107,6 +110,7 @@ contract VerifyOPCM is Script {
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
+        fieldNameOverrides["optimismPortalInteropImpl"] = "OptimismPortalInterop";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
@@ -143,7 +147,6 @@ contract VerifyOPCM is Script {
         expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
         expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
         expectedGetters["superchainProxyAdmin"] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
-        expectedGetters["upgradeController"] = "EXPECTED_UPGRADE_CONTROLLER";
 
         // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
         expectedGetters["opcmDeployer"] = "SKIP"; // Address verified via bytecode comparison
@@ -151,6 +154,10 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+
+        // Getters that don't need any sort of verification
+        expectedGetters["devFeatureBitmap"] = "SKIP";
+        expectedGetters["isDevFeatureEnabled"] = "SKIP";
 
         // Mark as ready.
         ready = true;
@@ -196,6 +203,9 @@ contract VerifyOPCM is Script {
 
         // Validate that all ABI getters are accounted for.
         _validateAllGettersAccounted();
+
+        // Validate that the dev feature bitmap is empty on mainnet.
+        _validateDevFeatureBitmap(opcm);
 
         // Collect all the references.
         OpcmContractRef[] memory refs = _collectOpcmContractRefs(opcm);
@@ -908,6 +918,21 @@ contract VerifyOPCM is Script {
             ),
             (string[])
         );
+    }
+
+    /// @notice Validates that the dev feature bitmap is empty on mainnet.
+    /// @param _opcm The OPCM contract.
+    function _validateDevFeatureBitmap(IOPContractsManager _opcm) internal view {
+        // Get the dev feature bitmap.
+        bytes32 devFeatureBitmap = _opcm.devFeatureBitmap();
+
+        // Check if we're in a testing environment.
+        bool isTestingEnvironment = address(0xbeefcafe).code.length > 0;
+
+        // Check if any dev features are enabled.
+        if (block.chainid == 1 && !isTestingEnvironment && devFeatureBitmap != bytes32(0)) {
+            revert VerifyOPCM_DevFeatureBitmapNotEmpty();
+        }
     }
 
     /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for

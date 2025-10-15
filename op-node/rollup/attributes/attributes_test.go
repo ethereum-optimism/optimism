@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -86,7 +87,7 @@ func TestAttributesHandler(t *testing.T) {
 
 	emptyWithdrawals := make(types.Withdrawals, 0)
 
-	a1L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, 1, aL1Info, refA0.Time+cfg.BlockTime)
+	a1L1Info, err := derive.L1InfoDepositBytes(cfg, params.MergedTestChainConfig, cfg.Genesis.SystemConfig, 1, aL1Info, refA0.Time+cfg.BlockTime)
 	require.NoError(t, err)
 	parentBeaconBlockRoot := testutils.RandomHash(rng)
 	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -175,17 +176,19 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		engDeriver.AssertExpectations(t)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queue the invalid attributes")
 
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 		ah.OnEvent(context.Background(), engine.InvalidPayloadAttributesEvent{
 			Attributes: attrA1,
 		})
+		engDeriver.AssertExpectations(t)
 		emitter.AssertExpectations(t)
 		require.Nil(t, ah.attributes, "drop the invalid attributes")
 	})
@@ -198,10 +201,11 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		engDeriver.AssertExpectations(t)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 		// New attributes will have to get generated after processing the last ones
@@ -224,10 +228,11 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		engDeriver.AssertExpectations(t)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 
@@ -252,8 +257,9 @@ func TestAttributesHandler(t *testing.T) {
 
 			// attrA1Alt does not match block A1, so will cause force-reorg.
 			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-			emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+			engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+			engDeriver.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -295,8 +301,9 @@ func TestAttributesHandler(t *testing.T) {
 					DerivedFrom: refB,
 				}
 				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+				engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 				ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attr})
+				engDeriver.AssertExpectations(t)
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -344,8 +351,9 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
+		engDeriver.On("RequestPendingSafeUpdate", context.Background()).Once()
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+		engDeriver.AssertExpectations(t)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queued up derived attributes")
 

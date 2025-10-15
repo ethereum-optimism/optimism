@@ -1,0 +1,623 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_txHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_signatures",
+        "type": "bytes"
+      }
+    ],
+    "name": "cancelTransaction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "cancellationThreshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_txHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "_success",
+        "type": "bool"
+      }
+    ],
+    "name": "checkAfterExecution",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      },
+      {
+        "internalType": "enum Enum.Operation",
+        "name": "_operation",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_safeTxGas",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_baseGas",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_gasPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_gasToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address payable",
+        "name": "_refundReceiver",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "checkTransaction",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_timelockDelay",
+        "type": "uint256"
+      }
+    ],
+    "name": "configureTimelockGuard",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "maxCancellationThreshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "pendingTransactions",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "executionTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TimelockGuard.TransactionState",
+            "name": "state",
+            "type": "uint8"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              },
+              {
+                "internalType": "enum Enum.Operation",
+                "name": "operation",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "safeTxGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "baseGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "gasToken",
+                "type": "address"
+              },
+              {
+                "internalType": "address payable",
+                "name": "refundReceiver",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TimelockGuard.ExecTransactionParams",
+            "name": "params",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TimelockGuard.ScheduledTransaction[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "enum Enum.Operation",
+            "name": "operation",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "safeTxGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "baseGas",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "gasToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "refundReceiver",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct TimelockGuard.ExecTransactionParams",
+        "name": "_params",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_signatures",
+        "type": "bytes"
+      }
+    ],
+    "name": "scheduleTransaction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "scheduledTransaction",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "executionTime",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum TimelockGuard.TransactionState",
+            "name": "state",
+            "type": "uint8"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              },
+              {
+                "internalType": "enum Enum.Operation",
+                "name": "operation",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "safeTxGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "baseGas",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gasPrice",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "gasToken",
+                "type": "address"
+              },
+              {
+                "internalType": "address payable",
+                "name": "refundReceiver",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct TimelockGuard.ExecTransactionParams",
+            "name": "params",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct TimelockGuard.ScheduledTransaction",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "signCancellation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "timelockConfiguration",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldThreshold",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "CancellationThresholdUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timelockDelay",
+        "type": "uint256"
+      }
+    ],
+    "name": "GuardConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "message",
+        "type": "string"
+      }
+    ],
+    "name": "Message",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "TransactionCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "txHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "TransactionExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "txHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "executionTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "TransactionScheduled",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_GuardNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_GuardNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_InvalidTimelockDelay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionAlreadyCancelled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionAlreadyExecuted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionAlreadyScheduled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionNotReady",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_TransactionNotScheduled",
+    "type": "error"
+  }
+]

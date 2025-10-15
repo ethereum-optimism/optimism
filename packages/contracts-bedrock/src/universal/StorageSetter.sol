@@ -19,8 +19,8 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.1-beta.4
-    string public constant version = "1.2.1-beta.4";
+    /// @custom:semver 1.2.2
+    string public constant version = "1.2.2";
 
     /// @notice Stores a bytes32 `_value` at `_slot`. Any storage slots that
     ///         are packed should be set through this interface.

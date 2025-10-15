@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -29,12 +30,13 @@ var emptyAddress common.Address
 var emptyHash common.Hash
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds          uint64 `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
-	MinProposalSizeBytes            uint64 `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds          uint64 `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	ProofMaturityDelaySeconds       uint64 `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64 `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
-	MIPSVersion                     uint64 `json:"mipsVersion" toml:"mipsVersion"`
+	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
+	MinProposalSizeBytes            uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
+	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
+	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
+	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
 
 type L1DevGenesisBlockParams struct {
@@ -53,6 +55,16 @@ type L1DevGenesisParams struct {
 
 	// PragueTimeOffset configures Prague (aka Pectra) to be activated at the given time after L1 dev genesis time.
 	PragueTimeOffset *uint64 `json:"pragueTimeOffset" toml:"pragueTimeOffset"`
+
+	// OsakaTimeOffset configures Osaka (the EL changes in the Fusaka Ethereum fork) to be
+	// activated at the given time after L1 dev genesis time.
+	OsakaTimeOffset *uint64 `json:"osakaTimeOffset" toml:"osakaTimeOffset"`
+
+	// BPO1TimeOffset configures the BPO1 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO1TimeOffset *uint64 `json:"bpo1TimeOffset" toml:"bpo1TimeOffset"`
+
+	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
 
 	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
 	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
@@ -149,6 +161,9 @@ func (c *Intent) validateStandardValues() error {
 		if chain.Eip1559DenominatorCanyon != standard.Eip1559DenominatorCanyon ||
 			chain.Eip1559Denominator != standard.Eip1559Denominator ||
 			chain.Eip1559Elasticity != standard.Eip1559Elasticity {
+			return fmt.Errorf("%w: chainId=%s", ErrNonStandardValue, chain.ID)
+		}
+		if chain.GasLimit != standard.GasLimit {
 			return fmt.Errorf("%w: chainId=%s", ErrNonStandardValue, chain.ID)
 		}
 		if len(chain.AdditionalDisputeGames) > 0 {
@@ -293,7 +308,8 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 
 	for _, l2ChainID := range l2ChainIds {
 		intent.Chains = append(intent.Chains, &ChainIntent{
-			ID: l2ChainID,
+			ID:       l2ChainID,
+			GasLimit: standard.GasLimit,
 		})
 	}
 	return intent, nil
@@ -332,6 +348,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 			Eip1559DenominatorCanyon: standard.Eip1559DenominatorCanyon,
 			Eip1559Denominator:       standard.Eip1559Denominator,
 			Eip1559Elasticity:        standard.Eip1559Elasticity,
+			GasLimit:                 standard.GasLimit,
 			Roles: ChainRoles{
 				Challenger:        challenger,
 				L1ProxyAdminOwner: l1ProxyAdminOwner,

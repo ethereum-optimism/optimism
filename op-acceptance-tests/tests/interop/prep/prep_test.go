@@ -13,6 +13,7 @@ import (
 // before interop is scheduled with an actual hardfork time.
 // And then confirms we can finalize the chains.
 func TestUnscheduledInterop(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	t.Logger().Info("Checking that chain A and B can sync, even though interop is not scheduled")

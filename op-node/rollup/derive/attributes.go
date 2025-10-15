@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -30,23 +31,25 @@ type SystemConfigL2Fetcher interface {
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
-	rollupCfg *rollup.Config
-	depSet    DependencySet
-	l1        L1ReceiptsFetcher
-	l2        SystemConfigL2Fetcher
+	rollupCfg     *rollup.Config
+	l1ChainConfig *params.ChainConfig
+	depSet        DependencySet
+	l1            L1ReceiptsFetcher
+	l2            SystemConfigL2Fetcher
 	// whether to skip the L1 origin timestamp check - only for testing purposes
 	testSkipL1OriginCheck bool
 }
 
-func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
 	if rollupCfg.InteropTime != nil && depSet == nil {
 		panic("FetchingAttributesBuilder requires a dependency set when interop fork is scheduled")
 	}
 	return &FetchingAttributesBuilder{
-		rollupCfg: rollupCfg,
-		depSet:    depSet,
-		l1:        l1,
-		l2:        l2,
+		rollupCfg:     rollupCfg,
+		l1ChainConfig: l1ChainConfig,
+		depSet:        depSet,
+		l1:            l1,
+		l2:            l2,
 	}
 }
 
@@ -158,7 +161,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 	}
 
-	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
+	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, ba.l1ChainConfig, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
@@ -198,6 +201,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
-
+	if ba.rollupCfg.IsMinBaseFee(nextL2Time) {
+		r.MinBaseFee = &sysConfig.MinBaseFee
+	}
 	return r, nil
 }

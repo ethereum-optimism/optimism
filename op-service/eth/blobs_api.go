@@ -44,6 +44,12 @@ type APIGetBlobSidecarsResponse struct {
 	Data []*APIBlobSidecar `json:"data"`
 }
 
+type APIBeaconBlobsResponse struct {
+	// There are other fields but we only include the ones we're interested in.
+
+	Data []*Blob `json:"data"`
+}
+
 type ReducedGenesisData struct {
 	GenesisTime Uint64String `json:"genesis_time"`
 }

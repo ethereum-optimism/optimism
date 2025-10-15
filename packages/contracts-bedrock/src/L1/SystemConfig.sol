@@ -8,13 +8,13 @@ import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -28,13 +28,17 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value EIP_1559_PARAMS     Represents an update to EIP-1559 parameters.
+    /// @custom:value OPERATOR_FEE_PARAMS Represents an update to operator fee parameters.
+    /// @custom:value MIN_BASE_FEE        Represents an update to the minimum base fee.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
-        OPERATOR_FEE_PARAMS
+        OPERATOR_FEE_PARAMS,
+        MIN_BASE_FEE
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -135,22 +139,37 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
+    /// @notice The minimum base fee, in wei.
+    uint64 public minBaseFee;
+
+    /// @notice Bytes32 feature flag name to boolean enabled value.
+    mapping(bytes32 => bool) public isFeatureEnabled;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Emitted when a feature is set.
+    /// @param feature Feature that was set.
+    /// @param enabled Whether the feature is enabled.
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
+    ///         respectively.
+    error SystemConfig_InvalidFeatureState();
+
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.10.0
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.10.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton.
-    constructor() ReinitializableBase(2) {
+    constructor() ReinitializableBase(3) {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         _disableInitializers();
     }
@@ -211,27 +230,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         l2ChainId = _l2ChainId;
         superchainConfig = _superchainConfig;
-    }
-
-    /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
-    /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
-    /// @param _superchainConfig The SuperchainConfig contract address.
-    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        // Set the L2 chain ID.
-        l2ChainId = _l2ChainId;
-
-        // Set the SuperchainConfig contract.
-        superchainConfig = _superchainConfig;
-
-        // Clear out the old dispute game factory address, it's derived now. We get rid of this
-        // storage slot because it doesn't use structured storage and we can't use a spacer
-        // variable to block it off.
-        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        Storage.setBytes32(disputeGameFactorySlot, bytes32(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -419,6 +417,21 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
+    /// @notice Updates the minimum base fee. Can only be called by the owner.
+    ///         Setting this value to 0 is equivalent to disabling the min base fee feature
+    /// @param _minBaseFee New minimum base fee.
+    function setMinBaseFee(uint64 _minBaseFee) external onlyOwner {
+        _setMinBaseFee(_minBaseFee);
+    }
+
+    /// @notice Internal function for updating the minimum base fee.
+    function _setMinBaseFee(uint64 _minBaseFee) internal {
+        minBaseFee = _minBaseFee;
+
+        bytes memory data = abi.encode(_minBaseFee);
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE, data);
+    }
+
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
     /// @param _operatorFeeScalar operator fee scalar.
     /// @param _operatorFeeConstant  operator fee constant.
@@ -484,12 +497,67 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _resourceConfig = _config;
     }
 
-    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
-    /// chain's ETHLockbox.
+    /// @notice Sets a feature flag enabled or disabled. Can only be called by the ProxyAdmin or
+    ///         its owner.
+    /// @param _feature Feature to set.
+    /// @param _enabled Whether the feature should be enabled or disabled.
+    function setFeature(bytes32 _feature, bool _enabled) external {
+        // Features can only be set by the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // As a sanity check, prevent users from enabling the feature if already enabled or
+        // disabling the feature if already disabled. This helps to prevent accidental misuse.
+        if (_enabled == isFeatureEnabled[_feature]) {
+            revert SystemConfig_InvalidFeatureState();
+        }
+
+        // Handle feature-specific safety logic here.
+        if (_feature == Features.ETH_LOCKBOX) {
+            // It would probably better to check that the ETHLockbox contract is set inside the
+            // OptimismPortal2 contract before you're allowed to enable the feature here, but the
+            // portal checks that the feature is set before allowing you to set the lockbox, so
+            // these checks are good enough.
+
+            // Lockbox shouldn't be unset if the ethLockbox address is still configured in the
+            // OptimismPortal2 contract. Doing so would cause the system to start keeping ETH in
+            // the portal. This check means there's no way to stop using ETHLockbox at the moment
+            // after it's been configured (which is expected).
+            if (
+                isFeatureEnabled[_feature] && !_enabled
+                    && address(IOptimismPortal2(payable(optimismPortal())).ethLockbox()) != address(0)
+            ) {
+                revert SystemConfig_InvalidFeatureState();
+            }
+
+            // Lockbox can't be set or unset if the system is currently paused because it would
+            // change the pause identifier which would potentially cause the system to become
+            // unpaused unexpectedly.
+            if (paused()) {
+                revert SystemConfig_InvalidFeatureState();
+            }
+        }
+
+        // Set the feature.
+        isFeatureEnabled[_feature] = _enabled;
+
+        // Emit an event.
+        emit FeatureSet(_feature, _enabled);
+    }
+
+    /// @notice Returns the current pause state for this network. If the network is using
+    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
+    ///         is active where the ETHLockbox address is used as the identifier. If the network is
+    ///         not using ETHLockbox, the system is paused if either the global pause is active or
+    ///         the pause is active where the OptimismPortal address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
-        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+        // Determine the appropriate chain identifier based on the feature flags.
+        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
+            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
+            : address(optimismPortal());
+
+        // Check if either global or local pause is active.
+        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.

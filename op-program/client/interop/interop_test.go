@@ -35,6 +35,7 @@ import (
 
 type chainSetupOpts struct {
 	expiryWindow uint64
+	chainCount   int
 }
 
 func WithExpiryWindow(window uint64) func(*chainSetupOpts) {
@@ -43,49 +44,65 @@ func WithExpiryWindow(window uint64) func(*chainSetupOpts) {
 	}
 }
 
+func WithChainCount(count int) func(*chainSetupOpts) {
+	return func(opts *chainSetupOpts) {
+		opts.chainCount = count
+	}
+}
+
 func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.SuperV1, *stubTasks) {
+	opts = append(opts, WithChainCount(2))
+	return setupChains(opts...)
+}
+
+func setupChains(opts ...func(setupOpts *chainSetupOpts)) (*staticConfigSource, *eth.SuperV1, *stubTasks) {
 	chainSetupOpts := &chainSetupOpts{}
 	for _, opt := range opts {
 		opt(chainSetupOpts)
 	}
 
-	rollupCfg1 := *chaincfg.OPSepolia()
-	chainCfg1 := *chainconfig.OPSepoliaChainConfig()
+	rollupCfgs := make([]*rollup.Config, 0, chainSetupOpts.chainCount)
 
-	rollupCfg2 := *chaincfg.OPSepolia()
-	rollupCfg2.L2ChainID = new(big.Int).SetUint64(42)
-	chainCfg2 := *chainconfig.OPSepoliaChainConfig()
-	chainCfg2.ChainID = rollupCfg2.L2ChainID
+	chainCfgs := make([]*params.ChainConfig, 0, chainSetupOpts.chainCount)
+	chainIDAndOutputs := make([]eth.ChainIDAndOutput, 0, chainSetupOpts.chainCount)
+	dependencies := make(map[eth.ChainID]*depset.StaticConfigDependency, chainSetupOpts.chainCount)
+	chainIDs := make([]eth.ChainID, 0, chainSetupOpts.chainCount)
 
-	// activate interop at genesis for both
-	rollupCfg1.InteropTime = new(uint64)
-	rollupCfg2.InteropTime = new(uint64)
+	for i := 0; i < chainSetupOpts.chainCount; i++ {
+		rollupCfg := *chaincfg.OPSepolia()
+		rollupCfg.L2ChainID = big.NewInt(int64(i))
+		// activate interop at genesis
+		rollupCfg.InteropTime = new(uint64)
+		chainCfg := *chainconfig.OPSepoliaChainConfig()
+		chainCfg.ChainID = rollupCfg.L2ChainID
+		rollupCfgs = append(rollupCfgs, &rollupCfg)
+		chainCfgs = append(chainCfgs, &chainCfg)
+		chainIDs = append(chainIDs, eth.ChainIDFromBig(rollupCfg.L2ChainID))
+
+		chainIDAndOutputs = append(chainIDAndOutputs, eth.ChainIDAndOutput{
+			ChainID: eth.ChainIDFromBig(rollupCfg.L2ChainID),
+			Output:  eth.OutputRoot(&eth.OutputV0{BlockHash: common.Hash{byte(i)}}),
+		})
+		dependencies[eth.ChainIDFromBig(rollupCfg.L2ChainID)] = &depset.StaticConfigDependency{}
+	}
 
 	agreedSuperRoot := &eth.SuperV1{
-		Timestamp: rollupCfg1.Genesis.L2Time + 1234,
-		Chains: []eth.ChainIDAndOutput{
-			{ChainID: eth.ChainIDFromBig(rollupCfg1.L2ChainID), Output: eth.OutputRoot(&eth.OutputV0{BlockHash: common.Hash{0x11}})},
-			{ChainID: eth.ChainIDFromBig(rollupCfg2.L2ChainID), Output: eth.OutputRoot(&eth.OutputV0{BlockHash: common.Hash{0x22}})},
-		},
+		Timestamp: rollupCfgs[0].Genesis.L2Time + 1234,
+		Chains:    chainIDAndOutputs,
 	}
 
 	var ds *depset.StaticConfigDependencySet
 	if chainSetupOpts.expiryWindow > 0 {
-		ds, _ = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {},
-			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {},
-		}, chainSetupOpts.expiryWindow)
+		ds, _ = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(dependencies, chainSetupOpts.expiryWindow)
 	} else {
-		ds, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {},
-			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {},
-		})
+		ds, _ = depset.NewStaticConfigDependencySet(dependencies)
 	}
 	configSource := &staticConfigSource{
-		rollupCfgs:   []*rollup.Config{&rollupCfg1, &rollupCfg2},
-		chainConfigs: []*params.ChainConfig{&chainCfg1, &chainCfg2},
-		depset:       ds,
-		chainIDs:     []eth.ChainID{eth.ChainIDFromBig(rollupCfg1.L2ChainID), eth.ChainIDFromBig(rollupCfg2.L2ChainID)},
+		rollupCfgs:    rollupCfgs,
+		chainConfigs:  chainCfgs,
+		l1ChainConfig: params.SepoliaChainConfig,
+		depset:        ds,
+		chainIDs:      chainIDs,
 	}
 	tasksStub := &stubTasks{
 		l2SafeHead: eth.L2BlockRef{Number: 918429823450218}, // Past the claimed block
@@ -729,6 +746,64 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 	})
 }
 
+func TestMaximumNumberOfChains(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	chainCount := ConsolidateStep
+	configSource, agreedSuperRoot, tasksStub := setupChains(WithChainCount(chainCount))
+	defer tasksStub.AssertExpectations(t)
+	rng := rand.New(rand.NewSource(123))
+
+	agreedHash := common.Hash(eth.SuperRoot(agreedSuperRoot))
+	pendingProgress := make([]types.OptimisticBlock, 0, chainCount)
+	step := uint64(0)
+	l2PreimageOracle, _ := test.NewStubOracle(t)
+	l2PreimageOracle.TransitionStates[agreedHash] = &types.TransitionState{SuperRoot: agreedSuperRoot.Marshal()}
+
+	// Generate an optimistic block for every chain
+	for _, cfg := range configSource.rollupCfgs {
+		block, rcpts := createBlock(rng, cfg, 100, nil)
+		l2PreimageOracle.Receipts[block.Hash()] = rcpts
+		tasksStub.blockHash = block.Hash()
+		output := createOutput(tasksStub.blockHash)
+		tasksStub.outputRoot = eth.OutputRoot(output)
+		newPendingProgress := append(pendingProgress, types.OptimisticBlock{BlockHash: tasksStub.blockHash, OutputRoot: tasksStub.outputRoot})
+		expectedIntermediateRoot := &types.TransitionState{
+			SuperRoot:       agreedSuperRoot.Marshal(),
+			PendingProgress: newPendingProgress,
+			Step:            step + 1,
+		}
+
+		expectedClaim := expectedIntermediateRoot.Hash()
+		verifyResult(t, logger, tasksStub, configSource, l2PreimageOracle, agreedHash, agreedSuperRoot.Timestamp+100000, expectedClaim)
+		pendingProgress = newPendingProgress
+		agreedHash = expectedIntermediateRoot.Hash()
+		l2PreimageOracle.TransitionStates[agreedHash] = expectedIntermediateRoot
+		l2PreimageOracle.Outputs[common.Hash(tasksStub.outputRoot)] = output
+		l2PreimageOracle.Blocks[tasksStub.blockHash] = block
+		step++
+	}
+
+	// Populate initial agreed blocks
+	for i, chain := range agreedSuperRoot.Chains {
+		block, _ := createBlock(rng, configSource.rollupCfgs[i], 99, nil)
+		l2PreimageOracle.Outputs[common.Hash(chain.Output)] = createOutput(block.Hash())
+		l2PreimageOracle.Blocks[block.Hash()] = block
+	}
+	// Run the consolidate step
+	finalOutputs := make([]eth.ChainIDAndOutput, 0, chainCount)
+	for i, block := range pendingProgress {
+		finalOutputs = append(finalOutputs, eth.ChainIDAndOutput{
+			ChainID: configSource.chainIDs[i],
+			Output:  block.OutputRoot,
+		})
+	}
+	expectedClaim := common.Hash(eth.SuperRoot(&eth.SuperV1{
+		Timestamp: agreedSuperRoot.Timestamp + 1,
+		Chains:    finalOutputs,
+	}))
+	verifyResult(t, logger, tasksStub, configSource, l2PreimageOracle, agreedHash, agreedSuperRoot.Timestamp+100000, expectedClaim)
+}
+
 type mockConsolidateDeps struct {
 	mock.Mock
 	*consolidateCheckDeps
@@ -774,6 +849,7 @@ var _ taskExecutor = (*stubTasks)(nil)
 func (t *stubTasks) RunDerivation(
 	_ log.Logger,
 	_ *rollup.Config,
+	_ *params.ChainConfig,
 	_ depset.DependencySet,
 	_ *params.ChainConfig,
 	_ common.Hash,
@@ -835,10 +911,11 @@ func (t *stubTasks) ExpectBuildDepositOnlyBlock(
 }
 
 type staticConfigSource struct {
-	rollupCfgs   []*rollup.Config
-	chainConfigs []*params.ChainConfig
-	depset       *depset.StaticConfigDependencySet
-	chainIDs     []eth.ChainID
+	rollupCfgs    []*rollup.Config
+	chainConfigs  []*params.ChainConfig
+	l1ChainConfig *params.ChainConfig
+	depset        *depset.StaticConfigDependencySet
+	chainIDs      []eth.ChainID
 }
 
 func (s *staticConfigSource) RollupConfig(chainID eth.ChainID) (*rollup.Config, error) {
@@ -857,6 +934,10 @@ func (s *staticConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 		}
 	}
 	panic(fmt.Sprintf("no chain config found for chain %d", chainID))
+}
+
+func (s *staticConfigSource) L1ChainConfig(l1ChainID eth.ChainID) (*params.ChainConfig, error) {
+	return s.l1ChainConfig, nil
 }
 
 func (s *staticConfigSource) DependencySet(chainID eth.ChainID) (depset.DependencySet, error) {

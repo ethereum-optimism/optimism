@@ -54,6 +54,7 @@ func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig:     shim.NewCommonConfig(system.T()),
 		ID:               k.id,
 		Client:           rpcCl,
+		UserRPC:          k.userRPC,
 		InteropEndpoint:  k.interopEndpoint,
 		InteropJwtSecret: k.interopJwtSecret,
 	})
@@ -107,7 +108,7 @@ func (k *KonaNode) Start() {
 	k.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &k.userRPC), "need user RPC")
+	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &userRPCAddr), "need user RPC")
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
 }
@@ -142,8 +143,13 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 
 		require := p.Require()
 
+		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		require.True(ok, "l1 network required")
+
 		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
 		require.True(ok, "l2 network required")
+
+		l1ChainConfig := l1Net.genesis.Config
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
@@ -167,22 +173,28 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NoError(err, "must write rollup config")
 		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
 
+		tempL1CfgPath := filepath.Join(tempKonaDir, "l1-chain-config.json")
+		l1CfgData, err := json.Marshal(l1ChainConfig)
+		p.Require().NoError(err, "must write l1 chain config")
+		p.Require().NoError(err, os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
+
 		envVars := []string{
-			"KONA_NODE_L1_ETH_RPC=" + l1EL.userRPC,
+			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
 			// TODO: WS RPC addresses do not work and will make the startup panic with a connection error in the
 			// JWT validation / engine-capabilities setup code-path.
 			"KONA_NODE_L2_ENGINE_RPC=" + strings.ReplaceAll(l2EL.EngineRPC(), "ws://", "http://"),
 			"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
+			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 			"KONA_NODE_P2P_NO_DISCOVERY=true",
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
 			"KONA_NODE_RPC_ADDR=127.0.0.1",
 			"KONA_NODE_RPC_PORT=0",
 			"KONA_NODE_RPC_WS_ENABLED=true",
 			"KONA_METRICS_ENABLED=false",
-			"KONA_NODE_LOG_LEVEL=3", // info level
-			"KONA_NODE_LOG_STDOUT_FORMAT=json",
+			"KONA_LOG_LEVEL=3", // info level
+			"KONA_LOG_STDOUT_FORMAT=json",
 			// p2p ports
 			"KONA_NODE_P2P_LISTEN_IP=127.0.0.1",
 			"KONA_NODE_P2P_LISTEN_TCP_PORT=0",
@@ -197,7 +209,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
 			envVars = append(envVars,
 				"KONA_NODE_P2P_SEQUENCER_KEY="+p2pKeyHex,
-				"KONA_NODE_SEQUENCER_L1_CONFS=0",
+				"KONA_NODE_SEQUENCER_L1_CONFS=2",
 				"KONA_NODE_MODE=Sequencer",
 			)
 		} else {

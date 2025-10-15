@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func TestOperatorFeeDevstack(gt *testing.T) {
+func TestOperatorFee(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	require := t.Require()
@@ -19,14 +19,17 @@ func TestOperatorFeeDevstack(gt *testing.T) {
 	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, rollup.Isthmus)
 	require.NoError(err, "Isthmus fork must be active for this test")
 
-	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
+	fundAmount := eth.OneTenthEther
+	alice := sys.FunderL2.NewFundedEOA(fundAmount)
+
+	alice.WaitForBalance(fundAmount)
 	bob := sys.Wallet.NewEOA(sys.L2EL)
 
 	operatorFee := dsl.NewOperatorFee(t, sys.L2Chain, sys.L1EL)
 
 	operatorFee.CheckCompatibility()
 	systemOwner := operatorFee.GetSystemOwner()
-	sys.FunderL1.FundAtLeast(systemOwner, eth.OneTenthEther)
+	sys.FunderL1.FundAtLeast(systemOwner, fundAmount)
 
 	// First, ensure L2 is synced with current L1 state before starting tests
 	t.Log("Ensuring L2 is synced with current L1 state...")

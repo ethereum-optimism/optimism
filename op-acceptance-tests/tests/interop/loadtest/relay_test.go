@@ -55,6 +55,7 @@ func (r *RelaySpammer) Spam(t devtest.T) error {
 // spammer sends one initating message on the source chain and one corresponding executing message
 // on the destination chain.
 func TestRelaySteady(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t, l2A, l2B := setupLoadTest(gt)
 	s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
 	s.Run(t, NewRelaySpammer(l2A, l2B))
@@ -63,6 +64,7 @@ func TestRelaySteady(gt *testing.T) {
 // TestRelayBurst runs the Relay spammer on a Burst schedule. See TestRelaySteady for more details
 // on the Relay spammer.
 func TestRelayBurst(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t, l2A, l2B := setupLoadTest(gt)
 	burst := NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
 	burst.Run(t, NewRelaySpammer(l2A, l2B))

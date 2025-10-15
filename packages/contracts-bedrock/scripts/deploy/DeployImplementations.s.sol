@@ -15,6 +15,9 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
+import { GameTypes, Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -25,6 +28,7 @@ import {
     IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -36,7 +40,7 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -46,11 +50,17 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
+        bytes32 devFeatureBitmap;
+        // V2 Dispute Game parameters
+        uint256 faultGameV2MaxGameDepth;
+        uint256 faultGameV2SplitDepth;
+        uint256 faultGameV2ClockExtension;
+        uint256 faultGameV2MaxClockDuration;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
-        address upgradeController;
+        address l1ProxyAdminOwner;
         address challenger;
     }
 
@@ -64,6 +74,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
+        IOptimismPortalInterop optimismPortalInteropImpl;
         IETHLockbox ethLockboxImpl;
         IPreimageOracle preimageOracleSingleton;
         IMIPS64 mipsSingleton;
@@ -76,11 +87,19 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
+        IFaultDisputeGameV2 faultDisputeGameV2Impl;
+        IPermissionedDisputeGameV2 permissionedDisputeGameV2Impl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
 
     // -------- Core Deployment Methods --------
+
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
 
     function run(Input memory _input) public returns (Output memory output_) {
         assertValidInput(_input);
@@ -94,12 +113,17 @@ contract DeployImplementations is Script {
         deployL1StandardBridgeImpl(output_);
         deployOptimismMintableERC20FactoryImpl(output_);
         deployOptimismPortalImpl(_input, output_);
+        deployOptimismPortalInteropImpl(_input, output_);
         deployETHLockboxImpl(output_);
         deployDelayedWETHImpl(_input, output_);
         deployPreimageOracleSingleton(_input, output_);
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            deployFaultDisputeGameV2Impl(_input, output_);
+            deployPermissionedDisputeGameV2Impl(_input, output_);
+        }
 
         // Deploy the OP Contracts Manager with the new implementations set.
         deployOPContractsManager(_input, output_);
@@ -124,6 +148,7 @@ contract DeployImplementations is Script {
             protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
             optimismPortalImpl: address(_output.optimismPortalImpl),
+            optimismPortalInteropImpl: address(_output.optimismPortalInteropImpl),
             ethLockboxImpl: address(_output.ethLockboxImpl),
             systemConfigImpl: address(_output.systemConfigImpl),
             optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
@@ -135,7 +160,7 @@ contract DeployImplementations is Script {
             mipsImpl: address(_output.mipsSingleton)
         });
 
-        deployOPCMBPImplsContainer(_output, _blueprints, implementations);
+        deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
         deployOPCMGameTypeAdder(_output);
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
@@ -180,8 +205,7 @@ contract DeployImplementations is Script {
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin,
-                    _input.upgradeController
+                    _input.superchainProxyAdmin
                 )
             )
         );
@@ -350,8 +374,6 @@ contract DeployImplementations is Script {
     // These are:
     // - FaultDisputeGame (not proxied)
     // - PermissionedDisputeGame (not proxied)
-    // - DelayedWeth (proxies only)
-    // - OptimismPortal2 (proxies only)
 
     function deployOptimismPortalImpl(Input memory _input, Output memory _output) private {
         uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
@@ -366,6 +388,21 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OptimismPortalImpl");
         _output.optimismPortalImpl = impl;
+    }
+
+    function deployOptimismPortalInteropImpl(Input memory _input, Output memory _output) private {
+        uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
+        IOptimismPortalInterop impl = IOptimismPortalInterop(
+            DeployUtils.createDeterministic({
+                _name: "OptimismPortalInterop",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOptimismPortalInterop.__constructor__, (proofMaturityDelaySeconds))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OptimismPortalInteropImpl");
+        _output.optimismPortalInteropImpl = impl;
     }
 
     function deployDelayedWETHImpl(Input memory _input, Output memory _output) private {
@@ -446,7 +483,46 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
+    function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameTypes.CANNON;
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
+
+        IFaultDisputeGameV2 impl = IFaultDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "FaultDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "FaultDisputeGameV2Impl");
+        _output.faultDisputeGameV2Impl = impl;
+    }
+
+    function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
+        IFaultDisputeGameV2.GameConstructorParams memory params;
+        params.gameType = GameTypes.PERMISSIONED_CANNON;
+        params.maxGameDepth = _input.faultGameV2MaxGameDepth;
+        params.splitDepth = _input.faultGameV2SplitDepth;
+        params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
+        params.maxClockDuration = Duration.wrap(uint64(_input.faultGameV2MaxClockDuration));
+
+        IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
+            DeployUtils.createDeterministic({
+                _name: "PermissionedDisputeGameV2",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "PermissionedDisputeGameV2Impl");
+        _output.permissionedDisputeGameV2Impl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
+        Input memory _input,
         Output memory _output,
         IOPContractsManager.Blueprints memory _blueprints,
         IOPContractsManager.Implementations memory _implementations
@@ -457,7 +533,10 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerContractsContainer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(
+                        IOPContractsManagerContractsContainer.__constructor__,
+                        (_blueprints, _implementations, _input.devFeatureBitmap)
+                    )
                 ),
                 _salt: _salt
             })
@@ -532,6 +611,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
+        opcmImplementations.optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
         opcmImplementations.ethLockboxImpl = _implementations.ethLockboxImpl;
         opcmImplementations.systemConfigImpl = _implementations.systemConfigImpl;
         opcmImplementations.optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
@@ -551,9 +631,10 @@ contract DeployImplementations is Script {
                         (
                             opcmImplementations,
                             _input.superchainConfigProxy,
-                            _input.upgradeController, // Proxy admin owner
+                            _input.l1ProxyAdminOwner,
                             _input.challenger,
-                            _input.withdrawalDelaySeconds
+                            _input.withdrawalDelaySeconds,
+                            _input.devFeatureBitmap
                         )
                     )
                 ),
@@ -565,6 +646,35 @@ contract DeployImplementations is Script {
     }
 
     function assertValidInput(Input memory _input) private pure {
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Validate V2 game depth parameters are sensible
+            require(
+                _input.faultGameV2MaxGameDepth > 0 && _input.faultGameV2MaxGameDepth <= 125,
+                "DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)"
+            );
+            // V2 contract requires splitDepth >= 2 and splitDepth + 1 < maxGameDepth
+            require(
+                _input.faultGameV2SplitDepth >= 2 && _input.faultGameV2SplitDepth + 1 < _input.faultGameV2MaxGameDepth,
+                "DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth"
+            );
+
+            // Validate V2 clock parameters fit in uint64 before deployment
+            require(
+                _input.faultGameV2ClockExtension <= type(uint64).max,
+                "DeployImplementations: faultGameV2ClockExtension too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration <= type(uint64).max,
+                "DeployImplementations: faultGameV2MaxClockDuration too large for uint64"
+            );
+            require(
+                _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
+                "DeployImplementations: maxClockDuration must be >= clockExtension"
+            );
+            require(
+                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
+            );
+        }
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
@@ -586,10 +696,10 @@ contract DeployImplementations is Script {
         require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
-        require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
+        require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) private view {
+    function assertValidOutput(Input memory _input, Output memory _output) private {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -613,7 +723,27 @@ contract DeployImplementations is Script {
             address(_output.ethLockboxImpl)
         );
 
+        // Only include V2 contracts in validation if they were deployed
+        if (DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            address[] memory v2Addrs = Solarray.addresses(
+                address(_output.faultDisputeGameV2Impl), address(_output.permissionedDisputeGameV2Impl)
+            );
+            addrs2 = Solarray.extend(addrs2, v2Addrs);
+        }
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+
+        // Validate V2 contracts not deployed when flag is disabled
+        if (!DevFeatures.isDevFeatureEnabled(_input.devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            require(
+                address(_output.faultDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but FaultDisputeGameV2 was deployed"
+            );
+            require(
+                address(_output.permissionedDisputeGameV2Impl) == address(0),
+                "DeployImplementations: V2 flag disabled but PermissionedDisputeGameV2 was deployed"
+            );
+        }
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
@@ -649,8 +779,7 @@ contract DeployImplementations is Script {
             _isProxy: false
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
-        // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
-        ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }

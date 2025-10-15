@@ -74,9 +74,6 @@ type Metadata interface {
 // Toggles here are temporary and should be removed once the newer state version is deployed widely. The older
 // version can then be supported via multicannon pulling in a specific build and support for it dropped in latest code.
 type FeatureToggles struct {
-	SupportMinimalSysEventFd2  bool
-	SupportDclzDclo            bool
-	SupportNoopMprotect        bool
 	SupportWorkingSysGetRandom bool
 }
 

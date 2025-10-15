@@ -369,7 +369,7 @@ type System struct {
 	Cfg SystemConfig
 
 	RollupConfig *rollup.Config
-
+	L1GenesisCfg *core.Genesis
 	L2GenesisCfg *core.Genesis
 
 	// Connections to running nodes
@@ -482,6 +482,10 @@ func (sys *System) RollupCfg() *rollup.Config {
 
 func (sys *System) RollupCfgs() []*rollup.Config {
 	return []*rollup.Config{sys.RollupConfig}
+}
+
+func (sys *System) L1Genesis() *core.Genesis {
+	return sys.L1GenesisCfg
 }
 
 func (sys *System) L2Genesis() *core.Genesis {
@@ -638,6 +642,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	if err != nil {
 		return nil, err
 	}
+
+	sys.L1GenesisCfg = l1Genesis
 
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l1Genesis.Alloc[addr]; ok {
@@ -899,6 +905,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			return nil, err
 		}
 		c.AltDA = altDACLIConfig
+		c.L1ChainConfig = l1Genesis.Config
+
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
 

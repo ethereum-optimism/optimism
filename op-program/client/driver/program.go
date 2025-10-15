@@ -13,6 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+type EngineController interface {
+	RequestPendingSafeUpdate(context.Context)
+}
+
 // ProgramDeriver expresses how engine and derivation events are
 // translated and monitored to execute the pure L1 to L2 state transition.
 //
@@ -21,6 +25,8 @@ type ProgramDeriver struct {
 	logger log.Logger
 
 	Emitter event.Emitter
+
+	engineController EngineController
 
 	closing        bool
 	result         eth.L2BlockRef
@@ -42,11 +48,11 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.Emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 		// After initial reset we can request the pending-safe block,
 		// where attributes will be generated on top of.
-		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		d.engineController.RequestPendingSafeUpdate(ctx)
 	case engine.PendingSafeUpdateEvent:
 		d.Emitter.Emit(ctx, derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
 	case derive.DeriverMoreEvent:
-		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		d.engineController.RequestPendingSafeUpdate(ctx)
 	case derive.DerivedAttributesEvent:
 		// Allow new attributes to be generated.
 		// We will process the current attributes synchronously,
@@ -59,7 +65,7 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.
-		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		d.engineController.RequestPendingSafeUpdate(ctx)
 	case engine.ForkchoiceUpdateEvent:
 		// Track latest head.
 		if x.SafeL2Head.Number >= d.result.Number {
@@ -94,7 +100,7 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// (Legacy case): While most temporary errors are due to requests for external data failing which can't happen,
 		// they may also be returned due to other events like channels timing out so need to be handled
 		d.logger.Warn("Temporary error in derivation", "err", x.Err)
-		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		d.engineController.RequestPendingSafeUpdate(ctx)
 	case rollup.CriticalErrorEvent:
 		d.closing = true
 		d.resultError = x.Err

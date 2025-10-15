@@ -270,6 +270,97 @@ type ExecutionPayload struct {
 	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot,omitempty"`
 }
 
+func (p *ExecutionPayload) CheckEqual(o *ExecutionPayload) error {
+	if p == nil || o == nil {
+		if p == o {
+			return nil
+		}
+		return fmt.Errorf("one of the payloads is nil: p=%v, o=%v", p, o)
+	}
+	if p.ParentHash != o.ParentHash {
+		return fmt.Errorf("ParentHash mismatch: %v != %v", p.ParentHash, o.ParentHash)
+	}
+	if p.FeeRecipient != o.FeeRecipient {
+		return fmt.Errorf("FeeRecipient mismatch: %v != %v", p.FeeRecipient, o.FeeRecipient)
+	}
+	if p.StateRoot != o.StateRoot {
+		return fmt.Errorf("StateRoot mismatch: %v != %v", p.StateRoot, o.StateRoot)
+	}
+	if p.ReceiptsRoot != o.ReceiptsRoot {
+		return fmt.Errorf("ReceiptsRoot mismatch: %v != %v", p.ReceiptsRoot, o.ReceiptsRoot)
+	}
+	if p.LogsBloom != o.LogsBloom {
+		return fmt.Errorf("LogsBloom mismatch")
+	}
+	if p.PrevRandao != o.PrevRandao {
+		return fmt.Errorf("PrevRandao mismatch: %v != %v", p.PrevRandao, o.PrevRandao)
+	}
+	if p.BlockNumber != o.BlockNumber {
+		return fmt.Errorf("BlockNumber mismatch: %v != %v", p.BlockNumber, o.BlockNumber)
+	}
+	if p.GasLimit != o.GasLimit {
+		return fmt.Errorf("GasLimit mismatch: %v != %v", p.GasLimit, o.GasLimit)
+	}
+	if p.GasUsed != o.GasUsed {
+		return fmt.Errorf("GasUsed mismatch: %v != %v", p.GasUsed, o.GasUsed)
+	}
+	if p.Timestamp != o.Timestamp {
+		return fmt.Errorf("timestamp mismatch: %v != %v", p.Timestamp, o.Timestamp)
+	}
+	if p.BaseFeePerGas != o.BaseFeePerGas {
+		return fmt.Errorf("BaseFeePerGas mismatch: %v != %v", p.BaseFeePerGas, o.BaseFeePerGas)
+	}
+	if p.BlockHash != o.BlockHash {
+		return fmt.Errorf("BlockHash mismatch: %v != %v", p.BlockHash, o.BlockHash)
+	}
+	if !bytes.Equal(p.ExtraData, o.ExtraData) {
+		return fmt.Errorf("ExtraData mismatch")
+	}
+	if len(p.Transactions) != len(o.Transactions) {
+		return fmt.Errorf("transactions length mismatch: %d != %d", len(p.Transactions), len(o.Transactions))
+	}
+	for i := range p.Transactions {
+		if !bytes.Equal(p.Transactions[i], o.Transactions[i]) {
+			return fmt.Errorf("transaction[%d] mismatch", i)
+		}
+	}
+	if (p.Withdrawals == nil) != (o.Withdrawals == nil) {
+		return fmt.Errorf("withdrawals nil mismatch: %v != %v", p.Withdrawals == nil, o.Withdrawals == nil)
+	}
+	if p.Withdrawals != nil {
+		if p.Withdrawals.Len() != o.Withdrawals.Len() {
+			return fmt.Errorf("withdrawals length mismatch: %d != %d", p.Withdrawals.Len(), o.Withdrawals.Len())
+		}
+		for i := range p.Withdrawals.Len() {
+			if ((*p.Withdrawals)[i] == nil) != ((*o.Withdrawals)[i] == nil) {
+				return fmt.Errorf("withdrawals[%d] nil mismatch", i)
+			}
+			if (*p.Withdrawals)[i] != nil && *(*p.Withdrawals)[i] != *(*o.Withdrawals)[i] {
+				return fmt.Errorf("withdrawals[%d] mismatch", i)
+			}
+		}
+	}
+	if (p.BlobGasUsed == nil) != (o.BlobGasUsed == nil) {
+		return fmt.Errorf("BlobGasUsed nil mismatch")
+	}
+	if p.BlobGasUsed != nil && *p.BlobGasUsed != *o.BlobGasUsed {
+		return fmt.Errorf("BlobGasUsed mismatch: %v != %v", *p.BlobGasUsed, *o.BlobGasUsed)
+	}
+	if (p.ExcessBlobGas == nil) != (o.ExcessBlobGas == nil) {
+		return fmt.Errorf("ExcessBlobGas nil mismatch")
+	}
+	if p.ExcessBlobGas != nil && *p.ExcessBlobGas != *o.ExcessBlobGas {
+		return fmt.Errorf("ExcessBlobGas mismatch: %v != %v", *p.ExcessBlobGas, *o.ExcessBlobGas)
+	}
+	if (p.WithdrawalsRoot == nil) != (o.WithdrawalsRoot == nil) {
+		return fmt.Errorf("WithdrawalsRoot nil mismatch")
+	}
+	if p.WithdrawalsRoot != nil && *p.WithdrawalsRoot != *o.WithdrawalsRoot {
+		return fmt.Errorf("WithdrawalsRoot mismatch: %v != %v", *p.WithdrawalsRoot, *o.WithdrawalsRoot)
+	}
+	return nil
+}
+
 func (payload *ExecutionPayload) ID() BlockID {
 	return BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
 }
@@ -344,6 +435,9 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
+// BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
+// OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
+// WithdrawalsRoot fields.
 func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
@@ -381,11 +475,11 @@ func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayl
 		// WithdrawalsRoot is only set starting at Isthmus
 	}
 
-	if config.ShanghaiTime != nil && uint64(payload.Timestamp) >= *config.ShanghaiTime {
+	if config.IsCanyon(uint64(payload.Timestamp)) {
 		payload.Withdrawals = &types.Withdrawals{}
 	}
 
-	if config.IsthmusTime != nil && uint64(payload.Timestamp) >= *config.IsthmusTime {
+	if config.IsIsthmus(uint64(payload.Timestamp)) {
 		payload.WithdrawalsRoot = bl.Header().WithdrawalsHash
 	}
 
@@ -425,6 +519,8 @@ type PayloadAttributes struct {
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
 	// EIP-1559 parameters, to be specified only post-Holocene
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
+	// MinBaseFee is the minimum base fee, to be specified only post-Jovian
+	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit
@@ -517,6 +613,8 @@ type SystemConfig struct {
 	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
+	// MinBaseFee identifies the minimum base fee.
+	MinBaseFee uint64 `json:"minBaseFee"`
 	// More fields can be added for future SystemConfig versions.
 
 	// MarshalPreHolocene indicates whether or not this struct should be

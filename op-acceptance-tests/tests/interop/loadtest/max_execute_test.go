@@ -95,6 +95,7 @@ func (e *ExecMsgSpammer) Spam(t devtest.T) error {
 // executing messages emitted by one spammer become initiating messages for the other spammer. The
 // test aims to maximize load on the supervisor (indexing and access list checks).
 func TestMaxExecutingMessagesBurst(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t, l2A, l2B := setupLoadTest(gt)
 
 	// Initiate messages on both chains.

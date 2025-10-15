@@ -29,9 +29,13 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-This document provides guidance on how we organize and write our smart contracts. For cases where
-this document does not provide guidance, please refer to existing contracts for guidance,
-with priority on the `L2OutputOracle` and `OptimismPortal`.
+This document provides guidance on how we organize and write our smart contracts.
+
+Notes:
+1. There are many cases where the code is not up to date with this guide, when in doubt, this guide
+   should take precedence.
+2. For cases where this document does not provide guidance, please refer to existing contracts,
+   with priority on the `SystemConfig` and `OptimismPortal`.
 
 ## Standards and Conventions
 
@@ -57,23 +61,89 @@ We also have the following custom tags:
 
 #### Errors
 
-- Use `require` statements when making simple assertions.
-- Use `revert(string)` if throwing an error where an assertion is not being made (no custom errors).
-  See [here](https://github.com/ethereum-optimism/optimism/blob/861ae315a6db698a8c0adb1f8eab8311fd96be4c/packages/contracts-bedrock/contracts/L2/OVM_ETH.sol#L31)
-  for an example of this in practice.
-- Error strings MUST have the format `"{ContractName}: {message}"` where `message` is a lower case string.
+- Prefer custom Solidity errors for all new errors.
+- Name custom errors using `ContractName_ErrorDescription`.
+- Use `revert ContractName_ErrorDescription()` to revert.
+- Avoid `revert(string)` and string-typed error messages in new code.
+
+Example:
+
+```solidity
+// ✅ Correct - Custom errors with contract-prefixed names
+contract SystemConfig {
+    error SystemConfig_InvalidFeatureState();
+    error SystemConfig_UnauthorizedCaller(address caller);
+
+    address internal owner;
+
+    function setFeature(bool _enabled) external {
+        if (msg.sender != owner) revert SystemConfig_UnauthorizedCaller(msg.sender);
+        if (!_enabled) revert SystemConfig_InvalidFeatureState();
+        // ...
+    }
+}
+
+// ❌ Incorrect - string-based reverts and contract-prefixed strings
+function bad(uint256 _amount) external {
+    require(_amount > 0, "MyContract: amount must be > 0"); // Prefer custom error
+    revert("MyContract: unsupported"); // Avoid string reverts
+}
+```
 
 #### Function Parameters
 
 - Function parameters should be prefixed with an underscore.
 
+Example:
+
+```solidity
+// ✅ Correct - parameters are prefixed with underscore
+function setOwner(address _newOwner) external {
+    // ...
+}
+
+// ❌ Incorrect - parameters without underscore prefix
+function setOwner(address newOwner) external {
+    // ...
+}
+```
+
 #### Function Return Arguments
 
 - Arguments returned by functions should be suffixed with an underscore.
 
+Example:
+
+```solidity
+// ✅ Correct - return variable is suffixed with underscore
+function balanceOf(address _account) public view returns (uint256 balance_) {
+    balance_ = balances[_account];
+}
+
+// ❌ Incorrect - return variable without underscore suffix
+function balanceOf(address _account) public view returns (uint256 balance) {
+    balance = balances[_account];
+}
+```
+
 #### Event Parameters
 
+- Event parameters should be named using camelCase.
 - Event parameters should NOT be prefixed with an underscore.
+
+Example:
+
+```solidity
+// ✅ Correct - event params are not prefixed with underscore
+event OwnerChanged(address previousOwner, address newOwner);
+
+// ❌ Incorrect - event params prefixed with underscore
+event OwnerChanged(address _previousOwner, address _newOwner);
+
+// ❌ Incorrect - event params are not camelCase or are unnamed
+event OwnerChanged(address, address NEW_OWNER);
+
+```
 
 #### Immutable variables
 
@@ -87,6 +157,30 @@ This approach clearly indicates to the developer that the value is immutable, wi
 the non-standard casing to the interface. It also ensures that we don’t need to break the ABIs if
 we switch between values being in storage and immutable.
 
+Example:
+
+```solidity
+contract ExampleWithImmutable {
+    // ❌ Incorrect - immutable is not SCREAMING_SNAKE_CASE
+    address internal immutable ownerAddress;
+
+    // ❌ Incorrect - immutable is public
+    address public immutable ownerAddress;
+
+    // ✅ Correct - immutable is internal and SCREAMING_SNAKE_CASE
+    address internal immutable OWNER_ADDRESS;
+
+    constructor(address _owner) {
+        OWNER_ADDRESS = _owner;
+    }
+
+    // ✅ Handwritten getter
+    function ownerAddress() public view returns (address) {
+        return OWNER_ADDRESS;
+    }
+}
+```
+
 #### Spacers
 
 We use spacer variables to account for old storage slots that are no longer being used.
@@ -94,6 +188,21 @@ The name of a spacer variable MUST be in the format `spacer_<slot>_<offset>_<len
 `<slot>` is the original storage slot number, `<offset>` is the original offset position
 within the storage slot, and `<length>` is the original size of the variable.
 Spacers MUST be `private`.
+
+Example:
+
+```solidity
+contract ExampleStorageV2 {
+    // ✅ Correct - spacer preserves old storage layout
+    bytes32 private spacer_5_0_32;
+    uint256 public value;
+}
+
+// ❌ Incorrect - wrong visibility and/or naming
+contract BadStorageLayout {
+    bytes32 internal spacer5;
+}
+```
 
 ### Proxy by Default
 
@@ -146,6 +255,41 @@ patch increment should be used.
 
 Where basic functionality is already supported by an existing contract in the OpenZeppelin library,
 we should default to using the Upgradeable version of that contract.
+
+### Interface Inheritance
+
+In order to reduce build times, all external dependencies (ie. a contract that is being interacted with)
+should be imported as interfaces. In order to facilitate this, implementation contracts must have an
+associated interface in the `interfaces/` directory of the contracts package. Checks in CI
+will ensure that the interface exists and is correct. These interfaces should include a
+"pseudo-constructor" function (`function __constructor__()`) which ensures that the constructor's
+encoding is exposed in the ABI.
+
+Contracts must not inherit from their own interfaces (e.g., `contract SomeContract is ISomeContract`).
+Interfaces may or may not inherit from other interfaces to compose functionality.
+
+**Rationale:**
+
+- **Alignment Issues**: If a contracts inherits from a base contracts (like `Ownable`), it cannot inherit from the interface as well, as this prevents 1:1 alignment between the implementation and interface, since the interface cannot include the base contract functions (ie. `owner()`) without causing compiler errors.
+- **Constructor Complications**: Interface inheritance can cause issues with pseudo-constructors.
+
+**Example:**
+
+```solidity
+// ✅ Correct - contract inherits from base contracts, interface composes other interfaces
+contract SomeContract is SomeBaseContract, ... {
+    // Implementation
+}
+
+interface ISomeContract is ISomeBaseContract {
+    // Interface definition
+}
+
+// ❌ Incorrect - contract inheriting from its own interface
+contract SomeContract is ISomeContract, ... {
+    // This creates alignment and compilation issues
+}
+```
 
 ### Source Code
 

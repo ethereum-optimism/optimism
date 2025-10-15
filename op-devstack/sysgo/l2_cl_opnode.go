@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"sync"
 	"time"
 
@@ -47,7 +48,7 @@ type OpNode struct {
 	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
-	el               stack.L2ELNodeID
+	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 }
@@ -64,13 +65,16 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig:     shim.NewCommonConfig(system.T()),
 		ID:               n.id,
 		Client:           rpcCl,
+		UserRPC:          n.userRPC,
 		InteropEndpoint:  n.interopEndpoint,
 		InteropJwtSecret: n.interopJwtSecret,
 	})
 	sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
-	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+	if n.el != nil {
+		sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+	}
 }
 
 func (n *OpNode) UserRPC() string {
@@ -143,6 +147,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 		require := p.Require()
 
+		l1Net, ok := orch.l1Nets.Get(l1CLID.ChainID())
+		require.True(ok, "l1 network required")
+
 		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
 		require.True(ok, "l2 network required")
 
@@ -152,8 +159,15 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
+		// Get the L2EL node (which can be a regular EL node or a SyncTesterEL)
 		l2EL, ok := orch.l2ELs.Get(l2ELID)
 		require.True(ok, "l2 EL node required")
+
+		// Get dependency set from cluster if available
+		var depSet depset.DependencySet
+		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
+			depSet = cluster.DepSet()
+		}
 
 		cfg := DefaultL2CLConfig()
 		orch.l2CLOptions.Apply(p, l2CLID, cfg)       // apply global options
@@ -166,11 +180,6 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
-		}
-
-		var depSet depset.DependencySet
-		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
-			depSet = cluster.DepSet()
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -232,9 +241,15 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 		}
 
+		// Set the req-resp sync flag as per config
+		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
+
+		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
+		l2EngineAddr := l2EL.EngineRPC()
+
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
-				L1NodeAddr:       l1EL.userRPC,
+				L1NodeAddr:       l1EL.UserRPC(),
 				L1TrustRPC:       false,
 				L1RPCKind:        sources.RPCKindDebugGeth,
 				RateLimit:        0,
@@ -243,12 +258,13 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				MaxConcurrency:   10,
 				CacheSize:        0, // auto-adjust to sequence window
 			},
+			L1ChainConfig: l1Net.genesis.Config,
 			L2: &config.L2EndpointConfig{
-				L2EngineAddr:      l2EL.EngineRPC(),
+				L2EngineAddr:      l2EngineAddr,
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{
-				BeaconAddr: l1CL.beacon.BeaconAddr(),
+				BeaconAddr: l1CL.beaconHTTPAddr,
 			},
 			Driver: driver.Config{
 				SequencerEnabled:   cfg.IsSequencer,
@@ -296,9 +312,11 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      p,
-			el:     l2ELID,
 		}
-		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
+
+		// Set the EL field to link to the L2EL node
+		l2CLNode.el = &l2ELID
+		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), fmt.Sprintf("must not already exist: %s", l2CLID))
 		l2CLNode.Start()
 		p.Cleanup(l2CLNode.Stop)
 	})

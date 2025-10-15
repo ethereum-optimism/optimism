@@ -62,8 +62,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "7701807"
-export mainnetBlockNumber := "21983965"
+export sepoliaBlockNumber := "9118951"
+export mainnetBlockNumber := "23327678"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -88,8 +88,9 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
+  export FORK_RETRIES=10
+  export FORK_BACKOFF=1000
   export FORK_TEST=true
-  export USE_MT_CANNON=true
   {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
@@ -273,6 +274,13 @@ unused-imports-check-no-build:
 # Checks for unused imports in Solidity contracts.
 unused-imports-check: build unused-imports-check-no-build
 
+# Checks that the semver of contracts are valid. Does not build contracts.
+valid-semver-check-no-build:
+  go run ./scripts/checks/valid-semver-check/main.go
+
+# Checks that the semver of contracts are valid.
+valid-semver-check: build valid-semver-check-no-build
+
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh
@@ -298,16 +306,14 @@ semgrep:
 semgrep-test:
   cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Checks that the frozen code has not been modified.
-check-frozen-code:
-  ./scripts/checks/check-frozen-files.sh
-
 # Runs all checks.
 check:
   @just semgrep-test-validity-check \
+  semgrep \
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
+  valid-semver-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \

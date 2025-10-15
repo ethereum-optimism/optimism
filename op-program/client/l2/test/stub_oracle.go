@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"testing"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -104,8 +105,9 @@ func (o StubBlockOracle) ReceiptsByBlockHash(blockHash common.Hash, chainID eth.
 
 // KvStateOracle loads data from a source ethdb.KeyValueStore
 type KvStateOracle struct {
-	T      *testing.T
-	Source ethdb.KeyValueStore
+	T          *testing.T
+	Source     ethdb.KeyValueStore
+	StubHinter l2Types.OracleHinter
 }
 
 func NewKvStateOracle(t *testing.T, db ethdb.KeyValueStore) *KvStateOracle {
@@ -125,6 +127,10 @@ func (o *KvStateOracle) NodeByHash(nodeHash common.Hash, chainID eth.ChainID) []
 
 func (o *KvStateOracle) CodeByHash(hash common.Hash, chainID eth.ChainID) []byte {
 	return rawdb.ReadCode(o.Source, hash)
+}
+
+func (o *KvStateOracle) Hinter() l2Types.OracleHinter {
+	return o.StubHinter
 }
 
 func NewStubStateOracle(t *testing.T) *StubStateOracle {
@@ -158,6 +164,10 @@ func (o *StubStateOracle) CodeByHash(hash common.Hash, chainID eth.ChainID) []by
 	return data
 }
 
+func (o *StubStateOracle) Hinter() l2Types.OracleHinter {
+	return nil
+}
+
 type StubPrecompileOracle struct {
 	t       *testing.T
 	Results map[common.Hash]PrecompileResult
@@ -183,3 +193,13 @@ func (o *StubPrecompileOracle) Precompile(address common.Address, input []byte, 
 	o.Calls++
 	return result.Result, result.Ok
 }
+
+type CapturingHinter struct {
+	Hints []preimage.Hint
+}
+
+func (c *CapturingHinter) Hint(v preimage.Hint) {
+	c.Hints = append(c.Hints, v)
+}
+
+var _ preimage.Hinter = (*CapturingHinter)(nil)

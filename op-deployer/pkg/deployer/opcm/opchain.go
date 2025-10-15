@@ -2,10 +2,10 @@ package opcm
 
 import (
 	_ "embed"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -35,22 +35,14 @@ type DeployOPChainInput struct {
 
 	DisputeGameType              uint32
 	DisputeAbsolutePrestate      common.Hash
-	DisputeMaxGameDepth          uint64
-	DisputeSplitDepth            uint64
+	DisputeMaxGameDepth          *big.Int
+	DisputeSplitDepth            *big.Int
 	DisputeClockExtension        uint64
 	DisputeMaxClockDuration      uint64
 	AllowCustomDisputeParameters bool
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64
-}
-
-func (input *DeployOPChainInput) InputSet() bool {
-	return true
-}
-
-func (input *DeployOPChainInput) StartingAnchorRoot() []byte {
-	return PermissionedGameStartingAnchorRoot
 }
 
 type DeployOPChainOutput struct {
@@ -63,7 +55,7 @@ type DeployOPChainOutput struct {
 	L1CrossDomainMessengerProxy       common.Address
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
-	ETHLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
+	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
 	FaultDisputeGame                   common.Address
@@ -72,28 +64,40 @@ type DeployOPChainOutput struct {
 	DelayedWETHPermissionlessGameProxy common.Address
 }
 
-func (output *DeployOPChainOutput) CheckOutput(input common.Address) error {
-	return nil
+type DeployOPChainScript script.DeployScriptWithOutput[DeployOPChainInput, DeployOPChainOutput]
+
+// NewDeployOPChainScript loads and validates the DeployOPChain script contract
+func NewDeployOPChainScript(host *script.Host) (DeployOPChainScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployOPChainInput, DeployOPChainOutput](host, "DeployOPChain.s.sol", "DeployOPChain")
 }
 
-type DeployOPChainScript struct {
-	Run func(input, output common.Address) error
-}
-
-func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOutput, error) {
-	return RunScriptSingle[DeployOPChainInput, DeployOPChainOutput](host, input, "DeployOPChain.s.sol", "DeployOPChain")
+func NewDeployOPChainForgeCaller(client *forge.Client) forge.ScriptCaller[DeployOPChainInput, DeployOPChainOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/DeployOPChain.s.sol:DeployOPChain",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[DeployOPChainInput]{TypeName: "DeployOPChainInput"},
+		&forge.BytesScriptDecoder[DeployOPChainOutput]{TypeName: "DeployOPChainOutput"},
+	)
 }
 
 type ReadImplementationAddressesInput struct {
-	DeployOPChainOutput
-	Opcm    common.Address
-	Release string
+	AddressManager                    common.Address
+	L1ERC721BridgeProxy               common.Address
+	SystemConfigProxy                 common.Address
+	OptimismMintableERC20FactoryProxy common.Address
+	L1StandardBridgeProxy             common.Address
+	OptimismPortalProxy               common.Address
+	DisputeGameFactoryProxy           common.Address
+	DelayedWETHPermissionedGameProxy  common.Address
+	Opcm                              common.Address
 }
 
 type ReadImplementationAddressesOutput struct {
 	DelayedWETH                  common.Address
 	OptimismPortal               common.Address
-	ETHLockbox                   common.Address `evm:"ethLockbox"`
+	OptimismPortalInterop        common.Address
+	EthLockbox                   common.Address `evm:"ethLockbox"`
 	SystemConfig                 common.Address
 	L1CrossDomainMessenger       common.Address
 	L1ERC721Bridge               common.Address
@@ -104,39 +108,19 @@ type ReadImplementationAddressesOutput struct {
 	PreimageOracleSingleton      common.Address
 }
 
-type ReadImplementationAddressesScript struct {
-	Run func(input, output common.Address) error
+type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
+
+// NewReadImplementationAddressesScript loads and validates the ReadImplementationAddresses script contract
+func NewReadImplementationAddressesScript(host *script.Host) (ReadImplementationAddressesScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[ReadImplementationAddressesInput, ReadImplementationAddressesOutput](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
 }
 
-func ReadImplementationAddresses(host *script.Host, input ReadImplementationAddressesInput) (ReadImplementationAddressesOutput, error) {
-	var rio ReadImplementationAddressesOutput
-	inputAddr := host.NewScriptAddress()
-	outputAddr := host.NewScriptAddress()
-
-	cleanupInput, err := script.WithPrecompileAtAddress[*ReadImplementationAddressesInput](host, inputAddr, &input)
-	if err != nil {
-		return rio, fmt.Errorf("failed to insert ReadImplementationAddressesInput precompile: %w", err)
-	}
-	defer cleanupInput()
-	host.Label(inputAddr, "ReadImplementationAddressesInput")
-
-	cleanupOutput, err := script.WithPrecompileAtAddress[*ReadImplementationAddressesOutput](host, outputAddr, &rio,
-		script.WithFieldSetter[*ReadImplementationAddressesOutput])
-	if err != nil {
-		return rio, fmt.Errorf("failed to insert ReadImplementationAddressesOutput precompile: %w", err)
-	}
-	defer cleanupOutput()
-	host.Label(outputAddr, "ReadImplementationAddressesOutput")
-
-	deployScript, cleanupDeploy, err := script.WithScript[ReadImplementationAddressesScript](host, "ReadImplementationAddresses.s.sol", "ReadImplementationAddresses")
-	if err != nil {
-		return rio, fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
-	}
-	defer cleanupDeploy()
-
-	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
-		return rio, fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
-	}
-
-	return rio, nil
+func NewReadImplementationAddressesForgeCaller(client *forge.Client) forge.ScriptCaller[ReadImplementationAddressesInput, ReadImplementationAddressesOutput] {
+	return forge.NewScriptCaller(
+		client,
+		"scripts/deploy/ReadImplementationAddresses.s.sol:ReadImplementationAddresses",
+		"runWithBytes(bytes)",
+		&forge.BytesScriptEncoder[ReadImplementationAddressesInput]{TypeName: "ReadImplementationAddressesInput"},
+		&forge.BytesScriptDecoder[ReadImplementationAddressesOutput]{TypeName: "ReadImplementationAddressesOutput"},
+	)
 }

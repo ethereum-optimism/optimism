@@ -110,6 +110,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/test
         - packages/contracts-bedrock/scripts
+        - ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -319,6 +320,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/src/L1/OPContractsManager.sol
         - packages/contracts-bedrock/src/L1/OptimismPortal2.sol
+        - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
         - packages/contracts-bedrock/src/L2/FeeVault.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
@@ -327,7 +329,9 @@ rules:
         - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
         - packages/contracts-bedrock/src/dispute/DelayedWETH.sol
         - packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/v2/FaultDisputeGameV2.sol
         - packages/contracts-bedrock/src/dispute/PermissionedDisputeGame.sol
+        - packages/contracts-bedrock/src/dispute/v2/PermissionedDisputeGameV2.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/governance/MintManager.sol
@@ -362,3 +366,20 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/scripts/libraries/Config.sol
+
+  - id: sol-style-event-param-fmt
+    languages: [solidity]
+    severity: ERROR
+    message: Event parameters must be named using camelCase and must not be prefixed with underscore
+    pattern-either:
+      # Match parameters with underscore prefix
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?_\w+
+      # Match unnamed parameters (type with optional indexed but no parameter name before comma or closing paren)
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\b(?:\s+indexed)?\s*[,)]
+      # Match parameters that are all uppercase (like NEW_OWNER)
+      - pattern-regex: event\s+\w+\s*\([^)]*\b(?:address|uint\d*|int\d*|bytes\d*|bool|string)\s+(?:indexed\s+)?[A-Z][A-Z0-9_]*\s*[,)]
+    paths:
+      exclude:
+        # LegacyMintableERC20 and the corresponding interface use legacy naming conventions.
+        - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
+        - packages/contracts-bedrock/interfaces/legacy/ILegacyMintableERC20Full.sol

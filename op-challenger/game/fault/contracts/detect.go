@@ -31,12 +31,14 @@ func DetectGameType(ctx context.Context, addr common.Address, caller *batching.M
 	switch gameType {
 	case faultTypes.CannonGameType,
 		faultTypes.PermissionedGameType,
+		faultTypes.CannonKonaGameType,
 		faultTypes.AsteriscGameType,
 		faultTypes.AlphabetGameType,
 		faultTypes.FastGameType,
 		faultTypes.AsteriscKonaGameType,
 		faultTypes.SuperCannonGameType,
 		faultTypes.SuperPermissionedGameType,
+		faultTypes.SuperCannonKonaGameType,
 		faultTypes.SuperAsteriscKonaGameType:
 		return gameType, nil
 	default:

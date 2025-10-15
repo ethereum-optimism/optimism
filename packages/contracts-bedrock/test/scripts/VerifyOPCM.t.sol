@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Foundry
-import { VmSafe } from "forge-std/Vm.sol";
-
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -71,13 +68,6 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
     }
-
-    /// @notice Skips if running in coverage mode.
-    function skipIfCoverage() public {
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            vm.skip(true);
-        }
-    }
 }
 
 /// @title VerifyOPCM_Run_Test
@@ -94,6 +84,29 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Run the script.
+        harness.run(address(opcm), true);
+    }
+
+    function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Anything but zero!
+        _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
+
+        // Mock opcm to return a non-zero dev feature bitmap.
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.devFeatureBitmap, ()), abi.encode(_devFeatureBitmap)
+        );
+
+        // Set the chain ID to 1.
+        vm.chainId(1);
+
+        // Disable testing environment.
+        vm.etch(address(0xbeefcafe), bytes(""));
+
+        // Run the script.
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_DevFeatureBitmapNotEmpty.selector);
         harness.run(address(opcm), true);
     }
 
@@ -406,18 +419,15 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         address expectedSuperchainConfig = address(0x1111);
         address expectedProtocolVersions = address(0x2222);
         address expectedSuperchainProxyAdmin = address(0x3333);
-        address expectedUpgradeController = address(0x4444);
 
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(expectedUpgradeController));
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
         _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
         _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
-        _assertOnOpcmGetter(IOPContractsManager.upgradeController.selector);
 
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();

@@ -8,13 +8,13 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
@@ -24,16 +24,16 @@ import (
 var ErrUnsupportedArtifactsScheme = errors.New("unsupported artifacts URL scheme")
 
 type Downloader interface {
-	Download(ctx context.Context, url string, progress DownloadProgressor, targetDir string) (string, error)
+	Download(ctx context.Context, url string, progress ioutil.Progressor, targetDir string) (string, error)
 }
 
 type Extractor interface {
 	Extract(src string, dest string) (string, error)
 }
 
-func Download(ctx context.Context, loc *Locator, progressor DownloadProgressor, targetDir string) (foundry.StatDirFs, error) {
+func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, targetDir string) (foundry.StatDirFs, error) {
 	if progressor == nil {
-		progressor = NoopProgressor()
+		progressor = ioutil.NoopProgressor()
 	}
 
 	var err error
@@ -60,7 +60,7 @@ func Download(ctx context.Context, loc *Locator, progressor DownloadProgressor, 
 	return artifactsFS.(foundry.StatDirFs), nil
 }
 
-func downloadHTTP(ctx context.Context, u *url.URL, progressor DownloadProgressor, checker integrityChecker, targetDir string) (fs.FS, error) {
+func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor, checker integrityChecker, targetDir string) (fs.FS, error) {
 	cacher := &CachingDownloader{
 		d: new(HTTPDownloader),
 	}
@@ -84,21 +84,7 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor DownloadProgressor
 
 type HTTPDownloader struct{}
 
-func (d *HTTPDownloader) Download(ctx context.Context, url string, progress DownloadProgressor, targetDir string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to download artifacts: %w", err)
-	}
-	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to download artifacts: invalid status code %s", res.Status)
-	}
-	defer res.Body.Close()
-
+func (d *HTTPDownloader) Download(ctx context.Context, url string, progress ioutil.Progressor, targetDir string) (string, error) {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to ensure cache directory '%s': %w", targetDir, err)
 	}
@@ -106,16 +92,12 @@ func (d *HTTPDownloader) Download(ctx context.Context, url string, progress Down
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-
-	pr := &progressReader{
-		r:        res.Body,
-		progress: progress,
-		total:    res.ContentLength,
+	downloader := &httputil.Downloader{
+		Progressor: progress,
 	}
-	if _, err := io.Copy(tmpFile, pr); err != nil {
-		return "", fmt.Errorf("failed to write to temporary file: %w", err)
+	if err := downloader.Download(ctx, url, tmpFile); err != nil {
+		return "", fmt.Errorf("failed to download: %w", err)
 	}
-
 	return tmpFile.Name(), nil
 }
 
@@ -124,7 +106,7 @@ type CachingDownloader struct {
 	mtx sync.Mutex
 }
 
-func (d *CachingDownloader) Download(ctx context.Context, url string, progress DownloadProgressor, targetDir string) (string, error) {
+func (d *CachingDownloader) Download(ctx context.Context, url string, progress ioutil.Progressor, targetDir string) (string, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 

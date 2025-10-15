@@ -3,12 +3,15 @@ package rollup
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -64,6 +67,7 @@ func TestConfigJSON(t *testing.T) {
 type mockL1Client struct {
 	chainID *big.Int
 	Hash    common.Hash
+	err     error
 }
 
 func (m *mockL1Client) ChainID(context.Context) (*big.Int, error) {
@@ -71,6 +75,9 @@ func (m *mockL1Client) ChainID(context.Context) (*big.Int, error) {
 }
 
 func (m *mockL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
+	if m.err != nil {
+		return eth.L1BlockRef{}, m.err
+	}
 	return eth.L1BlockRef{
 		Hash:   m.Hash,
 		Number: 100,
@@ -83,7 +90,7 @@ func TestValidateL1Config(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	err := config.ValidateL1Config(context.TODO(), testlog.Logger(t, log.LvlInfo), &mockClient)
 	assert.NoError(t, err)
 }
 
@@ -93,10 +100,11 @@ func TestValidateL1ConfigInvalidChainIdFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	logger := testlog.Logger(t, log.LvlInfo)
+	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.L1ChainID = big.NewInt(99)
-	err = config.ValidateL1Config(context.TODO(), &mockClient)
+	err = config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 }
 
@@ -106,10 +114,11 @@ func TestValidateL1ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x00}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	logger := testlog.Logger(t, log.LvlInfo)
+	err := config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 	config.Genesis.L1.Hash = [32]byte{0x02}
-	err = config.ValidateL1Config(context.TODO(), &mockClient)
+	err = config.ValidateL1Config(context.TODO(), logger, &mockClient)
 	assert.Error(t, err)
 }
 
@@ -125,18 +134,23 @@ func TestCheckL1ChainID(t *testing.T) {
 }
 
 func TestCheckL1BlockRefByNumber(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
 	config := randConfig()
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
 	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
-	err := config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	err := config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.NoError(t, err)
 	mockClient.Hash = common.Hash{0x02}
-	err = config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.Error(t, err)
 	mockClient.Hash = common.Hash{0x00}
-	err = config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
 	assert.Error(t, err)
+
+	mockClient.err = errors.New("block not found")
+	err = config.CheckL1GenesisBlockHash(context.Background(), logger, &mockClient)
+	assert.NoError(t, err)
 }
 
 // TestRandomConfigDescription tests that the description works for different variations of a random rollup config.

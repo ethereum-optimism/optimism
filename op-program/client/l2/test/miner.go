@@ -40,6 +40,10 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 	config.HoloceneTime = &zero
 	config.IsthmusTime = &isthmusTime
 	config.PragueTime = &isthmusTime
+
+	// Disable future Ethereum forks for now
+	config.OsakaTime = nil
+
 	denomCanyon := uint64(250)
 	config.Optimism = &params.OptimismConfig{
 		EIP1559Denominator:       50,
@@ -118,6 +122,10 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
 		}
+		if m.backend.Config().IsMinBaseFee(head.Time) {
+			stub := uint64(1e9)
+			attrs.MinBaseFee = &stub
+		}
 	}
 	m.MineAt(t, head, attrs)
 }
@@ -137,6 +145,10 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+		}
+		if m.backend.Config().IsMinBaseFee(head.Time) {
+			stub := uint64(1e9)
+			attrs.MinBaseFee = &stub
 		}
 	}
 	result, err := m.engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{

@@ -33,9 +33,13 @@ func TestWithdrawal(gt *testing.T) {
 	expectedL2UserBalance := depositAmount
 	l2User.VerifyBalanceExact(expectedL2UserBalance)
 
-	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
+	// Force a fresh EOA instance to avoid stale nonce state from shared L1/L2 key usage
+	// This prevents "nonce too low" errors in the retry logic during withdrawal initiation
+	freshL2User := l1User.Key().User(sys.L2EL)
+
+	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, freshL2User)
 	expectedL2UserBalance = expectedL2UserBalance.Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost())
-	l2User.VerifyBalanceExact(expectedL2UserBalance)
+	freshL2User.VerifyBalanceExact(expectedL2UserBalance)
 
 	withdrawal.Prove(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.ProveGasCost())

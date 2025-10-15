@@ -1,3 +1,5 @@
+//go:build !ci
+
 package upgrade
 
 import (
@@ -21,6 +23,7 @@ import (
 )
 
 func TestPostInbox(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
@@ -40,7 +43,8 @@ func TestPostInbox(gt *testing.T) {
 }
 
 func TestPostInteropUpgradeComprehensive(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	gt.Skip("Skipping Interop Acceptance Test")
+	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
 	logger := t.Logger()

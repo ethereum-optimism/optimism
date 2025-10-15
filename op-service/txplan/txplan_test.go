@@ -16,7 +16,7 @@ func TestPlannedTx_Defaults(t *testing.T) {
 	key, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	ptx := NewPlannedTx(WithPrivateKey(key), WithValue(big.NewInt(123)))
+	ptx := NewPlannedTx(WithPrivateKey(key), WithValue(eth.WeiU64(123)))
 	t.Log("tx", ptx.Signed.String())
 
 	block := types.NewBlock(&types.Header{BaseFee: big.NewInt(7e9)}, nil, nil, nil, types.DefaultBlockConfig)

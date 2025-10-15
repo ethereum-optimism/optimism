@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/test"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +22,13 @@ func TestFastCanonBlockHeaderOracle_GetHeaderByNumber(t *testing.T) {
 
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 	miner, backend := test.NewMiner(t, logger, 0)
-	stateOracle := &test.KvStateOracle{T: t, Source: backend.TrieDB().Disk()}
+	chainID := eth.ChainIDFromBig(backend.Config().ChainID)
+	capturingHinter := &test.CapturingHinter{}
+	stateOracle := &test.KvStateOracle{
+		T:          t,
+		Source:     backend.TrieDB().Disk(),
+		StubHinter: NewPreimageHinter(capturingHinter),
+	}
 	miner.Mine(t, nil)
 	miner.Mine(t, nil)
 	miner.Mine(t, nil)
@@ -50,12 +58,31 @@ func TestFastCanonBlockHeaderOracle_GetHeaderByNumber(t *testing.T) {
 
 	h := canon.GetHeaderByNumber(3)
 	require.Equal(t, backend.GetBlockByNumber(3).Hash(), h.Hash())
+	require.Len(t, capturingHinter.Hints, 0) // No lookups required
 	h = canon.GetHeaderByNumber(2)
 	require.Equal(t, backend.GetBlockByNumber(2).Hash(), h.Hash())
+	require.Len(t, capturingHinter.Hints, 1)
+	require.Equal(t, capturingHinter.Hints[0], BlockHashLookupHint{
+		BlockNumber:   2,
+		HeadBlockHash: head.Hash(),
+		ChainID:       chainID,
+	})
 	h = canon.GetHeaderByNumber(1)
 	require.Equal(t, backend.GetBlockByNumber(1).Hash(), h.Hash())
+	require.Len(t, capturingHinter.Hints, 2)
+	require.Equal(t, capturingHinter.Hints[1], BlockHashLookupHint{
+		BlockNumber:   1,
+		HeadBlockHash: head.Hash(),
+		ChainID:       chainID,
+	})
 	h = canon.GetHeaderByNumber(0)
 	require.Equal(t, backend.GetBlockByNumber(0).Hash(), h.Hash())
+	require.Len(t, capturingHinter.Hints, 3)
+	require.Equal(t, capturingHinter.Hints[2], BlockHashLookupHint{
+		BlockNumber:   0,
+		HeadBlockHash: head.Hash(),
+		ChainID:       chainID,
+	})
 }
 
 func TestFastCanonBlockHeaderOracle_LargeWindow(t *testing.T) {
@@ -64,7 +91,7 @@ func TestFastCanonBlockHeaderOracle_LargeWindow(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 	miner, backend := test.NewMiner(t, logger, 0)
 	stateOracle := &test.KvStateOracle{T: t, Source: backend.TrieDB().Disk()}
-	numBlocks := 16384 // params.HistoryServeWindow * 2
+	numBlocks := params.HistoryServeWindow*2 + 2 // 16384
 	for i := 0; i < numBlocks; i++ {
 		miner.Mine(t, nil)
 	}
@@ -247,7 +274,12 @@ func TestFastCanonBlockHeaderOracle_SetCanonical(t *testing.T) {
 func runCanonicalCacheTest(t *testing.T, backend *core.BlockChain, blockNum uint64, expectedNumRequests int) {
 	head := backend.CurrentHeader()
 	tracker := newTrackingBlockByHash(backend.GetBlockByHash)
-	stateOracle := &test.KvStateOracle{T: t, Source: backend.TrieDB().Disk()}
+	capturingHinter := &test.CapturingHinter{}
+	stateOracle := &test.KvStateOracle{
+		T:          t,
+		Source:     backend.TrieDB().Disk(),
+		StubHinter: NewPreimageHinter(capturingHinter),
+	}
 	// Create invalid fallback to assert that it's never used.
 	fatalBlockByHash := func(hash common.Hash) *types.Block {
 		t.Fatalf("Unexpected fallback for block: %v", hash)
@@ -261,12 +293,15 @@ func runCanonicalCacheTest(t *testing.T, backend *core.BlockChain, blockNum uint
 	h := canon.GetHeaderByNumber(blockNum)
 	require.Equal(t, expect, h.Hash())
 	require.Equalf(t, expectedNumRequests, tracker.numRequests, "Unexpected number of requests for block: %v (%d)", expect, blockNum)
+	require.Len(t, capturingHinter.Hints, expectedNumRequests)
 
 	// query again and assert that it's cached
 	tracker.numRequests = 0
+	capturingHinter.Hints = nil
 	h = canon.GetHeaderByNumber(blockNum)
 	require.Equal(t, expect, h.Hash())
 	require.Equalf(t, 1, tracker.numRequests, "Unexpected number of requests for block: %v (%d)", expect, blockNum)
+	require.Len(t, capturingHinter.Hints, 1)
 }
 
 type trackingBlockByHash struct {

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type SingleChainMultiNode struct {
@@ -21,6 +22,16 @@ func WithSingleChainMultiNode() stack.CommonOption {
 }
 
 func NewSingleChainMultiNode(t devtest.T) *SingleChainMultiNode {
+	preset := NewSingleChainMultiNodeWithoutCheck(t)
+	// Ensure the follower node is in sync with the sequencer before starting tests
+	dsl.CheckAll(t,
+		preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, 30),
+		preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, 30),
+	)
+	return preset
+}
+
+func NewSingleChainMultiNodeWithoutCheck(t devtest.T) *SingleChainMultiNode {
 	system := shim.NewSystem(t)
 	orch := Orchestrator()
 	orch.Hydrate(system)
@@ -35,9 +46,14 @@ func NewSingleChainMultiNode(t devtest.T) *SingleChainMultiNode {
 		match.And(
 			match.EngineFor(verifierCL),
 			match.Not[stack.L2ELNodeID, stack.L2ELNode](minimal.L2EL.ID()))))
-	return &SingleChainMultiNode{
+	preset := &SingleChainMultiNode{
 		Minimal: *minimal,
 		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
 		L2CLB:   dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
 	}
+	return preset
+}
+
+func WithSingleChainMultiNodeWithoutP2P() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeSystemWithoutP2P(&sysgo.DefaultSingleChainMultiNodeSystemIDs{}))
 }
