@@ -21,7 +21,7 @@ contract MockOPCM {
 
 /// @title UpgradeSuperchainConfig_Test
 /// @notice This test is used to test the UpgradeSuperchainConfig script.
-contract UpgradeSuperchainConfig_TestUpgradeSuperchainConfig_Test is Test {
+contract UpgradeSuperchainConfig_Run_Test is Test {
     MockOPCM mockOPCM;
     UpgradeSuperchainConfig.Input input;
     UpgradeSuperchainConfig upgradeSuperchainConfig;
