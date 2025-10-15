@@ -3,7 +3,6 @@ package sysgo
 import (
 	"context"
 	"fmt"
-	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -27,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	snconfig "github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	sntypes "github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 )
 
 type SuperNode struct {
@@ -86,12 +84,6 @@ func (n *SuperNode) Start() {
 		return
 	}
 
-	// Determine a free port for the Supernode RPC
-	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
-	n.p.Require().NoError(err)
-	port := ln.Addr().(*net.TCPAddr).Port
-	n.p.Require().NoError(ln.Close())
-
 	// Build CLI config for supernode (single-chain)
 	cfg := &snconfig.CLIConfig{
 		Chains:       []uint64{eth.EvilChainIDToUInt64(n.id.ChainID())},
@@ -100,14 +92,14 @@ func (n *SuperNode) Start() {
 		L1BeaconAddr: n.l1BeaconAddr,
 		RPCConfig: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",
-			ListenPort:  port,
+			ListenPort:  0,
 			EnableAdmin: true,
 		},
 		// Other configs (Log/Metrics/Pprof) left default
 	}
 
 	// Construct VN config map
-	vnCfgs := map[sntypes.ChainID]*config.Config{}
+	vnCfgs := map[eth.ChainID]*config.Config{}
 
 	// Create Supernode instance
 	ctx, cancel := context.WithCancel(n.p.Ctx())
@@ -120,6 +112,16 @@ func (n *SuperNode) Start() {
 	go func() {
 		_ = n.sn.Start(ctx)
 	}()
+
+	// Wait for the RPC addr and save userRPC/interop endpoints
+	if addr, err := n.sn.WaitRPCAddr(ctx); err == nil {
+		base := "http://" + addr
+		// single-chain instance routes at root
+		n.userRPC = base
+		n.interopEndpoint = base
+	} else {
+		n.p.Require().NoError(err, "supernode failed to bind RPC address")
+	}
 
 }
 
@@ -251,7 +253,7 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		}
 
 		// Gather VN configs and chain IDs
-		vnCfgs := make(map[sntypes.ChainID]*config.Config)
+		vnCfgs := make(map[eth.ChainID]*config.Config)
 		chainIDs := make([]uint64, 0, len(cls))
 		for _, a := range cls {
 			l2Net, ok := orch.l2Nets.Get(a.CLID.ChainID())
@@ -261,14 +263,8 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			cfg := makeNodeCfg(l2Net, l2ELNode, true)
 			id := eth.EvilChainIDToUInt64(a.CLID.ChainID())
 			chainIDs = append(chainIDs, id)
-			vnCfgs[sntypes.ChainID(id)] = cfg
+			vnCfgs[eth.ChainIDFromUInt64(id)] = cfg
 		}
-
-		// choose a free port
-		ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", "0"))
-		require.NoError(err)
-		port := ln.Addr().(*net.TCPAddr).Port
-		require.NoError(ln.Close())
 
 		// Start shared supernode with all chains
 		snCfg := &snconfig.CLIConfig{
@@ -276,21 +272,23 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			DataDir:      p.TempDir(),
 			L1NodeAddr:   l1EL.UserRPC(),
 			L1BeaconAddr: l1CL.beaconHTTPAddr,
-			RPCConfig:    oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: port, EnableAdmin: true},
+			RPCConfig:    oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 		}
 		ctx, cancel := context.WithCancel(p.Ctx())
 		exitFn := func(err error) { p.Require().NoError(err, "supernode critical error") }
 		sn, err := supernode.New(ctx, logger, "devstack", exitFn, snCfg, vnCfgs)
 		require.NoError(err)
 		go func() { _ = sn.Start(ctx) }()
+		// Resolve bound address
+		addr, err := sn.WaitRPCAddr(ctx)
+		require.NoError(err, "failed waiting for supernode RPC addr")
+		base := "http://" + addr
 		p.Cleanup(func() {
 			stopCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
 			_ = sn.Stop(stopCtx)
 			c()
 			cancel()
 		})
-
-		base := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 		// Wait for per-chain RPC routes to serve optimism_rollupConfig and register proxies
 		waitReady := func(u string) {
 			deadline := time.Now().Add(15 * time.Second)
@@ -311,6 +309,7 @@ func WithSharedSupernodeCLs(cls []L2CLs, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 		}
 		for _, a := range cls {
+			// Multi-chain router exposes per-chain namespace paths
 			rpc := base + "/" + strconv.FormatUint(eth.EvilChainIDToUInt64(a.CLID.ChainID()), 10)
 			waitReady(rpc)
 			proxy := &SuperNodeProxy{

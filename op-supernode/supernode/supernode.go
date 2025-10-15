@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
@@ -30,11 +31,13 @@ type Supernode struct {
 	wg           sync.WaitGroup
 	l1Client     *sources.L1Client
 	beaconClient *sources.L1BeaconClient
-	rpcServer    *http.Server
+	httpServer   *httputil.HTTPServer
 	rpcRouter    *resources.Router
 	// Metrics router/server for per-chain metrics
 	metrics       *resources.MetricsService
 	metricsRouter *resources.MetricsRouter
+	// cached address when available
+	rpcAddr string
 }
 
 func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
@@ -70,7 +73,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))
-	s.rpcServer = &http.Server{Addr: addr, Handler: s.rpcRouter}
+	s.httpServer = httputil.NewHTTPServer(addr, s.rpcRouter)
 
 	// Optionally build metrics service
 	if cfg.MetricsConfig.Enabled {
@@ -81,17 +84,21 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 
 func (s *Supernode) Start(ctx context.Context) error {
 	s.log.Info("supernode starting", "version", s.version)
-	// Start RPC server
-	if s.rpcServer != nil {
+	if s.httpServer != nil {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			s.log.Info("starting RPC router server", "addr", s.rpcServer.Addr)
-			if err := s.rpcServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := s.httpServer.Start(); err != nil {
 				s.log.Error("rpc server error", "error", err)
 				if s.requestStop != nil {
 					s.requestStop(err)
 				}
+				return
+			}
+			// cache bound address for quick reads
+			if addr := s.httpServer.Addr(); addr != nil {
+				s.rpcAddr = addr.String()
+				s.log.Info("starting RPC router server", "addr", s.rpcAddr)
 			}
 		}()
 	}
@@ -124,10 +131,10 @@ func (s *Supernode) Stop(ctx context.Context) error {
 	s.stopped = true
 
 	// Stop RPC server first, then close router resources
-	if s.rpcServer != nil {
+	if s.httpServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 0)
 		defer cancel()
-		if err := s.rpcServer.Shutdown(shutdownCtx); err != nil {
+		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 			s.log.Error("error shutting down rpc server", "error", err)
 		}
 	}
@@ -165,6 +172,36 @@ func (s *Supernode) Stop(ctx context.Context) error {
 }
 
 func (s *Supernode) Stopped() bool { return s.stopped }
+
+// RPCAddr returns the bound RPC address (host:port) if the server is listening.
+// ok is false if the listener has not been created yet.
+func (s *Supernode) RPCAddr() (addr string, ok bool) {
+	if s.httpServer == nil || s.httpServer.Addr() == nil {
+		return "", false
+	}
+	return s.httpServer.Addr().String(), true
+}
+
+// WaitRPCAddr blocks until the RPC server has a bound address or the context is done.
+func (s *Supernode) WaitRPCAddr(ctx context.Context) (string, error) {
+	// Fast-path
+	if addr, ok := s.RPCAddr(); ok {
+		return addr, nil
+	}
+	// Poll until listener is set or context done
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-ticker.C:
+			if addr, ok := s.RPCAddr(); ok {
+				return addr, nil
+			}
+		}
+	}
+}
 
 // L1Client returns the L1 client instance
 func (s *Supernode) L1Client() *sources.L1Client {
