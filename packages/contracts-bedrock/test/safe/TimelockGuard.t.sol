@@ -86,13 +86,7 @@ library TransactionBuilder {
     }
 
     /// @notice Schedules the transaction with the supplied TimelockGuard instance, using a specified owner.
-    function scheduleTransaction(
-        Transaction memory _tx,
-        TimelockGuard _timelockGuard,
-        address _owner
-    )
-        internal
-    {
+    function scheduleTransaction(Transaction memory _tx, TimelockGuard _timelockGuard, address _owner) internal {
         // Prank as the specified owner to satisfy the tx.origin check
         Vm(VM_ADDR).prank(_owner, _owner);
         _timelockGuard.scheduleTransaction(_tx.safeInstance.safe, _tx.nonce, _tx.params, _tx.signatures);
@@ -869,8 +863,9 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
         timelockGuard.cancelTransaction(safeInstance.safe, dummyTx.hash, dummyTx.nonce, cancellationTx.signatures);
 
+        address owner = safeInstance.safe.getOwners()[0];
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
-        dummyTx.scheduleTransaction(timelockGuard);
+        dummyTx.scheduleTransaction(timelockGuard, owner);
     }
 
     /// @notice Test that the guard can be reset while still enabled, and then can be disabled

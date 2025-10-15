@@ -477,7 +477,7 @@ abstract contract TimelockGuard is IGuard {
         // Limit submission of transactions to owners of the Safe only.
         // Restrict scheduling to Safe owners for increased security. This ensures that an attacker
         // cannot simply collect valid signatures, but must also control a private key.
-        if(!_safe.isOwner(tx.origin)){
+        if (!_safe.isOwner(tx.origin)) {
             revert TimelockGuard_NotOwner();
         }
 
