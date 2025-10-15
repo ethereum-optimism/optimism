@@ -37,7 +37,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -150,6 +149,12 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
+// TestEndToEndBootstrapApplyWithUpgrade tests upgrading to from previous contracts release
+// to embedded version of contracts by executing the following sequence:
+//  1. create an anvil env that is a fork of op-sepolia
+//  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
+//  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
+//  4. call opcm.upgrade on the opcm deployed in [2]
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	op_e2e.InitParallel(t)
 
@@ -245,7 +250,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 			// Test the upgrade
 			upgradeConfigBytes, err := json.Marshal(upgradeConfig)
 			require.NoError(t, err, "UpgradeOPChainInput should marshal to JSON")
-			err = v4_0_0.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+			err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
 			require.NoError(t, err, "OPCM upgrade should succeed")
 		})
 	})
