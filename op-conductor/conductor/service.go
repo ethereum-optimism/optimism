@@ -325,8 +325,8 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 
 // initFlashblocksHandler initializes the flashblocks handler
 func (c *OpConductor) initFlashblocksHandler(ctx context.Context) error {
-	if c.cfg.RollupBoostWsURL == "" || c.cfg.WebsocketServerPort <= 0 {
-		c.log.Info("flashblocks handler disabled, no rollup boost URL or websocket server port configured")
+	if c.cfg.RollupBoostWsURL == "" {
+		c.log.Info("flashblocks handler disabled, no rollup boost URL configured")
 		return nil
 	}
 

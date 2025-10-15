@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -35,6 +36,10 @@ type FlashblockHandler interface {
 	Stop()
 	// BroadcastMessage sends a message to all connected WebSocket clients
 	BroadcastMessage(message []byte)
+	// BoundPort returns the actual TCP port the server is bound to
+	BoundPort() int
+	// Ready is closed once the server listener is bound and ready to accept connections
+	Ready() <-chan struct{}
 }
 
 // Config contains configuration for the flashblocks handler
@@ -55,15 +60,18 @@ type Handler struct {
 	rollupBoostCtx      context.Context
 	rollupBoostWsCancel context.CancelFunc
 	server              *http.Server
+	listener            net.Listener
 	hub                 *Hub
+	ready               chan struct{}
+	boundPort           int
 }
 
 // NewHandler creates a new flashblocks handler
 func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) bool, m metrics.Metricer) (FlashblockHandler, error) {
 	// Validate configuration
-	if cfg.RollupBoostWsURL == "" || cfg.WebsocketServerPort <= 0 {
-		log.Error("rollup boost WebSocket URL or websocket server port not configured")
-		return nil, errors.New("rollup boost WebSocket URL or websocket server port not configured")
+	if cfg.RollupBoostWsURL == "" {
+		log.Error("rollup boost WebSocket URL not configured")
+		return nil, errors.New("rollup boost WebSocket URL not configured")
 	}
 
 	// Initialize the handler
@@ -72,6 +80,7 @@ func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) boo
 		log:        log,
 		isLeaderFn: isLeaderFn,
 		metrics:    m,
+		ready:      make(chan struct{}),
 	}
 
 	// Try to establish initial connection to rollup boost WebSocket
@@ -148,10 +157,6 @@ func (h *Handler) BroadcastMessage(message []byte) {
 }
 
 func (h *Handler) startWebSocketServer(_ context.Context) error {
-	if h.cfg.WebsocketServerPort <= 0 {
-		return fmt.Errorf("WebSocket server port not configured or invalid: %d", h.cfg.WebsocketServerPort)
-	}
-
 	h.hub = newHub(h.metrics)
 	go h.hub.run()
 
@@ -159,20 +164,39 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", h.handleWebSocket)
 
-	// Start HTTP server
-	h.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", h.cfg.WebsocketServerPort),
-		Handler: mux,
+	// Bind listener (supports port=0 for dynamic assignment)
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", h.cfg.WebsocketServerPort))
+	if err != nil {
+		return err
+	}
+	h.listener = ln
+	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
+		h.boundPort = tcpAddr.Port
 	}
 
-	h.log.Info("starting WebSocket server", "port", h.cfg.WebsocketServerPort)
+	// Start HTTP server on bound listener
+	h.server = &http.Server{Handler: mux}
+
+	h.log.Info("starting WebSocket server", "port", h.boundPort)
+	// Signal readiness as soon as the listener is bound
+	close(h.ready)
 	go func() {
-		if err := h.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := h.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			h.log.Error("WebSocket server error", "err", err)
 		}
 	}()
 
 	return nil
+}
+
+// BoundPort returns the actual TCP port the server is bound to.
+func (h *Handler) BoundPort() int {
+	return h.boundPort
+}
+
+// Ready returns a channel that is closed when the server listener is bound.
+func (h *Handler) Ready() <-chan struct{} {
+	return h.ready
 }
 
 // handleWebSocket handles WebSocket upgrade requests
