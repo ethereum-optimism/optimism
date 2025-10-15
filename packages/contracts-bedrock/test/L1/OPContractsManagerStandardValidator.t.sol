@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
+import { DisputeGameArgs } from "../setup/DisputeGameArgs.sol";
 
 // Libraries
 import { GameType } from "src/dispute/lib/LibUDT.sol";
@@ -283,41 +284,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             permissioned: _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
                 || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
-    }
-
-    function overwriteGameArgsPrestate(GameType _gameType, bytes32 newPrestate) internal view returns (bytes memory) {
-        // Convert prestate to a bytes value
-        bytes memory newPrestateBytes = new bytes(32);
-        for (uint256 i = 0; i < 32; i++) {
-            newPrestateBytes[i] = newPrestate[i];
-        }
-
-        // Get game args
-        return overwriteGameArgs(_gameType, 0, newPrestateBytes);
-    }
-
-    function overwriteGameArgs(
-        GameType _gameType,
-        uint256 _offset,
-        bytes memory _value
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
-        // Get game args
-        bytes memory gameArgs = dgf.gameArgs(_gameType);
-        overwriteBytes(gameArgs, _offset, _value);
-        return gameArgs;
-    }
-
-    /// @notice Overwrite bytes in-place without allocating a new array.
-    function overwriteBytes(bytes memory _data, uint256 _offset, bytes memory _value) internal pure {
-        require(_offset + _value.length <= _data.length, "out of range");
-
-        for (uint256 i = 0; i < _value.length; i++) {
-            _data[_offset + i] = _value[i];
-        }
     }
 }
 
@@ -1258,6 +1224,8 @@ contract OPContractsManagerStandardValidator_PreimageOracle_Test is OPContractsM
 /// @title OPContractsManagerStandardValidator_FaultDisputeGame_Test
 /// @notice Tests validation of `FaultDisputeGame` configuration
 contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContractsManagerStandardValidator_TestInit {
+    using DisputeGameArgs for bytes;
+
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) implementation is null.
     function test_validate_faultDisputeGameNullImplementation_succeeds() public {
@@ -1289,7 +1257,8 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         bytes32 modifiedPrestate = bytes32(uint256(0xbadbad));
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Mock the gameArgs data which contains the absolute prestate
-            bytes memory modifiedGameArgs = overwriteGameArgsPrestate(GameTypes.CANNON, modifiedPrestate);
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
+            modifiedGameArgs.writeAbsolutePrestate(modifiedPrestate);
             vm.mockCall(
                 address(dgf),
                 abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.CANNON)),
@@ -1298,9 +1267,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         } else {
             // Mock the absolute prestate on the game implementation
             vm.mockCall(
-                address(fdg),
-                abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()),
-                abi.encode(modifiedPrestate)
+                address(fdg), abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(modifiedPrestate)
             );
         }
 
