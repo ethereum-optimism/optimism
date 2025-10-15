@@ -134,6 +134,13 @@ timeout = 300
 optimizer = false
 optimizer_runs = 0
 
+[profile.lite.fuzz]
+runs = 8
+
+[profile.lite.invariant]
+runs = 8
+depth = 8
+
 # IMPORTANT:
 # See the info in the "DEFAULT" profile to understand this section.
 additional_compiler_profiles = [
