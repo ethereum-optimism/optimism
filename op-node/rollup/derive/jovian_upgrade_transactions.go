@@ -15,7 +15,7 @@ var (
 	// L1Block Parameters
 	deployJovianL1BlockSource      = UpgradeDepositSource{Intent: "Jovian: L1 Block Deployment"}
 	updateJovianL1BlockProxySource = UpgradeDepositSource{Intent: "Jovian: L1 Block Proxy Update"}
-	L1BlockJovianDeployerAddress   = common.HexToAddress("0x4210000000000000000000000000000000000007")
+	L1BlockJovianDeployerAddress   = common.HexToAddress("0x4210000000000000000000000000000000000006")
 	jovianL1BlockAddress           = crypto.CreateAddress(L1BlockJovianDeployerAddress, 0)
 
 	// Bytecode generated from commit b3299e0ddb55442e6496512084d16c439ea2da77
@@ -24,7 +24,7 @@ var (
 	// Gas Price Oracle Parameters
 	deployJovianGasPriceOracleSource    = UpgradeDepositSource{Intent: "Jovian: Gas Price Oracle Deployment"}
 	updateJovianGasPriceOracleSource    = UpgradeDepositSource{Intent: "Jovian: Gas Price Oracle Proxy Update"}
-	GasPriceOracleJovianDeployerAddress = common.HexToAddress("0x4210000000000000000000000000000000000006")
+	GasPriceOracleJovianDeployerAddress = common.HexToAddress("0x4210000000000000000000000000000000000007")
 	jovianGasPriceOracleAddress         = crypto.CreateAddress(GasPriceOracleJovianDeployerAddress, 0)
 
 	// Bytecodes
