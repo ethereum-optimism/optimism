@@ -58,6 +58,7 @@ type L2Configurator interface {
 	L2FeesConfigurator
 	L2HardforkConfigurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
+	WithDAFootprintGasScalar(scalar uint16)
 }
 
 type ContractsConfigurator interface {
@@ -415,6 +416,10 @@ func (c *l2Configurator) WithEIP1559Elasticity(value uint64) {
 
 func (c *l2Configurator) WithOperatorFeeScalar(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].OperatorFeeScalar = uint32(value)
+}
+
+func (c *l2Configurator) WithDAFootprintGasScalar(value uint16) {
+	c.builder.intent.Chains[c.chainIndex].DAFootprintGasScalar = value
 }
 
 func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {

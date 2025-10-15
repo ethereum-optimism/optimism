@@ -2,6 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
@@ -11,8 +13,9 @@ import { Types } from "scripts/libraries/Types.sol";
 
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 
-contract DeployOPChain_TestBase is Test {
+contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
     DeployImplementations deployImplementations;
     DeployOPChain deployOPChain;
@@ -57,6 +60,7 @@ contract DeployOPChain_TestBase is Test {
     IOPContractsManager opcm;
 
     function setUp() public virtual {
+        resolveFeaturesFromEnv();
         deploySuperchain = new DeploySuperchain();
         deployImplementations = new DeployImplementations();
         deployOPChain = new DeployOPChain();
@@ -91,7 +95,7 @@ contract DeployOPChain_TestBase is Test {
                 superchainProxyAdmin: dso.superchainProxyAdmin,
                 l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
-                devFeatureBitmap: bytes32(0)
+                devFeatureBitmap: devFeatureBitmap
             })
         );
         opcm = dio.opcm;
@@ -134,25 +138,26 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Basic non-zero and code checks are covered inside run->checkOutput.
         // Additonal targeted assertions added below.
 
-        assertEq(address(doo.permissionedDisputeGame.proposer()), proposer, "PDG proposer");
-        assertEq(address(doo.permissionedDisputeGame.challenger()), challenger, "PDG challenger");
-        assertEq(doo.permissionedDisputeGame.splitDepth(), disputeSplitDepth, "PDG splitDepth");
-        assertEq(doo.permissionedDisputeGame.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
+        IPermissionedDisputeGame pdg = getPermissionedDisputeGame(doo);
+        assertEq(pdg.splitDepth(), disputeSplitDepth, "PDG splitDepth");
+        assertEq(pdg.maxGameDepth(), disputeMaxGameDepth, "PDG maxGameDepth");
+        assertEq(Duration.unwrap(pdg.clockExtension()), Duration.unwrap(disputeClockExtension), "PDG clockExtension");
         assertEq(
-            Duration.unwrap(doo.permissionedDisputeGame.clockExtension()),
-            Duration.unwrap(disputeClockExtension),
-            "PDG clockExtension"
+            Duration.unwrap(pdg.maxClockDuration()), Duration.unwrap(disputeMaxClockDuration), "PDG maxClockDuration"
         );
-        assertEq(
-            Duration.unwrap(doo.permissionedDisputeGame.maxClockDuration()),
-            Duration.unwrap(disputeMaxClockDuration),
-            "PDG maxClockDuration"
-        );
-        assertEq(
-            Claim.unwrap(doo.permissionedDisputeGame.absolutePrestate()),
-            Claim.unwrap(disputeAbsolutePrestate),
-            "PDG absolutePrestate"
-        );
+
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // For v2 contracts, some immutable args are passed in at game creation time from DGF.gameArgs
+            assertEq(address(pdg.proposer()), address(0), "PDG proposer");
+            assertEq(address(pdg.challenger()), address(0), "PDG challenger");
+            assertEq(Claim.unwrap(pdg.absolutePrestate()), bytes32(0), "PDG absolutePrestate");
+        } else {
+            assertEq(address(pdg.proposer()), proposer, "PDG proposer");
+            assertEq(address(pdg.challenger()), challenger, "PDG challenger");
+            assertEq(
+                Claim.unwrap(pdg.absolutePrestate()), Claim.unwrap(disputeAbsolutePrestate), "PDG absolutePrestate"
+            );
+        }
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
@@ -172,22 +177,45 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.CANNON), 0, "2700");
         assertEq(doo.disputeGameFactoryProxy.initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
 
-        assertEq(doo.permissionedDisputeGame.l2BlockNumber(), 0, "3000");
-        assertEq(
-            Claim.unwrap(doo.permissionedDisputeGame.absolutePrestate()),
-            0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c,
-            "3100"
-        );
-        assertEq(Duration.unwrap(doo.permissionedDisputeGame.clockExtension()), 10800, "3200");
-        assertEq(Duration.unwrap(doo.permissionedDisputeGame.maxClockDuration()), 302400, "3300");
-        assertEq(doo.permissionedDisputeGame.splitDepth(), 30, "3400");
-        assertEq(doo.permissionedDisputeGame.maxGameDepth(), 73, "3500");
+        // Check dispute game deployments
+        // Validate permissionedDisputeGame (PDG) address
+        bool isDeployV2Games = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
+        address expectedPDGAddress =
+            isDeployV2Games ? impls.permissionedDisputeGameV2Impl : address(doo.permissionedDisputeGame);
+        address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+        assertNotEq(actualPDGAddress, address(0), "PDG address should be non-zero");
+        assertEq(actualPDGAddress, expectedPDGAddress, "PDG address should match expected address");
+
+        // Check PDG getters
+        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(actualPDGAddress);
+        bytes32 expectedPrestate =
+            isDeployV2Games ? bytes32(0) : bytes32(0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c);
+        assertEq(pdg.l2BlockNumber(), 0, "3000");
+        assertEq(Claim.unwrap(pdg.absolutePrestate()), expectedPrestate, "3100");
+        assertEq(Duration.unwrap(pdg.clockExtension()), 10800, "3200");
+        assertEq(Duration.unwrap(pdg.maxClockDuration()), 302400, "3300");
+        assertEq(pdg.splitDepth(), 30, "3400");
+        assertEq(pdg.maxGameDepth(), 73, "3500");
     }
 
     function test_customDisputeGame_customEnabled_succeeds() public {
+        // For v2 games, these parameters have already been configured at OPCM deploy time
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         deployOPChainInput.allowCustomDisputeParameters = true;
         deployOPChainInput.disputeSplitDepth = disputeSplitDepth + 1;
         DeployOPChain.Output memory doo = deployOPChain.run(deployOPChainInput);
-        assertEq(doo.permissionedDisputeGame.splitDepth(), disputeSplitDepth + 1);
+
+        IPermissionedDisputeGame pdg = getPermissionedDisputeGame(doo);
+        assertEq(pdg.splitDepth(), disputeSplitDepth + 1);
+    }
+
+    function getPermissionedDisputeGame(DeployOPChain.Output memory doo)
+        internal
+        view
+        returns (IPermissionedDisputeGame)
+    {
+        return IPermissionedDisputeGame(address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON)));
     }
 }

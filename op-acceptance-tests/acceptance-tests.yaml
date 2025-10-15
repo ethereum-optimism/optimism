@@ -15,19 +15,6 @@ gates:
   - id: flake-shake
     description: "Quarantine gate for new and potentially flaky tests requiring stability validation."
     tests:
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs
-        name: TestProposer
-        timeout: 30m
-        metadata:
-          owner: "axel,mofi"
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/proofs
-        name: TestChallengerPlaysGame
-        timeout: 60m
-        metadata:
-          owner: "axel,mofi"
-      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/osaka
-        timeout: 15m
-        owner: "josh"
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/sync/elsync/gap_elp2p
         name: TestL2ELP2PCanonicalChainAdvancedByFCU
         timeout: 30m

@@ -146,7 +146,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	if ba.rollupCfg.IsJovianActivationBlock(nextL2Time) {
-		jovian, err := JovianNetworkUpgradeTransactions()
+		jovian, err := JovianNetworkUpgradeTransactions(ba.rollupCfg, nextL2Time)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build jovian network upgrade txs: %w", err))
 		}

@@ -110,6 +110,7 @@ func TestBuilder(t *testing.T) {
 	l2Config.WithEIP1559Elasticity(10)
 	l2Config.WithOperatorFeeScalar(100)
 	l2Config.WithOperatorFeeConstant(200)
+	l2Config.WithDAFootprintGasScalar(400)
 
 	// Test L2HardforkConfigurator methods
 	isthmusOffset := uint64(8000)
@@ -152,6 +153,7 @@ func TestBuilder(t *testing.T) {
 				BaseFeeVaultRecipient:      baseFeeRecipient,
 				SequencerFeeVaultRecipient: sequencerFeeRecipient,
 				L1FeeVaultRecipient:        l1FeeRecipient,
+				DAFootprintGasScalar:       400,
 				Roles: state.ChainRoles{
 					L1ProxyAdminOwner: l1ProxyAdminOwner,
 					L2ProxyAdminOwner: l2ProxyAdminOwner,
