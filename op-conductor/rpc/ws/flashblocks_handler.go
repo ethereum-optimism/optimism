@@ -73,6 +73,9 @@ func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) boo
 		log.Error("rollup boost WebSocket URL not configured")
 		return nil, errors.New("rollup boost WebSocket URL not configured")
 	}
+	if cfg.WebsocketServerPort < 0 {
+		return nil, fmt.Errorf("WebSocket server port invalid: %d", cfg.WebsocketServerPort)
+	}
 
 	// Initialize the handler
 	handler := &Handler{
@@ -157,6 +160,9 @@ func (h *Handler) BroadcastMessage(message []byte) {
 }
 
 func (h *Handler) startWebSocketServer(_ context.Context) error {
+	if h.cfg.WebsocketServerPort < 0 {
+		return fmt.Errorf("WebSocket server port invalid: %d", h.cfg.WebsocketServerPort)
+	}
 	h.hub = newHub(h.metrics)
 	go h.hub.run()
 
@@ -172,6 +178,8 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 	h.listener = ln
 	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
 		h.boundPort = tcpAddr.Port
+	} else {
+		panic("ln.Addr() is not a TCPAddr")
 	}
 
 	// Start HTTP server on bound listener
