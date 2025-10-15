@@ -33,6 +33,7 @@ type DeployerOption func(p devtest.P, keys devkeys.Keys, builder intentbuilder.B
 
 func WithDeployerOptions(opts ...DeployerOption) stack.Option[*Orchestrator] {
 	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("devFeatureBitmap", "devFeatureBitmap", devFeatureBitmapFromEnv().Hex())
 		o.P().Require().NotNil(o.wb, "must have a world builder")
 		for _, opt := range opts {
 			opt(o.P(), o.keys, o.wb.builder)
