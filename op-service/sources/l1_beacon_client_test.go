@@ -246,7 +246,7 @@ func TestBeaconClientBadProof(t *testing.T) {
 		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
-		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(nil, errors.New("the sky is falling"))
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{}, errors.New("the sky is falling"))
 		p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{Data: apiSidecars}, nil)
 		_, err := client.GetBlobs(ctx, ref, hashes)
 		assert.NoError(t, err)
@@ -259,7 +259,7 @@ func TestBeaconClientBadProof(t *testing.T) {
 		p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
 		client := NewL1BeaconClient(p, L1BeaconClientConfig{})
 		ref := eth.L1BlockRef{Time: 12}
-		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(blobs, nil)
+		p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(eth.APIBeaconBlobsResponse{Data: blobs}, nil)
 		_, err := client.GetBlobs(ctx, ref, hashes)
 		assert.NoError(t, err)
 	})

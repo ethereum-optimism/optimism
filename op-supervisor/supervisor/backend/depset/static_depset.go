@@ -2,7 +2,6 @@ package depset
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -148,7 +147,7 @@ var _ DependencySetSource = (*StaticConfigDependencySet)(nil)
 
 var _ DependencySet = (*StaticConfigDependencySet)(nil)
 
-func (ds *StaticConfigDependencySet) LoadDependencySet(ctx context.Context) (DependencySet, error) {
+func (ds *StaticConfigDependencySet) LoadDependencySet() (DependencySet, error) {
 	return ds, nil
 }
 

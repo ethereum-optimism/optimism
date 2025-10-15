@@ -24,6 +24,18 @@ import (
 
 var logger *log.Logger
 
+// Constants used across the promoter
+const (
+	flakeShakeGateID         = "flake-shake"
+	flakeShakeWorkflowName   = "scheduled-flake-shake"
+	flakeShakeReportJobName  = "op-acceptance-tests-flake-shake-report"
+	flakeShakePRTitle        = "chore(op-acceptance-tests): flake-shake; test promotions"
+	flakeShakePRBranchPrefix = "ci/flake-shake-promote/"
+	flakeShakeLabel          = "M-ci"
+	flakeShakeBotAuthor      = "opgitgovernance"
+	flakeShakeSupersedeDays  = 2 // lookback window (days) when closing older PRs as superseded
+)
+
 // CircleCI API models
 type pipelineList struct {
 	Items         []pipeline `json:"items"`
@@ -33,6 +45,7 @@ type pipelineList struct {
 type pipeline struct {
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+	Number    int       `json:"number"`
 }
 
 type workflowList struct {
@@ -53,6 +66,7 @@ type jobList struct {
 type job struct {
 	Name      string `json:"name"`
 	JobNumber int    `json:"job_number"`
+	WebURL    string `json:"web_url"`
 }
 
 type artifactsList struct {
@@ -107,6 +121,7 @@ type testEntry struct {
 	Package  string                 `yaml:"package"`
 	Timeout  string                 `yaml:"timeout,omitempty"`
 	Metadata map[string]interface{} `yaml:"metadata,omitempty"`
+	Owner    string                 `yaml:"owner,omitempty"`
 }
 
 // Aggregated per test across days
@@ -129,6 +144,7 @@ type promoteCandidate struct {
 	PassRate     float64 `json:"pass_rate"`
 	Timeout      string  `json:"timeout"`
 	FirstSeenDay string  `json:"first_seen_day"`
+	Owner        string  `json:"owner,omitempty"`
 }
 
 // Map tests in flake-shake: key -> (timeout, name)
@@ -136,6 +152,7 @@ type testInfo struct {
 	Timeout   string
 	Name      string
 	Meta      map[string]interface{}
+	Owner     string
 	GateIndex int
 	TestIndex int
 }
@@ -258,13 +275,20 @@ func main() {
 	// Prepare updated YAML content for PR by editing only the flake-shake gate in-place to preserve comments
 	var updatedYAMLBytes []byte
 
-	prBranch := fmt.Sprintf("ci/flake-shake-promote/%s", time.Now().UTC().Format("2006-01-02-150405"))
+	prBranch := fmt.Sprintf("%s%s", flakeShakePRBranchPrefix, time.Now().UTC().Format("2006-01-02-150405"))
 
 	// Prepare commit message and PR body
-	title := "chore(op-acceptance-tests): flake-shake; test promotions"
+	title := flakeShakePRTitle
 	var body bytes.Buffer
 	body.WriteString("## 🤖 Automated Flake-Shake Test Promotion\n\n")
+
+	// Attempt to resolve the CircleCI report job web URL for artifacts page
+	reportArtifactsURL := resolveReportArtifactsURL(opts, ctx)
+
 	body.WriteString(fmt.Sprintf("Promoting %d test(s) from gate `"+opts.gateID+"` based on stability criteria.\n\n", len(candidates)))
+	if reportArtifactsURL != "" {
+		body.WriteString(fmt.Sprintf("Artifacts: %s\n\n", reportArtifactsURL))
+	}
 	body.WriteString("### Tests Being Promoted\n\n")
 	body.WriteString("| Test | Package | Total Runs | Pass Rate |\n|---|---|---:|---:|\n")
 	for _, c := range candidates {
@@ -380,7 +404,7 @@ func main() {
 	}
 
 	// 6) Add labels
-	if _, _, err := ghc.Issues.AddLabelsToIssue(ghCtx, opts.org, opts.repo, pr.GetNumber(), []string{"M-ci", "A-acceptance-tests"}); err != nil {
+	if _, _, err := ghc.Issues.AddLabelsToIssue(ghCtx, opts.org, opts.repo, pr.GetNumber(), []string{flakeShakeLabel, "A-acceptance-tests"}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to add labels: %v\n", err)
 	}
 
@@ -390,6 +414,11 @@ func main() {
 		TeamReviewers: []string{"platforms-team"},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to request reviewers: %v\n", err)
+	}
+
+	// 8) Close any older open flake-shake PRs by this bot as superseded
+	if err := closeSupersededFlakeShakePRs(ghCtx, ghc, opts.org, opts.repo, pr, title, opts.verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to close superseded PRs: %v\n", err)
 	}
 }
 
@@ -416,10 +445,10 @@ func parsePromoterFlags() promoterOpts {
 	flag.StringVar(&opts.org, "org", "ethereum-optimism", "GitHub org")
 	flag.StringVar(&opts.repo, "repo", "optimism", "GitHub repo")
 	flag.StringVar(&opts.branch, "branch", "develop", "Branch to scan")
-	flag.StringVar(&opts.workflowName, "workflow", "scheduled-flake-shake", "Workflow name")
-	flag.StringVar(&opts.reportJobName, "report-job", "op-acceptance-tests-flake-shake-report", "Report job name")
+	flag.StringVar(&opts.workflowName, "workflow", flakeShakeWorkflowName, "Workflow name")
+	flag.StringVar(&opts.reportJobName, "report-job", flakeShakeReportJobName, "Report job name")
 	flag.IntVar(&opts.daysBack, "days", 3, "Number of days to aggregate")
-	flag.StringVar(&opts.gateID, "gate", "flake-shake", "Gate id in acceptance-tests.yaml")
+	flag.StringVar(&opts.gateID, "gate", flakeShakeGateID, "Gate id in acceptance-tests.yaml")
 	flag.IntVar(&opts.minRuns, "min-runs", 300, "Minimum total runs required")
 	flag.Float64Var(&opts.maxFailureRate, "max-failure-rate", 0.01, "Maximum allowed failure rate")
 	flag.IntVar(&opts.minAgeDays, "min-age-days", 2, "Minimum age in days in flake-shake")
@@ -482,7 +511,14 @@ func buildFlakeTests(cfg *acceptanceYAML, gateID, yamlPath string) (map[string]t
 	flakeTests := map[string]testInfo{}
 	for ti, t := range flakeGate.Tests {
 		key := keyFor(t.Package, t.Name)
-		flakeTests[key] = testInfo{Timeout: t.Timeout, Name: t.Name, Meta: t.Metadata, GateIndex: indexOfGate(cfg, gateID), TestIndex: ti}
+		// Prefer explicit YAML field owner; fallback to metadata.owner
+		owner := t.Owner
+		if owner == "" && t.Metadata != nil {
+			if v, ok := t.Metadata["owner"]; ok {
+				owner = fmt.Sprintf("%v", v)
+			}
+		}
+		flakeTests[key] = testInfo{Timeout: t.Timeout, Name: t.Name, Meta: t.Metadata, Owner: owner, GateIndex: indexOfGate(cfg, gateID), TestIndex: ti}
 	}
 	return flakeTests, flakeGate, gateIndex
 }
@@ -536,9 +572,11 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if totalRuns > 0 {
 			failureRate = float64(totalFailures) / float64(totalRuns)
 		}
-		if failureRate > maxFailureRate {
-			reasons[keyFor(pkg, "")] = fmt.Sprintf("failure rate %.4f exceeds max %.4f (pkg)", failureRate, maxFailureRate)
-			continue
+		if !requireClean24h {
+			if failureRate > maxFailureRate {
+				reasons[keyFor(pkg, "")] = fmt.Sprintf("failure rate %.4f exceeds max %.4f (pkg)", failureRate, maxFailureRate)
+				continue
+			}
 		}
 		if requireClean24h && lastFailureAt != nil {
 			if time.Since(*lastFailureAt) < 24*time.Hour {
@@ -560,6 +598,14 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if totalRuns > 0 {
 			passRate = float64(totalPasses) / float64(totalRuns)
 		}
+		owner := info.Owner
+		if owner == "" {
+			if info.Meta != nil {
+				if v, ok := info.Meta["owner"]; ok {
+					owner = fmt.Sprintf("%v", v)
+				}
+			}
+		}
 		candidates = append(candidates, promoteCandidate{
 			Package:      pkg,
 			TestName:     "",
@@ -567,6 +613,7 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 			PassRate:     passRate * 100.0,
 			Timeout:      info.Timeout,
 			FirstSeenDay: earliest,
+			Owner:        owner,
 		})
 	}
 	for key, s := range agg {
@@ -592,9 +639,11 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if s.TotalRuns > 0 {
 			failureRate = float64(s.Failures) / float64(s.TotalRuns)
 		}
-		if failureRate > maxFailureRate {
-			reasons[key] = fmt.Sprintf("failure rate %.4f exceeds max %.4f", failureRate, maxFailureRate)
-			continue
+		if !requireClean24h {
+			if failureRate > maxFailureRate {
+				reasons[key] = fmt.Sprintf("failure rate %.4f exceeds max %.4f", failureRate, maxFailureRate)
+				continue
+			}
 		}
 		if requireClean24h && s.LastFailureAt != nil {
 			if time.Since(*s.LastFailureAt) < 24*time.Hour {
@@ -616,6 +665,14 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 		if s.TotalRuns > 0 {
 			passRate = float64(s.Passes) / float64(s.TotalRuns)
 		}
+		owner := info.Owner
+		if owner == "" {
+			if info.Meta != nil {
+				if v, ok := info.Meta["owner"]; ok {
+					owner = fmt.Sprintf("%v", v)
+				}
+			}
+		}
 		candidates = append(candidates, promoteCandidate{
 			Package:      s.Package,
 			TestName:     s.TestName,
@@ -623,6 +680,7 @@ func selectPromotionCandidates(agg map[string]*aggStats, flakeTests map[string]t
 			PassRate:     passRate * 100.0,
 			Timeout:      info.Timeout,
 			FirstSeenDay: s.FirstSeenDay,
+			Owner:        owner,
 		})
 	}
 	return candidates, reasons
@@ -826,6 +884,102 @@ func listJobs(ctx *apiCtx, workflowID string) (jobList, error) {
 		return jobList{}, err
 	}
 	return jl, nil
+}
+
+// closeSupersededFlakeShakePRs finds any open flake-shake promotion PRs created by the bot
+// and closes them with a comment pointing to the newly created PR.
+func closeSupersededFlakeShakePRs(ctx context.Context, ghc *github.Client, org, repo string, newPR *github.PullRequest, title string, verbose bool) error {
+	// Search open PRs in this repo that match our title and bot author
+	// Using Issues.ListByRepo with filters
+	opt := &github.IssueListByRepoOptions{
+		State:       "open",
+		Labels:      []string{flakeShakeLabel},
+		Since:       time.Now().AddDate(0, 0, -flakeShakeSupersedeDays),
+		ListOptions: github.ListOptions{PerPage: 50},
+	}
+	for {
+		issues, resp, err := ghc.Issues.ListByRepo(ctx, org, repo, opt)
+		if err != nil {
+			return err
+		}
+		for _, is := range issues {
+			if is.IsPullRequest() && is.GetNumber() != newPR.GetNumber() {
+				// Check title contains our flake-shake marker; be robust to minor variations
+				// Use the provided title to derive a stable prefix (before the first ';') for matching
+				titlePrefix := strings.TrimSpace(strings.TrimSuffix(title, "; test promotions"))
+				if strings.Contains(strings.ToLower(is.GetTitle()), strings.ToLower(flakeShakeGateID)) && strings.Contains(is.GetTitle(), titlePrefix) {
+					// Author check
+					if is.User != nil && is.User.GetLogin() != flakeShakeBotAuthor {
+						continue
+					}
+					// Comment and close
+					msg := fmt.Sprintf("superseded by #%d", newPR.GetNumber())
+					_, _, _ = ghc.Issues.CreateComment(ctx, org, repo, is.GetNumber(), &github.IssueComment{Body: github.String(msg)})
+					state := "closed"
+					_, _, _ = ghc.PullRequests.Edit(ctx, org, repo, is.GetNumber(), &github.PullRequest{State: &state})
+					if verbose {
+						logger.Printf("Closed superseded PR #%d: %s", is.GetNumber(), is.GetTitle())
+					}
+				}
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return nil
+}
+
+// resolveReportArtifactsURL attempts to find the web URL to the report job's artifacts page
+// by scanning recent pipelines/workflows for the configured workflow/report job names.
+// Returns an empty string if not found.
+func resolveReportArtifactsURL(opts promoterOpts, ctx *apiCtx) string {
+	// Scan the latest pipelines on the given branch; reuse collectReports traversal but short-circuit on first match
+	basePipelines := fmt.Sprintf("https://circleci.com/api/v2/project/gh/%s/%s/pipeline?branch=%s", url.PathEscape(opts.org), url.PathEscape(opts.repo), url.QueryEscape(opts.branch))
+	pageURL := basePipelines
+	now := time.Now().UTC()
+	since := now.AddDate(0, 0, -opts.daysBack)
+	for {
+		pl, nextToken, err := getPipelinesPage(ctx, pageURL)
+		if err != nil {
+			return ""
+		}
+		for _, p := range pl.Items {
+			if p.CreatedAt.Before(since) {
+				return ""
+			}
+			wfl, err := listWorkflows(ctx, p.ID)
+			if err != nil {
+				return ""
+			}
+			for _, w := range wfl.Items {
+				if w.Name != opts.workflowName {
+					continue
+				}
+				jl, err := listJobs(ctx, w.ID)
+				if err != nil {
+					return ""
+				}
+				for _, j := range jl.Items {
+					if j.Name != opts.reportJobName {
+						continue
+					}
+					// Prefer constructing the app.circleci.com artifacts URL from pipeline number + workflow id + job number
+					if p.Number != 0 && j.JobNumber != 0 {
+						u := fmt.Sprintf("https://app.circleci.com/pipelines/github/%s/%s/%d/workflows/%s/jobs/%d/artifacts", opts.org, opts.repo, p.Number, w.ID, j.JobNumber)
+						return u
+					}
+					return ""
+				}
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+		pageURL = basePipelines + "&page-token=" + url.QueryEscape(nextToken)
+	}
+	return ""
 }
 
 func listArtifacts(ctx *apiCtx, org, repo string, jobNumber int, verbose bool) (artifactsList, error) {

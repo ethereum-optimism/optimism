@@ -175,7 +175,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         );
     }
 
-    function _assertOwnershipChanged(address _safe) internal {
+    function _assertOwnershipChanged(address /* _safe */ ) internal view {
         // Verify ownership changed
         address[] memory newOwners = safeInstance.safe.getOwners();
         assertEq(newOwners.length, 1);

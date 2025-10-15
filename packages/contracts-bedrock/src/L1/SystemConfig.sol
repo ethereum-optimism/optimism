@@ -31,6 +31,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value EIP_1559_PARAMS     Represents an update to EIP-1559 parameters.
     /// @custom:value OPERATOR_FEE_PARAMS Represents an update to operator fee parameters.
     /// @custom:value MIN_BASE_FEE        Represents an update to the minimum base fee.
+    /// @custom:value DA_FOOTPRINT_GAS_SCALAR Represents an update to the DA footprint gas scalar.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
@@ -38,7 +39,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS,
-        MIN_BASE_FEE
+        MIN_BASE_FEE,
+        DA_FOOTPRINT_GAS_SCALAR
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -133,6 +135,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The operator fee constant.
     uint64 public operatorFeeConstant;
 
+    // @notice The DA footprint gas scalar.
+    uint16 public daFootprintGasScalar;
+
     /// @notice The L2 chain ID that this SystemConfig configures.
     uint256 public l2ChainId;
 
@@ -161,9 +166,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.10.0
+    /// @custom:semver 3.11.0
     function version() public pure virtual returns (string memory) {
-        return "3.10.0";
+        return "3.11.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -433,8 +438,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
-    /// @param _operatorFeeScalar operator fee scalar.
-    /// @param _operatorFeeConstant  operator fee constant.
+    /// @param _operatorFeeScalar New operator fee scalar.
+    /// @param _operatorFeeConstant New operator fee constant.
     function setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant) external onlyOwner {
         _setOperatorFeeScalars(_operatorFeeScalar, _operatorFeeConstant);
     }
@@ -446,6 +451,20 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(uint256(_operatorFeeScalar) << 64 | _operatorFeeConstant);
         emit ConfigUpdate(VERSION, UpdateType.OPERATOR_FEE_PARAMS, data);
+    }
+
+    /// @notice Updates the DA footprint gas scalar. Can only be called by the owner.
+    /// @param _daFootprintGasScalar New DA footprint gas scalar.
+    function setDAFootprintGasScalar(uint16 _daFootprintGasScalar) external onlyOwner {
+        _setDAFootprintGasScalar(_daFootprintGasScalar);
+    }
+
+    /// @notice Internal function for updating the DA footprint gas scalar.
+    function _setDAFootprintGasScalar(uint16 _dAFootprintGasScalar) internal {
+        daFootprintGasScalar = _dAFootprintGasScalar;
+
+        bytes memory data = abi.encode(_dAFootprintGasScalar);
+        emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies

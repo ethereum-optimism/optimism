@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -77,10 +78,14 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			defer wg.Done()
 			output, err := client.OutputAtBlock(ctx, game.L2BlockNumber)
 			if err != nil {
-				// string match as the error comes from the remote server so we can't use Errors.Is sadly.
-				if strings.Contains(err.Error(), "not found") {
-					results[i] = outputResult{notFound: true}
-					return
+				// Only treat JSON-RPC application-level "not found" as notFound.
+				// Transport/HTTP errors or other failures should be treated as errors.
+				var rpcErr rpc.Error
+				if errors.As(err, &rpcErr) {
+					if strings.Contains(strings.ToLower(rpcErr.Error()), "not found") {
+						results[i] = outputResult{notFound: true}
+						return
+					}
 				}
 				results[i] = outputResult{err: err}
 				return

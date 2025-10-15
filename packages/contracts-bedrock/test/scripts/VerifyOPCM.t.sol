@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
@@ -87,6 +88,27 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.run(address(opcm), true);
     }
 
+    /// @notice Tests that the runSingle script succeeds when run against production contracts.
+    function test_runSingle_succeeds() public {
+        VerifyOPCM.OpcmContractRef[][2] memory refsByType;
+        refsByType[0] = harness.getOpcmContractRefs(opcm, "implementations", false);
+        refsByType[1] = harness.getOpcmContractRefs(opcm, "blueprints", true);
+
+        for (uint8 i = 0; i < refsByType.length; i++) {
+            for (uint256 j = 0; j < refsByType[i].length; j++) {
+                VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
+
+                // TODO(#17262): Remove these skips once these contracts are no longer behind a feature flag
+                // This script doesn't work for features that are in-development, so skip for now
+                if (_isDisputeGameV2ContractRef(ref)) {
+                    continue;
+                }
+
+                harness.runSingle(ref.name, ref.addr, true);
+            }
+        }
+    }
+
     function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
@@ -120,11 +142,20 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
+        // Check if V2 dispute games feature is enabled
+        bytes32 bitmap = opcm.devFeatureBitmap();
+        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         // Change 256 bytes at random.
-        for (uint8 i = 0; i < 255; i++) {
+        for (uint256 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
+
+            // Skip V2 dispute games when feature disabled
+            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
@@ -180,11 +211,20 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
+        // Check if V2 dispute games feature is enabled
+        bytes32 bitmap = opcm.devFeatureBitmap();
+        bool v2FeatureEnabled = DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+
         // Change 256 bytes at random.
         for (uint8 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
+
+            // Skip V2 dispute games when feature disabled
+            if (_isDisputeGameV2ContractRef(ref) && !v2FeatureEnabled) {
+                continue;
+            }
 
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
@@ -332,6 +372,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         assertGt(componentsWithContainerTested, 0, "Should have tested at least one component");
     }
 
+    function _isDisputeGameV2ContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
+        return LibString.eq(ref.name, "FaultDisputeGameV2") || LibString.eq(ref.name, "PermissionedDisputeGameV2");
+    }
+
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
     /// @param _propRefs Array of property references to search through.
     /// @param _mockAddress The address to mock the contractsContainer call to return.
@@ -418,16 +462,13 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);
         address expectedProtocolVersions = address(0x2222);
-        address expectedSuperchainProxyAdmin = address(0x3333);
 
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
         _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
-        _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
 
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();

@@ -39,6 +39,14 @@ func TestLocator_Marshaling(t *testing.T) {
 			err: false,
 		},
 		{
+			name: "deprecated tag URL",
+			in:   "tag://op-contracts/v4.1.0",
+			out: &Locator{
+				URL: parseUrl(t, "tag://op-contracts/v4.1.0"),
+			},
+			err: true,
+		},
+		{
 			name: "empty",
 			in:   "",
 			out:  nil,

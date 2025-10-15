@@ -230,7 +230,7 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 
 // NewPayload fetches payload for target number from the reference EL Node, and inserts the payload
 func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResult {
-	el.log.Info("NewPayload", "number", number, "refNode", refNode)
+	el.log.Info("NewPayload", "number", number, "node", el, "refNode", refNode)
 	payload := refNode.PayloadByNumber(number)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
@@ -240,7 +240,7 @@ func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResu
 func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized uint64, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
 	result := &ForkchoiceUpdateResult{T: el.t}
 	refresh := func() {
-		el.log.Info("ForkchoiceUpdate", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "refNode", refNode)
+		el.log.Info("ForkchoiceUpdate", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el, "refNode", refNode)
 		state := &eth.ForkchoiceState{
 			HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
 			SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,

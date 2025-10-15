@@ -15,11 +15,10 @@ func WithSyncTesterELInitialState(fcu eth.FCUState) stack.CommonOption {
 			})))
 }
 
-func WithELSyncTarget(elSyncTarget uint64) stack.CommonOption {
+func WithELSyncActive() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalSyncTesterELOption(sysgo.SyncTesterELOptionFn(
 			func(_ devtest.P, id stack.L2ELNodeID, cfg *sysgo.SyncTesterELConfig) {
 				cfg.ELSyncActive = true
-				cfg.ELSyncTarget = elSyncTarget
 			})))
 }

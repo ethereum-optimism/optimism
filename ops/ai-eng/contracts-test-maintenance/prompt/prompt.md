@@ -30,8 +30,9 @@ Don't guess or assume - if unsure, examine the source contract carefully.
 
 <zero_tolerance_rules>
 1. NO creating NEW tests for inherited functions - only test functions declared in target contract
-2. NO failing tests kept - all must pass or task fails
-3. NO removing ANY existing tests - even if they test inherited functions (enhance/modify instead)
+2. NO creating test contracts for constructor parameters - use Constructor_Test instead
+3. NO failing tests kept - all must pass or task fails
+4. NO removing ANY existing tests - even if they test inherited functions (enhance/modify instead)
 </zero_tolerance_rules>
 
 <core_principles>
@@ -90,6 +91,7 @@ This systematic approach ensures comprehensive test improvements without missing
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
+- Reorganize test contracts to match source function declaration order
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -106,6 +108,7 @@ This systematic approach ensures comprehensive test improvements without missing
 <naming_rules>
 **Test Contract Names:**
 - `TargetContract_FunctionName_Test` - ONE contract per function (no exceptions)
+- `TargetContract_Constructor_Test` - For constructor tests
 - `TargetContract_Uncategorized_Test` - For multi-function integration tests only (NEVER use "Unclassified")
 - `TargetContract_TestInit` - Shared setup contract
 - Constants/ALL CAPS: Convert to PascalCase (e.g., `MAX_LIMIT` → `TargetContract_MaxLimit_Test`)
@@ -119,6 +122,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Format: `[method]_[functionName]_[scenario]_[outcome]`
   - Methods: `test`, `testFuzz`, `testDiff`
   - Outcomes: `succeeds`, `reverts`, `fails` (never `works`)
+  - Scenarios: Keep concise (e.g., `expired` not `expiredPause`)
 - ALL parameters use underscore prefix: `_param`
 - Read-only tests MUST have `view` modifier
 
@@ -152,8 +156,12 @@ Uncategorized_Test Contract:
 
 Ask yourself: "What is the PRIMARY behavior I'm testing?" The answer determines the categorization.
 
-**Expected Structure:**
-Helper contracts → TestInit → function tests (in source order) → Uncategorized_Test last
+**Final Organization Structure:**
+1. After all tests are implemented and passing
+2. Map all functions from source contract in declaration order
+3. Reorganize ALL test contracts to match this order
+4. Structure: Helper contracts → TestInit → function tests (in source order) → Uncategorized last
+5. NEVER delete existing tests - only enhance, rename, or reorganize
 
 CRITICAL: Organization happens LAST, after all improvements are complete
 
@@ -267,6 +275,7 @@ NEVER fuzz a parameter if you need a specific value - just use that value direct
 - Tests that are logically equivalent despite using different numbers
 - Tests that cannot fail or always pass regardless of input
 - Testing undefined behavior without proper setup or context
+- Tests that only verify non-reversion without asserting actual state changes or return values
 </avoid>
 
 <getter_strategy>
@@ -293,6 +302,7 @@ A test provides value only if:
 - It has clear success and failure conditions
 - It validates specific, expected behavior
 - It could catch real bugs or regressions
+- It uses explicit assertions to verify outcomes (non-reversion alone is insufficient)
 </meaningful_test_criteria>
 
 <code_quality>
@@ -440,6 +450,35 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
 // No empty Storage_Uncategorized_Test remains
 </right>
 </example>
+<example>
+<scenario>Missing explicit assertion for protection mechanism</scenario>
+<wrong>
+function test_zeroProtection_succeeds() {
+    vm.fee(0);
+    contract.method(); // ❌ Only checks doesn't revert
+}
+</wrong>
+<right>
+function test_zeroProtection_succeeds() {
+    vm.fee(0);
+    contract.method();
+    assertEq(contract.getValue(), 1); // ✓ Verifies protection worked
+}
+</right>
+</example>
+<example>
+<scenario>Constructor parameter treated as function</scenario>
+<wrong>
+contract Base_InitVersion_Test { // ❌ Constructor param, not a function
+    function testFuzz_initVersion_succeeds(uint8 _version) { ... }
+}
+</wrong>
+<right>
+contract Base_Constructor_Test { // ✓ All constructor tests together
+    function testFuzz_constructor_validVersion_succeeds(uint8 _version) { ... }
+}
+</right>
+</example>
 </examples>
 
 <documentation_standards>
@@ -477,8 +516,9 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
 - Replace with `vm.expectRevert(ErrorName.selector)` or `vm.expectRevert(bytes("message"))`
 
 *Organization confusion:*
-- Expected order: Helper contracts at top, Uncategorized last
-- Function tests should follow source contract declaration order
+- Read source contract function order first
+- Move test contracts to match that exact order
+- Keep helper contracts at top, Uncategorized last
 
 *Fuzz test failures:*
 - Check if constraints properly bound the values
