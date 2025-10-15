@@ -289,11 +289,12 @@ abstract contract LivenessModule2 {
         // Now we will disable the guard and module from the Safe, so that the Safe is set to a
         // minimal state, which is as simple as possible for the fallback owner to reason about.
 
-        // Disable this guard from the Safe (if and only if it is enabled).
-        _disableGuard(targetSafe);
+        // Disable and clear this guard.
+        // Removes whichever guard is currently set on the Safe, even if it is not the SaferSafes guard.
+        _disableAndClearGuard(targetSafe);
 
         // Disable this module from the Safe
-        _disableThisModule(targetSafe);
+        _disableAndClearThisModule(targetSafe);
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
@@ -347,11 +348,11 @@ abstract contract LivenessModule2 {
     /// @dev Only disables the guard if it is enabled, otherwise does nothing in case another
     ///      guard is enabled.
     /// @param _targetSafe The Safe instance to disable this guard from.
-    function _disableGuard(Safe _targetSafe) internal virtual;
+    function _disableAndClearGuard(Safe _targetSafe) internal virtual;
 
     /// @notice Internal function to disable this module from the given Safe.
     /// @param _targetSafe The Safe instance to disable this module from.
-    function _disableThisModule(Safe _targetSafe) internal {
+    function _disableAndClearThisModule(Safe _targetSafe) internal {
         // Get current modules
         // This might not work if you have more than 100 modules, but what are you even doing if that's the case?
         (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_MODULE, 100);

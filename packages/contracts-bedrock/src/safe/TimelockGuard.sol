@@ -621,7 +621,7 @@ abstract contract TimelockGuard is IGuard {
     /// @dev This function is intended for use in contracts that extend TimelockGuard.
     ///      It clears the timelock guard configuration and cancels all pending transactions.
     /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableGuard(Safe _targetSafe) internal virtual {
+    function _disableAndClearGuard(Safe _targetSafe) internal virtual {
         SafeState storage safeState = _safeState[_targetSafe];
         // set the timelock delay to 0 to clear the configuration
         safeState.timelockDelay = 0;
