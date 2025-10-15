@@ -157,9 +157,9 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
     }
 }
 
-/// @title LivenessModule2_ChangeOwnershipToFallback_Test
+/// @title SaferSafes_ChangeOwnershipToFallback_Test
 /// @notice Tests the ownership transfer after successful challenge
-contract LivenessModule2_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
+contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     function setUp() public override {
         super.setUp();
 
