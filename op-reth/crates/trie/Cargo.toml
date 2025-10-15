@@ -14,8 +14,12 @@ workspace = true
 [dependencies]
 # reth
 reth-trie = { workspace = true, features = ["serde"] }
-reth-primitives-traits = { workspace = true, features = ["op"] }
-reth-db = { workspace = true, features = ["mdbx", "op"] }
+reth-primitives-traits = { workspace = true }
+reth-db = { workspace = true, features = ["mdbx"] }
+reth-revm = { workspace = true }
+reth-provider = { workspace = true }
+reth-db-api = { workspace = true }
+reth-execution-errors = { workspace = true }
 
 # ethereum
 alloy-primitives.workspace = true

@@ -52,6 +52,11 @@ pub trait OpProofsHashedCursor: Send + Sync {
 
     /// Move the cursor to the next entry and return it.
     fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>>;
+
+    /// Returns `true` if there are no entries for a given key.
+    fn is_storage_empty(&mut self) -> OpProofsStorageResult<bool> {
+        Ok(self.seek(B256::ZERO)?.is_none())
+    }
 }
 
 /// Diff of trie updates and post state for a block.
