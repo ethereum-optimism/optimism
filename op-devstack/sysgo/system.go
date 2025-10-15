@@ -47,7 +47,10 @@ func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs 
 
 func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
+	return defaultMinimalSystemOpts(&ids, dest)
+}
 
+func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimalSystemIDs) stack.CombinedOption[*Orchestrator] {
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
 		o.P().Logger().Info("Setting up")
@@ -80,7 +83,7 @@ func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestra
 	}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
-		*dest = ids
+		*dest = *ids
 	}))
 
 	return opt
@@ -423,5 +426,12 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 		*dest = ids
 	}))
 
+	return opt
+}
+
+func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
+	opt := defaultMinimalSystemOpts(&ids, dest)
+	opt.Add(WithCannonGameTypeAdded(ids.L1EL, ids.L2.ChainID()))
 	return opt
 }

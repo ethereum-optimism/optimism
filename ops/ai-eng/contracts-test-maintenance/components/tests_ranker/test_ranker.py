@@ -226,7 +226,8 @@ def fetch_last_processed_from_circleci() -> list[Path]:
     try:
         headers = {"Circle-Token": circleci_token}
         project_slug = "gh/ethereum-optimism/optimism"
-        branch = os.getenv("CIRCLE_BRANCH", "develop")
+        # Always check develop branch for previous successful runs
+        branch = "develop"
         two_weeks_ago = time.time() - (14 * 24 * 3600)
 
         # Get recent pipelines
@@ -246,7 +247,7 @@ def fetch_last_processed_from_circleci() -> list[Path]:
             if pipeline.get("created_at"):
                 pipeline_time = dt.fromisoformat(pipeline["created_at"].replace("Z", "+00:00")).timestamp()
                 if pipeline_time < two_weeks_ago:
-                    print(f"Reached pipelines older than 2 weeks, stopping search")
+                    print("Reached pipelines older than 2 weeks, stopping search")
                     break
 
             # Get workflow → job → artifacts → test path

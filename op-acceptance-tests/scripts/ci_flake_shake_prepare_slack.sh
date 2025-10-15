@@ -61,6 +61,7 @@ if [ -f "$PROMO_JSON" ]; then
   # See: https://docs.slack.dev/block-kit
   SLACK_BLOCKS=$(jq -c \
     --arg url "${REPORT_ARTIFACTS_URL}" \
+    --arg job "${REPORT_JOB_URL}" \
     --slurpfile meta "${PROMO_JSON%/*}/metadata.json" '
     def name_or_pkg(t): (if ((t.test_name|tostring)|length) == 0 then "(package)" else t.test_name end);
     def owner_or_unknown(t): (if ((t.owner|tostring)|length) == 0 then "unknown" else t.owner end);
@@ -91,12 +92,12 @@ if [ -f "$PROMO_JSON" ]; then
     ( if (($meta.flake_gate_tests // 0) == 0) then
         [
           {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: Flake-Shake — Gate Empty"}},
-          {"type":"section","text":{"type":"mrkdwn","text":"No tests in flake-shake gate; nothing to promote. Artifacts: <\($url)|CircleCI Job>"}}
+          {"type":"section","text":{"type":"mrkdwn","text":"No tests in flake-shake gate; nothing to promote. Artifacts: <\($job)|CircleCI Job>"}}
         ]
       elif ($root.candidates|length) == 0 then
         [
           {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: No Flake-Shake Promotion Candidates — \(if $date != "" then $date else (now|strftime("%Y-%m-%d")) end)"}},
-          {"type":"section","text":{"type":"mrkdwn","text":"No promotions today. Artifacts: <\($url)|CircleCI Job>"}}
+          {"type":"section","text":{"type":"mrkdwn","text":"No promotions today. Artifacts: <\($job)|CircleCI Job>"}}
         ]
       else
         (

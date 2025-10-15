@@ -626,11 +626,11 @@ func (c *Config) IsActivationBlockForFork(l2BlockTime uint64, forkName ForkName)
 func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	// IMPORTANT! ordered from newest to oldest
 	switch hardfork {
-	case Jovian:
-		c.JovianTime = new(uint64)
-		fallthrough
 	case Interop:
 		c.InteropTime = new(uint64)
+		fallthrough
+	case Jovian:
+		c.JovianTime = new(uint64)
 		fallthrough
 	case Isthmus:
 		c.IsthmusTime = new(uint64)

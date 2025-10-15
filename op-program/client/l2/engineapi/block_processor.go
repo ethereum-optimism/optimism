@@ -161,9 +161,10 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		Transactions: b.transactions,
 	}
 
+	cfg := b.evm.ChainConfig()
 	// Processing for EIP-7685 requests would happen here, but is skipped on OP.
 	// Kept here to minimize diff.
-	if b.dataProvider.Config().IsPrague(b.header.Number, b.header.Time) && !b.dataProvider.Config().IsIsthmus(b.header.Time) {
+	if cfg.IsPrague(b.header.Number, b.header.Time) && !cfg.IsIsthmus(b.header.Time) {
 		_requests := [][]byte{}
 		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
 		// EIP-7002
@@ -174,6 +175,14 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		if err := core.ProcessConsolidationQueue(&_requests, b.evm); err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if cfg.IsJovian(b.header.Time) {
+		gasUsed, err := types.CalcGasUsedJovian(b.transactions, b.header.GasUsed)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to calculate gas used for Jovian block: %w", err)
+		}
+		b.header.GasUsed = gasUsed
 	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
