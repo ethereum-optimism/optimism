@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Safe
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { Guard as IGuard, GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -611,5 +611,47 @@ abstract contract TimelockGuard is IGuard {
     ///         the Safe UI.
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                    Internal Functions                      //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Internal function to disable the guard from the given Safe.
+    /// @dev This function is intended for use in contracts that extend TimelockGuard.
+    ///      It clears the timelock guard configuration and cancels all pending transactions.
+    /// @param _targetSafe The Safe instance to disable the guard from.
+    function _disableGuard(Safe _targetSafe) internal virtual {
+        SafeState storage safeState = _safeState[_targetSafe];
+        // set the timelock delay to 0 to clear the configuration
+        safeState.timelockDelay = 0;
+
+        // Reset the cancellation threshold, 1 is the default value for all safes.
+        safeState.cancellationThreshold = 0;
+
+        // Get all pending transaction hashes
+        bytes32[] memory hashes = safeState.pendingTxHashes.values();
+
+        // Cancel all pending transactions
+        // It is true that iterating over a very large array can lead to gas issues, however the number of pending
+        // transactions is not expected to be large. If it grows to a point where this becomes an issue, then it maybe
+        // be necessary to manually cancel enough transactions to reduce the array size to a manageable size.
+        for (uint256 i = 0; i < hashes.length; i++) {
+            safeState.pendingTxHashes.remove(hashes[i]);
+            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
+            emit TransactionCancelled(_targetSafe, hashes[i]);
+        }
+
+        // Disable the guard
+        // Note that this will remove whichever guard is currently set on the Safe,
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
+        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // the fallback owner.
+        _targetSafe.execTransactionFromModule({
+            to: address(_targetSafe),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+        });
     }
 }

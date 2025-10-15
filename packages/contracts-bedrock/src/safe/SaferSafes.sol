@@ -3,16 +3,11 @@ pragma solidity 0.8.15;
 
 // Safe
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
 
 // Safe Extensions
 import { LivenessModule2 } from "./LivenessModule2.sol";
 import { TimelockGuard } from "./TimelockGuard.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
-
-// Libraries
-import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title SaferSafes
 /// @notice Combined Safe extensions providing both liveness module and timelock guard functionality
@@ -26,8 +21,6 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 ///      When installing either component, it should first be enabled, and then configured. If a component's
 ///      functionality is not desired, then there is no need to enable or configure it.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
-    using EnumerableSet for EnumerableSet.Bytes32Set;
-
     /// @notice Semantic version.
     /// @custom:semver 1.1.0
     string public constant version = "1.1.0";
@@ -68,42 +61,10 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
         }
     }
 
-    // TODO: should this be moved into the TimelockGuard contract?
-    // Or should this be exposed a public function "clearTimelockGuard" function?
     /// @notice Internal function to disable the guard from the given Safe.
-    /// @dev This function is intended for use in the SaferSafes contract, which extends this contract.
+    /// @dev This function is a wrapper that calls the parent TimelockGuard implementation.
     /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableGuard(Safe _targetSafe) internal override {
-        SafeState storage safeState = _safeState[_targetSafe];
-        // set the timelock delay to 0 to clear the configuration
-        safeState.timelockDelay = 0;
-
-        // Reset the cancellation threshold, 1 is the default value for all safes.
-        safeState.cancellationThreshold = 0;
-
-        // Get all pending transaction hashes
-        bytes32[] memory hashes = safeState.pendingTxHashes.values();
-
-        // Cancel all pending transactions
-        // It is true that iterating over a very large array can lead to gas issues, however the number of pending
-        // transactions is not expected to be large. If it grows to a point where this becomes an issue, then it maybe
-        // be necessary to manually cancel enough transactions to reduce the array size to a manageable size.
-        for (uint256 i = 0; i < hashes.length; i++) {
-            safeState.pendingTxHashes.remove(hashes[i]);
-            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
-            emit TransactionCancelled(_targetSafe, hashes[i]);
-        }
-
-        // Disable the guard
-        // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
-        // the fallback owner.
-        _targetSafe.execTransactionFromModule({
-            to: address(_targetSafe),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
-        });
+    function _disableGuard(Safe _targetSafe) internal override(LivenessModule2, TimelockGuard) {
+        TimelockGuard._disableGuard(_targetSafe);
     }
 }
