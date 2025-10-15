@@ -21,6 +21,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -246,11 +247,18 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Create validationOverrides
+        address challengerOverride;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            (,,,,,, challengerOverride) = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+        } else {
+            challengerOverride = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).challenger();
+        }
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
-            challenger: IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
-                .challenger()
+            challenger: challengerOverride
         });
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
@@ -1243,6 +1251,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runPastUpgrades(upgrader);
     }
 
+    function getDisputeGameV2AbsolutePrestate(GameType _gameType) internal view returns (Claim) {
+        bytes memory gameArgs = disputeGameFactory.gameArgs(_gameType);
+        (bytes32 absolutePrestate,,,,,,) = LibGameArgs.decode(gameArgs);
+        return Claim.wrap(absolutePrestate);
+    }
+
     function test_upgradeOPChainOnly_succeeds() public {
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);
@@ -1297,11 +1311,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter = IPermissionedDisputeGame(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-        ).absolutePrestate();
-        Claim fdgPrestateAfter =
-            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
 
         // Assert that the absolute prestate is the non-zero value we set.
         assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
@@ -1329,11 +1350,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter = IPermissionedDisputeGame(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-        ).absolutePrestate();
-        Claim fdgPrestateAfter =
-            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
 
         // Assert that the absolute prestate is the same as before the upgrade.
         assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
