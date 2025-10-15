@@ -1837,9 +1837,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.8.0
+    /// @custom:semver 4.0.0
     function version() public pure virtual returns (string memory) {
-        return "3.8.0";
+        return "4.0.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1864,9 +1864,6 @@ contract OPContractsManager is ISemver {
     /// @notice The OPContractsManager contract that is currently being used. This is needed in the upgrade function
     /// which is intended to be DELEGATECALLed.
     OPContractsManager internal immutable thisOPCM;
-
-    /// @notice The address of the upgrade controller.
-    address public immutable upgradeController;
 
     // -------- Errors --------
 
@@ -1919,8 +1916,7 @@ contract OPContractsManager is ISemver {
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
         _opcmDeployer.assertValidContractAddress(address(_protocolVersions));
@@ -1938,7 +1934,6 @@ contract OPContractsManager is ISemver {
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
         thisOPCM = this;
-        upgradeController = _upgradeController;
     }
 
     /// @notice Validates the configuration of the L1 contracts.

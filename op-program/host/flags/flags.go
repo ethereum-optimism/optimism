@@ -112,12 +112,6 @@ var (
 		Usage:   "Address of L1 Beacon API endpoint to use",
 		EnvVars: prefixEnvVars("L1_BEACON_API"),
 	}
-	L1BeaconSkipBlobVerification = &cli.BoolFlag{
-		Name:    "l1.beacon.skip-blob-verification",
-		Usage:   "Skip verification of the kzg_proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
-		Value:   false,
-		EnvVars: prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
-	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
 		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -175,7 +169,6 @@ var programFlags = []cli.Flag{
 	L2GenesisPath,
 	L1NodeAddr,
 	L1BeaconAddr,
-	L1BeaconSkipBlobVerification,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	DepsetConfig,

@@ -6,6 +6,7 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
+import { SaferSafes } from "src/safe/SaferSafes.sol";
 
 /// @title LivenessModule2_TestInit
 /// @notice Reusable test initialization for `LivenessModule2` tests.
@@ -24,7 +25,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     uint256 constant NUM_OWNERS = 5;
     uint256 constant THRESHOLD = 3;
 
-    LivenessModule2 livenessModule2;
+    SaferSafes livenessModule2;
     SafeInstance safeInstance;
     address fallbackOwner;
     address[] owners;
@@ -33,8 +34,8 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     function setUp() public virtual {
         vm.warp(INIT_TIME);
 
-        // Deploy the singleton LivenessModule2
-        livenessModule2 = new LivenessModule2();
+        // Deploy the combined SaferSafes contract which implements LivenessModule2
+        livenessModule2 = new SaferSafes();
 
         // Create Safe owners
         (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);

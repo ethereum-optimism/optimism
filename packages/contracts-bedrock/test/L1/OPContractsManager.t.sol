@@ -69,8 +69,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProxyAdmin _superchainProxyAdmin
     )
         OPContractsManager(
             _opcmGameTypeAdder,
@@ -80,8 +79,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmStandardValidator,
             _superchainConfig,
             _protocolVersions,
-            _superchainProxyAdmin,
-            _upgradeController
+            _superchainProxyAdmin
         )
     { }
 
@@ -332,7 +330,6 @@ contract OPContractsManager_TestInit is CommonTest {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
@@ -428,7 +425,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-        address upgradeController = makeAddr("upgradeController");
         OPContractsManager.Blueprints memory emptyBlueprints;
         OPContractsManager.Implementations memory emptyImpls;
         vm.etch(address(superchainConfigProxy), hex"01");
@@ -453,8 +449,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             ),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
-            _superchainProxyAdmin: superchainProxyAdmin,
-            _upgradeController: upgradeController
+            _superchainProxyAdmin: superchainProxyAdmin
         });
     }
 
@@ -724,18 +719,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
             chainDeployOutput1.disputeGameFactoryProxy.initBonds(agi.disputeGameType), agi.initialBond, "bond mismatch"
         );
     }
-}
-
-/// @title OPContractsManager_AddGameTypeCannonKonaEnabled_Test
-/// @notice Tests the `addGameType` function of the `OPContractsManager` contract with CANNON_KONA enabled.
-contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsManager_AddGameType_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_cannonKonaGameType_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
 
@@ -756,6 +743,7 @@ contract OPContractsManager_AddGameType_CannonKonaEnabled_Test is OPContractsMan
 
     /// @notice Tests that addGameType will revert if the game type is cannon-kona and the dev feature is not enabled
     function test_addGameType_superCannonKonaGameType_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Create the input for the cannon-kona game type.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
 
@@ -1040,18 +1028,10 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             abi.encodeWithSelector(IOPContractsManager.PrestateRequired.selector)
         );
     }
-}
-
-/// @title OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test
-/// @notice Tests the `updatePrestate` function of the `OPContractsManager` contract with CANNON_KONA enabled.
-contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContractsManager_UpdatePrestate_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     /// @notice Tests that we can update the prestate for both CANNON and CANNON_KONA game types.
     function test_updatePrestate_bothGamesAndCannonKonaWithValidInput_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Add a FaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON);
         addGameType(input);
@@ -1070,6 +1050,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     }
 
     function test_updatePrestate_cannonKonaWithSuperGame_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
         // SuperPermissionedDisputeGame implementation.
         vm.mockCall(
@@ -1157,6 +1138,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that we can update the prestate when both the PermissionedDisputeGame and
     ///        FaultDisputeGame exist, and the FaultDisputeGame is of type CANNON_KONA.
     function test_updatePrestate_pdgAndCannonKonaOnly_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1172,6 +1154,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is for
     ///       mixed game types (i.e. CANNON and SUPER_CANNON_KONA).
     function test_updatePrestate_cannonKonaMixedGameTypes_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         // Add a SuperFaultDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.SUPER_CANNON_KONA);
         addGameType(input);
@@ -1194,6 +1177,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     function test_updatePrestate_presetCannonKonaWhenOnlyCannonPrestateIsZeroAndCannonGameTypeDisabled_reverts()
         public
     {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1211,6 +1195,7 @@ contract OPContractsManager_UpdatePrestate_CannonKonaEnabled_Test is OPContracts
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
     ///         zero hash.
     function test_updatePrestate_whenCannonKonaPrestateIsZero_reverts() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(GameTypes.CANNON_KONA);
         addGameType(input);
 
@@ -1249,7 +1234,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
 
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);
@@ -1840,17 +1824,9 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
             input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
         );
     }
-}
-
-/// @title OPContractsManager_Migrate_CannonKonaEnabled_Test
-/// @notice Tests the `migrate` function of the `OPContractsManager` contract.
-contract OPContractsManager_Migrate_CannonKonaEnabled_Test is OPContractsManager_Migrate_Test {
-    function setUp() public override {
-        setDevFeatureEnabled(DevFeatures.CANNON_KONA);
-        super.setUp();
-    }
 
     function test_migrate_zerosOutCannonKonaGameTypes_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Grab the existing DisputeGameFactory for each chain.

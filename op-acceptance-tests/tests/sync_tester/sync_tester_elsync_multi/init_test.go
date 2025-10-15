@@ -1,4 +1,4 @@
-package elsync
+package multi
 
 import (
 	"testing"
@@ -11,9 +11,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	// No ELP2P, CLP2P to control the supply of unsafe payload to the CL
-	presets.DoMain(m, presets.WithSingleChainMultiNodeWithoutP2P(),
+	presets.DoMain(m,
 		presets.WithExecutionLayerSyncOnVerifiers(),
+		presets.WithSimpleWithSyncTester(),
+		presets.WithELSyncActive(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
 			// For stopping derivation, not to advance safe heads

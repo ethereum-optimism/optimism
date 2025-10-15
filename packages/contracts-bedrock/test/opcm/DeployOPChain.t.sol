@@ -89,7 +89,7 @@ contract DeployOPChain_TestBase is Test {
                 superchainConfigProxy: dso.superchainConfigProxy,
                 protocolVersionsProxy: dso.protocolVersionsProxy,
                 superchainProxyAdmin: dso.superchainProxyAdmin,
-                upgradeController: dso.superchainProxyAdmin.owner(),
+                l1ProxyAdminOwner: dso.superchainProxyAdmin.owner(),
                 challenger: challenger,
                 devFeatureBitmap: bytes32(0)
             })

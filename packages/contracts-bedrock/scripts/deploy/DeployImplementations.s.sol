@@ -60,7 +60,7 @@ contract DeployImplementations is Script {
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
-        address upgradeController;
+        address l1ProxyAdminOwner;
         address challenger;
     }
 
@@ -205,8 +205,7 @@ contract DeployImplementations is Script {
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin,
-                    _input.upgradeController
+                    _input.superchainProxyAdmin
                 )
             )
         );
@@ -632,7 +631,7 @@ contract DeployImplementations is Script {
                         (
                             opcmImplementations,
                             _input.superchainConfigProxy,
-                            _input.upgradeController, // Proxy admin owner
+                            _input.l1ProxyAdminOwner,
                             _input.challenger,
                             _input.withdrawalDelaySeconds,
                             _input.devFeatureBitmap
@@ -697,7 +696,7 @@ contract DeployImplementations is Script {
         require(
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
-        require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
+        require(address(_input.l1ProxyAdminOwner) != address(0), "DeployImplementations: L1ProxyAdminOwner not set");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private {

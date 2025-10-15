@@ -107,14 +107,6 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON_FETCH_ALL_SIDECARS"),
 		Category: L1RPCCategory,
 	}
-	BeaconSkipBlobVerification = &cli.BoolFlag{
-		Name:     "l1.beacon.skip-blob-verification",
-		Usage:    "If true, skips the verification of the kzg_proof for each blob returned by the Beacon node. Not recommended unless the provided beacon endpoints are trusted.",
-		Required: false,
-		Value:    false,
-		EnvVars:  prefixEnvVars("L1_BEACON_SKIP_BLOB_VERIFICATION"),
-		Category: L1RPCCategory,
-	}
 	SyncModeFlag = &cli.GenericFlag{
 		Name:    "syncmode",
 		Usage:   fmt.Sprintf("Blockchain sync mode (options: %s)", openum.EnumString(sync.ModeStrings)),
@@ -442,7 +434,6 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
-	BeaconSkipBlobVerification,
 	SyncModeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,

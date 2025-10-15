@@ -61,6 +61,12 @@ func WithChainID(id uint64) AnvilOption {
 	}
 }
 
+func WithForkBlockNumber(block uint64) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--fork-block-number"] = strconv.FormatUint(block, 10)
+	}
+}
+
 func NewAnvil(logger log.Logger, opts ...AnvilOption) (*Anvil, error) {
 	if _, err := exec.LookPath("anvil"); err != nil {
 		return nil, fmt.Errorf("anvil not found in PATH: %w", err)

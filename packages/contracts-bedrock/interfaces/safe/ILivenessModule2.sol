@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ISemver } from "interfaces/universal/ISemver.sol";
-
 /// @title ILivenessModule2
 /// @notice Interface for LivenessModule2, a singleton module for challenge-based ownership transfer
-interface ILivenessModule2 is ISemver {
+interface ILivenessModule2 {
     /// @notice Configuration for a Safe's liveness module
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
