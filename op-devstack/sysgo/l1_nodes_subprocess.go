@@ -217,7 +217,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 			l1Clock = orch.timeTravelClock
 		}
 
-		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime)
+		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime, l1Net.genesis.Config.OsakaTime)
 		p.Cleanup(func() {
 			_ = bcn.Close()
 		})

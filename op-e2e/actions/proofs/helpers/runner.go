@@ -78,6 +78,7 @@ func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Mi
 			l1.BlobStore(),
 			l1.L1Chain().Genesis().Time(),
 			12,
+			l1.L1Chain().Config().OsakaTime,
 		)
 		require.NoError(t, fakeBeacon.Start("127.0.0.1:0"))
 		defer fakeBeacon.Close()
