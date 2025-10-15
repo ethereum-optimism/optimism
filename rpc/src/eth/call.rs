@@ -1,5 +1,4 @@
 use crate::{eth::RpcNodeCore, OpEthApi, OpEthApiError};
-use reth_evm::{SpecFor, TxEnvFor};
 use reth_rpc_eth_api::{
     helpers::{estimate::EstimateCall, Call, EthCall},
     FromEvmError, RpcConvert,
@@ -9,12 +8,7 @@ impl<N, Rpc> EthCall for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
     OpEthApiError: FromEvmError<N::Evm>,
-    Rpc: RpcConvert<
-        Primitives = N::Primitives,
-        Error = OpEthApiError,
-        TxEnv = TxEnvFor<N::Evm>,
-        Spec = SpecFor<N::Evm>,
-    >,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
 }
 
@@ -22,12 +16,7 @@ impl<N, Rpc> EstimateCall for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
     OpEthApiError: FromEvmError<N::Evm>,
-    Rpc: RpcConvert<
-        Primitives = N::Primitives,
-        Error = OpEthApiError,
-        TxEnv = TxEnvFor<N::Evm>,
-        Spec = SpecFor<N::Evm>,
-    >,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
 }
 
@@ -35,12 +24,7 @@ impl<N, Rpc> Call for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
     OpEthApiError: FromEvmError<N::Evm>,
-    Rpc: RpcConvert<
-        Primitives = N::Primitives,
-        Error = OpEthApiError,
-        TxEnv = TxEnvFor<N::Evm>,
-        Spec = SpecFor<N::Evm>,
-    >,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError, Evm = N::Evm>,
 {
     #[inline]
     fn call_gas_limit(&self) -> u64 {

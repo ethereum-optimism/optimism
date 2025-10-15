@@ -15,7 +15,7 @@ use alloc::sync::Arc;
 use alloy_consensus::{BlockHeader, Header};
 use alloy_eips::Decodable2718;
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded};
-use alloy_op_evm::block::receipt_builder::OpReceiptBuilder;
+use alloy_op_evm::block::{receipt_builder::OpReceiptBuilder, OpTxEnv};
 use alloy_primitives::U256;
 use core::fmt::Debug;
 use op_alloy_consensus::EIP1559ParamError;
@@ -131,9 +131,11 @@ where
     EvmF: EvmFactory<
             Tx: FromRecoveredTx<R::Transaction>
                     + FromTxWithEncoded<R::Transaction>
-                    + TransactionEnv,
+                    + TransactionEnv
+                    + OpTxEnv,
             Precompiles = PrecompilesMap,
             Spec = OpSpecId,
+            BlockEnv = BlockEnv,
         > + Debug,
     Self: Send + Sync + Unpin + Clone + 'static,
 {

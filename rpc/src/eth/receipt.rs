@@ -458,10 +458,11 @@ mod test {
             OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice())
                 .unwrap();
 
-        let mut l1_block_info = op_revm::L1BlockInfo::default();
-
-        l1_block_info.operator_fee_scalar = Some(U256::ZERO);
-        l1_block_info.operator_fee_constant = Some(U256::from(2));
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            operator_fee_scalar: Some(U256::ZERO),
+            operator_fee_constant: Some(U256::from(2)),
+            ..Default::default()
+        };
 
         let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
             .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)
@@ -481,10 +482,11 @@ mod test {
             OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice())
                 .unwrap();
 
-        let mut l1_block_info = op_revm::L1BlockInfo::default();
-
-        l1_block_info.operator_fee_scalar = Some(U256::ZERO);
-        l1_block_info.operator_fee_constant = Some(U256::ZERO);
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            operator_fee_scalar: Some(U256::ZERO),
+            operator_fee_constant: Some(U256::ZERO),
+            ..Default::default()
+        };
 
         let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
             .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)

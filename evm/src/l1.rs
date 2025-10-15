@@ -88,10 +88,12 @@ pub fn parse_l1_info_tx_bedrock(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
     let l1_fee_scalar = U256::try_from_be_slice(&data[224..256])
         .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::FeeScalarConversion))?;
 
-    let mut l1block = L1BlockInfo::default();
-    l1block.l1_base_fee = l1_base_fee;
-    l1block.l1_fee_overhead = Some(l1_fee_overhead);
-    l1block.l1_base_fee_scalar = l1_fee_scalar;
+    let l1block = L1BlockInfo {
+        l1_base_fee,
+        l1_fee_overhead: Some(l1_fee_overhead),
+        l1_base_fee_scalar: l1_fee_scalar,
+        ..Default::default()
+    };
 
     Ok(l1block)
 }
@@ -140,11 +142,13 @@ pub fn parse_l1_info_tx_ecotone(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
     let l1_blob_base_fee = U256::try_from_be_slice(&data[64..96])
         .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BlobBaseFeeConversion))?;
 
-    let mut l1block = L1BlockInfo::default();
-    l1block.l1_base_fee = l1_base_fee;
-    l1block.l1_base_fee_scalar = l1_base_fee_scalar;
-    l1block.l1_blob_base_fee = Some(l1_blob_base_fee);
-    l1block.l1_blob_base_fee_scalar = Some(l1_blob_base_fee_scalar);
+    let l1block = L1BlockInfo {
+        l1_base_fee,
+        l1_base_fee_scalar,
+        l1_blob_base_fee: Some(l1_blob_base_fee),
+        l1_blob_base_fee_scalar: Some(l1_blob_base_fee_scalar),
+        ..Default::default()
+    };
 
     Ok(l1block)
 }
@@ -201,13 +205,15 @@ pub fn parse_l1_info_tx_isthmus(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
         OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::OperatorFeeConstantConversion)
     })?;
 
-    let mut l1block = L1BlockInfo::default();
-    l1block.l1_base_fee = l1_base_fee;
-    l1block.l1_base_fee_scalar = l1_base_fee_scalar;
-    l1block.l1_blob_base_fee = Some(l1_blob_base_fee);
-    l1block.l1_blob_base_fee_scalar = Some(l1_blob_base_fee_scalar);
-    l1block.operator_fee_scalar = Some(operator_fee_scalar);
-    l1block.operator_fee_constant = Some(operator_fee_constant);
+    let l1block = L1BlockInfo {
+        l1_base_fee,
+        l1_base_fee_scalar,
+        l1_blob_base_fee: Some(l1_blob_base_fee),
+        l1_blob_base_fee_scalar: Some(l1_blob_base_fee_scalar),
+        operator_fee_scalar: Some(operator_fee_scalar),
+        operator_fee_constant: Some(operator_fee_constant),
+        ..Default::default()
+    };
 
     Ok(l1block)
 }

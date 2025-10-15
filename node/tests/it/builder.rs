@@ -19,7 +19,7 @@ use reth_optimism_node::{args::RollupArgs, OpEvmConfig, OpExecutorBuilder, OpNod
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
 use revm::{
-    context::{Cfg, ContextTr, TxEnv},
+    context::{BlockEnv, Cfg, ContextTr, TxEnv},
     context_interface::result::EVMError,
     inspector::NoOpInspector,
     interpreter::interpreter::EthInterpreter,
@@ -94,6 +94,7 @@ fn test_setup_custom_precompiles() {
             EVMError<DBError, OpTransactionError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
+        type BlockEnv = BlockEnv;
         type Precompiles = PrecompilesMap;
 
         fn create_evm<DB: Database>(
