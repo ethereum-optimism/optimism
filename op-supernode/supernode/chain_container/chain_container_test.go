@@ -12,10 +12,10 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +100,7 @@ func createTestLogger() gethlog.Logger {
 func TestChainContainer_Constructor(t *testing.T) {
 	t.Parallel()
 
-	chainID := types.ChainID(420)
+	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger()
 	cfg := createTestCLIConfig()
@@ -137,7 +137,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: "/tmp/datadir",
 		}
-		container := NewChainContainer(types.ChainID(420), vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
 
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
@@ -174,7 +174,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: "/data",
 		}
-		container := NewChainContainer(types.ChainID(420), vncfg, log, cfg, initOverload, nil, nil, nil)
+		container := NewChainContainer(eth.ChainIDFromUInt64(420), vncfg, log, cfg, initOverload, nil, nil, nil)
 		impl, ok := container.(*simpleChainContainer)
 		require.True(t, ok)
 
@@ -189,13 +189,13 @@ func TestChainContainer_Constructor(t *testing.T) {
 		}
 
 		testCases := []struct {
-			chainID  types.ChainID
+			chainID  eth.ChainID
 			path     string
 			expected string
 		}{
-			{types.ChainID(10), "safe_db", "/data/10/safe_db"},
-			{types.ChainID(11155420), "safe_db", "/data/11155420/safe_db"},
-			{types.ChainID(8453), "peerstore", "/data/8453/peerstore"},
+			{eth.ChainIDFromUInt64(10), "safe_db", "/data/10/safe_db"},
+			{eth.ChainIDFromUInt64(11155420), "safe_db", "/data/11155420/safe_db"},
+			{eth.ChainIDFromUInt64(8453), "peerstore", "/data/8453/peerstore"},
 		}
 
 		for _, tc := range testCases {
@@ -214,7 +214,7 @@ func TestChainContainer_Constructor(t *testing.T) {
 func TestChainContainer_Lifecycle(t *testing.T) {
 	t.Parallel()
 
-	chainID := types.ChainID(420)
+	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger()
 	cfg := createTestCLIConfig()
@@ -366,7 +366,7 @@ func TestChainContainer_Lifecycle(t *testing.T) {
 func TestChainContainer_PauseResume(t *testing.T) {
 	t.Parallel()
 
-	chainID := types.ChainID(420)
+	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger()
 	cfg := createTestCLIConfig()
@@ -467,7 +467,7 @@ func TestChainContainer_PauseResume(t *testing.T) {
 func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 	t.Parallel()
 
-	chainID := types.ChainID(420)
+	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
 	log := createTestLogger()
 	cfg := createTestCLIConfig()

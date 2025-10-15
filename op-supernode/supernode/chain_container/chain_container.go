@@ -10,10 +10,10 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -38,7 +38,7 @@ type simpleChainContainer struct {
 	stop               atomic.Bool
 	stopped            chan struct{}
 	log                gethlog.Logger
-	chainID            types.ChainID
+	chainID            eth.ChainID
 	initOverload       *rollupNode.InitializationOverrides  // Base shared resources for all virtual nodes
 	rpcHandler         *oprpc.Handler                       // Current per-chain RPC handler instance
 	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
@@ -48,7 +48,7 @@ type simpleChainContainer struct {
 }
 
 func NewChainContainer(
-	chainID types.ChainID,
+	chainID eth.ChainID,
 	vncfg *opnodecfg.Config,
 	log gethlog.Logger,
 	cfg config.CLIConfig,

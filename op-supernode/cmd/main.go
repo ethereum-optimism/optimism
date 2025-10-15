@@ -14,11 +14,11 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/flags"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode"
-	sntypes "github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -69,7 +69,7 @@ func main() {
 		opservice.ValidateEnvVars(flags.EnvVarPrefix, dynamicFlags, l)
 
 		// Build virtual Configs from the CLI Context for each chain
-		vnCfgs := make(map[sntypes.ChainID]*opnodecfg.Config)
+		vnCfgs := make(map[eth.ChainID]*opnodecfg.Config)
 		for _, chainID := range cfg.Chains {
 			// Create a new VirtualCLI for the chain which will serve as an opnode config
 			vcli := flags.NewVirtualCLI(cliCtx, chainID)
@@ -86,7 +86,7 @@ func main() {
 			if err != nil {
 				return nil, fmt.Errorf("failed to create virtual node config: %w", err)
 			}
-			vnCfgs[sntypes.ChainID(chainID)] = cfg
+			vnCfgs[eth.ChainIDFromUInt64(chainID)] = cfg
 		}
 
 		// Create the supernode, supplying the logger, version, and close function

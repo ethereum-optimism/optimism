@@ -11,10 +11,10 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/resources"
-	"github.com/ethereum-optimism/optimism/op-supernode/supernode/types"
 	gethlog "github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
@@ -26,7 +26,7 @@ type Supernode struct {
 	requestStop  context.CancelCauseFunc
 	stopped      bool
 	cfg          *config.CLIConfig
-	chains       map[types.ChainID]cc.ChainContainer
+	chains       map[eth.ChainID]cc.ChainContainer
 	wg           sync.WaitGroup
 	l1Client     *sources.L1Client
 	beaconClient *sources.L1BeaconClient
@@ -37,8 +37,8 @@ type Supernode struct {
 	metricsRouter *resources.MetricsRouter
 }
 
-func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[types.ChainID]*opnodecfg.Config) (*Supernode, error) {
-	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[types.ChainID]cc.ChainContainer)}
+func New(ctx context.Context, log gethlog.Logger, version string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
+	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.ChainContainer)}
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -57,7 +57,7 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 	// Build metrics router; attach per-chain registries later
 	s.metricsRouter = resources.NewMetricsRouter(log)
 	for _, id := range cfg.Chains {
-		chainID := types.ChainID(id)
+		chainID := eth.ChainIDFromUInt64(id)
 		initOverrides := &rollupNode.InitializationOverrides{
 			L1Source: resources.NewNonCloseableL1Client(s.l1Client),
 			Beacon:   resources.NewNonCloseableL1BeaconClient(s.beaconClient),
@@ -107,10 +107,10 @@ func (s *Supernode) Start(ctx context.Context) error {
 	}
 	for chainID, chain := range s.chains {
 		s.wg.Add(1)
-		go func(chainID types.ChainID, chain cc.ChainContainer) {
+		go func(chainID eth.ChainID, chain cc.ChainContainer) {
 			defer s.wg.Done()
 			if err := chain.Start(ctx); err != nil {
-				s.log.Error("error starting chain", "chain_id", chainID, "error", err)
+				s.log.Error("error starting chain", "chain_id", chainID.String(), "error", err)
 			}
 		}(chainID, chain)
 	}
@@ -151,7 +151,7 @@ func (s *Supernode) Stop(ctx context.Context) error {
 
 	for chainID, chain := range s.chains {
 		if err := chain.Stop(ctx); err != nil {
-			s.log.Error("error stopping chain container", "chain_id", chainID, "error", err)
+			s.log.Error("error stopping chain container", "chain_id", chainID.String(), "error", err)
 		}
 	}
 
