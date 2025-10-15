@@ -445,7 +445,7 @@ func generateHTMLReport(report *FlakeShakeReport) string {
 			test.TotalRuns,
 			test.Passes,
 			test.Failures,
-			test.AvgDuration.Round(time.Millisecond),
+			test.AvgDuration.Round(time.Second),
 			strings.ToLower(test.Recommendation),
 			test.Recommendation,
 		))

@@ -95,6 +95,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				ProxyAdminOwner:  chainIntent.Roles.L2ProxyAdminOwner,
 				FinalSystemOwner: chainIntent.Roles.L1ProxyAdminOwner,
 			},
+			DAFootprintGasScalar: chainIntent.DAFootprintGasScalar,
 		},
 		FaultProofDeployConfig: genesis.FaultProofDeployConfig{
 			UseFaultProofs:                  true,

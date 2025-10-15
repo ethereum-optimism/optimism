@@ -1,7 +1,4 @@
-// Package v3_0_0 implements the upgrade to v3.0.0 (U14). The interface for the upgrade is identical
-// to the upgrade for v2.0.0 (U13), so all this package does is implement the Upgrader interface and
-// call into the v2.0.0 upgrade.
-package v3_0_0
+package embedded
 
 import (
 	"encoding/json"
@@ -19,7 +16,7 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 }
 
 func (u *Upgrader) ArtifactsURL() string {
-	return artifacts.CreateHttpLocator("147b9fae70608da2975a01be3d98948306f89ba1930af7c917eea41a54d87cdb")
+	return artifacts.EmbeddedLocatorString
 }
 
 var DefaultUpgrader = new(Upgrader)

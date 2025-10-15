@@ -591,6 +591,8 @@ type ForkchoiceUpdatedResult struct {
 	PayloadID *PayloadID `json:"payloadId"`
 }
 
+const DAFootprintGasScalarDefault = 400
+
 // SystemConfig represents the rollup system configuration that carries over in every L2 block,
 // and may be changed through L1 system config events.
 // The initial SystemConfig at rollup genesis is embedded in the rollup configuration.
@@ -615,6 +617,8 @@ type SystemConfig struct {
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
 	// MinBaseFee identifies the minimum base fee.
 	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar identifies the DA footprint gas scalar.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
 	// More fields can be added for future SystemConfig versions.
 
 	// MarshalPreHolocene indicates whether or not this struct should be
@@ -622,6 +626,14 @@ type SystemConfig struct {
 	// not marshal the EIP1559Params field. The presence of this field in
 	// pre-Holocene codebases causes the rollup config to be rejected.
 	MarshalPreHolocene bool `json:"-"`
+}
+
+func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
+	if daFootprintGasScalar == 0 {
+		sysCfg.DAFootprintGasScalar = DAFootprintGasScalarDefault
+	} else {
+		sysCfg.DAFootprintGasScalar = daFootprintGasScalar
+	}
 }
 
 func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
@@ -703,7 +715,7 @@ func EncodeScalar(scalars EcotoneScalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarEcotone
 	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
 	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
-	return
+	return scalar
 }
 
 func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
@@ -747,7 +759,7 @@ func DecodeOperatorFeeParams(scalar [32]byte) OperatorFeeParams {
 func EncodeOperatorFeeParams(params OperatorFeeParams) (scalar [32]byte) {
 	binary.BigEndian.PutUint32(scalar[20:24], params.Scalar)
 	binary.BigEndian.PutUint64(scalar[24:32], params.Constant)
-	return
+	return scalar
 }
 
 type Bytes48 [48]byte
@@ -779,7 +791,7 @@ type Uint64String uint64
 
 func (v Uint64String) MarshalText() (out []byte, err error) {
 	out = strconv.AppendUint(out, uint64(v), 10)
-	return
+	return out, err
 }
 
 func (v *Uint64String) UnmarshalText(b []byte) error {

@@ -79,10 +79,10 @@ parameters:
     default: false
   flake-shake-iterations:
     type: integer
-    default: 200
+    default: 300
   flake-shake-workers:
     type: integer
-    default: 10
+    default: 50
 
 orbs:
   go: circleci/go@1.8.0
@@ -203,53 +203,6 @@ commands:
           template: basic_fail_1
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
-
-  # Notifies us on Discord when a build fails on develop
-  # For Discord to properly trigger notifications, mentions need to be in the format:
-  # User mentions: <@USER_ID>
-  # Role mentions: <@&ROLE_ID>
-  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
-  discord-notification-failures-on-develop:
-    description: "Notify Discord"
-    parameters:
-      message:
-        type: string
-        default: ""
-      mentions:
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: "Notify Discord"
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
-              # Format message for Discord with better structure and formatting
-              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
-
-              # Add failure reason if provided
-              if [ ! -z "<< parameters.message >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
-              fi
-
-              # Add mentions if provided
-              if [ ! -z "<< parameters.mentions >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
-              fi
-
-              # Add extra mentions from environment (e.g. owners from flake-shake)
-              if [ -n "${EXTRA_DISCORD_MENTIONS:-}" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Owners:** ${EXTRA_DISCORD_MENTIONS}"
-              fi
-
-              # Post to Discord webhook
-              curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
-            fi
-          when: on_fail
 
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
@@ -448,9 +401,6 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      - discord-notification-failures-on-develop:
-          mentions: "Platforms (<@&1346448413172170807>)" # Protocol DevX Pod
-          message: "Kurtosis acceptance tests failed for devnet <<parameters.devnet>> gate <<parameters.gate>>"
   initialize:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1627,9 +1577,8 @@ jobs:
       - when:
           condition: on_fail
           steps:
-            - discord-notification-failures-on-develop:
-                mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
-                message: "Acceptance tests failed for gate <<parameters.gate>>"
+            - notify-failures-on-develop:
+                mentions: "@protocol-devx-pod @changwan"
 
   op-acceptance-tests-flake-shake:
     parameters:
@@ -1638,8 +1587,7 @@ jobs:
         default: "flake-shake"
     machine:
       image: ubuntu-2404:current
-    resource_class: large
-    circleci_ip_ranges: true
+    resource_class: xlarge
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
       - checkout-from-workspace
@@ -1662,7 +1610,7 @@ jobs:
             bash ./op-acceptance-tests/scripts/ci_flake_shake_calc_iterations.sh << pipeline.parameters.flake-shake-iterations >>
       - run:
           name: Run flake-shake iterations
-          no_output_timeout: 2h
+          no_output_timeout: 3h
           working_directory: op-acceptance-tests
           command: |
             OUTPUT_DIR="logs/flake-shake-results-worker-${FLAKE_SHAKE_WORKER_ID}"
@@ -2688,6 +2636,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+          filters:
+            tags:
+              only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
+            branches:
+              ignore: /.*/
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2695,6 +2648,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-proposer
                 - op-challenger
@@ -2704,7 +2658,6 @@ workflows:
                 - op-ufm
                 - op-supervisor
                 - op-test-sequencer
-                - op-deployer
                 - cannon
                 - op-dripper
                 - op-interop-mon
@@ -2730,6 +2683,7 @@ workflows:
               op_component:
                 - op-node
                 - op-batcher
+                - op-deployer
                 - op-faucet
                 - op-proposer
                 - op-challenger
@@ -2747,6 +2701,7 @@ workflows:
           requires:
             - op-node-docker-release
             - op-batcher-docker-release
+            - op-deployer-docker-release
             - op-faucet-docker-release
             - op-proposer-docker-release
             - op-challenger-docker-release

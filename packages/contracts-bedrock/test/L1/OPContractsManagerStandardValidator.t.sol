@@ -10,6 +10,7 @@ import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -101,6 +102,10 @@ contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
+
+        // Skip V1 StandardValidator tests when V2 dispute games are enabled
+        // TODO(#17267): Remove skip when V2 dispute game support added to the StandardValidator is implemented
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
