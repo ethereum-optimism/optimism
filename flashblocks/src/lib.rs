@@ -12,7 +12,7 @@ pub use consensus::FlashBlockConsensusClient;
 mod payload;
 pub use payload::PendingFlashBlock;
 mod sequence;
-pub use sequence::FlashBlockCompleteSequence;
+pub use sequence::{FlashBlockCompleteSequence, FlashBlockPendingSequence};
 
 mod service;
 mod worker;

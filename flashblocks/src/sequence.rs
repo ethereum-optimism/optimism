@@ -13,7 +13,7 @@ const FLASHBLOCK_SEQUENCE_CHANNEL_SIZE: usize = 128;
 
 /// An ordered B-tree keeping the track of a sequence of [`FlashBlock`]s by their indices.
 #[derive(Debug)]
-pub(crate) struct FlashBlockPendingSequence<T> {
+pub struct FlashBlockPendingSequence<T> {
     /// tracks the individual flashblocks in order
     ///
     /// With a blocktime of 2s and flashblock tick-rate of 200ms plus one extra flashblock per new
@@ -29,7 +29,8 @@ impl<T> FlashBlockPendingSequence<T>
 where
     T: SignedTransaction,
 {
-    pub(crate) fn new() -> Self {
+    /// Create a new pending sequence.
+    pub fn new() -> Self {
         // Note: if the channel is full, send will not block but rather overwrite the oldest
         // messages. Order is preserved.
         let (tx, _) = broadcast::channel(FLASHBLOCK_SEQUENCE_CHANNEL_SIZE);
@@ -37,7 +38,7 @@ where
     }
 
     /// Gets a subscriber to the flashblock sequences produced.
-    pub(crate) fn subscribe_block_sequence(&self) -> FlashBlockCompleteSequenceRx {
+    pub fn subscribe_block_sequence(&self) -> FlashBlockCompleteSequenceRx {
         self.block_broadcaster.subscribe()
     }
 
@@ -70,7 +71,7 @@ where
     /// Inserts a new block into the sequence.
     ///
     /// A [`FlashBlock`] with index 0 resets the set.
-    pub(crate) fn insert(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
+    pub fn insert(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
         if flashblock.index == 0 {
             trace!(number=%flashblock.block_number(), "Tracking new flashblock sequence");
 
@@ -93,7 +94,7 @@ where
     }
 
     /// Set state root
-    pub(crate) const fn set_state_root(&mut self, state_root: Option<B256>) {
+    pub const fn set_state_root(&mut self, state_root: Option<B256>) {
         self.state_root = state_root;
     }
 
@@ -103,9 +104,7 @@ where
     /// the sequence
     ///
     /// Note: flashblocks start at `index 0`.
-    pub(crate) fn ready_transactions(
-        &self,
-    ) -> impl Iterator<Item = WithEncoded<Recovered<T>>> + '_ {
+    pub fn ready_transactions(&self) -> impl Iterator<Item = WithEncoded<Recovered<T>>> + '_ {
         self.inner
             .values()
             .enumerate()
@@ -117,28 +116,37 @@ where
     }
 
     /// Returns the first block number
-    pub(crate) fn block_number(&self) -> Option<u64> {
+    pub fn block_number(&self) -> Option<u64> {
         Some(self.inner.values().next()?.block().metadata.block_number)
     }
 
     /// Returns the payload base of the first tracked flashblock.
-    pub(crate) fn payload_base(&self) -> Option<ExecutionPayloadBaseV1> {
+    pub fn payload_base(&self) -> Option<ExecutionPayloadBaseV1> {
         self.inner.values().next()?.block().base.clone()
     }
 
     /// Returns the number of tracked flashblocks.
-    pub(crate) fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         self.inner.len()
     }
 
     /// Returns the reference to the last flashblock.
-    pub(crate) fn last_flashblock(&self) -> Option<&FlashBlock> {
+    pub fn last_flashblock(&self) -> Option<&FlashBlock> {
         self.inner.last_key_value().map(|(_, b)| &b.block)
     }
 
     /// Returns the current/latest flashblock index in the sequence
-    pub(crate) fn index(&self) -> Option<u64> {
+    pub fn index(&self) -> Option<u64> {
         Some(self.inner.values().last()?.block().index)
+    }
+}
+
+impl<T> Default for FlashBlockPendingSequence<T>
+where
+    T: SignedTransaction,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 
