@@ -274,7 +274,7 @@ NEVER fuzz a parameter if you need a specific value - just use that value direct
 - Multiple tests for the same condition with different values (unless values have special meaning)
 - Tests that are logically equivalent despite using different numbers
 - Tests that cannot fail or always pass regardless of input
-- Testing undefined behavior without proper setup or contex
+- Testing undefined behavior without proper setup or context
 - Tests that only verify non-reversion without asserting actual state changes or return values
 </avoid>
 
