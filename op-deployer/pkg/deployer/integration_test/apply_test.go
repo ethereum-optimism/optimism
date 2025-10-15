@@ -149,7 +149,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
-// TestEndToEndBootstrapApplyWithUpgrade tests upgrading to from previous contracts release
+// TestEndToEndBootstrapApplyWithUpgrade tests upgrading from a previous contracts release
 // to embedded version of contracts by executing the following sequence:
 //  1. create an anvil env that is a fork of op-sepolia
 //  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
