@@ -40,6 +40,7 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IBigStepper } from "../../interfaces/dispute/IBigStepper.sol";
+import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -93,6 +94,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     /// @notice The proposer role set on the PermissionedDisputeGame instance.
     address proposer;
 
+    /// @notice The DisputeGameFactory instance.
+    IDisputeGameFactory dgf;
+
     /// @notice The PermissionedDisputeGame instance.
     IPermissionedDisputeGame pdg;
 
@@ -111,6 +115,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
 
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
+
+        // Load the dgf
+        dgf = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
 
         // Load the PermissionedDisputeGame once, we'll need it later.
         pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
@@ -276,6 +283,41 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             permissioned: _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
                 || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
+    }
+
+    function overwriteGameArgsPrestate(GameType _gameType, bytes32 newPrestate) internal view returns (bytes memory) {
+        // Convert prestate to a bytes value
+        bytes memory newPrestateBytes = new bytes(32);
+        for (uint256 i = 0; i < 32; i++) {
+            newPrestateBytes[i] = newPrestate[i];
+        }
+
+        // Get game args
+        return overwriteGameArgs(_gameType, 0, newPrestateBytes);
+    }
+
+    function overwriteGameArgs(
+        GameType _gameType,
+        uint256 _offset,
+        bytes memory _value
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        // Get game args
+        bytes memory gameArgs = dgf.gameArgs(_gameType);
+        overwriteBytes(gameArgs, _offset, _value);
+        return gameArgs;
+    }
+
+    /// @notice Overwrite bytes in-place without allocating a new array.
+    function overwriteBytes(bytes memory _data, uint256 _offset, bytes memory _value) internal pure {
+        require(_offset + _value.length <= _data.length, "out of range");
+
+        for (uint256 i = 0; i < _value.length; i++) {
+            _data[_offset + i] = _value[i];
+        }
     }
 }
 
@@ -1244,11 +1286,24 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
     function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
-        vm.mockCall(
-            address(fdg),
-            abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()),
-            abi.encode(bytes32(uint256(0xbadbad))) // Different from the expected absolutePrestate
-        );
+        bytes32 modifiedPrestate = bytes32(uint256(0xbadbad));
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Mock the gameArgs data which contains the absolute prestate
+            bytes memory modifiedGameArgs = overwriteGameArgsPrestate(GameTypes.CANNON, modifiedPrestate);
+            vm.mockCall(
+                address(dgf),
+                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.CANNON)),
+                abi.encode(modifiedGameArgs)
+            );
+        } else {
+            // Mock the absolute prestate on the game implementation
+            vm.mockCall(
+                address(fdg),
+                abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()),
+                abi.encode(modifiedPrestate)
+            );
+        }
+
         assertEq("PLDG-40", _validate(true));
     }
 
