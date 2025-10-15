@@ -9,10 +9,73 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 
 import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { TimelockGuard } from "src/safe/TimelockGuard.sol";
+
+/// @title LivenessModule2_TestUtils
+/// @notice Reusable helper methods for LivenessModule2 tests.
+abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
+    /// @notice Helper to enable the LivenessModule2 for a Safe
+    function _enableModule(
+        SafeInstance memory _safe,
+        uint256 _period,
+        address _fallback,
+        SaferSafes _livenessModule2
+    )
+        internal
+    {
+        LivenessModule2.ModuleConfig memory config =
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: _period, fallbackOwner: _fallback });
+        SafeTestLib.execTransaction(
+            _safe,
+            address(_livenessModule2),
+            0,
+            abi.encodeCall(LivenessModule2.configureLivenessModule, (config)),
+            Enum.Operation.Call
+        );
+    }
+
+    /// @notice Helper to disable the LivenessModule2 for a Safe
+    function _disableModule(SafeInstance memory _safe, SaferSafes _livenessModule2) internal {
+        // First disable the module at the Safe level
+        SafeTestLib.execTransaction(
+            _safe,
+            address(_safe.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(_livenessModule2))),
+            Enum.Operation.Call
+        );
+
+        // Then clear the module configuration
+        SafeTestLib.execTransaction(
+            _safe,
+            address(_livenessModule2),
+            0,
+            abi.encodeCall(LivenessModule2.clearLivenessModule, ()),
+            Enum.Operation.Call
+        );
+    }
+
+    /// @notice Helper to respond to a challenge from a Safe
+    function _respondToChallenge(SafeInstance memory _safe, SaferSafes _livenessModule2) internal {
+        SafeTestLib.execTransaction(
+            _safe, address(_livenessModule2), 0, abi.encodeCall(LivenessModule2.respond, ()), Enum.Operation.Call
+        );
+    }
+
+    /// @notice Helper to get the guard address from a Safe
+    function _getGuard(SafeInstance memory _safe) internal view returns (address) {
+        // keccak256("guard_manager.guard.address") from GuardManager
+        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+        address guard = abi.decode(_safe.safe.getStorageAt(uint256(guardSlot), 1), (address));
+        return guard;
+    }
+}
 
 /// @title LivenessModule2_TestInit
 /// @notice Reusable test initialization for `LivenessModule2` tests.
-contract LivenessModule2_TestInit is Test, SafeTestTools {
+contract LivenessModule2_TestInit is LivenessModule2_TestUtils {
     using SafeTestLib for SafeInstance;
 
     // Events
@@ -53,54 +116,6 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
         // Enable the module on the Safe
         SafeTestLib.enableModule(safeInstance, address(livenessModule2));
     }
-
-    /// @notice Helper to enable the LivenessModule2 for a Safe
-    function _enableModule(SafeInstance memory _safe, uint256 _period, address _fallback) internal {
-        LivenessModule2.ModuleConfig memory config =
-            LivenessModule2.ModuleConfig({ livenessResponsePeriod: _period, fallbackOwner: _fallback });
-        SafeTestLib.execTransaction(
-            _safe,
-            address(livenessModule2),
-            0,
-            abi.encodeCall(LivenessModule2.configureLivenessModule, (config)),
-            Enum.Operation.Call
-        );
-    }
-
-    /// @notice Helper to disable the LivenessModule2 for a Safe
-    function _disableModule(SafeInstance memory _safe) internal {
-        // First disable the module at the Safe level
-        SafeTestLib.execTransaction(
-            _safe,
-            address(_safe.safe),
-            0,
-            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
-            Enum.Operation.Call
-        );
-
-        // Then clear the module configuration
-        SafeTestLib.execTransaction(
-            _safe,
-            address(livenessModule2),
-            0,
-            abi.encodeCall(LivenessModule2.clearLivenessModule, ()),
-            Enum.Operation.Call
-        );
-    }
-
-    /// @notice Helper to respond to a challenge from a Safe
-    function _respondToChallenge(SafeInstance memory _safe) internal {
-        SafeTestLib.execTransaction(
-            _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.respond, ()), Enum.Operation.Call
-        );
-    }
-
-    function _getGuard(SafeInstance memory _safe) internal view returns (address) {
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_safe.safe.getStorageAt(uint256(guardSlot), 1), (address));
-        return guard;
-    }
 }
 
 /// @title LivenessModule2_Configure_Test
@@ -110,7 +125,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         vm.expectEmit(true, true, true, true);
         emit ModuleConfigured(address(safeInstance.safe), CHALLENGE_PERIOD, fallbackOwner);
 
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(period, CHALLENGE_PERIOD);
@@ -137,9 +152,9 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         address fallback3 = makeAddr("fallback3");
 
         // Configure module for each safe
-        _enableModule(safe1, 1 days, fallback1);
-        _enableModule(safe2, 2 days, fallback2);
-        _enableModule(safe3, 3 days, fallback3);
+        _enableModule(safe1, 1 days, fallback1, livenessModule2);
+        _enableModule(safe2, 2 days, fallback2, livenessModule2);
+        _enableModule(safe3, 3 days, fallback3, livenessModule2);
 
         // Verify each safe has independent configuration
         (uint256 period1, address fb1) = livenessModule2.livenessSafeConfiguration(address(safe1.safe));
@@ -189,7 +204,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
 
     function test_configureLivenessModule_cancelsExistingChallenge_succeeds() external {
         // First configure the module
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // Start a challenge
         vm.prank(fallbackOwner);
@@ -216,7 +231,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     function test_clear_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // First disable the module at the Safe level
         SafeTestLib.execTransaction(
@@ -251,7 +266,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     function test_clear_moduleStillEnabled_reverts() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // Try to clear while module is still enabled (should revert)
         vm.expectRevert(LivenessModule2.LivenessModule2_ModuleStillEnabled.selector);
@@ -265,7 +280,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
 contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
     function setUp() public override {
         super.setUp();
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
     }
 
     function test_challenge_succeeds() external {
@@ -313,7 +328,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         SafeTestLib.enableModule(disabledSafe, address(livenessModule2));
 
         // Then configure
-        _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // Now disable the module at Safe level (but keep config)
         SafeTestLib.execTransaction(
@@ -339,7 +354,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         vm.expectEmit(true, true, true, true);
         emit ChallengeCancelled(address(safeInstance.safe));
 
-        _respondToChallenge(safeInstance);
+        _respondToChallenge(safeInstance, livenessModule2);
 
         // Verify challenge is cancelled
         uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
@@ -407,7 +422,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         SafeTestLib.enableModule(configuredSafe, address(livenessModule2));
 
         // Configure the module (this sets the configuration)
-        _enableModule(configuredSafe, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(configuredSafe, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // Now disable the module at Safe level (but keep config)
         SafeTestLib.execTransaction(
@@ -431,252 +446,6 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
     }
 }
 
-/// @title LivenessModule2_ChangeOwnershipToFallback_Test
-/// @notice Tests the ownership transfer after successful challenge
-contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestInit {
-    function setUp() public override {
-        super.setUp();
-
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // enable the guard
-        SafeTestLib.execTransaction(
-            safeInstance,
-            address(safeInstance.safe),
-            0,
-            abi.encodeCall(GuardManager.setGuard, (address(livenessModule2))),
-            Enum.Operation.Call
-        );
-    }
-
-    function _assertOwnershipChanged(address _safe) internal {
-        // Verify ownership changed
-        address[] memory newOwners = safeInstance.safe.getOwners();
-        assertEq(newOwners.length, 1);
-        assertEq(newOwners[0], fallbackOwner);
-        assertEq(safeInstance.safe.getThreshold(), 1);
-
-        // Verify challenge is reset
-        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
-        assertEq(challengeEndTime, 0);
-
-        // Verify module is disabled
-        assertFalse(ModuleManager(safeInstance.safe).isModuleEnabled(address(livenessModule2)));
-
-        // Verify guard is deactivated
-        assertEq(_getGuard(safeInstance), address(0));
-        TimelockGuard timelockGuard = TimelockGuard(address(livenessModule2));
-
-        // Ensure TimelockGuard properties are cleared
-        assertEq(timelockGuard.timelockConfiguration(safeInstance.safe), 0);
-        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 0);
-    }
-
-    function test_changeOwnershipToFallback_succeeds() external {
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
-
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        _assertOwnershipChanged(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_withOtherModules_succeeds() external {
-        // First disable the module, because we want it to be in the middle of the Safe's list
-        // of modules.
-        _disableModule(safeInstance);
-
-        // Enable some extra modules on the Safe before the LivenessModule2 to ensure that we can handle
-        // multiple modules and only remove the correct one.
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module1")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module2")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module3")));
-
-        // Enable the LivenessModule2 on the Safe
-        SafeTestLib.enableModule(safeInstance, address(livenessModule2));
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Enable a few more modules after LivenessModule2.
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module4")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module5")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module6")));
-
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
-
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Verify module is disabled
-        assertFalse(ModuleManager(safeInstance.safe).isModuleEnabled(address(livenessModule2)));
-        // Verify extra modules are still enabled
-        (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
-        assertEq(modules.length, 6);
-
-        _assertOwnershipChanged(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
-        // Create a mock guard
-        address dummyGuard = makeAddr("dummyGuard");
-        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkTransaction.selector), "");
-        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkAfterExecution.selector), "");
-
-        // Enable the mock guard on the Safe
-        SafeTestLib.execTransaction(
-            safeInstance,
-            address(safeInstance.safe),
-            0,
-            abi.encodeCall(GuardManager.setGuard, (dummyGuard)),
-            Enum.Operation.Call
-        );
-
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
-
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // These checks include ensuring that the guard is deactivated
-        _assertOwnershipChanged(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
-        address newSafe = makeAddr("newSafe");
-
-        vm.prank(fallbackOwner);
-        vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
-        livenessModule2.changeOwnershipToFallback(newSafe);
-    }
-
-    function test_changeOwnershipToFallback_noChallenge_reverts() external {
-        vm.prank(fallbackOwner);
-        vm.expectRevert(LivenessModule2.LivenessModule2_ChallengeDoesNotExist.selector);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_beforeResponsePeriod_reverts() external {
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Try to execute before response period expires
-        vm.prank(fallbackOwner);
-        vm.expectRevert(LivenessModule2.LivenessModule2_ResponsePeriodActive.selector);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_moduleDisabledAtSafeLevel_reverts() external {
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Disable the module at Safe level
-        SafeTestLib.execTransaction(
-            safeInstance,
-            address(safeInstance.safe),
-            0,
-            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
-            Enum.Operation.Call
-        );
-
-        // Try to execute ownership transfer - should revert because module is disabled at Safe level
-        vm.prank(fallbackOwner);
-        vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-    }
-
-    function test_changeOwnershipToFallback_onlyFallbackOwner_succeeds() external {
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Try from random address - should fail
-        address randomCaller = makeAddr("randomCaller");
-        vm.prank(randomCaller);
-        vm.expectRevert(LivenessModule2.LivenessModule2_UnauthorizedCaller.selector);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Execute from fallback owner - should succeed
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Verify ownership changed
-        address[] memory newOwners = safeInstance.safe.getOwners();
-        assertEq(newOwners.length, 1);
-        assertEq(newOwners[0], fallbackOwner);
-    }
-
-    function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
-        // Start and execute first challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Re-enable the module
-        vm.prank(fallbackOwner);
-        safeInstance.safe.execTransaction(
-            address(safeInstance.safe),
-            0,
-            abi.encodeCall(ModuleManager.enableModule, (address(livenessModule2))),
-            Enum.Operation.Call,
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            abi.encodePacked(bytes32(uint256(uint160(fallbackOwner))), bytes32(0), uint8(1))
-        );
-
-        // Re-configure the module
-        vm.prank(address(safeInstance.safe));
-        livenessModule2.configureLivenessModule(
-            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
-        );
-
-        // Start a new challenge (as fallback owner)
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
-        assertGt(challengeEndTime, 0);
-    }
-}
-
 /// @title LivenessModule2_GetChallengePeriodEnd_Test
 /// @notice Tests the getChallengePeriodEnd function and related view functionality
 contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit {
@@ -688,7 +457,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
 
         // After enabling
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
         (uint256 period2, address fbOwner2) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(period2, CHALLENGE_PERIOD);
         assertEq(fbOwner2, fallbackOwner);
@@ -696,7 +465,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
     }
 
     function test_getChallengePeriodEnd_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
         // No challenge
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
@@ -707,7 +476,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), block.timestamp + CHALLENGE_PERIOD);
 
         // After cancellation
-        _respondToChallenge(safeInstance);
+        _respondToChallenge(safeInstance, livenessModule2);
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
     }
 
