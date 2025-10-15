@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v4_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -217,14 +218,14 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		// First run upgradeSuperchainConfig because the version on the fork is < than that
 		// of the contracts-bedrock folder so upgrading directly would revert.
 		t.Run("upgrade superchain config", func(t *testing.T) {
-			upgradeConfig := v4_0_0.UpgradeSuperchainConfigInput{
+			upgradeConfig := embedded.UpgradeSuperchainConfigInput{
 				Prank:                superchainProxyAdminOwner,
 				Opcm:                 impls.Opcm,
 				SuperchainConfig:     superchain.SuperchainConfigAddr,
 				SuperchainProxyAdmin: superchainProxyAdmin,
 			}
 
-			err = v4_0_0.UpgradeSuperchainConfig(host, upgradeConfig)
+			err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
 			require.NoError(t, err, "Superchain config upgrade should succeed")
 		})
 

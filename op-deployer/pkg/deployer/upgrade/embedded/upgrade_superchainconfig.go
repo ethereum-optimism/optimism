@@ -1,4 +1,4 @@
-package v4_0_0
+package embedded
 
 import (
 	"encoding/json"
