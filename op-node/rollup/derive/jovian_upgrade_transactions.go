@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -44,7 +43,7 @@ func DAFootprintNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 		To:                  nil,
 		Mint:                big.NewInt(0),
 		Value:               big.NewInt(0),
-		Gas:                 450_371,
+		Gas:                 447_315,
 		IsSystemTransaction: false,
 		Data:                l1BlockJovianDeploymentBytecode,
 	}).MarshalBinary()
@@ -129,22 +128,24 @@ func OperatorFeeFixUpgradeTransactions() ([]hexutil.Bytes, error) {
 	return upgradeTxns, nil
 }
 
-func JovianNetworkUpgradeTransactions(cfg *rollup.Config, time uint64) ([]hexutil.Bytes, error) {
-	var upgradeTxs []hexutil.Bytes
-	var err error
-	if cfg.IsDAFootprintBlockLimit(time) {
-		upgradeTxs, err = DAFootprintNetworkUpgradeTransactions()
+func JovianNetworkUpgradeTransactions(IsDAFootprintBlockLimit, IsOperatorFeeFix bool) ([]hexutil.Bytes, error) {
+	upgradeTxs := make([]hexutil.Bytes, 0)
+
+	if IsDAFootprintBlockLimit {
+		txs, err := DAFootprintNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, err
 		}
-		if cfg.IsOperatorFeeFix(time) {
-			offtxs, err := OperatorFeeFixUpgradeTransactions()
-			if err != nil {
-				return nil, err
-			}
-			upgradeTxs = append(upgradeTxs, offtxs...)
-		}
-		return upgradeTxs, nil
+		upgradeTxs = append(upgradeTxs, txs...)
 	}
-	return nil, fmt.Errorf("no upgrade transactions scheduled in Jovian")
+
+	if IsOperatorFeeFix {
+		txs, err := OperatorFeeFixUpgradeTransactions()
+		if err != nil {
+			return nil, err
+		}
+		upgradeTxs = append(upgradeTxs, txs...)
+	}
+
+	return upgradeTxs, nil
 }
