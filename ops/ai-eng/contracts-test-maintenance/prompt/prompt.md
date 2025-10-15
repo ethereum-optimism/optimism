@@ -108,7 +108,7 @@ This systematic approach ensures comprehensive test improvements without missing
 <naming_rules>
 **Test Contract Names:**
 - `TargetContract_FunctionName_Test` - ONE contract per function (no exceptions)
-- `TargetContract_Constructor_Test` - For constructor and initialization tests
+- `TargetContract_Constructor_Test` - For constructor tests
 - `TargetContract_Uncategorized_Test` - For multi-function integration tests only (NEVER use "Unclassified")
 - `TargetContract_TestInit` - Shared setup contract
 - Constants/ALL CAPS: Convert to PascalCase (e.g., `MAX_LIMIT` → `TargetContract_MaxLimit_Test`)
