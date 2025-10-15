@@ -221,20 +221,18 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         // of modules.
         _disableModule(safeInstance, livenessModule2);
 
-        // Enable some extra modules on the Safe before the LivenessModule2 to ensure that we can handle
-        // multiple modules and only remove the correct one.
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module1")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module2")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module3")));
+        // Enable some extra modules on the Safe before the LivenessModule2 to ensure that we can handle up to 100
+        // modules.
+        for (uint256 i = 0; i < 98; i++) {
+            SafeTestLib.enableModule(safeInstance, address(makeAddr(string(abi.encodePacked("module", i)))));
+        }
 
         // Enable the LivenessModule2 on the Safe
         SafeTestLib.enableModule(safeInstance, address(livenessModule2));
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
 
-        // Enable a few more modules after LivenessModule2.
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module4")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module5")));
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module6")));
+        // Enable 1 more module to bring us to 100 modules.
+        SafeTestLib.enableModule(safeInstance, address(makeAddr("module100")));
 
         // Start a challenge
         vm.prank(fallbackOwner);
@@ -250,11 +248,14 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         vm.prank(fallbackOwner);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
 
+        // Ensure that the call is below a safe gas limit. The EIP-7825 limit is 16,777,216, so 12M is a safe limit.
+        assertLt(vm.lastCallGas().gasTotalUsed, 12_000_000);
+
         // Verify module is disabled
         assertFalse(ModuleManager(safeInstance.safe).isModuleEnabled(address(livenessModule2)));
         // Verify extra modules are still enabled
         (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
-        assertEq(modules.length, 6);
+        assertEq(modules.length, 99);
 
         _assertOwnershipChanged(address(safeInstance.safe));
     }
