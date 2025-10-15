@@ -150,6 +150,7 @@ abstract contract LivenessModule2 {
 
     /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
     ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @param _safe The Safe instance to check the configuration against
     function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Clears the module configuration for a Safe.
