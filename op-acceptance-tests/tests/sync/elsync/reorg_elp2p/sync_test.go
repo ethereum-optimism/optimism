@@ -19,10 +19,10 @@ func TestSafeReorg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
 	require := t.Require()
-	// logger := t.Logger()
+	logger := t.Logger()
 	ctx := t.Ctx()
 
-	sys.L2CL.DisconnectPeer(sys.L2CLB)
+	// sys.L2CL.DisconnectPeer(sys.L2CLB)
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
@@ -37,9 +37,12 @@ func TestSafeReorg(gt *testing.T) {
 		// must send empty hash to seq. why?
 		require.NoError(ts.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent}))
 		require.NoError(ts.Next(t.Ctx()))
+		l1Unsafe := sys.L1EL.BlockRefByLabel(eth.Unsafe)
+		logger.Info("### L1", "unsafe", l1Unsafe, "time", l1Unsafe.Time)
 
 		sys.L2Chain.WaitForBlock()
-		sys.L2Chain.WaitForBlock()
+		l2Unsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+		logger.Info("### L2", "unsafe", l2Unsafe, "time", l2Unsafe.Time, "l1Origin", l2Unsafe.L1Origin)
 	}
 
 	n := 10
@@ -51,23 +54,28 @@ func TestSafeReorg(gt *testing.T) {
 		require.Greater(tip.Number, uint64(n), "n is larger than L1 tip, cannot reorg out block number `tip-n`")
 
 		divergence = sys.L1EL.BlockRefByNumber(tip.Number - uint64(n))
+		logger.Info("### L1 Divergence", "div", divergence)
 	}
-
-	// print the chains before sequencing an alternative L1 block
-	sys.L2Chain.PrintChain()
-	sys.L1Network.PrintChain()
 
 	tipL2_preReorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
 
+	logger.Info("### tipL2_preReorg", "number", tipL2_preReorg.Number)
+
+	logger.Info("### L1 Div", "unsafe", sys.L1EL.BlockRefByLabel(eth.Unsafe))
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
 	require.NoError(ts.New(t.Ctx(), seqtypes.BuildOpts{Parent: divergence.ParentHash}))
 	require.NoError(ts.Next(t.Ctx()))
+	logger.Info("### L1 Div", "unsafe", sys.L1EL.BlockRefByLabel(eth.Unsafe))
 
 	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
 
 	sys.L1EL.ReorgTriggered(divergence, 5)
 
 	sys.L2CL.Reached(types.CrossSafe, tipL2_preReorg.Number, 50)
+
+	reorg := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	logger.Info("### Reorg", "unsafe", reorg)
+	logger.Info("### Reorg", "unsafe", sys.L2ELB.BlockRefByNumber(reorg.Number))
 
 	require.Eventually(func() bool {
 		unsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)

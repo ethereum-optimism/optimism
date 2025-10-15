@@ -8,7 +8,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithNewSingleChainMultiNodeWithTestSeq(),
+	presets.DoMain(m,
+		presets.WithNewSingleChainMultiNodeWithTestSeq(),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }
