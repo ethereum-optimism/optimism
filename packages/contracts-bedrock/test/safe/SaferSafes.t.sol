@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
@@ -263,8 +262,15 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
         // Create a mock guard
         address dummyGuard = makeAddr("dummyGuard");
-        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkTransaction.selector), "");
-        vm.mockCall(dummyGuard, abi.encodeWithSelector(IGuard.checkAfterExecution.selector), "");
+        vm.mockCall(
+            dummyGuard,
+            abi.encodeCall(
+                IGuard.checkTransaction,
+                (address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), "", address(0))
+            ),
+            ""
+        );
+        vm.mockCall(dummyGuard, abi.encodeCall(IGuard.checkAfterExecution, (bytes32(0), false)), "");
 
         // Enable the mock guard on the Safe
         SafeTestLib.execTransaction(

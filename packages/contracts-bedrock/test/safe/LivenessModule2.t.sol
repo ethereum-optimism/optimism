@@ -8,10 +8,7 @@ import "test/safe-tools/SafeTestTools.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 
-import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
-import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 /// @title LivenessModule2_TestUtils
 /// @notice Reusable helper methods for LivenessModule2 tests.
