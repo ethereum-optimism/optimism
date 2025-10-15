@@ -79,6 +79,11 @@ ai-contracts-test:
 
 ### Viewing Results
 
+**Slack Notifications**:
+- Automatic notification posted to #evm-safety Slack channel when PR is created
+- Includes PR URL, test file information, and link to reviewer guide
+- Helps expedite review process by alerting reviewers immediately
+
 **In CircleCI**:
 1. Navigate to the `ai-contracts-test` job
 2. Check "Artifacts" tab for `log.json`
@@ -375,6 +380,11 @@ else:
 ## Monitoring and Debugging
 
 ### Checking System Health
+
+**Via Slack**:
+- Monitor #evm-safety Slack channel for PR creation notifications
+- Each notification includes PR URL and test file information
+- Successful runs will always post to Slack when PR is created
 
 **Via CircleCI**:
 ```bash
