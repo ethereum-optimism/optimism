@@ -438,7 +438,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         require(success, "GasPriceOracleJovian_Test: L1Block setup failed");
 
         assertEq(gasPriceOracle.isIsthmus(), true, "Isthmus should be active before enabling Jovian");
-        assertEq(gasPriceOracle.isJovian(), false, "Jovian starts inactive");
+        assertEq(gasPriceOracle.isJovian(), false, "Jovian starts active");
     }
 
     function _activateJovian() internal {
