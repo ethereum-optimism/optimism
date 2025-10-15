@@ -160,10 +160,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 
-	// This is just a random block number that is after the sepolia v4 OPCM upgrade.
-	// Any block number after then should work here.
-	forkBlockNumber := uint64(9366100)
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlock(lgr, forkBlockNumber)
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
