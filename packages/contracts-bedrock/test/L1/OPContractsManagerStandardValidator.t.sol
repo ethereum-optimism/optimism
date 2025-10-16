@@ -285,6 +285,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
     }
+
+    function mockGameArgs(GameType _gameType, bytes memory _gameArgs) internal {
+        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType)), abi.encode(_gameArgs));
+    }
 }
 
 /// @title OPContractsManagerStandardValidator_CoreValidation_Test
@@ -906,6 +910,8 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
 contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     OPContractsManagerStandardValidator_TestInit
 {
+    using DisputeGameArgs for bytes;
+
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame implementation is null.
     function test_validate_permissionedDisputeGameNullImplementation_succeeds() public {
@@ -1040,6 +1046,20 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
         assertEq("OVERRIDES-CHALLENGER,PDDG-130", _validateWithOverrides(true, overrides));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame proposer is invalid.
+    function test_validate_permissionedDisputeGameInvalidProposer_succeeds() public {
+        address wrongProposer = address(0xbad);
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
+            modifiedGameArgs.writeProposer(wrongProposer);
+            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(wrongProposer));
+        }
+        assertEq("PDDG-140", _validate(true));
     }
 }
 
@@ -1259,11 +1279,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
             // Mock the gameArgs data which contains the absolute prestate
             bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
             modifiedGameArgs.writeAbsolutePrestate(modifiedPrestate);
-            vm.mockCall(
-                address(dgf),
-                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.CANNON)),
-                abi.encode(modifiedGameArgs)
-            );
+            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
         } else {
             // Mock the absolute prestate on the game implementation
             vm.mockCall(

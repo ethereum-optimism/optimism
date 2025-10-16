@@ -144,6 +144,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         IDelayedWETH weth;
         uint256 l2ChainId;
         address challenger;
+        address proposer;
     }
 
     /// @notice Constructor for the OPContractsManagerStandardValidator contract.
@@ -504,6 +505,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
         IProxyAdmin _admin,
+        address _proposer,
         ValidationOverrides memory _overrides
     )
         internal
@@ -546,6 +548,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         // Challenger is specific to the PermissionedDisputeGame contract.
         address _challenger = expectedChallenger(_overrides);
         _errors = internalRequire(_gameImpl.challenger == _challenger, "PDDG-130", _errors);
+        _errors = internalRequire(_gameImpl.proposer == _proposer, "PDDG-140", _errors);
 
         return _errors;
     }
@@ -813,7 +816,13 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin, _overrides);
         _errors = assertValidPermissionedDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors,
+            _input.sysCfg,
+            _input.absolutePrestate,
+            _input.l2ChainID,
+            _input.proxyAdmin,
+            _input.proposer,
+            _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
             _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
@@ -892,6 +901,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             gameArgs.l2ChainId = _game.l2ChainId();
             if (_isPermissioned) {
                 gameArgs.challenger = _game.challenger();
+                gameArgs.proposer = _game.proposer();
             }
         }
 
@@ -908,7 +918,8 @@ contract OPContractsManagerStandardValidator is ISemver {
             asr: IAnchorStateRegistry(gameArgs.anchorStateRegistry),
             weth: IDelayedWETH(payable(gameArgs.weth)),
             l2ChainId: gameArgs.l2ChainId,
-            challenger: gameArgs.challenger
+            challenger: gameArgs.challenger,
+            proposer: gameArgs.proposer
         });
     }
 }
