@@ -45,6 +45,7 @@ type DerivationOptions struct {
 func RunDerivation(
 	logger log.Logger,
 	cfg *rollup.Config,
+	l1ChainConfig *params.ChainConfig,
 	depSet derive.DependencySet,
 	l2Cfg *params.ChainConfig,
 	l1Head common.Hash,
@@ -63,7 +64,7 @@ func RunDerivation(
 	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend, l2Oracle.Hinter())
 
 	logger.Info("Starting derivation", "chainID", cfg.L2ChainID)
-	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum, l1ChainConfig)
 	result, err := d.RunComplete()
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to run program to completion: %w", err)

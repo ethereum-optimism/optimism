@@ -8,6 +8,7 @@ import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersi
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 contract ReadSuperchainDeployment is Script {
     struct Input {
@@ -34,7 +35,7 @@ contract ReadSuperchainDeployment is Script {
 
         output_.protocolVersionsProxy = IProtocolVersions(opcm.protocolVersions());
         output_.superchainConfigProxy = ISuperchainConfig(opcm.superchainConfig());
-        output_.superchainProxyAdmin = IProxyAdmin(opcm.superchainProxyAdmin());
+        output_.superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(output_.superchainConfigProxy)));
 
         IProxy protocolVersionsProxy = IProxy(payable(address(output_.protocolVersionsProxy)));
         IProxy superchainConfigProxy = IProxy(payable(address(output_.superchainConfigProxy)));

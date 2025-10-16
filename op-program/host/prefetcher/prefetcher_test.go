@@ -204,11 +204,10 @@ func TestFetchL1Blob(t *testing.T) {
 		prefetcher, _, blobFetcher, _, _ := createPrefetcher(t)
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
-		blobFetcher.ExpectOnGetBlobSidecars(
+		blobFetcher.ExpectOnGetBlobs(
 			context.Background(),
 			l1Ref,
 			[]eth.IndexedBlobHash{blobHash},
-			(eth.Bytes48)(commitment),
 			[]*eth.Blob{&blob},
 			nil,
 		)

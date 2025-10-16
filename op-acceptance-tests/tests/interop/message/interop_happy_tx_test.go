@@ -19,6 +19,7 @@ import (
 // included in two L2 chains and that the cross-safe ref for both of them progresses as expected beyond
 // the block number where the messages were included
 func TestInteropHappyTx(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 

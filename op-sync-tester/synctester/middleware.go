@@ -8,12 +8,15 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/elsync"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	"github.com/google/uuid"
 )
 
 var ErrInvalidSessionIDFormat = errors.New("invalid UUID")
 var ErrInvalidParams = errors.New("invalid param")
+
+const ELSyncActiveKey = "el_sync_active"
 
 func IsValidSessionID(sessionID string) error {
 	u, err := uuid.Parse(sessionID)
@@ -28,7 +31,8 @@ func IsValidSessionID(sessionID string) error {
 
 // parseSession inspects the incoming request to determine if it targets a session-specific route.
 // If the request path matches the pattern `/chain/{chain_id}/synctest/{uuid}`, it attempts to parse
-// the UUID and optional query parameters (`latest`, `safe`, `finalized`) used to initialize the session.
+// the UUID and optional query parameters (`latest`, `safe`, `finalized`, `el_sync_target`) used to
+// initialize the session.
 //
 // If parsing succeeds, a backend.Session is attached to the request context, and the URL path is
 // rewritten to `/chain/{chain_id}/synctest` to enable consistent routing downstream.
@@ -71,7 +75,9 @@ func parseSession(r *http.Request) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized)
+		elSyncActive := query.Get(ELSyncActiveKey) == "true"
+		elSyncState := elsync.DefaultELSyncPolicy() // May be configurable
+		sess := eth.NewSyncTesterSession(sessionID, latest, safe, finalized, elSyncActive, elSyncState)
 		ctx := session.WithSyncTesterSession(r.Context(), sess)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")

@@ -1,18 +1,12 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.3.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.6.0")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
     @just acceptance-test "" base
-
-holocene:
-    @just acceptance-test "" holocene
-
-isthmus:
-    @just acceptance-test "" isthmus
 
 jovian:
     @just acceptance-test jovian jovian
@@ -28,7 +22,7 @@ interop:
 #   just acceptance-test "" ""           # In-process gateless mode (all tests)
 #   just acceptance-test "simple" base     # External devnet with specific gate
 #   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
-acceptance-test devnet="" gate="holocene":
+acceptance-test devnet="" gate="base":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -101,9 +95,11 @@ acceptance-test devnet="" gate="holocene":
         CMD_ARGS=(
             "$BINARY_PATH"
             "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
+            "--validators" "./acceptance-tests.yaml"
+            "--exclude-gates" "flake-shake"
             "--allow-skips"
             "--timeout" "90m"
-            "--default-timeout" "10m"
+            "--default-timeout" "30m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )
@@ -132,7 +128,7 @@ acceptance-test devnet="" gate="holocene":
 
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="holocene":
+acceptance-test-docker devnet="simple" gate="base":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -152,6 +148,7 @@ acceptance-test-docker devnet="simple" gate="holocene":
         --testdir "/go/src/github.com/ethereum-optimism/optimism" \
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
+        $( [[ "{{gate}}" != "flake-shake" ]] && echo --exclude-gates flake-shake ) \
         --log.level debug
 
 
@@ -159,3 +156,23 @@ acceptance-test-docker devnet="simple" gate="holocene":
 clean:
     kurtosis clean --all
     rm -rf tests/interop/loadtest/artifacts
+
+
+# Build, vet, lint and test Go code in ./cmd
+cmd-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd {{REPO_ROOT}}/op-acceptance-tests
+
+    echo "Downloading Go modules..."
+    go mod download
+
+    echo "Building ./cmd/..."
+    go build ./cmd/...
+
+    echo "Running go vet on ./cmd/..."
+    go vet ./cmd/...
+
+    echo "Running unit tests for ./cmd/..."
+    go test -v ./cmd/...

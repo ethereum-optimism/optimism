@@ -89,5 +89,12 @@
     "offset": 8,
     "slot": "8",
     "type": "uint32"
+  },
+  {
+    "bytes": "2",
+    "label": "daFootprintGasScalar",
+    "offset": 12,
+    "slot": "8",
+    "type": "uint16"
   }
 ]

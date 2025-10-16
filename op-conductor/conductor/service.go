@@ -263,6 +263,8 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		rb,
 		elP2p,
 		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
+		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceLimit,
+		c.cfg.HealthCheck.RollupBoostPartialHealthinessToleranceIntervalSeconds,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 

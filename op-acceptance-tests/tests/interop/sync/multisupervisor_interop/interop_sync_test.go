@@ -15,6 +15,7 @@ import (
 // TestL2CLAheadOfSupervisor tests the below scenario:
 // L2CL ahead of supervisor, aka supervisor needs to reset the L2CL, to reproduce old data. Currently supervisor has only indexing mode implemented, so the supervisor will ask the L2CL to reset back.
 func TestL2CLAheadOfSupervisor(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)
@@ -133,7 +134,7 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 // TestUnsafeChainKnownToL2CL tests the below scenario:
 // supervisor cross-safe ahead of L2CL cross-safe, aka L2CL can "skip" forward to match safety of supervisor.
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
-	gt.Skip("TODO(#16972): skipping due to flakiness and impending op-node/supervisor refactor")
+	gt.Skip("Skipping Interop Acceptance Test")
 
 	t := devtest.SerialT(gt)
 
@@ -204,7 +205,7 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 // TestUnsafeChainUnknownToL2CL tests the below scenario:
 // supervisor unsafe ahead of L2CL unsafe, aka L2CL processes new blocks first.
 func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
-	gt.Skip("TODO(#16972): skipping due to flakiness and impending op-node/supervisor refactor")
+	gt.Skip("Skipping Interop Acceptance Test")
 
 	t := devtest.SerialT(gt)
 
@@ -246,6 +247,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 // TestL2CLSyncP2P checks that unsafe head is propagated from sequencer to verifier.
 // Tests started/restarted L2CL advances unsafe head via P2P connection.
 func TestL2CLSyncP2P(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)

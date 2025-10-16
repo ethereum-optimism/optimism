@@ -39,7 +39,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			l1EL, ok := o.l1ELs.Get(l1ELID)
 			require.True(ok, "must have L1 EL node")
-			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.userRPC)
+			rpcClient, err := rpc.DialContext(t.Ctx(), l1EL.UserRPC())
 			require.NoError(err)
 			client := ethclient.NewClient(rpcClient)
 			w3Client := w3.NewClient(rpcClient)
@@ -208,9 +208,13 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 }
 
 func getInteropAbsolutePrestate(t devtest.CommonT) common.Hash {
-	root, err := findMonorepoRoot("op-program/bin/prestate-proof-interop.json")
+	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
+}
+
+func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
+	root, err := findMonorepoRoot(prestatePath)
 	t.Require().NoError(err)
-	p := path.Join(root, "op-program/bin/prestate-proof-interop.json")
+	p := path.Join(root, prestatePath)
 	file, err := os.Open(p)
 	t.Require().NoError(err)
 	decoder := json.NewDecoder(file)

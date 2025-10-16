@@ -3,8 +3,8 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
+	"encoding/json"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -30,12 +33,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -58,17 +63,6 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
-func defaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicDevKeys) {
-	pkHex := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	pk, err := crypto.HexToECDSA(pkHex)
-	require.NoError(t, err)
-
-	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-
-	return pkHex, pk, dk
-}
-
 // TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
 // local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
 // or backports branches, since those are the only branches with an SLA to support tagged artifacts.
@@ -77,7 +71,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	pkHex, pk, dk := defaultPrivkey(t)
+	pkHex, pk, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID := uint256.NewInt(1)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
@@ -115,7 +109,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			DevFeatureBitmap:                common.Hash{},
 			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
-			UpgradeController:               superchainPAO,
+			L1ProxyAdminOwner:               superchainPAO,
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,
@@ -123,7 +117,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID, loc, loc, testCustomGasLimit)
 		intent.SuperchainRoles = nil
 		intent.OPCMAddress = &impls.Opcm
 
@@ -155,12 +149,116 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	})
 }
 
+// TestEndToEndBootstrapApplyWithUpgrade tests upgrading from a previous contracts release
+// to embedded version of contracts by executing the following sequence:
+//  1. create an anvil env that is a fork of op-sepolia
+//  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
+//  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
+//  4. call opcm.upgrade on the opcm deployed in [2]
+func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	pkHex, _, _ := shared.DefaultPrivkey(t)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	loc, afactsFS := testutil.LocalArtifacts(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	superchain, err := standard.SuperchainFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+	require.NoError(t, err)
+
+	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+		L1RPCUrl:                        forkedL1.RPCUrl(),
+		PrivateKey:                      pkHex,
+		ArtifactsLocator:                loc,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		DevFeatureBitmap:                common.Hash{},
+		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+		ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+		L1ProxyAdminOwner:               superchainProxyAdminOwner,
+		SuperchainProxyAdmin:            superchainProxyAdmin,
+		CacheDir:                        testCacheDir,
+		Logger:                          lgr,
+		Challenger:                      common.Address{'C'},
+	})
+	require.NoError(t, err)
+
+	// Now test the OPCM upgrade using the deployed impls.Opcm
+	t.Run("opcm upgrade test", func(t *testing.T) {
+		// Create script host for the upgrade
+		rpcClient, err := rpc.Dial(forkedL1.RPCUrl())
+		require.NoError(t, err)
+
+		host, err := env.DefaultForkedScriptHost(
+			ctx,
+			broadcaster.NoopBroadcaster(),
+			lgr,
+			superchainProxyAdminOwner,
+			afactsFS,
+			rpcClient,
+		)
+		require.NoError(t, err)
+
+		// First run upgradeSuperchainConfig because the version on the fork is < than that
+		// of the contracts-bedrock folder so upgrading directly would revert.
+		t.Run("upgrade superchain config", func(t *testing.T) {
+			upgradeConfig := embedded.UpgradeSuperchainConfigInput{
+				Prank:                superchainProxyAdminOwner,
+				Opcm:                 impls.Opcm,
+				SuperchainConfig:     superchain.SuperchainConfigAddr,
+				SuperchainProxyAdmin: superchainProxyAdmin,
+			}
+
+			err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
+			require.NoError(t, err, "Superchain config upgrade should succeed")
+		})
+
+		// Then run the OPCM upgrade
+		t.Run("upgrade opcm", func(t *testing.T) {
+			upgradeConfig := v2_0_0.UpgradeOPChainInput{
+				Prank: superchainProxyAdminOwner,
+				Opcm:  impls.Opcm,
+				EncodedChainConfigs: []v2_0_0.OPChainConfig{
+					{
+						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						ProxyAdmin:        superchainProxyAdmin,
+						AbsolutePrestate:  common.Hash{'A', 'P'},
+					},
+				},
+			}
+			// Test the upgrade
+			upgradeConfigBytes, err := json.Marshal(upgradeConfig)
+			require.NoError(t, err, "UpgradeOPChainInput should marshal to JSON")
+			err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+			require.NoError(t, err, "OPCM upgrade should succeed")
+		})
+	})
+}
+
 func TestEndToEndApply(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	_, pk, dk := defaultPrivkey(t)
+	_, pk, dk := shared.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
@@ -171,7 +269,7 @@ func TestEndToEndApply(t *testing.T) {
 	defer cancel()
 
 	t.Run("two chains one after another", func(t *testing.T) {
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 		cg := ethClientCodeGetter(ctx, l1Client)
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -190,7 +288,7 @@ func TestEndToEndApply(t *testing.T) {
 
 		// create a new environment with wiped state to ensure we can continue using the
 		// state from the previous deployment
-		intent.Chains = append(intent.Chains, newChainIntent(t, dk, l1ChainID, l2ChainID2))
+		intent.Chains = append(intent.Chains, shared.NewChainIntent(t, dk, l1ChainID, l2ChainID2, testCustomGasLimit))
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -211,7 +309,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 		mockPreStateBuilder := devnet.NewMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -639,7 +737,7 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 
 	loc, _ := testutil.LocalArtifacts(t)
 
-	intent, st := newIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc)
+	intent, st := shared.NewIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc, testCustomGasLimit)
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
@@ -654,64 +752,6 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 	}
 
 	return opts, intent, st
-}
-
-func addrFor(t *testing.T, dk *devkeys.MnemonicDevKeys, key devkeys.Key) common.Address {
-	addr, err := dk.Address(key)
-	require.NoError(t, err)
-	return addr
-}
-
-func newIntent(
-	t *testing.T,
-	l1ChainID *big.Int,
-	dk *devkeys.MnemonicDevKeys,
-	l2ChainID *uint256.Int,
-	l1Loc *artifacts.Locator,
-	l2Loc *artifacts.Locator,
-) (*state.Intent, *state.State) {
-	intent := &state.Intent{
-		ConfigType: state.IntentTypeCustom,
-		L1ChainID:  l1ChainID.Uint64(),
-		SuperchainRoles: &addresses.SuperchainRoles{
-			SuperchainProxyAdminOwner: addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
-			ProtocolVersionsOwner:     addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
-			SuperchainGuardian:        addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
-			Challenger:                addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
-		},
-		FundDevAccounts:    false,
-		L1ContractsLocator: l1Loc,
-		L2ContractsLocator: l2Loc,
-		Chains: []*state.ChainIntent{
-			newChainIntent(t, dk, l1ChainID, l2ChainID),
-		},
-	}
-	st := &state.State{
-		Version: 1,
-	}
-	return intent, st
-}
-
-func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.Int, l2ChainID *uint256.Int) *state.ChainIntent {
-	return &state.ChainIntent{
-		ID:                         l2ChainID.Bytes32(),
-		BaseFeeVaultRecipient:      addrFor(t, dk, devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
-		L1FeeVaultRecipient:        addrFor(t, dk, devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
-		SequencerFeeVaultRecipient: addrFor(t, dk, devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
-		Eip1559DenominatorCanyon:   standard.Eip1559DenominatorCanyon,
-		Eip1559Denominator:         standard.Eip1559Denominator,
-		Eip1559Elasticity:          standard.Eip1559Elasticity,
-		GasLimit:                   testCustomGasLimit,
-		Roles: state.ChainRoles{
-			L1ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			L2ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			SystemConfigOwner: addrFor(t, dk, devkeys.SystemConfigOwner.Key(l1ChainID)),
-			UnsafeBlockSigner: addrFor(t, dk, devkeys.SequencerP2PRole.Key(l1ChainID)),
-			Batcher:           addrFor(t, dk, devkeys.BatcherRole.Key(l1ChainID)),
-			Proposer:          addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
-			Challenger:        addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
-		},
-	}
 }
 
 type codeGetter func(t *testing.T, addr common.Address) []byte

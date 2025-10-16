@@ -27,6 +27,7 @@
 !/go.sum
 !/justfiles
 !/mise.toml
+!/op-e2e/e2eutils
 
 **/bin
 **/testdata

@@ -39,7 +39,7 @@ func cwd() string {
 	return dir
 }
 
-func EnsureDefaultCacheDir() string {
+func DefaultCacheDir() string {
 	var cacheDir string
 
 	homeDir, err := os.UserHomeDir()
@@ -50,9 +50,12 @@ func EnsureDefaultCacheDir() string {
 		cacheDir = path.Join(homeDir, ".op-deployer/cache")
 	}
 
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		panic(fmt.Sprintf("failed to create cache directory %s: %v", cacheDir, err))
-	}
-
 	return cacheDir
+}
+
+func CreateCacheDir(cacheDir string) error {
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return fmt.Errorf("failed to create cache directory %s: %w", cacheDir, err)
+	}
+	return nil
 }

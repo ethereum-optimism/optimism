@@ -170,10 +170,10 @@ contract TransientContext_ReentrantAware_Test is TransientContext_TestInit, Tran
     }
 }
 
-/// @title TransientContext_Unclassified_Test
+/// @title TransientContext_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `TransientContext`
 ///         contract or are testing multiple functions at once.
-contract TransientContext_Unclassified_Test is TransientContext_Set_Test {
+contract TransientContext_Uncategorized_Test is TransientContext_Set_Test {
     /// @notice Tests that `set()` and `get()` work together.
     /// @param _slot  Slot to test.
     /// @param _value Value to test.

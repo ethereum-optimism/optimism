@@ -7,6 +7,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -56,10 +57,11 @@ type L2Sequencer struct {
 }
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc derive.L1BlobsFetcher,
-	altDASrc driver.AltDAIface, eng L2API, cfg *rollup.Config, depSet depset.DependencySet, seqConfDepth uint64,
+	altDASrc driver.AltDAIface, eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
+	depSet depset.DependencySet, seqConfDepth uint64,
 ) *L2Sequencer {
-	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, depSet, &sync.Config{}, safedb.Disabled)
-	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, depSet, l1, eng)
+	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, l1ChainConfig, depSet, &sync.Config{}, safedb.Disabled)
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1ChainConfig, depSet, l1, eng)
 	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	originSelector := sequencing.NewL1OriginSelector(t.Ctx(), log, cfg, seqConfDepthL1)
 	l1OriginSelector := &MockL1OriginSelector{
@@ -160,9 +162,9 @@ func (s *L2Sequencer) ActL2ForceAdvanceL1Origin(t Testing) {
 	s.mockL1OriginSelector.originOverride = nextOrigin
 }
 
-// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
+// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.engine.UnsafeL2Head().L1Origin.Number < s.syncStatus.L1Head().Number {
+	for s.L2Unsafe().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2EmptyBlock(t)
 	}

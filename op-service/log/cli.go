@@ -16,6 +16,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
@@ -263,7 +264,7 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	cfg := DefaultCLIConfig()
 	cfg.Level = ctx.Generic(LevelFlagName).(*LevelFlagValue).Level()
 	cfg.Format = ctx.Generic(FormatFlagName).(*FormatFlagValue).FormatType()

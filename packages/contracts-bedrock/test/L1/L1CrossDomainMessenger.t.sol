@@ -323,7 +323,7 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
     }
 }
 
-/// @title L1CrossDomainMessenger_Unclassified_Test
+/// @title L1CrossDomainMessenger_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the L1CrossDomainMessenger
 ///         but are testing functionality of the CrossDomainMessenger contract that is inherited
 ///         from.

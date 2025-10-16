@@ -6,18 +6,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L2ELNodeConfig struct {
 	ELNodeConfig
-	RollupCfg *rollup.Config
-	ID        stack.L2ELNodeID
+	EngineClient client.RPC
+	RollupCfg    *rollup.Config
+	ID           stack.L2ELNodeID
 }
 
 type rpcL2ELNode struct {
 	rpcELNode
-	l2Client *sources.L2Client
+	l2Client       *sources.L2Client
+	l2EngineClient *sources.EngineClient
 
 	id stack.L2ELNodeID
 }
@@ -30,11 +33,17 @@ func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
 	require.NotNil(cfg.T, cfg.RollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10))
 	require.NoError(cfg.T, err)
-
+	engineClientConfig := &sources.EngineClientConfig{
+		L2ClientConfig: *sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10),
+	}
+	// initialize engine API client using different client
+	engineClient, err := sources.NewEngineClient(cfg.EngineClient, cfg.T.Logger(), nil, engineClientConfig)
+	require.NoError(cfg.T, err)
 	return &rpcL2ELNode{
-		rpcELNode: newRpcELNode(cfg.ELNodeConfig),
-		l2Client:  l2Client,
-		id:        cfg.ID,
+		rpcELNode:      newRpcELNode(cfg.ELNodeConfig),
+		l2Client:       l2Client,
+		l2EngineClient: engineClient,
+		id:             cfg.ID,
 	}
 }
 
@@ -44,4 +53,12 @@ func (r *rpcL2ELNode) ID() stack.L2ELNodeID {
 
 func (r *rpcL2ELNode) L2EthClient() apis.L2EthClient {
 	return r.l2Client
+}
+
+func (r *rpcL2ELNode) L2EthExtendedClient() apis.L2EthExtendedClient {
+	return r.l2Client
+}
+
+func (r *rpcL2ELNode) L2EngineClient() apis.EngineClient {
+	return r.l2EngineClient.EngineAPIClient
 }
