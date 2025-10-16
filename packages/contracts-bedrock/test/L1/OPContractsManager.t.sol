@@ -14,10 +14,9 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 import { DeployOPChain } from "scripts/deploy/DeployOPChain.s.sol";
-import { Config } from "scripts/libraries/Config.sol";
-import { Types } from "scripts/libraries/Types.sol";
 
 // Libraries
+import { Config } from "scripts/libraries/Config.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
