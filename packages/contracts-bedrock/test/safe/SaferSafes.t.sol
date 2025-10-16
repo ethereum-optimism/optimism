@@ -31,7 +31,6 @@ contract SaferSafes_TestInit is LivenessModule2_TestUtils {
     uint256 constant CHALLENGE_PERIOD = 7 days;
 
     SaferSafes saferSafes;
-    SaferSafes livenessModule2;
     SafeInstance safeInstance;
     address fallbackOwner;
     address[] owners;
@@ -42,7 +41,7 @@ contract SaferSafes_TestInit is LivenessModule2_TestUtils {
 
         // Deploy the SaferSafes contract
         saferSafes = new SaferSafes();
-        livenessModule2 = saferSafes;
+        livenessModule2 = LivenessModule2(address(saferSafes));
 
         // Create Safe owners
         (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);
@@ -64,6 +63,9 @@ contract SaferSafes_TestInit is LivenessModule2_TestUtils {
 /// @title SaferSafes_Uncategorized_Test
 /// @notice Tests for SaferSafes configuration functionality.
 contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
+    function test_version_succeeds() external view {
+        assertTrue(bytes(saferSafes.version()).length > 0);
+    }
     /// @notice Test successful configuration when liveness response period is at least 2x timelock delay.
     function test_configure_livenessModuleFirst_succeeds() public {
         uint256 timelockDelay = 7 days;
@@ -163,7 +165,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     function setUp() public override {
         super.setUp();
 
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // enable the guard
         SafeTestLib.execTransaction(
@@ -219,7 +221,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     function test_changeOwnershipToFallback_withOtherModules_succeeds() external {
         // First disable the module, because we want it to be in the middle of the Safe's list
         // of modules.
-        _disableModule(safeInstance, livenessModule2);
+        _disableModule(safeInstance);
 
         // Enable some extra modules on the Safe before the LivenessModule2 to ensure that we can handle up to 100
         // modules.
@@ -229,7 +231,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
 
         // Enable the LivenessModule2 on the Safe
         SafeTestLib.enableModule(safeInstance, address(livenessModule2));
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // Enable 1 more module to bring us to 100 modules.
         SafeTestLib.enableModule(safeInstance, address(makeAddr("module100")));
@@ -261,7 +263,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
         // Create a mock guard
         address dummyGuard = makeAddr("dummyGuard");
         vm.mockCall(
@@ -350,7 +352,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_onlyFallbackOwner_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
@@ -375,7 +377,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
     }
 
     function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
         // Start and execute first challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));

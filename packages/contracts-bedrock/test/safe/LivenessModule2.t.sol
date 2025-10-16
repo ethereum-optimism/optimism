@@ -13,12 +13,13 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 /// @title LivenessModule2_TestUtils
 /// @notice Reusable helper methods for LivenessModule2 tests.
 abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
+    LivenessModule2 livenessModule2;
+
     /// @notice Helper to enable the LivenessModule2 for a Safe
     function _enableModule(
         SafeInstance memory _safe,
         uint256 _period,
-        address _fallback,
-        SaferSafes _livenessModule2
+        address _fallback
     )
         internal
     {
@@ -26,7 +27,7 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
             LivenessModule2.ModuleConfig({ livenessResponsePeriod: _period, fallbackOwner: _fallback });
         SafeTestLib.execTransaction(
             _safe,
-            address(_livenessModule2),
+            address(livenessModule2),
             0,
             abi.encodeCall(LivenessModule2.configureLivenessModule, (config)),
             Enum.Operation.Call
@@ -34,20 +35,20 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
     }
 
     /// @notice Helper to disable the LivenessModule2 for a Safe
-    function _disableModule(SafeInstance memory _safe, SaferSafes _livenessModule2) internal {
+    function _disableModule(SafeInstance memory _safe) internal {
         // First disable the module at the Safe level
         SafeTestLib.execTransaction(
             _safe,
             address(_safe.safe),
             0,
-            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(_livenessModule2))),
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
             Enum.Operation.Call
         );
 
         // Then clear the module configuration
         SafeTestLib.execTransaction(
             _safe,
-            address(_livenessModule2),
+            address(livenessModule2),
             0,
             abi.encodeCall(LivenessModule2.clearLivenessModule, ()),
             Enum.Operation.Call
@@ -55,9 +56,9 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
     }
 
     /// @notice Helper to respond to a challenge from a Safe
-    function _respondToChallenge(SafeInstance memory _safe, SaferSafes _livenessModule2) internal {
+    function _respondToChallenge(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe, address(_livenessModule2), 0, abi.encodeCall(LivenessModule2.respond, ()), Enum.Operation.Call
+            _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.respond, ()), Enum.Operation.Call
         );
     }
 
@@ -87,7 +88,6 @@ contract LivenessModule2_TestInit is LivenessModule2_TestUtils {
     uint256 constant NUM_OWNERS = 5;
     uint256 constant THRESHOLD = 3;
 
-    SaferSafes livenessModule2;
     SafeInstance safeInstance;
     address fallbackOwner;
     address[] owners;
@@ -122,7 +122,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         vm.expectEmit(true, true, true, true);
         emit ModuleConfigured(address(safeInstance.safe), CHALLENGE_PERIOD, fallbackOwner);
 
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(period, CHALLENGE_PERIOD);
@@ -149,9 +149,9 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         address fallback3 = makeAddr("fallback3");
 
         // Configure module for each safe
-        _enableModule(safe1, 1 days, fallback1, livenessModule2);
-        _enableModule(safe2, 2 days, fallback2, livenessModule2);
-        _enableModule(safe3, 3 days, fallback3, livenessModule2);
+        _enableModule(safe1, 1 days, fallback1);
+        _enableModule(safe2, 2 days, fallback2);
+        _enableModule(safe3, 3 days, fallback3);
 
         // Verify each safe has independent configuration
         (uint256 period1, address fb1) = livenessModule2.livenessSafeConfiguration(address(safe1.safe));
@@ -201,7 +201,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
 
     function test_configureLivenessModule_cancelsExistingChallenge_succeeds() external {
         // First configure the module
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // Start a challenge
         vm.prank(fallbackOwner);
@@ -228,7 +228,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     function test_clear_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // First disable the module at the Safe level
         SafeTestLib.execTransaction(
@@ -263,7 +263,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     function test_clear_moduleStillEnabled_reverts() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // Try to clear while module is still enabled (should revert)
         vm.expectRevert(LivenessModule2.LivenessModule2_ModuleStillEnabled.selector);
@@ -277,7 +277,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
 contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
     function setUp() public override {
         super.setUp();
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
     }
 
     function test_challenge_succeeds() external {
@@ -325,7 +325,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         SafeTestLib.enableModule(disabledSafe, address(livenessModule2));
 
         // Then configure
-        _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner);
 
         // Now disable the module at Safe level (but keep config)
         SafeTestLib.execTransaction(
@@ -351,7 +351,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         vm.expectEmit(true, true, true, true);
         emit ChallengeCancelled(address(safeInstance.safe));
 
-        _respondToChallenge(safeInstance, livenessModule2);
+        _respondToChallenge(safeInstance);
 
         // Verify challenge is cancelled
         uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
@@ -419,7 +419,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         SafeTestLib.enableModule(configuredSafe, address(livenessModule2));
 
         // Configure the module (this sets the configuration)
-        _enableModule(configuredSafe, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(configuredSafe, CHALLENGE_PERIOD, fallbackOwner);
 
         // Now disable the module at Safe level (but keep config)
         SafeTestLib.execTransaction(
@@ -454,7 +454,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
 
         // After enabling
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
         (uint256 period2, address fbOwner2) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
         assertEq(period2, CHALLENGE_PERIOD);
         assertEq(fbOwner2, fallbackOwner);
@@ -462,7 +462,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
     }
 
     function test_getChallengePeriodEnd_succeeds() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner, livenessModule2);
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // No challenge
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
@@ -473,11 +473,7 @@ contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit 
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), block.timestamp + CHALLENGE_PERIOD);
 
         // After cancellation
-        _respondToChallenge(safeInstance, livenessModule2);
+        _respondToChallenge(safeInstance);
         assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
-    }
-
-    function test_version_succeeds() external view {
-        assertTrue(bytes(livenessModule2.version()).length > 0);
     }
 }
