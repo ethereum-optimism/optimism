@@ -83,7 +83,8 @@ library TransactionBuilder {
     }
 
     /// @notice Executes the transaction via the underlying Safe contract.
-    function executeTransaction(Transaction memory _tx) internal {
+    function executeTransaction(Transaction memory _tx, address _owner) internal {
+        Vm(VM_ADDR).prank(_owner);
         _tx.safeInstance.safe.execTransaction(
             _tx.params.to,
             _tx.params.value,
@@ -228,9 +229,11 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
 
     /// @notice Helper to configure the TimelockGuard for a Safe
     function _configureGuard(SafeInstance memory _safe, uint256 _delay) internal {
+        vm.startPrank(_safe.owners[0]);
         SafeTestLib.execTransaction(
             _safe, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.configureTimelockGuard, (_delay))
         );
+        vm.stopPrank();
     }
 
     /// @notice Helper to enable guard on a Safe
@@ -539,7 +542,7 @@ contract TimelockGuard_PendingTransactions_Test is TimelockGuard_TestInit {
         vm.warp(block.timestamp + TIMELOCK_DELAY);
 
         // execute the transaction
-        dummyTx.executeTransaction();
+        dummyTx.executeTransaction(safeInstance.owners[0]);
 
         // get the pending transactions
         TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.pendingTransactions(safe);
@@ -665,7 +668,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             dummyTx.params.gasToken,
             dummyTx.params.refundReceiver,
             "",
-            address(0)
+            safeInstance.owners[0]
         );
     }
 
@@ -698,7 +701,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             dummyTx.params.gasToken,
             dummyTx.params.refundReceiver,
             "",
-            address(0)
+            safeInstance.owners[0]
         );
     }
 
@@ -721,7 +724,7 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             dummyTx.params.gasToken,
             dummyTx.params.refundReceiver,
             "",
-            address(0)
+            safeInstance.owners[0]
         );
     }
 }
@@ -808,7 +811,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
 
         vm.expectEmit(true, true, true, true);
         emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
-        dummyTx.executeTransaction();
+        dummyTx.executeTransaction(safeInstance.owners[0]);
 
         // Confirm that the transaction is executed
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
@@ -825,10 +828,10 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
-        dummyTx.executeTransaction();
+        dummyTx.executeTransaction(safeInstance.owners[0]);
 
         vm.expectRevert("GS026");
-        dummyTx.executeTransaction();
+        dummyTx.executeTransaction(safeInstance.owners[0]);
     }
 
     function test_integration_scheduleThenExecuteThenCancel_reverts() external {
@@ -836,7 +839,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
-        dummyTx.executeTransaction();
+        dummyTx.executeTransaction(safeInstance.owners[0]);
 
         TransactionBuilder.Transaction memory cancellationTx = dummyTx.makeCancellationTransaction(timelockGuard);
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyExecuted.selector);
@@ -864,7 +867,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         resetGuardTx.scheduleTransaction(timelockGuard);
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
-        resetGuardTx.executeTransaction();
+        resetGuardTx.executeTransaction(safeInstance.owners[0]);
 
         TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
         disableGuardTx.params.to = address(safeInstance.safe);
@@ -872,7 +875,7 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         disableGuardTx.updateTransaction();
 
         vm.warp(block.timestamp + TIMELOCK_DELAY);
-        disableGuardTx.executeTransaction();
+        disableGuardTx.executeTransaction(safeInstance.owners[0]);
     }
 
     /// @notice Test that the max cancellation threshold is not exceeded

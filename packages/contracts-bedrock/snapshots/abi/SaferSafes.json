@@ -163,7 +163,7 @@
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "_msgSender",
         "type": "address"
       }
     ],
@@ -900,6 +900,11 @@
   {
     "inputs": [],
     "name": "TimelockGuard_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_NotOwner",
     "type": "error"
   },
   {

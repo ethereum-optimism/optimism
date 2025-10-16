@@ -158,6 +158,9 @@ abstract contract TimelockGuard is IGuard {
     /// @param uncancelledCount The number of transactions that are not cancelled.
     event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
 
+    /// @notice Error for when the caller is not an owner of the Safe
+    error TimelockGuard_NotOwner();
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -306,13 +309,19 @@ abstract contract TimelockGuard is IGuard {
         address _gasToken,
         address payable _refundReceiver,
         bytes memory, /* signatures */
-        address /* msgSender */
+        address _msgSender
     )
         external
         view
         override
     {
         Safe callingSafe = Safe(payable(msg.sender));
+
+        // Limit execution of transactions to owners of the Safe only.
+        // This ensures that an attacker cannot simply collect valid signatures, but must also control a private key.
+        if (!callingSafe.isOwner(_msgSender)) {
+            revert TimelockGuard_NotOwner();
+        }
 
         if (_safeState[callingSafe].timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
