@@ -150,6 +150,7 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event TransactionExecuted(Safe indexed safe, bytes32 txHash);
     event Message(string message);
+    event TransactionsNotCancelled(Safe indexed safe, uint256 n);
 
     uint256 constant INIT_TIME = 10;
     uint256 constant TIMELOCK_DELAY = 7 days;
@@ -238,11 +239,12 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
             _safe, address(_safe.safe), 0, abi.encodeCall(GuardManager.setGuard, (address(timelockGuard)))
         );
     }
+
     /// @notice Helper to disable guard on a Safe
     function _disableGuard(SafeInstance memory _safe) internal {
         // Create, schedule, and execute a transaction to disable the guard
         TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
-        disableGuardTx.params.to = address(safeInstance.safe);
+        disableGuardTx.params.to = address(_safe.safe);
         disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
         disableGuardTx.updateTransaction();
         disableGuardTx.scheduleTransaction(timelockGuard);
@@ -926,6 +928,36 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         // Verify pending transaction was cancelled
         scheduledTx = timelockGuard.scheduledTransaction(safe, dummyTx.hash);
         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Cancelled));
+    }
+
+    function test_clearTimelockGuard_moreThan100PendingTransactions_succeeds() external {
+        // First configure the guard
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+
+        // Schedule a transaction to create pending state
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+
+        // Schedule more than 100 transactions
+        for (uint256 i = 0; i < 150; i++) {
+            dummyTx.setNonce(dummyTx.nonce + 1);
+            dummyTx.updateTransaction();
+            dummyTx.scheduleTransaction(timelockGuard);
+        }
+
+        _disableGuard(safeInstance);
+
+        // Clear the guard configuration
+        vm.prank(address(safeInstance.safe));
+        vm.expectEmit(true, true, true, true);
+        emit TransactionsNotCancelled(safeInstance.safe, 50);
+        timelockGuard.clearTimelockGuard();
+
+        // Ensure that the call is below a safe gas limit. The EIP-7825 limit is 16,777,216, so 12M is a safe limit.
+        assertLt(vm.lastCallGas().gasTotalUsed, 12_000_000);
+
+        // Verify configuration is cleared
+        assertEq(timelockGuard.timelockConfiguration(safe), 0);
+        assertEq(timelockGuard.cancellationThreshold(safe), 0);
     }
 
     /// @notice Verifies that clearTimelockGuard reverts when guard is still enabled

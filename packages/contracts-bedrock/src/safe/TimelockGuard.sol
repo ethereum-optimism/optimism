@@ -152,6 +152,11 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Error for when trying to clear guard while it is still enabled
     error TimelockGuard_GuardStillEnabled();
 
+    /// @notice Emitted when some transactions are not cancelled
+    /// @param safe The Safe whose transactions are not cancelled.
+    /// @param n The number of transactions that are not cancelled.
+    event TransactionsNotCancelled(Safe indexed safe, uint256 n);
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -659,14 +664,21 @@ abstract contract TimelockGuard is IGuard {
         // Get all pending transaction hashes
         bytes32[] memory hashes = safeState.pendingTxHashes.values();
 
-        // Cancel all pending transactions
-        // It is true that iterating over a very large array can lead to gas issues, however the number of pending
-        // transactions is not expected to be large. If it grows to a point where this becomes an issue, then it maybe
-        // be necessary to manually cancel enough transactions to reduce the array size to a manageable size.
-        for (uint256 i = 0; i < hashes.length; i++) {
+        uint256 n = hashes.length <= 100 ? hashes.length : 100;
+
+        // Cancel all pending transactions up to 100
+        // It is very unlikely that there will be more than 100 pending transactions, so we can safely limit the
+        // number of iterations to 100 in order to prevent gas limit issues.
+        // If there are more than 100 pending transactions, then we emit an event to inform the user that some
+        // transactions were not cancelled.
+        for (uint256 i = 0; i < n; i++) {
             safeState.pendingTxHashes.remove(hashes[i]);
             safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
             emit TransactionCancelled(_targetSafe, hashes[i]);
+        }
+
+        if (hashes.length > 100) {
+            emit TransactionsNotCancelled(_targetSafe, hashes.length - 100);
         }
     }
 
