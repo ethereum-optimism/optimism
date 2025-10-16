@@ -62,10 +62,12 @@ library LibGameArgs {
         });
     }
 
+    /// @notice Checks if the provided game arguments are valid for a permissionless game.
     function isValidPermissionlessArgs(bytes memory _args) internal pure returns (bool) {
         return _args.length == 124;
     }
 
+    /// @notice Checks if the provided game arguments are valid for a permissioned game.
     function isValidPermissionedArgs(bytes memory _args) internal pure returns (bool) {
         return _args.length == 164;
     }
