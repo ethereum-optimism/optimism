@@ -162,11 +162,6 @@ abstract contract LivenessModule2 {
         _checkCombinedConfig(callingSafe);
     }
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
-    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
-    /// @param _safe The Safe instance to check the configuration against
-    function _checkCombinedConfig(Safe _safe) internal view virtual;
-
     /// @notice Clears the module configuration for a Safe.
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges.
     ///      This function is intended for use when a Safe wants to permanently remove
@@ -190,7 +185,7 @@ abstract contract LivenessModule2 {
         delete _livenessSafeConfiguration[callingSafe];
         // Also clear any active challenge
         _cancelChallenge(callingSafe);
-        emit d(msg.sender);
+        emit ModuleCleared(address(callingSafe));
     }
 
     /// @notice Challenges an enabled safe.
