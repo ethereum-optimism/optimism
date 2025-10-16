@@ -1105,7 +1105,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(dgf, _gameType, IDisputeGame(newGame), gameArgs);
     }
 
-    // @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
+    /// @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
     function getAbsolutePrestate(
         IDisputeGameFactory _dgf,
         address _disputeGame,
