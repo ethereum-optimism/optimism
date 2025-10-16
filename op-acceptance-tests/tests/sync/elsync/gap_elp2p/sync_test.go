@@ -184,10 +184,10 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	attempts := 3
 
 	// FCU to target block which can be eventually validated, because ELP2P enabled
-	// Example logs from L2EL(geth)
-	//  New skeleton head announced
-	//  Backfilling with the network
 	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, 0, 0, nil).IsSyncing()
+	// In rare cases, EL is not ready to trigger EL Sync even though peers attached
+	// Retry a few times until the first EL Sync is complete
+	sys.L2ELB.FinishedELSync(sys.L2EL, targetNum, 0, 0)
 
 	// Wait until L2EL finishes EL Sync and canonicalizes until targetNum
 	sys.L2ELB.Reached(eth.Unsafe, targetNum, 3)

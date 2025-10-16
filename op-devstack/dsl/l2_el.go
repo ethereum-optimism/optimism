@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -253,4 +254,22 @@ func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized 
 	result.Refresh = refresh
 	result.Refresh()
 	return result
+}
+
+func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
+	el.log.Info("Start EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
+	trial := 1
+	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
+		el.log.Info("FCU to activate EL Sync", "trial", trial)
+		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
+		// If EL Sync triggered, Example logs from L2EL(geth)
+		//  New skeleton head announced
+		//  Backfilling with the network
+		if res.Result.PayloadStatus.Status == eth.ExecutionValid {
+			el.log.Info("Finished EL Sync")
+			return nil
+		}
+		trial += 1
+		return errors.New("EL Sync not yet triggered")
+	}))
 }
