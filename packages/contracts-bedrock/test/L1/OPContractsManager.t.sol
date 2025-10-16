@@ -611,7 +611,8 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
             IOPContractsManager.Implementations memory impls = opcm.implementations();
 
             // Verify v2 implementation is registered in DisputeGameFactory
-            address registeredImpl = address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+            address registeredImpl =
+                address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
 
             // Verify implementation address matches permissionedDisputeGameV2Impl
             assertEq(
@@ -848,30 +849,36 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
         returns (IFaultDisputeGame)
     {
         // Create a game so we can assert on game args which aren't baked into the implementation contract
+        Claim claim = Claim.wrap(bytes32(uint256(9876)));
+        uint256 l2SequenceNumber = uint256(123);
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
                 createGame(
-                    chainDeployOutput1.disputeGameFactoryProxy,
-                    agi.disputeGameType,
-                    proposer,
-                    Claim.wrap(bytes32(uint256(9876))),
-                    uint256(123)
+                    chainDeployOutput1.disputeGameFactoryProxy, agi.disputeGameType, proposer, claim, l2SequenceNumber
                 )
             )
         );
-        assertEq(game.gameType().raw(), agi.disputeGameType.raw(), "gameType mismatch");
-        assertEq(game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "absolutePrestate mismatch");
-        assertEq(game.maxGameDepth(), agi.disputeMaxGameDepth, "maxGameDepth mismatch");
-        assertEq(game.splitDepth(), agi.disputeSplitDepth, "splitDepth mismatch");
-        assertEq(game.clockExtension().raw(), agi.disputeClockExtension.raw(), "clockExtension mismatch");
-        assertEq(game.maxClockDuration().raw(), agi.disputeMaxClockDuration.raw(), "maxClockDuration mismatch");
-        assertEq(address(game.vm()), address(agi.vm), "vm address mismatch");
-        assertEq(address(game.weth()), address(ago.delayedWETH), "delayedWETH address mismatch");
+
+        // Verify immutable fields on the game proxy
+        assertEq(game.gameType().raw(), agi.disputeGameType.raw(), "Game type should match");
+        assertEq(game.clockExtension().raw(), agi.disputeClockExtension.raw(), "Clock extension should match");
+        assertEq(game.maxClockDuration().raw(), agi.disputeMaxClockDuration.raw(), "Max clock duration should match");
+        assertEq(game.splitDepth(), agi.disputeSplitDepth, "Split depth should match");
+        assertEq(game.maxGameDepth(), agi.disputeMaxGameDepth, "Max game depth should match");
+        assertEq(game.gameCreator(), proposer, "Game creator should match");
+        assertEq(game.rootClaim().raw(), claim.raw(), "Claim should match");
+        assertEq(game.l1Head().raw(), blockhash(block.number - 1), "L1 head should match");
+        assertEq(game.l2SequenceNumber(), l2SequenceNumber, "L2 sequence number should match");
+        assertEq(
+            game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "Absolute prestate should match input"
+        );
+        assertEq(address(game.vm()), address(agi.vm), "VM should match MIPS implementation");
         assertEq(
             address(game.anchorStateRegistry()),
             address(chainDeployOutput1.anchorStateRegistryProxy),
-            "ASR address mismatch"
+            "ASR should match"
         );
+        assertEq(address(game.weth()), address(ago.delayedWETH), "WETH should match");
 
         // Check the DGF
         assertEq(
