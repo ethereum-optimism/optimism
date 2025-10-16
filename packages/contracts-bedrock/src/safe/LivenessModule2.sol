@@ -35,9 +35,6 @@ abstract contract LivenessModule2 {
     /// @notice Reserved address used as previous owner to the first owner in a Safe.
     address internal constant SENTINEL_OWNER = address(0x1);
 
-    /// @notice Reserved address used as previous module to the first module in a Safe.
-    address internal constant SENTINEL_MODULE = address(0x1);
-
     /// @notice Error for when module is not enabled for the Safe.
     error LivenessModule2_ModuleNotEnabled();
 
