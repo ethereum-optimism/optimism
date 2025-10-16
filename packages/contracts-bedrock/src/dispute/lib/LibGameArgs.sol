@@ -30,6 +30,7 @@ library LibGameArgs {
         address challenger;
 
         assembly {
+            // skip length prefix
             let d := add(_gameArgs, 32)
             absolutePrestate := mload(d)
             vm := shr(96, mload(add(d, 32)))

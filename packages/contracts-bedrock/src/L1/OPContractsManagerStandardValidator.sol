@@ -521,7 +521,13 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         bytes memory _gameArgs = _factory.gameArgs(GameTypes.PERMISSIONED_CANNON);
-        _errors = assertGameArgsLength(_errors, _gameArgs, true, "PDDG");
+        bool lenCheckFailed;
+        (_errors, lenCheckFailed) = assertGameArgsLength(_errors, _gameArgs, true, "PDDG");
+        if (lenCheckFailed) {
+            // bail out immediately to avoid trying to validate an invalid dispute game
+            return _errors;
+        }
+
         DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, true);
         _errors = assertValidDisputeGame(
             _errors,
@@ -567,7 +573,13 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         bytes memory _gameArgs = _factory.gameArgs(GameTypes.CANNON);
-        _errors = assertGameArgsLength(_errors, _gameArgs, false, "PLDG");
+        bool lenCheckFailed;
+        (_errors, lenCheckFailed) = assertGameArgsLength(_errors, _gameArgs, false, "PLDG");
+        if (lenCheckFailed) {
+            // bail out immediately to avoid trying to validate an invalid dispute game
+            return _errors;
+        }
+
         DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, false);
         _errors = assertValidDisputeGame(
             _errors,
@@ -837,23 +849,24 @@ contract OPContractsManagerStandardValidator is ISemver {
     )
         internal
         view
-        returns (string memory)
+        returns (string memory errors_, bool failed_)
     {
         _errorPrefix = string.concat(_errorPrefix, "-GARGS");
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             if (_isPermissioned) {
-                _errors = internalRequire(
-                    LibGameArgs.isValidPermissionedArgs(_gameArgsBytes), string.concat(_errorPrefix, "-10"), _errors
-                );
+                bool ok = LibGameArgs.isValidPermissionedArgs(_gameArgsBytes);
+                _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+                return (_errors, !ok);
             } else {
-                _errors = internalRequire(
-                    LibGameArgs.isValidPermissionlessArgs(_gameArgsBytes), string.concat(_errorPrefix, "-10"), _errors
-                );
+                bool ok = LibGameArgs.isValidPermissionlessArgs(_gameArgsBytes);
+                _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+                return (_errors, !ok);
             }
         } else {
-            _errors = internalRequire(_gameArgsBytes.length == 0, string.concat(_errorPrefix, "-10"), _errors);
+            bool ok = _gameArgsBytes.length == 0;
+            _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+            return (_errors, !ok);
         }
-        return _errors;
     }
 
     // @notice Internal function to read all information from a dispute game while supporting both v1 and v2 dispute

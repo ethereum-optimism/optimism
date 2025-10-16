@@ -13,6 +13,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -25,7 +26,6 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
@@ -1061,8 +1061,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // that already exists on the current dispute game.
         Claim absolutePrestate;
         if (Claim.unwrap(_opChainConfig.absolutePrestate) == bytes32(0)) {
-            // SAFETY: both V1 and V2 games support absolutePrestate()
-            absolutePrestate = IFaultDisputeGameV2(address(_disputeGame)).absolutePrestate();
+            absolutePrestate = getAbsolutePrestate(
+                IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory()),
+                address(_disputeGame),
+                _gameType
+            );
         } else {
             absolutePrestate = _opChainConfig.absolutePrestate;
         }
@@ -1100,6 +1103,27 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
         setDGFImplementation(dgf, _gameType, IDisputeGame(newGame), gameArgs);
+    }
+
+    // @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
+    function getAbsolutePrestate(
+        IDisputeGameFactory _dgf,
+        address _disputeGame,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (Claim)
+    {
+        bytes memory gameArgsBytes = _dgf.gameArgs(_gameType);
+        if (gameArgsBytes.length == 0) {
+            // assume we're dealing with v1 fdgs
+            return IFaultDisputeGame(_disputeGame).absolutePrestate();
+        } else {
+            // v2 dispute game
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
+            return Claim.wrap(gameArgs.absolutePrestate);
+        }
     }
 }
 

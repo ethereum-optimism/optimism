@@ -102,7 +102,7 @@ contract LibGameArgs_Decode_Test is Test {
         harness.decode(buf);
     }
 
-    function test_decode_invalidLength_reverts(bytes memory _buf) public {
+    function testFuzz_decode_invalidLength_reverts(bytes memory _buf) public {
         bool ok = (_buf.length == 124 || _buf.length == 164);
         vm.assume(!ok);
         vm.expectRevert("GameArgs: decode with invalid length");

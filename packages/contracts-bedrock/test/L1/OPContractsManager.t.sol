@@ -109,11 +109,19 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     /// @notice Thrown when testing with an unsupported chain ID.
     error UnsupportedChainId();
 
+    struct PreUpgradeState {
+        Claim cannonAbsolutePrestate;
+        Claim permissionedAbsolutePrestate;
+        IDelayedWETH cannonWethProxy;
+        IDelayedWETH permissionedCannonWethProxy;
+    }
+
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
     string public opChain = Config.forkOpChain();
+    PreUpgradeState preUpgradeState;
 
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -151,6 +159,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
+
+        // grab the pre-upgrade state
+        preUpgradeState = PreUpgradeState({
+            cannonAbsolutePrestate: IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)))
+                .absolutePrestate(),
+            permissionedAbsolutePrestate: IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate(),
+            cannonWethProxy: delayedWeth,
+            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+        });
 
         // Since this superchainConfig is already at the expected reinitializer version...
         // We do this to pass the reinitializer check when trying to upgrade the superchainConfig contract.
@@ -315,6 +334,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     {
         address expectedProposer = permissionedGameProposer();
         bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
+        if (expectedAbsolutePrestate == bytes32(0)) {
+            expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
+        }
         address expectedVm = address(_opcm.implementations().mipsImpl);
 
         Claim claim = Claim.wrap(bytes32(uint256(1)));
@@ -332,10 +354,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 )
             )
         );
-        // for now skip prestate check if it's not set since we don't know the pre-upgrade state
-        if (expectedAbsolutePrestate != bytes32(0)) {
-            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
-        }
+        (,,,, Claim rootClaim,,) = game.claimData(0);
+
+        vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
         vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
         vm.assertEq(l2ChainId, game.l2ChainId());
         vm.assertEq(302400, game.maxClockDuration().raw());
@@ -346,6 +367,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         vm.assertEq(_challenger, game.challenger());
         vm.assertEq(expectedProposer, game.proposer());
         vm.assertEq(expectedVm, address(game.vm()));
+        vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+        vm.assertEq(expectedProposer, game.gameCreator());
+        vm.assertEq(claim.raw(), rootClaim.raw());
+        vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
