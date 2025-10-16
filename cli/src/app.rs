@@ -124,7 +124,7 @@ where
                 layers.with_span_layer(
                     "reth".to_string(),
                     output_type.clone(),
-                    self.cli.traces.otlp_level.clone(),
+                    self.cli.traces.otlp_filter.clone(),
                 )?;
             }
 
