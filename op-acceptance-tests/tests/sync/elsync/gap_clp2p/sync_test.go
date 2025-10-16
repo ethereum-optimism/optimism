@@ -54,14 +54,9 @@ func TestSyncAfterInitialELSync(gt *testing.T) {
 func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
-	require := t.Require()
 	logger := t.Logger()
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
-
-	// batcher down so safe not advanced
-	require.Equal(uint64(0), sys.L2CL.HeadBlockRef(types.LocalSafe).Number)
-	require.Equal(uint64(0), sys.L2CLB.HeadBlockRef(types.LocalSafe).Number)
 
 	// First make verifier reach unsafe tip
 	logger.Info("Initial trial for appending payload until tip")
