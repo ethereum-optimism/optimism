@@ -107,9 +107,9 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 		expectedPendingProgress = append(expectedPendingProgress, block)
 	} else if transitionState.Step == ConsolidateStep {
 		logger.Info("Running consolidate step")
-		// sanity check
-		if len(transitionState.PendingProgress) > ConsolidateStep {
-			return common.Hash{}, fmt.Errorf("%w: pending progress length does not match the expected step", ErrInvalidPrestate)
+		// sanity check: ensure pending progress aligns with number of chains
+		if len(transitionState.PendingProgress) != len(superRoot.Chains) {
+			return common.Hash{}, fmt.Errorf("%w: pending progress length %d does not match number of chains %d", ErrInvalidPrestate, len(transitionState.PendingProgress), len(superRoot.Chains))
 		}
 		expectedSuperRoot, err := RunConsolidation(
 			logger, bootInfo, l1PreimageOracle, l2PreimageOracle, transitionState, superRoot, tasks)
