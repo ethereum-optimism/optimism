@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -286,4 +288,28 @@ func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, att
 	result.Refresh = refresh
 	result.Refresh()
 	return result
+}
+
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+	el.require.Equal(chainID, el.inner.ID().ChainID(), "chain ID mismatch")
+	var blockRef eth.L2BlockRef
+	switch lvl {
+	case types.Finalized:
+		blockRef = el.BlockRefByLabel(eth.Finalized)
+	case types.CrossSafe, types.LocalSafe:
+		blockRef = el.BlockRefByLabel(eth.Safe)
+	case types.CrossUnsafe, types.LocalUnsafe:
+		blockRef = el.BlockRefByLabel(eth.Unsafe)
+	default:
+		el.require.NoError(errors.New("invalid safety level"))
+	}
+	return blockRef.ID()
+}
+
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
+}
+
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
