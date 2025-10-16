@@ -92,7 +92,7 @@ contract CustomMeterUser is ResourceMetering {
 
 /// @title ResourceMetering_TestInit
 /// @notice Reusable test initialization for `ResourceMetering` tests.
-contract ResourceMetering_TestInit is Test {
+abstract contract ResourceMetering_TestInit is Test {
     MeterUser internal meter;
     uint64 initialBlockNum;
 

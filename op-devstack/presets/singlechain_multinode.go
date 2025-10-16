@@ -57,3 +57,40 @@ func NewSingleChainMultiNodeWithoutCheck(t devtest.T) *SingleChainMultiNode {
 func WithSingleChainMultiNodeWithoutP2P() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeSystemWithoutP2P(&sysgo.DefaultSingleChainMultiNodeSystemIDs{}))
 }
+
+type SingleChainMultiNodeWithTestSeq struct {
+	SingleChainMultiNode
+
+	TestSequencer *dsl.TestSequencer
+}
+
+func NewSingleChainMultiNodeWithTestSeq(t devtest.T) *SingleChainMultiNodeWithTestSeq {
+	system := shim.NewSystem(t)
+	orch := Orchestrator()
+	orch.Hydrate(system)
+	minimal := minimalFromSystem(t, system, orch)
+	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	verifierCL := l2.L2CLNode(match.Assume(t,
+		match.And(
+			match.Not(match.WithSequencerActive(t.Ctx())),
+			match.Not[stack.L2CLNodeID, stack.L2CLNode](minimal.L2CL.ID()),
+		)))
+	verifierEL := l2.L2ELNode(match.Assume(t,
+		match.And(
+			match.EngineFor(verifierCL),
+			match.Not[stack.L2ELNodeID, stack.L2ELNode](minimal.L2EL.ID()))))
+	preset := &SingleChainMultiNode{
+		Minimal: *minimal,
+		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
+		L2CLB:   dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+	}
+	out := &SingleChainMultiNodeWithTestSeq{
+		SingleChainMultiNode: *preset,
+		TestSequencer:        dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+	}
+	return out
+}
+
+func WithNewSingleChainMultiNodeWithTestSeq() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeWithTestSeqSystem(&sysgo.DefaultSingleChainMultiNodeWithTestSeqSystemIDs{}))
+}

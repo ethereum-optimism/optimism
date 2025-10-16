@@ -6,7 +6,7 @@ import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLo
 
 /// @title CheckBalanceLow_TestInit
 /// @notice Reusable test initialization for `CheckBalanceLow` tests.
-contract CheckBalanceLow_TestInit is Test {
+abstract contract CheckBalanceLow_TestInit is Test {
     /// @notice An instance of the CheckBalanceLow contract.
     CheckBalanceLow c;
 

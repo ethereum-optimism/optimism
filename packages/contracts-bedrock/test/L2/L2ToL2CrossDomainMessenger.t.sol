@@ -63,7 +63,7 @@ contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2
 
 /// @title L2ToL2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2ToL2CrossDomainMessenger` tests.
-contract L2ToL2CrossDomainMessenger_TestInit is Test {
+abstract contract L2ToL2CrossDomainMessenger_TestInit is Test {
     address internal foundryVMAddress = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
     /// @notice L2ToL2CrossDomainMessenger contract instance with modifiable transient storage.

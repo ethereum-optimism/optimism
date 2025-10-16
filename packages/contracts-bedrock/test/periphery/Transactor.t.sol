@@ -8,7 +8,7 @@ import { Transactor } from "src/periphery/Transactor.sol";
 
 /// @title Transactor_TestInit
 /// @notice Reusable test initialization for `Transactor` tests.
-contract Transactor_TestInit is Test {
+abstract contract Transactor_TestInit is Test {
     address alice = address(128);
     address bob = address(256);
 

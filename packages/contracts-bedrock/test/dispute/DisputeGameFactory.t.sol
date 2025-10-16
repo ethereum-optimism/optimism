@@ -48,7 +48,7 @@ contract DisputeGameFactory_FakeClone_Harness {
 
 /// @title DisputeGameFactory_TestInit
 /// @notice Reusable test initialization for `DisputeGameFactory` tests.
-contract DisputeGameFactory_TestInit is CommonTest {
+abstract contract DisputeGameFactory_TestInit is CommonTest {
     DisputeGameFactory_FakeClone_Harness fakeClone;
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);

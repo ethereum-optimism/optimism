@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -30,7 +33,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -140,6 +146,110 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	t.Run("local artifacts", func(t *testing.T) {
 		loc, _ := testutil.LocalArtifacts(t)
 		apply(t, loc)
+	})
+}
+
+// TestEndToEndBootstrapApplyWithUpgrade tests upgrading from a previous contracts release
+// to embedded version of contracts by executing the following sequence:
+//  1. create an anvil env that is a fork of op-sepolia
+//  2. bootstrap.Implementations of the latest/embedded version of contracts, which will produce a new opcm
+//  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
+//  4. call opcm.upgrade on the opcm deployed in [2]
+func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+	pkHex, _, _ := shared.DefaultPrivkey(t)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, stopL1())
+	})
+	loc, afactsFS := testutil.LocalArtifacts(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	superchain, err := standard.SuperchainFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+	require.NoError(t, err)
+
+	superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+	require.NoError(t, err)
+
+	impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+		L1RPCUrl:                        forkedL1.RPCUrl(),
+		PrivateKey:                      pkHex,
+		ArtifactsLocator:                loc,
+		MIPSVersion:                     int(standard.MIPSVersion),
+		WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+		MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+		ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+		ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+		DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+		DevFeatureBitmap:                common.Hash{},
+		SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+		ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+		L1ProxyAdminOwner:               superchainProxyAdminOwner,
+		SuperchainProxyAdmin:            superchainProxyAdmin,
+		CacheDir:                        testCacheDir,
+		Logger:                          lgr,
+		Challenger:                      common.Address{'C'},
+	})
+	require.NoError(t, err)
+
+	// Now test the OPCM upgrade using the deployed impls.Opcm
+	t.Run("opcm upgrade test", func(t *testing.T) {
+		// Create script host for the upgrade
+		rpcClient, err := rpc.Dial(forkedL1.RPCUrl())
+		require.NoError(t, err)
+
+		host, err := env.DefaultForkedScriptHost(
+			ctx,
+			broadcaster.NoopBroadcaster(),
+			lgr,
+			superchainProxyAdminOwner,
+			afactsFS,
+			rpcClient,
+		)
+		require.NoError(t, err)
+
+		// First run upgradeSuperchainConfig because the version on the fork is < than that
+		// of the contracts-bedrock folder so upgrading directly would revert.
+		t.Run("upgrade superchain config", func(t *testing.T) {
+			upgradeConfig := embedded.UpgradeSuperchainConfigInput{
+				Prank:                superchainProxyAdminOwner,
+				Opcm:                 impls.Opcm,
+				SuperchainConfig:     superchain.SuperchainConfigAddr,
+				SuperchainProxyAdmin: superchainProxyAdmin,
+			}
+
+			err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
+			require.NoError(t, err, "Superchain config upgrade should succeed")
+		})
+
+		// Then run the OPCM upgrade
+		t.Run("upgrade opcm", func(t *testing.T) {
+			upgradeConfig := v2_0_0.UpgradeOPChainInput{
+				Prank: superchainProxyAdminOwner,
+				Opcm:  impls.Opcm,
+				EncodedChainConfigs: []v2_0_0.OPChainConfig{
+					{
+						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						ProxyAdmin:        superchainProxyAdmin,
+						AbsolutePrestate:  common.Hash{'A', 'P'},
+					},
+				},
+			}
+			// Test the upgrade
+			upgradeConfigBytes, err := json.Marshal(upgradeConfig)
+			require.NoError(t, err, "UpgradeOPChainInput should marshal to JSON")
+			err = embedded.DefaultUpgrader.Upgrade(host, upgradeConfigBytes)
+			require.NoError(t, err, "OPCM upgrade should succeed")
+		})
 	})
 }
 

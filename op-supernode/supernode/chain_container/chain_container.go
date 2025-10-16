@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const virtualNodeVersion = "0.0.0"
+const virtualNodeVersion = "0.1.0"
 
 type ChainContainer interface {
 	Start(ctx context.Context) error

@@ -67,6 +67,8 @@ Per-chain flags are prefixed:
 - `-vn.all.<flag>` applies to all chains
 - `-vn.<chainID>.<flag>` applies to one chain
 
+All virtual node configuration flags can also be set by environment variable, prefixed with `VN_ALL_` or `VN_<CHAINID>_`.
+
 Common examples:
 ```bash
 # Supernode-level L1
@@ -109,7 +111,16 @@ RPC Clients are created in namespaced paths, so the supernode has a single RPC U
 ```
 calling RPC methods on `/901` will route the method to the Virtual Node for that chain.
 
+### Metrics Routing
+Prometheus Metrics are exposed in namespaced paths, so the supernode has a single RPC URL which acts as an RPC router to the virtual nodes
+```
+/
+  ├── 901/metrics
+  ├── 902/metrics
+  └── 903/metrics
+```
+All metrics are available at the supernode-configured metrics port.
+
 ### Limitations
 - P2P disabled for Virtual Nodes (unsafe head sync possible later)
 - Pause/resume exists but not yet exposed via API
-- Virtual Node metrics are untested and expected non-functional currently

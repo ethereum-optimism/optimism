@@ -12,12 +12,25 @@ type DefaultSingleChainMultiNodeSystemIDs struct {
 	L2ELB stack.L2ELNodeID
 }
 
+type DefaultSingleChainMultiNodeWithTestSeqSystemIDs struct {
+	DefaultSingleChainMultiNodeSystemIDs
+
+	TestSequencer stack.TestSequencerID
+}
+
 func NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID eth.ChainID) DefaultSingleChainMultiNodeSystemIDs {
 	minimal := NewDefaultMinimalSystemIDs(l1ID, l2ID)
 	return DefaultSingleChainMultiNodeSystemIDs{
 		DefaultMinimalSystemIDs: minimal,
 		L2CLB:                   stack.NewL2CLNodeID("b", l2ID),
 		L2ELB:                   stack.NewL2ELNodeID("b", l2ID),
+	}
+}
+
+func NewDefaultSingleChainMultiNodeWithTestSeqSystemIDs(l1ID, l2ID eth.ChainID) DefaultSingleChainMultiNodeWithTestSeqSystemIDs {
+	return DefaultSingleChainMultiNodeWithTestSeqSystemIDs{
+		DefaultSingleChainMultiNodeSystemIDs: NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID),
+		TestSequencer:                        "dev",
 	}
 }
 
@@ -33,6 +46,19 @@ func DefaultSingleChainMultiNodeSystem(dest *DefaultSingleChainMultiNodeSystemID
 	// P2P connect L2CL nodes
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
 	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+	return opt
+}
+
+func DefaultSingleChainMultiNodeWithTestSeqSystem(dest *DefaultSingleChainMultiNodeWithTestSeqSystemIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultSingleChainMultiNodeWithTestSeqSystemIDs(DefaultL1ID, DefaultL2AID)
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(DefaultSingleChainMultiNodeSystem(&dest.DefaultSingleChainMultiNodeSystemIDs))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

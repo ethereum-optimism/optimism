@@ -19,7 +19,7 @@ contract EOA_Harness {
 
 /// @title EOA_TestInit
 /// @notice Reusable test initialization for `EOA` tests.
-contract EOA_TestInit is Test {
+abstract contract EOA_TestInit is Test {
     EOA_Harness harness;
 
     /// @notice Sets up the test.

@@ -11,7 +11,7 @@ import "src/libraries/L1BlockErrors.sol";
 
 /// @title L1Block_ TestInit
 /// @notice Reusable test initialization for `L1Block` tests.
-contract L1Block_TestInit is CommonTest {
+abstract contract L1Block_TestInit is CommonTest {
     address depositor;
 
     /// @notice Sets up the test suite.

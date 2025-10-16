@@ -8,7 +8,7 @@ import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
 
 /// @title AdminFaucetAuthModule_TestInit
 /// @notice Reusable test initialization for `AdminFaucetAuthModule` tests.
-contract AdminFaucetAuthModule_TestInit is Test {
+abstract contract AdminFaucetAuthModule_TestInit is Test {
     /// @notice The admin of the `AdminFaucetAuthModule` contract.
     address internal admin;
 
