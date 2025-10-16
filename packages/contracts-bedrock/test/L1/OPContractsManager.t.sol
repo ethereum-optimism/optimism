@@ -976,8 +976,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
         internal
         returns (IFaultDisputeGame)
     {
-        // Check the config for the game itself
-        assertEq(ago.faultDisputeGame.gameType().raw(), agi.disputeGameType.raw(), "gameType mismatch");
 
         // Create a game so we can assert on game args which aren't baked into the implementation contract
         IFaultDisputeGame game = IFaultDisputeGame(
@@ -991,6 +989,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
                 )
             )
         );
+        assertEq(game.gameType().raw(), agi.disputeGameType.raw(), "gameType mismatch");
         assertEq(game.absolutePrestate().raw(), agi.disputeAbsolutePrestate.raw(), "absolutePrestate mismatch");
         assertEq(game.maxGameDepth(), agi.disputeMaxGameDepth, "maxGameDepth mismatch");
         assertEq(game.splitDepth(), agi.disputeSplitDepth, "splitDepth mismatch");
@@ -1005,11 +1004,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
         );
 
         // Check the DGF
-        assertEq(
-            chainDeployOutput1.disputeGameFactoryProxy.gameImpls(agi.disputeGameType).gameType().raw(),
-            agi.disputeGameType.raw(),
-            "gameType mismatch"
-        );
         assertEq(
             address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(agi.disputeGameType)),
             address(ago.faultDisputeGame),
@@ -1029,10 +1023,10 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
 
         // Run the addGameType call.
         IOPContractsManager.AddGameOutput memory output = addGameType(input);
-        assertValidGameType(input, output);
+        IFaultDisputeGame game = assertValidGameType(input, output);
 
         // Check the values on the new game type.
-        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
+        IPermissionedDisputeGame notPDG = IPermissionedDisputeGame(address(game));
 
         // Proposer call should revert because this is a permissionless game.
         vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
