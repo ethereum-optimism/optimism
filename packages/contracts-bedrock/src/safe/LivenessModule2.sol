@@ -170,8 +170,11 @@ abstract contract LivenessModule2 {
         // This prevents clearing configuration while module is still enabled
         _assertModuleNotEnabled(msg.sender);
 
-        // Clear the configuration and any active challenge
-        _clearLivenessModule(Safe(payable(msg.sender)));
+        // Erase the configuration data for this safe
+        delete livenessSafeConfiguration[msg.sender];
+        // Also clear any active challenge
+        _cancelChallenge(msg.sender);
+        emit ModuleCleared(msg.sender);
     }
 
     /// @notice Challenges an enabled safe.
@@ -292,9 +295,6 @@ abstract contract LivenessModule2 {
         // Disable and clear this guard.
         // Removes whichever guard is currently set on the Safe, even if it is not the SaferSafes guard.
         _disableAndClearGuard(targetSafe);
-
-        // Disable this module from the Safe
-        _disableAndClearThisModule(targetSafe);
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
@@ -334,55 +334,9 @@ abstract contract LivenessModule2 {
         emit ChallengeCancelled(_safe);
     }
 
-    /// @notice Internal function to clear the liveness module configuration and any active challenge.
-    /// @param _safe The Safe instance to clear the configuration for.
-    function _clearLivenessModule(Safe _safe) internal {
-        // Erase the configuration data for this safe
-        delete livenessSafeConfiguration[address(_safe)];
-        // Also clear any active challenge
-        _cancelChallenge(address(_safe));
-        emit ModuleCleared(address(_safe));
-    }
-
     /// @notice Internal function to disable this guard from the given Safe.
     /// @dev Only disables the guard if it is enabled, otherwise does nothing in case another
     ///      guard is enabled.
     /// @param _targetSafe The Safe instance to disable this guard from.
     function _disableAndClearGuard(Safe _targetSafe) internal virtual;
-
-    /// @notice Internal function to disable this module from the given Safe.
-    /// @param _targetSafe The Safe instance to disable this module from.
-    function _disableAndClearThisModule(Safe _targetSafe) internal {
-        // Get current modules
-        // This might not work if you have more than 100 modules, but what are you even doing if that's the case?
-        (address[] memory modules,) = _targetSafe.getModulesPaginated(SENTINEL_MODULE, 100);
-
-        // Find the index of this module
-        bool moduleFound = false;
-        uint256 moduleIndex = 0;
-        for (uint256 i = 0; i < modules.length; i++) {
-            if (modules[i] == address(this)) {
-                moduleIndex = i;
-                moduleFound = true;
-                break;
-            }
-        }
-
-        if (!moduleFound) return;
-
-        // If the module is the first in the list, then the previous module is the sentinel.
-        // Otherwise, the previous module is the module before in the array.
-        address prevModule = moduleIndex == 0 ? SENTINEL_MODULE : modules[moduleIndex - 1];
-
-        // Disable the module
-        _targetSafe.execTransactionFromModule({
-            to: address(_targetSafe),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(ModuleManager.disableModule, (prevModule, address(this)))
-        });
-
-        // Erase the configuration data for this safe
-        _clearLivenessModule(_targetSafe);
-    }
 }

@@ -190,9 +190,6 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
         assertEq(challengeEndTime, 0);
 
-        // Verify module is disabled
-        assertFalse(ModuleManager(safeInstance.safe).isModuleEnabled(address(livenessModule2)));
-
         // Verify guard is deactivated
         assertEq(_getGuard(safeInstance), address(0));
         TimelockGuard timelockGuard = TimelockGuard(address(livenessModule2));
@@ -219,50 +216,6 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
 
         vm.prank(fallbackOwner);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        _assertOwnershipChanged();
-    }
-
-    function test_changeOwnershipToFallback_withOtherModules_succeeds() external {
-        // First disable the module, because we want it to be in the middle of the Safe's list
-        // of modules.
-        _disableModule(safeInstance);
-
-        // Enable some extra modules on the Safe before the LivenessModule2 to ensure that we can handle up to 100
-        // modules.
-        for (uint256 i = 0; i < 98; i++) {
-            SafeTestLib.enableModule(safeInstance, address(makeAddr(string(abi.encodePacked("module", i)))));
-        }
-
-        // Enable the LivenessModule2 on the Safe
-        SafeTestLib.enableModule(safeInstance, address(livenessModule2));
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Enable 1 more module to bring us to 100 modules.
-        SafeTestLib.enableModule(safeInstance, address(makeAddr("module100")));
-
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(safeInstance.safe));
-
-        // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        vm.expectEmit(true, true, true, true);
-        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
-
-        vm.prank(fallbackOwner);
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Ensure that the call is below a safe gas limit. The EIP-7825 limit is 16,777,216, so 12M is a safe limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 12_000_000);
-
-        // Verify module is disabled
-        assertFalse(ModuleManager(safeInstance.safe).isModuleEnabled(address(livenessModule2)));
-        // Verify extra modules are still enabled
-        (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
-        assertEq(modules.length, 99);
 
         _assertOwnershipChanged();
     }
@@ -390,21 +343,6 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
         vm.prank(fallbackOwner);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Re-enable the module
-        vm.prank(fallbackOwner);
-        safeInstance.safe.execTransaction(
-            address(safeInstance.safe),
-            0,
-            abi.encodeCall(ModuleManager.enableModule, (address(livenessModule2))),
-            Enum.Operation.Call,
-            0,
-            0,
-            0,
-            address(0),
-            payable(address(0)),
-            abi.encodePacked(bytes32(uint256(uint160(fallbackOwner))), bytes32(0), uint8(1))
-        );
 
         // Re-configure the module
         vm.prank(address(safeInstance.safe));
