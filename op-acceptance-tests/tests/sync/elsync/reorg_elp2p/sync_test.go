@@ -22,8 +22,6 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	logger := t.Logger()
 	ctx := t.Ctx()
 
-	logger = logger.With("###", "###")
-
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
 
@@ -124,7 +122,7 @@ func TestUnsafeGapFillAfterSafeReorg(gt *testing.T) {
 	logger.Info("Verifier unsafe gap", "gap", seqUnsafe.Number-verUnsafe.Number, "seqUnsafe", seqUnsafe.Number, "verUnsafe", verUnsafe.Number)
 
 	// Reenable CLP2P
-	// L2CL will receive unsafe payloads from sequencer
+	// L2CLB will receive unsafe payloads from sequencer
 	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
 	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 	sys.L2CLB.ConnectPeer(sys.L2CL)
@@ -150,8 +148,6 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartOpNode(gt *testing.T) {
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
-
-	logger = logger.With("###", "###")
 
 	// Stop the batcher not to advance safe head
 	sys.L2Batcher.Stop()
@@ -246,6 +242,10 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartOpNode(gt *testing.T) {
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
+	// L2CLB will receive unsafe payloads from sequencer
+	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
+	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
+
 	// Unsafe gap is closed
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 50)
 
@@ -267,8 +267,6 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
-
-	logger = logger.With("###", "###")
 
 	// Stop the batcher not to advance safe head
 	sys.L2Batcher.Stop()
@@ -360,6 +358,10 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	// Make sure CLP2P is connected
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
+
+	// L2CLB will receive unsafe payloads from sequencer
+	// Unsafe gap will be observed by the L2CLB, and it will be smart enough to close the gap,
+	// using RR Sync(soon be deprecated), or rely on EL Sync(desired)
 
 	// Unsafe gap is closed
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 50)
