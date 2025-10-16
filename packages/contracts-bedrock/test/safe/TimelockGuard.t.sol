@@ -238,6 +238,21 @@ contract TimelockGuard_TestInit is Test, SafeTestTools {
             _safe, address(_safe.safe), 0, abi.encodeCall(GuardManager.setGuard, (address(timelockGuard)))
         );
     }
+    /// @notice Helper to disable guard on a Safe
+    function _disableGuard(SafeInstance memory _safe) internal {
+        // Create, schedule, and execute a transaction to disable the guard
+        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
+        disableGuardTx.params.to = address(safeInstance.safe);
+        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
+        disableGuardTx.updateTransaction();
+        disableGuardTx.scheduleTransaction(timelockGuard);
+
+        // Wait for timelock delay to pass
+        vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
+
+        // Execute the disable guard transaction
+        disableGuardTx.executeTransaction();
+    }
 }
 
 /// @title TimelockGuard_TimelockConfiguration_Test
@@ -897,18 +912,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         TimelockGuard.ScheduledTransaction memory scheduledTx = timelockGuard.scheduledTransaction(safe, dummyTx.hash);
         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
 
-        // Create, schedule, and execute a transaction to disable the guard
-        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
-        disableGuardTx.params.to = address(safeInstance.safe);
-        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
-        disableGuardTx.updateTransaction();
-        disableGuardTx.scheduleTransaction(timelockGuard);
-
-        // Wait for timelock delay to pass
-        vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
-
-        // Execute the disable guard transaction
-        disableGuardTx.executeTransaction();
+        _disableGuard(safeInstance);
 
         // Clear the guard configuration
         SafeTestLib.execTransaction(
