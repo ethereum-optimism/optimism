@@ -3,6 +3,7 @@ pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
+import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 
 contract LibGameArgs_Harness {
     function decode(bytes memory _buf) public pure returns (LibGameArgs.GameArgs memory) {
@@ -98,14 +99,14 @@ contract LibGameArgs_Decode_Test is Test {
             uint256(999)
         );
 
-        vm.expectRevert("GameArgs: decode with invalid length");
+        vm.expectRevert(InvalidGameArgsLength.selector);
         harness.decode(buf);
     }
 
     function testFuzz_decode_invalidLength_reverts(bytes memory _buf) public {
         bool ok = (_buf.length == 124 || _buf.length == 164);
         vm.assume(!ok);
-        vm.expectRevert("GameArgs: decode with invalid length");
+        vm.expectRevert(InvalidGameArgsLength.selector);
         harness.decode(_buf);
     }
 

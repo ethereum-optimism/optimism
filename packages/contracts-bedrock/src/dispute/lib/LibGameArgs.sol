@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
+
 /// @title LibGameArgs
 /// @notice Library for decoding the game arguments used in dispute games.
 library LibGameArgs {
@@ -19,7 +21,9 @@ library LibGameArgs {
     /// @param _gameArgs The bytes array containing the encoded game arguments.
     function decode(bytes memory _gameArgs) internal pure returns (GameArgs memory) {
         uint256 len = _gameArgs.length;
-        require(len == 164 || len == 124, "GameArgs: decode with invalid length");
+        if (len != 164 && len != 124) {
+            revert InvalidGameArgsLength();
+        }
 
         bytes32 absolutePrestate;
         address vm;

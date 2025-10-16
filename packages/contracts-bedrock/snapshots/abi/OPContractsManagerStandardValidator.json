@@ -465,5 +465,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
   }
 ]

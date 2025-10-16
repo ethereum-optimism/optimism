@@ -379,6 +379,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotABlueprint",
     "type": "error"
   },
