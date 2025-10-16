@@ -158,7 +158,6 @@ abstract contract TimelockGuard is IGuard {
     /// @param uncancelledCount The number of transactions that are not cancelled.
     event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
 
-
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
