@@ -60,11 +60,4 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
             revert SaferSafes_InsufficientLivenessResponsePeriod();
         }
     }
-
-    /// @notice Internal function to disable the guard from the given Safe.
-    /// @dev This function is a wrapper that calls the parent TimelockGuard implementation.
-    /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableAndClearGuard(Safe _targetSafe) internal override(LivenessModule2, TimelockGuard) {
-        TimelockGuard._disableAndClearGuard(_targetSafe);
-    }
 }

@@ -682,25 +682,4 @@ abstract contract TimelockGuard is IGuard {
             emit TransactionsNotCancelled(_targetSafe, hashes.length - 100);
         }
     }
-
-    /// @notice Internal function to disable the guard from the given Safe.
-    /// @dev This function is intended for use in contracts that extend TimelockGuard.
-    ///      It clears the timelock guard configuration and cancels all pending transactions.
-    /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableAndClearGuard(Safe _targetSafe) internal virtual {
-        // Clear the timelock guard configuration
-        _clearTimelockGuard(_targetSafe);
-
-        // Disable the guard
-        // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
-        // the fallback owner.
-        _targetSafe.execTransactionFromModule({
-            to: address(_targetSafe),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
-        });
-    }
 }

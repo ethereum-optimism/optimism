@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
@@ -288,12 +289,17 @@ abstract contract LivenessModule2 {
         delete challengeStartTime[_safe];
         emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
 
-        // Now we will disable the guard and module from the Safe, so that the Safe is set to a
-        // minimal state, which is as simple as possible for the fallback owner to reason about.
-
-        // Disable and clear this guard.
-        // Removes whichever guard is currently set on the Safe, even if it is not the SaferSafes guard.
-        _disableAndClearGuard(targetSafe);
+        // Disable the guard
+        // Note that this will remove whichever guard is currently set on the Safe,
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
+        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // the fallback owner.
+        targetSafe.execTransactionFromModule({
+            to: _safe,
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+        });
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
@@ -332,11 +338,4 @@ abstract contract LivenessModule2 {
         delete challengeStartTime[_safe];
         emit ChallengeCancelled(_safe);
     }
-
-    /// @notice Internal function to disable the guard and clear the configuration from the given Safe.
-    /// @dev Disables whichever guard is currently set on the Safe, even if it is not the SaferSafes guard.
-    ///      This is intentional, as it is possible that the guard itself was the cause of the liveness failure
-    ///      which resulted in the transfer of ownership to the fallback owner.
-    /// @param _targetSafe The Safe instance to disable the guard and clear the configuration from.
-    function _disableAndClearGuard(Safe _targetSafe) internal virtual;
 }
