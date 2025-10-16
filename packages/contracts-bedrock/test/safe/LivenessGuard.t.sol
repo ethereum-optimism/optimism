@@ -25,7 +25,7 @@ contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
 
 /// @title LivenessGuard_TestInit
 /// @notice Reusable test initialization for `LivenessGuard` tests.
-contract LivenessGuard_TestInit is Test, SafeTestTools {
+abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     event OwnerRecorded(address owner);

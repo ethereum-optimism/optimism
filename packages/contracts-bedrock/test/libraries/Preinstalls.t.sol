@@ -8,7 +8,7 @@ import { IEIP712 } from "interfaces/universal/IEIP712.sol";
 
 /// @title Preinstalls_TestInit
 /// @notice Reusable test initialization for `Preinstalls` tests.
-contract Preinstalls_TestInit is CommonTest {
+abstract contract Preinstalls_TestInit is CommonTest {
     function assertPreinstall(address _addr, bytes memory _code) internal view {
         assertNotEq(_code.length, 0, "must have code");
         assertNotEq(_addr.code.length, 0, "deployed preinstall account must have code");

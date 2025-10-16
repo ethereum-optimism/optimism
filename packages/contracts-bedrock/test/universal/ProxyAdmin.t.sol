@@ -16,7 +16,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title ProxyAdmin_TestInit
 /// @notice Reusable test initialization for `ProxyAdmin` tests.
-contract ProxyAdmin_TestInit is Test {
+abstract contract ProxyAdmin_TestInit is Test {
     address alice = address(64);
 
     IProxy proxy;

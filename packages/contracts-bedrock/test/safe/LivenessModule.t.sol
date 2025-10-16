@@ -11,7 +11,7 @@ import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @title LivenessModule_TestInit
 /// @notice Reusable test initialization for `LivenessModule` tests.
-contract LivenessModule_TestInit is Test, SafeTestTools {
+abstract contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     error OwnerRemovalFailed(string reason);

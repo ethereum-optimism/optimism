@@ -9,7 +9,7 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 /// @title SaferSafes_TestInit
 /// @notice Reusable test initialization for `SaferSafes` tests.
-contract SaferSafes_TestInit is Test, SafeTestTools {
+abstract contract SaferSafes_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     // Events

@@ -20,7 +20,7 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title ETHLockbox_TestInit
 /// @notice Base contract that sets up the testing environment for ETHLockbox tests.
-contract ETHLockbox_TestInit is CommonTest {
+abstract contract ETHLockbox_TestInit is CommonTest {
     error InvalidInitialization();
 
     event ETHLocked(IOptimismPortal2 indexed portal, uint256 amount);

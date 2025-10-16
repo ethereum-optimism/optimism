@@ -50,7 +50,7 @@ contract ProxyAdminOwnedBase_Harness is ProxyAdminOwnedBase {
     }
 }
 
-contract ProxyAdminOwnedBase_TestInit is CommonTest {
+abstract contract ProxyAdminOwnedBase_TestInit is CommonTest {
     /// @notice Harness for the `ProxyAdminOwnedBase` contract.
     ProxyAdminOwnedBase_Harness public harness;
 

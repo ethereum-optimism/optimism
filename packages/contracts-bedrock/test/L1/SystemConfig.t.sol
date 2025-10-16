@@ -20,7 +20,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title SystemConfig Test Init
 /// @notice Reusable test initialization for SystemConfig tests.
-contract SystemConfig_TestInit is CommonTest {
+abstract contract SystemConfig_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
 
     bytes32 public constant EXAMPLE_FEATURE = "EXAMPLE_FEATURE";

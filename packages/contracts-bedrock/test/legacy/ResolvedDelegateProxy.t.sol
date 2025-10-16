@@ -23,7 +23,7 @@ contract ResolvedDelegateProxy_SimpleImplementation_Harness {
 
 /// @title ResolvedDelegateProxy_TestInit
 /// @notice Reusable test initialization for `ResolvedDelegateProxy` tests.
-contract ResolvedDelegateProxy_TestInit is Test {
+abstract contract ResolvedDelegateProxy_TestInit is Test {
     IAddressManager internal addressManager;
     ResolvedDelegateProxy_SimpleImplementation_Harness internal impl;
     ResolvedDelegateProxy_SimpleImplementation_Harness internal proxy;

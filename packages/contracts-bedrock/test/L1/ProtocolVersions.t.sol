@@ -11,7 +11,7 @@ import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersi
 
 /// @title ProtocolVersions Test Init
 /// @notice Test initialization for ProtocolVersions tests.
-contract ProtocolVersions_TestInit is CommonTest {
+abstract contract ProtocolVersions_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, IProtocolVersions.UpdateType indexed updateType, bytes data);
 
     ProtocolVersion required;

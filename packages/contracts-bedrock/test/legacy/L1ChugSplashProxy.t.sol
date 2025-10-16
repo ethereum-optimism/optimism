@@ -47,7 +47,7 @@ contract L1ChugSplashProxy_Implementation_Harness {
 
 /// @title L1ChugSplashProxy_TestInit
 /// @notice Reusable test initialization for `L1ChugSplashProxy` tests.
-contract L1ChugSplashProxy_TestInit is Test {
+abstract contract L1ChugSplashProxy_TestInit is Test {
     IL1ChugSplashProxy proxy;
     address impl;
     address owner = makeAddr("owner");
