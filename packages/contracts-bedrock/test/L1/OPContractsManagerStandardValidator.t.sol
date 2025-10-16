@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
+import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
@@ -20,6 +21,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -37,6 +39,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { IBigStepper } from "../../interfaces/dispute/IBigStepper.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -106,10 +109,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
 
-        // Skip V1 StandardValidator tests when V2 dispute games are enabled
-        // TODO(#17267): Remove skip when V2 dispute game support added to the StandardValidator is implemented
-        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
 
@@ -171,31 +170,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
             // Load the FaultDisputeGame once, we'll need it later.
             fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
         } else {
-            // Deploy the FaultDisputeGame.
-            fdg = IFaultDisputeGame(
-                DeployUtils.create1({
-                    _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IFaultDisputeGame.__constructor__,
-                            (
-                                IFaultDisputeGame.GameConstructorParams({
-                                    gameType: GameTypes.CANNON,
-                                    absolutePrestate: absolutePrestate,
-                                    maxGameDepth: 73,
-                                    splitDepth: 30,
-                                    clockExtension: Duration.wrap(10800),
-                                    maxClockDuration: Duration.wrap(302400),
-                                    vm: mips,
-                                    weth: delayedWeth,
-                                    anchorStateRegistry: anchorStateRegistry,
-                                    l2ChainId: l2ChainId
-                                })
-                            )
-                        )
-                    )
-                })
-            );
+            // Deploy a permissionless FaultDisputeGame.
+            IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON);
+            fdg = output.faultDisputeGame;
         }
 
         // Add the FaultDisputeGame to the DisputeGameFactory.
@@ -251,6 +228,53 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         return IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: address(0),
             challenger: address(0)
+        });
+    }
+
+    function addGameType(GameType _gameType) internal returns (IOPContractsManager.AddGameOutput memory) {
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(_gameType);
+        return addGameType(input);
+    }
+
+    event GameTypeAdded(
+        uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
+    );
+
+    function addGameType(IOPContractsManager.AddGameInput memory input)
+        internal
+        returns (IOPContractsManager.AddGameOutput memory)
+    {
+        IOPContractsManager.AddGameInput[] memory inputs = new IOPContractsManager.AddGameInput[](1);
+        inputs[0] = input;
+
+        address owner = deployInput.roles.opChainProxyAdminOwner;
+        vm.startPrank(address(owner), address(owner), true);
+        (bool success, bytes memory rawGameOut) =
+            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (inputs)));
+        assertTrue(success, "addGameType failed");
+        vm.stopPrank();
+
+        IOPContractsManager.AddGameOutput[] memory addGameOutAll =
+            abi.decode(rawGameOut, (IOPContractsManager.AddGameOutput[]));
+        return addGameOutAll[0];
+    }
+
+    function newGameInputFactory(GameType _gameType) internal view returns (IOPContractsManager.AddGameInput memory) {
+        return IOPContractsManager.AddGameInput({
+            saltMixer: "hello",
+            systemConfig: systemConfig,
+            proxyAdmin: proxyAdmin,
+            delayedWETH: delayedWeth,
+            disputeGameType: _gameType,
+            disputeAbsolutePrestate: absolutePrestate,
+            disputeMaxGameDepth: 73,
+            disputeSplitDepth: 30,
+            disputeClockExtension: Duration.wrap(10800),
+            disputeMaxClockDuration: Duration.wrap(302400),
+            initialBond: 1 ether,
+            vm: IBigStepper(address(opcm.implementations().mipsImpl)),
+            permissioned: _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
     }
 }
