@@ -95,6 +95,10 @@ abstract contract LivenessModule2 {
     /// @param fallbackOwner The address that claimed ownership if the Safe is unresponsive.
     event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
+    ////////////////////////////////////////////////////////////////
+    //                   External View Functions                  //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     ///         0 if not.
     /// @param _safe The Safe address to query.
@@ -114,6 +118,10 @@ abstract contract LivenessModule2 {
     function livenessSafeConfiguration(Safe _safe) public view returns (ModuleConfig memory) {
         return _livenessSafeConfiguration[_safe];
     }
+
+    ////////////////////////////////////////////////////////////////
+    //              External State-Changing Functions             //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Configures the module for a Safe that has already enabled it.
     /// @param _config The configuration parameters for the module containing the response
@@ -310,6 +318,14 @@ abstract contract LivenessModule2 {
         emit ChallengeSucceeded(address(_safe), _livenessSafeConfiguration[_safe].fallbackOwner);
     }
 
+    ////////////////////////////////////////////////////////////////
+    //                   Internal View Functions                  //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
+    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    function _checkCombinedConfig(Safe _safe) internal view virtual;
+
     /// @notice Asserts that the module is configured for the given Safe.
     /// @param _safe The Safe address to check.
     function _assertModuleConfigured(Safe _safe) internal view {
@@ -334,6 +350,10 @@ abstract contract LivenessModule2 {
             revert LivenessModule2_ModuleStillEnabled();
         }
     }
+
+    ////////////////////////////////////////////////////////////////
+    //             Internal State-Changing Functions              //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Internal function to cancel a challenge and emit the appropriate event.
     /// @param _safe The Safe address for which to cancel the challenge.
