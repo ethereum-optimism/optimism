@@ -625,7 +625,7 @@ type SystemConfig struct {
 	// marshaled in the pre-Holocene format. The pre-Holocene format does
 	// not marshal the EIP1559Params field. The presence of this field in
 	// pre-Holocene codebases causes the rollup config to be rejected.
-	MarshalPreHolocene bool `json:"-"`
+	MarshalFork string `json:"-"`
 }
 
 func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
@@ -637,10 +637,14 @@ func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16)
 }
 
 func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
-	if sysCfg.MarshalPreHolocene {
-		return jsonMarshalPreHolocene(sysCfg)
+	switch sysCfg.MarshalFork {
+	case "bedrock":
+		return jsonMarshalBedrock(sysCfg)
+	case "holocene", "":
+		return jsonMarshalHolocene(sysCfg)
+	default:
+		return nil, fmt.Errorf("unknown fork: %s", sysCfg.MarshalFork)
 	}
-	return jsonMarshalHolocene(sysCfg)
 }
 
 func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
@@ -648,7 +652,7 @@ func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
 	return json.Marshal(sysCfgMarshaling(sysCfg))
 }
 
-func jsonMarshalPreHolocene(sysCfg SystemConfig) ([]byte, error) {
+func jsonMarshalBedrock(sysCfg SystemConfig) ([]byte, error) {
 	type sysCfgMarshaling struct {
 		BatcherAddr common.Address `json:"batcherAddr"`
 		Overhead    Bytes32        `json:"overhead"`
