@@ -180,6 +180,14 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 		actualTotalFee.Add(actualTotalFee, receipt.L1Fee)
 	}
 
+	if expectedScalar != 0 || expectedConstant != 0 {
+		of.require.NotNil(receipt.OperatorFeeScalar)
+		of.require.NotNil(receipt.OperatorFeeConstant)
+
+		of.require.Equal(expectedScalar, uint32(*receipt.OperatorFeeScalar))
+		of.require.Equal(expectedConstant, *receipt.OperatorFeeConstant)
+	}
+
 	return OperatorFeeValidationResult{
 		TransactionReceipt:   receipt,
 		ExpectedOperatorFee:  expectedOperatorFee,
