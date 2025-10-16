@@ -31,7 +31,6 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 		StateRefund
 		NotEnoughFundsInBatchMissingOpFee
 		IsthmusTransitionBlock
-		JovianTransitionBlock
 	)
 
 	testStorageUpdateContractAddress := common.HexToAddress("0xffffffff")
@@ -70,14 +69,6 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			deployConfigOverrides = func(dp *genesis.DeployConfig) {
 				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 				dp.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(13))
-			}
-		}
-
-		if testCfg.Custom == JovianTransitionBlock {
-			deployConfigOverrides = func(dp *genesis.DeployConfig) {
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
-				dp.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(0))
-				dp.L2GenesisJovianTimeOffset = ptr(hexutil.Uint64(13))
 			}
 		}
 
@@ -145,7 +136,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 		var receipt *types.Receipt
 
 		switch testCfg.Custom {
-		case NormalTx, IsthmusTransitionBlock, JovianTransitionBlock:
+		case NormalTx, IsthmusTransitionBlock:
 			aliceInitialBalance, l1FeeVaultInitialBalance, baseFeeVaultInitialBalance, sequencerFeeVaultInitialBalance, operatorFeeVaultInitialBalance = getCurrentBalances()
 
 			require.Equal(t, operatorFeeVaultInitialBalance.Sign(), 0)
@@ -161,8 +152,6 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 
 			if testCfg.Custom == IsthmusTransitionBlock {
 				require.True(t, env.Sd.RollupCfg.IsIsthmusActivationBlock(env.Sequencer.L2Unsafe().Time))
-			} else if testCfg.Custom == JovianTransitionBlock {
-				require.True(t, env.Sd.RollupCfg.IsJovian(env.Sequencer.L2Unsafe().Time))
 			}
 
 		case StateRefund:
@@ -403,12 +392,11 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
-	matrix.AddDefaultTestCasesWithName("NormalTx", NormalTx, helpers.NewForkMatrix(helpers.Isthmus), runJovianDerivationTest)
-	matrix.AddDefaultTestCasesWithName("DepositTx", DepositTx, helpers.NewForkMatrix(helpers.Isthmus), runJovianDerivationTest)
-	matrix.AddDefaultTestCasesWithName("StateRefund", StateRefund, helpers.NewForkMatrix(helpers.Isthmus), runJovianDerivationTest)
-	matrix.AddDefaultTestCasesWithName("NotEnoughFundsInBatchMissingOpFee", NotEnoughFundsInBatchMissingOpFee, helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("NormalTx", NormalTx, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("DepositTx", DepositTx, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("StateRefund", StateRefund, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("NotEnoughFundsInBatchMissingOpFee", NotEnoughFundsInBatchMissingOpFee, helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
 	matrix.AddDefaultTestCasesWithName("IsthmusTransitionBlock", IsthmusTransitionBlock, helpers.NewForkMatrix(helpers.Holocene), runJovianDerivationTest)
-	matrix.AddDefaultTestCasesWithName("JovianTransitionBlock", JovianTransitionBlock, helpers.NewForkMatrix(helpers.Isthmus), runJovianDerivationTest)
 	matrix.Run(gt)
 }
 
