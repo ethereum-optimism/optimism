@@ -1,14 +1,11 @@
 package gap_clp2p
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -59,7 +56,6 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	require := t.Require()
 	logger := t.Logger()
-	ctx := t.Ctx()
 
 	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
 
@@ -67,18 +63,13 @@ func TestReachUnsafeTipByAppendingUnsafePayload(gt *testing.T) {
 	require.Equal(uint64(0), sys.L2CL.HeadBlockRef(types.LocalSafe).Number)
 	require.Equal(uint64(0), sys.L2CLB.HeadBlockRef(types.LocalSafe).Number)
 
-	trial := 0
-	require.NoError(
-		retry.Do0(ctx, 200, &retry.FixedStrategy{Dur: 250 * time.Millisecond}, func() error {
-			verUnsafe := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-			seqUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
-			gap := seqUnsafe.Number - verUnsafe.Number
-			logger.Info("Filling in the gap by appending unsafe payload", "gap", gap, "ver", verUnsafe, "seq", seqUnsafe, "trial", trial)
-			if gap == 0 {
-				return nil
-			}
-			trial += 1
-			sys.L2CLB.SignalTarget(sys.L2EL, verUnsafe.Number+1)
-			return fmt.Errorf("gap yet filled: %d", gap)
-		}))
+	// First make verifier reach unsafe tip
+	logger.Info("Initial trial for appending payload until tip")
+	sys.L2CLB.AppendUnsafePayloadUntilTip(sys.L2ELB, sys.L2EL, 400)
+
+	sys.L2CL.Advanced(types.LocalUnsafe, 7, 30)
+
+	// Try once more to check that filling in the gap works again
+	logger.Info("Second trial for appending payload until tip")
+	sys.L2CLB.AppendUnsafePayloadUntilTip(sys.L2ELB, sys.L2EL, 400)
 }
