@@ -152,6 +152,8 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Error for when trying to clear guard while it is still enabled
     error TimelockGuard_GuardStillEnabled();
 
+    /// @notice Emitted when some transactions are not cancelled
+
     /// @param safe The Safe whose transactions are not cancelled.
     /// @param uncancelledCount The number of transactions that are not cancelled.
     event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
