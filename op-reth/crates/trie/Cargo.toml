@@ -23,6 +23,10 @@ reth-provider.workspace = true
 reth-revm.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 
+# metrics
+metrics.workspace = true
+reth-metrics = { workspace = true, features = ["common"] }
+
 # ethereum
 alloy-primitives.workspace = true
 
@@ -37,6 +41,7 @@ serde.workspace = true
 thiserror.workspace = true
 auto_impl.workspace = true
 eyre.workspace = true
+strum.workspace = true
 tracing.workspace = true
 derive_more.workspace = true
 
