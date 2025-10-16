@@ -2521,6 +2521,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2679,6 +2680,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2714,6 +2716,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - op-deployer
                 - cannon
