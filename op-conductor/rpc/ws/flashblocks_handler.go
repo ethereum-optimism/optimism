@@ -174,7 +174,8 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 	if port, err := h.httpServer.Port(); err == nil {
 		h.boundPort = port
 	} else {
-		h.log.Warn("failed to determine bound port", "err", err)
+		h.log.Error("failed to determine bound port", "err", err)
+		panic(err)
 	}
 
 	h.log.Info("starting WebSocket server", "port", h.boundPort)
