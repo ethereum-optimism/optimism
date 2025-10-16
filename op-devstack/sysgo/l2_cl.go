@@ -30,6 +30,9 @@ type L2CLConfig struct {
 
 	// EnableReqRespSync is the flag to enable/disable req-resp sync.
 	EnableReqRespSync bool
+
+	// NoDiscovery is the flag to enable/disable discovery
+	NoDiscovery bool
 }
 
 func L2CLSequencer() L2CLOption {
@@ -52,6 +55,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		IsSequencer:       false,
 		IndexingMode:      false,
 		EnableReqRespSync: true,
+		NoDiscovery:       false,
 	}
 }
 
