@@ -8,10 +8,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 /// @notice Tests the `constructor` function of the `SafeSend` contract.
 contract SafeSend_Constructor_Test is CommonTest {
     /// @notice Tests that sending various ETH amounts to an EOA succeeds.
-    /// @param _amount Amount of ETH to send (bounded to avoid overflow)
+    /// @param _amount Amount of ETH to send
     function testFuzz_constructor_toEOA_succeeds(uint256 _amount) public {
-        _amount = bound(_amount, 0, type(uint128).max);
-
         assertNotEq(alice, address(0));
         assertNotEq(bob, address(0));
         assertEq(bob.code.length, 0);
@@ -31,10 +29,8 @@ contract SafeSend_Constructor_Test is CommonTest {
     }
 
     /// @notice Tests that sending various ETH amounts to a contract with reverting code succeeds.
-    /// @param _amount Amount of ETH to send (bounded to avoid overflow)
+    /// @param _amount Amount of ETH to send
     function testFuzz_constructor_toContract_succeeds(uint256 _amount) public {
-        _amount = bound(_amount, 0, type(uint128).max);
-
         // Etch reverting code into bob
         vm.etch(bob, hex"fe");
         vm.deal(alice, _amount);
@@ -52,9 +48,8 @@ contract SafeSend_Constructor_Test is CommonTest {
     }
 
     /// @notice Tests that sending to address(0) succeeds.
+    /// @param _amount Amount of ETH to send
     function testFuzz_constructor_toZeroAddress_succeeds(uint256 _amount) public {
-        _amount = bound(_amount, 0, type(uint128).max);
-
         vm.deal(alice, _amount);
 
         uint256 aliceBalanceBefore = alice.balance;
