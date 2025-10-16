@@ -448,7 +448,7 @@ func isIsthmusButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 // isJovianButNotFirstBlock returns whether the specified block is subject to the Jovian upgrade,
 // but is not the activation block itself.
 func isJovianButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {
-	return rollupCfg.IsDAFootprintBlockLimit(l2Timestamp) && !rollupCfg.IsJovianActivationBlock(l2Timestamp)
+	return rollupCfg.IsJovian(l2Timestamp) && !rollupCfg.IsJovianActivationBlock(l2Timestamp)
 }
 
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
