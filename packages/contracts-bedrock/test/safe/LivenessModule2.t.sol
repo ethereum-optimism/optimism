@@ -116,9 +116,9 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
 
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
-        (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(period, CHALLENGE_PERIOD);
-        assertEq(fbOwner, fallbackOwner);
+        LivenessModule2.ModuleConfig memory config = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(config.livenessResponsePeriod, CHALLENGE_PERIOD);
+        assertEq(config.fallbackOwner, fallbackOwner);
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
     }
 
@@ -146,17 +146,17 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         _enableModule(safe3, 3 days, fallback3);
 
         // Verify each safe has independent configuration
-        (uint256 period1, address fb1) = livenessModule2.livenessSafeConfiguration(address(safe1.safe));
-        assertEq(period1, 1 days);
-        assertEq(fb1, fallback1);
+        LivenessModule2.ModuleConfig memory config1 = livenessModule2.livenessSafeConfiguration(address(safe1.safe));
+        assertEq(config1.livenessResponsePeriod, 1 days);
+        assertEq(config1.fallbackOwner, fallback1);
 
-        (uint256 period2, address fb2) = livenessModule2.livenessSafeConfiguration(address(safe2.safe));
-        assertEq(period2, 2 days);
-        assertEq(fb2, fallback2);
+        LivenessModule2.ModuleConfig memory config2 = livenessModule2.livenessSafeConfiguration(address(safe2.safe));
+        assertEq(config2.livenessResponsePeriod, 2 days);
+        assertEq(config2.fallbackOwner, fallback2);
 
-        (uint256 period3, address fb3) = livenessModule2.livenessSafeConfiguration(address(safe3.safe));
-        assertEq(period3, 3 days);
-        assertEq(fb3, fallback3);
+        LivenessModule2.ModuleConfig memory config3 = livenessModule2.livenessSafeConfiguration(address(safe3.safe));
+        assertEq(config3.livenessResponsePeriod, 3 days);
+        assertEq(config3.fallbackOwner, fallback3);
     }
 
     function test_configureLivenessModule_requiresSafeModuleInstallation_reverts() external {
@@ -243,9 +243,9 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
             Enum.Operation.Call
         );
 
-        (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(period, 0);
-        assertEq(fbOwner, address(0));
+        LivenessModule2.ModuleConfig memory clearedConfig = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(clearedConfig.livenessResponsePeriod, 0);
+        assertEq(clearedConfig.fallbackOwner, address(0));
     }
 
     function test_clear_notEnabled_reverts() external {
@@ -423,9 +423,9 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         );
 
         // Verify the Safe still has configuration but module is not enabled
-        (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(configuredSafe.safe));
-        assertTrue(period > 0); // Configuration exists
-        assertTrue(fbOwner != address(0)); // Configuration exists
+        LivenessModule2.ModuleConfig memory configuredConfig = livenessModule2.livenessSafeConfiguration(address(configuredSafe.safe));
+        assertTrue(configuredConfig.livenessResponsePeriod > 0); // Configuration exists
+        assertTrue(configuredConfig.fallbackOwner != address(0)); // Configuration exists
         assertFalse(configuredSafe.safe.isModuleEnabled(address(livenessModule2))); // Module not enabled
 
         // Now respond() should revert because module is not enabled
@@ -440,16 +440,16 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
 contract LivenessModule2_GetChallengePeriodEnd_Test is LivenessModule2_TestInit {
     function test_safeConfigs_succeeds() external {
         // Before enabling
-        (uint256 period1, address fbOwner1) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(period1, 0);
-        assertEq(fbOwner1, address(0));
+        LivenessModule2.ModuleConfig memory configBefore = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(configBefore.livenessResponsePeriod, 0);
+        assertEq(configBefore.fallbackOwner, address(0));
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
 
         // After enabling
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-        (uint256 period2, address fbOwner2) = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(period2, CHALLENGE_PERIOD);
-        assertEq(fbOwner2, fallbackOwner);
+        LivenessModule2.ModuleConfig memory configAfter = livenessModule2.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(configAfter.livenessResponsePeriod, CHALLENGE_PERIOD);
+        assertEq(configAfter.fallbackOwner, fallbackOwner);
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
     }
 

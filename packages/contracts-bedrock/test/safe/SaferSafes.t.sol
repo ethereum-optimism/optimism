@@ -85,10 +85,10 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         saferSafes.configureTimelockGuard(timelockDelay);
 
         // Verify configurations were set
-        (uint256 storedLivenessResponsePeriod, address storedFallbackOwner) =
+        LivenessModule2.ModuleConfig memory storedConfig =
             saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
-        assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(storedConfig.livenessResponsePeriod, livenessResponsePeriod);
+        assertEq(storedConfig.fallbackOwner, fallbackOwner);
         assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 
@@ -110,10 +110,10 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         saferSafes.configureLivenessModule(moduleConfig);
 
         // Verify configurations were set
-        (uint256 storedLivenessResponsePeriod, address storedFallbackOwner) =
+        LivenessModule2.ModuleConfig memory storedConfig =
             saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
-        assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
-        assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(storedConfig.livenessResponsePeriod, livenessResponsePeriod);
+        assertEq(storedConfig.fallbackOwner, fallbackOwner);
         assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 

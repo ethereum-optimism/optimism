@@ -27,7 +27,7 @@ abstract contract LivenessModule2 {
     }
 
     /// @notice Mapping from Safe address to its configuration.
-    mapping(address => ModuleConfig) public livenessSafeConfiguration;
+    mapping(address => ModuleConfig) internal _livenessSafeConfiguration;
 
     /// @notice Mapping from Safe address to active challenge start time (0 if none).
     mapping(address => uint256) public challengeStartTime;
@@ -104,8 +104,15 @@ abstract contract LivenessModule2 {
         if (startTime == 0) {
             return 0;
         }
-        ModuleConfig storage config = livenessSafeConfiguration[_safe];
+        ModuleConfig storage config = _livenessSafeConfiguration[_safe];
         return startTime + config.livenessResponsePeriod;
+    }
+
+    /// @notice Returns the configuration for a given Safe.
+    /// @param _safe The Safe address to query.
+    /// @return The ModuleConfig for the Safe.
+    function livenessSafeConfiguration(address _safe) public view returns (ModuleConfig memory) {
+        return _livenessSafeConfiguration[_safe];
     }
 
     /// @notice Configures the module for a Safe that has already enabled it.
@@ -126,7 +133,7 @@ abstract contract LivenessModule2 {
         _assertModuleEnabled(msg.sender);
 
         // Store the configuration for this safe
-        livenessSafeConfiguration[msg.sender] = _config;
+        _livenessSafeConfiguration[msg.sender] = _config;
 
         // Clear any existing challenge when configuring/re-configuring.
         // This is necessary because changing the configuration (especially
@@ -168,7 +175,7 @@ abstract contract LivenessModule2 {
         _assertModuleNotEnabled(msg.sender);
 
         // Erase the configuration data for this safe
-        delete livenessSafeConfiguration[msg.sender];
+        delete _livenessSafeConfiguration[msg.sender];
         // Also clear any active challenge
         _cancelChallenge(msg.sender);
         emit ModuleCleared(msg.sender);
@@ -184,7 +191,7 @@ abstract contract LivenessModule2 {
         _assertModuleEnabled(_safe);
 
         // Check that the caller is the fallback owner
-        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
+        if (msg.sender != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -232,7 +239,7 @@ abstract contract LivenessModule2 {
         _assertModuleEnabled(_safe);
 
         // Only fallback owner can execute ownership transfer (per specs update)
-        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
+        if (msg.sender != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -272,19 +279,18 @@ abstract contract LivenessModule2 {
             value: 0,
             operation: Enum.Operation.Call,
             data: abi.encodeCall(
-                OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], livenessSafeConfiguration[_safe].fallbackOwner)
+                OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], _livenessSafeConfiguration[_safe].fallbackOwner)
             )
         });
 
         // Sanity check: verify the fallback owner is now the only owner
         address[] memory finalOwners = targetSafe.getOwners();
-        if (finalOwners.length != 1 || finalOwners[0] != livenessSafeConfiguration[_safe].fallbackOwner) {
+        if (finalOwners.length != 1 || finalOwners[0] != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_OwnershipTransferFailed();
         }
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
-        emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
@@ -297,12 +303,13 @@ abstract contract LivenessModule2 {
             operation: Enum.Operation.Call,
             data: abi.encodeCall(GuardManager.setGuard, (address(0)))
         });
+        emit ChallengeSucceeded(_safe, _livenessSafeConfiguration[_safe].fallbackOwner);
     }
 
     /// @notice Asserts that the module is configured for the given Safe.
     /// @param _safe The Safe address to check.
     function _assertModuleConfigured(address _safe) internal view {
-        ModuleConfig storage config = livenessSafeConfiguration[_safe];
+        ModuleConfig storage config = _livenessSafeConfiguration[_safe];
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotConfigured();
         }
