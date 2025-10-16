@@ -880,3 +880,58 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
         assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), maxThreshold);
     }
 }
+
+/// @title TimelockGuard_ClearTimelockGuard_Test
+/// @notice Tests for clearTimelockGuard function
+contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
+    /// @notice Verifies that clearTimelockGuard successfully clears configuration after guard is disabled
+    function test_clearTimelockGuard_succeeds() external {
+        // First configure the guard
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+
+        // Schedule a transaction to create pending state
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        // Verify transaction is pending
+        TimelockGuard.ScheduledTransaction memory scheduledTx = timelockGuard.scheduledTransaction(safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
+
+        // Create, schedule, and execute a transaction to disable the guard
+        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
+        disableGuardTx.params.to = address(safeInstance.safe);
+        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
+        disableGuardTx.updateTransaction();
+        disableGuardTx.scheduleTransaction(timelockGuard);
+
+        // Wait for timelock delay to pass
+        vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
+
+        // Execute the disable guard transaction
+        disableGuardTx.executeTransaction();
+
+        // Clear the guard configuration
+        SafeTestLib.execTransaction(
+            safeInstance, address(timelockGuard), 0, abi.encodeCall(TimelockGuard.clearTimelockGuard, ())
+        );
+
+        // Verify configuration is cleared
+        assertEq(timelockGuard.timelockConfiguration(safe), 0);
+        assertEq(timelockGuard.cancellationThreshold(safe), 0);
+
+        // Verify pending transaction was cancelled
+        scheduledTx = timelockGuard.scheduledTransaction(safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Cancelled));
+    }
+
+    /// @notice Verifies that clearTimelockGuard reverts when guard is still enabled
+    function test_clearTimelockGuard_revertsWhenGuardStillEnabled() external {
+        // First configure the guard
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+
+        // Try to clear while guard is still enabled (should revert)
+        vm.expectRevert(TimelockGuard.TimelockGuard_GuardStillEnabled.selector);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.clearTimelockGuard();
+    }
+}

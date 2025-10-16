@@ -149,6 +149,9 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Error for when the contract is not at least version 1.3.0
     error TimelockGuard_InvalidVersion();
 
+    /// @notice Error for when trying to clear guard while it is still enabled
+    error TimelockGuard_GuardStillEnabled();
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -453,6 +456,31 @@ abstract contract TimelockGuard is IGuard {
         _checkCombinedConfig(callingSafe);
     }
 
+    /// @notice Clears the timelock guard configuration for a Safe.
+    /// @dev Note: Clearing the configuration also cancels all pending transactions.
+    ///      This function is intended for use when a Safe wants to permanently remove
+    ///      the TimelockGuard configuration. Typical usage pattern:
+    ///      1. Safe disables the guard via GuardManager.setGuard(address(0)).
+    ///      2. Safe calls this clearTimelockGuard() function to remove stored configuration.
+    ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
+    function clearTimelockGuard() external {
+        Safe callingSafe = Safe(payable(msg.sender));
+
+        // Check if the calling safe has configuration set
+        if (_safeState[callingSafe].timelockDelay == 0) {
+            revert TimelockGuard_GuardNotConfigured();
+        }
+
+        // Check that this guard is NOT enabled on the calling Safe
+        // This prevents clearing configuration while guard is still enabled
+        if (_isGuardEnabled(callingSafe)) {
+            revert TimelockGuard_GuardStillEnabled();
+        }
+
+        // Clear the configuration (guard should already be disabled by caller)
+        _clearTimelockGuard(callingSafe);
+    }
+
     /// @notice Schedule a transaction for execution after the timelock delay.
     /// @dev This function validates signatures in the exact same way as the Safe's own execTransaction function,
     ///      meaning that the same signatures used to schedule a transaction can be used to execute it later. This
@@ -617,16 +645,15 @@ abstract contract TimelockGuard is IGuard {
     //                    Internal Functions                      //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Internal function to disable the guard from the given Safe.
-    /// @dev This function is intended for use in contracts that extend TimelockGuard.
-    ///      It clears the timelock guard configuration and cancels all pending transactions.
-    /// @param _targetSafe The Safe instance to disable the guard from.
-    function _disableAndClearGuard(Safe _targetSafe) internal virtual {
+    /// @notice Internal function to clear the timelock guard configuration and cancel all pending transactions.
+    /// @dev This function does not disable the guard - it only clears the configuration state.
+    /// @param _targetSafe The Safe instance to clear the configuration for.
+    function _clearTimelockGuard(Safe _targetSafe) internal {
         SafeState storage safeState = _safeState[_targetSafe];
         // set the timelock delay to 0 to clear the configuration
         safeState.timelockDelay = 0;
 
-        // Reset the cancellation threshold, 1 is the default value for all safes.
+        // Reset the cancellation threshold to 0 (unconfigured state)
         safeState.cancellationThreshold = 0;
 
         // Get all pending transaction hashes
@@ -641,6 +668,15 @@ abstract contract TimelockGuard is IGuard {
             safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
             emit TransactionCancelled(_targetSafe, hashes[i]);
         }
+    }
+
+    /// @notice Internal function to disable the guard from the given Safe.
+    /// @dev This function is intended for use in contracts that extend TimelockGuard.
+    ///      It clears the timelock guard configuration and cancels all pending transactions.
+    /// @param _targetSafe The Safe instance to disable the guard from.
+    function _disableAndClearGuard(Safe _targetSafe) internal virtual {
+        // Clear the timelock guard configuration
+        _clearTimelockGuard(_targetSafe);
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,

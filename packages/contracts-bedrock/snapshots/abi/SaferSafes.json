@@ -180,6 +180,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "clearTimelockGuard",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -859,6 +866,11 @@
   {
     "inputs": [],
     "name": "TimelockGuard_GuardNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_GuardStillEnabled",
     "type": "error"
   },
   {
