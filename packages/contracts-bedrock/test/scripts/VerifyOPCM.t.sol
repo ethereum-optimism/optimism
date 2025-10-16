@@ -430,9 +430,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
-        // Ensure environment variables are set correctly (in case other tests modified them)
-        setupEnvVars();
-
         // Test that the immutable variables are correctly verified.
         // Environment variables are set in setUp() to match the actual OPCM addresses.
         bool result = harness.verifyOpcmImmutableVariables(opcm);
@@ -463,15 +460,25 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         address expectedSuperchainConfig = address(0x1111);
         address expectedProtocolVersions = address(0x2222);
 
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
+        // Use vm.mockCall instead of vm.setEnv to avoid global env mutation. We need to ignore
+        // semgrep here because envAddress has multiple potential signatures so we can't use
+        // abi.encodeCall.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(vm),
+            abi.encodeWithSignature("envAddress(string)", "EXPECTED_SUPERCHAIN_CONFIG"),
+            abi.encode(expectedSuperchainConfig)
+        );
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(vm),
+            abi.encodeWithSignature("envAddress(string)", "EXPECTED_PROTOCOL_VERSIONS"),
+            abi.encode(expectedProtocolVersions)
+        );
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
         _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
-
-        // Reset environment variables to correct values (as set in setUp())
-        setupEnvVars();
     }
 
     /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.
