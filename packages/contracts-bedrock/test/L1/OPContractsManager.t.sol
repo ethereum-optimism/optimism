@@ -186,8 +186,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Execute the SuperchainConfig upgrade.
         // nosemgrep: sol-safety-trycatch-eip150
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
@@ -1416,8 +1415,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         vm.expectEmit(address(superchainConfig));
         emit Upgraded(impls.superchainConfigImpl);
         DelegateCaller(superchainPAO).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 
@@ -1426,7 +1424,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
         vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
-        opcm.upgradeSuperchainConfig(superchainConfig, superchainProxyAdmin);
+        opcm.upgradeSuperchainConfig(superchainConfig);
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
@@ -1442,8 +1440,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 
         vm.expectRevert("Ownable: caller is not the owner");
         DelegateCaller(delegateCaller).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 
@@ -1461,8 +1458,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Try to upgrade the SuperchainConfig contract again, should fail.
         vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
         DelegateCaller(upgrader).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 }

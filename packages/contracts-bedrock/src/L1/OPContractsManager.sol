@@ -900,10 +900,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
-    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
     /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external {
         // Only upgrade the superchainConfig if the current version is less than the target version.
         if (
             SemverComp.gte(
@@ -915,6 +914,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // Grab the implementations.
         OPContractsManager.Implementations memory impls = getImplementations();
+        // Grab the superchainConfig's proxyAdmin.
+        IProxyAdmin _superchainProxyAdmin = IProxyAdmin(_superchainConfig.proxyAdmin());
 
         // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
         upgradeTo(_superchainProxyAdmin, address(_superchainConfig), impls.superchainConfigImpl);
@@ -1898,9 +1899,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.2.0
+    /// @custom:semver 4.3.0
     function version() public pure virtual returns (string memory) {
-        return "4.2.0";
+        return "4.3.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -2042,15 +2043,12 @@ contract OPContractsManager is ISemver {
 
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
-    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
     /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data = abi.encodeCall(
-            OPContractsManagerUpgrader.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin)
-        );
+        bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgradeSuperchainConfig, (_superchainConfig));
         _performDelegateCall(address(opcmUpgrader), data);
     }
 
