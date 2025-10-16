@@ -256,7 +256,7 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
         vm.warp(block.timestamp + TIMELOCK_DELAY + 1);
 
         // Execute the disable guard transaction
-        disableGuardTx.executeTransaction();
+        disableGuardTx.executeTransaction(_safe.owners[0]);
     }
 }
 
