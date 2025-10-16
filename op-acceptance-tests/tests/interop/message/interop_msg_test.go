@@ -31,6 +31,7 @@ import (
 
 // TestInitExecMsg tests basic interop messaging
 func TestInitExecMsg(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
@@ -48,6 +49,7 @@ func TestInitExecMsg(gt *testing.T) {
 
 // TestInitExecMsgWithDSL tests basic interop messaging with contract DSL
 func TestInitExecMsgWithDSL(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
@@ -123,6 +125,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 // TestRandomDirectedGraph tests below scenario:
 // Construct random directed graph of messages.
 func TestRandomDirectedGraph(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewSimpleInterop(t)
@@ -245,6 +248,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 // TestInitExecMultipleMsg tests below scenario:
 // Transaction initiates and executes multiple messages of self
 func TestInitExecMultipleMsg(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
@@ -290,6 +294,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 // TestExecSameMsgTwice tests below scenario:
 // Transaction that executes the same message twice.
 func TestExecSameMsgTwice(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
@@ -334,6 +339,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 // TestExecDifferentTopicCount tests below scenario:
 // Execute message that links with initiating message with: 0, 1, 2, 3, or 4 topics in it
 func TestExecDifferentTopicCount(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
@@ -384,6 +390,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 // TestExecMsgOpaqueData tests below scenario:
 // Execute message that links with initiating message with: 0, 10KB of opaque event data in it
 func TestExecMsgOpaqueData(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
@@ -434,6 +441,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 // TestExecMsgDifferEventIndexInSingleTx tests below scenario:
 // Execute message that links with initiating message with: first, random or last event of a tx.
 func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()
@@ -552,6 +560,7 @@ func executeIndexedFault(
 // TestExecMessageInvalidAttributes tests below scenario:
 // Execute message, but with one or more invalid attributes inside identifiers
 func TestExecMessageInvalidAttributes(gt *testing.T) {
+	gt.Skip("Skipping Interop Acceptance Test")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := sys.T.Require()

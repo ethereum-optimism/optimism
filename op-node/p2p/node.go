@@ -61,7 +61,6 @@ func NewNodeP2P(
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
-	elSyncEnabled bool,
 ) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
@@ -70,7 +69,7 @@ func NewNodeP2P(
 		return nil, errors.New("SetupP2P.Disabled is true")
 	}
 	var n NodeP2P
-	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, l2Chain, runCfg, metrics, elSyncEnabled); err != nil {
+	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, l2Chain, runCfg, metrics); err != nil {
 		closeErr := n.Close()
 		if closeErr != nil {
 			log.Error("failed to close p2p after starting with err", "closeErr", closeErr, "err", err)
@@ -94,7 +93,6 @@ func (n *NodeP2P) init(
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
-	elSyncEnabled bool,
 ) error {
 	bwc := p2pmetrics.NewBandwidthCounter()
 
@@ -131,7 +129,7 @@ func (n *NodeP2P) init(
 		n.appScorer = &NoopApplicationScorer{}
 	}
 	// Activate the P2P req-resp sync if enabled by feature-flag.
-	if setup.ReqRespSyncEnabled() && !elSyncEnabled {
+	if setup.ReqRespSyncEnabled() {
 		n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
 		n.host.Network().Notify(&network.NotifyBundle{
 			ConnectedF: func(nw network.Network, conn network.Conn) {

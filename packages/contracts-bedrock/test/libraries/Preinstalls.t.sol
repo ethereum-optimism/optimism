@@ -46,10 +46,10 @@ contract Preinstalls_GetPermit2Code_Test is Preinstalls_TestInit {
     }
 }
 
-/// @title Preinstalls_Unclassified_Test
+/// @title Preinstalls_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Preinstalls` contract
 ///         or are testing multiple functions at once.
-contract Preinstalls_Unclassified_Test is Preinstalls_TestInit {
+contract Preinstalls_Uncategorized_Test is Preinstalls_TestInit {
     /// @notice The domain separator commits to the chainid of the chain
     function test_preinstall_permit2DomainSeparator_works() external view {
         bytes32 domainSeparator = IEIP712(Preinstalls.Permit2).DOMAIN_SEPARATOR();

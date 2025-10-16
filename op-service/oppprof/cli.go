@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/urfave/cli/v2"
@@ -129,7 +130,7 @@ func (m CLIConfig) Check() error {
 	return nil
 }
 
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx cliiface.Context) CLIConfig {
 	profilePathFlag := ctx.Generic(ProfilePathFlagName).(*flags.PathFlag)
 	return CLIConfig{
 		ListenEnabled:   ctx.Bool(EnabledFlagName),

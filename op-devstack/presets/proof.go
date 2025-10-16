@@ -83,3 +83,8 @@ func WithDisputeGameFinalityDelaySeconds(seconds uint64) stack.CommonOption {
 		sysgo.WithDisputeGameFinalityDelaySeconds(seconds),
 	))
 }
+
+// WithProofs enables a minimal system with permissionless proofs enabled
+func WithProofs() stack.CommonOption {
+	return stack.MakeCommon(sysgo.ProofSystem(&sysgo.DefaultMinimalSystemIDs{}))
+}

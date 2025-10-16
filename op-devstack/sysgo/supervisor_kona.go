@@ -150,7 +150,7 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 			"DATADIR=" + tempDataDir,
 			"DEPENDENCY_SET=" + depsetCfgPath,
 			"ROLLUP_CONFIG_PATHS=" + rollupCfgPath,
-			"L1_RPC=" + l1EL.userRPC,
+			"L1_RPC=" + l1EL.UserRPC(),
 			"RPC_ENABLE_ADMIN=true",
 			"L2_CONSENSUS_NODES=",
 			"L2_CONSENSUS_JWT_SECRET=",

@@ -19,15 +19,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-
-	"github.com/urfave/cli/v2"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
-func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
+func NewConfig(ctx cliiface.Context, blockTime uint64) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.Bool(flags.DisableP2PName) {
@@ -86,7 +85,7 @@ func validatePort(p uint) (uint16, error) {
 }
 
 // loadScoringParams loads the peer scoring options from the CLI context.
-func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+func loadScoringParams(conf *p2p.Config, ctx cliiface.Context, blockTime uint64) error {
 	scoringLevel := ctx.String(flags.ScoringName)
 	// Check old names for backwards compatibility
 	if scoringLevel == "" {
@@ -107,14 +106,14 @@ func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) err
 }
 
 // loadBanningOptions loads whether or not to ban peers from the CLI context.
-func loadBanningOptions(conf *p2p.Config, ctx *cli.Context) error {
+func loadBanningOptions(conf *p2p.Config, ctx cliiface.Context) error {
 	conf.BanningEnabled = ctx.Bool(flags.BanningName)
 	conf.BanningThreshold = ctx.Float64(flags.BanningThresholdName)
 	conf.BanningDuration = ctx.Duration(flags.BanningDurationName)
 	return nil
 }
 
-func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {
+func loadListenOpts(conf *p2p.Config, ctx cliiface.Context) error {
 	listenIP := ctx.String(flags.ListenIPName)
 	if listenIP != "" { // optional
 		conf.ListenIP = net.ParseIP(listenIP)
@@ -134,7 +133,7 @@ func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {
 	return nil
 }
 
-func loadDiscoveryOpts(conf *p2p.Config, ctx *cli.Context) error {
+func loadDiscoveryOpts(conf *p2p.Config, ctx cliiface.Context) error {
 	if ctx.Bool(flags.NoDiscoveryName) {
 		conf.NoDiscovery = true
 	}
@@ -244,7 +243,7 @@ func resolveURLIP(rawurl string, lookupIP func(name string) ([]net.IP, error)) (
 	return u.String(), nil
 }
 
-func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
+func loadLibp2pOpts(conf *p2p.Config, ctx cliiface.Context) error {
 	addrs := strings.Split(ctx.String(flags.StaticPeersName), ",")
 	for i, addr := range addrs {
 		addr = strings.TrimSpace(addr)
@@ -317,7 +316,7 @@ func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
 	return nil
 }
 
-func loadNetworkPrivKey(ctx *cli.Context) (*crypto.Secp256k1PrivateKey, error) {
+func loadNetworkPrivKey(ctx cliiface.Context) (*crypto.Secp256k1PrivateKey, error) {
 	raw := ctx.String(flags.P2PPrivRawName)
 	if raw != "" {
 		return parsePriv(raw)
@@ -371,7 +370,7 @@ func parsePriv(data string) (*crypto.Secp256k1PrivateKey, error) {
 	return (p).(*crypto.Secp256k1PrivateKey), nil
 }
 
-func loadGossipOptions(conf *p2p.Config, ctx *cli.Context) error {
+func loadGossipOptions(conf *p2p.Config, ctx cliiface.Context) error {
 	conf.MeshD = ctx.Int(flags.GossipMeshDName)
 	conf.MeshDLo = ctx.Int(flags.GossipMeshDloName)
 	conf.MeshDHi = ctx.Int(flags.GossipMeshDhiName)

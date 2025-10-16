@@ -218,10 +218,10 @@ contract OptimismMintableERC20Factory_CreateStandardL2Token_Test is OptimismMint
     }
 }
 
-/// @title OptimismMintableERC20Factory_Unclassified_Test
+/// @title OptimismMintableERC20Factory_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `OptimismMintableERC20Factory` contract.
-contract OptimismMintableERC20Factory_Unclassified_Test is OptimismMintableERC20Factory_TestInit {
+contract OptimismMintableERC20Factory_Uncategorized_Test is OptimismMintableERC20Factory_TestInit {
     /// @notice Tests that the upgrade is successful.
     function test_upgrading_succeeds() external {
         IProxy proxy = IProxy(artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy"));

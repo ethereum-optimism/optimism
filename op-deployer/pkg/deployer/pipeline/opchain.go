@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -33,34 +34,39 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("error making deploy OP chain input: %w", err)
 	}
 
-	dco, err = opcm.DeployOPChain(env.L1ScriptHost, dci)
+	dco, err = env.Scripts.DeployOPChain.Run(dci)
 	if err != nil {
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
 
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
 
-	var release string
-	if intent.L1ContractsLocator.IsEmbedded() {
-		release = standard.CurrentTag
-	} else {
-		release = "dev"
+	readInput := opcm.ReadImplementationAddressesInput{
+		AddressManager:                    dco.AddressManager,
+		L1ERC721BridgeProxy:               dco.L1ERC721BridgeProxy,
+		SystemConfigProxy:                 dco.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxy: dco.OptimismMintableERC20FactoryProxy,
+		L1StandardBridgeProxy:             dco.L1StandardBridgeProxy,
+		OptimismPortalProxy:               dco.OptimismPortalProxy,
+		DisputeGameFactoryProxy:           dco.DisputeGameFactoryProxy,
+		DelayedWETHPermissionedGameProxy:  dco.DelayedWETHPermissionedGameProxy,
+		Opcm:                              dci.Opcm,
 	}
 
-	readInput := opcm.ReadImplementationAddressesInput{
-		DeployOPChainOutput: dco,
-		Opcm:                dci.Opcm,
-		Release:             release,
-	}
-	impls, err := opcm.ReadImplementationAddresses(env.L1ScriptHost, readInput)
+	readImplementations, err := opcm.NewReadImplementationAddressesScript(env.L1ScriptHost)
 	if err != nil {
-		return fmt.Errorf("failed to read implementation addresses: %w", err)
+		return fmt.Errorf("failed to load ReadImplementationAddresses script: %w", err)
+	}
+
+	impls, err := readImplementations.Run(readInput)
+	if err != nil {
+		return fmt.Errorf("failed to run ReadImplementationAddresses script: %w", err)
 	}
 
 	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
 	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
-	st.ImplementationsDeployment.EthLockboxImpl = impls.ETHLockbox
+	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
 	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
 	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
@@ -105,8 +111,8 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		GasLimit:                     thisIntent.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          proofParams.DisputeMaxGameDepth,
-		DisputeSplitDepth:            proofParams.DisputeSplitDepth,
+		DisputeMaxGameDepth:          new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		DisputeSplitDepth:            new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
 		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
@@ -125,7 +131,7 @@ func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.Ch
 	opChainContracts.L1StandardBridgeProxy = dco.L1StandardBridgeProxy
 	opChainContracts.L1CrossDomainMessengerProxy = dco.L1CrossDomainMessengerProxy
 	opChainContracts.OptimismPortalProxy = dco.OptimismPortalProxy
-	opChainContracts.EthLockboxProxy = dco.ETHLockboxProxy
+	opChainContracts.EthLockboxProxy = dco.EthLockboxProxy
 	opChainContracts.DisputeGameFactoryProxy = dco.DisputeGameFactoryProxy
 	opChainContracts.AnchorStateRegistryProxy = dco.AnchorStateRegistryProxy
 	opChainContracts.FaultDisputeGameImpl = dco.FaultDisputeGame

@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"os"
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
@@ -12,14 +13,32 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
-type L1ELNode struct {
+type L1ELNode interface {
+	hydrator
+	l1ELNode()
+	UserRPC() string
+	AuthRPC() string
+}
+
+type L1Geth struct {
 	id       stack.L1ELNodeID
 	userRPC  string
+	authRPC  string
 	l1Geth   *geth.GethInstance
 	blobPath string
 }
 
-func (n *L1ELNode) hydrate(system stack.ExtensibleSystem) {
+func (*L1Geth) l1ELNode() {}
+
+func (g *L1Geth) UserRPC() string {
+	return g.userRPC
+}
+
+func (g *L1Geth) AuthRPC() string {
+	return g.authRPC
+}
+
+func (n *L1Geth) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.userRPC, client.WithLazyDial())
 	require.NoError(err)
@@ -54,7 +73,18 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 
+const DevstackL1ELKindEnvVar = "DEVSTACK_L1EL_KIND"
+
 func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
+	switch os.Getenv(DevstackL1ELKindEnvVar) {
+	case "geth":
+		return WithL1NodesSubprocess(l1ELID, l1CLID)
+	default:
+		return WithL1NodesInProcess(l1ELID, l1CLID)
+	}
+}
+
+func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		clP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1CLID))
 		elP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1ELID))
@@ -81,6 +111,8 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
+		orch.writeDefaultJWT()
+
 		elLogger := elP.Logger()
 		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
@@ -88,7 +120,9 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			l1Net.genesis,
 			l1Clock,
 			filepath.Join(blobPath, "l1_el"),
-			bcn)
+			bcn,
+			geth.WithAuth(orch.jwtPath),
+		)
 		require.NoError(err)
 		require.NoError(l1Geth.Node.Start())
 		elP.Cleanup(func() {
@@ -96,9 +130,10 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			_ = l1Geth.Close()
 		})
 
-		l1ELNode := &L1ELNode{
+		l1ELNode := &L1Geth{
 			id:       l1ELID,
 			userRPC:  l1Geth.Node.HTTPEndpoint(),
+			authRPC:  l1Geth.Node.HTTPAuthEndpoint(),
 			l1Geth:   l1Geth,
 			blobPath: blobPath,
 		}
@@ -120,7 +155,7 @@ func WithExtL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID, elRPCEndpo
 		require := orch.P().Require()
 
 		// Create L1 EL node with external RPC
-		l1ELNode := &L1ELNode{
+		l1ELNode := &L1Geth{
 			id:      l1ELID,
 			userRPC: elRPCEndpoint,
 		}

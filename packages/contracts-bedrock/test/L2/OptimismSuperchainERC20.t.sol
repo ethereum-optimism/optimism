@@ -300,10 +300,10 @@ contract OptimismSuperchainERC20_SupportsInterface_Test is OptimismSuperchainERC
     }
 }
 
-/// @title OptimismSuperchainERC20_Unclassified_Test
+/// @title OptimismSuperchainERC20_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `OptimismSuperchainERC20` contract.
-contract OptimismSuperchainERC20_Unclassified_Test is OptimismSuperchainERC20_TestInit {
+contract OptimismSuperchainERC20_Uncategorized_Test is OptimismSuperchainERC20_TestInit {
     /// @notice Tests that the allowance function returns the max uint256 value when the spender is
     ///         Permit.
     /// @param _randomCaller The address that will call the function - used to fuzz better since

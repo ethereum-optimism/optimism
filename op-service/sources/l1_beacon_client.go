@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -25,6 +25,7 @@ const (
 	specMethod           = "eth/v1/config/spec"
 	genesisMethod        = "eth/v1/beacon/genesis"
 	sidecarsMethodPrefix = "eth/v1/beacon/blob_sidecars/"
+	blobsMethodPrefix    = "eth/v1/beacon/blobs/"
 )
 
 type L1BeaconClientConfig struct {
@@ -100,6 +101,19 @@ func (cl *BeaconHTTPClient) BeaconGenesis(ctx context.Context) (eth.APIGenesisRe
 	return genesisResp, nil
 }
 
+func (cl *BeaconHTTPClient) BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error) {
+	reqQuery := url.Values{}
+	for _, hash := range hashes {
+		reqQuery.Add("versioned_hashes", hash.Hash.Hex())
+	}
+	reqPath := path.Join(blobsMethodPrefix, strconv.FormatUint(slot, 10))
+	var blobsResp eth.APIBeaconBlobsResponse
+	if err := cl.apiReq(ctx, &blobsResp, reqPath, reqQuery); err != nil {
+		return eth.APIBeaconBlobsResponse{}, err
+	}
+	return blobsResp, nil
+}
+
 func (cl *BeaconHTTPClient) BeaconBlobSideCars(ctx context.Context, fetchAllSidecars bool, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
 	reqPath := path.Join(sidecarsMethodPrefix, strconv.FormatUint(slot, 10))
 	var reqQuery url.Values
@@ -170,8 +184,8 @@ func NewL1BeaconClient(cl apis.BeaconClient, cfg L1BeaconClientConfig, fallbacks
 
 type TimeToSlotFn func(timestamp uint64) (uint64, error)
 
-// GetTimeToSlotFn returns a function that converts a timestamp to a slot number.
-func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, error) {
+// getTimeToSlotFn returns a function that converts a timestamp to a slot number.
+func (cl *L1BeaconClient) getTimeToSlotFn(ctx context.Context) (TimeToSlotFn, error) {
 	cl.initLock.Lock()
 	defer cl.initLock.Unlock()
 	if cl.timeToSlotFn != nil {
@@ -202,6 +216,18 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
+func (cl *L1BeaconClient) timeToSlot(ctx context.Context, timestamp uint64) (uint64, error) {
+	slotFn, err := cl.getTimeToSlotFn(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get time to slot fn: %w", err)
+	}
+	slot, err := slotFn(timestamp)
+	if err != nil {
+		return 0, fmt.Errorf("convert timestamp %d to slot number: %w", timestamp, err)
+	}
+	return slot, nil
+}
+
 func (cl *L1BeaconClient) fetchSidecars(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIGetBlobSidecarsResponse, error) {
 	var errs []error
 	for i := 0; i < cl.pool.Len(); i++ {
@@ -225,18 +251,21 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 	if len(hashes) == 0 {
 		return []*eth.BlobSidecar{}, nil
 	}
-	slotFn, err := cl.GetTimeToSlotFn(ctx)
+	slot, err := cl.timeToSlot(ctx, ref.Time)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get time to slot function: %w", err)
+		return nil, err
 	}
-	slot, err := slotFn(ref.Time)
+	sidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
 	if err != nil {
-		return nil, fmt.Errorf("error in converting ref.Time to slot: %w", err)
+		return nil, fmt.Errorf("get blob sidecars for block %v: %w", ref, err)
 	}
+	return sidecars, nil
+}
 
+func (cl *L1BeaconClient) getBlobSidecars(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
 	resp, err := cl.fetchSidecars(ctx, slot, hashes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch blob sidecars for slot %v block %v: %w", slot, ref, err)
+		return nil, fmt.Errorf("failed to fetch blob sidecars for slot %v: %w", slot, err)
 	}
 
 	apiscs := make([]*eth.APIBlobSidecar, 0, len(hashes))
@@ -267,42 +296,72 @@ func (cl *L1BeaconClient) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRe
 // blob's validity by checking its proof against the commitment, and confirming the commitment
 // hashes to the expected value. Returns error if any blob is found invalid.
 func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
-	blobSidecars, err := cl.GetBlobSidecars(ctx, ref, hashes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
+	if len(hashes) == 0 {
+		return []*eth.Blob{}, nil
 	}
-	blobs, err := blobsFromSidecars(blobSidecars, hashes)
+	slot, err := cl.timeToSlot(ctx, ref.Time)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
+		return nil, err
+	}
+	resp, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
+	if err != nil {
+		// We would normally check for an explicit error like "method not found", but the Beacon
+		// API doesn't standardize such a response. Thus, we interpret all errors as
+		// "method not found" and fall back to fetching sidecars.
+		blobSidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
+		}
+		blobs, err := blobsFromSidecars(blobSidecars, hashes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
+		}
+		return blobs, nil
+	}
+	if len(resp.Data) != len(hashes) {
+		return nil, fmt.Errorf("expected %d blobs but got %d", len(hashes), len(resp.Data))
+	}
+	var blobs []*eth.Blob
+	for i, blob := range resp.Data {
+		if err := verifyBlob(blob, hashes[i].Hash); err != nil {
+			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
+		}
+		blobs = append(blobs, blob)
 	}
 	return blobs, nil
 }
 
+// blobsFromSidecars pulls the blobs from the sidecars and verifies them against the supplied hashes.
 func blobsFromSidecars(blobSidecars []*eth.BlobSidecar, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	if len(blobSidecars) != len(hashes) {
 		return nil, fmt.Errorf("number of hashes and blobSidecars mismatch, %d != %d", len(hashes), len(blobSidecars))
 	}
-
 	out := make([]*eth.Blob, len(hashes))
 	for i, ih := range hashes {
 		sidecar := blobSidecars[i]
 		if sidx := uint64(sidecar.Index); sidx != ih.Index {
 			return nil, fmt.Errorf("expected sidecars to be ordered by hashes, but got %d != %d", sidx, ih.Index)
 		}
-
-		// make sure the blob's kzg commitment hashes to the expected value
-		hash := eth.KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
-		if hash != ih.Hash {
-			return nil, fmt.Errorf("expected hash %s for blob at index %d but got %s", ih.Hash, ih.Index, hash)
-		}
-
-		// confirm blob data is valid by verifying its proof against the commitment
-		if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
-			return nil, fmt.Errorf("blob at index %d failed verification: %w", i, err)
+		if err := verifyBlob(&sidecar.Blob, ih.Hash); err != nil {
+			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
 		}
 		out[i] = &sidecar.Blob
 	}
 	return out, nil
+}
+
+// verifyBlob verifies that the blob data corresponds to the provided commitment.
+// It recomputes the commitment from the blob data and checks it matches the expected commitment hash.
+func verifyBlob(blob *eth.Blob, expectedCommitmentHash common.Hash) error {
+	recomputedCommitment, err := blob.ComputeKZGCommitment()
+	if err != nil {
+		return fmt.Errorf("cannot compute KZG commitment for blob: %w", err)
+	}
+	recomputedCommitmentHash := eth.KZGToVersionedHash(recomputedCommitment)
+	if recomputedCommitmentHash != expectedCommitmentHash {
+		return fmt.Errorf("recomputed commitment %s does not match expected commitment %s", recomputedCommitmentHash, expectedCommitmentHash)
+	}
+	return nil
 }
 
 // GetVersion fetches the version of the Beacon-node.

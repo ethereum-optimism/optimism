@@ -16,13 +16,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -77,7 +77,8 @@ type L2Verifier struct {
 	L2PipelineIdle bool
 	l2Building     bool
 
-	RollupCfg *rollup.Config
+	L1ChainConfig *params.ChainConfig
+	RollupCfg     *rollup.Config
 
 	rpc *rpc.Server
 
@@ -113,7 +114,8 @@ type safeDB interface {
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
-	eng L2API, cfg *rollup.Config, depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
+	eng L2API, cfg *rollup.Config, l1ChainConfig *params.ChainConfig,
+	depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
 ) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -145,18 +147,11 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, l1, sys.Register("engine-controller", nil, opts))
 
 	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
 		mm.SetEngineController(ec)
 	}
-
-	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg)
-	sys.Register("engine-reset", engineResetDeriver, opts)
-	engineResetDeriver.SetEngController(ec)
-
-	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
-	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
@@ -171,7 +166,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	ec.SetAttributesResetter(attrHandler)
 
 	indexingMode := interopSys != nil
-	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
+	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode, l1ChainConfig)
 	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
 	sys.Register("pipeline", pipelineDeriver, opts)
 	ec.SetPipelineResetter(pipelineDeriver)
@@ -190,7 +185,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
 		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
 		Engine:         ec,
 		SyncCfg:        syncCfg,
 		Config:         cfg,
@@ -225,6 +219,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		syncStatus:        syncStatusTracker,
 		L2PipelineIdle:    true,
 		l2Building:        false,
+		L1ChainConfig:     l1ChainConfig,
 		RollupCfg:         cfg,
 		rpc:               rpc.NewServer(),
 		synchronousEvents: testActionEmitter,
@@ -455,7 +450,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		s.engine.AddUnsafePayload(t.Ctx(), payload)
 	}
 }
 

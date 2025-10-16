@@ -63,6 +63,30 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.Equal(t, session.InitialState, session.CurrentState)
 }
 
+func TestParseSession_ELSyncActive(t *testing.T) {
+	id := uuid.New().String()
+	query := url.Values{}
+	elSyncTarget := "true"
+	query.Set(ELSyncActiveKey, elSyncTarget)
+
+	req := newRequest("/chain/1/synctest/"+id, query)
+
+	newReq, err := parseSession(req)
+	require.NoError(t, err)
+	require.NotNil(t, newReq)
+
+	session, ok := session.SyncTesterSessionFromContext(newReq.Context())
+	require.True(t, ok)
+	require.NotNil(t, session)
+	require.Equal(t, id, session.SessionID)
+	require.Equal(t, uint64(0), session.InitialState.Latest)
+	require.Equal(t, uint64(0), session.InitialState.Safe)
+	require.Equal(t, uint64(0), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
+	require.Equal(t, session.InitialState, session.CurrentState)
+	require.True(t, session.ELSyncActive)
+}
+
 func TestParseSession_NoSessionInitialized(t *testing.T) {
 	req := newRequest("/chain/1/synctest", nil)
 

@@ -73,6 +73,7 @@ type ChainIntent struct {
 	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
 	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`

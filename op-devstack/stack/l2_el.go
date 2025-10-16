@@ -71,6 +71,8 @@ func (id L2ELNodeID) Match(elems []L2ELNode) []L2ELNode {
 type L2ELNode interface {
 	ID() L2ELNodeID
 	L2EthClient() apis.L2EthClient
+	L2EthExtendedClient() apis.L2EthExtendedClient
+	L2EngineClient() apis.EngineClient
 
 	ELNode
 }

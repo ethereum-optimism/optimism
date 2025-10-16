@@ -15,6 +15,10 @@ var schemeUnmarshalerDispatch = map[string]schemeUnmarshaler{
 	"https": unmarshalURL,
 }
 
+func CreateHttpLocator(contentHash string) string {
+	return fmt.Sprintf("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-%s.tar.gz", contentHash)
+}
+
 const EmbeddedLocatorString = "embedded"
 
 var embeddedURL = &url.URL{
@@ -30,6 +34,10 @@ var DefaultL1ContractsLocator = EmbeddedLocator
 var DefaultL2ContractsLocator = EmbeddedLocator
 
 func NewLocatorFromURL(u string) (*Locator, error) {
+	if u == EmbeddedLocatorString {
+		return EmbeddedLocator, nil
+	}
+
 	parsedURL, err := url.Parse(u)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
@@ -98,11 +106,29 @@ func (a *Locator) UnmarshalText(text []byte) error {
 }
 
 func (a *Locator) MarshalText() ([]byte, error) {
-	if a.URL.String() == embeddedURL.String() {
+	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
 		return []byte("embedded"), nil
 	}
 
 	return []byte(a.URL.String()), nil
+}
+
+func (a *Locator) MarshalTOML() ([]byte, error) {
+	if a.URL.String() == embeddedURL.String() || a.URL.String() == "" {
+		return []byte(`"embedded"`), nil
+	}
+	return []byte(`"` + a.URL.String() + `"`), nil
+}
+
+func (a *Locator) UnmarshalTOML(i interface{}) error {
+	switch v := i.(type) {
+	case string:
+		return a.UnmarshalText([]byte(v))
+	case []byte:
+		return a.UnmarshalText(v)
+	default:
+		return fmt.Errorf("unsupported type for TOML unmarshaling: %T", i)
+	}
 }
 
 func (a *Locator) Equal(b *Locator) bool {
