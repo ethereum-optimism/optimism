@@ -27,7 +27,7 @@ func RollupCLI(cliCtx *cli.Context) error {
 	}
 
 	if rollupConfig.HoloceneTime == nil {
-		rollupConfig.Genesis.SystemConfig.MarshalPreHolocene = true
+		rollupConfig.Genesis.SystemConfig.MarshalFork = "bedrock"
 	}
 
 	if err := jsonutil.WriteJSON(rollupConfig, ioutil.ToStdOutOrFileOrNoop(cfg.Outfile, 0o666)); err != nil {
