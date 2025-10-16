@@ -249,7 +249,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Create validationOverrides
         address challengerOverride;
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            (,,,,,, challengerOverride) = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            LibGameArgs.GameArgs memory gameArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            challengerOverride = gameArgs.challenger;
         } else {
             challengerOverride = IPermissionedDisputeGame(
                 address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -288,6 +290,62 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             false,
             validationOverrides
         );
+
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride);
+    }
+
+    function permissionedGameProposer() internal view returns (address) {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            LibGameArgs.GameArgs memory gameArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            return gameArgs.proposer;
+        } else {
+            return IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
+                .proposer();
+        }
+    }
+
+    /// @notice Runs some smoke tests after an upgrade
+    function _runPostUpgradeSmokeTests(
+        IOPContractsManager _opcm,
+        IOPContractsManager.OpChainConfig memory _opChainConfig,
+        address _challenger
+    )
+        internal
+    {
+        address expectedProposer = permissionedGameProposer();
+        bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
+        address expectedVm = address(_opcm.implementations().mipsImpl);
+
+        Claim claim = Claim.wrap(bytes32(uint256(1)));
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON);
+        vm.deal(address(_challenger), bondAmount);
+        (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
+        uint256 l2BlockNumber = rootBlockNumber + 1;
+
+        // Deploy a live game and ensure it's configured correctly.
+        vm.prank(expectedProposer, expectedProposer);
+        IPermissionedDisputeGame game = IPermissionedDisputeGame(
+            address(
+                disputeGameFactory.create{ value: bondAmount }(
+                    GameTypes.PERMISSIONED_CANNON, claim, abi.encode(l2BlockNumber)
+                )
+            )
+        );
+        // for now skip prestate check if it's not set since we don't know the pre-upgrade state
+        if (expectedAbsolutePrestate != bytes32(0)) {
+            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
+        }
+        vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
+        vm.assertEq(l2ChainId, game.l2ChainId());
+        vm.assertEq(302400, game.maxClockDuration().raw());
+        vm.assertEq(10800, game.clockExtension().raw());
+        vm.assertEq(73, game.maxGameDepth());
+        vm.assertEq(30, game.splitDepth());
+        vm.assertEq(l2BlockNumber, game.l2BlockNumber());
+        vm.assertEq(_challenger, game.challenger());
+        vm.assertEq(expectedProposer, game.proposer());
+        vm.assertEq(expectedVm, address(game.vm()));
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -1252,9 +1310,9 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function getDisputeGameV2AbsolutePrestate(GameType _gameType) internal view returns (Claim) {
-        bytes memory gameArgs = disputeGameFactory.gameArgs(_gameType);
-        (bytes32 absolutePrestate,,,,,,) = LibGameArgs.decode(gameArgs);
-        return Claim.wrap(absolutePrestate);
+        bytes memory gameArgsBytes = disputeGameFactory.gameArgs(_gameType);
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
+        return Claim.wrap(gameArgs.absolutePrestate);
     }
 
     function test_upgradeOPChainOnly_succeeds() public {

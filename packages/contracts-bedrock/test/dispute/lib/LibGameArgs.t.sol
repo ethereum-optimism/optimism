@@ -5,11 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 contract LibGameArgs_Harness {
-    function decode(bytes memory _buf)
-        public
-        pure
-        returns (bytes32, address, address, address, uint256, address, address)
-    {
+    function decode(bytes memory _buf) public pure returns (LibGameArgs.GameArgs memory) {
         return LibGameArgs.decode(_buf);
     }
 }
@@ -49,22 +45,14 @@ contract LibGameArgs_Decode_Test is Test {
             args.absolutePrestate, args.vm, args.asr, args.weth, args.l2ChainId, args.proposer, args.challenger
         );
 
-        (
-            bytes32 _absolutePrestate,
-            address _vm,
-            address _asr,
-            address _weth,
-            uint256 _l2ChainId,
-            address _proposer,
-            address _challenger
-        ) = harness.decode(buf);
-        assertEq(_absolutePrestate, args.absolutePrestate);
-        assertEq(_vm, args.vm);
-        assertEq(_asr, args.asr);
-        assertEq(_weth, args.weth);
-        assertEq(_l2ChainId, args.l2ChainId);
-        assertEq(_proposer, args.proposer);
-        assertEq(_challenger, args.challenger);
+        LibGameArgs.GameArgs memory decoded = harness.decode(buf);
+        assertEq(decoded.absolutePrestate, args.absolutePrestate);
+        assertEq(decoded.vm, args.vm);
+        assertEq(decoded.anchorStateRegistry, args.asr);
+        assertEq(decoded.weth, args.weth);
+        assertEq(decoded.l2ChainId, args.l2ChainId);
+        assertEq(decoded.proposer, args.proposer);
+        assertEq(decoded.challenger, args.challenger);
     }
 
     function test_decodeShort_succeeds() public {
@@ -79,22 +67,14 @@ contract LibGameArgs_Decode_Test is Test {
         });
         bytes memory buf = abi.encodePacked(args.absolutePrestate, args.vm, args.asr, args.weth, args.l2ChainId);
 
-        (
-            bytes32 _absolutePrestate,
-            address _vm,
-            address _asr,
-            address _weth,
-            uint256 _l2ChainId,
-            address _proposer,
-            address _challenger
-        ) = harness.decode(buf);
-        assertEq(_absolutePrestate, args.absolutePrestate);
-        assertEq(_vm, args.vm);
-        assertEq(_asr, args.asr);
-        assertEq(_weth, args.weth);
-        assertEq(_l2ChainId, args.l2ChainId);
-        assertEq(_proposer, address(0));
-        assertEq(_challenger, address(0));
+        LibGameArgs.GameArgs memory decoded = harness.decode(buf);
+        assertEq(decoded.absolutePrestate, args.absolutePrestate);
+        assertEq(decoded.vm, args.vm);
+        assertEq(decoded.anchorStateRegistry, args.asr);
+        assertEq(decoded.weth, args.weth);
+        assertEq(decoded.l2ChainId, args.l2ChainId);
+        assertEq(decoded.proposer, address(0));
+        assertEq(decoded.challenger, address(0));
     }
 
     function test_decode_invalidLengthOverfull_reverts() public {
@@ -127,5 +107,19 @@ contract LibGameArgs_Decode_Test is Test {
         vm.assume(!ok);
         vm.expectRevert("GameArgs: decode with invalid length");
         harness.decode(_buf);
+    }
+
+    function test_isValidPermissionlessArgs_works() public pure {
+        bytes memory validBuf = new bytes(124);
+        assertTrue(LibGameArgs.isValidPermissionlessArgs(validBuf));
+        validBuf = new bytes(164);
+        assertFalse(LibGameArgs.isValidPermissionlessArgs(validBuf));
+    }
+
+    function test_isValidPermissionedArgs_works() public pure {
+        bytes memory validBuf = new bytes(164);
+        assertTrue(LibGameArgs.isValidPermissionedArgs(validBuf));
+        validBuf = new bytes(124);
+        assertFalse(LibGameArgs.isValidPermissionedArgs(validBuf));
     }
 }

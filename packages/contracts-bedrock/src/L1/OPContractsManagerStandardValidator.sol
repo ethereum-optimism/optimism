@@ -208,8 +208,12 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Returns the expected PermissionedDisputeGame version.
-    function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.8.0";
+    function permissionedDisputeGameVersion() public view returns (string memory) {
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            return "2.1.0";
+        } else {
+            return "1.8.0";
+        }
     }
 
     /// @notice Returns the expected PreimageOracle version.
@@ -516,8 +520,9 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _errors;
         }
 
-        DisputeGameImplementation memory _gameImpl =
-            _decodeDisputeGameImpl(_game, _factory.gameArgs(GameTypes.PERMISSIONED_CANNON), true);
+        bytes memory _gameArgs = _factory.gameArgs(GameTypes.PERMISSIONED_CANNON);
+        _errors = assertGameArgsLength(_errors, _gameArgs, true, "PDDG-15");
+        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, true);
         _errors = assertValidDisputeGame(
             _errors,
             _sysCfg,
@@ -561,8 +566,9 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _errors;
         }
 
-        DisputeGameImplementation memory _gameImpl =
-            _decodeDisputeGameImpl(_game, _factory.gameArgs(GameTypes.CANNON), false);
+        bytes memory _gameArgs = _factory.gameArgs(GameTypes.CANNON);
+        _errors = assertGameArgsLength(_errors, _gameArgs, false, "PDDG-15");
+        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, false);
         _errors = assertValidDisputeGame(
             _errors,
             _sysCfg,
@@ -598,15 +604,11 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         (Hash anchorRoot,) = _game.asr.getAnchorRoot();
 
-        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            _errors = internalRequire(
-                LibString.eq(getVersion(_game.gameAddress), permissionedDisputeGameVersion()),
-                string.concat(_errorPrefix, "-20"),
-                _errors
-            );
-        } else {
-            // TODO: enable once the feature is in production
-        }
+        _errors = internalRequire(
+            LibString.eq(getVersion(_game.gameAddress), permissionedDisputeGameVersion()),
+            string.concat(_errorPrefix, "-20"),
+            _errors
+        );
 
         _errors = internalRequire(
             GameType.unwrap(_game.gameType) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
@@ -827,7 +829,34 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
-    /// @notice Internal function to read all information from a dispute game while supporting both v1 and v2 dispute
+    function assertGameArgsLength(
+        string memory _errors,
+        bytes memory _gameArgsBytes,
+        bool _isPermissioned,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-GARGS");
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            if (_isPermissioned) {
+                _errors = internalRequire(
+                    LibGameArgs.isValidPermissionedArgs(_gameArgsBytes), string.concat(_errorPrefix, "-10"), _errors
+                );
+            } else {
+                _errors = internalRequire(
+                    LibGameArgs.isValidPermissionlessArgs(_gameArgsBytes), string.concat(_errorPrefix, "-10"), _errors
+                );
+            }
+        } else {
+            _errors = internalRequire(_gameArgsBytes.length == 0, string.concat(_errorPrefix, "-10"), _errors);
+        }
+        return _errors;
+    }
+
+    // @notice Internal function to read all information from a dispute game while supporting both v1 and v2 dispute
     /// games.
     function _decodeDisputeGameImpl(
         IPermissionedDisputeGame _game,
@@ -838,22 +867,17 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (DisputeGameImplementation memory gameImpl_)
     {
-        bytes32 absolutePrestate;
-        address vm;
-        address asr;
-        address weth;
-        uint256 l2ChainId;
-        address challengerAddress;
+        LibGameArgs.GameArgs memory gameArgs;
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            (absolutePrestate, vm, asr, weth, l2ChainId,, challengerAddress) = LibGameArgs.decode(_gameArgsBytes);
+            gameArgs = LibGameArgs.decode(_gameArgsBytes);
         } else {
-            absolutePrestate = Claim.unwrap(_game.absolutePrestate());
-            vm = address(_game.vm());
-            asr = address(_game.anchorStateRegistry());
-            weth = address(_game.weth());
-            l2ChainId = _game.l2ChainId();
+            gameArgs.absolutePrestate = Claim.unwrap(_game.absolutePrestate());
+            gameArgs.vm = address(_game.vm());
+            gameArgs.anchorStateRegistry = address(_game.anchorStateRegistry());
+            gameArgs.weth = address(_game.weth());
+            gameArgs.l2ChainId = _game.l2ChainId();
             if (_isPermissioned) {
-                challengerAddress = _game.challenger();
+                gameArgs.challenger = _game.challenger();
             }
         }
 
@@ -865,12 +889,12 @@ contract OPContractsManagerStandardValidator is ISemver {
             clockExtension: _game.clockExtension(),
             gameType: _game.gameType(),
             l2SequenceNumber: _game.l2SequenceNumber(),
-            absolutePrestate: Claim.wrap(absolutePrestate),
-            vm: IBigStepper(vm),
-            asr: IAnchorStateRegistry(asr),
-            weth: IDelayedWETH(payable(weth)),
-            l2ChainId: l2ChainId,
-            challenger: challengerAddress
+            absolutePrestate: Claim.wrap(gameArgs.absolutePrestate),
+            vm: IBigStepper(gameArgs.vm),
+            asr: IAnchorStateRegistry(gameArgs.anchorStateRegistry),
+            weth: IDelayedWETH(payable(gameArgs.weth)),
+            l2ChainId: gameArgs.l2ChainId,
+            challenger: gameArgs.challenger
         });
     }
 }
