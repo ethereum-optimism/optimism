@@ -334,10 +334,10 @@ abstract contract LivenessModule2 {
         emit ChallengeCancelled(_safe);
     }
 
-    /// @notice Internal function to disable this guard from the given Safe.
+    /// @notice Internal function to disable the guard and clear the configuration from the given Safe.
     /// @dev Disables whichever guard is currently set on the Safe, even if it is not the SaferSafes guard.
     ///      This is intentional, as it is possible that the guard itself was the cause of the liveness failure
     ///      which resulted in the transfer of ownership to the fallback owner.
-    /// @param _targetSafe The Safe instance to disable this guard from.
+    /// @param _targetSafe The Safe instance to disable the guard and clear the configuration from.
     function _disableAndClearGuard(Safe _targetSafe) internal virtual;
 }
