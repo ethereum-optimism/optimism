@@ -605,6 +605,28 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
 
         // L2 chain ID call should not revert because this is not a Super game.
         assertNotEq(newPDG.l2ChainId(), 0, "l2ChainId should not be zero");
+
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Get the v2 implementation address from OPCM
+            IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+            // Verify v2 implementation is registered in DisputeGameFactory
+            address registeredImpl = address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
+
+            // Verify implementation address matches permissionedDisputeGameV2Impl
+            assertEq(
+                registeredImpl,
+                address(impls.permissionedDisputeGameV2Impl),
+                "DisputeGameFactory should have v2 PermissionedDisputeGame implementation registered"
+            );
+
+            // Verify that the returned fault dispute game is the v2 implementation
+            assertEq(
+                address(output.faultDisputeGame),
+                address(impls.permissionedDisputeGameV2Impl),
+                "addGameType should return v2 PermissionedDisputeGame implementation"
+            );
+        }
     }
 
     /// @notice Tests that we can add a FaultDisputeGame implementation with addGameType.
@@ -625,6 +647,29 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
 
         // L2 chain ID call should not revert because this is not a Super game.
         assertNotEq(notPDG.l2ChainId(), 0, "l2ChainId should not be zero");
+
+        // Verify v2 implementation is registered in DisputeGameFactory
+        address registeredImpl = address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(input.disputeGameType));
+        assertNotEq(registeredImpl, address(0), "Implementation should have been set");
+
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            // Get the v2 implementation address from OPCM
+            IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+            // Verify implementation address matches permissionedDisputeGameV2Impl
+            assertEq(
+                registeredImpl,
+                address(impls.faultDisputeGameV2Impl),
+                "DisputeGameFactory should have v2 FaultDisputeGame implementation registered"
+            );
+
+            // Verify that the returned fault dispute game is the v2 implementation
+            assertEq(
+                address(output.faultDisputeGame),
+                address(impls.faultDisputeGameV2Impl),
+                "addGameType should return v2 FaultDisputeGame implementation"
+            );
+        }
     }
 
     /// @notice Tests that we can add a SuperPermissionedDisputeGame implementation with addGameType.
@@ -795,180 +840,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
         opcm.addGameType(inputs);
     }
 
-    /// @notice Test that addGameType with v2 flag uses v2 implementation for PERMISSIONED_CANNON
-    function test_addGameType_permissionedCannonV2_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
-        // Deploy a chain first with v2-enabled OPCM
-        IOPContractsManager.DeployInput memory deployInput = IOPContractsManager.DeployInput({
-            roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: makeAddr("opChainProxyAdminOwner"),
-                systemConfigOwner: makeAddr("systemConfigOwner"),
-                batcher: makeAddr("batcher"),
-                unsafeBlockSigner: makeAddr("unsafeBlockSigner"),
-                proposer: makeAddr("proposer"),
-                challenger: makeAddr("challenger")
-            }),
-            basefeeScalar: 100,
-            blobBasefeeScalar: 200,
-            l2ChainId: 10001,
-            startingAnchorRoot: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0x123))), l2SequenceNumber: 1 })),
-            saltMixer: "test-salt",
-            gasLimit: 30_000_000,
-            disputeGameType: GameTypes.PERMISSIONED_CANNON,
-            disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0x456))),
-            disputeMaxGameDepth: 73,
-            disputeSplitDepth: 30,
-            disputeClockExtension: Duration.wrap(uint64(3 hours)),
-            disputeMaxClockDuration: Duration.wrap(uint64(3.5 days))
-        });
-
-        vm.startPrank(address(this));
-        IOPContractsManager.DeployOutput memory output = opcm.deploy(deployInput);
-        vm.stopPrank();
-
-        // Get the v2 implementation address from OPCM
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
-
-        // Prepare to add PERMISSIONED_CANNON game type with a different prestate
-        IOPContractsManager.AddGameInput[] memory gameConfigs = new IOPContractsManager.AddGameInput[](1);
-        gameConfigs[0] = IOPContractsManager.AddGameInput({
-            disputeGameType: GameTypes.PERMISSIONED_CANNON,
-            systemConfig: output.systemConfigProxy,
-            proxyAdmin: output.opChainProxyAdmin,
-            delayedWETH: output.delayedWETHPermissionedGameProxy, // Use existing DelayedWETH to avoid proxy upgrade
-            disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0x789))), // Different prestate
-            disputeMaxGameDepth: 73,
-            disputeSplitDepth: 30,
-            disputeClockExtension: Duration.wrap(uint64(3 hours)),
-            disputeMaxClockDuration: Duration.wrap(uint64(3.5 days)),
-            initialBond: 1 ether,
-            vm: IBigStepper(makeAddr("vm")),
-            permissioned: true,
-            saltMixer: "salt1"
-        });
-
-        // Transfer DisputeGameFactory ownership to test contract temporarily for delegatecall
-        // This is needed because addGameType uses delegatecall and needs to call setImplementation
-        vm.prank(makeAddr("opChainProxyAdminOwner"));
-        output.disputeGameFactoryProxy.transferOwnership(address(this));
-
-        // Add the game type via delegatecall
-        (bool success, bytes memory rawGameOut) =
-            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (gameConfigs)));
-        assertTrue(success, "addGameType failed");
-
-        IOPContractsManager.AddGameOutput[] memory addGameOutputs =
-            abi.decode(rawGameOut, (IOPContractsManager.AddGameOutput[]));
-
-        // Transfer DisputeGameFactory ownership back to the original owner
-        output.disputeGameFactoryProxy.transferOwnership(makeAddr("opChainProxyAdminOwner"));
-
-        // Verify v2 implementation is registered in DisputeGameFactory
-        address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));
-
-        // Verify implementation address matches permissionedDisputeGameV2Impl
-        assertEq(
-            registeredImpl,
-            address(impls.permissionedDisputeGameV2Impl),
-            "DisputeGameFactory should have v2 PermissionedDisputeGame implementation registered"
-        );
-
-        // Verify that the returned fault dispute game is the v2 implementation
-        assertEq(
-            address(addGameOutputs[0].faultDisputeGame),
-            address(impls.permissionedDisputeGameV2Impl),
-            "addGameType should return v2 PermissionedDisputeGame implementation"
-        );
-    }
-
-    /// @notice Test that addGameType with v2 flag uses v2 implementation for CANNON (permissionless)
-    function test_addGameType_permissionlessCannonV2_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
-        // Deploy a chain first with v2-enabled OPCM
-        IOPContractsManager.DeployInput memory deployInput = IOPContractsManager.DeployInput({
-            roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: makeAddr("opChainProxyAdminOwner"),
-                systemConfigOwner: makeAddr("systemConfigOwner"),
-                batcher: makeAddr("batcher"),
-                unsafeBlockSigner: makeAddr("unsafeBlockSigner"),
-                proposer: makeAddr("proposer"),
-                challenger: makeAddr("challenger")
-            }),
-            basefeeScalar: 100,
-            blobBasefeeScalar: 200,
-            l2ChainId: 10002,
-            startingAnchorRoot: abi.encode(Proposal({ root: Hash.wrap(bytes32(uint256(0x123))), l2SequenceNumber: 1 })),
-            saltMixer: "test-salt-2",
-            gasLimit: 30_000_000,
-            disputeGameType: GameTypes.PERMISSIONED_CANNON,
-            disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0x456))),
-            disputeMaxGameDepth: 73,
-            disputeSplitDepth: 30,
-            disputeClockExtension: Duration.wrap(uint64(3 hours)),
-            disputeMaxClockDuration: Duration.wrap(uint64(3.5 days))
-        });
-
-        vm.startPrank(address(this));
-        IOPContractsManager.DeployOutput memory output = opcm.deploy(deployInput);
-        vm.stopPrank();
-
-        // Get the v2 implementation address from OPCM
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
-
-        // Prepare to add CANNON game type (permissionless)
-        IOPContractsManager.AddGameInput[] memory gameConfigs = new IOPContractsManager.AddGameInput[](1);
-        gameConfigs[0] = IOPContractsManager.AddGameInput({
-            disputeGameType: GameTypes.CANNON,
-            systemConfig: output.systemConfigProxy,
-            proxyAdmin: output.opChainProxyAdmin,
-            delayedWETH: output.delayedWETHPermissionedGameProxy, // Use existing DelayedWETH to avoid proxy upgrade
-            disputeAbsolutePrestate: Claim.wrap(bytes32(uint256(0xabc))), // Different prestate
-            disputeMaxGameDepth: 73,
-            disputeSplitDepth: 30,
-            disputeClockExtension: Duration.wrap(uint64(3 hours)),
-            disputeMaxClockDuration: Duration.wrap(uint64(3.5 days)),
-            initialBond: 1 ether,
-            vm: IBigStepper(makeAddr("vm")),
-            permissioned: false, // Permissionless CANNON
-            saltMixer: "salt2"
-        });
-
-        // Transfer DisputeGameFactory ownership to test contract temporarily for delegatecall
-        // This is needed because addGameType uses delegatecall and needs to call setImplementation
-        vm.prank(makeAddr("opChainProxyAdminOwner"));
-        output.disputeGameFactoryProxy.transferOwnership(address(this));
-
-        // Add the game type via delegatecall
-        (bool success, bytes memory rawGameOut) =
-            address(opcm).delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (gameConfigs)));
-        assertTrue(success, "addGameType failed");
-
-        IOPContractsManager.AddGameOutput[] memory addGameOutputs =
-            abi.decode(rawGameOut, (IOPContractsManager.AddGameOutput[]));
-
-        // Transfer DisputeGameFactory ownership back to the original owner
-        output.disputeGameFactoryProxy.transferOwnership(makeAddr("opChainProxyAdminOwner"));
-
-        // Verify v2 implementation is registered in DisputeGameFactory
-        address registeredImpl = address(output.disputeGameFactoryProxy.gameImpls(GameTypes.CANNON));
-
-        // Verify implementation address matches faultDisputeGameV2Impl
-        assertEq(
-            registeredImpl,
-            address(impls.faultDisputeGameV2Impl),
-            "DisputeGameFactory should have v2 FaultDisputeGame implementation registered"
-        );
-
-        // Verify that the returned fault dispute game is the v2 implementation
-        assertEq(
-            address(addGameOutputs[0].faultDisputeGame),
-            address(impls.faultDisputeGameV2Impl),
-            "addGameType should return v2 FaultDisputeGame implementation"
-        );
-    }
-
     function assertValidGameType(
         IOPContractsManager.AddGameInput memory agi,
         IOPContractsManager.AddGameOutput memory ago
@@ -976,7 +847,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, Dis
         internal
         returns (IFaultDisputeGame)
     {
-
         // Create a game so we can assert on game args which aren't baked into the implementation contract
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
