@@ -11,7 +11,7 @@ use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use reth_basic_payload_builder::*;
-use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates, ExecutedTrieUpdates};
+use reth_chain_state::ExecutedBlock;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     execute::{
@@ -379,13 +379,11 @@ impl<Txs> OpBuilder<'_, Txs> {
         );
 
         // create the executed block data
-        let executed: ExecutedBlockWithTrieUpdates<N> = ExecutedBlockWithTrieUpdates {
-            block: ExecutedBlock {
-                recovered_block: Arc::new(block),
-                execution_output: Arc::new(execution_outcome),
-                hashed_state: Arc::new(hashed_state),
-            },
-            trie: ExecutedTrieUpdates::Present(Arc::new(trie_updates)),
+        let executed: ExecutedBlock<N> = ExecutedBlock {
+            recovered_block: Arc::new(block),
+            execution_output: Arc::new(execution_outcome),
+            hashed_state: Arc::new(hashed_state),
+            trie_updates: Arc::new(trie_updates),
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool();

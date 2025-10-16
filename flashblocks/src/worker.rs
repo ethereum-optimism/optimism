@@ -124,6 +124,7 @@ where
                 recovered_block: block.into(),
                 execution_output: Arc::new(execution_outcome),
                 hashed_state: Arc::new(hashed_state),
+                trie_updates: Arc::default(),
             },
         );
         let pending_flashblock = PendingFlashBlock::new(
