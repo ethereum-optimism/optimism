@@ -343,3 +343,50 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 func (m *mockSafeDBReader) ExpectSafeHeadAtL1(l1BlockNum uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	m.Mock.On("SafeHeadAtL1", l1BlockNum).Return(l1, safeHead, &err)
 }
+
+func TestRollupConfig(t *testing.T) {
+	log := testlog.Logger(t, log.LevelError)
+	l2Client := &testutils.MockL2Client{}
+	drClient := &mockDriverClient{}
+	safeReader := &mockSafeDBReader{}
+	rpcCfg := &oprpc.CLIConfig{
+		ListenAddr: "localhost",
+		ListenPort: 0,
+	}
+
+	type testCase struct {
+		fork     string
+		expected string
+	}
+	testCases := []testCase{
+		{fork: "jovian", expected: `{"batch_inbox_address":"0x0000000000000000000000000000000000000000","block_time":0,"channel_timeout":0,"deposit_contract_address":"0x0000000000000000000000000000000000000000","genesis":{"l1":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2_time":0,"system_config":{"batcherAddr":"0x0000000000000000000000000000000000000000","daFootprintGasScalar":0,"eip1559Params":"0x0000000000000000","gasLimit":0,"minBaseFee":0,"operatorFeeParams":"0x0000000000000000000000000000000000000000000000000000000000000000","overhead":"0x0000000000000000000000000000000000000000000000000000000000000000","scalar":"0x0000000000000000000000000000000000000000000000000000000000000000"}},"l1_chain_id":null,"l1_system_config_address":"0x0000000000000000000000000000000000000000","l2_chain_id":null,"protocol_versions_address":"0x0000000000000000000000000000000000000000","seq_window_size":0}`},
+		{fork: "isthmus", expected: `{"batch_inbox_address":"0x0000000000000000000000000000000000000000","block_time":0,"channel_timeout":0,"deposit_contract_address":"0x0000000000000000000000000000000000000000","genesis":{"l1":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2_time":0,"system_config":{"batcherAddr":"0x0000000000000000000000000000000000000000","eip1559Params":"0x0000000000000000","gasLimit":0,"operatorFeeParams":"0x0000000000000000000000000000000000000000000000000000000000000000","overhead":"0x0000000000000000000000000000000000000000000000000000000000000000","scalar":"0x0000000000000000000000000000000000000000000000000000000000000000"}},"l1_chain_id":null,"l1_system_config_address":"0x0000000000000000000000000000000000000000","l2_chain_id":null,"protocol_versions_address":"0x0000000000000000000000000000000000000000","seq_window_size":0}`},
+		{fork: "holocene", expected: `{"batch_inbox_address":"0x0000000000000000000000000000000000000000","block_time":0,"channel_timeout":0,"deposit_contract_address":"0x0000000000000000000000000000000000000000","genesis":{"l1":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2_time":0,"system_config":{"batcherAddr":"0x0000000000000000000000000000000000000000","eip1559Params":"0x0000000000000000","gasLimit":0,"overhead":"0x0000000000000000000000000000000000000000000000000000000000000000","scalar":"0x0000000000000000000000000000000000000000000000000000000000000000"}},"l1_chain_id":null,"l1_system_config_address":"0x0000000000000000000000000000000000000000","l2_chain_id":null,"protocol_versions_address":"0x0000000000000000000000000000000000000000","seq_window_size":0}`},
+		{fork: "bedrock", expected: `{"batch_inbox_address":"0x0000000000000000000000000000000000000000","block_time":0,"channel_timeout":0,"deposit_contract_address":"0x0000000000000000000000000000000000000000","genesis":{"l1":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2":{"hash":"0x0000000000000000000000000000000000000000000000000000000000000000","number":0},"l2_time":0,"system_config":{"batcherAddr":"0x0000000000000000000000000000000000000000","gasLimit":0,"overhead":"0x0000000000000000000000000000000000000000000000000000000000000000","scalar":"0x0000000000000000000000000000000000000000000000000000000000000000"}},"l1_chain_id":null,"l1_system_config_address":"0x0000000000000000000000000000000000000000","l2_chain_id":null,"protocol_versions_address":"0x0000000000000000000000000000000000000000","seq_window_size":0}`},
+	}
+	for _, testCase := range testCases {
+		rollupCfg := &rollup.Config{
+			Genesis: rollup.Genesis{
+				SystemConfig: eth.SystemConfig{
+					MarshalFork: testCase.fork, // we rely on this being set to the correct fork name when the rollupConfig is hydrated
+				},
+			},
+		}
+		m := &opmetrics.NoopRPCMetrics{}
+		server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+		require.NoError(t, server.Start())
+		defer func() {
+			require.NoError(t, server.Stop())
+		}()
+
+		client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Endpoint(), rpcclient.WithDialAttempts(3))
+		require.NoError(t, err)
+
+		out := make(map[string]interface{})
+		err = client.CallContext(context.Background(), &out, "optimism_rollupConfig")
+		require.NoError(t, err)
+		outString, err := json.Marshal(out)
+		require.NoError(t, err)
+		require.Equal(t, testCase.expected, string(outString), "fork: %s", testCase.fork)
+	}
+}
