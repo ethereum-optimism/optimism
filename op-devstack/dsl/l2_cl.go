@@ -375,3 +375,15 @@ func (cl *L2CLNode) SignalTarget(el *L2ELNode, targetNum uint64) {
 	})
 	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", targetNum)
 }
+
+func (cl *L2CLNode) Reset(lvl types.SafetyLevel, target eth.L2BlockRef) {
+	cl.require.NoError(retry.Do0(cl.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			res := cl.HeadBlockRef(lvl)
+			cl.log.Info("Chain sync Status", lvl, res)
+			if res.Hash == target.Hash {
+				return nil
+			}
+			return errors.New("waiting to reset")
+		}))
+}

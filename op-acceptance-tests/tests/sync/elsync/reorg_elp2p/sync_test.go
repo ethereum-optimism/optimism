@@ -353,33 +353,20 @@ func TestUnsafeGapFillAfterUnsafeReorg_RestartCLP2P(gt *testing.T) {
 	}
 	logger.Info("Verifier diverged", "rewindTo", rewindTo)
 
-	// TODO: will verifier automatically detect L1 reorg and drop blocks?
-	//	 It reorgs
-	// t=2025-10-16T17:32:29.039+0900 lvl=info msg="Chain reorg detected" number=7 hash=0x6708f85e055b90d77e23344bfb226d5229b0d536558286388fbda24d25c3fa08 drop=14 dropfrom=0x5f3bbd8450231da1e87bb6e32c418be72655185167500c909cd4b6325c23748a add=1 addfrom=0x11f6667c2d60dbc970bb511bbb6c44cfdb960b851b006b92088ae24f446cd14c global=true
-	// but why does block ref by label still returns 12? Find out
-
 	// Wait until verifier reset and dropped all reorg blocks
-	// require.NoError(retry.Do0(ctx, 30, &retry.FixedStrategy{Dur: 2 * time.Second},
-	// 	func() error {
-	// 		unsafe := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
-	// 		logger.Info("Node Status", "unsafe", unsafe)
-	// 		if unsafe.Hash == rewindTo.Hash {
-	// 			return nil
-	// 		}
-	// 		return errors.New("still resetting")
-	// 	}))
+	sys.L2CLB.Reset(types.LocalUnsafe, rewindTo)
+	logger.Info("Verifier rewind done", "rewindTo", rewindTo)
 
-	// "reset: detected L1 reorg"
-	//  "walking sync start"
-
-	// lets try to enable p2p. does this trigger rewind?
-	// logger.Info("Before ConnectPeer")
+	// Make sure CLP2P is connected
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
-	// logger.Info("After ConnectPeer")
 
 	// Unsafe gap is closed
 	sys.L2ELB.Matched(sys.L2EL, types.LocalUnsafe, 50)
+
+	seqUnsafe := sys.L2EL.BlockRefByLabel(eth.Unsafe)
+	verUnsafe = sys.L2ELB.BlockRefByLabel(eth.Unsafe)
+	logger.Info("Verifier unsafe gap closed", "gap", seqUnsafe.Number-verUnsafe.Number, "seqUnsafe", seqUnsafe.Number, "verUnsafe", verUnsafe.Number)
 
 	gt.Cleanup(func() {
 		sys.L2Batcher.Start()
