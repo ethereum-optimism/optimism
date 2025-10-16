@@ -325,7 +325,7 @@ contract DeployOwnership is Deploy {
 
         // Verify the module was configured correctly
         LivenessModule2.ModuleConfig memory verifyConfig =
-            LivenessModule2(livenessModule).livenessSafeConfiguration(address(safe));
+            LivenessModule2(livenessModule).livenessSafeConfiguration(safe);
         require(
             verifyConfig.livenessResponsePeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
             "DeployOwnership: configured liveness interval must match expected value"
