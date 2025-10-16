@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
-import { DisputeGameArgs } from "../setup/DisputeGameArgs.sol";
+import { DisputeGames } from "../setup/DisputeGames.sol";
 
 // Libraries
 import { GameType } from "src/dispute/lib/LibUDT.sol";
@@ -42,6 +42,7 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IBigStepper } from "../../interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
+import { DisputeGames } from "../setup/DisputeGames.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -82,7 +83,7 @@ contract BadDisputeGameFactoryReturner {
 
 /// @title OPContractsManagerStandardValidator_TestInit
 /// @notice Base contract for `OPContractsManagerStandardValidator` tests, handles common setup.
-abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
+abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, DisputeGames {
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
 
@@ -285,10 +286,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
         });
     }
-
-    function mockGameArgs(GameType _gameType, bytes memory _gameArgs) internal {
-        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType)), abi.encode(_gameArgs));
-    }
 }
 
 /// @title OPContractsManagerStandardValidator_CoreValidation_Test
@@ -341,9 +338,7 @@ contract OPContractsManagerStandardValidator_GeneralOverride_Test is OPContracts
             abi.encodeCall(IDisputeGameFactory.owner, ()),
             abi.encode(overrides.l1PAOMultisig)
         );
-        vm.mockCall(
-            address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(overrides.challenger)
-        );
+        mockGameImplChallenger(dgf, GameTypes.PERMISSIONED_CANNON, overrides.challenger);
 
         assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validateWithOverrides(true, overrides));
     }
@@ -910,8 +905,6 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
 contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     OPContractsManagerStandardValidator_TestInit
 {
-    using DisputeGameArgs for bytes;
-
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame implementation is null.
     function test_validate_permissionedDisputeGameNullImplementation_succeeds() public {
@@ -941,15 +934,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     ///         PermissionedDisputeGame absolute prestate is invalid.
     function test_validate_permissionedDisputeGameInvalidAbsolutePrestate_succeeds() public {
         bytes32 badPrestate = bytes32(uint256(0xbadbad));
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
-            modifiedGameArgs.writeAbsolutePrestate(badPrestate);
-            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(
-                address(pdg), abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()), abi.encode(badPrestate)
-            );
-        }
+        mockGameImplPrestate(dgf, GameTypes.PERMISSIONED_CANNON, badPrestate);
         assertEq("PDDG-40", _validate(true));
     }
 
@@ -957,13 +942,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     ///         PermissionedDisputeGame VM address is invalid.
     function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
         address badVM = address(0xbad);
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
-            modifiedGameArgs.writeVM(badVM);
-            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(badVM));
-        }
+        mockGameImplVM(dgf, GameTypes.PERMISSIONED_CANNON, badVM);
         vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(
             address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION)
@@ -982,13 +961,7 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     ///         PermissionedDisputeGame L2 Chain ID is invalid.
     function test_validate_permissionedDisputeGameInvalidL2ChainId_succeeds() public {
         uint256 badChainId = l2ChainId + 1;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
-            modifiedGameArgs.writeL2ChainId(badChainId);
-            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(badChainId));
-        }
+        mockGameImplL2ChainId(dgf, GameTypes.PERMISSIONED_CANNON, badChainId);
         assertEq("PDDG-60", _validate(true));
     }
 
@@ -1045,16 +1018,20 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame challenger is invalid.
     function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
+        address badChallenger = address(0xbad);
+        mockGameImplChallenger(dgf, GameTypes.PERMISSIONED_CANNON, badChallenger);
         assertEq("PDDG-130", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right overrides error when the
     ///         PermissionedDisputeGame challenger is overridden but is correct.
     function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
+        address challengerOverride = address(0xbad);
+
+        mockGameImplChallenger(dgf, GameTypes.PERMISSIONED_CANNON, challengerOverride);
         IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
-        overrides.challenger = address(0xbad);
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
+        overrides.challenger = challengerOverride;
+
         assertEq("OVERRIDES-CHALLENGER", _validateWithOverrides(true, overrides));
     }
 
@@ -1069,14 +1046,8 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame proposer is invalid.
     function test_validate_permissionedDisputeGameInvalidProposer_succeeds() public {
-        address wrongProposer = address(0xbad);
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
-            modifiedGameArgs.writeProposer(wrongProposer);
-            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(wrongProposer));
-        }
+        address badProposer = address(0xbad);
+        mockGameImplProposer(dgf, GameTypes.PERMISSIONED_CANNON, badProposer);
         assertEq("PDDG-140", _validate(true));
     }
 }
@@ -1262,8 +1233,6 @@ contract OPContractsManagerStandardValidator_PreimageOracle_Test is OPContractsM
 /// @title OPContractsManagerStandardValidator_FaultDisputeGame_Test
 /// @notice Tests validation of `FaultDisputeGame` configuration
 contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContractsManagerStandardValidator_TestInit {
-    using DisputeGameArgs for bytes;
-
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) implementation is null.
     function test_validate_faultDisputeGameNullImplementation_succeeds() public {
@@ -1293,13 +1262,7 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
     function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
         bytes32 badPrestate = bytes32(uint256(0xbadbad));
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
-            modifiedGameArgs.writeAbsolutePrestate(badPrestate);
-            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(badPrestate));
-        }
+        mockGameImplPrestate(dgf, GameTypes.CANNON, badPrestate);
 
         assertEq("PLDG-40", _validate(true));
     }
@@ -1307,16 +1270,11 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) VM address is invalid.
     function test_validate_faultDisputeGameInvalidVM_succeeds() public {
-        address badVm = address(0xbad);
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
-            modifiedGameArgs.writeVM(badVm);
-            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(badVm));
-        }
-        vm.mockCall(badVm, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(badVm, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
+        address badVM = address(0xbad);
+        mockGameImplVM(dgf, GameTypes.CANNON, badVM);
+        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
+
         assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
     }
 
@@ -1331,13 +1289,8 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.
     function test_validate_faultDisputeGameInvalidL2ChainId_succeeds() public {
         uint256 badChainId = l2ChainId + 1;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
-            modifiedGameArgs.writeL2ChainId(badChainId);
-            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
-        } else {
-            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(badChainId));
-        }
+        mockGameImplL2ChainId(dgf, GameTypes.CANNON, badChainId);
+
         assertEq("PLDG-60", _validate(true));
     }
 
