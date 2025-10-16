@@ -224,11 +224,6 @@ abstract contract TimelockGuard is IGuard {
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
     function cancellationThreshold(Safe _safe) public view returns (uint256) {
-        // Return 0 if guard is not enabled
-        if (!_isGuardEnabled(_safe)) {
-            return 0;
-        }
-
         return _safeState[_safe].cancellationThreshold;
     }
 

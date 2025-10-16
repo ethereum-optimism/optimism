@@ -382,12 +382,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_CancellationThreshold_Test
 /// @notice Tests for cancellationThreshold function
 contract TimelockGuard_CancellationThreshold_Test is TimelockGuard_TestInit {
-    /// @notice Validates cancellation threshold is zero when the guard is disabled.
-    function test_cancellationThreshold_returnsZeroIfGuardNotEnabled_succeeds() external view {
-        uint256 threshold = timelockGuard.cancellationThreshold(Safe(payable(unguardedSafe.safe)));
-        assertEq(threshold, 0);
-    }
-
     /// @notice Ensures an enabled but unconfigured guard yields a zero threshold.
     function test_cancellationThreshold_returnsZeroIfGuardNotConfigured_succeeds() external view {
         // Safe with guard enabled but not configured should return 0
