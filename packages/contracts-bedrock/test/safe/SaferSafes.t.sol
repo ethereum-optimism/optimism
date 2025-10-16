@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
@@ -178,7 +179,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         );
     }
 
-    function _assertOwnershipChanged(address /* _safe */ ) internal view {
+    function _assertOwnershipChanged() internal view {
         // Verify ownership changed
         address[] memory newOwners = safeInstance.safe.getOwners();
         assertEq(newOwners.length, 1);
@@ -199,6 +200,9 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         // Ensure TimelockGuard properties are cleared
         assertEq(timelockGuard.timelockConfiguration(safeInstance.safe), 0);
         assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 0);
+
+        // Ensure all pending transactions are cancelled
+        assertEq(timelockGuard.pendingTransactions(Safe(payable(address(safeInstance.safe)))).length, 0);
     }
 
     function test_changeOwnershipToFallback_succeeds() external {
@@ -216,7 +220,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         vm.prank(fallbackOwner);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
 
-        _assertOwnershipChanged(address(safeInstance.safe));
+        _assertOwnershipChanged();
     }
 
     function test_changeOwnershipToFallback_withOtherModules_succeeds() external {
@@ -260,7 +264,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         (address[] memory modules,) = ModuleManager(safeInstance.safe).getModulesPaginated(address(1), 1000);
         assertEq(modules.length, 99);
 
-        _assertOwnershipChanged(address(safeInstance.safe));
+        _assertOwnershipChanged();
     }
 
     function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
@@ -301,7 +305,7 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
 
         // These checks include ensuring that the guard is deactivated
-        _assertOwnershipChanged(address(safeInstance.safe));
+        _assertOwnershipChanged();
     }
 
     function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
