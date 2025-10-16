@@ -37,9 +37,9 @@ contract ReinitializableBase_Constructor_Test is Test {
 /// @title ReinitializableBase_InitVersion_Test
 /// @notice Tests the `initVersion` getter function of the `ReinitializableBase` contract.
 contract ReinitializableBase_InitVersion_Test is Test {
-    /// @notice Tests that initVersion returns the correct value.
+    /// @notice Tests that initVersion getter function works correctly.
     /// @param _initVersion The init version to test.
-    function testFuzz_initVersion_returnsCorrectValue_succeeds(uint8 _initVersion) public {
+    function testFuzz_initVersion_succeeds(uint8 _initVersion) public {
         _initVersion = uint8(bound(_initVersion, 1, type(uint8).max));
 
         ReinitializableBase_Harness harness = new ReinitializableBase_Harness(_initVersion);
