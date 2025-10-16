@@ -223,6 +223,17 @@ func NewRollupConfigFromCLI(log log.Logger, ctx cliiface.Context) (*rollup.Confi
 		return nil, err
 	}
 	applyOverrides(ctx, rollupConfig)
+
+	if rollupConfig.HoloceneTime != nil && *rollupConfig.HoloceneTime == 0 {
+		rollupConfig.Genesis.SystemConfig.MarshalFork = "holocene"
+	} else if rollupConfig.IsthmusTime != nil && *rollupConfig.IsthmusTime == 0 {
+		rollupConfig.Genesis.SystemConfig.MarshalFork = "isthmus"
+	} else if rollupConfig.JovianTime != nil && *rollupConfig.JovianTime == 0 {
+		rollupConfig.Genesis.SystemConfig.MarshalFork = "jovian"
+	} else {
+		rollupConfig.Genesis.SystemConfig.MarshalFork = "bedrock"
+	}
+
 	return rollupConfig, nil
 }
 
