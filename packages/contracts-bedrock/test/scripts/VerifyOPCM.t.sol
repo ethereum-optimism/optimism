@@ -475,17 +475,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             abi.encodeWithSignature("envAddress(string)", "EXPECTED_PROTOCOL_VERSIONS"),
             abi.encode(expectedProtocolVersions)
         );
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(
-            address(vm),
-            abi.encodeWithSignature("envAddress(string)", "EXPECTED_SUPERCHAIN_PROXY_ADMIN"),
-            abi.encode(expectedSuperchainProxyAdmin)
-        );
 
         // Test that mocking each individual getter causes verification to fail
         _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
         _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
-        _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
     }
 
     /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.
