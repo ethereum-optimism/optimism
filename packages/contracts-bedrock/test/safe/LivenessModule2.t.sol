@@ -424,7 +424,8 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         );
 
         // Verify the Safe still has configuration but module is not enabled
-        LivenessModule2.ModuleConfig memory configuredConfig = livenessModule2.livenessSafeConfiguration(configuredSafe.safe);
+        LivenessModule2.ModuleConfig memory configuredConfig =
+            livenessModule2.livenessSafeConfiguration(configuredSafe.safe);
         assertTrue(configuredConfig.livenessResponsePeriod > 0); // Configuration exists
         assertTrue(configuredConfig.fallbackOwner != address(0)); // Configuration exists
         assertFalse(configuredSafe.safe.isModuleEnabled(address(livenessModule2))); // Module not enabled
