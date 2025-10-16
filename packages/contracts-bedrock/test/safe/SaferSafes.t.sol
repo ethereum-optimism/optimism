@@ -66,6 +66,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
     function test_version_succeeds() external view {
         assertTrue(bytes(saferSafes.version()).length > 0);
     }
+
     /// @notice Test successful configuration when liveness response period is at least 2x timelock delay.
     function test_configure_livenessModuleFirst_succeeds() public {
         uint256 timelockDelay = 7 days;

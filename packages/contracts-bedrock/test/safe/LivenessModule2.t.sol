@@ -16,13 +16,7 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
     LivenessModule2 livenessModule2;
 
     /// @notice Helper to enable the LivenessModule2 for a Safe
-    function _enableModule(
-        SafeInstance memory _safe,
-        uint256 _period,
-        address _fallback
-    )
-        internal
-    {
+    function _enableModule(SafeInstance memory _safe, uint256 _period, address _fallback) internal {
         LivenessModule2.ModuleConfig memory config =
             LivenessModule2.ModuleConfig({ livenessResponsePeriod: _period, fallbackOwner: _fallback });
         SafeTestLib.execTransaction(
@@ -434,7 +428,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         (uint256 period, address fbOwner) = livenessModule2.livenessSafeConfiguration(address(configuredSafe.safe));
         assertTrue(period > 0); // Configuration exists
         assertTrue(fbOwner != address(0)); // Configuration exists
-        assertFalse(ModuleManager(configuredSafe.safe).isModuleEnabled(address(livenessModule2))); // Module not enabled
+        assertFalse(configuredSafe.safe.isModuleEnabled(address(livenessModule2))); // Module not enabled
 
         // Now respond() should revert because module is not enabled
         vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
