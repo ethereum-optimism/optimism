@@ -470,9 +470,10 @@ abstract contract TimelockGuard is IGuard {
     ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
+        SafeState storage safeState = _safeState[callingSafe];
 
         // Check if the calling safe has configuration set
-        if (_safeState[callingSafe].timelockDelay == 0) {
+        if (safeState.timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -483,7 +484,31 @@ abstract contract TimelockGuard is IGuard {
         }
 
         // Clear the configuration (guard should already be disabled by caller)
-        _clearTimelockGuard(callingSafe);
+        // set the timelock delay to 0 to clear the configuration
+        safeState.timelockDelay = 0;
+
+        // Reset the cancellation threshold to 0 (unconfigured state)
+        safeState.cancellationThreshold = 0;
+
+        // Get all pending transaction hashes
+        bytes32[] memory hashes = safeState.pendingTxHashes.values();
+
+        uint256 n = hashes.length <= 100 ? hashes.length : 100;
+
+        // Cancel all pending transactions up to 100
+        // It is very unlikely that there will be more than 100 pending transactions, so we can safely limit the
+        // number of iterations to 100 in order to prevent gas limit issues.
+        // If there are more than 100 pending transactions, then we emit an event to inform the user that some
+        // transactions were not cancelled.
+        for (uint256 i = 0; i < n; i++) {
+            safeState.pendingTxHashes.remove(hashes[i]);
+            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
+            emit TransactionCancelled(callingSafe, hashes[i]);
+        }
+
+        if (hashes.length > 100) {
+            emit TransactionsNotCancelled(callingSafe, hashes.length - 100);
+        }
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.
@@ -645,40 +670,7 @@ abstract contract TimelockGuard is IGuard {
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
     }
-
-    ////////////////////////////////////////////////////////////////
-    //                    Internal Functions                      //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Internal function to clear the timelock guard configuration and cancel all pending transactions.
-    /// @dev This function does not disable the guard - it only clears the configuration state.
-    /// @param _targetSafe The Safe instance to clear the configuration for.
     function _clearTimelockGuard(Safe _targetSafe) internal {
-        SafeState storage safeState = _safeState[_targetSafe];
-        // set the timelock delay to 0 to clear the configuration
-        safeState.timelockDelay = 0;
 
-        // Reset the cancellation threshold to 0 (unconfigured state)
-        safeState.cancellationThreshold = 0;
-
-        // Get all pending transaction hashes
-        bytes32[] memory hashes = safeState.pendingTxHashes.values();
-
-        uint256 n = hashes.length <= 100 ? hashes.length : 100;
-
-        // Cancel all pending transactions up to 100
-        // It is very unlikely that there will be more than 100 pending transactions, so we can safely limit the
-        // number of iterations to 100 in order to prevent gas limit issues.
-        // If there are more than 100 pending transactions, then we emit an event to inform the user that some
-        // transactions were not cancelled.
-        for (uint256 i = 0; i < n; i++) {
-            safeState.pendingTxHashes.remove(hashes[i]);
-            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
-            emit TransactionCancelled(_targetSafe, hashes[i]);
-        }
-
-        if (hashes.length > 100) {
-            emit TransactionsNotCancelled(_targetSafe, hashes.length - 100);
-        }
     }
 }
