@@ -1082,12 +1082,6 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 
 	// Wait for handler readiness and capture bound port
 	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized")
-	select {
-	case <-conductor.flashblocksHandler.Ready():
-		// ready
-	case <-time.After(5 * time.Second):
-		s.Fail("Timeout waiting for WebSocket server readiness")
-	}
 	boundPort := conductor.flashblocksHandler.BoundPort()
 
 	// Wait for rollup boost server connection (event-driven, not time-based)

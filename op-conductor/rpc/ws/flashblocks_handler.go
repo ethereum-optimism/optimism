@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -38,8 +38,6 @@ type FlashblockHandler interface {
 	BroadcastMessage(message []byte)
 	// BoundPort returns the actual TCP port the server is bound to
 	BoundPort() int
-	// Ready is closed once the server listener is bound and ready to accept connections
-	Ready() <-chan struct{}
 }
 
 // Config contains configuration for the flashblocks handler
@@ -59,10 +57,8 @@ type Handler struct {
 	rollupBoostConn     *websocket.Conn
 	rollupBoostCtx      context.Context
 	rollupBoostWsCancel context.CancelFunc
-	server              *http.Server
-	listener            net.Listener
+	httpServer          *httputil.HTTPServer
 	hub                 *Hub
-	ready               chan struct{}
 	boundPort           int
 }
 
@@ -83,7 +79,6 @@ func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) boo
 		log:        log,
 		isLeaderFn: isLeaderFn,
 		metrics:    m,
-		ready:      make(chan struct{}),
 	}
 
 	// Try to establish initial connection to rollup boost WebSocket
@@ -141,13 +136,11 @@ func (h *Handler) Stop() {
 	}
 
 	// Close the HTTP server if it's running
-	if h.server != nil {
+	if h.httpServer != nil {
 		h.log.Info("closing WebSocket server")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		err := h.server.Shutdown(ctx)
-		if err != nil {
+		if err := h.httpServer.Stop(ctx); err != nil {
 			h.log.Error("Error shutting down WebSocket server", "err", err)
 		}
 		h.log.Info("WebSocket server closed")
@@ -170,29 +163,21 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", h.handleWebSocket)
 
-	// Bind listener (supports port=0 for dynamic assignment)
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", h.cfg.WebsocketServerPort))
+	// Start HTTP server using reusable httputil server (supports port=0 and exposes Port())
+	addr := fmt.Sprintf(":%d", h.cfg.WebsocketServerPort)
+	srv, err := httputil.StartHTTPServer(addr, mux)
 	if err != nil {
 		return err
 	}
-	h.listener = ln
-	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
-		h.boundPort = tcpAddr.Port
+	h.httpServer = srv
+	// Determine bound port
+	if port, err := h.httpServer.Port(); err == nil {
+		h.boundPort = port
 	} else {
-		panic("ln.Addr() is not a TCPAddr")
+		h.log.Warn("failed to determine bound port", "err", err)
 	}
 
-	// Start HTTP server on bound listener
-	h.server = &http.Server{Handler: mux}
-
 	h.log.Info("starting WebSocket server", "port", h.boundPort)
-	// Signal readiness as soon as the listener is bound
-	close(h.ready)
-	go func() {
-		if err := h.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			h.log.Error("WebSocket server error", "err", err)
-		}
-	}()
 
 	return nil
 }
@@ -200,11 +185,6 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 // BoundPort returns the actual TCP port the server is bound to.
 func (h *Handler) BoundPort() int {
 	return h.boundPort
-}
-
-// Ready returns a channel that is closed when the server listener is bound.
-func (h *Handler) Ready() <-chan struct{} {
-	return h.ready
 }
 
 // handleWebSocket handles WebSocket upgrade requests
