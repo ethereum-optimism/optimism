@@ -521,7 +521,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         bytes memory _gameArgs = _factory.gameArgs(GameTypes.PERMISSIONED_CANNON);
-        _errors = assertGameArgsLength(_errors, _gameArgs, true, "PDDG-15");
+        _errors = assertGameArgsLength(_errors, _gameArgs, true, "PDDG");
         DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, true);
         _errors = assertValidDisputeGame(
             _errors,
@@ -567,7 +567,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         bytes memory _gameArgs = _factory.gameArgs(GameTypes.CANNON);
-        _errors = assertGameArgsLength(_errors, _gameArgs, false, "PDDG-15");
+        _errors = assertGameArgsLength(_errors, _gameArgs, false, "PLDG");
         DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, false);
         _errors = assertValidDisputeGame(
             _errors,
