@@ -14,7 +14,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @notice FeatureFlags manages the feature bitmap by either direct user input or via environment
 ///         variables.
-contract FeatureFlags {
+abstract contract FeatureFlags {
     /// @notice The address of the foundry Vm contract.
     Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 

@@ -15,7 +15,7 @@ contract GasPayingToken_Harness {
 
 /// @title GasPayingToken_TestInit
 /// @notice Reusable test initialization for `GasPayingToken` tests.
-contract GasPayingToken_TestInit is Test {
+abstract contract GasPayingToken_TestInit is Test {
     GasPayingToken_Harness harness;
 
     function setUp() public {

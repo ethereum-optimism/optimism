@@ -61,7 +61,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
 /// @title VerifyOPCM_TestInit
 /// @notice Reusable test initialization for `VerifyOPCM` tests.
-contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
+abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
     VerifyOPCM_Harness internal harness;
 
     function setUp() public virtual override {

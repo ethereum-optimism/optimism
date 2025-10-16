@@ -142,7 +142,7 @@ library TransactionBuilder {
 
 /// @title TimelockGuard_TestInit
 /// @notice Reusable test initialization for `TimelockGuard` tests.
-contract TimelockGuard_TestInit is Test, SafeTestTools {
+abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
     // Events
     event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);

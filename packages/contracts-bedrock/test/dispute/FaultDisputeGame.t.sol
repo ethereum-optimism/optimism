@@ -66,7 +66,7 @@ function _changeClaimStatus(Claim _claim, VMStatus _status) pure returns (Claim 
 
 /// @title BaseFaultDisputeGame_TestInit
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
-contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.CANNON;
 
@@ -143,7 +143,7 @@ contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
 /// @title FaultDisputeGame_TestInit
 /// @notice Reusable test initialization for `FaultDisputeGame` tests.
-contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
+abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
     /// @dev An arbitrary root claim for testing.

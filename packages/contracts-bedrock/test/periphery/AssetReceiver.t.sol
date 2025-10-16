@@ -9,7 +9,7 @@ import { AssetReceiver } from "src/periphery/AssetReceiver.sol";
 
 /// @title AssetReceiver_TestInit
 /// @notice Reusable test initialization for `AssetReceiver` tests.
-contract AssetReceiver_TestInit is Test {
+abstract contract AssetReceiver_TestInit is Test {
     address alice = address(128);
     address bob = address(256);
 

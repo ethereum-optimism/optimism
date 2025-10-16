@@ -6,7 +6,7 @@ import { CheckSecrets } from "src/periphery/drippie/dripchecks/CheckSecrets.sol"
 
 /// @title CheckSecrets_TestInit
 /// @notice Reusable test initialization for `CheckSecrets` tests.
-contract CheckSecrets_TestInit is Test {
+abstract contract CheckSecrets_TestInit is Test {
     /// @notice Event emitted when a secret is revealed.
     event SecretRevealed(bytes32 indexed secretHash, bytes secret);
 

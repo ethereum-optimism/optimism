@@ -68,7 +68,7 @@ import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
 ///      sets the L2 contracts directly at the predeploy addresses instead of setting them
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
-contract Setup is FeatureFlags {
+abstract contract Setup is FeatureFlags {
     using ForkUtils for Fork;
 
     /// @notice The address of the foundry Vm contract.

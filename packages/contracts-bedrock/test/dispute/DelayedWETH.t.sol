@@ -53,7 +53,7 @@ contract DelayedWETH_FallbackReverter_Harness {
 
 /// @title DelayedWETH_TestInit
 /// @notice Reusable test initialization for `DelayedWETH` tests.
-contract DelayedWETH_TestInit is CommonTest {
+abstract contract DelayedWETH_TestInit is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
     event Deposit(address indexed dst, uint256 wad);

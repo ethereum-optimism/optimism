@@ -18,7 +18,7 @@ import { LivenessModule2_TestUtils } from "test/safe/LivenessModule2.t.sol";
 
 /// @title SaferSafes_TestInit
 /// @notice Reusable test initialization for `SaferSafes` tests.
-contract SaferSafes_TestInit is LivenessModule2_TestUtils {
+abstract contract SaferSafes_TestInit is LivenessModule2_TestUtils {
     using SafeTestLib for SafeInstance;
 
     // Events

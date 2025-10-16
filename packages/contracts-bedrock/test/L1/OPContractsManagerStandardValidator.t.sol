@@ -77,7 +77,7 @@ contract BadDisputeGameFactoryReturner {
 
 /// @title OPContractsManagerStandardValidator_TestInit
 /// @notice Base contract for `OPContractsManagerStandardValidator` tests, handles common setup.
-contract OPContractsManagerStandardValidator_TestInit is CommonTest {
+abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
 

@@ -7,7 +7,6 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
-
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 /// @title LivenessModule2_TestUtils

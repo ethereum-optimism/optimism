@@ -16,7 +16,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 
 /// @title PermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `PermissionedDisputeGame` tests.
-contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @notice The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.PERMISSIONED_CANNON;
     /// @notice Mock proposer key

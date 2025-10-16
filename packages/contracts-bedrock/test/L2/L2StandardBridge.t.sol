@@ -23,7 +23,7 @@ import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 
 /// @title L2StandardBridge_TestInit
 /// @notice Reusable test initialization for `L2StandardBridge` tests.
-contract L2StandardBridge_TestInit is CommonTest {
+abstract contract L2StandardBridge_TestInit is CommonTest {
     /// @notice Sets up expected calls and emits for a successful ERC20 withdrawal.
     function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
         // Alice has 100 L2Token

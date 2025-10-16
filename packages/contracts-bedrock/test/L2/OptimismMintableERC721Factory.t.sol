@@ -6,7 +6,7 @@ import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
 
 /// @title OptimismMintableERC721Factory_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC721Factory` tests.
-contract OptimismMintableERC721Factory_TestInit is CommonTest {
+abstract contract OptimismMintableERC721Factory_TestInit is CommonTest {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     function calculateTokenAddress(
