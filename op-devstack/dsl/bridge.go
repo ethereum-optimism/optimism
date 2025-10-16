@@ -149,11 +149,15 @@ func (b *StandardBridge) UsesSuperRoots() bool {
 }
 
 type Deposit struct {
+	bridge    *StandardBridge
 	l1Receipt *types.Receipt
 }
 
 func (d Deposit) GasCost() eth.ETH {
-	return gasCost(d.l1Receipt)
+	if d.bridge == nil {
+		panic("bridge reference not set on deposit")
+	}
+	return d.bridge.gasCost(d.l1Receipt, d.bridge.l1Client)
 }
 
 func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
@@ -175,6 +179,7 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	}, 60*time.Second, 500*time.Millisecond, "L2 Deposit never found")
 	b.require.Equal(types.ReceiptStatusSuccessful, l2DepositReceipt.Status)
 	return Deposit{
+		bridge:    b,
 		l1Receipt: l1DepositReceipt,
 	}
 }
@@ -220,6 +225,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 	b.require.Equal(types.ReceiptStatusSuccessful, l2DepositReceipt.Status, "L2 ERC20 deposit should succeed")
 
 	return &Deposit{
+		bridge:    b,
 		l1Receipt: depositReceipt,
 	}
 }
@@ -345,17 +351,17 @@ type Withdrawal struct {
 }
 
 func (w *Withdrawal) InitiateGasCost() eth.ETH {
-	return gasCost(w.initReceipt)
+	return w.bridge.gasCost(w.initReceipt, w.bridge.l2Client)
 }
 
 func (w *Withdrawal) ProveGasCost() eth.ETH {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
-	return gasCost(w.proveReceipt)
+	return w.bridge.gasCost(w.proveReceipt, w.bridge.l1Client)
 }
 
 func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal before calculating gas cost")
-	return gasCost(w.finalizeReceipt)
+	return w.bridge.gasCost(w.finalizeReceipt, w.bridge.l1Client)
 }
 
 func (w *Withdrawal) InitiateBlockHash() common.Hash {
@@ -563,18 +569,47 @@ func (w *Withdrawal) WaitForDisputeGameResolved() {
 	}, 60*time.Second, 100*time.Millisecond, "wait for dispute game resolved")
 }
 
-func gasCost(rcpt *types.Receipt) eth.ETH {
+func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
+	var blockTimestamp *uint64
+	if hasOperatorFee(rcpt) {
+		b.require.NotNil(client, "client is required to resolve operator fee timestamp")
+		blockTimestamp = b.receiptTimestamp(rcpt, client)
+	}
+	return gasCost(rcpt, b.rollupCfg, blockTimestamp)
+}
+
+func hasOperatorFee(rcpt *types.Receipt) bool {
+	return rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil
+}
+
+func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
+	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
+	blockInfo, err := client.InfoByNumber(b.ctx, rcpt.BlockNumber.Uint64())
+	b.require.NoError(err, "failed to fetch block info for receipt")
+	ts := blockInfo.Time()
+	return &ts
+}
+
+func gasCost(rcpt *types.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint64) eth.ETH {
 	cost := eth.WeiBig(new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice))
 	if rcpt.L1Fee != nil {
 		cost = cost.Add(eth.WeiBig(rcpt.L1Fee))
 	}
-	if rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil {
-		// https://github.com/ethereum-optimism/op-geth/blob/6005dd53e1b50fe5a3f59764e3e2056a639eff2f/core/types/rollup_cost.go#L244-L247
-		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-operatorCost
+	if hasOperatorFee(rcpt) {
+		if rollupCfg == nil {
+			panic("rollup config is required to compute operator fee")
+		}
+		if blockTimestamp == nil {
+			panic("block timestamp is required to compute operator fee")
+		}
 		operatorCost := new(big.Int).SetUint64(rcpt.GasUsed)
 		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeScalar))
-		operatorCost = operatorCost.Div(operatorCost, big.NewInt(1_000_000))
-		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeConstant))
+		if rollupCfg.IsOperatorFeeFix(*blockTimestamp) {
+			operatorCost.Mul(operatorCost, big.NewInt(100))
+		} else {
+			operatorCost.Div(operatorCost, big.NewInt(1_000_000))
+		}
+		operatorCost.Add(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeConstant))
 		cost = cost.Add(eth.WeiBig(operatorCost))
 	}
 	return cost

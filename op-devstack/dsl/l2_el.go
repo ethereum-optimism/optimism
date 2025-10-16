@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -187,10 +189,10 @@ func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {
 	parentBlockInfo, err := l2Client.InfoByHash(el.ctx, postBlockWithdrawalInfo.ParentHash())
 	el.require.NoError(err, "failed to get parent block info")
 
-	postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, blockHash.String())
+	postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
 	el.require.NoError(err, "failed to get post-withdrawal storage proof")
 
-	parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, postBlockWithdrawalInfo.ParentHash().String())
+	parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, postBlockWithdrawalInfo.ParentHash().String())
 	el.require.NoError(err, "failed to get parent storage proof")
 
 	el.require.NotEqual(parentProof.StorageHash, postProof.StorageHash, "withdrawal hash should have changed between parent and current block")
@@ -253,4 +255,46 @@ func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized 
 	result.Refresh = refresh
 	result.Refresh()
 	return result
+}
+
+func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
+	el.log.Info("Start EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
+	trial := 1
+	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
+		el.log.Info("FCU to activate EL Sync", "trial", trial)
+		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
+		// If EL Sync triggered, Example logs from L2EL(geth)
+		//  New skeleton head announced
+		//  Backfilling with the network
+		if res.Result.PayloadStatus.Status == eth.ExecutionValid {
+			el.log.Info("Finished EL Sync")
+			return nil
+		}
+		trial += 1
+		return errors.New("EL Sync not yet triggered")
+	}))
+}
+
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+	el.require.Equal(chainID, el.inner.ID().ChainID(), "chain ID mismatch")
+	var blockRef eth.L2BlockRef
+	switch lvl {
+	case types.Finalized:
+		blockRef = el.BlockRefByLabel(eth.Finalized)
+	case types.CrossSafe, types.LocalSafe:
+		blockRef = el.BlockRefByLabel(eth.Safe)
+	case types.CrossUnsafe, types.LocalUnsafe:
+		blockRef = el.BlockRefByLabel(eth.Unsafe)
+	default:
+		el.require.NoError(errors.New("invalid safety level"))
+	}
+	return blockRef.ID()
+}
+
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
+}
+
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }

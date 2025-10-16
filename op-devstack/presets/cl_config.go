@@ -39,3 +39,11 @@ func WithReqRespSyncDisabled() stack.CommonOption {
 				cfg.EnableReqRespSync = false
 			})))
 }
+
+func WithNoDiscovery() stack.CommonOption {
+	return stack.MakeCommon(
+		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
+			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.NoDiscovery = true
+			})))
+}

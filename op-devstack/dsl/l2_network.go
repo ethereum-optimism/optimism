@@ -192,6 +192,10 @@ func (n *L2Network) IsActivated(timestamp uint64) bool {
 	return head.Number >= blockNum
 }
 
+func (n *L2Network) IsForkActive(forkName rollup.ForkName, timestamp uint64) bool {
+	return n.Escape().RollupConfig().IsForkActive(forkName, timestamp)
+}
+
 // LatestBlockBeforeTimestamp finds the latest block before fork activation
 func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) eth.BlockRef {
 	require := t.Require()

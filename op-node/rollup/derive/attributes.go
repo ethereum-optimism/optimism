@@ -145,8 +145,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeTxs = append(upgradeTxs, isthmus...)
 	}
 
-	if ba.rollupCfg.IsJovianActivationBlock(nextL2Time) && ba.rollupCfg.IsDAFootprintBlockLimit(nextL2Time) {
-		jovian, err := DAFootprintNetworkUpgradeTransactions()
+	if ba.rollupCfg.IsJovianActivationBlock(nextL2Time) {
+		jovian, err := JovianNetworkUpgradeTransactions(ba.rollupCfg.IsDAFootprintBlockLimit(nextL2Time), ba.rollupCfg.IsOperatorFeeFix(nextL2Time))
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build jovian network upgrade txs: %w", err))
 		}
