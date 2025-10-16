@@ -8679,6 +8679,7 @@ dependencies = [
  "reth-revm",
  "reth-trie",
  "serde",
+ "tempfile",
  "test-case",
 <<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",

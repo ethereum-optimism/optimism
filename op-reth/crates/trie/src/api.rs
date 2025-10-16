@@ -2,6 +2,7 @@
 
 use alloy_primitives::{map::HashMap, B256, U256};
 use auto_impl::auto_impl;
+use reth_db_api::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{updates::TrieUpdates, BranchNodeCompact, HashedPostState, Nibbles};
 use std::fmt::Debug;
@@ -11,6 +12,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum OpProofsStorageError {
     // TODO: add more errors once we know what they are
+    /// Error occurred while interacting with the database.
+    #[error(transparent)]
+    DatabaseError(#[from] DatabaseError),
+
     /// Other error
     #[error("Other error: {0}")]
     Other(eyre::Error),
