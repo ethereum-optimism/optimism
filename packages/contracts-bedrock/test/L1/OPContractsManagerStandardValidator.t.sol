@@ -940,19 +940,31 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame absolute prestate is invalid.
     function test_validate_permissionedDisputeGameInvalidAbsolutePrestate_succeeds() public {
-        vm.mockCall(
-            address(pdg),
-            abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()),
-            abi.encode(bytes32(uint256(0xbad)))
-        );
+        bytes32 badPrestate = bytes32(uint256(0xbadbad));
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
+            modifiedGameArgs.writeAbsolutePrestate(badPrestate);
+            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(
+                address(pdg), abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()), abi.encode(badPrestate)
+            );
+        }
         assertEq("PDDG-40", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame VM address is invalid.
     function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        address badVM = address(0xbad);
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
+            modifiedGameArgs.writeVM(badVM);
+            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(badVM));
+        }
+        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(
             address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION)
         );
@@ -962,7 +974,6 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame VM's state version is invalid.
     function test_validate_permissionedDisputeGameInvalidVMStateVersion_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
         vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
         assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
@@ -970,7 +981,14 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame L2 Chain ID is invalid.
     function test_validate_permissionedDisputeGameInvalidL2ChainId_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        uint256 badChainId = l2ChainId + 1;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
+            modifiedGameArgs.writeL2ChainId(badChainId);
+            mockGameArgs(GameTypes.PERMISSIONED_CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(badChainId));
+        }
         assertEq("PDDG-60", _validate(true));
     }
 
@@ -1274,17 +1292,13 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
     function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
-        bytes32 modifiedPrestate = bytes32(uint256(0xbadbad));
+        bytes32 badPrestate = bytes32(uint256(0xbadbad));
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            // Mock the gameArgs data which contains the absolute prestate
             bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
-            modifiedGameArgs.writeAbsolutePrestate(modifiedPrestate);
+            modifiedGameArgs.writeAbsolutePrestate(badPrestate);
             mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
         } else {
-            // Mock the absolute prestate on the game implementation
-            vm.mockCall(
-                address(fdg), abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(modifiedPrestate)
-            );
+            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(badPrestate));
         }
 
         assertEq("PLDG-40", _validate(true));
@@ -1293,18 +1307,22 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) VM address is invalid.
     function test_validate_faultDisputeGameInvalidVM_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(
-            address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION)
-        );
+        address badVm = address(0xbad);
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
+            modifiedGameArgs.writeVM(badVm);
+            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(badVm));
+        }
+        vm.mockCall(badVm, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(badVm, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
         assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) VM's state version is invalid.
     function test_validate_faultDisputeGameInvalidVMStateVersion_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
         vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
         assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
@@ -1312,7 +1330,14 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.
     function test_validate_faultDisputeGameInvalidL2ChainId_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        uint256 badChainId = l2ChainId + 1;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory modifiedGameArgs = dgf.gameArgs(GameTypes.CANNON);
+            modifiedGameArgs.writeL2ChainId(badChainId);
+            mockGameArgs(GameTypes.CANNON, modifiedGameArgs);
+        } else {
+            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(badChainId));
+        }
         assertEq("PLDG-60", _validate(true));
     }
 
