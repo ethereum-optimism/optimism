@@ -961,7 +961,7 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
     }
 
     /// @notice Verifies that clearTimelockGuard reverts when guard is still enabled
-    function test_clearTimelockGuard_revertsWhenGuardStillEnabled() external {
+    function test_clearTimelockGuard_guardStillEnabled_reverts() external {
         // First configure the guard
         _configureGuard(safeInstance, TIMELOCK_DELAY);
 
