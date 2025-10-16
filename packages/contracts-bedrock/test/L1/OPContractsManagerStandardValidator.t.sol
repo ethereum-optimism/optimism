@@ -87,6 +87,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
     /// @notice The absolute prestate, either from config or dummy value if fork test.
     Claim absolutePrestate;
 
+    /// @notice The proposer role set on the PermissionedDisputeGame instance.
+    address proposer;
+
     /// @notice The PermissionedDisputeGame instance.
     IPermissionedDisputeGame pdg;
 
@@ -123,6 +126,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            proposer = address(123);
 
             vm.mockCall(
                 address(proxyAdmin),
@@ -134,6 +138,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
                 abi.encode(opcm.opcmStandardValidator().challenger())
             );
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(proposer));
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.owner, ()),
@@ -154,6 +159,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
         } else {
             l2ChainId = deployInput.l2ChainId;
             absolutePrestate = deployInput.disputeAbsolutePrestate;
+            proposer = deployInput.roles.proposer;
         }
 
         // Deploy the BadDisputeGameFactoryReturner once.
@@ -206,7 +212,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
-                l2ChainID: l2ChainId
+                l2ChainID: l2ChainId,
+                proposer: proposer
             }),
             _allowFailure
         );
@@ -228,7 +235,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest {
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
-                l2ChainID: l2ChainId
+                l2ChainID: l2ChainId,
+                proposer: proposer
             }),
             _allowFailure,
             _overrides

@@ -308,7 +308,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 proxyAdmin: opChainConfigs[0].proxyAdmin,
                 sysCfg: opChainConfigs[0].systemConfigProxy,
                 absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                l2ChainID: l2ChainId
+                l2ChainID: l2ChainId,
+                proposer: deploy.cfg().l2OutputOracleProposer()
             }),
             false,
             validationOverrides

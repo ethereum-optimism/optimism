@@ -118,6 +118,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
+        address proposer;
     }
 
     /// @notice Struct containing override parameters for the validation process.
