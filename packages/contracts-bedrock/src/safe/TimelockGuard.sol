@@ -249,7 +249,7 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockConfiguration(Safe _safe) public view returns (uint256) {
+    function timelockDelay(Safe _safe) public view returns (uint256) {
         return _safeState[_safe].timelockDelay;
     }
 

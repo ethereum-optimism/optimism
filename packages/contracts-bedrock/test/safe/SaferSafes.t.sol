@@ -88,7 +88,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         LivenessModule2.ModuleConfig memory storedConfig = saferSafes.livenessSafeConfiguration(safeInstance.safe);
         assertEq(storedConfig.livenessResponsePeriod, livenessResponsePeriod);
         assertEq(storedConfig.fallbackOwner, fallbackOwner);
-        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
+        assertEq(saferSafes.timelockDelay(safeInstance.safe), timelockDelay);
     }
 
     function test_configure_timelockGuardFirst_succeeds() public {
@@ -112,7 +112,7 @@ contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
         LivenessModule2.ModuleConfig memory storedConfig = saferSafes.livenessSafeConfiguration(safeInstance.safe);
         assertEq(storedConfig.livenessResponsePeriod, livenessResponsePeriod);
         assertEq(storedConfig.fallbackOwner, fallbackOwner);
-        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
+        assertEq(saferSafes.timelockDelay(safeInstance.safe), timelockDelay);
     }
 
     /// @notice Test that attempting to incorrectly configure the timelock guard after first configuring the liveness
