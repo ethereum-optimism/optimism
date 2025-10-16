@@ -317,12 +317,6 @@ abstract contract TimelockGuard is IGuard {
     {
         Safe callingSafe = Safe(payable(msg.sender));
 
-        // Limit execution of transactions to owners of the Safe only.
-        // This ensures that an attacker cannot simply collect valid signatures, but must also control a private key.
-        if (!callingSafe.isOwner(_msgSender)) {
-            revert TimelockGuard_NotOwner();
-        }
-
         if (_safeState[callingSafe].timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
             // guard set, but not configured, to complete the setup process.
@@ -330,6 +324,12 @@ abstract contract TimelockGuard is IGuard {
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a
             // delay of zero.
             return;
+        }
+
+        // Limit execution of transactions to owners of the Safe only.
+        // This ensures that an attacker cannot simply collect valid signatures, but must also control a private key.
+        if (!callingSafe.isOwner(_msgSender)) {
+            revert TimelockGuard_NotOwner();
         }
 
         // Get the nonce of the Safe for the transaction being executed,
