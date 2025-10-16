@@ -5493,16 +5493,20 @@ name = "op-reth"
 version = "1.10.2"
 dependencies = [
  "clap",
+ "eyre",
+ "futures-util",
  "reth-cli-util",
  "reth-optimism-chainspec",
  "reth-optimism-cli",
  "reth-optimism-consensus",
  "reth-optimism-evm",
+ "reth-optimism-exex",
  "reth-optimism-forks",
  "reth-optimism-node",
  "reth-optimism-payload-builder",
  "reth-optimism-primitives",
  "reth-optimism-rpc",
+ "reth-optimism-trie",
  "tracing",
 ]
 
@@ -8374,7 +8378,11 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-exex"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
+=======
+version = "1.9.3"
+>>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -8390,7 +8398,11 @@ dependencies = [
  "reth-optimism-trie",
  "reth-provider",
  "serde",
+<<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",
+=======
+ "thiserror 2.0.17",
+>>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
  "tokio",
 ]
 
@@ -8645,7 +8657,11 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-trie"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
+=======
+version = "1.9.3"
+>>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
  "alloy-primitives",
  "auto_impl",
@@ -8664,7 +8680,11 @@ dependencies = [
  "reth-trie",
  "serde",
  "test-case",
+<<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",
+=======
+ "thiserror 2.0.17",
+>>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
  "tokio",
  "tracing",
 ]

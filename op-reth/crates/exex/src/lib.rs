@@ -6,7 +6,7 @@ use reth_chainspec::ChainInfo;
 use reth_exex::{ExExContext, ExExEvent};
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
-use reth_optimism_trie::{BackfillJob, InMemoryProofsStorage};
+use reth_optimism_trie::{BackfillJob, OpProofsStorage};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 use std::sync::Arc;
 
@@ -16,18 +16,27 @@ use std::sync::Arc;
 /// saving the current state, new blocks as they're added, and serving proof RPCs
 /// based on the saved data.
 #[derive(Debug, Constructor)]
-pub struct OpProofsExEx<Node>
+pub struct OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents,
+    S: OpProofsStorage,
 {
+    /// The ExEx context containing the node related utilities e.g. provider, notifications,
+    /// events.
     ctx: ExExContext<Node>,
-    storage: Arc<InMemoryProofsStorage>,
+    /// The type of storage DB.
+    storage: Arc<S>,
+    /// The window to span blocks for proofs history. Value is the number of blocks, received as
+    /// cli arg.
+    #[expect(dead_code)]
+    proofs_history_window: u64,
 }
 
-impl<Node, Primitives> OpProofsExEx<Node>
+impl<Node, S, Primitives> OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
     Primitives: NodePrimitives,
+    S: OpProofsStorage,
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
