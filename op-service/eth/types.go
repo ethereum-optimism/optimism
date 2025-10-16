@@ -640,30 +640,87 @@ func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
 	switch sysCfg.MarshalFork {
 	case "bedrock":
 		return jsonMarshalBedrock(sysCfg)
-	case "holocene", "":
+	case "isthmus":
+		return jsonMarshalIsthmus(sysCfg)
+	case "holocene":
 		return jsonMarshalHolocene(sysCfg)
+	case "jovian", "":
+		return jsonMarshalJovian(sysCfg)
 	default:
 		return nil, fmt.Errorf("unknown fork: %s", sysCfg.MarshalFork)
 	}
 }
 
-func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
-	type sysCfgMarshaling SystemConfig
-	return json.Marshal(sysCfgMarshaling(sysCfg))
+func jsonMarshalJovian(sysCfg SystemConfig) ([]byte, error) {
+	sc := struct {
+		BatcherAddr          common.Address `json:"batcherAddr"`
+		Overhead             Bytes32        `json:"overhead"`
+		Scalar               Bytes32        `json:"scalar"`
+		GasLimit             uint64         `json:"gasLimit"`
+		EIP1559Params        Bytes8         `json:"eip1559Params"`
+		OperatorFeeParams    Bytes32        `json:"operatorFeeParams"`
+		MinBaseFee           uint64         `json:"minBaseFee"`
+		DAFootprintGasScalar uint16         `json:"daFootprintGasScalar"`
+	}{
+		BatcherAddr:          sysCfg.BatcherAddr,
+		Overhead:             sysCfg.Overhead,
+		Scalar:               sysCfg.Scalar,
+		GasLimit:             sysCfg.GasLimit,
+		EIP1559Params:        sysCfg.EIP1559Params,
+		OperatorFeeParams:    sysCfg.OperatorFeeParams,
+		MinBaseFee:           sysCfg.MinBaseFee,
+		DAFootprintGasScalar: sysCfg.DAFootprintGasScalar,
+	}
+	return json.Marshal(sc)
 }
 
 func jsonMarshalBedrock(sysCfg SystemConfig) ([]byte, error) {
-	type sysCfgMarshaling struct {
+	sc := struct {
 		BatcherAddr common.Address `json:"batcherAddr"`
 		Overhead    Bytes32        `json:"overhead"`
 		Scalar      Bytes32        `json:"scalar"`
 		GasLimit    uint64         `json:"gasLimit"`
-	}
-	sc := sysCfgMarshaling{
+	}{
 		BatcherAddr: sysCfg.BatcherAddr,
 		Overhead:    sysCfg.Overhead,
 		Scalar:      sysCfg.Scalar,
 		GasLimit:    sysCfg.GasLimit,
+	}
+	return json.Marshal(sc)
+}
+
+func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
+	sc := struct {
+		BatcherAddr   common.Address `json:"batcherAddr"`
+		Overhead      Bytes32        `json:"overhead"`
+		Scalar        Bytes32        `json:"scalar"`
+		GasLimit      uint64         `json:"gasLimit"`
+		EIP1559Params Bytes8         `json:"eip1559Params"`
+	}{
+		BatcherAddr:   sysCfg.BatcherAddr,
+		Overhead:      sysCfg.Overhead,
+		Scalar:        sysCfg.Scalar,
+		GasLimit:      sysCfg.GasLimit,
+		EIP1559Params: sysCfg.EIP1559Params,
+	}
+	return json.Marshal(sc)
+}
+
+func jsonMarshalIsthmus(sysCfg SystemConfig) ([]byte, error) {
+	sc := struct {
+		BatcherAddr       common.Address `json:"batcherAddr"`
+		Overhead          Bytes32        `json:"overhead"`
+		Scalar            Bytes32        `json:"scalar"`
+		GasLimit          uint64         `json:"gasLimit"`
+		EIP1559Params     Bytes8         `json:"eip1559Params"`
+		OperatorFeeParams Bytes32        `json:"operatorFeeParams"`
+	}{
+		BatcherAddr:       sysCfg.BatcherAddr,
+		Overhead:          sysCfg.Overhead,
+		Scalar:            sysCfg.Scalar,
+		GasLimit:          sysCfg.GasLimit,
+		EIP1559Params:     sysCfg.EIP1559Params,
+		OperatorFeeParams: sysCfg.OperatorFeeParams,
 	}
 	return json.Marshal(sc)
 }
