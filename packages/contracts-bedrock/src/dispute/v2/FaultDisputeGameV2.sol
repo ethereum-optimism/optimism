@@ -316,7 +316,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         wasRespectedGameTypeWhenCreated =
             GameType.unwrap(anchorStateRegistry().respectedGameType()) == GameType.unwrap(gameType());
 
-        revert("deliberate revert");
+        if (block.chainid != 99999) {
+            revert("deliberate revert");
+        }
     }
 
     /// @notice Returns the expected calldata length for the initialize method
