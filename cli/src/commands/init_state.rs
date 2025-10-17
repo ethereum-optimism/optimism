@@ -7,7 +7,7 @@ use reth_cli_commands::common::{AccessRights, CliHeader, CliNodeTypes, Environme
 use reth_db_common::init::init_from_state_dump;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{
-    bedrock::{BEDROCK_HEADER, BEDROCK_HEADER_HASH, BEDROCK_HEADER_TTD},
+    bedrock::{BEDROCK_HEADER, BEDROCK_HEADER_HASH},
     OpPrimitives,
 };
 use reth_primitives_traits::SealedHeader;
@@ -58,7 +58,6 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> InitStateCommandOp<C> {
                 reth_cli_commands::init_state::without_evm::setup_without_evm(
                     &provider_rw,
                     SealedHeader::new(BEDROCK_HEADER, BEDROCK_HEADER_HASH),
-                    BEDROCK_HEADER_TTD,
                     |number| {
                         let mut header = Header::default();
                         header.set_number(number);
