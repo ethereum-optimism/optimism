@@ -112,7 +112,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     struct PreUpgradeState {
         Claim cannonAbsolutePrestate;
         Claim permissionedAbsolutePrestate;
-        IDelayedWETH cannonWethProxy;
+        IDelayedWETH permissionlessWethProxy;
         IDelayedWETH permissionedCannonWethProxy;
     }
 
@@ -167,7 +167,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             permissionedAbsolutePrestate: IPermissionedDisputeGame(
                 address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
             ).absolutePrestate(),
-            cannonWethProxy: delayedWeth,
+            permissionlessWethProxy: delayedWeth,
             permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
         });
 
@@ -345,33 +345,40 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
         uint256 l2BlockNumber = rootBlockNumber + 1;
 
-        // Deploy a live game and ensure it's configured correctly.
-        vm.prank(expectedProposer, expectedProposer);
-        IPermissionedDisputeGame game = IPermissionedDisputeGame(
-            address(
-                disputeGameFactory.create{ value: bondAmount }(
-                    GameTypes.PERMISSIONED_CANNON, claim, abi.encode(l2BlockNumber)
-                )
-            )
-        );
-        (,,,, Claim rootClaim,,) = game.claimData(0);
+        // Deploy live games and ensure they're configured correctly
+        GameType[] memory gameTypes = new GameType[](2);
+        gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
+        gameTypes[1] = GameTypes.CANNON;
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            GameType gt = gameTypes[i];
+            vm.prank(expectedProposer, expectedProposer);
+            IPermissionedDisputeGame game = IPermissionedDisputeGame(
+                address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
+            );
+            (,,,, Claim rootClaim,,) = game.claimData(0);
 
-        vm.assertEq(GameTypes.PERMISSIONED_CANNON.raw(), game.gameType().raw());
-        vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
-        vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
-        vm.assertEq(l2ChainId, game.l2ChainId());
-        vm.assertEq(302400, game.maxClockDuration().raw());
-        vm.assertEq(10800, game.clockExtension().raw());
-        vm.assertEq(73, game.maxGameDepth());
-        vm.assertEq(30, game.splitDepth());
-        vm.assertEq(l2BlockNumber, game.l2BlockNumber());
-        vm.assertEq(_challenger, game.challenger());
-        vm.assertEq(expectedProposer, game.proposer());
-        vm.assertEq(expectedVm, address(game.vm()));
-        vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
-        vm.assertEq(expectedProposer, game.gameCreator());
-        vm.assertEq(claim.raw(), rootClaim.raw());
-        vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
+            vm.assertEq(gt.raw(), game.gameType().raw());
+            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
+            vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
+            vm.assertEq(l2ChainId, game.l2ChainId());
+            vm.assertEq(302400, game.maxClockDuration().raw());
+            vm.assertEq(10800, game.clockExtension().raw());
+            vm.assertEq(73, game.maxGameDepth());
+            vm.assertEq(30, game.splitDepth());
+            vm.assertEq(l2BlockNumber, game.l2BlockNumber());
+            vm.assertEq(expectedVm, address(game.vm()));
+            vm.assertEq(expectedProposer, game.gameCreator());
+            vm.assertEq(claim.raw(), rootClaim.raw());
+            vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
+
+            if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+                vm.assertEq(_challenger, game.challenger());
+                vm.assertEq(expectedProposer, game.proposer());
+            } else {
+                vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
+            }
+        }
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
