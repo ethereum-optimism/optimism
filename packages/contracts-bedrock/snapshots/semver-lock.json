@@ -203,10 +203,6 @@
     "initCodeHash": "0x406db1c5a127f76970791b8a7f6ff62b81481ab25cf32615bfed551cdd5cd844",
     "sourceCodeHash": "0xca3712277637e9d1b63ed16e35ef968032c12be9187c36146c171ac3e9f0cd73"
   },
-  "src/safe/LivenessModule.sol:LivenessModule": {
-    "initCodeHash": "0xa4a06e8778dbb6883ece8f56538ba15bc01b3031bba9a12ad9d187e7c8aaa942",
-    "sourceCodeHash": "0x2483dde167b39bf11e9eb0a0d0180ccfc499604c3b1087c5c14fc0dc408ae1d2"
-  },
   "src/safe/SaferSafes.sol:SaferSafes": {
     "initCodeHash": "0x68567829042bbd450ffd477848ddcda288e36714846fdcc02c315f2d0d332da6",
     "sourceCodeHash": "0x06fc6d5df3c5769b645ff319d8b94415e501711c19cb0b1bce2631771d22294f"
