@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 	_ "net/http/pprof"
+	"os"
 	"sync"
 	"time"
 
@@ -629,12 +630,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 				"endpoint", endpoint, "err", err)
 
 			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			// Call StopBatchSubmitting in another goroutine to avoid deadlock.
-			go func() {
-				_ = l.StopBatchSubmitting(ctx)
-			}()
+			os.Exit(1) //nolint:gocritic // this is a shutdown error
 			return
 		} else if err != nil {
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
