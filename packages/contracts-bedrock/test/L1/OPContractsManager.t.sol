@@ -356,6 +356,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         );
         (,,,, Claim rootClaim,,) = game.claimData(0);
 
+        vm.assertEq(GameTypes.PERMISSIONED_CANNON.raw(), game.gameType().raw());
         vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
         vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
         vm.assertEq(l2ChainId, game.l2ChainId());

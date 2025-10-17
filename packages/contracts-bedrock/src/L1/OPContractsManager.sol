@@ -297,14 +297,50 @@ abstract contract OPContractsManagerBase {
         return _disputeGame.l2ChainId();
     }
 
-    /// @notice Retrieves the proposer address for a given game
-    function getProposer(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
+    /// @notice Retrieves the proposer address for a given v1 game
+    function getProposerV1(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
         return _disputeGame.proposer();
     }
 
-    /// @notice Retrieves the challenger address for a given game
-    function getChallenger(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
+    /// @notice Retrieves the proposer address for a given v1 or v2 game
+    function getProposer(
+        IDisputeGameFactory _disputeGameFactory,
+        IPermissionedDisputeGame _disputeGame,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (address)
+    {
+        bytes memory gameArgsBytes = _disputeGameFactory.gameArgs(_gameType);
+        if (gameArgsBytes.length == 0) {
+            return _disputeGame.proposer();
+        } else {
+            return LibGameArgs.decode(gameArgsBytes).proposer;
+        }
+    }
+
+    /// @notice Retrieves the challenger address for a given v1 game
+    function getChallengerV1(IPermissionedDisputeGame _disputeGame) internal view returns (address) {
         return _disputeGame.challenger();
+    }
+
+    /// @notice Retrieves the challenger address of a given v1 or v2 game
+    function getChallenger(
+        IDisputeGameFactory _disputeGameFactory,
+        IPermissionedDisputeGame _disputeGame,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (address)
+    {
+        bytes memory gameArgsBytes = _disputeGameFactory.gameArgs(_gameType);
+        if (gameArgsBytes.length == 0) {
+            return _disputeGame.challenger();
+        } else {
+            return LibGameArgs.decode(gameArgsBytes).challenger;
+        }
     }
 
     /// @notice Helper function to register permissioned game V2 implementation
@@ -571,8 +607,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         getAnchorStateRegistry(gameConfig.systemConfig),
                         gameL2ChainId
                     ),
-                    getProposer(IPermissionedDisputeGame(address(existingGame))),
-                    getChallenger(IPermissionedDisputeGame(address(existingGame)))
+                    getProposerV1(IPermissionedDisputeGame(address(existingGame))),
+                    getChallengerV1(IPermissionedDisputeGame(address(existingGame)))
                 );
             } else {
                 constructorData = encodePermissionlessFDGConstructor(
@@ -1006,8 +1042,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
-            address proposer = getProposer(IPermissionedDisputeGame(address(_disputeGame)));
-            address challenger = getChallenger(IPermissionedDisputeGame(address(_disputeGame)));
+            address proposer = getProposerV1(IPermissionedDisputeGame(address(_disputeGame)));
+            address challenger = getChallengerV1(IPermissionedDisputeGame(address(_disputeGame)));
             newGame = IDisputeGame(
                 Blueprint.deployFrom(
                     bps.permissionedDisputeGame1,
@@ -1057,15 +1093,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     )
         internal
     {
+        IDisputeGameFactory disputeGameFactory =
+            IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
         // that already exists on the current dispute game.
         Claim absolutePrestate;
         if (Claim.unwrap(_opChainConfig.absolutePrestate) == bytes32(0)) {
-            absolutePrestate = getAbsolutePrestate(
-                IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory()),
-                address(_disputeGame),
-                _gameType
-            );
+            absolutePrestate = getAbsolutePrestate(disputeGameFactory, address(_disputeGame), _gameType);
         } else {
             absolutePrestate = _opChainConfig.absolutePrestate;
         }
@@ -1079,8 +1113,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         bytes memory gameArgs;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
             newGame = IDisputeGame(_impls.permissionedDisputeGameV2Impl);
-            address proposer = getProposer(IPermissionedDisputeGame(address(_disputeGame)));
-            address challenger = getChallenger(IPermissionedDisputeGame(address(_disputeGame)));
+            address proposer =
+                getProposer(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType);
+            address challenger =
+                getChallenger(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType);
             gameArgs = abi.encodePacked(
                 absolutePrestate, // 32 bytes
                 _impls.mipsImpl, // 20 bytes
@@ -1101,8 +1137,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             );
         }
 
-        IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
-        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame), gameArgs);
+        setDGFImplementation(disputeGameFactory, _gameType, IDisputeGame(newGame), gameArgs);
     }
 
     /// @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
