@@ -670,7 +670,4 @@ abstract contract TimelockGuard is IGuard {
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
     }
-    function _clearTimelockGuard(Safe _targetSafe) internal {
-
-    }
 }

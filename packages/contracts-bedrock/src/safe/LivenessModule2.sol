@@ -159,7 +159,7 @@ abstract contract LivenessModule2 {
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
     ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
     ///      for potential future re-enabling.
-    function clearLivenessModule() public {
+    function clearLivenessModule() external {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(msg.sender);
 
