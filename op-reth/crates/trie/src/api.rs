@@ -2,7 +2,7 @@
 
 use alloy_primitives::{map::HashMap, B256, U256};
 use auto_impl::auto_impl;
-use reth_db_api::DatabaseError;
+use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{updates::TrieUpdates, BranchNodeCompact, HashedPostState, Nibbles};
 use std::fmt::Debug;

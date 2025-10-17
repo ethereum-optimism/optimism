@@ -10,13 +10,16 @@ use crate::{
 };
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_db::{
-    cursor::DbDupCursorRW,
+    cursor::{DbCursorRO, DbCursorRW, DbDupCursorRW},
     mdbx::{init_db_for, DatabaseArguments},
+    transaction::DbTx,
     Database, DatabaseEnv,
 };
 use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
 use std::path::Path;
+
+use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
 
 /// MDBX implementation of `OpProofsStorage`.
 #[derive(Debug)]
@@ -30,6 +33,30 @@ impl MdbxProofsStorage {
         let env = init_db_for::<_, super::models::Tables>(path, DatabaseArguments::default())
             .map_err(OpProofsStorageError::Other)?;
         Ok(Self { env })
+    }
+
+    async fn get_block_number_hash(
+        &self,
+        key: ProofWindowKey,
+    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        let result = self.env.view(|tx| {
+            let mut cursor = tx.cursor_read::<ProofWindow>().ok()?;
+            let value = cursor.seek_exact(key).ok()?;
+            value.map(|(_, val)| (val.0, val.1))
+        });
+        Ok(result?)
+    }
+
+    async fn set_earliest_block_number_hash(
+        &self,
+        block_number: u64,
+        hash: B256,
+    ) -> OpProofsStorageResult<()> {
+        self.env.update(|tx| {
+            let mut cursor = tx.new_cursor::<ProofWindow>()?;
+            cursor.append(ProofWindowKey::EarliestBlock, &BlockNumberHash(block_number, hash))?;
+            Ok(())
+        })?
     }
 }
 
@@ -133,11 +160,16 @@ impl OpProofsStorage for MdbxProofsStorage {
     }
 
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        unimplemented!()
+        self.get_block_number_hash(ProofWindowKey::EarliestBlock).await
     }
 
     async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        unimplemented!()
+        let latest_block = self.get_block_number_hash(ProofWindowKey::LatestBlock).await?;
+        if latest_block.is_some() {
+            return Ok(latest_block);
+        }
+
+        self.get_block_number_hash(ProofWindowKey::EarliestBlock).await
     }
 
     fn storage_trie_cursor(
@@ -203,10 +235,10 @@ impl OpProofsStorage for MdbxProofsStorage {
 
     async fn set_earliest_block_number(
         &self,
-        _block_number: u64,
-        _hash: B256,
+        block_number: u64,
+        hash: B256,
     ) -> OpProofsStorageResult<()> {
-        unimplemented!()
+        self.set_earliest_block_number_hash(block_number, hash).await
     }
 }
 
@@ -629,5 +661,41 @@ mod tests {
                 assert_eq!(v.value.0, branch);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_proof_window() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // Test initial state (no values set)
+        let initial_value = store.get_earliest_block_number().await.expect("get earliest");
+        assert_eq!(initial_value, None);
+
+        // Test setting the value
+        let block_number = 42u64;
+        let hash = B256::random();
+        store.set_earliest_block_number(block_number, hash).await.expect("set earliest");
+
+        // Verify value was stored correctly
+        let retrieved = store.get_earliest_block_number().await.expect("get earliest");
+        assert_eq!(retrieved, Some((block_number, hash)));
+
+        // Test updating with new values
+        let new_block_number = 100u64;
+        let new_hash = B256::random();
+        store.set_earliest_block_number(new_block_number, new_hash).await.expect("update earliest");
+
+        // Verify update worked
+        let updated = store.get_earliest_block_number().await.expect("get updated earliest");
+        assert_eq!(updated, Some((new_block_number, new_hash)));
+
+        // Verify that latest_block falls back to earliest when not set
+        let latest = store.get_latest_block_number().await.expect("get latest");
+        assert_eq!(
+            latest,
+            Some((new_block_number, new_hash)),
+            "Latest block should fall back to earliest when not explicitly set"
+        );
     }
 }
