@@ -54,7 +54,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		SafeDBPath:        "",
 		IsSequencer:       false,
 		IndexingMode:      false,
-		EnableReqRespSync: true,
+		EnableReqRespSync: false, // Changed to false: tests explicitly enable when needed
 		NoDiscovery:       false,
 	}
 }
