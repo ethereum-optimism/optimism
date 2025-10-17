@@ -933,6 +933,16 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame game args are invalid.
+    function test_validate_permissionedDisputeGameInvalidGameArgs_succeeds() public {
+        bytes memory invalidGameArgs = hex"123456";
+        GameType gameType = GameTypes.PERMISSIONED_CANNON;
+        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (gameType)), abi.encode(invalidGameArgs));
+
+        assertEq("PDDG-GARGS-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame absolute prestate is invalid.
     function test_validate_permissionedDisputeGameInvalidAbsolutePrestate_succeeds() public {
         bytes32 badPrestate = bytes32(uint256(0xbadbad));
@@ -1309,6 +1319,16 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     function test_validate_faultDisputeGameInvalidGameType_succeeds() public {
         vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.PERMISSIONED_CANNON));
         assertEq("PLDG-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) game args are invalid.
+    function test_validate_faultDisputeGameInvalidGameArgs_succeeds() public {
+        bytes memory invalidGameArgs = hex"123456";
+        GameType gameType = GameTypes.CANNON;
+        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (gameType)), abi.encode(invalidGameArgs));
+
+        assertEq("PLDG-GARGS-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
