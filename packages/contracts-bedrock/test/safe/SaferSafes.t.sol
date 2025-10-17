@@ -191,7 +191,6 @@ contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
 
         // Verify guard is deactivated
         assertEq(_getGuard(safeInstance), address(0));
-        TimelockGuard timelockGuard = TimelockGuard(address(livenessModule2));
     }
 
     function test_changeOwnershipToFallback_succeeds() external {
