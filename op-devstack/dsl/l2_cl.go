@@ -401,6 +401,6 @@ func (cl *L2CLNode) AppendUnsafePayloadUntilTip(verEL, seqEL *L2ELNode, maxAttem
 			}
 			trial += 1
 			cl.SignalTarget(seqEL, verUnsafe.Number+1)
-			return fmt.Errorf("gap yet filled: %d", gap)
+			return fmt.Errorf("unsafe gap with size %d still exists", gap)
 		}))
 }
