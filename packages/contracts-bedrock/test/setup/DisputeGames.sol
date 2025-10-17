@@ -84,7 +84,7 @@ contract DisputeGames is FeatureFlags {
             _mockGameArg(_dgf, _gameType, offset, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.anchorStateRegistry(), ()), abi.encode(_asr));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.anchorStateRegistry, ()), abi.encode(_asr));
         }
     }
 
@@ -95,7 +95,7 @@ contract DisputeGames is FeatureFlags {
             _mockGameArg(_dgf, _gameType, offset, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.weth(), ()), abi.encode(_weth));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.weth, ()), abi.encode(_weth));
         }
     }
 
