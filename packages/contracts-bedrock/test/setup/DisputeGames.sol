@@ -55,25 +55,47 @@ contract DisputeGames is FeatureFlags {
         return address(gameProxy);
     }
 
-    function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestateValue) internal {
+    function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             uint256 offset = 0;
-            bytes memory value = abi.encodePacked(_prestateValue);
+            bytes memory value = abi.encodePacked(_prestate);
             _mockGameArg(_dgf, _gameType, offset, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(_prestateValue));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(_prestate));
         }
     }
 
-    function mockGameImplVM(IDisputeGameFactory _dgf, GameType _gameType, address _vmValue) internal {
+    function mockGameImplVM(IDisputeGameFactory _dgf, GameType _gameType, address _vm) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             uint256 offset = 32;
-            bytes memory value = abi.encodePacked(_vmValue);
+            bytes memory value = abi.encodePacked(_vm);
             _mockGameArg(_dgf, _gameType, offset, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
-            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(_vmValue));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(_vm));
+        }
+    }
+
+    function mockGameImplASR(IDisputeGameFactory _dgf, GameType _gameType, address _asr) internal {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            uint256 offset = 52;
+            bytes memory value = abi.encodePacked(_asr);
+            _mockGameArg(_dgf, _gameType, offset, value);
+        } else {
+            address gameAddr = address(_dgf.gameImpls(_gameType));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.anchorStateRegistry(), ()), abi.encode(_asr));
+        }
+    }
+
+    function mockGameImplWeth(IDisputeGameFactory _dgf, GameType _gameType, address _weth) internal {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            uint256 offset = 72;
+            bytes memory value = abi.encodePacked(_weth);
+            _mockGameArg(_dgf, _gameType, offset, value);
+        } else {
+            address gameAddr = address(_dgf.gameImpls(_gameType));
+            vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.weth(), ()), abi.encode(_weth));
         }
     }
 
