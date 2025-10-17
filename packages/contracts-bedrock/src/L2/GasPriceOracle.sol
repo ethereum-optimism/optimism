@@ -224,9 +224,9 @@ contract GasPriceOracle is ISemver {
         uint256 operatorConstant = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant();
 
         if (isJovian) {
-            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) * 100, operatorConstant);
+            return _gasUsed * operatorScalar * 100 + operatorConstant;
         } else {
-            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) / 1e6, operatorConstant);
+            return (_gasUsed * operatorScalar / 1e6) + operatorConstant;
         }
     }
 
