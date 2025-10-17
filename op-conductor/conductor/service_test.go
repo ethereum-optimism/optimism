@@ -1077,12 +1077,13 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 
 	// Start the conductor, which should initialize and start the flashblocks handler
 	s.hmon.EXPECT().Start(mock.Anything).Return(nil)
+
+	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized before starting the conductor")
 	err = conductor.Start(s.ctx)
 	s.NoError(err)
 
-	// Wait for handler readiness and capture bound port
-	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized")
 	boundPort := conductor.flashblocksHandler.BoundPort()
+	s.NotZero(boundPort, "bound port should be non-zero")
 
 	// Wait for rollup boost server connection (event-driven, not time-based)
 	select {
