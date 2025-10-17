@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type PayloadSuccessEvent struct {
@@ -51,5 +52,42 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 	err := e.tryUpdateEngineInternal(ctx)
 	if err != nil {
 		e.log.Error("Failed to update engine", "error", err)
+	} else {
+		updateEngineFinish := time.Now()
+		e.logBlockProcessingMetrics(updateEngineFinish, ev)
 	}
+}
+
+func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Time, ev PayloadSuccessEvent) {
+	// Protect against nil pointer dereferences
+	if ev.Envelope == nil || ev.Envelope.ExecutionPayload == nil {
+		e.log.Debug("Envelope.ExecutionPayload not found, skipping block processing metrics")
+		return
+	}
+
+	buildTime := ev.InsertStarted.Sub(ev.BuildStarted)
+	insertTime := updateEngineFinish.Sub(ev.InsertStarted)
+
+	var totalTime time.Duration
+	if !ev.BuildStarted.IsZero() {
+		totalTime = updateEngineFinish.Sub(ev.BuildStarted)
+	} else {
+		totalTime = insertTime
+	}
+
+	// Protect against divide-by-zero
+	var mgasps float64
+	if totalTime > 0 {
+		mgasps = float64(ev.Envelope.ExecutionPayload.GasUsed) * 1000 / float64(totalTime)
+	}
+
+	e.log.Info("Inserted new L2 unsafe block",
+		"hash", ev.Envelope.ExecutionPayload.BlockHash,
+		"number", uint64(ev.Envelope.ExecutionPayload.BlockNumber),
+		"build_time", common.PrettyDuration(buildTime),
+		"insert_time", common.PrettyDuration(insertTime),
+		"total_time", common.PrettyDuration(totalTime),
+		"mgas", float64(ev.Envelope.ExecutionPayload.GasUsed)/1000000,
+		"mgasps", mgasps,
+	)
 }
