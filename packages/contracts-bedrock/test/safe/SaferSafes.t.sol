@@ -6,7 +6,6 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
-import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
