@@ -1,7 +1,7 @@
 //! Live trie collector for external proofs storage.
 
 use crate::{
-    api::{BlockStateDiff, OpProofsStorage},
+    api::{BlockStateDiff, OpProofsStorage, OpProofsStorageError},
     provider::OpProofsStateProviderRef,
 };
 use reth_evm::{execute::Executor, ConfigureEvm};
@@ -49,25 +49,23 @@ where
             self.storage.get_earliest_block_number().await?,
             self.storage.get_latest_block_number().await?,
         ) else {
-            return Err(eyre::eyre!("No blocks stored"));
+            return Err(OpProofsStorageError::NoBlocksFound.into());
         };
 
         let fetch_block_duration = start.elapsed();
 
         let parent_block_number = block.number() - 1;
         if parent_block_number < earliest {
-            return Err(eyre::eyre!(
-                "Parent block number is less than earliest stored block number"
-            ));
+            return Err(OpProofsStorageError::UnknownParent.into());
         }
 
         if parent_block_number > latest {
-            return Err(eyre::eyre!(
-                "Cannot execute block updates for block {} without parent state {} (latest stored block number: {})",
+            return Err(OpProofsStorageError::BlockUpdateFailed(
                 block.number(),
                 parent_block_number,
-                latest
-            ));
+                latest,
+            )
+            .into());
         }
 
         let block_number = block.number();
@@ -97,12 +95,12 @@ where
         let calculate_state_root_duration = start.elapsed() - execute_block_duration;
 
         if state_root != block.state_root() {
-            return Err(eyre::eyre!(
-                "State root mismatch for block {} (have: {}, expected: {})",
+            return Err(OpProofsStorageError::StateRootMismatch(
                 block.number(),
                 state_root,
-                block.state_root()
-            ));
+                block.state_root(),
+            )
+            .into());
         }
 
         self.storage
