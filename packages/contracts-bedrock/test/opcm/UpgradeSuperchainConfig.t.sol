@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 import { UpgradeSuperchainConfig } from "scripts/deploy/UpgradeSuperchainConfig.s.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -12,10 +11,10 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 /// @title MockOPCM
 /// @notice This contract is used to mock the OPCM contract and emit an event which we check for in the test.
 contract MockOPCM {
-    event UpgradeCalled(address indexed superchainConfig, address indexed superchainProxyAdmin);
+    event UpgradeCalled(address indexed superchainConfig);
 
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) public {
-        emit UpgradeCalled(address(_superchainConfig), address(_superchainProxyAdmin));
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) public {
+        emit UpgradeCalled(address(_superchainConfig));
     }
 }
 
@@ -27,9 +26,8 @@ contract UpgradeSuperchainConfig_Run_Test is Test {
     UpgradeSuperchainConfig upgradeSuperchainConfig;
     address prank;
     ISuperchainConfig superchainConfig;
-    IProxyAdmin superchainProxyAdmin;
 
-    event UpgradeCalled(address indexed superchainConfig, address indexed superchainProxyAdmin);
+    event UpgradeCalled(address indexed superchainConfig);
 
     /// @notice Sets up the test suite.
     function setUp() public virtual {
@@ -38,11 +36,9 @@ contract UpgradeSuperchainConfig_Run_Test is Test {
         input.opcm = IOPContractsManager(address(mockOPCM));
 
         superchainConfig = ISuperchainConfig(makeAddr("superchainConfig"));
-        superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         prank = makeAddr("prank");
 
         input.superchainConfig = superchainConfig;
-        input.superchainProxyAdmin = superchainProxyAdmin;
         input.prank = prank;
 
         upgradeSuperchainConfig = new UpgradeSuperchainConfig();
@@ -52,7 +48,7 @@ contract UpgradeSuperchainConfig_Run_Test is Test {
     function test_upgrade_succeeds() public {
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
-        emit UpgradeCalled(address(superchainConfig), address(superchainProxyAdmin));
+        emit UpgradeCalled(address(superchainConfig));
         upgradeSuperchainConfig.run(input);
     }
 
@@ -72,10 +68,5 @@ contract UpgradeSuperchainConfig_Run_Test is Test {
         vm.expectRevert("UpgradeSuperchainConfig: superchainConfig not set");
         upgradeSuperchainConfig.run(input);
         input.superchainConfig = ISuperchainConfig(address(superchainConfig));
-
-        input.superchainProxyAdmin = IProxyAdmin(address(0));
-        vm.expectRevert("UpgradeSuperchainConfig: superchainProxyAdmin not set");
-        upgradeSuperchainConfig.run(input);
-        input.superchainProxyAdmin = IProxyAdmin(address(superchainProxyAdmin));
     }
 }
