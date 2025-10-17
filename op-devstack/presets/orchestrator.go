@@ -64,7 +64,6 @@ func DoMain(m TestingM, opts ...stack.CommonOption) {
 		cfg := flags.ReadTestConfig()
 		logHandler := oplog.NewLogHandler(os.Stdout, cfg.LogConfig)
 		logHandler = logfilter.WrapFilterHandler(logHandler)
-		logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 		logHandler = logfilter.WrapContextHandler(logHandler)
 		// The default can be changed using the WithLogFilters option which replaces this default
 		logger := log.NewLogger(logHandler)
