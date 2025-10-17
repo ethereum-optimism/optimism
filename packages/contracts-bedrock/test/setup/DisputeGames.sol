@@ -55,11 +55,35 @@ contract DisputeGames is FeatureFlags {
         return address(gameProxy);
     }
 
+    enum GameArg {
+        PRESTATE,
+        VM,
+        ASR,
+        WETH,
+        L2_CHAIN_ID,
+        PROPOSER,
+        CHALLENGER
+    }
+
+    /// @notice Thrown when an unsupported game arg is provided
+    error DisputeGames_UnsupportedGameArg(GameArg gameArg);
+
+    function gameArgsOffset(GameArg _gameArg) internal pure returns (uint256) {
+        if (_gameArg == GameArg.PRESTATE) return 0;
+        if (_gameArg == GameArg.VM) return 32;
+        if (_gameArg == GameArg.ASR) return 52;
+        if (_gameArg == GameArg.WETH) return 72;
+        if (_gameArg == GameArg.L2_CHAIN_ID) return 92;
+        if (_gameArg == GameArg.PROPOSER) return 124;
+        if (_gameArg == GameArg.CHALLENGER) return 144;
+
+        revert DisputeGames_UnsupportedGameArg(_gameArg);
+    }
+
     function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 0;
             bytes memory value = abi.encodePacked(_prestate);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.PRESTATE, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()), abi.encode(_prestate));
@@ -68,9 +92,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplVM(IDisputeGameFactory _dgf, GameType _gameType, address _vm) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 32;
             bytes memory value = abi.encodePacked(_vm);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.VM, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(_vm));
@@ -79,9 +102,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplASR(IDisputeGameFactory _dgf, GameType _gameType, address _asr) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 52;
             bytes memory value = abi.encodePacked(_asr);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.ASR, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.anchorStateRegistry, ()), abi.encode(_asr));
@@ -90,9 +112,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplWeth(IDisputeGameFactory _dgf, GameType _gameType, address _weth) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 72;
             bytes memory value = abi.encodePacked(_weth);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.WETH, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.weth, ()), abi.encode(_weth));
@@ -101,9 +122,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplL2ChainId(IDisputeGameFactory _dgf, GameType _gameType, uint256 _chainId) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 92;
             bytes memory value = abi.encodePacked(_chainId);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.L2_CHAIN_ID, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(_chainId));
@@ -112,9 +132,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplProposer(IDisputeGameFactory _dgf, GameType _gameType, address _proposer) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 124;
             bytes memory value = abi.encodePacked(_proposer);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.PROPOSER, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(_proposer));
@@ -123,9 +142,8 @@ contract DisputeGames is FeatureFlags {
 
     function mockGameImplChallenger(IDisputeGameFactory _dgf, GameType _gameType, address _challenger) internal {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            uint256 offset = 144;
             bytes memory value = abi.encodePacked(_challenger);
-            _mockGameArg(_dgf, _gameType, offset, value);
+            _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);
         } else {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(_challenger));
@@ -135,13 +153,15 @@ contract DisputeGames is FeatureFlags {
     function _mockGameArg(
         IDisputeGameFactory _dgf,
         GameType _gameType,
-        uint256 _gameArgsOffset,
+        GameArg _gameArg,
         bytes memory _value
     )
         private
     {
         bytes memory modifiedGameArgs = _dgf.gameArgs(_gameType);
-        modifiedGameArgs.overwriteAtOffset(_gameArgsOffset, _value);
+        uint256 offset = gameArgsOffset(_gameArg);
+        modifiedGameArgs.overwriteAtOffset(offset, _value);
+
         vm.mockCall(
             address(_dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType)), abi.encode(modifiedGameArgs)
         );
