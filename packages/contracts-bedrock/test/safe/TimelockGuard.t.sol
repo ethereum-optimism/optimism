@@ -955,6 +955,9 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         // Ensure that the call is below a safe gas limit. The EIP-7825 limit is 16,777,216, so 12M is a safe limit.
         assertLt(vm.lastCallGas().gasTotalUsed, 12_000_000);
 
+        // Ensure the remaining pending transactions are 50 as expected
+        assertEq(timelockGuard.pendingTransactions(Safe(payable(address(safeInstance.safe)))).length, 50);
+
         // Verify configuration is cleared
         assertEq(timelockGuard.timelockConfiguration(safe), 0);
         assertEq(timelockGuard.cancellationThreshold(safe), 0);
