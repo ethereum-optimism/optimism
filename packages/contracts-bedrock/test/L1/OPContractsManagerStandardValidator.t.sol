@@ -7,7 +7,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
 
 // Libraries
-import { GameType } from "src/dispute/lib/LibUDT.sol";
+import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
@@ -43,6 +43,8 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IBigStepper } from "../../interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
+import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
+import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -951,6 +953,57 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame ASR address is invalid.
+    function test_validate_permissionedDisputeGameInvalidASR_succeeds() public {
+        address badASR = address(0xbad);
+        mockGameImplASR(dgf, GameTypes.PERMISSIONED_CANNON, badASR);
+
+        // Mock invalid values
+        vm.mockCall(badASR, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
+        vm.mockCall(badASR, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+
+        // Mock valid return values
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
+        );
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+
+        assertEq("PDDG-ANCHORP-10,PDDG-ANCHORP-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame Weth address is invalid.
+    function test_validate_permissionedDisputeGameInvalidWeth_succeeds() public {
+        address badWeth = address(0xbad);
+        mockGameImplWeth(dgf, GameTypes.PERMISSIONED_CANNON, badWeth);
+
+        // Mock invalid values
+        vm.mockCall(badWeth, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
+        vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+
+        // Mock valid return values
+        vm.mockCall(
+            badWeth,
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+        );
+        vm.mockCall(
+            badWeth,
+            abi.encodeCall(IDelayedWETH.delay, ()),
+            abi.encode(opcm.opcmStandardValidator().withdrawalDelaySeconds())
+        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
+
+        assertEq("PDDG-DWETH-10,PDDG-DWETH-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame VM's state version is invalid.
     function test_validate_permissionedDisputeGameInvalidVMStateVersion_succeeds() public {
         vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
@@ -1276,6 +1329,57 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
 
         assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) ASR address is invalid.
+    function test_validate_faultDisputeGameInvalidASR_succeeds() public {
+        address badASR = address(0xbad);
+        mockGameImplASR(dgf, GameTypes.CANNON, badASR);
+
+        // Mock invalid values
+        vm.mockCall(badASR, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
+        vm.mockCall(badASR, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+
+        // Mock valid return values
+        vm.mockCall(
+            badASR,
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(bytes32(uint256(0x123))), uint256(123))
+        );
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(dgf));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
+        vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
+
+        assertEq("PLDG-ANCHORP-10,PLDG-ANCHORP-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) Weth address is invalid.
+    function test_validate_faultDisputeGameInvalidWeth_succeeds() public {
+        address badWeth = address(0xbad);
+        mockGameImplWeth(dgf, GameTypes.CANNON, badWeth);
+
+        // Mock invalid values
+        vm.mockCall(badWeth, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
+        vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+
+        // Mock valid return values
+        vm.mockCall(
+            badWeth,
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+        );
+        vm.mockCall(
+            badWeth,
+            abi.encodeCall(IDelayedWETH.delay, ()),
+            abi.encode(opcm.opcmStandardValidator().withdrawalDelaySeconds())
+        );
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
+        vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
+
+        assertEq("PLDG-DWETH-10,PLDG-DWETH-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
