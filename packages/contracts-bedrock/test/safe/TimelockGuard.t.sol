@@ -727,6 +727,14 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
             safeInstance.owners[0]
         );
     }
+
+    function test_checkTransaction_notOwner_reverts() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        vm.expectRevert(TimelockGuard.TimelockGuard_NotOwner.selector);
+        dummyTx.executeTransaction(makeAddr("non-owner"));
+    }
 }
 
 /// @title TimelockGuard_MaxCancellationThreshold_Test
