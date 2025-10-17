@@ -12,6 +12,9 @@ import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+
 /// @title LivenessModule
 /// @notice This module is intended to be used in conjunction with the LivenessGuard. In the event
 ///         that an owner of the safe is not recorded by the guard during the liveness interval,
@@ -53,9 +56,6 @@ contract LivenessModule is ISemver {
     ///         This can be updated by replacing with a new module.
     address internal immutable FALLBACK_OWNER;
 
-    /// @notice The storage slot used in the safe to store the guard address
-    ///         keccak256("guard_manager.guard.address")
-    uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     /// @notice Semantic version.
     /// @custom:semver 1.2.2
@@ -260,7 +260,7 @@ contract LivenessModule is ISemver {
 
         // Check that the guard has not been changed
         require(
-            address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
+            address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(uint256(Constants.GUARD_STORAGE_SLOT), 1))))),
             "LivenessModule: guard has been changed"
         );
     }

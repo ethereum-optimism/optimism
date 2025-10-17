@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
@@ -57,9 +58,7 @@ abstract contract LivenessModule2_TestUtils is Test, SafeTestTools {
 
     /// @notice Helper to get the guard address from a Safe
     function _getGuard(SafeInstance memory _safe) internal view returns (address) {
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_safe.safe.getStorageAt(uint256(guardSlot), 1), (address));
+        address guard = abi.decode(_safe.safe.getStorageAt(uint256(Constants.GUARD_STORAGE_SLOT), 1), (address));
         return guard;
     }
 }

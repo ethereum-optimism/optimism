@@ -9,6 +9,7 @@ import { Guard as IGuard, GuardManager } from "safe-contracts/base/GuardManager.
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
@@ -204,9 +205,7 @@ abstract contract TimelockGuard is IGuard {
     /// @param _safe The Safe address
     /// @return The current guard address
     function _isGuardEnabled(Safe _safe) internal view returns (bool) {
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
+        address guard = abi.decode(_safe.getStorageAt(uint256(Constants.GUARD_STORAGE_SLOT), 1), (address));
         return guard == address(this);
     }
 

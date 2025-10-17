@@ -8,6 +8,7 @@ import {
     LivenessModuleConfig
 } from "scripts/deploy/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
@@ -16,8 +17,6 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
-    // keccak256("guard_manager.guard.address")
-    bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
     function setUp() public override {
         super.setUp();

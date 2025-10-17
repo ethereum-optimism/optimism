@@ -31,6 +31,10 @@ library Constants {
     /// @dev `bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)`
     bytes32 internal constant PROXY_OWNER_ADDRESS = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
+    /// @notice The storage slot that holds the guard address in Safe contracts.
+    /// @dev `keccak256("guard_manager.guard.address")`
+    bytes32 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+
     /// @notice The address that represents ether when dealing with ERC20 token addresses.
     address internal constant ETHER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
