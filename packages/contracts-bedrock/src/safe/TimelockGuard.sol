@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Safe
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { Guard as IGuard, GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
