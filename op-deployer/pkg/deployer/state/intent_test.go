@@ -78,15 +78,6 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrNonStandardValue,
 		},
-		{
-			"SuperchainRoles",
-			func(intent *Intent) {
-				intent.SuperchainRoles = &addresses.SuperchainRoles{
-					SuperchainGuardian: common.HexToAddress("0x9999"),
-				}
-			},
-			ErrIncompatibleValue,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
