@@ -301,12 +301,11 @@ where
 
     async fn store_account_branches(
         &self,
-        block_number: u64,
-        updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let count = updates.len();
+        let count = account_nodes.len();
         let start = Instant::now();
-        let result = self.storage.store_account_branches(block_number, updates).await;
+        let result = self.storage.store_account_branches(account_nodes).await;
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -323,13 +322,12 @@ where
 
     async fn store_storage_branches(
         &self,
-        block_number: u64,
         hashed_address: B256,
-        items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
-        let count = items.len();
+        let count = storage_nodes.len();
         let start = Instant::now();
-        let result = self.storage.store_storage_branches(block_number, hashed_address, items).await;
+        let result = self.storage.store_storage_branches(hashed_address, storage_nodes).await;
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -347,11 +345,10 @@ where
     async fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
-        block_number: u64,
     ) -> OpProofsStorageResult<()> {
         let count = accounts.len();
         let start = Instant::now();
-        let result = self.storage.store_hashed_accounts(accounts, block_number).await;
+        let result = self.storage.store_hashed_accounts(accounts).await;
         let duration = start.elapsed();
 
         // Record per-item duration
@@ -370,12 +367,10 @@ where
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
-        block_number: u64,
     ) -> OpProofsStorageResult<()> {
         let count = storages.len();
         let start = Instant::now();
-        let result =
-            self.storage.store_hashed_storages(hashed_address, storages, block_number).await;
+        let result = self.storage.store_hashed_storages(hashed_address, storages).await;
         let duration = start.elapsed();
 
         // Record per-item duration

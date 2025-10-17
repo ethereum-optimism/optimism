@@ -387,13 +387,12 @@ impl OpProofsStorage for InMemoryProofsStorage {
 
     async fn store_account_branches(
         &self,
-        block_number: u64,
         updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (path, branch) in updates {
-            inner.account_branches.insert((block_number, path), branch);
+            inner.account_branches.insert((0, path), branch);
         }
 
         Ok(())
@@ -401,14 +400,13 @@ impl OpProofsStorage for InMemoryProofsStorage {
 
     async fn store_storage_branches(
         &self,
-        block_number: u64,
         hashed_address: B256,
         items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (path, branch) in items {
-            inner.storage_branches.insert((block_number, hashed_address, path), branch);
+            inner.storage_branches.insert((0, hashed_address, path), branch);
         }
 
         Ok(())
@@ -417,12 +415,11 @@ impl OpProofsStorage for InMemoryProofsStorage {
     async fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
-        block_number: u64,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (address, account) in accounts {
-            inner.hashed_accounts.insert((block_number, address), account);
+            inner.hashed_accounts.insert((0, address), account);
         }
 
         Ok(())
@@ -432,12 +429,11 @@ impl OpProofsStorage for InMemoryProofsStorage {
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
-        block_number: u64,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
         for (slot, value) in storages {
-            inner.hashed_storages.insert((block_number, hashed_address, slot), value);
+            inner.hashed_storages.insert((0, hashed_address, slot), value);
         }
 
         Ok(())
@@ -648,7 +644,7 @@ mod tests {
         let account = Account { nonce: 1, balance: U256::from(100), bytecode_hash: None };
         let hashed_address = B256::random();
 
-        storage.store_hashed_accounts(vec![(hashed_address, Some(account))], 2).await?;
+        storage.store_hashed_accounts(vec![(hashed_address, Some(account))]).await?;
 
         let _cursor = storage.account_hashed_cursor(10)?;
         // Note: cursor testing would require more complex setup with proper seek/next operations

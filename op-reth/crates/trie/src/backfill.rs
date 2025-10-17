@@ -214,7 +214,6 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
                         .into_iter()
                         .map(|(address, account)| (address, Some(account)))
                         .collect(),
-                    0,
                 )
                 .await?;
             Ok(())
@@ -247,7 +246,7 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
 
             // Store each address's storage entries
             for (address, storages) in by_address {
-                self.storage.store_hashed_storages(address, storages, 0).await?;
+                self.storage.store_hashed_storages(address, storages).await?;
             }
             Ok(())
         };
@@ -272,7 +271,6 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
         let save_fn = async |entries: Vec<(StoredNibbles, BranchNodeCompact)>| -> eyre::Result<()> {
             self.storage
                 .store_account_branches(
-                    0,
                     entries.into_iter().map(|(path, branch)| (path.0, Some(branch))).collect(),
                 )
                 .await?;
@@ -309,7 +307,7 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
 
             // Store each address's storage trie branches
             for (address, branches) in by_address {
-                self.storage.store_storage_branches(0, address, branches).await?;
+                self.storage.store_storage_branches(address, branches).await?;
             }
             Ok(())
         };

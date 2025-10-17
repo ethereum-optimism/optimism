@@ -106,23 +106,20 @@ pub trait OpProofsStorage: Send + Sync + Debug {
     /// capture, use [store_trie_updates](OpProofsStorage::store_trie_updates).
     fn store_account_branches(
         &self,
-        block_number: u64,
-        updates: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Store a batch of storage trie branches. Used for saving existing state.
     fn store_storage_branches(
         &self,
-        block_number: u64,
         hashed_address: B256,
-        items: Vec<(Nibbles, Option<BranchNodeCompact>)>,
+        storage_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Store a batch of account trie leaf nodes. Used for saving existing state.
     fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
-        block_number: u64,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Store a batch of storage trie leaf nodes. Used for saving existing state.
@@ -130,7 +127,6 @@ pub trait OpProofsStorage: Send + Sync + Debug {
         &self,
         hashed_address: B256,
         storages: Vec<(B256, U256)>,
-        block_number: u64,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Get the earliest block number and hash that has been stored
