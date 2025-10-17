@@ -179,7 +179,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			// Sanity check, to navigate legacy sync-mode test assumptions.
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
-			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
+			// p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()

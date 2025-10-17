@@ -226,14 +226,6 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.Engine.TryUpdateEngine(s.Ctx)
 
-	if s.Engine.IsEngineSyncing() {
-		// The pipeline cannot move forwards if doing EL sync.
-		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
-			"unsafe_head", s.Engine.UnsafeL2Head())
-		s.StepDeriver.ResetStepBackoff(s.Ctx)
-		return
-	}
-
 	// Any now processed forkchoice updates will trigger CL-sync payload processing, if any payload is queued up.
 
 	// Since we don't force attributes to be processed at this point,
@@ -243,5 +235,4 @@ func (s *SyncDeriver) SyncStep() {
 	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
 	// to generate new attributes, if no attributes are known already.
 	s.Engine.RequestPendingSafeUpdate(s.Ctx)
-
 }

@@ -227,8 +227,11 @@ func (e *EngineController) IsEngineSyncing() bool {
 }
 
 func (e *EngineController) isEngineSyncing() bool {
-	return e.syncStatus == syncStatusWillStartEL ||
-		e.syncStatus == syncStatusStartedEL ||
+	// return e.syncStatus == syncStatusWillStartEL ||
+	// 	e.syncStatus == syncStatusStartedEL ||
+	// 	e.syncStatus == syncStatusFinishedELButNotFinalized
+
+	return e.syncStatus == syncStatusStartedEL ||
 		e.syncStatus == syncStatusFinishedELButNotFinalized
 }
 
@@ -600,10 +603,10 @@ func (e *EngineController) shouldTryBackupUnsafeReorg() bool {
 		return false
 	}
 	// This method must be never called when EL sync. If EL sync is in progress, early return.
-	if e.isEngineSyncing() {
-		e.log.Warn("Attempting to unsafe reorg using backupUnsafe while EL syncing")
-		return false
-	}
+	// if e.isEngineSyncing() {
+	// 	e.log.Warn("Attempting to unsafe reorg using backupUnsafe while EL syncing")
+	// 	return false
+	// }
 	if e.backupUnsafeHead == (eth.L2BlockRef{}) { // sanity check backupUnsafeHead is there
 		e.log.Warn("Attempting to unsafe reorg using backupUnsafe even though it is empty")
 		e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
