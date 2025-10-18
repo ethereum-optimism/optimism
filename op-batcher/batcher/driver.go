@@ -625,12 +625,12 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			return
 		}
 
-		var rpcErr rpc.Error
-		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError() {
+		if isCriticalThrottlingRPCError(err) {
 			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint,
-			// and shut down if this RPC method is not available.
+			// and shut down if this RPC method is not available or returns another application-level error.
 			l.shutdownOnCriticalError(fmt.Errorf("SetMaxDASize RPC method unavailable at %s,  either enable it or disable throttling: %w", endpoint, err))
 		} else if err != nil {
+			// Transport-level errors are retried.
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
 			return
@@ -663,6 +663,11 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			updateParams()
 		}
 	}
+}
+
+func isCriticalThrottlingRPCError(err error) bool {
+	var rpcErr rpc.Error
+	return errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError()
 }
 
 func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
