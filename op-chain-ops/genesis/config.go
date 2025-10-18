@@ -1115,17 +1115,23 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 
 // GenesisSystemConfig converts a DeployConfig to a eth.SystemConfig. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
-	return eth.SystemConfig{
-		BatcherAddr:       d.BatchSenderAddress,
-		Overhead:          eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-		Scalar:            d.FeeScalar(),
-		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
-		OperatorFeeParams: d.OperatorFeeParams(),
-		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
-		// reflect the genesis state and is not used inside derivation.
-		DAFootprintGasScalar: d.DAFootprintGasScalar,
+func (d *DeployConfig) GenesisSystemConfig() eth.NullableSystemConfig {
+	s := eth.NullableSystemConfig{
+		BatcherAddr: d.BatchSenderAddress,
+		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+		Scalar:      d.FeeScalar(),
+		GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 	}
+
+	operatorFeeParams := eth.Bytes32(d.OperatorFeeParams())
+	s.OperatorFeeParams = &operatorFeeParams
+
+	// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
+	// reflect the genesis state and is not used inside derivation.
+	daFootprintGasScalar := uint16(d.DAFootprintGasScalar)
+	s.DAFootprintGasScalar = &daFootprintGasScalar
+
+	return s
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.

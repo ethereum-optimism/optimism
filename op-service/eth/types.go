@@ -628,6 +628,48 @@ type SystemConfig struct {
 	MarshalPreHolocene bool `json:"-"`
 }
 
+// NullableSystemConfig is a SystemConfig where fields introduced in hardfforks
+// are optional. It should be kept in sync with the SystemConfig type.
+type NullableSystemConfig struct {
+	// Bedrock fields
+	BatcherAddr common.Address `json:"batcherAddr"`
+	Overhead    Bytes32        `json:"overhead"`
+	Scalar      Bytes32        `json:"scalar"`
+	GasLimit    uint64         `json:"gasLimit"`
+
+	// Holocene fields
+	EIP1559Params *Bytes8 `json:"eip1559Params"`
+
+	// Isthmus fields
+	OperatorFeeParams *Bytes32 `json:"operatorFeeParams"`
+
+	// Jovian fields
+	MinBaseFee           *uint64 `json:"minBaseFee"`
+	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar"`
+}
+
+func (sysCfg *NullableSystemConfig) ToSystemConfig() SystemConfig {
+	s := SystemConfig{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    sysCfg.Overhead,
+		Scalar:      sysCfg.Scalar,
+		GasLimit:    sysCfg.GasLimit,
+	}
+	if sysCfg.EIP1559Params != nil {
+		s.EIP1559Params = *sysCfg.EIP1559Params
+	}
+	if sysCfg.OperatorFeeParams != nil {
+		s.OperatorFeeParams = *sysCfg.OperatorFeeParams
+	}
+	if sysCfg.MinBaseFee != nil {
+		s.MinBaseFee = *sysCfg.MinBaseFee
+	}
+	if sysCfg.DAFootprintGasScalar != nil {
+		s.DAFootprintGasScalar = *sysCfg.DAFootprintGasScalar
+	}
+	return s
+}
+
 func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
 	if daFootprintGasScalar == 0 {
 		sysCfg.DAFootprintGasScalar = DAFootprintGasScalarDefault
@@ -678,7 +720,7 @@ type EcotoneScalars struct {
 	BaseFeeScalar     uint32
 }
 
-func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
+func (sysCfg SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
 		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
 			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in

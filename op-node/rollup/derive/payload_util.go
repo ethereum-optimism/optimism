@@ -59,7 +59,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 				"expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s",
 				rollupCfg.Genesis.L2.Number, payload.BlockHash, rollupCfg.Genesis.L2.Hash)
 		}
-		return rollupCfg.Genesis.SystemConfig, nil
+		return rollupCfg.Genesis.SystemConfig.ToSystemConfig(), nil
 	}
 
 	if len(payload.Transactions) == 0 {

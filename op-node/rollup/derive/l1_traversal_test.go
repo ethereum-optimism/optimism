@@ -26,7 +26,7 @@ func TestL1TraversalNext(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	a := testutils.RandomBlockRef(rng)
 	// Load up the initial state with a reset
-	l1Cfg := eth.SystemConfig{
+	l1Cfg := eth.NullableSystemConfig{
 		BatcherAddr: testutils.RandomAddress(rng),
 		Overhead:    [32]byte{42},
 		Scalar:      [32]byte{69},
@@ -38,7 +38,7 @@ func TestL1TraversalNext(t *testing.T) {
 	}
 	tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, nil)
 
-	_ = tr.Reset(context.Background(), a, l1Cfg)
+	_ = tr.Reset(context.Background(), a, l1Cfg.ToSystemConfig())
 
 	// First call should always succeed
 	ref, err := tr.NextL1Block(context.Background())
@@ -71,7 +71,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 		name         string
 		startBlock   eth.L1BlockRef
 		nextBlock    eth.L1BlockRef
-		initialL1Cfg eth.SystemConfig
+		initialL1Cfg eth.NullableSystemConfig
 		l1Receipts   []*types.Receipt
 		fetcherErr   error
 		expectedErr  error
@@ -80,7 +80,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 			name:       "simple extension",
 			startBlock: a,
 			nextBlock:  b,
-			initialL1Cfg: eth.SystemConfig{
+			initialL1Cfg: eth.NullableSystemConfig{
 				BatcherAddr: common.Address{11},
 				Overhead:    [32]byte{22},
 				Scalar:      [32]byte{33},
@@ -134,7 +134,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 			}
 			tr := NewL1Traversal(testlog.Logger(t, log.LevelError), cfg, src)
 			// Load up the initial state with a reset
-			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
+			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg.ToSystemConfig())
 
 			// Advance it + assert output
 			err := tr.AdvanceL1Block(context.Background())

@@ -198,7 +198,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Number: 0,
 			},
 			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
-			SystemConfig: SystemConfigFromDeployConfig(deployConf),
+			SystemConfig: deployConf.GenesisSystemConfig(),
 		},
 		BlockTime:              deployConf.L2BlockTime,
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
@@ -242,10 +242,6 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
-}
-
-func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.SystemConfig {
-	return deployConfig.GenesisSystemConfig()
 }
 
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {

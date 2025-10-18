@@ -71,7 +71,7 @@ func TestAttributesHandler(t *testing.T) {
 			L1:     refA.ID(),
 			L2:     refA0.ID(),
 			L2Time: refA0.Time,
-			SystemConfig: eth.SystemConfig{
+			SystemConfig: eth.NullableSystemConfig{
 				BatcherAddr: common.Address{42},
 				Overhead:    [32]byte{31: 123},
 				Scalar:      [32]byte{0: 0, 31: 42},
@@ -87,7 +87,7 @@ func TestAttributesHandler(t *testing.T) {
 
 	emptyWithdrawals := make(types.Withdrawals, 0)
 
-	a1L1Info, err := derive.L1InfoDepositBytes(cfg, params.MergedTestChainConfig, cfg.Genesis.SystemConfig, 1, aL1Info, refA0.Time+cfg.BlockTime)
+	a1L1Info, err := derive.L1InfoDepositBytes(cfg, params.MergedTestChainConfig, cfg.Genesis.SystemConfig.ToSystemConfig(), 1, aL1Info, refA0.Time+cfg.BlockTime)
 	require.NoError(t, err)
 	parentBeaconBlockRoot := testutils.RandomHash(rng)
 	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{

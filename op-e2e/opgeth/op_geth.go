@@ -75,7 +75,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 			Number: l2GenesisBlock.NumberU64(),
 		},
 		L2Time:       l2GenesisBlock.Time(),
-		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
+		SystemConfig: cfg.DeployConfig.GenesisSystemConfig(),
 	}
 
 	var node services.EthInstance
@@ -115,7 +115,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 		node:          node,
 		L2Client:      l2Client,
 		l2Engine:      l2Engine,
-		SystemConfig:  rollupGenesis.SystemConfig,
+		SystemConfig:  rollupGenesis.SystemConfig.ToSystemConfig(),
 		L1ChainConfig: l1Genesis.Config,
 		L2ChainConfig: l2Genesis.Config,
 		L1Head:        eth.BlockToInfo(l1Block),
