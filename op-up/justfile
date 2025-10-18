@@ -18,3 +18,11 @@ artifacts:
 
 clean:
     rm -f {{ BINARY }}
+
+run INTENT="":
+    #!/usr/bin/env bash
+    if [ -n "{{ INTENT }}" ]; then
+        ./bin/op-up --intent {{ INTENT }}
+    else
+        ./bin/op-up
+    fi

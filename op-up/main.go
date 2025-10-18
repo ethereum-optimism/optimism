@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
@@ -65,6 +67,11 @@ var (
 			return filepath.Join(parentDir, ".op-up")
 		}(),
 	}
+	intentFlag = &cli.PathFlag{
+		Name:    "intent",
+		Usage:   "the path to a custom intent.toml file. If not specified, a default intent will be generated.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "INTENT"),
+	}
 )
 
 func main() {
@@ -83,7 +90,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
 	app.Name = "op-up"
 	app.Usage = "deploys an in-memory OP Stack devnet."
-	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag})
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag, intentFlag})
 	// The default OnUsageError behavior will print the error twice: once in the cli package and
 	// once in our main function.
 	// The function below prints help and returns the error for further handling/error messages.
@@ -94,12 +101,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	app.Action = func(cliCtx *cli.Context) error {
-		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name))
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.String(intentFlag.Name))
 	}
 	return app.RunContext(ctx, args)
 }
 
-func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, intentPath string) error {
 	fmt.Fprintf(stderr, "%s\n", asciiArt)
 
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
@@ -115,7 +122,29 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 	p := newP(ctx, stderr)
 	defer p.Close()
 
-	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
+	var l1ChainID, l2ChainID eth.ChainID
+	var intent *state.Intent
+	if intentPath != "" {
+		// Load intent from file
+		var err error
+		intent, err = jsonutil.LoadTOML[state.Intent](intentPath)
+		if err != nil {
+			return fmt.Errorf("failed to load intent: %w", err)
+		}
+		if len(intent.Chains) == 0 {
+			return fmt.Errorf("intent must have at least one chain")
+		}
+		// Load ids from custom intent
+		l1ChainID = eth.ChainIDFromUInt64(intent.L1ChainID)
+		l2ChainID = eth.ChainIDFromBytes32([32]byte(intent.Chains[0].ID))
+	} else {
+		// Use sysgo default ids
+		l1ChainID = sysgo.DefaultL1ID
+		l2ChainID = sysgo.DefaultL2AID
+	}
+
+	ids := sysgo.NewDefaultMinimalSystemIDs(l1ChainID, l2ChainID)
+
 	opts := stack.Combine(
 		sysgo.WithMnemonicKeys(devkeys.TestMnemonic),
 
@@ -124,6 +153,7 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
 			sysgo.WithEmbeddedContractSources(),
 			sysgo.WithCommons(ids.L1.ChainID()),
 			sysgo.WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+			sysgo.WithCustomIntent(intent),
 		),
 		sysgo.WithDeployerPipelineOption(sysgo.WithDeployerCacheDir(deployerCacheDir)),
 

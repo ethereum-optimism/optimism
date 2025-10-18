@@ -244,6 +244,59 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 	}
 }
 
+func WithCustomIntent(intent *state.Intent) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if intent == nil {
+			return
+		}
+		if intent.L1ContractsLocator != nil {
+			builder.WithL1ContractsLocator(intent.L1ContractsLocator)
+		}
+		if intent.L2ContractsLocator != nil {
+			builder.WithL2ContractsLocator(intent.L2ContractsLocator)
+		}
+
+		if intent.GlobalDeployOverrides["devFeatureBitmap"] != nil {
+			builder.WithGlobalOverride("devFeatureBitmap", intent.GlobalDeployOverrides["devFeatureBitmap"])
+		}
+
+		for _, chainIntent := range intent.Chains {
+			l2ChainID := eth.ChainIDFromBytes32(chainIntent.ID)
+			var l2Config intentbuilder.L2Configurator
+			for _, l2 := range builder.L2s() {
+				if l2.ChainID() == l2ChainID {
+					l2Config = l2
+					break
+				}
+			}
+
+			l2Config.WithBaseFeeVaultRecipient(chainIntent.BaseFeeVaultRecipient)
+			l2Config.WithSequencerFeeVaultRecipient(chainIntent.SequencerFeeVaultRecipient)
+			l2Config.WithL1FeeVaultRecipient(chainIntent.L1FeeVaultRecipient)
+
+			l2Config.WithL1ProxyAdminOwner(chainIntent.Roles.L1ProxyAdminOwner)
+			l2Config.WithL2ProxyAdminOwner(chainIntent.Roles.L2ProxyAdminOwner)
+			l2Config.WithSystemConfigOwner(chainIntent.Roles.SystemConfigOwner)
+			l2Config.WithUnsafeBlockSigner(chainIntent.Roles.UnsafeBlockSigner)
+			l2Config.WithBatcher(chainIntent.Roles.Batcher)
+			l2Config.WithProposer(chainIntent.Roles.Proposer)
+			l2Config.WithChallenger(chainIntent.Roles.Challenger)
+
+			l2Config.WithEIP1559DenominatorCanyon(chainIntent.Eip1559DenominatorCanyon)
+			l2Config.WithEIP1559Denominator(chainIntent.Eip1559Denominator)
+			l2Config.WithEIP1559Elasticity(chainIntent.Eip1559Elasticity)
+			l2Config.WithOperatorFeeScalar(uint64(chainIntent.OperatorFeeScalar))
+			l2Config.WithOperatorFeeConstant(chainIntent.OperatorFeeConstant)
+
+			if chainIntent.L2DevGenesisParams != nil {
+				for addr, balance := range chainIntent.L2DevGenesisParams.Prefund {
+					l2Config.WithPrefundedAccount(addr, uint256.Int(*balance))
+				}
+			}
+		}
+	}
+}
+
 func WithGuardianMatchL1PAO() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		_, superCfg := builder.WithSuperchain()

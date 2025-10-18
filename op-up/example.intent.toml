@@ -1,0 +1,34 @@
+configType = "standard"
+l1ChainID = 1
+opcmAddress = "0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D"
+fundDevAccounts = false
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
+
+
+[[chains]]
+id = "0x000000000000000000000000000000000000000000000000000000000000000a"
+baseFeeVaultRecipient = "0x0000000000000000000000000000000000000005"
+l1FeeVaultRecipient = "0x0000000000000000000000000000000000000006"
+sequencerFeeVaultRecipient = "0x0000000000000000000000000000000000000007"
+eip1559DenominatorCanyon = 250
+eip1559Denominator = 50
+eip1559Elasticity = 6
+gasLimit = 60000000
+operatorFeeScalar = 0
+operatorFeeConstant = 0
+minBaseFee = 0
+[chains.roles]
+l1ProxyAdminOwner = "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a"
+l2ProxyAdminOwner = "0x6b1bae59d09fccbddb6c6cceb07b7279367c4e3b"
+systemConfigOwner = "0x0000000000000000000000000000000000000001"
+unsafeBlockSigner = "0x0000000000000000000000000000000000000002"
+batcher = "0x0000000000000000000000000000000000000003"
+proposer = "0x0000000000000000000000000000000000000004"
+challenger = "0x9ba6e03d8b90de867373db8cf1a58d2f7f006b3a"
+
+[superchainRoles]
+SuperchainProxyAdminOwner = "0x5a0aae59d09fccbddb6c6cceb07b7279367c3d2a"
+SuperchainGuardian = "0x0000000000000000000000000000000000000009"
+ProtocolVersionsOwner = "0x000000000000000000000000000000000000000b"
+Challenger = "0x9ba6e03d8b90de867373db8cf1a58d2f7f006b3a"
