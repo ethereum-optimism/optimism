@@ -66,7 +66,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
-	}), ep
+	}, nil), ep
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
@@ -258,7 +258,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			wg1.Add(1)
 
 			// Start throttling loop in a goroutine
-			go bs.throttlingLoop(&wg1, pendingBytesUpdated)
+			go bs.throttlingLoop(&wg1, pendingBytesUpdated, nil)
 
 			// Simulate block loading by sending periodically on pendingBytesUpdated
 			wg2 := sync.WaitGroup{}

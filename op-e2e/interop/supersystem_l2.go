@@ -301,7 +301,7 @@ func (s *interopE2ESystem) newBatcherForL2(
 	}
 	batcher, err := bss.BatcherServiceFromCLIConfig(
 		context.Background(), "0.0.1", batcherCLIConfig,
-		logger.New("service", "batcher"))
+		logger.New("service", "batcher"), nil)
 	require.NoError(s.t, err)
 	require.NoError(s.t, batcher.Start(context.Background()))
 	s.t.Cleanup(func() {

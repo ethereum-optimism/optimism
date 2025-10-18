@@ -84,15 +84,15 @@ type DriverSetupOption func(setup *DriverSetup)
 // BatcherServiceFromCLIConfig creates a new BatcherService from a CLIConfig.
 // The service components are fully started, except for the driver,
 // which will not be submitting batches (if it was configured to) until the Start part of the lifecycle.
-func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) (*BatcherService, error) {
+func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, closeApp context.CancelCauseFunc, opts ...DriverSetupOption) (*BatcherService, error) {
 	var bs BatcherService
-	if err := bs.initFromCLIConfig(ctx, version, cfg, log, opts...); err != nil {
+	if err := bs.initFromCLIConfig(ctx, version, cfg, log, closeApp, opts...); err != nil {
 		return nil, errors.Join(err, bs.Stop(ctx)) // try to clean up our failed initialization attempt
 	}
 	return &bs, nil
 }
 
-func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) error {
+func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, closeApp context.CancelCauseFunc, opts ...DriverSetupOption) error {
 	bs.Version = version
 	bs.Log = log
 	bs.NotSubmittingOnStart = cfg.Stopped
@@ -182,7 +182,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
-	bs.initDriver(opts...)
+	bs.initDriver(closeApp, opts...)
 	if err := bs.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
@@ -381,7 +381,7 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
+func (bs *BatcherService) initDriver(closeApp context.CancelCauseFunc, opts ...DriverSetupOption) {
 	ds := DriverSetup{
 		Log:              bs.Log,
 		Metr:             bs.Metrics,
@@ -396,7 +396,7 @@ func (bs *BatcherService) initDriver(opts ...DriverSetupOption) {
 	for _, opt := range opts {
 		opt(&ds)
 	}
-	bs.driver = NewBatchSubmitter(ds)
+	bs.driver = NewBatchSubmitter(ds, closeApp)
 }
 
 func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
