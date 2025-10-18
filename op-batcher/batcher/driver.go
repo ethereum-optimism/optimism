@@ -181,7 +181,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
 	if l.Config.ThrottleParams.LowerThreshold > 0 {
 		l.wg.Add(1)
-		go l.throttlingLoop(l.wg, unsafeBytesUpdated, l.closeApp) // ranges over unsafeBytesUpdated channel
+		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
 		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
@@ -588,7 +588,7 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 }
 
 // singleEndpointThrottler handles throttling for a specific endpoint
-func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string, appCancel context.CancelCauseFunc) {
+func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string) {
 	defer wg.Done()
 	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
 
@@ -627,12 +627,9 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError() {
-			l.Log.Error("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.",
-				"endpoint", endpoint, "err", err)
-
-			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
-			appCancel(fmt.Errorf("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.: %w", err))
-			return
+			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint,
+			// and shut down if this RPC method is not available.
+			l.shutdownOnCriticalError(fmt.Errorf("SetMaxDASize RPC method unavailable at %s,  either enable it or disable throttling: %w", endpoint, err))
 		} else if err != nil {
 			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
@@ -668,9 +665,22 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 	}
 }
 
+func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
+	l.Log.Error("Shutting down batcher on critical error", "err", err)
+	// Call closeApp to trigger process to exit (gracefully)
+	l.closeApp(err)
+	// Stop work, to allow graceful exit to complete.
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	// Call StopBatchSubmitting in another goroutine to avoid deadlock.
+	go func() {
+		_ = l.StopBatchSubmitting(ctx)
+	}()
+}
+
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
 // and fans out the unsafe bytes updates to each endpoint
-func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated chan int64, appCancel context.CancelCauseFunc) {
+func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
@@ -684,7 +694,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	for i, endpoint := range l.Config.ThrottleParams.Endpoints {
 		updateChans[i] = make(chan struct{}, 1)
 		innerWg.Add(1)
-		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint, appCancel)
+		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 	}
 
 	for unsafeBytes := range unsafeBytesUpdated {
