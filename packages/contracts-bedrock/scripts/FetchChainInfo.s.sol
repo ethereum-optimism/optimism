@@ -82,6 +82,7 @@ contract FetchChainInfoOutput {
     address internal _delayedWethPermissionlessGameProxy;
     address internal _disputeGameFactoryProxy;
     address internal _faultDisputeGameImpl;
+    address internal _faultDisputeGameCannonKonaImpl;
     address internal _permissionedDisputeGameImpl;
 
     // roles
@@ -120,6 +121,7 @@ contract FetchChainInfoOutput {
         else if (_sel == this.delayedWethPermissionlessGameProxy.selector) _delayedWethPermissionlessGameProxy = _addr;
         else if (_sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = _addr;
         else if (_sel == this.faultDisputeGameImpl.selector) _faultDisputeGameImpl = _addr;
+        else if (_sel == this.faultDisputeGameCannonKonaImpl.selector) _faultDisputeGameCannonKonaImpl = _addr;
         else if (_sel == this.permissionedDisputeGameImpl.selector) _permissionedDisputeGameImpl = _addr;
         // roles
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
@@ -220,6 +222,14 @@ contract FetchChainInfoOutput {
     function faultDisputeGameImpl() public view returns (address) {
         require(_faultDisputeGameImpl != address(0), "FetchChainInfoOutput: faultDisputeGameImpl not set");
         return _faultDisputeGameImpl;
+    }
+
+    function faultDisputeGameCannonKonaImpl() public view returns (address) {
+        require(
+            _faultDisputeGameCannonKonaImpl != address(0),
+            "FetchChainInfoOutput: faultDisputeGameCannonKonaImpl not set"
+        );
+        return _faultDisputeGameCannonKonaImpl;
     }
 
     function mipsImpl() public view returns (address) {
@@ -394,7 +404,7 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
             }
 
-            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy);
+            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON);
             if (faultDisputeGameImpl != address(0)) {
                 // permissionless fault proofs installed
                 _fo.set(_fo.faultDisputeGameImpl.selector, faultDisputeGameImpl);
@@ -402,6 +412,13 @@ contract FetchChainInfo is Script {
 
                 address delayedWethPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGameImpl);
                 _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, delayedWethPermissionlessGameProxy);
+            }
+
+            address faultDisputeGameCannonKonaImpl =
+                _getFaultDisputeGame(disputeGameFactoryProxy, GameTypes.CANNON_KONA);
+            if (faultDisputeGameCannonKonaImpl != address(0)) {
+                _fo.set(_fo.faultDisputeGameCannonKonaImpl.selector, faultDisputeGameCannonKonaImpl);
+                // if we have CANNON_KONA, we must also have CANNON
             }
         } else {
             // some older chains have L2OutputOracle instead of DisputeGameFactory.
@@ -477,8 +494,15 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getFaultDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
-        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address faultDisputeGame_) {
+    function _getFaultDisputeGame(
+        address _disputeGameFactoryProxy,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (address)
+    {
+        try IFetcher(_disputeGameFactoryProxy).gameImpls(_gameType) returns (address faultDisputeGame_) {
             return faultDisputeGame_;
         } catch {
             return address(0);
