@@ -628,7 +628,7 @@ type SystemConfig struct {
 	MarshalPreHolocene bool `json:"-"`
 }
 
-// NullableSystemConfig is a SystemConfig where fields introduced in hardfforks
+// NullableSystemConfig is a SystemConfig where fields introduced in hardforks
 // are optional. It should be kept in sync with the SystemConfig type.
 type NullableSystemConfig struct {
 	// Bedrock fields
@@ -648,6 +648,9 @@ type NullableSystemConfig struct {
 	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty"`
 }
 
+// ToSystemConfig converts a NullableSystemConfig to a SystemConfig.
+// It sets the fields that are present in the NullableSystemConfig,
+// which otherwise take on default values.
 func (sysCfg *NullableSystemConfig) ToSystemConfig() SystemConfig {
 	s := SystemConfig{
 		BatcherAddr: sysCfg.BatcherAddr,
