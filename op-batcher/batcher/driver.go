@@ -674,13 +674,6 @@ func (l *BatchSubmitter) shutdownOnCriticalError(err error) {
 	l.Log.Error("Shutting down batcher on critical error", "err", err)
 	// Call closeApp to trigger process to exit (gracefully)
 	l.closeApp(err)
-	// Stop work, to allow graceful exit to complete.
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	// Call StopBatchSubmitting in another goroutine to avoid deadlock.
-	go func() {
-		_ = l.StopBatchSubmitting(ctx)
-	}()
 }
 
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
