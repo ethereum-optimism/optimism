@@ -11,6 +11,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -47,7 +48,7 @@ contract DisputeGameFactory_FakeClone_Harness {
 
 /// @title DisputeGameFactory_TestInit
 /// @notice Reusable test initialization for `DisputeGameFactory` tests.
-contract DisputeGameFactory_TestInit is CommonTest {
+abstract contract DisputeGameFactory_TestInit is CommonTest {
     DisputeGameFactory_FakeClone_Harness fakeClone;
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
@@ -82,7 +83,8 @@ contract DisputeGameFactory_TestInit is CommonTest {
     function _getGameConstructorParams(
         Claim _absolutePrestate,
         AlphabetVM _vm,
-        GameType _gameType
+        GameType _gameType,
+        uint256 _l2ChainId
     )
         internal
         view
@@ -98,7 +100,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm: _vm,
             weth: delayedWeth,
             anchorStateRegistry: anchorStateRegistry,
-            l2ChainId: 0
+            l2ChainId: _l2ChainId
         });
     }
 
@@ -125,7 +127,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         view
         returns (ISuperFaultDisputeGame.GameConstructorParams memory params_)
     {
-        bytes memory args = abi.encode(_getGameConstructorParams(_absolutePrestate, _vm, _gameType));
+        bytes memory args = abi.encode(_getGameConstructorParams(_absolutePrestate, _vm, _gameType, 0));
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
@@ -201,12 +203,25 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            return setupFaultDisputeGameV2(_absolutePrestate);
+        } else {
+            return setupFaultDisputeGameV1(_absolutePrestate);
+        }
+    }
+
+    /// @notice Sets up a fault game implementation
+    function setupFaultDisputeGameV1(Claim _absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
         (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGame.__constructor__, (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON))
+                    IFaultDisputeGame.__constructor__,
+                    (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON, l2ChainId))
                 )
             )
         });
@@ -259,6 +274,21 @@ contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            return setupPermissionedDisputeGameV2(_absolutePrestate, _proposer, _challenger);
+        } else {
+            return setupPermissionedDisputeGameV1(_absolutePrestate, _proposer, _challenger);
+        }
+    }
+
+    function setupPermissionedDisputeGameV1(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
         (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGame",
@@ -266,7 +296,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
                 abi.encodeCall(
                     IPermissionedDisputeGame.__constructor__,
                     (
-                        _getGameConstructorParams(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON),
+                        _getGameConstructorParams(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON, l2ChainId),
                         _proposer,
                         _challenger
                     )
@@ -576,7 +606,6 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
         AlphabetVM vm_;
         IPreimageOracle preimageOracle_;
         (vm_, preimageOracle_) = _createVM(absolutePrestate);
-        uint256 l2ChainId = 111;
 
         bytes memory args = abi.encodePacked(
             absolutePrestate, // 32 bytes
@@ -806,10 +835,10 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
     }
 }
 
-/// @title DisputeGameFactory_Unclassified_Test
+/// @title DisputeGameFactory_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `DisputeGameFactory`
 ///         contract or are testing multiple functions at once.
-contract DisputeGameFactory_Unclassified_Test is DisputeGameFactory_TestInit {
+contract DisputeGameFactory_Uncategorized_Test is DisputeGameFactory_TestInit {
     /// @notice Tests that the `owner` function returns the correct address after deployment.
     function test_owner_succeeds() public view {
         assertEq(disputeGameFactory.owner(), address(this));

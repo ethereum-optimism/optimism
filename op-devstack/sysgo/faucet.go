@@ -75,7 +75,7 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			require.True(ok, "need L1 EL for faucet", elID)
 
 			faucets[id] = &fconf.FaucetEntry{
-				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.userRPC)},
+				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
 				ChainID: elID.ChainID(),
 				TxCfg: fconf.TxManagerConfig{
 					PrivateKey: funderKeyStr,

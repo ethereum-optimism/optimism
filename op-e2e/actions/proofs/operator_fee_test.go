@@ -41,7 +41,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 	// The deployed bytecode below is from the contract above
 	testStorageUpdateContractCode := common.FromHex("0x6080604052348015600e575f80fd5b50600436106026575f3560e01c806360fe47b114602a575b5f80fd5b60406004803603810190603c9190607d565b6042565b005b805f8190555050565b5f80fd5b5f819050919050565b605f81604f565b81146068575f80fd5b50565b5f813590506077816058565b92915050565b5f60208284031215608f57608e604b565b5b5f609a84828501606b565b9150509291505056fea26469706673582212201712a1e6e9c5e2ba1f8f7403f5d6e00090c6fa2b70c632beea4be8009331bd2064736f6c63430008190033")
 
-	runIsthmusDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
+	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		deployConfigOverrides := func(dp *genesis.DeployConfig) {}
 
@@ -297,8 +297,23 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
 
 			// Check that the operator fee sent to the vault is correct
-			require.Equal(t,
-				new(big.Int).Add(
+			// Determine which formula to use based on whether Jovian is active
+			var expectedOperatorFee *big.Int
+			if env.Sd.RollupCfg.IsJovian(l2UnsafeHead.Time) {
+				// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
+				expectedOperatorFee = new(big.Int).Add(
+					new(big.Int).Mul(
+						new(big.Int).Mul(
+							new(big.Int).SetUint64(receipt.GasUsed),
+							new(big.Int).SetUint64(uint64(testOperatorFeeScalar)),
+						),
+						new(big.Int).SetUint64(100),
+					),
+					new(big.Int).SetUint64(testOperatorFeeConstant),
+				)
+			} else {
+				// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
+				expectedOperatorFee = new(big.Int).Add(
 					new(big.Int).Div(
 						new(big.Int).Mul(
 							new(big.Int).SetUint64(receipt.GasUsed),
@@ -307,7 +322,11 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 						new(big.Int).SetUint64(1e6),
 					),
 					new(big.Int).SetUint64(testOperatorFeeConstant),
-				),
+				)
+			}
+
+			require.Equal(t,
+				expectedOperatorFee,
 				new(big.Int).Sub(operatorFeeVaultFinalBalance, operatorFeeVaultInitialBalance),
 			)
 		}
@@ -373,11 +392,11 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
-	matrix.AddDefaultTestCasesWithName("NormalTx", NormalTx, helpers.NewForkMatrix(helpers.Isthmus), runIsthmusDerivationTest)
-	matrix.AddDefaultTestCasesWithName("DepositTx", DepositTx, helpers.NewForkMatrix(helpers.Isthmus), runIsthmusDerivationTest)
-	matrix.AddDefaultTestCasesWithName("StateRefund", StateRefund, helpers.NewForkMatrix(helpers.Isthmus), runIsthmusDerivationTest)
-	matrix.AddDefaultTestCasesWithName("NotEnoughFundsInBatchMissingOpFee", NotEnoughFundsInBatchMissingOpFee, helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus), runIsthmusDerivationTest)
-	matrix.AddDefaultTestCasesWithName("IsthmusTransitionBlock", IsthmusTransitionBlock, helpers.NewForkMatrix(helpers.Holocene), runIsthmusDerivationTest)
+	matrix.AddDefaultTestCasesWithName("NormalTx", NormalTx, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("DepositTx", DepositTx, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("StateRefund", StateRefund, helpers.NewForkMatrix(helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("NotEnoughFundsInBatchMissingOpFee", NotEnoughFundsInBatchMissingOpFee, helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus, helpers.Jovian), runJovianDerivationTest)
+	matrix.AddDefaultTestCasesWithName("IsthmusTransitionBlock", IsthmusTransitionBlock, helpers.NewForkMatrix(helpers.Holocene), runJovianDerivationTest)
 	matrix.Run(gt)
 }
 

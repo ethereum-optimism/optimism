@@ -76,14 +76,6 @@ func (ev SafeDerivedEvent) String() string {
 	return "safe-derived"
 }
 
-type ProcessUnsafePayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
-
-func (ev ProcessUnsafePayloadEvent) String() string {
-	return "process-unsafe-payload"
-}
-
 type EngineResetConfirmedEvent struct {
 	LocalUnsafe eth.L2BlockRef
 	CrossUnsafe eth.L2BlockRef

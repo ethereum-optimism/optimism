@@ -10,6 +10,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -35,6 +36,8 @@ type FlashblockHandler interface {
 	Stop()
 	// BroadcastMessage sends a message to all connected WebSocket clients
 	BroadcastMessage(message []byte)
+	// BoundPort returns the actual TCP port the server is bound to
+	BoundPort() int
 }
 
 // Config contains configuration for the flashblocks handler
@@ -54,16 +57,20 @@ type Handler struct {
 	rollupBoostConn     *websocket.Conn
 	rollupBoostCtx      context.Context
 	rollupBoostWsCancel context.CancelFunc
-	server              *http.Server
+	httpServer          *httputil.HTTPServer
 	hub                 *Hub
+	boundPort           int
 }
 
 // NewHandler creates a new flashblocks handler
 func NewHandler(cfg Config, log log.Logger, isLeaderFn func(context.Context) bool, m metrics.Metricer) (FlashblockHandler, error) {
 	// Validate configuration
-	if cfg.RollupBoostWsURL == "" || cfg.WebsocketServerPort <= 0 {
-		log.Error("rollup boost WebSocket URL or websocket server port not configured")
-		return nil, errors.New("rollup boost WebSocket URL or websocket server port not configured")
+	if cfg.RollupBoostWsURL == "" {
+		log.Error("rollup boost WebSocket URL not configured")
+		return nil, errors.New("rollup boost WebSocket URL not configured")
+	}
+	if cfg.WebsocketServerPort < 0 {
+		return nil, fmt.Errorf("WebSocket server port invalid: %d", cfg.WebsocketServerPort)
 	}
 
 	// Initialize the handler
@@ -129,13 +136,11 @@ func (h *Handler) Stop() {
 	}
 
 	// Close the HTTP server if it's running
-	if h.server != nil {
+	if h.httpServer != nil {
 		h.log.Info("closing WebSocket server")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		err := h.server.Shutdown(ctx)
-		if err != nil {
+		if err := h.httpServer.Stop(ctx); err != nil {
 			h.log.Error("Error shutting down WebSocket server", "err", err)
 		}
 		h.log.Info("WebSocket server closed")
@@ -148,10 +153,9 @@ func (h *Handler) BroadcastMessage(message []byte) {
 }
 
 func (h *Handler) startWebSocketServer(_ context.Context) error {
-	if h.cfg.WebsocketServerPort <= 0 {
-		return fmt.Errorf("WebSocket server port not configured or invalid: %d", h.cfg.WebsocketServerPort)
+	if h.cfg.WebsocketServerPort < 0 {
+		return fmt.Errorf("WebSocket server port invalid: %d", h.cfg.WebsocketServerPort)
 	}
-
 	h.hub = newHub(h.metrics)
 	go h.hub.run()
 
@@ -159,20 +163,28 @@ func (h *Handler) startWebSocketServer(_ context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", h.handleWebSocket)
 
-	// Start HTTP server
-	h.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", h.cfg.WebsocketServerPort),
-		Handler: mux,
+	// Start HTTP server using reusable httputil server (supports port=0 and exposes Port())
+	addr := fmt.Sprintf(":%d", h.cfg.WebsocketServerPort)
+	srv, err := httputil.StartHTTPServer(addr, mux)
+	if err != nil {
+		return err
+	}
+	h.httpServer = srv
+	// Determine bound port
+	if port, err := h.httpServer.Port(); err == nil {
+		h.boundPort = port
+	} else {
+		return fmt.Errorf("failed to determine bound port: %w", err)
 	}
 
-	h.log.Info("starting WebSocket server", "port", h.cfg.WebsocketServerPort)
-	go func() {
-		if err := h.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			h.log.Error("WebSocket server error", "err", err)
-		}
-	}()
+	h.log.Info("starting WebSocket server", "port", h.boundPort)
 
 	return nil
+}
+
+// BoundPort returns the actual TCP port the server is bound to.
+func (h *Handler) BoundPort() int {
+	return h.boundPort
 }
 
 // handleWebSocket handles WebSocket upgrade requests

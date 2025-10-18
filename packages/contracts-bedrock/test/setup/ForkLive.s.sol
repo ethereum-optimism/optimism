@@ -261,8 +261,8 @@ contract ForkLive is Deployer, StdAssertions {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // U16a.
-            _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
+            // past upgrades to run.
         } else {
             revert UnsupportedChainId();
         }

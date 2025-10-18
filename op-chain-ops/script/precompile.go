@@ -78,6 +78,8 @@ type Precompile[E any] struct {
 
 	// abiMethods is effectively the jump-table for 4-byte ABI calls to the precompile.
 	abiMethods map[[4]byte]*precompileFunc
+
+	name string
 }
 
 var _ vm.PrecompiledContract = (*Precompile[struct{}])(nil)
@@ -107,6 +109,7 @@ func NewPrecompile[E any](e E, opts ...PrecompileOption[E]) (*Precompile[E], err
 		fieldsOnly:  false,
 		fieldSetter: false,
 		settable:    make(map[[4]byte]*settableField),
+		name:        reflect.TypeOf(e).Name(),
 	}
 	for _, opt := range opts {
 		opt(out)
@@ -629,6 +632,10 @@ func (p *Precompile[E]) Run(input []byte) ([]byte, error) {
 		return encodeRevert(fmt.Errorf("failed to run %s, ABI: %q, err: %w", fn.goName, fn.abiSignature, err))
 	}
 	return out, nil
+}
+
+func (p *Precompile[E]) Name() string {
+	return p.name
 }
 
 // revertSelector is the ABI signature of a default error type in solidity.

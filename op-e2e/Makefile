@@ -65,3 +65,13 @@ fuzz:
 		"go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./opgeth" \
 		"go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzCgo ./opgeth" \
 	| parallel -j 8 {}
+
+ifndef CONTRACT
+gen-binding:
+	$(error CONTRACT is required, usage: make gen-binding CONTRACT=OPContractsManager)
+else
+gen-binding:
+	cd ../packages/contracts-bedrock && just build
+	./scripts/gen-binding.sh $(CONTRACT)
+endif
+.PHONY: gen-binding

@@ -27,7 +27,7 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
 
 /// @title CrossDomainOwnable3_TestInit
 /// @notice Reusable test initialization for `CrossDomainOwnable3` tests.
-contract CrossDomainOwnable3_TestInit is CommonTest {
+abstract contract CrossDomainOwnable3_TestInit is CommonTest {
     XDomainSetter3 setter;
 
     /// @notice CrossDomainOwnable3.sol transferOwnership event

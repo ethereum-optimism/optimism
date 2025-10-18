@@ -11,6 +11,7 @@ type BeaconClient interface {
 	NodeVersion(ctx context.Context) (string, error)
 	ConfigSpec(ctx context.Context) (eth.APIConfigResponse, error)
 	BeaconGenesis(ctx context.Context) (eth.APIGenesisResponse, error)
+	BeaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) (eth.APIBeaconBlobsResponse, error)
 	BlobSideCarsClient
 }
 

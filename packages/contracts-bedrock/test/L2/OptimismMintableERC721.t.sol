@@ -10,7 +10,7 @@ import { OptimismMintableERC721, IOptimismMintableERC721 } from "src/L2/Optimism
 
 /// @title OptimismMintableERC721_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC721` tests.
-contract OptimismMintableERC721_TestInit is CommonTest {
+abstract contract OptimismMintableERC721_TestInit is CommonTest {
     ERC721 internal L1NFT;
     OptimismMintableERC721 internal L2NFT;
 
@@ -156,10 +156,10 @@ contract OptimismMintableERC721_SupportsInterface_Test is OptimismMintableERC721
     }
 }
 
-/// @title OptimismMintableERC721_Unclassified_Test
+/// @title OptimismMintableERC721_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `OptimismMintableERC721` contract.
-contract OptimismMintableERC721_Unclassified_Test is OptimismMintableERC721_TestInit {
+contract OptimismMintableERC721_Uncategorized_Test is OptimismMintableERC721_TestInit {
     /// @notice Tests that the `tokenURI` function returns the correct URI for a minted token.
     function test_tokenURI_succeeds() external {
         // Mint the token first.

@@ -7,6 +7,6 @@ import (
 )
 
 func TestEnsureDefaultCacheDir(t *testing.T) {
-	cacheDir := EnsureDefaultCacheDir()
+	cacheDir := DefaultCacheDir()
 	require.NotNil(t, cacheDir)
 }

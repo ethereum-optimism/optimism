@@ -58,7 +58,7 @@ contract ClaimCreditReenter {
 
 /// @title BaseSuperFaultDisputeGame_TestInit
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
-contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
 
@@ -127,7 +127,7 @@ contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
 /// @title SuperFaultDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperFaultDisputeGame` tests.
-contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_TestInit {
+abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
 
@@ -2325,10 +2325,10 @@ contract SuperFaultDisputeGame_GetChallengerDuration_Test is SuperFaultDisputeGa
     }
 }
 
-/// @title SuperFaultDisputeGame_Unclassified_Test
+/// @title SuperFaultDisputeGame_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `SuperFaultDisputeGame`
 ///         contract or are testing multiple functions at once.
-contract SuperFaultDisputeGame_Unclassified_Test is SuperFaultDisputeGame_TestInit {
+contract SuperFaultDisputeGame_Uncategorized_Test is SuperFaultDisputeGame_TestInit {
     /// @notice Tests that the game's starting timestamp is set correctly.
     function test_createdAt_succeeds() public view {
         assertEq(gameProxy.createdAt().raw(), block.timestamp);

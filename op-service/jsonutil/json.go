@@ -1,6 +1,7 @@
 package jsonutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,4 +151,44 @@ func write[X any](value X, target ioutil.OutputTarget, enc EncoderFactory) error
 		return fmt.Errorf("failed to finish write: %w", err)
 	}
 	return nil
+}
+
+// LoadJSONFieldStrict loads a JSON file and strictly decodes a specific top-level field into X.
+// The rest of the file is ignored, but the selected field must decode without unknown fields
+// and without trailing data. The input can be compressed; decompression is handled automatically.
+func LoadJSONFieldStrict[X any](inputPath string, field string) (*X, error) {
+	if inputPath == "" {
+		return nil, errors.New("no path specified")
+	}
+	f, err := ioutil.OpenDecompressed(inputPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %q: %w", inputPath, err)
+	}
+	defer f.Close()
+
+	// Decode only the top-level object to extract the desired field, ignoring others.
+	var top map[string]json.RawMessage
+	dec := json.NewDecoder(f)
+	if err := dec.Decode(&top); err != nil {
+		return nil, fmt.Errorf("failed to decode JSON: %w", err)
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errors.New("unexpected trailing data")
+	}
+
+	raw, ok := top[field]
+	if !ok {
+		return nil, fmt.Errorf("missing JSON field %q", field)
+	}
+
+	strict := json.NewDecoder(bytes.NewReader(raw))
+	strict.DisallowUnknownFields()
+	var out X
+	if err := strict.Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode JSON field %q: %w", field, err)
+	}
+	if _, err := strict.Token(); err != io.EOF {
+		return nil, fmt.Errorf("unexpected trailing data in JSON field %q", field)
+	}
+	return &out, nil
 }

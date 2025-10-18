@@ -14,7 +14,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 
 /// @title SuperPermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperPermissionedDisputeGame` tests.
-contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @notice The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(5);
     /// @notice Mock proposer key
@@ -187,10 +187,10 @@ contract SuperPermissionedDisputeGame_Step_Test is SuperPermissionedDisputeGame_
     }
 }
 
-/// @title SuperPermissionedDisputeGame_Unclassified_Test
+/// @title SuperPermissionedDisputeGame_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `SuperPermissionedDisputeGame` contract or are testing multiple functions at once.
-contract SuperPermissionedDisputeGame_Unclassified_Test is SuperPermissionedDisputeGame_TestInit {
+contract SuperPermissionedDisputeGame_Uncategorized_Test is SuperPermissionedDisputeGame_TestInit {
     /// @notice Tests that the proposer can create a permissioned dispute game.
     function test_createGame_proposer_succeeds() public {
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);

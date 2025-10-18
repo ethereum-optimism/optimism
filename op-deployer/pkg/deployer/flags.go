@@ -48,7 +48,7 @@ var (
 		Usage: "Cache directory. " +
 			"If set, the deployer will attempt to cache downloaded artifacts in the specified directory.",
 		EnvVars: PrefixEnvVar("CACHE_DIR"),
-		Value:   EnsureDefaultCacheDir(),
+		Value:   DefaultCacheDir(),
 	}
 	L1ChainIDFlag = &cli.Uint64Flag{
 		Name:    L1ChainIDFlagName,

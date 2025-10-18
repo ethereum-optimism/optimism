@@ -171,6 +171,12 @@ type Spammer interface {
 	Spam(devtest.T) error
 }
 
+type SpammerFunc func(t devtest.T) error
+
+func (s SpammerFunc) Spam(t devtest.T) error {
+	return s(t)
+}
+
 // Schedule schedules a Spammer. It determines how often to spam and when to stop.
 type Schedule interface {
 	Run(devtest.T, Spammer)
@@ -326,12 +332,16 @@ func setupAIMD(t devtest.T, blockTime time.Duration, aimdOpts ...AIMDOption) *AI
 		t.Require().NoError(err)
 	}
 	aimd := NewAIMD(targetMessagePassesPerBlock, blockTime, aimdOpts...)
+	ctx, cancel := context.WithCancel(t.Ctx())
 	var wg sync.WaitGroup
-	t.Cleanup(wg.Wait)
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		aimd.Start(t.Ctx())
+		aimd.Start(ctx)
 	}()
 	return aimd
 }

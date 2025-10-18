@@ -15,7 +15,7 @@ contract Bytes_Harness {
 
 /// @title Bytes_TestInit
 /// @notice Reusable test initialization for `Bytes` tests.
-contract Bytes_TestInit is Test {
+abstract contract Bytes_TestInit is Test {
     Bytes_Harness harness;
 
     /// @notice Manually checks equality of two dynamic `bytes` arrays in memory.

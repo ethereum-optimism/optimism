@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 /// @title GovernanceToken_TestInit
 /// @notice Reusable test initialization for `GovernanceToken` tests.
-contract GovernanceToken_TestInit is CommonTest {
+abstract contract GovernanceToken_TestInit is CommonTest {
     address owner;
     address rando;
 
@@ -58,10 +58,10 @@ contract GovernanceToken_Mint_Test is GovernanceToken_TestInit {
     }
 }
 
-/// @title GovernanceToken_Unclassified_Test
+/// @title GovernanceToken_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `GovernanceToken`
 ///         contract or are testing multiple functions at once.
-contract GovernanceToken_Unclassified_Test is GovernanceToken_TestInit {
+contract GovernanceToken_Uncategorized_Test is GovernanceToken_TestInit {
     /// @notice Tests that the owner can successfully call `burn`.
     function test_burn_succeeds() external {
         // Mint 100 tokens to rando.

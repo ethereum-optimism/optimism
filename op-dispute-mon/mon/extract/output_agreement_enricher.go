@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -22,6 +23,7 @@ var (
 )
 
 type OutputRollupClient interface {
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 	SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error)
 }
@@ -47,10 +49,11 @@ func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client
 }
 
 type outputResult struct {
-	outputRoot common.Hash
-	isSafe     bool
-	notFound   bool
-	err        error
+	outputRoot            common.Hash
+	gameL1HeadUnprocessed bool
+	isSafe                bool
+	notFound              bool
+	err                   error
 }
 
 // Enrich validates the specified root claim against the output at the given block number.
@@ -75,12 +78,28 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		wg.Add(1)
 		go func(i int, client OutputRollupClient) {
 			defer wg.Done()
+
+			syncStatus, err := client.SyncStatus(ctx)
+			if err != nil {
+				results[i] = outputResult{err: fmt.Errorf("failed to fetch sync status: %w", err)}
+				return
+			}
+			if syncStatus.CurrentL1.Number <= game.L1HeadNum {
+				o.log.Warn("Rollup node out of sync", "gameL1HeadNum", game.L1HeadNum, "nodeCurrentL1", syncStatus.CurrentL1.Number)
+				results[i] = outputResult{gameL1HeadUnprocessed: true}
+				return
+			}
+
 			output, err := client.OutputAtBlock(ctx, game.L2BlockNumber)
 			if err != nil {
-				// string match as the error comes from the remote server so we can't use Errors.Is sadly.
-				if strings.Contains(err.Error(), "not found") {
-					results[i] = outputResult{notFound: true}
-					return
+				// Only treat JSON-RPC application-level "not found" as notFound.
+				// Transport/HTTP errors or other failures should be treated as errors.
+				var rpcErr rpc.Error
+				if errors.As(err, &rpcErr) {
+					if strings.Contains(strings.ToLower(rpcErr.Error()), "not found") {
+						results[i] = outputResult{notFound: true}
+						return
+					}
 				}
 				results[i] = outputResult{err: err}
 				return
@@ -110,6 +129,9 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	for idx, result := range results {
 		if result.err != nil {
 			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
+			continue
+		}
+		if result.gameL1HeadUnprocessed {
 			continue
 		}
 
