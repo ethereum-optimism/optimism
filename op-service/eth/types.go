@@ -638,14 +638,14 @@ type NullableSystemConfig struct {
 	GasLimit    uint64         `json:"gasLimit"`
 
 	// Holocene fields
-	EIP1559Params *Bytes8 `json:"eip1559Params"`
+	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 
 	// Isthmus fields
-	OperatorFeeParams *Bytes32 `json:"operatorFeeParams"`
+	OperatorFeeParams *Bytes32 `json:"operatorFeeParams,omitempty"`
 
 	// Jovian fields
-	MinBaseFee           *uint64 `json:"minBaseFee"`
-	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar"`
+	MinBaseFee           *uint64 `json:"minBaseFee,omitempty"`
+	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty"`
 }
 
 func (sysCfg *NullableSystemConfig) ToSystemConfig() SystemConfig {

@@ -367,11 +367,29 @@ func TestRollupConfig(t *testing.T) {
 	for _, testCase := range testCases {
 		rollupCfg := &rollup.Config{
 			Genesis: rollup.Genesis{
-				SystemConfig: eth.SystemConfig{
-					MarshalFork: testCase.fork, // we rely on this being set to the correct fork name when the rollupConfig is hydrated
+				SystemConfig: eth.NullableSystemConfig{
+					BatcherAddr: common.Address{},
+					Overhead:    [32]byte{},
+					Scalar:      [32]byte{},
+					GasLimit:    0,
 				},
 			},
 		}
+
+		switch testCase.fork {
+		case "jovian":
+			rollupCfg.Genesis.SystemConfig.DAFootprintGasScalar = new(uint16)
+			rollupCfg.Genesis.SystemConfig.MinBaseFee = new(uint64)
+			rollupCfg.Genesis.SystemConfig.OperatorFeeParams = new(eth.Bytes32)
+			rollupCfg.Genesis.SystemConfig.EIP1559Params = new(eth.Bytes8)
+		case "isthmus":
+			rollupCfg.Genesis.SystemConfig.OperatorFeeParams = new(eth.Bytes32)
+			rollupCfg.Genesis.SystemConfig.EIP1559Params = new(eth.Bytes8)
+		case "holocene":
+			rollupCfg.Genesis.SystemConfig.EIP1559Params = new(eth.Bytes8)
+		case "bedrock":
+		}
+
 		m := &opmetrics.NoopRPCMetrics{}
 		server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
 		require.NoError(t, server.Start())
