@@ -617,27 +617,6 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         );
     }
 
-    /// @notice Tests that the initialize of the `FaultDisputeGameV2` reverts when the `_gameType`
-    ///         parameter is set to the reserved `type(uint32).max` game type.
-    function test_initialize_reservedGameType_reverts() public {
-        // Game type is set and validated in the constructor of V1 dispute games.
-        skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-        bytes memory extraData = abi.encode(validL2BlockNumber);
-
-        GameType gameType = GameType.wrap(type(uint32).max);
-        IDisputeGame gameImpl = disputeGameFactory.gameImpls(GAME_TYPE);
-        bytes memory implArgs = disputeGameFactory.gameArgs(GAME_TYPE);
-        vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(gameType, gameImpl, implArgs);
-        vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setInitBond(gameType, initBond);
-
-        vm.expectRevert(ReservedGameType.selector);
-        gameProxy = IFaultDisputeGame(
-            payable(address(disputeGameFactory.create{ value: initBond }(gameType, arbitaryRootClaim, extraData)))
-        );
-    }
-
     /// @notice Tests that the proxy receives ETH from the dispute game factory.
     function test_initialize_receivesETH_succeeds() public {
         uint256 _value = disputeGameFactory.initBonds(GAME_TYPE);

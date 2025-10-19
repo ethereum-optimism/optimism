@@ -1158,11 +1158,6 @@
   },
   {
     "inputs": [],
-    "name": "ReservedGameType",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "UnexpectedList",
     "type": "error"
   },

@@ -56,7 +56,6 @@ import {
     GameNotFinalized,
     InvalidBondDistributionMode,
     GameNotResolved,
-    ReservedGameType,
     GamePaused,
     BadExtraData
 } from "src/dispute/lib/Errors.sol";
@@ -289,10 +288,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
 
         // The maximum clock extension may not be greater than the maximum clock duration.
         if (uint64(maxClockExtension) > MAX_CLOCK_DURATION.raw()) revert InvalidClockExtension();
-
-        // Block type(uint32).max from being used as a game type so that it can be used in the
-        // OptimismPortal respected game type trick.
-        if (gameType().raw() == type(uint32).max) revert ReservedGameType();
 
         // Set the root claim
         claimData.push(
