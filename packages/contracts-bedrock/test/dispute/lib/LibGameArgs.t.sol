@@ -104,23 +104,25 @@ contract LibGameArgs_Decode_Test is Test {
     }
 
     function testFuzz_decode_invalidLength_reverts(bytes memory _buf) public {
-        bool ok = (_buf.length == 124 || _buf.length == 164);
+        bool ok = (
+            _buf.length == LibGameArgs.PERMISSIONLESS_ARGS_LENGTH || _buf.length == LibGameArgs.PERMISSIONED_ARGS_LENGTH
+        );
         vm.assume(!ok);
         vm.expectRevert(InvalidGameArgsLength.selector);
         harness.decode(_buf);
     }
 
     function test_isValidPermissionlessArgs_works() public pure {
-        bytes memory validBuf = new bytes(124);
+        bytes memory validBuf = new bytes(LibGameArgs.PERMISSIONLESS_ARGS_LENGTH);
         assertTrue(LibGameArgs.isValidPermissionlessArgs(validBuf));
-        validBuf = new bytes(164);
+        validBuf = new bytes(LibGameArgs.PERMISSIONED_ARGS_LENGTH);
         assertFalse(LibGameArgs.isValidPermissionlessArgs(validBuf));
     }
 
     function test_isValidPermissionedArgs_works() public pure {
-        bytes memory validBuf = new bytes(164);
+        bytes memory validBuf = new bytes(LibGameArgs.PERMISSIONED_ARGS_LENGTH);
         assertTrue(LibGameArgs.isValidPermissionedArgs(validBuf));
-        validBuf = new bytes(124);
+        validBuf = new bytes(LibGameArgs.PERMISSIONLESS_ARGS_LENGTH);
         assertFalse(LibGameArgs.isValidPermissionedArgs(validBuf));
     }
 }

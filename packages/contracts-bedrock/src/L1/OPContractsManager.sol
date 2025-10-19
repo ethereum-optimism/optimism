@@ -975,9 +975,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _impls: _impls,
                 _l2ChainId: _l2ChainId,
                 _disputeGame: permissionedDisputeGame,
-                _newDelayedWeth: getWETH(
-                    dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON
-                ),
+                _newDelayedWeth: getWETH(dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON),
                 _newAnchorStateRegistryProxy: getAnchorStateRegistry(
                     dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON
                 ),

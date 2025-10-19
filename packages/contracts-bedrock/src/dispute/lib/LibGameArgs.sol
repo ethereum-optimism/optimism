@@ -6,6 +6,9 @@ import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 /// @title LibGameArgs
 /// @notice Library for decoding the game arguments used in dispute games.
 library LibGameArgs {
+    uint256 public constant PERMISSIONLESS_ARGS_LENGTH = 124;
+    uint256 public constant PERMISSIONED_ARGS_LENGTH = 164;
+
     /// @notice Struct representing the game arguments.
     struct GameArgs {
         bytes32 absolutePrestate;
@@ -21,7 +24,7 @@ library LibGameArgs {
     /// @param _gameArgs The bytes array containing the encoded game arguments.
     function decode(bytes memory _gameArgs) internal pure returns (GameArgs memory) {
         uint256 len = _gameArgs.length;
-        if (len != 164 && len != 124) {
+        if (len != PERMISSIONED_ARGS_LENGTH && len != PERMISSIONLESS_ARGS_LENGTH) {
             revert InvalidGameArgsLength();
         }
 
@@ -43,7 +46,7 @@ library LibGameArgs {
             l2ChainId := mload(add(d, 92))
         }
 
-        if (len == 164) {
+        if (len == PERMISSIONED_ARGS_LENGTH) {
             assembly {
                 // skip length prefix
                 let d := add(_gameArgs, 32)
@@ -64,11 +67,11 @@ library LibGameArgs {
 
     /// @notice Checks if the provided game arguments are valid for a permissionless game.
     function isValidPermissionlessArgs(bytes memory _args) internal pure returns (bool) {
-        return _args.length == 124;
+        return _args.length == PERMISSIONLESS_ARGS_LENGTH;
     }
 
     /// @notice Checks if the provided game arguments are valid for a permissioned game.
     function isValidPermissionedArgs(bytes memory _args) internal pure returns (bool) {
-        return _args.length == 164;
+        return _args.length == PERMISSIONED_ARGS_LENGTH;
     }
 }
