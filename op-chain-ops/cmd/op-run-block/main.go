@@ -166,7 +166,7 @@ func mainAction(c *cli.Context) error {
 			logger.Error("failed to encode witness", "err", err)
 			return
 		}
-		if err := os.WriteFile("debug_witness.json", out, 0755); err != nil {
+		if err := os.WriteFile("debug_witness.json", out, 0644); err != nil {
 			logger.Error("Failed to write witness", "err", err)
 		}
 	}()
