@@ -427,6 +427,9 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
     address proposer;
     address challenger;
 
+    uint256 chain1L2ChainId;
+    uint256 chain2L2ChainId;
+
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
@@ -434,9 +437,11 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
         super.setUp();
         proposer = address(this);
         challenger = address(this);
+        chain1L2ChainId = 100;
+        chain2L2ChainId = 101;
 
-        chainDeployOutput1 = createChainContracts(100);
-        chainDeployOutput2 = createChainContracts(101);
+        chainDeployOutput1 = createChainContracts(chain1L2ChainId);
+        chainDeployOutput2 = createChainContracts(chain2L2ChainId);
 
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
@@ -603,7 +608,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         assertEq(newPDG.challenger(), challenger, "challenger mismatch");
 
         // L2 chain ID call should not revert because this is not a Super game.
-        assertNotEq(newPDG.l2ChainId(), 0, "l2ChainId should not be zero");
+        assertEq(newPDG.l2ChainId(), chain1L2ChainId, "l2ChainId should be set correctly");
 
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Get the v2 implementation address from OPCM
@@ -646,7 +651,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
         notPDG.proposer();
 
         // L2 chain ID call should not revert because this is not a Super game.
-        assertNotEq(notPDG.l2ChainId(), 0, "l2ChainId should not be zero");
+        assertEq(notPDG.l2ChainId(), chain1L2ChainId, "l2ChainId should be set correctly");
 
         // Verify v2 implementation is registered in DisputeGameFactory
         address registeredImpl = address(chainDeployOutput1.disputeGameFactoryProxy.gameImpls(input.disputeGameType));
