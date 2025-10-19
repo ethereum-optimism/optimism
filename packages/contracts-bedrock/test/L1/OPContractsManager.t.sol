@@ -419,7 +419,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
 /// @title OPContractsManager_TestInit
 /// @notice Reusable test initialization for `OPContractsManager` tests.
-abstract contract OPContractsManager_TestInit is CommonTest {
+abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
     event GameTypeAdded(
         uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
     );
@@ -585,7 +585,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
 
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
-contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit, DisputeGames {
+contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
