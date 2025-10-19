@@ -249,6 +249,7 @@ impl OpReceiptFieldsBuilder {
                 l1_blob_base_fee_scalar,
                 operator_fee_scalar,
                 operator_fee_constant,
+                da_footprint_gas_scalar: None,
             },
             deposit_nonce,
             deposit_receipt_version,
@@ -364,6 +365,7 @@ mod test {
                 l1_blob_base_fee_scalar: Some(1014213),
                 operator_fee_scalar: None,
                 operator_fee_constant: None,
+                da_footprint_gas_scalar: None,
             },
             deposit_nonce: None,
             deposit_receipt_version: None,
@@ -407,6 +409,7 @@ mod test {
             l1_blob_base_fee_scalar,
             operator_fee_scalar,
             operator_fee_constant,
+            ..
         } = receipt_meta.l1_block_info;
 
         assert_eq!(
@@ -537,6 +540,7 @@ mod test {
             l1_blob_base_fee_scalar,
             operator_fee_scalar,
             operator_fee_constant,
+            ..
         } = receipt_meta.l1_block_info;
 
         assert_eq!(l1_gas_price, Some(14121491676), "incorrect l1 base fee (former gas price)");
