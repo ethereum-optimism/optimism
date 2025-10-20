@@ -39,6 +39,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISystemConfig } from "../../interfaces/L1/ISystemConfig.sol";
 
 contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the Blueprint contracts.
@@ -593,10 +594,12 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         )
                 ) {
                     address impl = implementations().faultDisputeGameV2Impl;
+                    // Always use the permissioned game to get the anchor state registry because it is guaranteed to
+                    // exist.
                     bytes memory gameArgs = abi.encodePacked(
                         gameConfig.disputeAbsolutePrestate, // 32 bytes
                         gameConfig.vm, // 20 bytes
-                        address(getAnchorStateRegistry(dgf, IDisputeGame(impl), gameConfig.disputeGameType)), // 20
+                        address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))), // 20
                             // bytes
                         address(outputs[i].delayedWETH), // 20 bytes
                         l2ChainId // 32 bytes
@@ -608,8 +611,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     bytes memory gameArgs = abi.encodePacked(
                         gameConfig.disputeAbsolutePrestate, // 32 bytes
                         gameConfig.vm, // 20 bytes
-                        address(getAnchorStateRegistry(dgf, IDisputeGame(impl), gameConfig.disputeGameType)), // 20
-                            // bytes
+                        address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))), // 20 bytes
                         address(outputs[i].delayedWETH), // 20 bytes
                         l2ChainId, // 32 bytes
                         getProposer(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType), // 20
