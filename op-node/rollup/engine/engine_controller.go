@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"runtime"
 	gosync "sync"
 	"time"
 
@@ -222,13 +220,13 @@ func (e *EngineController) requestForkchoiceUpdate(ctx context.Context) {
 	})
 }
 
-func (e *EngineController) IsEngineSyncing() bool {
+func (e *EngineController) IsEngineInitialELSyncing() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.isEngineSyncing()
+	return e.isEngineInitialELSyncing()
 }
 
-func (e *EngineController) isEngineSyncing() bool {
+func (e *EngineController) isEngineInitialELSyncing() bool {
 	return e.syncStatus == syncStatusWillStartEL ||
 		e.syncStatus == syncStatusStartedEL ||
 		e.syncStatus == syncStatusFinishedELButNotFinalized
@@ -360,7 +358,12 @@ func (e *EngineController) checkNewPayloadStatus(status eth.ExecutePayloadStatus
 		// Allow SYNCING and ACCEPTED if engine EL sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing || status == eth.ExecutionAccepted
 	}
-	return status == eth.ExecutionValid || status == eth.ExecutionSyncing
+	// if SyncModeReqResp is false, meaning we no longer use Req/Res P2P protocol, we should also tolerate SYNCING response, when in sync.CLSync mode, so that
+	// the CL node can get to making an FCU call after NewPayload returns SYNCING, and can trigger the EL sync behavior.
+	if !e.syncCfg.SyncModeReqResp {
+		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
+	}
+	return status == eth.ExecutionValid
 }
 
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.
@@ -430,7 +433,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 	if !e.needFCUCall {
 		return ErrNoFCUNeeded
 	}
-	if e.isEngineSyncing() {
+	if e.isEngineInitialELSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
 	}
 	if err := e.initializeUnknowns(ctx); err != nil {
@@ -569,6 +572,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			return derive.NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
 		}
 	}
+	e.log.Debug("engine.ForkchoiceUpdate returned", "ref", ref, "status", fcRes.PayloadStatus.Status)
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
 		payload := envelope.ExecutionPayload
 		return derive.NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
@@ -618,7 +622,7 @@ func (e *EngineController) shouldTryBackupUnsafeReorg() bool {
 		return false
 	}
 	// This method must be never called when EL sync. If EL sync is in progress, early return.
-	if e.isEngineSyncing() {
+	if e.isEngineInitialELSyncing() {
 		e.log.Warn("Attempting to unsafe reorg using backupUnsafe while EL syncing")
 		return false
 	}
@@ -1049,20 +1053,9 @@ const (
 	BlockInsertPayloadErr
 )
 
-func caller() string {
-	// skip=1 => the function that called caller(), so we need skip=2
-	pc, file, line, ok := runtime.Caller(2)
-	if !ok {
-		return ""
-	}
-	fn := runtime.FuncForPC(pc)
-	return fmt.Sprintf("%s (%s:%d)\n", fn.Name(), filepath.Base(file), line)
-}
-
 // startPayload starts an execution payload building process in the engine, with the given attributes.
 // The severity of the error is distinguished to determine whether the same payload attributes may be re-attempted later.
 func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes) (id eth.PayloadID, errType BlockInsertionErrType, err error) {
-	e.log.Debug("start payload before engine.ForkchoiceUpdate", "fc", fc, "attrs", attrs, "caller", caller())
 	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
 		var rpcErr rpc.Error

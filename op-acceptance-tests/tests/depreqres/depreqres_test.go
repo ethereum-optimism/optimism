@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -52,5 +53,8 @@ func TestUnsafeChainStalling_DisabledReqRespSync(gt *testing.T) {
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
 	l.Info("Confirm that the unsafe chain for L2CLB can advance")
-	sys.L2CLB.Advanced(types.LocalUnsafe, delta, 30)
+	dsl.CheckAll(t,
+		sys.L2CLB.AdvancedFn(types.LocalUnsafe, delta, 30),
+		sys.L2ELB.AdvancedFn(eth.Unsafe, delta),
+	)
 }

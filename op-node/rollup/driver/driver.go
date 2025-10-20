@@ -136,6 +136,7 @@ func NewDriver(
 		stateReq:      make(chan chan struct{}),
 		forceReset:    make(chan chan struct{}, 10),
 		driverConfig:  driverCfg,
+		syncConfig:    syncCfg,
 		driverCtx:     driverCtx,
 		driverCancel:  driverCancel,
 		log:           log,
@@ -168,6 +169,8 @@ type Driver struct {
 	// Driver config: verifier and sequencer settings.
 	// May not be modified after starting the Driver.
 	driverConfig *Config
+
+	syncConfig *sync.Config
 
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
@@ -395,18 +398,29 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.SyncDeriver.Engine.UnsafeL2Head()
 	payload, end := s.SyncDeriver.Engine.PeekUnsafePayload()
-	// Check if we have missing blocks between the start and end. Request them if we do.
-	if end == (eth.L2BlockRef{}) {
-		s.log.Warn("checkForGapInUnsafeQueue: no unsafe payload in queue", "start", start)
-		return nil
-	} else if end.Number > start.Number+1 {
-		s.log.Info("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
-		err := s.SyncDeriver.Engine.InsertUnsafePayload(ctx, payload, end)
-		if err != nil {
-			s.log.Error("failed to insert unsafe payload", "err", err)
+
+	if s.syncConfig.SyncModeReqResp {
+		if end == (eth.L2BlockRef{}) {
+			s.log.Debug("requesting rrsync with open-end range", "start", start)
+			return s.altSync.RequestL2Range(ctx, start, eth.L2BlockRef{})
+		} else if end.Number > start.Number+1 {
+			s.log.Debug("requesting rrsync missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
+			return s.altSync.RequestL2Range(ctx, start, end)
 		}
-		return err
+	} else {
+		if end == (eth.L2BlockRef{}) {
+			s.log.Debug("checkForGapInUnsafeQueue: no unsafe payload in queue", "start", start)
+			return nil
+		} else if end.Number > start.Number+1 {
+			s.log.Info("requesting engine missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
+			err := s.SyncDeriver.Engine.InsertUnsafePayload(ctx, payload, end)
+			if err != nil {
+				s.log.Error("failed to insert unsafe payload", "err", err)
+			}
+			return err
+		}
 	}
+
 	return nil
 }
 

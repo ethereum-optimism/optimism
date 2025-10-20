@@ -118,6 +118,13 @@ var (
 		}(),
 		Category: RollupCategory,
 	}
+	SyncModeReqRespFlag = &cli.BoolFlag{
+		Name:     "syncmode.req-resp",
+		Required: false,
+		Value:    false,
+		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
+		Category: RollupCategory,
+	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
 		Usage:    "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
@@ -448,6 +455,7 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
+	SyncModeReqRespFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
 	L1RPCProviderKind,
