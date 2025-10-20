@@ -624,7 +624,7 @@ abstract contract TimelockGuard is IGuard, IERC165 {
     /// @notice ERC165 interface detection
     /// @param _interfaceId The interface identifier to check
     /// @return True if the contract implements the interface
-    function supportsInterface(bytes4 _interfaceId) public view virtual override returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) external view virtual override returns (bool) {
         return _interfaceId == type(ITransactionGuard).interfaceId // 0xe6d7a83a
             || _interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }

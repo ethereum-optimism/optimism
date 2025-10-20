@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
@@ -894,8 +895,9 @@ contract TimelockGuard_SupportsInterface_Test is TimelockGuard_TestInit {
         assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support IERC165");
     }
 
-    function test_supportsInterface_invalidInterface_reverts() external view {
-        bytes4 interfaceId = 0xffffffff; // Invalid interface ID
-        assertFalse(timelockGuard.supportsInterface(interfaceId), "Should not support invalid interface");
+    function test_supportsInterface_invalidInterface_fails(bytes4 _interfaceId) external view {
+        vm.assume(_interfaceId != type(ITransactionGuard).interfaceId);
+        vm.assume(_interfaceId != type(IERC165).interfaceId);
+        assertFalse(timelockGuard.supportsInterface(_interfaceId), "Should not support invalid interface");
     }
 }
