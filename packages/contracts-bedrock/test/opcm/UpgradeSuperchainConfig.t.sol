@@ -9,6 +9,8 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { UpgradeSuperchainConfig } from "scripts/deploy/UpgradeSuperchainConfig.s.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 
+/// @title MockOPCM
+/// @notice This contract is used to mock the OPCM contract and emit an event which we check for in the test.
 contract MockOPCM {
     event UpgradeCalled(address indexed superchainConfig, address indexed superchainProxyAdmin);
 
@@ -17,7 +19,9 @@ contract MockOPCM {
     }
 }
 
-contract UpgradeSuperchainConfig_Test is Test {
+/// @title UpgradeSuperchainConfig_Test
+/// @notice This test is used to test the UpgradeSuperchainConfig script.
+contract UpgradeSuperchainConfig_Run_Test is Test {
     MockOPCM mockOPCM;
     UpgradeSuperchainConfig.Input input;
     UpgradeSuperchainConfig upgradeSuperchainConfig;
@@ -27,6 +31,7 @@ contract UpgradeSuperchainConfig_Test is Test {
 
     event UpgradeCalled(address indexed superchainConfig, address indexed superchainProxyAdmin);
 
+    /// @notice Sets up the test suite.
     function setUp() public virtual {
         mockOPCM = new MockOPCM();
 
@@ -43,10 +48,34 @@ contract UpgradeSuperchainConfig_Test is Test {
         upgradeSuperchainConfig = new UpgradeSuperchainConfig();
     }
 
+    /// @notice Tests that the UpgradeSuperchainConfig script succeeds when called with non-zero input values.
     function test_upgrade_succeeds() public {
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
         emit UpgradeCalled(address(superchainConfig), address(superchainProxyAdmin));
         upgradeSuperchainConfig.run(input);
+    }
+
+    /// @notice Tests that the UpgradeSuperchainConfig script reverts when called with zero input values.
+    function test_run_nullInput_reverts() public {
+        input.prank = address(0);
+        vm.expectRevert("UpgradeSuperchainConfig: prank not set");
+        upgradeSuperchainConfig.run(input);
+        input.prank = prank;
+
+        input.opcm = IOPContractsManager(address(0));
+        vm.expectRevert("UpgradeSuperchainConfig: opcm not set");
+        upgradeSuperchainConfig.run(input);
+        input.opcm = IOPContractsManager(address(mockOPCM));
+
+        input.superchainConfig = ISuperchainConfig(address(0));
+        vm.expectRevert("UpgradeSuperchainConfig: superchainConfig not set");
+        upgradeSuperchainConfig.run(input);
+        input.superchainConfig = ISuperchainConfig(address(superchainConfig));
+
+        input.superchainProxyAdmin = IProxyAdmin(address(0));
+        vm.expectRevert("UpgradeSuperchainConfig: superchainProxyAdmin not set");
+        upgradeSuperchainConfig.run(input);
+        input.superchainProxyAdmin = IProxyAdmin(address(superchainProxyAdmin));
     }
 }

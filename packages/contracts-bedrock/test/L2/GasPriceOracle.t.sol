@@ -116,6 +116,13 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
         gasPriceOracle.setFjord();
     }
 
+    /// @dev Tests that Jovian activation requires Isthmus to be active first.
+    function test_setJovian_requiresIsthmus_reverts() external {
+        vm.prank(depositor);
+        vm.expectRevert("GasPriceOracle: Jovian can only be activated after Isthmus");
+        gasPriceOracle.setJovian();
+    }
+
     /// @dev Tests that `getL1Fee` returns the expected value when both fjord and ecotone are not active
     function test_getL1Fee_whenFjordAndEcotoneNotActive_succeeds() external {
         vm.store(address(gasPriceOracle), bytes32(uint256(0)), bytes32(0));
@@ -382,7 +389,7 @@ contract GasPriceOracleIsthmus_Test is GasPriceOracle_Test {
         require(success, "GasPriceOracleIsthmus_Test: Function call failed");
     }
 
-    /// @dev Tests that `operatorFee` is set correctly.
+    /// @dev Tests that `operatorFee` is set correctly using the Isthmus formula (divide by 1e6).
     function test_getOperatorFee_succeeds() external view {
         assertEq(gasPriceOracle.getOperatorFee(10), 10 * operatorFeeScalar / 1e6 + operatorFeeConstant);
     }
@@ -391,5 +398,89 @@ contract GasPriceOracleIsthmus_Test is GasPriceOracle_Test {
     function test_setIsthmus_wrongCaller_reverts() external {
         vm.expectRevert("GasPriceOracle: only the depositor account can set isIsthmus flag");
         gasPriceOracle.setIsthmus();
+    }
+
+    /// @dev Tests that Jovian cannot be activated yet (since it's not activated by default).
+    function test_setJovian_notActivated_succeeds() external {
+        assertEq(gasPriceOracle.isJovian(), false);
+
+        // Activate Jovian
+        vm.prank(depositor);
+        gasPriceOracle.setJovian();
+
+        assertEq(gasPriceOracle.isJovian(), true);
+    }
+}
+
+contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
+    /// @dev Sets up the test suite with Isthmus parameters configured.
+    function setUp() public virtual override {
+        l2Fork = Fork.ISTHMUS;
+        super.setUp();
+
+        // Configure Isthmus state on the L1 block.
+        bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash,
+            operatorFeeScalar,
+            operatorFeeConstant
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(l1Block).call(calldataPacked);
+        require(success, "GasPriceOracleJovian_Test: L1Block setup failed");
+
+        assertEq(gasPriceOracle.isIsthmus(), true, "Isthmus should be active before enabling Jovian");
+        assertEq(gasPriceOracle.isJovian(), false, "Jovian starts active");
+    }
+
+    function _activateJovian() internal {
+        vm.prank(depositor);
+        gasPriceOracle.setJovian();
+        assertEq(gasPriceOracle.isJovian(), true, "Jovian activation failed");
+    }
+
+    /// @dev Tests that `operatorFee` is set correctly using the new Jovian formula (multiply by 100).
+    function test_getOperatorFee_succeeds() external {
+        _activateJovian();
+        assertEq(gasPriceOracle.getOperatorFee(10), 10 * operatorFeeScalar * 100 + operatorFeeConstant);
+    }
+
+    /// @dev Tests that `setJovian` is only callable by the depositor.
+    function test_setJovian_wrongCaller_reverts() external {
+        vm.expectRevert("GasPriceOracle: only the depositor account can set isJovian flag");
+        gasPriceOracle.setJovian();
+    }
+
+    /// @dev Tests that `setJovian` cannot be activated twice.
+    function test_setJovian_alreadyActive_reverts() external {
+        _activateJovian();
+        vm.prank(depositor);
+        vm.expectRevert("GasPriceOracle: Jovian already active");
+        gasPriceOracle.setJovian();
+    }
+
+    /// @dev Tests the transition from Isthmus formula to Jovian formula.
+    function test_formulaTransition_succeeds() external {
+        // Check Isthmus formula (divide by 1e6)
+        uint256 isthmusFee = gasPriceOracle.getOperatorFee(10);
+        assertEq(isthmusFee, 10 * operatorFeeScalar / 1e6 + operatorFeeConstant);
+
+        // Activate Jovian
+        _activateJovian();
+
+        // Check Jovian formula (multiply by 100)
+        uint256 jovianFee = gasPriceOracle.getOperatorFee(10);
+        assertEq(jovianFee, 10 * operatorFeeScalar * 100 + operatorFeeConstant);
+
+        // Verify the fee increased significantly
+        assertGt(jovianFee, isthmusFee);
     }
 }

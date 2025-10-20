@@ -13,7 +13,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 /// @title DataAvailabilityChallenge Test Init
 /// @notice Test initialization for DataAvailabilityChallenge tests.
-contract DataAvailabilityChallenge_TestInit is CommonTest {
+abstract contract DataAvailabilityChallenge_TestInit is CommonTest {
     function setUp() public virtual override {
         super.enableAltDA();
         super.setUp();

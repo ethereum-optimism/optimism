@@ -26,6 +26,7 @@ type BlockInfo interface {
 	ExcessBlobGas() *uint64
 	ReceiptHash() common.Hash
 	GasUsed() uint64
+	BlobGasUsed() *uint64
 	GasLimit() uint64
 	ParentBeaconRoot() *common.Hash // Dencun extension
 	WithdrawalsRoot() *common.Hash  // Isthmus extension
@@ -143,6 +144,10 @@ func (h *headerBlockInfo) ReceiptHash() common.Hash {
 
 func (h *headerBlockInfo) GasUsed() uint64 {
 	return h.header.GasUsed
+}
+
+func (h *headerBlockInfo) BlobGasUsed() *uint64 {
+	return h.header.BlobGasUsed
 }
 
 func (h *headerBlockInfo) GasLimit() uint64 {

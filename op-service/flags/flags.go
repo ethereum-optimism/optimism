@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 )
 
 const (
@@ -130,7 +131,7 @@ var requiredXorFlags = [][]string{
 	// },
 }
 
-func CheckRequiredXor(ctx *cli.Context) error {
+func CheckRequiredXor(ctx cliiface.Context) error {
 	for _, flagSet := range requiredXorFlags {
 		var setCount int
 		for _, flagName := range flagSet {

@@ -54,7 +54,6 @@ type L1Source interface {
 }
 
 type L1BlobSource interface {
-	GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error)
 	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
 }
 
@@ -325,27 +324,30 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		blobHashIndex := binary.BigEndian.Uint64(hintBytes[32:40])
 		refTimestamp := binary.BigEndian.Uint64(hintBytes[40:48])
 
-		// Fetch the blob sidecar for the indexed blob hash passed in the hint.
+		// Fetch the blob for the indexed blob hash passed in the hint.
 		indexedBlobHash := eth.IndexedBlobHash{
 			Hash:  blobVersionHash,
 			Index: blobHashIndex,
 		}
-		// We pass an `eth.L1BlockRef`, but `GetBlobSidecars` only uses the timestamp, which we received in the hint.
-		sidecars, err := p.l1BlobFetcher.GetBlobSidecars(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
-		if err != nil || len(sidecars) != 1 {
-			return fmt.Errorf("failed to fetch blob sidecars for %s %d: %w", blobVersionHash, blobHashIndex, err)
+		// We pass an `eth.L1BlockRef`, but `GetBlobs` only uses the timestamp, which we received in the hint.
+		blobs, err := p.l1BlobFetcher.GetBlobs(ctx, eth.L1BlockRef{Time: refTimestamp}, []eth.IndexedBlobHash{indexedBlobHash})
+		if err != nil || len(blobs) != 1 {
+			return fmt.Errorf("failed to fetch blobs for %s %d: %w", blobVersionHash, blobHashIndex, err)
 		}
-		sidecar := sidecars[0]
-
+		blob := blobs[0]
+		kzgCommitment, err := blob.ComputeKZGCommitment()
+		if err != nil {
+			return fmt.Errorf("failed to compute KZG commitment for blob: %w", err)
+		}
 		// Put the preimage for the versioned hash into the kv store
-		if err = p.kvStore.Put(preimage.Sha256Key(blobVersionHash).PreimageKey(), sidecar.KZGCommitment[:]); err != nil {
+		if err = p.kvStore.Put(preimage.Sha256Key(blobVersionHash).PreimageKey(), kzgCommitment[:]); err != nil {
 			return err
 		}
 
 		// Put all of the blob's field elements into the kv store. There should be 4096. The preimage oracle key for
 		// each field element is the keccak256 hash of `abi.encodePacked(sidecar.KZGCommitment, RootsOfUnity[i])`
 		blobKey := make([]byte, 80)
-		copy(blobKey[:48], sidecar.KZGCommitment[:])
+		copy(blobKey[:48], kzgCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 			rootOfUnity := l1.RootsOfUnity[i].Bytes()
 			copy(blobKey[48:], rootOfUnity[:])
@@ -353,7 +355,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
 				return err
 			}
-			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), sidecar.Blob[i<<5:(i+1)<<5]); err != nil {
+			if err = p.kvStore.Put(preimage.BlobKey(blobKeyHash).PreimageKey(), blob[i<<5:(i+1)<<5]); err != nil {
 				return err
 			}
 		}

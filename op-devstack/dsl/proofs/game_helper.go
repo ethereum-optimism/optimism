@@ -142,7 +142,7 @@ func (gs *GameHelper) CreateGameWithClaims(
 	data, err := gs.abi.Pack("createGameWithClaims", factory.Address(), gameType, rootClaim, extraData, moves)
 	gs.require.NoError(err)
 
-	gameImpl := factory.gameImpl(gameType)
+	gameImpl := factory.GameImpl(gameType)
 	bonds := factory.initBond(gameType)
 	bonds = bonds.Add(gs.totalMoveBonds(gameImpl, moves))
 

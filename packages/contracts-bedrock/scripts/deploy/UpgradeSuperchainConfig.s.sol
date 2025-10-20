@@ -14,7 +14,11 @@ contract UpgradeSuperchainConfig is Script {
         IProxyAdmin superchainProxyAdmin;
     }
 
+    /// @notice Delegate calls upgradeSuperchainConfig on the OPCM from the input.prank address.
     function run(Input memory _input) external {
+        // Make sure the input is valid
+        assertValidInput(_input);
+
         IOPContractsManager opcm = _input.opcm;
 
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
@@ -37,6 +41,16 @@ contract UpgradeSuperchainConfig is Script {
         (bool success,) = DummyCaller(prank).upgradeSuperchainConfig(superchainConfig, superchainProxyAdmin);
         require(success, "UpgradeSuperchainConfig: upgradeSuperchainConfig failed");
     }
+
+    /// @notice Asserts that the input is valid.
+    function assertValidInput(Input memory _input) internal pure {
+        require(_input.prank != address(0), "UpgradeSuperchainConfig: prank not set");
+        require(address(_input.opcm) != address(0), "UpgradeSuperchainConfig: opcm not set");
+        require(address(_input.superchainConfig) != address(0), "UpgradeSuperchainConfig: superchainConfig not set");
+        require(
+            address(_input.superchainProxyAdmin) != address(0), "UpgradeSuperchainConfig: superchainProxyAdmin not set"
+        );
+    }
 }
 
 /// @title DummyCaller
@@ -52,7 +66,7 @@ contract DummyCaller {
         returns (bool, bytes memory)
     {
         bytes memory data =
-            abi.encodeCall(DummyCaller.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin));
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin));
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }

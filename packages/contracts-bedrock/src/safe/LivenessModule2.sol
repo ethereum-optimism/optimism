@@ -5,9 +5,7 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
-
-// Interfaces
-import { ISemver } from "interfaces/universal/ISemver.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
@@ -17,7 +15,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
-contract LivenessModule2 is ISemver {
+abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
     ///                                      respond to a challenge.
@@ -97,10 +95,6 @@ contract LivenessModule2 is ISemver {
     /// @param fallbackOwner The address that claimed ownership if the Safe is unresponsive.
     event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
-    /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
-
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     ///         0 if not.
     /// @param _safe The Safe address to query.
@@ -146,7 +140,15 @@ contract LivenessModule2 is ISemver {
         _cancelChallenge(msg.sender);
 
         emit ModuleConfigured(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
+
+        // Verify that any other extensions which are enabled on the Safe are configured correctly.
+        _checkCombinedConfig(Safe(payable(msg.sender)));
     }
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
+    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @param _safe The Safe instance to check the configuration against
+    function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Clears the module configuration for a Safe.
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges.
@@ -282,8 +284,19 @@ contract LivenessModule2 is ISemver {
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
-
         emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
+
+        // Disable the guard
+        // Note that this will remove whichever guard is currently set on the Safe,
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
+        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // the fallback owner.
+        targetSafe.execTransactionFromModule({
+            to: _safe,
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+        });
     }
 
     /// @notice Asserts that the module is configured for the given Safe.

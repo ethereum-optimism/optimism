@@ -10,7 +10,7 @@ import { OptimismMintableERC721, IOptimismMintableERC721 } from "src/L2/Optimism
 
 /// @title OptimismMintableERC721_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC721` tests.
-contract OptimismMintableERC721_TestInit is CommonTest {
+abstract contract OptimismMintableERC721_TestInit is CommonTest {
     ERC721 internal L1NFT;
     OptimismMintableERC721 internal L2NFT;
 

@@ -14,7 +14,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule_TestInit
 /// @notice Reusable test initialization for `DeputyPauseModule` tests.
-contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
+abstract contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     event ExecutionFromModuleSuccess(address indexed module);

@@ -42,7 +42,7 @@ contract BlueprintHarness {
 
 /// @title Blueprint_TestInit
 /// @notice Reusable test initialization for `Blueprint` tests.
-contract Blueprint_TestInit is Test {
+abstract contract Blueprint_TestInit is Test {
     BlueprintHarness blueprint;
 
     function setUp() public {

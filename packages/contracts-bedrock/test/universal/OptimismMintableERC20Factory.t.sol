@@ -16,7 +16,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 
 /// @title OptimismMintableERC20Factory_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC20Factory` tests.
-contract OptimismMintableERC20Factory_TestInit is CommonTest {
+abstract contract OptimismMintableERC20Factory_TestInit is CommonTest {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 

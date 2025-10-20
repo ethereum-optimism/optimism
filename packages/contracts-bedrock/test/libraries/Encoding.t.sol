@@ -32,7 +32,7 @@ contract Encoding_Harness {
 
 /// @title Encoding_TestInit
 /// @notice Reusable test initialization for `Encoding` tests.
-contract Encoding_TestInit is CommonTest {
+abstract contract Encoding_TestInit is CommonTest {
     Encoding_Harness encoding;
 
     function setUp() public override {
