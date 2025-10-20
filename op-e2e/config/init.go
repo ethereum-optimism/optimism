@@ -471,9 +471,9 @@ func devFeatureBitmapFromEnv() common.Hash {
 	}
 
 	// force it on
-	out[31] |= 0x01
+	out[31] |= 0x10
 	out[30] |= 0x01
-	log.Info("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP and DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled (op-e2e)")
+	log.Info("DEV_FEATURE__CANNON_KONA and DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled (op-e2e)")
 	return out
 }
 
