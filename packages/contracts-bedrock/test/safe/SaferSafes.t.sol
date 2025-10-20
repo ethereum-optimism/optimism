@@ -7,9 +7,9 @@ import "test/safe-tools/SafeTestTools.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { GuardManager, Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 
 // Import the test utils from LivenessModule2 tests
 import { LivenessModule2_TestUtils } from "test/safe/LivenessModule2.t.sol";

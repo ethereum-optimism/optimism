@@ -567,7 +567,7 @@
         "type": "address"
       }
     ],
-    "name": "timelockConfiguration",
+    "name": "timelockDelay",
     "outputs": [
       {
         "internalType": "uint256",
