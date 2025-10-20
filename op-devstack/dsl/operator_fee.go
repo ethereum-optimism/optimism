@@ -158,7 +158,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	}
 
 	// Get updated balance in operator fee vault to compute delta
-	vaultAfter, err := from.el.stackEL().EthClient().BalanceAtHash(of.ctx, predeploys.OperatorFeeVaultAddr, blockHash)
+	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, receipt.BlockNumber)
 	of.require.NoError(err)
 	vaultIncrease := new(big.Int).Sub(vaultAfter, vaultBefore)
 
