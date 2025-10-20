@@ -24,32 +24,19 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// TestBatcherSafeHeadAdvancesAfterOsaka waits for the first unsafe head after the Osaka hardfork
-// to be promoted to safe. This indicates that the batcher is able to include blob txs after Osaka.
-// Note that as of this comment, Geth automatically converts pre-EIP7594 blob txs, but it not all
-// ELs do this.
-func TestBatcherSafeHeadAdvancesAfterOsaka(gt *testing.T) {
+func TestSafeHeadAdvancesAfterOsaka(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
+	l1Config := sys.L1Network.Escape().ChainConfig()
 	t.Log("Waiting for Osaka to activate")
-	t.Require().NotNil(sys.L1Network.Escape().ChainConfig().OsakaTime)
-	sys.L1EL.WaitForTime(*sys.L1Network.Escape().ChainConfig().OsakaTime)
+	t.Require().NotNil(l1Config.OsakaTime)
+	sys.L1EL.WaitForTime(*l1Config.OsakaTime)
 	t.Log("Osaka activated")
 
-	// 1. Wait for the sequencer to build a block after Osaka is activated. This avoids a race
-	//    condition where the unsafe head has been posted as part of a blob, but has not been
-	//    marked as "safe" yet.
-	sys.L2EL.WaitForBlock()
-
-	// 2. Wait for the safe head to advance to the latest unsafe head.
-	target := sys.L2EL.BlockRefByLabel(eth.Unsafe)
-	blockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	for range time.Tick(blockTime) {
-		if sys.L2EL.BlockRefByLabel(eth.Safe).Number >= target.Number {
-			// If the safe head is ahead of the target height and the target block is part of the
-			// canonical chain, then the target block is safe.
-			_, err := sys.L2EL.Escape().EthClient().BlockRefByHash(t.Ctx(), target.Hash)
-			t.Require().NoError(err)
+	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	for range time.Tick(l2BlockTime) {
+		l2SafeRef := sys.L2EL.BlockRefByLabel(eth.Safe)
+		if l1Config.IsOsaka(new(big.Int).SetUint64(l2SafeRef.Number), l2SafeRef.Time) {
 			return
 		}
 	}
