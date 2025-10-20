@@ -85,13 +85,16 @@ This systematic approach ensures comprehensive test improvements without missing
 **Phase 3 - Implementation & Validation**
 *Goal: Apply improvements while maintaining all tests passing*
 - Implement enhancements identified in Phase 1
+- Commit changes using conventional format
 - Add new tests for gaps identified in Phase 2
+- Commit changes using conventional format
 - Validate each change maintains expected behavior
 - Ensure all tests pass before proceeding to organization
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
 - Reorganize test contracts to match source function declaration order
+- Commit changes using conventional format
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -215,7 +218,7 @@ Low-level calls: check both success=false and error selector
 
 **Implementation Details:**
 - Before implementing helper functions, check for existing libraries (OpenZeppelin, Solady, etc.)
-- Version testing: Use `assertGt(bytes(contractName.version()).length, 0);` not specific version strings
+- Version testing: Use `SemverComp.parse(contractName.version());` to validate proper semver format (not specific version strings or length checks)
 - Never use dummy values: hex"test" → use valid hex like hex"1234" or hex""
 - Check actual contract behavior before making assumptions
 </test_assumptions>
@@ -258,6 +261,7 @@ NO - Use focused test when:
 
 <fuzz_constraints>
 Always use bound() for ranges: `_limit = bound(_limit, 0, MAX - 1)`
+Bound value amounts to prevent arithmetic overflow in test calculations (e.g., `type(uint192).max` for comprehensive coverage)
 Only use vm.assume() when bound() isn't possible (e.g., address exclusions)
 Check actual function requirements before adding constraints - don't assume
 NEVER fuzz a parameter if you need a specific value - just use that value directly
@@ -479,6 +483,27 @@ contract Base_Constructor_Test { // ✓ All constructor tests together
 }
 </right>
 </example>
+<example>
+<scenario>Version testing with hardcoded strings</scenario>
+<wrong>
+contract L1FeeVault_Version_Test {
+    function test_version_succeeds() external view {
+        assertEq(l1FeeVault.version(), "1.5.1"); // ❌ Hardcoded version string
+    }
+}
+// Or:
+function test_version_succeeds() external view {
+    assertGt(bytes(l1FeeVault.version()).length, 0); // ❌ Only checks non-empty
+}
+</wrong>
+<right>
+contract L1FeeVault_Version_Test {
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(l1FeeVault.version()); // ✓ Validates x.y.z format, no maintenance
+    }
+}
+</right>
+</example>
 </examples>
 
 <documentation_standards>
@@ -538,6 +563,11 @@ After successful validation, open a pull request using the default PR template.
 **Branch Naming:**
 - Format: `ai/improve-[contract-name]-coverage`
 - Example: `ai/improve-l1-standard-bridge-coverage`
+
+**Commit Strategy:**
+- Make discrete commits for each logical change type for easier review
+- Use conventional commit format: `type(scope): description`
+- Examples: fuzz conversions, new tests, test enhancements, fixes, organization
 </pr_submission>
 
 <output_format>
@@ -561,10 +591,5 @@ After successful validation, open a pull request using the default PR template.
 **Phase 5 - PR Submission:**
 - Validation complete: [YES/NO]
 - PR opened with default template: [YES/NO]
-
-**Commit Message:**
-refactor(test): improve [ContractName] test coverage and quality
-- add X tests for uncovered functions/paths
-- convert Y tests to fuzz tests
-- [other specific changes]
+- Commits made: [count and brief description of each]
 </output_format>
