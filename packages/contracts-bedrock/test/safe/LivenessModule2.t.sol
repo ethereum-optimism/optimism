@@ -10,6 +10,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2_TestUtils
 /// @notice Reusable helper methods for LivenessModule2 tests.
@@ -219,7 +220,6 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         challengeEndTime = livenessModule2.getChallengePeriodEnd(safeInstance.safe);
         assertEq(challengeEndTime, 0);
     }
-
 }
 
 /// @title LivenessModule2_ClearLivenessModule_Test
@@ -464,6 +464,17 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Bound time to reasonable values (1 second to 365 days after expiry)
         timeAfterExpiry = bound(timeAfterExpiry, 1, 365 days);
 
+        // Set a guard to verify it gets removed
+        address mockGuard = makeAddr("mockGuard");
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(GuardManager.setGuard, (mockGuard)),
+            Enum.Operation.Call
+        );
+        assertEq(_getGuard(safeInstance), mockGuard);
+
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(safeInstance.safe);
@@ -487,6 +498,9 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Verify challenge is reset
         uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(safeInstance.safe);
         assertEq(challengeEndTime, 0);
+
+        // Verify guard was removed
+        assertEq(_getGuard(safeInstance), address(0));
     }
 
     /// @notice Tests that changeOwnershipToFallback reverts if module is not configured
