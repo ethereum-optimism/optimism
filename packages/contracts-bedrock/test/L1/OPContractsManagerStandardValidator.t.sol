@@ -247,10 +247,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         return addGameType(input);
     }
 
-    event GameTypeAdded(
-        uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
-    );
-
     function addGameType(IOPContractsManager.AddGameInput memory input)
         internal
         returns (IOPContractsManager.AddGameOutput memory)
