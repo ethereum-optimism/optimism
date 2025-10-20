@@ -89,5 +89,13 @@ func checkExecutor(t e2eutils.TestingBase, info executorInfo, assignedIdx uint64
 		return
 	}
 
-	return
+	if assignedIdx >= info.total && info.idx == info.total-1 {
+		t.Logf("Running test. Current executor (%v) is the last executor and assigned executor (%v) >= total executors (%v).", info.idx, assignedIdx, info.total)
+		return
+	}
+	if info.idx == assignedIdx {
+		t.Logf("Running test. Assigned executor (%v) matches current executor (%v) of total (%v)", assignedIdx, info.idx, info.total)
+		return
+	}
+	t.Skipf("Skipping test. Assigned executor %v, current executor %v of total %v", assignedIdx, info.idx, info.total)
 }
