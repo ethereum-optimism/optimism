@@ -499,25 +499,29 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         assertEq(
             isthmusFee,
             uint256(10) * operatorFeeScalar / 1e6 + operatorFeeConstant,
-            "Isthmus formula failed with 10 gas used"
+            "Isthmus operator fee incorrect with 10 gas used"
         );
 
         // Use maximum values permitted by data types for scalars.
-        // Use maximum value for gasUsed according to spec.
+        // Use maximum value for gasUsed according to client implementations.
         // Assert that the fee is as expected (no overflow).
         _setOperatorFeeParams(MAX_UINT32, MAX_UINT64);
         isthmusFee = gasPriceOracle.getOperatorFee(MAX_UINT64);
         assertEq(
             isthmusFee,
             uint256(MAX_UINT64) * MAX_UINT32 / 1e6 + MAX_UINT64,
-            "Isthmus formula failed with max uint64 gas used"
+            "Isthmus operator fee incorrect with max uint64 gas used"
         );
 
-        // Show that a revert is possible if the maximum
+        // Show that the math saturates if the maximum
         // value for gasUsed (according to data type) is used.
         _setOperatorFeeParams(1e6, 1);
-        vm.expectRevert(stdError.arithmeticError);
-        gasPriceOracle.getOperatorFee(MAX_UINT256);
+        uint256 saturatedIsthmusFee = gasPriceOracle.getOperatorFee(MAX_UINT256);
+        assertEq(
+            saturatedIsthmusFee,
+            115792089237316195423570985008687907853269984665640564039457584007913130,
+            "Incorrect value for fee under Isthmus (saturating arithmetic triggered)"
+        );
 
         // Activate Jovian
         _activateJovian();
@@ -528,18 +532,18 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         assertEq(
             jovianFee,
             uint256(10) * operatorFeeScalar * 100 + operatorFeeConstant,
-            "Jovian formula failed with 10 gas used"
+            "Jovian operator fee incorrect with 10 gas used"
         );
 
         // Use maximum values permitted by data types for scalars.
-        // Use maximum value for gasUsed according to spec.
+        // Use maximum value for gasUsed according to client implementations.
         // Assert that the fee is as expected (no overflow).
         _setOperatorFeeParams(MAX_UINT32, MAX_UINT64);
         jovianFee = gasPriceOracle.getOperatorFee(MAX_UINT64);
         assertEq(
             jovianFee,
             uint256(MAX_UINT64) * MAX_UINT32 * 100 + MAX_UINT64,
-            "Jovian formula failed with max uint64 gas used"
+            "Jovian operator fee incorrect with max uint64 gas used"
         );
 
         // Show that a revert is possible if the maximum
