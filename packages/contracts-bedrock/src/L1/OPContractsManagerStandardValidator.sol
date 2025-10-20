@@ -512,9 +512,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory errors_)
     {
+        GameType gameType = GameTypes.PERMISSIONED_CANNON;
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        IPermissionedDisputeGame _game =
-            IPermissionedDisputeGame(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
+        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(gameType)));
 
         if (address(_game) == address(0)) {
             errors_ = internalRequire(false, "PDDG-10", errors_);
@@ -523,7 +523,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             return errors_;
         }
 
-        bytes memory _gameArgs = _factory.gameArgs(GameTypes.PERMISSIONED_CANNON);
+        bytes memory _gameArgs = _factory.gameArgs(gameType);
         bool lenCheckFailed;
         (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, true, "PDDG");
         if (lenCheckFailed) {
@@ -531,7 +531,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             return errors_;
         }
 
-        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, true);
+        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, gameType);
         errors_ = assertValidDisputeGame(
             DisputeGameValidationArgs({
                 errors: errors_,
@@ -568,8 +568,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        GameType gameType = GameTypes.CANNON;
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(GameTypes.CANNON)));
+        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(gameType)));
 
         if (address(_game) == address(0)) {
             _errors = internalRequire(false, "PLDG-10", _errors);
@@ -578,7 +579,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _errors;
         }
 
-        bytes memory _gameArgs = _factory.gameArgs(GameTypes.CANNON);
+        bytes memory _gameArgs = _factory.gameArgs(gameType);
         bool lenCheckFailed;
         (_errors, lenCheckFailed) = assertGameArgsLength(_errors, _gameArgs, false, "PLDG");
         if (lenCheckFailed) {
@@ -586,7 +587,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             return _errors;
         }
 
-        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, false);
+        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, gameType);
         _errors = assertValidDisputeGame(
             DisputeGameValidationArgs({
                 errors: _errors,
@@ -896,22 +897,25 @@ contract OPContractsManagerStandardValidator is ISemver {
     function _decodeDisputeGameImpl(
         IPermissionedDisputeGame _game,
         bytes memory _gameArgsBytes,
-        bool _isPermissioned
+        GameType _gameType
     )
         internal
         view
         returns (DisputeGameImplementation memory gameImpl_)
     {
+        GameType gameType;
         LibGameArgs.GameArgs memory gameArgs;
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            gameType = _gameType;
             gameArgs = LibGameArgs.decode(_gameArgsBytes);
         } else {
+            gameType = _game.gameType();
             gameArgs.absolutePrestate = Claim.unwrap(_game.absolutePrestate());
             gameArgs.vm = address(_game.vm());
             gameArgs.anchorStateRegistry = address(_game.anchorStateRegistry());
             gameArgs.weth = address(_game.weth());
             gameArgs.l2ChainId = _game.l2ChainId();
-            if (_isPermissioned) {
+            if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
                 gameArgs.challenger = _game.challenger();
                 gameArgs.proposer = _game.proposer();
             }
@@ -923,7 +927,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             splitDepth: _game.splitDepth(),
             maxClockDuration: _game.maxClockDuration(),
             clockExtension: _game.clockExtension(),
-            gameType: _game.gameType(),
+            gameType: gameType,
             l2SequenceNumber: _game.l2SequenceNumber(),
             absolutePrestate: Claim.wrap(gameArgs.absolutePrestate),
             vm: IBigStepper(gameArgs.vm),
