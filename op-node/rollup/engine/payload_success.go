@@ -61,24 +61,29 @@ func (e *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucce
 func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Time, ev PayloadSuccessEvent) {
 	// Protect against nil pointer dereferences
 	if ev.Envelope == nil || ev.Envelope.ExecutionPayload == nil {
-		e.log.Debug("Envelope.ExecutionPayload not found, skipping block processing metrics")
+		e.log.Info("Envelope.ExecutionPayload not found, skipping block processing metrics")
 		return
 	}
 
-	buildTime := ev.InsertStarted.Sub(ev.BuildStarted)
+	mgas := float64(ev.Envelope.ExecutionPayload.GasUsed) / 1e6
+	buildTime := time.Duration(0)
 	insertTime := updateEngineFinish.Sub(ev.InsertStarted)
+	totalTime := insertTime
 
-	var totalTime time.Duration
+	// BuildStarted may be zero if sequencer already built + gossiped a block, but failed during
+	// insertion and needed a retry of the insertion. In that case we use the default values above,
+	// otherwise we calculate buildTime and totalTime below
 	if !ev.BuildStarted.IsZero() {
+		buildTime = ev.InsertStarted.Sub(ev.BuildStarted)
 		totalTime = updateEngineFinish.Sub(ev.BuildStarted)
-	} else {
-		totalTime = insertTime
 	}
 
 	// Protect against divide-by-zero
-	var mgasps float64
+	var mgasps float64 // Mgas/s
 	if totalTime > 0 {
-		mgasps = float64(ev.Envelope.ExecutionPayload.GasUsed) * 1000 / float64(totalTime)
+		// Calculate "block-processing" Mgas/s.
+		// NOTE: "realtime" mgasps (chain throughput) is a different calculation: (GasUsed / blockPeriod)
+		mgasps = mgas / totalTime.Seconds()
 	}
 
 	e.log.Info("Inserted new L2 unsafe block",
@@ -87,7 +92,7 @@ func (e *EngineController) logBlockProcessingMetrics(updateEngineFinish time.Tim
 		"build_time", common.PrettyDuration(buildTime),
 		"insert_time", common.PrettyDuration(insertTime),
 		"total_time", common.PrettyDuration(totalTime),
-		"mgas", float64(ev.Envelope.ExecutionPayload.GasUsed)/1000000,
+		"mgas", mgas,
 		"mgasps", mgasps,
 	)
 }
