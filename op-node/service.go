@@ -340,6 +340,10 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
+	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
+	if !ctx.Bool(flags.SyncReqRespName) && ctx.Bool(flags.SyncModeReqRespFlag.Name) {
+		return nil, errors.New("cannot set --p2p.sync.req-resp=false and --syncmode.req-resp=true at the same time")
+	}
 	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
 	if err != nil {
 		return nil, err
@@ -348,6 +352,7 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
 		SyncMode:                       mode,
+		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
 	}

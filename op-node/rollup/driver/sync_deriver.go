@@ -104,10 +104,20 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
-	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
-	s.Log.Debug("OnUnsafeL2Payload called", "id", envelope.ExecutionPayload.ID(), "syncMode", s.SyncCfg.SyncMode)
-	if s.SyncCfg.SyncMode == sync.CLSync {
+	s.Log.Debug("OnUnsafeL2Payload called", "id", envelope.ExecutionPayload.ID(), "syncMode", s.SyncCfg.SyncMode, "followUnsafeWithRRSync", s.SyncCfg.SyncModeReqResp)
+
+	// Scenario: syncMode.ELSync with s.SyncCfg.SyncModeReqResp=false.
+	//
+	// 1. For the conditional: !s.Engine.IsEngineInitialELSyncing() && s.SyncCfg.SyncModeReqResp ->
+	//    When initial EL Sync is done, conditional will not be satisfied. The unsafe payload will be directly pushed to EL using InsertUnsafePayload.
+	//
+	// 2. For the conditional: !s.Engine.IsEngineInitialELSyncing() ->
+	//    When initial EL Sync is done, conditional will be satisfied, pushing the unsafe payload to the queue. At checkForGapInUnsafeQueue, it will pop the unsafe payload and apply InsertUnsafePayload because s.SyncCfg.SyncModeReqResp=false.
+	//
+	// Both conditionals will lead to calling InsertUnsafePayload, but if we don't include the `&& s.SyncCfg.SyncModeReqResp`, there may be a delay before the payload is applied, at most the interval of `altSyncTicker(syncCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2)`.
+	if s.SyncCfg.SyncMode == sync.CLSync || (!s.Engine.IsEngineInitialELSyncing() && s.SyncCfg.SyncModeReqResp) {
 		s.Engine.AddUnsafePayload(ctx, envelope)
+		return
 	}
 
 	if s.SyncCfg.SyncMode == sync.ELSync {
@@ -123,7 +133,9 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref); err != nil {
 			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 		}
+		return
 	}
+
 }
 
 func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDerivedEvent) {
@@ -226,7 +238,7 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.Engine.TryUpdateEngine(s.Ctx)
 
-	if s.Engine.IsEngineSyncing() {
+	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
