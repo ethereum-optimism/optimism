@@ -280,24 +280,26 @@ contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
 /// @title TimelockGuard_ConfigureTimelockGuard_Test
 /// @notice Tests for configureTimelockGuard function
 contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
-    /// @notice Verifies the guard can be configured with a standard delay.
-    function test_configureTimelockGuard_succeeds() external {
-        vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, TIMELOCK_DELAY);
+    /// @notice Verifies the guard can be configured with various valid delays.
+    function testFuzz_configureTimelockGuard_validDelay_succeeds(uint256 _delay) external {
+        _delay = bound(_delay, 1, ONE_YEAR);
 
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        vm.expectEmit(true, true, true, true);
+        emit GuardConfigured(safe, _delay);
+
+        _configureGuard(safeInstance, _delay);
 
         uint256 delay = timelockGuard.timelockDelay(safe);
-        assertEq(delay, TIMELOCK_DELAY);
+        assertEq(delay, _delay);
     }
 
     /// @notice Confirms delays above the maximum revert during configuration.
-    function test_configureTimelockGuard_revertsIfDelayTooLong_reverts() external {
-        uint256 tooLongDelay = ONE_YEAR + 1;
+    function testFuzz_configureTimelockGuard_delayTooLong_reverts(uint256 _delay) external {
+        _delay = bound(_delay, ONE_YEAR + 1, type(uint256).max);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(tooLongDelay);
+        timelockGuard.configureTimelockGuard(_delay);
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
