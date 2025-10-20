@@ -728,12 +728,14 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         );
     }
 
-    function test_checkTransaction_notOwner_reverts() external {
+    /// @notice Test that checkTransaction reverts when the caller is not an owner
+    function testFuzz_checkTransaction_notOwner_reverts(address nonOwner) external {
+        vm.assume(!safeInstance.safe.isOwner(nonOwner));
         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
         dummyTx.scheduleTransaction(timelockGuard);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_NotOwner.selector);
-        dummyTx.executeTransaction(makeAddr("non-owner"));
+        dummyTx.executeTransaction(nonOwner);
     }
 }
 
