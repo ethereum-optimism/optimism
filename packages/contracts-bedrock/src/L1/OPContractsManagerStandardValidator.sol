@@ -500,7 +500,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Asserts that the PermissionedDisputeGame contract is valid.
     function assertValidPermissionedDisputeGame(
-        string memory _errors,
+        string memory _initialErrors,
         ISystemConfig _sysCfg,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
@@ -512,6 +512,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory errors_)
     {
+        errors_ = _initialErrors;
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(gameType)));
