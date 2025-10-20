@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 import { GnosisSafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { GnosisSafeProxy } from "safe-contracts/proxies/GnosisSafeProxy.sol";
@@ -118,16 +117,18 @@ contract SafeCompatibilityTest is Test {
         GnosisSafeProxyFactory factory = GnosisSafeProxyFactory(proxyFactory);
 
         // Prepare initialization data
-        bytes memory initializer = abi.encodeWithSelector(
-            GnosisSafe.setup.selector,
-            owners,
-            threshold,
-            address(0), // to (for module setup)
-            "", // data (for module setup)
-            address(0), // fallbackHandler
-            address(0), // paymentToken
-            0, // payment
-            payable(address(0)) // paymentReceiver
+        bytes memory initializer = abi.encodeCall(
+            GnosisSafe.setup,
+            (
+                owners,
+                threshold,
+                address(0), // to (for module setup)
+                "", // data (for module setup)
+                address(0), // fallbackHandler
+                address(0), // paymentToken
+                0, // payment
+                payable(address(0)) // paymentReceiver
+            )
         );
 
         // Create proxy
@@ -393,7 +394,9 @@ contract SafeCompatibilityTest is Test {
     /// @param index Index of the version
     /// @return SafeVersion struct
     function getSafeVersion(uint256 index) public view returns (SafeVersion memory) {
-        require(index < safeVersions.length, "Invalid version index");
+        if (index >= safeVersions.length) {
+            revert("SafeCompatibilityTest: invalid version index");
+        }
         return safeVersions[index];
     }
 
