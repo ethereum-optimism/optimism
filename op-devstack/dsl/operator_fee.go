@@ -131,10 +131,6 @@ func (of *OperatorFee) VerifyL2Config(expectedScalar uint32, expectedConstant ui
 }
 
 func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.Int, expectedScalar uint32, expectedConstant uint64) OperatorFeeValidationResult {
-	// Cache balance in operator fee vault
-	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
-	of.require.NoError(err)
-
 	// Ensure there is at least one user transaction, to trigger flow of operator fees to vault.
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(of.ctx)
@@ -159,6 +155,8 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 
 	// Get updated balance in operator fee vault to compute delta
 	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, receipt.BlockNumber)
+	of.require.NoError(err)
+	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, big.NewInt(0).Sub(receipt.BlockNumber, big.NewInt(1)))
 	of.require.NoError(err)
 	vaultIncrease := new(big.Int).Sub(vaultAfter, vaultBefore)
 
