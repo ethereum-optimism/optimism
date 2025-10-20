@@ -493,7 +493,7 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
     }
 
     /// @dev Tests the transition from Isthmus formula to Jovian formula.
-    function test_formulaTransition_edgeCases() external {
+    function test_formulaTransition_edgeCases_works() external {
         // Check Isthmus formula with a low gasUsed value (divide by 1e6)
         _setOperatorFeeParams(operatorFeeScalar, operatorFeeConstant);
         uint256 isthmusFee = gasPriceOracle.getOperatorFee(10);
