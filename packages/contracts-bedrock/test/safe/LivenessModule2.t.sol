@@ -108,8 +108,8 @@ contract LivenessModule2_TestInit is LivenessModule2_TestUtils {
     }
 }
 
-/// @title LivenessModule2_Configure_Test
-/// @notice Tests configuring and clearing the module
+/// @title LivenessModule2_ConfigureLivenessModule_Test
+/// @notice Tests configuring the module
 contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestInit {
     function test_configureLivenessModule_succeeds() external {
         vm.expectEmit(true, true, true, true);
@@ -220,7 +220,12 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         assertEq(challengeEndTime, 0);
     }
 
-    function test_clear_succeeds() external {
+}
+
+/// @title LivenessModule2_ClearLivenessModule_Test
+/// @notice Tests clearing the module configuration
+contract LivenessModule2_ClearLivenessModule_Test is LivenessModule2_TestInit {
+    function test_clearLivenessModule_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // First disable the module at the Safe level
@@ -249,13 +254,13 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         assertEq(clearedConfig.fallbackOwner, address(0));
     }
 
-    function test_clear_notEnabled_reverts() external {
+    function test_clearLivenessModule_notConfigured_reverts() external {
         vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.clearLivenessModule();
     }
 
-    function test_clear_moduleStillEnabled_reverts() external {
+    function test_clearLivenessModule_moduleStillEnabled_reverts() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // Try to clear while module is still enabled (should revert)
