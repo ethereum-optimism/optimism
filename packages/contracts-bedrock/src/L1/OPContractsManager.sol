@@ -396,7 +396,7 @@ abstract contract OPContractsManagerBase {
     }
 
     /// @notice Retrieves the AnchorStateRegistry address for a given SystemConfig
-    function getAnchorStateRegistryV1(ISystemConfig _systemConfig) internal view returns (IAnchorStateRegistry) {
+    function getAnchorStateRegistry(ISystemConfig _systemConfig) internal view returns (IAnchorStateRegistry) {
         return IAnchorStateRegistry(IOptimismPortal(payable(_systemConfig.optimismPortal())).anchorStateRegistry());
     }
 
@@ -640,7 +640,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         gameConfig.disputeMaxClockDuration,
                         gameConfig.vm,
                         outputs[i].delayedWETH,
-                        getAnchorStateRegistryV1(gameConfig.systemConfig),
+                        getAnchorStateRegistry(gameConfig.systemConfig),
                         gameL2ChainId
                     ),
                     getProposerV1(IPermissionedDisputeGame(address(existingGame))),
@@ -657,7 +657,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         gameConfig.disputeMaxClockDuration,
                         gameConfig.vm,
                         outputs[i].delayedWETH,
-                        getAnchorStateRegistryV1(gameConfig.systemConfig),
+                        getAnchorStateRegistry(gameConfig.systemConfig),
                         gameL2ChainId
                     )
                 );
