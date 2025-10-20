@@ -212,7 +212,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Returns the expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public view returns (string memory) {
         if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            return "2.1.0";
+            return "2.2.0";
         } else {
             return "1.8.0";
         }
