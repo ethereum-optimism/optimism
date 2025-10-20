@@ -727,6 +727,77 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
+/// @title TimelockGuard_CheckAfterExecution_Test
+/// @notice Tests for checkAfterExecution function
+contract TimelockGuard_CheckAfterExecution_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    /// @notice Verifies successful execution updates state and resets threshold.
+    function test_checkAfterExecution_successfulExecution_succeeds() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
+        vm.warp(expectedExecutionTime);
+
+        // Verify initial cancellation threshold
+        uint256 initialThreshold = timelockGuard.cancellationThreshold(safeInstance.safe);
+        assertEq(initialThreshold, 1);
+
+        // Call checkAfterExecution with successful execution
+        vm.expectEmit(true, true, true, true);
+        emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.checkAfterExecution(dummyTx.hash, true);
+
+        // Verify transaction state changed to Executed
+        TimelockGuard.ScheduledTransaction memory scheduledTx =
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Executed));
+
+        // Verify transaction removed from pending list
+        TimelockGuard.ScheduledTransaction[] memory pending = timelockGuard.pendingTransactions(safeInstance.safe);
+        assertEq(pending.length, 0);
+
+        // Verify cancellation threshold was reset to 1
+        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
+
+        // Verify transaction cannot be executed again
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyExecuted.selector);
+        dummyTx.executeTransaction(safeInstance.owners[0]);
+    }
+
+    /// @notice Verifies transaction state remains unchanged on execution failure.
+    function test_checkAfterExecution_failedExecution_succeeds() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
+        vm.warp(expectedExecutionTime);
+
+        // Call checkAfterExecution with failed execution
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.checkAfterExecution(dummyTx.hash, false);
+
+        // Verify transaction state remains unchanged
+        TimelockGuard.ScheduledTransaction memory scheduledTx =
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
+        assertEq(uint256(scheduledTx.executionTime), expectedExecutionTime);
+
+    }
+
+    /// @notice Verifies unconfigured guard allows checkAfterExecution.
+    function test_checkAfterExecution_unconfiguredGuard_succeeds() external {
+        bytes32 randomHash = keccak256("random");
+        vm.prank(address(unguardedSafe.safe));
+        timelockGuard.checkAfterExecution(randomHash, true);
+    }
+}
+
 /// @title TimelockGuard_MaxCancellationThreshold_Test
 /// @notice Tests for the maxCancellationThreshold function in TimelockGuard
 contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
