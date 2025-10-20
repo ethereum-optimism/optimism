@@ -1,0 +1,269 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.3.3"
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Optimism reth metrics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+      {
+          "datasource": {
+              "type": "prometheus",
+              "uid": "${DS_PROMETHEUS}"
+          },
+          "description": "Latency histogram for forwarding a transaction to the Sequencer",
+          "fieldConfig": {
+              "defaults": {
+                  "custom": {
+                      "drawStyle": "line",
+                      "lineInterpolation": "linear",
+                      "barAlignment": 0,
+                      "barWidthFactor": 0.6,
+                      "lineWidth": 1,
+                      "fillOpacity": 0,
+                      "gradientMode": "none",
+                      "spanNulls": false,
+                      "insertNulls": false,
+                      "showPoints": "auto",
+                      "pointSize": 5,
+                      "stacking": {
+                          "mode": "none",
+                          "group": "A"
+                      },
+                      "axisPlacement": "auto",
+                      "axisLabel": "",
+                      "axisColorMode": "text",
+                      "axisBorderShow": false,
+                      "scaleDistribution": {
+                          "type": "linear"
+                      },
+                      "axisCenteredZero": false,
+                      "hideFrom": {
+                          "tooltip": false,
+                          "viz": false,
+                          "legend": false
+                      },
+                      "thresholdsStyle": {
+                          "mode": "off"
+                      }
+                  },
+                  "color": {
+                      "mode": "palette-classic"
+                  },
+                  "mappings": [],
+                  "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                          {
+                              "color": "green",
+                              "value": null
+                          },
+                          {
+                              "color": "red",
+                              "value": 80
+                          }
+                      ]
+                  },
+                  "unit": "s"
+              },
+              "overrides": []
+          },
+          "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+          },
+          "id": 210,
+          "options": {
+              "tooltip": {
+                  "mode": "single",
+                  "sort": "none"
+              },
+              "legend": {
+                  "showLegend": true,
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "calcs": []
+              }
+          },
+          "targets": [
+              {
+                  "datasource": {
+                      "type": "prometheus",
+                      "uid": "Prometheus"
+                  },
+                  "disableTextWrap": false,
+                  "editorMode": "builder",
+                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0\"}",
+                  "fullMetaSearch": false,
+                  "includeNullMetadata": true,
+                  "legendFormat": "min",
+                  "range": true,
+                  "refId": "A",
+                  "useBackend": false
+              },
+              {
+                  "datasource": {
+                      "type": "prometheus",
+                      "uid": "Prometheus"
+                  },
+                  "disableTextWrap": false,
+                  "editorMode": "builder",
+                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.5\"}",
+                  "fullMetaSearch": false,
+                  "hide": false,
+                  "includeNullMetadata": true,
+                  "legendFormat": "p50",
+                  "range": true,
+                  "refId": "B",
+                  "useBackend": false
+              },
+              {
+                  "datasource": {
+                      "type": "prometheus",
+                      "uid": "Prometheus"
+                  },
+                  "disableTextWrap": false,
+                  "editorMode": "builder",
+                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.9\"}",
+                  "fullMetaSearch": false,
+                  "hide": false,
+                  "includeNullMetadata": true,
+                  "legendFormat": "p90",
+                  "range": true,
+                  "refId": "C",
+                  "useBackend": false
+              },
+              {
+                  "datasource": {
+                      "type": "prometheus",
+                      "uid": "Prometheus"
+                  },
+                  "disableTextWrap": false,
+                  "editorMode": "builder",
+                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.95\"}",
+                  "fullMetaSearch": false,
+                  "hide": false,
+                  "includeNullMetadata": true,
+                  "legendFormat": "p95",
+                  "range": true,
+                  "refId": "D",
+                  "useBackend": false
+              },
+              {
+                  "datasource": {
+                      "type": "prometheus",
+                      "uid": "Prometheus"
+                  },
+                  "disableTextWrap": false,
+                  "editorMode": "builder",
+                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.99\"}",
+                  "fullMetaSearch": false,
+                  "hide": false,
+                  "includeNullMetadata": true,
+                  "legendFormat": "p99",
+                  "range": true,
+                  "refId": "E",
+                  "useBackend": false
+              }
+          ],
+          "title": "Transaction Forward Latency",
+          "type": "timeseries"
+      }
+
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["optimism", "sequencer", "transactions"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "query_result(reth_info)",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": {
+          "query": "query_result(reth_info)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/.*instance=\\\"([^\\\"]*).*/",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "OP-Reth - Sequencer Metrics",
+  "uid": "8438c957-55f5-44df-869d-a9a30a3c9a97",
+  "version": 1,
+  "weekStart": ""
+}
