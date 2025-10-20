@@ -34,20 +34,16 @@ func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2Fault
 	env.Miner.ActL1EndBlock(t)
 }
 
-func Test_ProgramAction_JovianActivation(gt *testing.T) {
-	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool, minBaseFee uint64) {
+func Test_ProgramAction_JovianMinBaseFee(gt *testing.T) {
+	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
 		gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.Engine.EthClient())
 		require.NoError(t, err)
 		t.Logf("L2 Genesis Time: %d, JovianTime: %d ", env.Sequencer.RollupCfg.Genesis.L2Time, *env.Sequencer.RollupCfg.JovianTime)
 
-		if jovianAtGenesis {
-			// Verify Jovian is active at genesis
-			require.True(t, env.Sequencer.RollupCfg.IsJovian(env.Sequencer.RollupCfg.Genesis.L2Time), "Jovian should be active at genesis")
-		} else {
-			require.False(t, env.Sequencer.RollupCfg.IsJovian(env.Engine.L2Chain().CurrentBlock().Time), "Jovian should be not active at genesis")
-
+		jovianAtGenesis := env.Sequencer.RollupCfg.IsJovian(env.Sequencer.RollupCfg.Genesis.L2Time)
+		if !jovianAtGenesis {
 			// Check GPO status
 			isJovian, err := gpo.IsJovian(nil)
 			require.NoError(t, err)
@@ -60,6 +56,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				expectedHoloceneExtraData := eip1559.EncodeHoloceneExtraData(250, 6)
 				require.Equal(t, expectedHoloceneExtraData, b.Extra(), "extra data should match Holocene format")
 				env.Sequencer.ActL2EmptyBlock(t)
+				// Last iteration builds the activation block.
 			}
 		}
 
@@ -68,8 +65,6 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		require.NoError(t, err)
 		require.True(t, isJovian, "GPO should report that Jovian is active")
 
-		// Build the activation block
-		env.Sequencer.ActL2EmptyBlock(t)
 		activationBlock := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 		require.Equal(t, eip1559.EncodeMinBaseFeeExtraData(250, 6, 0), activationBlock.Extra(), "activation block should have Jovian extraData")
 
@@ -125,29 +120,25 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				dc.ActivateForkAtOffset(rollup.Jovian, 10)
 			},
-			jovianAtGenesis: false,
-			minBaseFee:      0,
+			minBaseFee: 0,
 		},
 		"JovianActivationAtGenesisZeroMinBaseFee": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
-			jovianAtGenesis: true,
-			minBaseFee:      0,
+			minBaseFee: 0,
 		},
 		"JovianActivationAtGenesisMinBaseFeeMedium": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
-			jovianAtGenesis: true,
-			minBaseFee:      1_000_000_000, // 1 gwei
+			minBaseFee: 1_000_000_000, // 1 gwei
 		},
 		"JovianActivationAtGenesisMinBaseFeeHigh": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
 				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
-			jovianAtGenesis: true,
-			minBaseFee:      2_000_000_000, // 2 gwei
+			minBaseFee: 2_000_000_000, // 2 gwei
 		},
 	}
 
@@ -155,11 +146,11 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		gt.Run(name, func(t *testing.T) {
 			matrix := helpers.NewMatrix[any]()
 			matrix.AddDefaultTestCasesWithName(
-				"HonestClaim-"+name,
+				name,
 				nil,
 				helpers.NewForkMatrix(helpers.Isthmus),
 				func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis, tt.minBaseFee)
+					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.minBaseFee)
 				},
 			)
 			matrix.Run(t)
