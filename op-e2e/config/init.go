@@ -342,6 +342,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 		L1ContractsLocator: loc,
 		L2ContractsLocator: loc,
 		GlobalDeployOverrides: map[string]any{
+			"devFeatureBitmap":                         devFeatureBitmapFromEnv(),
 			"maxSequencerDrift":                        300,
 			"sequencerWindowSize":                      200,
 			"channelTimeout":                           120,
@@ -444,6 +445,44 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			},
 		},
 	}
+}
+
+// devFeatureBitmapFromEnv reads DEV_FEATURE__* env vars and composes the bitmap used by op-deployer
+// to enable development-only features in generated allocs and deployments.
+func devFeatureBitmapFromEnv() common.Hash {
+	var out common.Hash
+	// OPTIMISM_PORTAL_INTEROP => 0x...0001 (last byte 0x01)
+	if envTruthy("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP") {
+		out[31] |= 0x01
+		log.Info("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP enabled (op-e2e)")
+	}
+	// CANNON_KONA => 0x...0010 (last byte 0x10)
+	if envTruthy("DEV_FEATURE__CANNON_KONA") {
+		out[31] |= 0x10
+		log.Info("DEV_FEATURE__CANNON_KONA enabled (op-e2e)")
+	}
+	// DEPLOY_V2_DISPUTE_GAMES => 0x...0100 (second-to-last byte 0x01)
+	if envTruthy("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES") {
+		out[30] |= 0x01
+		log.Info("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled (op-e2e)")
+	}
+	if out != (common.Hash{}) {
+		log.Info("op-e2e: devFeatureBitmap composed", "bitmap", out.Hex())
+	}
+
+	// force it on
+	out[31] |= 0x01
+	out[30] |= 0x01
+	log.Info("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP and DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES enabled (op-e2e)")
+	return out
+}
+
+func envTruthy(name string) bool {
+	v, ok := os.LookupEnv(name)
+	if !ok {
+		return false
+	}
+	return v == "1" || v == "true" || v == "TRUE"
 }
 
 func ensureDir(dirPath string) error {
