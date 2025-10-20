@@ -38,11 +38,13 @@ func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *Th
 // Update updates the throttle parameters and returns the new params
 func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams {
 	// Get strategy atomically to avoid race condition
-	strategy := tc.strategy.Load()
+	strategyPtr := tc.strategy.Load()
+	strategy := *strategyPtr
 	config := tc.config
 
 	// Call strategy.Update() without holding the controller lock to avoid deadlock
-	intensity := (*strategy).Update(currentPendingBytes)
+	// Use local copy to prevent strategy from changing during execution
+	intensity := strategy.Update(currentPendingBytes)
 
 	params := tc.intensityToParams(intensity, config)
 	tc.currentParams.Store(&params)
