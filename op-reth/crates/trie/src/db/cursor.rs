@@ -5,12 +5,11 @@ use crate::{
     OpProofsHashedCursor, OpProofsStorageError, OpProofsStorageResult, OpProofsTrieCursor,
 };
 use alloy_primitives::{B256, U256};
-use reth_db::DatabaseEnv;
-use reth_db_api::{
+use reth_db::{
     cursor::{DbCursorRO, DbDupCursorRO},
     table::{DupSort, Table},
     transaction::DbTx,
-    Database,
+    Database, DatabaseEnv,
 };
 use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
@@ -296,13 +295,10 @@ mod tests {
     use super::*;
     use crate::db::models;
     use reth_db::{
-        mdbx::{init_db_for, DatabaseArguments},
-        DatabaseEnv,
-    };
-    use reth_db_api::{
         cursor::DbDupCursorRW,
+        mdbx::{init_db_for, DatabaseArguments},
         transaction::{DbTx, DbTxMut},
-        Database,
+        Database, DatabaseEnv,
     };
     use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
     use tempfile::TempDir;

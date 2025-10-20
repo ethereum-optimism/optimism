@@ -9,7 +9,7 @@ use alloy_primitives::{
     map::{B256Map, HashMap},
     Address, Bytes, B256, U256,
 };
-use reth_db_api::DatabaseError;
+use reth_db::DatabaseError;
 use reth_execution_errors::{StateProofError, StateRootError, StorageRootError, TrieWitnessError};
 use reth_primitives_traits::Account;
 use reth_trie::{

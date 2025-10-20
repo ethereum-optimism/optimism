@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 # reth
 reth-db = { workspace = true, features = ["mdbx"] }
-reth-db-api.workspace = true
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
 reth-node-api.workspace = true
@@ -52,6 +51,8 @@ tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"
 tempfile.workspace = true
 test-case.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
+# workaround for failing doc test <https://github.com/op-rs/op-reth/pull/234>
+reth-db-api = { workspace = true, features = ["test-utils"] }
 reth-trie = { workspace = true, features = ["test-utils"] }
 
 [features]
