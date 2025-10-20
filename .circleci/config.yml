@@ -1767,7 +1767,7 @@ jobs:
             jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
       - slack/notify:
-          channel: notify-ci-failures
+          channel: C03N11M0BBN  # "notify-ci" channel
           event: always
           retries: 1
           retry_delay: 3
