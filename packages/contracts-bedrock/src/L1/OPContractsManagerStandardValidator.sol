@@ -500,7 +500,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Asserts that the PermissionedDisputeGame contract is valid.
     function assertValidPermissionedDisputeGame(
-        string memory _initialErrors,
+        string memory _errors,
         ISystemConfig _sysCfg,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
@@ -510,50 +510,40 @@ contract OPContractsManagerStandardValidator is ISemver {
     )
         internal
         view
-        returns (string memory errors_)
+        returns (string memory)
     {
-        errors_ = _initialErrors;
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
-        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(gameType)));
+        string memory errorPrefix = "PDDG";
 
-        if (address(_game) == address(0)) {
-            errors_ = internalRequire(false, "PDDG-10", errors_);
-            // Return early to avoid reverting, since this means that there is no valid game impl
-            // for this game type.
-            return errors_;
+        // Collect game implementation parameters
+        DisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
+        if (failedToGetImpl) {
+            // Return early on failure to avoid trying to validate an invalid dispute game
+            return _errors;
         }
 
-        bytes memory _gameArgs = _factory.gameArgs(gameType);
-        bool lenCheckFailed;
-        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, true, "PDDG");
-        if (lenCheckFailed) {
-            // bail out immediately to avoid trying to validate an invalid dispute game
-            return errors_;
-        }
-
-        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, gameType);
-        errors_ = assertValidDisputeGame(
+        _errors = assertValidDisputeGame(
             DisputeGameValidationArgs({
-                errors: errors_,
+                errors: _errors,
                 sysCfg: _sysCfg,
-                game: _gameImpl,
-                factory: _factory,
+                game: gameImpl,
                 absolutePrestate: _absolutePrestate,
                 l2ChainID: _l2ChainID,
                 admin: _admin,
-                gameType: GameTypes.PERMISSIONED_CANNON,
+                gameType: gameType,
                 overrides: _overrides,
-                errorPrefix: "PDDG"
+                errorPrefix: errorPrefix
             })
         );
 
         // Challenger is specific to the PermissionedDisputeGame contract.
         address _challenger = expectedChallenger(_overrides);
-        errors_ = internalRequire(_gameImpl.challenger == _challenger, "PDDG-130", errors_);
-        errors_ = internalRequire(_gameImpl.proposer == _proposer, "PDDG-140", errors_);
+        _errors = internalRequire(gameImpl.challenger == _challenger, "PDDG-130", _errors);
+        _errors = internalRequire(gameImpl.proposer == _proposer, "PDDG-140", _errors);
 
-        return errors_;
+        return _errors;
     }
 
     /// @notice Asserts that the PermissionlessDisputeGame contract is valid.
@@ -570,48 +560,74 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         GameType gameType = GameTypes.CANNON;
-        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(gameType)));
+        string memory errorPrefix = "PLDG";
 
-        if (address(_game) == address(0)) {
-            _errors = internalRequire(false, "PLDG-10", _errors);
-            // Return early to avoid reverting, since this means that there is no valid game impl
-            // for this game type.
+        // Collect game implementation parameters
+        DisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
+        if (failedToGetImpl) {
+            // Return early on failure to avoid trying to validate an invalid dispute game
             return _errors;
         }
 
-        bytes memory _gameArgs = _factory.gameArgs(gameType);
-        bool lenCheckFailed;
-        (_errors, lenCheckFailed) = assertGameArgsLength(_errors, _gameArgs, false, "PLDG");
-        if (lenCheckFailed) {
-            // bail out immediately to avoid trying to validate an invalid dispute game
-            return _errors;
-        }
-
-        DisputeGameImplementation memory _gameImpl = _decodeDisputeGameImpl(_game, _gameArgs, gameType);
         _errors = assertValidDisputeGame(
             DisputeGameValidationArgs({
                 errors: _errors,
                 sysCfg: _sysCfg,
-                game: _gameImpl,
-                factory: _factory,
+                game: gameImpl,
                 absolutePrestate: _absolutePrestate,
                 l2ChainID: _l2ChainID,
                 admin: _admin,
-                gameType: GameTypes.CANNON,
+                gameType: gameType,
                 overrides: _overrides,
-                errorPrefix: "PLDG"
+                errorPrefix: errorPrefix
             })
         );
 
         return _errors;
     }
 
+    function getGameImplementation(
+        string memory _initialErrors,
+        GameType _gameType,
+        ISystemConfig _sysCfg,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (DisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
+    {
+        errors_ = _initialErrors;
+        bool isPermissioned = _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw();
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
+
+        if (address(_game) == address(0)) {
+            errors_ = internalRequire(false, string.concat(_errorPrefix, "-10"), errors_);
+            // Return early to avoid reverting, since this means that there is no valid game impl
+            // for this game type.
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        bytes memory _gameArgs = _factory.gameArgs(_gameType);
+        bool lenCheckFailed;
+        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, isPermissioned, _errorPrefix);
+        if (lenCheckFailed) {
+            // Return early to avoid decoding invalid game args
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+        gameImpl_ = _decodeDisputeGameImpl(_game, _gameArgs, _gameType);
+
+        return (gameImpl_, errors_, failed_);
+    }
+
     struct DisputeGameValidationArgs {
         string errors;
         ISystemConfig sysCfg;
         DisputeGameImplementation game;
-        IDisputeGameFactory factory;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
         IProxyAdmin admin;
@@ -630,6 +646,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         string memory errorPrefix = _args.errorPrefix;
         DisputeGameImplementation memory game = _args.game;
         (Hash anchorRoot,) = game.asr.getAnchorRoot();
+        IDisputeGameFactory dgf = IDisputeGameFactory(_args.sysCfg.disputeGameFactory());
 
         errors_ = internalRequire(
             LibString.eq(getVersion(game.gameAddress), permissionedDisputeGameVersion()),
@@ -657,8 +674,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         errors_ = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(errorPrefix, "-120"), errors_);
 
         errors_ = assertValidDelayedWETH(errors_, _args.sysCfg, game.weth, _args.admin, _args.overrides, errorPrefix);
-        errors_ =
-            assertValidAnchorStateRegistry(errors_, _args.sysCfg, _args.factory, game.asr, _args.admin, errorPrefix);
+        errors_ = assertValidAnchorStateRegistry(errors_, _args.sysCfg, dgf, game.asr, _args.admin, errorPrefix);
 
         errors_ = assertValidMipsVm(errors_, IMIPS64(address(game.vm)), errorPrefix);
 
