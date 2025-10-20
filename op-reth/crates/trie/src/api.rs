@@ -76,7 +76,7 @@ pub trait OpProofsHashedCursor: Send + Sync {
 }
 
 /// Diff of trie updates and post state for a block.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BlockStateDiff {
     /// Trie updates for branch nodes
     pub trie_updates: TrieUpdates,
