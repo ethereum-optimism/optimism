@@ -7,6 +7,7 @@ import { Fork } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
+import { stdError } from "forge-std/Test.sol";
 
 contract GasPriceOracle_Test is CommonTest {
     address depositor;
@@ -555,8 +556,4 @@ contract GasPriceOracleJovian_Test is GasPriceOracle_Test {
         // Verify the fee increased significantly
         assertGt(jovianFee, isthmusFee, "Jovian formula fee should be greater than Isthmus formula fee");
     }
-}
-
-library stdError {
-    bytes public constant arithmeticError = abi.encodeWithSignature("Panic(uint256)", 0x11);
 }
