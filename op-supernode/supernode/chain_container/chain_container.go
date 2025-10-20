@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +27,11 @@ type ChainContainer interface {
 	Stop(ctx context.Context) error
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
+	// FullyValidAt reports whether the L2 block corresponding to the given
+	// Unix timestamp (seconds) is already part of the safe chain.
+	FullyValidAt(ctx context.Context, ts uint64) (bool, error)
+	// BlockAtTimestamp returns the highest L2 block with timestamp <= ts
+	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -34,6 +40,7 @@ type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
+	engine             engine_controller.EngineController
 	pause              atomic.Bool
 	stop               atomic.Bool
 	stopped            chan struct{}
@@ -74,6 +81,16 @@ func NewChainContainer(
 	vncfg.P2P = &p2p.Config{DisableP2P: true}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
+	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
+	if vncfg.L2 != nil {
+		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, log, vncfg); err != nil {
+			log.Error("failed to setup engine controller", "err", err)
+		} else {
+			c.engine = eng
+		}
+	}
 	return c
 }
 
@@ -162,6 +179,11 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 		}
 	}
 
+	// Close engine controller RPC resources
+	if c.engine != nil {
+		_ = c.engine.Close()
+	}
+
 	select {
 	case <-c.stopped:
 		return nil
@@ -178,4 +200,24 @@ func (c *simpleChainContainer) Pause(ctx context.Context) error {
 func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	c.pause.Store(false)
 	return nil
+}
+
+// FullyValidAt checks if the block at the given timestamp is safe according to the virtual node.
+func (c *simpleChainContainer) FullyValidAt(ctx context.Context, ts uint64) (bool, error) {
+	if c.vn == nil {
+		return false, nil
+	}
+	safeTs, err := c.vn.SafeTimestamp(ctx)
+	if err != nil {
+		return false, err
+	}
+	return safeTs >= ts, nil
+}
+
+// BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client.
+func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.BlockAtTimestamp(ctx, ts)
 }

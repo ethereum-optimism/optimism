@@ -31,11 +31,15 @@ var (
 type VirtualNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	// SafeTimestamp returns the latest known cross-safe L2 timestamp.
+	SafeTimestamp(ctx context.Context) (uint64, error)
 }
 
 type innerNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	// SafeL2Timestamp returns the latest known cross-safe L2 timestamp, if available.
+	SafeL2Timestamp() (uint64, bool)
 }
 
 type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
@@ -173,4 +177,19 @@ func (v *simpleVirtualNode) State() VNState {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.state
+}
+
+// SafeTimestamp returns the latest known cross-safe L2 timestamp.
+func (v *simpleVirtualNode) SafeTimestamp(ctx context.Context) (uint64, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return 0, nil
+	}
+	safeTs, ok := inner.SafeL2Timestamp()
+	if !ok {
+		return 0, nil
+	}
+	return safeTs, nil
 }

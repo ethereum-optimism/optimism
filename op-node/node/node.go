@@ -814,6 +814,15 @@ func (n *OpNode) RuntimeConfig() runcfg.ReadonlyRuntimeConfig {
 	return n.runCfg
 }
 
+// SafeL2Timestamp returns the latest known cross-safe L2 timestamp and whether it is available.
+func (n *OpNode) SafeL2Timestamp() (uint64, bool) {
+	if n.l2Driver == nil || n.l2Driver.StatusTracker == nil {
+		return 0, false
+	}
+	st := n.l2Driver.StatusTracker.SyncStatus()
+	return st.SafeL2.Time, true
+}
+
 // Stop stops the node and closes all resources.
 // If the provided ctx is expired, the node will accelerate the stop where possible, but still fully close.
 func (n *OpNode) Stop(ctx context.Context) error {
