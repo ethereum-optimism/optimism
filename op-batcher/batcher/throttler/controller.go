@@ -13,16 +13,16 @@ import (
 // ThrottleController manages throttling using a pluggable strategy
 type ThrottleController struct {
 	mu            sync.RWMutex
-	strategy      ThrottleStrategy
+	strategy      atomic.Pointer[ThrottleStrategy]
 	config        ThrottleConfig
 	currentParams atomic.Pointer[ThrottleParams]
 }
 
 func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *ThrottleController {
 	controller := &ThrottleController{
-		strategy: strategy,
-		config:   config,
+		config: config,
 	}
+	controller.strategy.Store(&strategy)
 
 	// Initialize with default params
 	initialParams := &ThrottleParams{
@@ -37,12 +37,12 @@ func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *Th
 
 // Update updates the throttle parameters and returns the new params
 func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams {
-	tc.mu.Lock()
-	defer tc.mu.Unlock()
-
-	strategy := tc.strategy
+	// Get strategy atomically to avoid race condition
+	strategy := tc.strategy.Load()
 	config := tc.config
-	intensity := strategy.Update(currentPendingBytes)
+
+	// Call strategy.Update() without holding the controller lock to avoid deadlock
+	intensity := (*strategy).Update(currentPendingBytes)
 
 	params := tc.intensityToParams(intensity, config)
 	tc.currentParams.Store(&params)
@@ -103,7 +103,8 @@ func (tc *ThrottleController) intensityToBlockSize(intensity float64, cfg Thrott
 	if intensity == 0 {
 		return cfg.BlockSizeUpperLimit
 	} else {
-		switch tc.strategy.GetType() {
+		strategy := tc.strategy.Load()
+		switch (*strategy).GetType() {
 		case config.StepControllerType:
 			return cfg.BlockSizeLowerLimit
 		default:
@@ -122,7 +123,8 @@ func (tc *ThrottleController) intensityToTxSize(intensity float64, cfg ThrottleC
 	if intensity == 0 {
 		return 0 // Transactions are not throttled at 0 intensity
 	} else {
-		switch tc.strategy.GetType() {
+		strategy := tc.strategy.Load()
+		switch (*strategy).GetType() {
 		case config.StepControllerType:
 			return cfg.TxSizeLowerLimit
 		default:
@@ -133,10 +135,8 @@ func (tc *ThrottleController) intensityToTxSize(intensity float64, cfg ThrottleC
 
 // Load returns the current controller type and parameters atomically
 func (tc *ThrottleController) Load() (config.ThrottleControllerType, ThrottleParams) {
-	tc.mu.RLock()
-	defer tc.mu.RUnlock()
-
-	controllerType := tc.strategy.GetType()
+	strategy := tc.strategy.Load()
+	controllerType := (*strategy).GetType()
 
 	params := tc.currentParams.Load()
 	if params == nil {
@@ -148,23 +148,17 @@ func (tc *ThrottleController) Load() (config.ThrottleControllerType, ThrottlePar
 
 // SetStrategy changes the throttle strategy at runtime
 func (tc *ThrottleController) SetStrategy(strategy ThrottleStrategy, resetParams ThrottleParams) {
-	tc.mu.Lock()
-	tc.strategy = strategy
-	tc.mu.Unlock()
-
+	tc.strategy.Store(&strategy)
 	tc.currentParams.Store(&resetParams)
 }
 
 // Reset resets the current strategy state
 func (tc *ThrottleController) Reset() {
-	tc.mu.RLock()
-	defer tc.mu.RUnlock()
-
-	strategy := tc.strategy
+	strategy := tc.strategy.Load()
 	config := tc.config
 
 	// Call strategy reset without holding the controller lock
-	strategy.Reset()
+	(*strategy).Reset()
 
 	// Reset to default parameters
 	resetParams := ThrottleParams{
@@ -177,17 +171,14 @@ func (tc *ThrottleController) Reset() {
 
 // GetType returns the current strategy type
 func (tc *ThrottleController) GetType() config.ThrottleControllerType {
-	tc.mu.RLock()
-	defer tc.mu.RUnlock()
-	return tc.strategy.GetType()
+	strategy := tc.strategy.Load()
+	return (*strategy).GetType()
 }
 
 // GetPIDStrategy returns the PID strategy if the current strategy is PID, otherwise returns nil
 func (tc *ThrottleController) GetPIDStrategy() *PIDStrategy {
-	tc.mu.RLock()
-	defer tc.mu.RUnlock()
-
-	if pidStrategy, ok := tc.strategy.(*PIDStrategy); ok {
+	strategy := tc.strategy.Load()
+	if pidStrategy, ok := (*strategy).(*PIDStrategy); ok {
 		return pidStrategy
 	}
 	return nil
