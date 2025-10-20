@@ -95,54 +95,12 @@ API_RESPONSE=$(echo "$API_RESPONSE" | jq '.flaky_tests = (.flaky_tests | map(sel
 echo "$API_RESPONSE" > "$OUTPUT_DIR/flaky_tests.json"
 echo "Raw API response saved to $OUTPUT_DIR/flaky_tests.json"
 
-# Verify that each flaky test's job belongs to the target branch by checking its pipeline branch
-echo "Verifying pipeline branches for each flaky test..."
+# Use acceptance-tests fresponse directly
+echo "Using acceptance-tests filtered response without additional branch verification..."
 FILTERED_JSON="$OUTPUT_DIR/flaky_tests.filtered.json"
-PIPELINE_BRANCH_CACHE=$(mktemp)
-FILTERED_ENTRIES=$(mktemp)
-
-cleanup_branch_filter() {
-  rm -f "$PIPELINE_BRANCH_CACHE" "$FILTERED_ENTRIES" || true
-}
-trap cleanup_branch_filter EXIT
-
-get_branch_for_pipeline_number() {
-  local pipeline_number="$1"
-  # Check cache
-  local cached
-  cached=$(awk -v num="$pipeline_number" '$1==num {print $2; found=1} END{ if(!found) exit 1 }' "$PIPELINE_BRANCH_CACHE" 2>/dev/null || true)
-  if [ -n "$cached" ]; then
-    echo "$cached"
-    return 0
-  fi
-  # Fetch from CircleCI API (project pipeline by number)
-  local resp
-  resp=$(curl -s -H "Circle-Token: $CIRCLE_API_TOKEN" "https://circleci.com/api/v2/project/gh/$ORG_NAME/$REPO_NAME/pipeline/$pipeline_number")
-  if [ -z "$resp" ]; then
-    echo ""
-    return 0
-  fi
-  local branch
-  branch=$(echo "$resp" | jq -r '.vcs.branch // .branch // empty')
-  printf "%s %s\n" "$pipeline_number" "${branch}" >> "$PIPELINE_BRANCH_CACHE"
-  echo "$branch"
-}
-
-: > "$FILTERED_ENTRIES"
-while IFS= read -r entry; do
-  pipeline_number=$(echo "$entry" | jq -r '.pipeline_number // empty')
-  if [ -z "$pipeline_number" ]; then
-    continue
-  fi
-  branch=$(get_branch_for_pipeline_number "$pipeline_number")
-  if [ "$branch" = "$BRANCH" ]; then
-    echo "$entry" >> "$FILTERED_ENTRIES"
-  fi
-done < <(jq -c '.flaky_tests[]' "$OUTPUT_DIR/flaky_tests.json")
-
-jq -s '{flaky_tests: .}' "$FILTERED_ENTRIES" > "$FILTERED_JSON"
+cp "$OUTPUT_DIR/flaky_tests.json" "$FILTERED_JSON"
 API_RESPONSE=$(cat "$FILTERED_JSON")
-echo "Filtered API response saved to $FILTERED_JSON"
+echo "Filtered response saved to $FILTERED_JSON"
 
 # Check if the response contains flaky_tests
 if ! echo "$API_RESPONSE" | jq -e '.flaky_tests' > /dev/null 2>&1; then
@@ -152,20 +110,13 @@ if ! echo "$API_RESPONSE" | jq -e '.flaky_tests' > /dev/null 2>&1; then
   exit 1
 fi
 
-# Check if we have any flaky tests after branch verification
-if ! jq -e '.flaky_tests | length > 0' "$FILTERED_JSON" > /dev/null 2>&1; then
-  echo "No flaky tests found for branch $BRANCH after verifying pipeline branches"
-  echo "Filtered Response:"
-  cat "$FILTERED_JSON"
-  exit 0
-fi
-
 # Print the number of flaky tests found
 NUM_TESTS=$(jq '.flaky_tests | length' "$FILTERED_JSON")
 echo "Found $NUM_TESTS flaky tests"
 
 # Generate CSV report
 echo "Generating CSV report..."
+echo '"times_flaked","test_name","classname","job_name","workflow_name","job_number","pipeline_number","job_url","first_flaked_at","last_flaked_at"' > "$OUTPUT_DIR/flaky_tests.csv"
 jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
   .times_flaked,
   (.test_name | @json),
@@ -177,15 +128,7 @@ jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
   ("https://app.circleci.com/pipelines/github/" + "'"$ORG_NAME"'" + "/" + "'"$REPO_NAME"'" + "/" + (.pipeline_number | tostring) + "/workflows/" + .workflow_id + "/jobs/" + (.job_number | tostring) | @json),
   (.workflow_created_at | @json),
   (.workflow_created_at | @json)
-] | @csv' "$FILTERED_JSON" > "$OUTPUT_DIR/flaky_tests.csv"
-
-# Check if CSV file was generated and has content
-if [ ! -s "$OUTPUT_DIR/flaky_tests.csv" ]; then
-  echo "Error: CSV file is empty or was not generated"
-  echo "Contents of flaky_tests.json:"
-  cat "$OUTPUT_DIR/flaky_tests.json"
-  exit 1
-fi
+] | @csv' "$FILTERED_JSON" >> "$OUTPUT_DIR/flaky_tests.csv"
 
 # Generate HTML report
 echo "Generating HTML report..."

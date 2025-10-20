@@ -14,7 +14,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 
 /// @title SuperPermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperPermissionedDisputeGame` tests.
-contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @notice The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(5);
     /// @notice Mock proposer key

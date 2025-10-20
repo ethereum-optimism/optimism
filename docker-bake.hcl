@@ -69,6 +69,10 @@ variable "OP_SUPERVISOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_SUPERNODE_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "OP_TEST_SEQUENCER_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -214,6 +218,19 @@ target "op-supervisor" {
   target = "op-supervisor-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supervisor:${tag}"]
+}
+
+target "op-supernode" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_SUPERNODE_VERSION = "${OP_SUPERNODE_VERSION}"
+  }
+  target = "op-supernode-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
 }
 
 target "op-test-sequencer" {

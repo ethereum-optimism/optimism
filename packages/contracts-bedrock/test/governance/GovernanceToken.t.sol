@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 /// @title GovernanceToken_TestInit
 /// @notice Reusable test initialization for `GovernanceToken` tests.
-contract GovernanceToken_TestInit is CommonTest {
+abstract contract GovernanceToken_TestInit is CommonTest {
     address owner;
     address rando;
 

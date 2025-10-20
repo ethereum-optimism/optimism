@@ -9,8 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/urfave/cli/v2"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -37,7 +35,7 @@ import (
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
+func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
@@ -52,7 +50,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	depSet, err := NewDependencySetFromCLI(ctx, ctx.Context)
+	depSet, err := NewDependencySetFromCLI(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -346,12 +344,12 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
 }
 
-func NewDependencySetFromCLI(cli cliiface.Context, ctx context.Context) (depset.DependencySet, error) {
+func NewDependencySetFromCLI(cli cliiface.Context) (depset.DependencySet, error) {
 	if !cli.IsSet(flags.InteropDependencySet.Name) {
 		return nil, nil
 	}
 	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
-	return loader.LoadDependencySet(ctx)
+	return loader.LoadDependencySet()
 }
 
 func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {

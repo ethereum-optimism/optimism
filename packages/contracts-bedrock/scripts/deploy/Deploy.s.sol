@@ -323,8 +323,7 @@ contract Deploy is Deployer {
             _impls: impls,
             _proxies: _proxies(),
             _opcm: IOPContractsManager(address(dio.opcm)),
-            _mips: IMIPS64(address(dio.mipsSingleton)),
-            _superchainProxyAdmin: superchainProxyAdmin
+            _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);

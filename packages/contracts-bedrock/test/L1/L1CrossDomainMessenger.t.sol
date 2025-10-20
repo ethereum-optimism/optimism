@@ -40,7 +40,7 @@ contract L1CrossDomainMessenger_Encoding_Harness {
 
 /// @title L1CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for L1CrossDomainMessenger tests.
-contract L1CrossDomainMessenger_TestInit is CommonTest {
+abstract contract L1CrossDomainMessenger_TestInit is CommonTest {
     /// @dev The receiver address
     address recipient = address(0xabbaacdc);
 

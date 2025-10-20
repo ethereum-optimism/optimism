@@ -9,7 +9,7 @@ import (
 )
 
 func TestSmoke(gt *testing.T) {
-	gt.Skip("TODO(#17257): Re-enable once opcm.deploy supports v2 dispute games")
+	gt.Skip("TODO(#17810): Re-enable once opcm.deploy supports v2 dispute games")
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	require := t.Require()

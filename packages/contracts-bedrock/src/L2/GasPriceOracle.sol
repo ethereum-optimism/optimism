@@ -30,8 +30,8 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice This is the intercept value for the linear regression used to estimate the final size of the
     ///         compressed transaction.
@@ -53,6 +53,9 @@ contract GasPriceOracle is ISemver {
 
     /// @notice Indicates whether the network has gone through the Isthmus upgrade.
     bool public isIsthmus;
+
+    /// @notice Indicates whether the network has gone through the Jovian upgrade.
+    bool public isJovian;
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.
@@ -113,6 +116,17 @@ contract GasPriceOracle is ISemver {
         require(isFjord, "GasPriceOracle: Isthmus can only be activated after Fjord");
         require(isIsthmus == false, "GasPriceOracle: Isthmus already active");
         isIsthmus = true;
+    }
+
+    /// @notice Set chain to be Jovian chain (callable by depositor account)
+    function setJovian() external {
+        require(
+            msg.sender == Constants.DEPOSITOR_ACCOUNT,
+            "GasPriceOracle: only the depositor account can set isJovian flag"
+        );
+        require(isIsthmus, "GasPriceOracle: Jovian can only be activated after Isthmus");
+        require(isJovian == false, "GasPriceOracle: Jovian already active");
+        isJovian = true;
     }
 
     /// @notice Retrieves the current gas price (base fee).
@@ -194,15 +208,26 @@ contract GasPriceOracle is ISemver {
         return l1GasUsed + IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
     }
 
+    /// @notice Calculates the operator fee for a given gas usage.
+    /// @dev Formula varies based on fork activation:
+    ///      - Pre-Isthmus: Returns 0 (no operator fee)
+    ///      - Isthmus (pre-Jovian): operatorFee = (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
+    ///      - Jovian and after: operatorFee = (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
+    /// @param _gasUsed The amount of gas used by the transaction
+    /// @return The calculated operator fee
     function getOperatorFee(uint256 _gasUsed) public view returns (uint256) {
         if (!isIsthmus) {
             return 0;
         }
 
-        return Arithmetic.saturatingAdd(
-            Arithmetic.saturatingMul(_gasUsed, IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar()) / 1e6,
-            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant()
-        );
+        uint256 operatorScalar = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar();
+        uint256 operatorConstant = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant();
+
+        if (isJovian) {
+            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) * 100, operatorConstant);
+        } else {
+            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) / 1e6, operatorConstant);
+        }
     }
 
     /// @notice Computation of the L1 portion of the fee for Bedrock.

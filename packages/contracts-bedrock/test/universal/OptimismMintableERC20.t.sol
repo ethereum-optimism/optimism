@@ -8,7 +8,7 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 
 /// @title OptimismMintableERC20_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC20` tests.
-contract OptimismMintableERC20_TestInit is CommonTest {
+abstract contract OptimismMintableERC20_TestInit is CommonTest {
     event Mint(address indexed account, uint256 amount);
     event Burn(address indexed account, uint256 amount);
 }

@@ -185,6 +185,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 			"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
 			"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 			"--ipcdisable",
+			"--port", "0",
 			"--nodiscover",
 			"--verbosity", "5",
 			"--miner.recommit", "2s",

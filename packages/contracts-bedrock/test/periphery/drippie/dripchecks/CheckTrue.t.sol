@@ -6,7 +6,7 @@ import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 
 /// @title CheckTrue_TestInit
 /// @notice Reusable test initialization for `CheckTrue` tests.
-contract CheckTrue_TestInit is Test {
+abstract contract CheckTrue_TestInit is Test {
     /// @notice An instance of the CheckTrue contract.
     CheckTrue c;
 

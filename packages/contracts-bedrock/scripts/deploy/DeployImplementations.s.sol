@@ -17,7 +17,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
-import { GameTypes, Duration } from "src/dispute/lib/Types.sol";
+import { Duration } from "src/dispute/lib/Types.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
@@ -157,7 +157,9 @@ contract DeployImplementations is Script {
             disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
-            mipsImpl: address(_output.mipsSingleton)
+            mipsImpl: address(_output.mipsSingleton),
+            faultDisputeGameV2Impl: address(_output.faultDisputeGameV2Impl),
+            permissionedDisputeGameV2Impl: address(_output.permissionedDisputeGameV2Impl)
         });
 
         deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
@@ -204,8 +206,7 @@ contract DeployImplementations is Script {
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
-                    _input.protocolVersionsProxy,
-                    _input.superchainProxyAdmin
+                    _input.protocolVersionsProxy
                 )
             )
         );
@@ -485,7 +486,6 @@ contract DeployImplementations is Script {
 
     function deployFaultDisputeGameV2Impl(Input memory _input, Output memory _output) private {
         IFaultDisputeGameV2.GameConstructorParams memory params;
-        params.gameType = GameTypes.CANNON;
         params.maxGameDepth = _input.faultGameV2MaxGameDepth;
         params.splitDepth = _input.faultGameV2SplitDepth;
         params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
@@ -504,7 +504,6 @@ contract DeployImplementations is Script {
 
     function deployPermissionedDisputeGameV2Impl(Input memory _input, Output memory _output) private {
         IFaultDisputeGameV2.GameConstructorParams memory params;
-        params.gameType = GameTypes.PERMISSIONED_CANNON;
         params.maxGameDepth = _input.faultGameV2MaxGameDepth;
         params.splitDepth = _input.faultGameV2SplitDepth;
         params.clockExtension = Duration.wrap(uint64(_input.faultGameV2ClockExtension));
@@ -767,8 +766,7 @@ contract DeployImplementations is Script {
             _impls: impls,
             _proxies: proxies,
             _opcm: IOPContractsManager(address(_output.opcm)),
-            _mips: IMIPS64(address(_output.mipsSingleton)),
-            _superchainProxyAdmin: _input.superchainProxyAdmin
+            _mips: IMIPS64(address(_output.mipsSingleton))
         });
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);

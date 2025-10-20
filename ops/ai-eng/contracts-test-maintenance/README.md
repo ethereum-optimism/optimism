@@ -87,6 +87,8 @@ files = ["test/vendor/Initializable.t.sol"]
 
 ## Monitoring
 
+**Slack Notifications**: Automatic notifications posted to #evm-safety Slack channel when PRs are created
+
 **Latest Run**:
 ```bash
 cat log.json | jq .
@@ -118,5 +120,5 @@ cat log.json | jq .
 **Status**: ✅ Active
 **Schedule**: Monday & Thursday
 **Maintainer**: EVM Safety Team
-**Version**: 1.0.0
+**Version**: 1.1.0
 

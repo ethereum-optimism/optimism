@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
@@ -146,6 +147,7 @@ abstract contract LivenessModule2 {
 
     /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
     ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @param _safe The Safe instance to check the configuration against
     function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Clears the module configuration for a Safe.
@@ -282,8 +284,19 @@ abstract contract LivenessModule2 {
 
         // Reset the challenge state to allow a new challenge
         delete challengeStartTime[_safe];
-
         emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
+
+        // Disable the guard
+        // Note that this will remove whichever guard is currently set on the Safe,
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
+        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // the fallback owner.
+        targetSafe.execTransactionFromModule({
+            to: _safe,
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(GuardManager.setGuard, (address(0)))
+        });
     }
 
     /// @notice Asserts that the module is configured for the given Safe.

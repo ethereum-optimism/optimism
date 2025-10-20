@@ -204,53 +204,6 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
-  # Notifies us on Discord when a build fails on develop
-  # For Discord to properly trigger notifications, mentions need to be in the format:
-  # User mentions: <@USER_ID>
-  # Role mentions: <@&ROLE_ID>
-  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
-  discord-notification-failures-on-develop:
-    description: "Notify Discord"
-    parameters:
-      message:
-        type: string
-        default: ""
-      mentions:
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: "Notify Discord"
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
-              # Format message for Discord with better structure and formatting
-              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
-
-              # Add failure reason if provided
-              if [ ! -z "<< parameters.message >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
-              fi
-
-              # Add mentions if provided
-              if [ ! -z "<< parameters.mentions >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
-              fi
-
-              # Add extra mentions from environment (e.g. owners from flake-shake)
-              if [ -n "${EXTRA_DISCORD_MENTIONS:-}" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Owners:** ${EXTRA_DISCORD_MENTIONS}"
-              fi
-
-              # Post to Discord webhook
-              curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
-            fi
-          when: on_fail
-
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -448,9 +401,6 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      - discord-notification-failures-on-develop:
-          mentions: "Platforms (<@&1346448413172170807>)" # Protocol DevX Pod
-          message: "Kurtosis acceptance tests failed for devnet <<parameters.devnet>> gate <<parameters.gate>>"
   initialize:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1013,6 +963,28 @@ jobs:
       - store_artifacts:
           path: ops/ai-eng/contracts-test-maintenance/log.json
           destination: log.json
+      - run:
+          name: Prepare Slack notification
+          command: |
+            set -eo pipefail
+            LOG_FILE="ops/ai-eng/contracts-test-maintenance/log.json"
+
+            PR_URL=$(jq -r '.pull_request_url // empty' "$LOG_FILE")
+            TEST_FILE=$(jq -r '.selected_files.test_path | split("/") | .[-1]' "$LOG_FILE")
+
+            if [ -n "$PR_URL" ]; then
+              MESSAGE=$'<!subteam^S07K486JEH4> AI Contracts Test Maintenance System created a PR for '"${TEST_FILE}"$'\n<'"${PR_URL}"$'|View PR> | <https://www.notion.so/oplabs/AI-Contract-Test-Maintenance-System-PR-Reviewer-Guide-288f153ee16280478c0ed1adc5edd9f9|Reviewer Guide>'
+              SLACK_JSON=$(jq -n --arg msg "$MESSAGE" '{"text": $msg}')
+              echo "export AI_PR_SLACK_TEMPLATE='${SLACK_JSON}'" >> $BASH_ENV
+            else
+              echo "No PR created, skipping notification"
+              echo "export AI_PR_SLACK_TEMPLATE=''" >> $BASH_ENV
+            fi
+          when: always
+      - slack/notify:
+          channel: C050F1GUHDG
+          event: always
+          template: AI_PR_SLACK_TEMPLATE
       - notify-failures-on-develop
 
   contracts-bedrock-coverage:
@@ -1627,9 +1599,8 @@ jobs:
       - when:
           condition: on_fail
           steps:
-            - discord-notification-failures-on-develop:
-                mentions: "Platforms (<@&1346448413172170807>) & Protocol (<@590878816004603924>)" # Protocol DevX Pod, changwan
-                message: "Acceptance tests failed for gate <<parameters.gate>>"
+            - notify-failures-on-develop:
+                mentions: "@protocol-devx-pod @changwan"
 
   op-acceptance-tests-flake-shake:
     parameters:
@@ -2550,6 +2521,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2708,6 +2680,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2743,6 +2716,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - op-deployer
                 - cannon
@@ -3178,5 +3152,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
             - devin-api
+            - slack
           requires:
             - initialize

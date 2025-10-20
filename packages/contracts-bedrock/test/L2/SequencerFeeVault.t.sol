@@ -17,7 +17,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title SequencerFeeVault_TestInit
 /// @notice Reusable test initialization for `SequencerFeeVault` tests.
-contract SequencerFeeVault_TestInit is CommonTest {
+abstract contract SequencerFeeVault_TestInit is CommonTest {
     address recipient;
 
     /// @dev Sets up the test suite.

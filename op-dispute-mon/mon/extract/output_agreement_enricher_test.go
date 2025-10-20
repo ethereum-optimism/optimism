@@ -116,7 +116,41 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		require.Zero(t, metrics.fetchTime)
 	})
 
+	t.Run("AllNodesOutOfSync", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		clients[0].currentL1 = 99
+		clients[1].currentL1 = 100 // Out of sync because it is only equal to the game L1 head
+		clients[2].currentL1 = 0
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.ErrorIs(t, err, ErrAllNodesUnavailable)
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.Zero(t, metrics.fetchTime)
+	})
+
 	t.Run("SomeNodesOutOfSync", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		clients[0].currentL1 = 99
+		// Would disagree but will be ignored because node is not in sync
+		clients[0].outputRoot = common.Hash{0xaa, 0xbb, 0xcc, 0xdd}
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim) // Agree with the claim because all in-sync nodes returned the same result
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("SomeNodesReturnNotFound", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		clients[0].outputErr = mockNotFoundRPCError()
 		clients[1].outputErr = nil
@@ -315,7 +349,10 @@ func (e testRPCError) ErrorCode() int { return e.code }
 
 func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	client := &stubRollupClient{safeHeadNum: 99999999999}
+	client := &stubRollupClient{
+		currentL1:   math.MaxUint64,
+		safeHeadNum: 99999999999,
+	}
 	metrics := &stubOutputMetrics{}
 	validator := NewOutputAgreementEnricher(logger, metrics, []OutputRollupClient{client}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, client, metrics
@@ -327,6 +364,7 @@ func setupMultiNodeTest(t *testing.T, numNodes int) (*OutputAgreementEnricher, [
 	rollupClients := make([]OutputRollupClient, numNodes)
 	for i := range clients {
 		clients[i] = &stubRollupClient{
+			currentL1:   math.MaxUint64,
 			safeHeadNum: 99999999999,
 			outputRoot:  mockRootClaim,
 		}
@@ -346,11 +384,20 @@ func (s *stubOutputMetrics) RecordOutputFetchTime(fetchTime float64) {
 }
 
 type stubRollupClient struct {
-	blockNum    uint64
-	outputErr   error
-	safeHeadErr error
-	safeHeadNum uint64
-	outputRoot  common.Hash
+	blockNum      uint64
+	outputErr     error
+	safeHeadErr   error
+	safeHeadNum   uint64
+	outputRoot    common.Hash
+	currentL1     uint64
+	syncStatusErr error
+}
+
+func (s *stubRollupClient) SyncStatus(_ context.Context) (*eth.SyncStatus, error) {
+	if s.syncStatusErr != nil {
+		return nil, s.syncStatusErr
+	}
+	return &eth.SyncStatus{CurrentL1: eth.L1BlockRef{Number: s.currentL1}}, nil
 }
 
 func (s *stubRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
