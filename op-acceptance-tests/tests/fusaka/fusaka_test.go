@@ -13,7 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -83,13 +86,21 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 	t.Require().NoError(err)
 	l1BlobBaseFee := calcBlobBaseFee(l1ChainConfig, l1OriginInfo)
 
-	// Get the L2 blob base fee from the system deposit tx.
-	info, txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeRef.Hash)
+	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeRef.Hash)
 	t.Require().NoError(err)
-	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), info.Time(), txs[0].Data())
+
+	// Check the L1 blob base fee in the system deposit tx.
+	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l2Txs[0].Data())
 	t.Require().NoError(err)
 	l2BlobBaseFee := blockInfo.BlobBaseFee
+	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)
 
+	// Check the L1 Blob base fee in the L1Block contract.
+	l1Block := bindings.NewL1Block(bindings.WithClient(sys.L2EL.Escape().EthClient()), bindings.WithTo(predeploys.L1BlockAddr))
+	l2BlobBaseFee, err = contractio.Read(l1Block.BlobBaseFee(), t.Ctx(), func(tx *txplan.PlannedTx) {
+		tx.AgainstBlock.Set(l2Info)
+	})
+	t.Require().NoError(err)
 	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)
 }
 
