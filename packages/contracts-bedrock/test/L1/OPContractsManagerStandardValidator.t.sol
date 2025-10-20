@@ -928,6 +928,9 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame game type is invalid.
     function test_validate_permissionedDisputeGameInvalidGameType_succeeds() public {
+        // For v2 game contracts, we don't store the game type anywhere other than the DGF gameImpls and gameArgs maps
+        // So, there's not really an obvious way to return an invalid gameType
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         vm.mockCall(address(pdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.CANNON));
         assertEq("PDDG-30", _validate(true));
     }
@@ -1317,6 +1320,9 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) game type is invalid.
     function test_validate_faultDisputeGameInvalidGameType_succeeds() public {
+        // For v2 game contracts, we don't store the game type anywhere other than the DGF gameImpls and gameArgs maps
+        // So, there's not really an obvious way to return an invalid gameType
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.PERMISSIONED_CANNON));
         assertEq("PLDG-30", _validate(true));
     }
