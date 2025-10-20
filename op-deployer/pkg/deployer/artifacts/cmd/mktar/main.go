@@ -6,22 +6,39 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
 )
 
+type multiFlag []string
+
+func (m *multiFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+func (m *multiFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
 var (
 	baseDir = flag.String("base", "", "directory to archive")
 	outFile = flag.String("out", "", "path to output tzst")
+	exclude multiFlag
 )
+
+func init() {
+	flag.Var(&exclude, "exclude", "glob pattern to exclude (can be specified multiple times)")
+}
 
 // mktar creates a zstd-compressed tarball of the given base directory.
 // It excludes certain directories and files that are not needed for the
-// forge client.
+// forge client. Additional exclusions can be specified via --exclude.
 //
-// Usage: mktar -base DIR -out FILE
+// Usage: mktar -base DIR -out FILE [--exclude pattern]...
 //
 // Example: mktar -base ../packages/contracts-bedrock -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
 //
@@ -147,6 +164,13 @@ func shouldExclude(rel string, d os.DirEntry) bool {
 
 	rel = filepath.ToSlash(rel)
 
+	for _, pattern := range exclude {
+		pattern = filepath.ToSlash(pattern)
+		if matchPattern(pattern, rel) {
+			return true
+		}
+	}
+
 	if strings.HasPrefix(rel, "book/") || rel == "book" {
 		return true
 	}
@@ -161,6 +185,25 @@ func shouldExclude(rel string, d os.DirEntry) bool {
 	}
 
 	return false
+}
+
+func matchPattern(pattern, rel string) bool {
+	matched, err := path.Match(pattern, rel)
+	if err != nil {
+		log.Fatalf("invalid --exclude pattern %q: %v", pattern, err)
+	}
+	if matched {
+		return true
+	}
+
+	if !strings.HasSuffix(pattern, "/") {
+		pattern = pattern + "/"
+	}
+	matched, err = path.Match(pattern+"*", rel+"/")
+	if err != nil {
+		log.Fatalf("invalid --exclude pattern %q: %v", pattern, err)
+	}
+	return matched
 }
 
 func linkTarget(path string, info os.FileInfo) string {

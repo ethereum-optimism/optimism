@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"archive/tar"
-	"compress/gzip"
 	"embed"
 	"fmt"
 	"io"
@@ -19,45 +18,22 @@ import (
 //go:embed forge-artifacts
 var embedDir embed.FS
 
-// Primary filenames for embedded artifacts. Prefer zstd (.tzst); support legacy gzip (.tgz).
+// Primary filename for embedded artifacts using zstd compression (.tzst).
 const embeddedArtifactsZstdShort = "artifacts.tzst"
-const embeddedArtifactsGzip = "artifacts.tgz"
 
 func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
-	var (
-		f    io.ReadCloser
-		err  error
-		comp string
-	)
-	// Prefer zstd, fall back to gzip for legacy bundles
-	if rf, openErr := embedDir.Open(filepath.Join("forge-artifacts", embeddedArtifactsZstdShort)); openErr == nil {
-		f = rf
-		comp = "zstd"
-	} else if rf, openErr2 := embedDir.Open(filepath.Join("forge-artifacts", embeddedArtifactsGzip)); openErr2 == nil {
-		f = rf
-		comp = "gzip"
-	} else {
-		return nil, fmt.Errorf("could not open embedded artifacts: tried %q, %q", embeddedArtifactsZstdShort, embeddedArtifactsGzip)
+	f, err := embedDir.Open(filepath.Join("forge-artifacts", embeddedArtifactsZstdShort))
+	if err != nil {
+		return nil, fmt.Errorf("could not open embedded artifacts %q: %w", embeddedArtifactsZstdShort, err)
 	}
 	defer f.Close()
 
-	var reader io.ReadCloser
-	switch comp {
-	case "zstd":
-		zr, zerr := zstd.NewReader(f)
-		if zerr != nil {
-			return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
-		}
-		reader = io.NopCloser(zr)
-		defer zr.Close()
-	default:
-		gzr, gerr := gzip.NewReader(f)
-		if gerr != nil {
-			return nil, fmt.Errorf("could not create gzip reader: %w", gerr)
-		}
-		reader = gzr
-		defer gzr.Close()
+	zr, zerr := zstd.NewReader(f)
+	if zerr != nil {
+		return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
 	}
+	defer zr.Close()
+	reader := io.NopCloser(zr)
 
 	// Untar into a unique subdirectory to avoid collisions with pre-existing paths
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
@@ -88,22 +64,16 @@ func ExtractFromFile(destDir string, tarFilePath string) (foundry.StatDirFs, err
 	}
 	defer f.Close()
 
-	var reader io.ReadCloser
-	if strings.HasSuffix(tarFilePath, ".tar.zst") || strings.HasSuffix(tarFilePath, ".tzst") || strings.HasSuffix(tarFilePath, ".zst") {
-		zr, zerr := zstd.NewReader(f)
-		if zerr != nil {
-			return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
-		}
-		reader = io.NopCloser(zr)
-		defer zr.Close()
-	} else {
-		gzr, gerr := gzip.NewReader(f)
-		if gerr != nil {
-			return nil, fmt.Errorf("could not create gzip reader: %w", gerr)
-		}
-		reader = gzr
-		defer gzr.Close()
+	if !strings.HasSuffix(tarFilePath, ".tzst") {
+		return nil, fmt.Errorf("unsupported file format: expected .tzst file, got %q", tarFilePath)
 	}
+
+	zr, zerr := zstd.NewReader(f)
+	if zerr != nil {
+		return nil, fmt.Errorf("could not create zstd reader: %w", zerr)
+	}
+	defer zr.Close()
+	reader := io.NopCloser(zr)
 
 	// Untar into a unique subdirectory to avoid collisions with pre-existing paths
 	if err := os.MkdirAll(destDir, 0o755); err != nil {

@@ -15,7 +15,8 @@ copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
     go run ./pkg/deployer/artifacts/cmd/mktar \
         -base ../packages/contracts-bedrock \
-        -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
+        -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst \
+        --exclude="*.t.sol"
 
 _LDFLAGSSTRING := "'" + trim(
     "-X main.GitCommit=" + GITCOMMIT + " " + \
