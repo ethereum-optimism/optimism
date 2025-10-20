@@ -148,3 +148,5 @@ Feature branches are typically used when there are conflicts between 2 projects 
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+<br>## Welcome to OP Stack Scaling<br>Optimism's OP Stack enables seamless Ethereum L2 rollups—new contributors, start with the Bedrock upgrade tutorial for real-time compatibility with MegaETH. Tip: Use OP Geth for sub-ms latency! <br>
+
