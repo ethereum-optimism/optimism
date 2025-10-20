@@ -445,13 +445,17 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
     }
 
-    function test_changeOwnershipToFallback_succeeds() external {
+    /// @notice Tests that ownership successfully transfers to fallback owner after challenge period expires
+    function testFuzz_changeOwnershipToFallback_succeeds(uint256 timeAfterExpiry) external {
+        // Bound time to reasonable values (1 second to 365 days after expiry)
+        timeAfterExpiry = bound(timeAfterExpiry, 1, 365 days);
+
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(safeInstance.safe);
 
         // Warp past challenge period
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + timeAfterExpiry);
 
         // Execute ownership transfer
         vm.expectEmit(true, true, true, true);
@@ -471,6 +475,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(challengeEndTime, 0);
     }
 
+    /// @notice Tests that changeOwnershipToFallback reverts if module is not configured
     function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
         address newSafe = makeAddr("newSafe");
 
@@ -479,16 +484,24 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         livenessModule2.changeOwnershipToFallback(Safe(payable(newSafe)));
     }
 
+    /// @notice Tests that changeOwnershipToFallback reverts if no challenge exists
     function test_changeOwnershipToFallback_noChallenge_reverts() external {
         vm.prank(fallbackOwner);
         vm.expectRevert(LivenessModule2.LivenessModule2_ChallengeDoesNotExist.selector);
         livenessModule2.changeOwnershipToFallback(safeInstance.safe);
     }
 
-    function test_changeOwnershipToFallback_beforeResponsePeriod_reverts() external {
+    /// @notice Tests that changeOwnershipToFallback reverts if called before response period expires
+    function testFuzz_changeOwnershipToFallback_beforeResponsePeriod_reverts(uint256 timeElapsed) external {
+        // Bound time to be within response period (not yet expired)
+        timeElapsed = bound(timeElapsed, 0, CHALLENGE_PERIOD);
+
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(safeInstance.safe);
+
+        // Warp to a time before response period expires
+        vm.warp(block.timestamp + timeElapsed);
 
         // Try to execute before response period expires
         vm.prank(fallbackOwner);
@@ -496,6 +509,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         livenessModule2.changeOwnershipToFallback(safeInstance.safe);
     }
 
+    /// @notice Tests that changeOwnershipToFallback reverts if module is disabled at Safe level
     function test_changeOwnershipToFallback_moduleDisabledAtSafeLevel_reverts() external {
         // Start a challenge
         vm.prank(fallbackOwner);
@@ -519,7 +533,10 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         livenessModule2.changeOwnershipToFallback(safeInstance.safe);
     }
 
-    function test_changeOwnershipToFallback_onlyFallbackOwner_succeeds() external {
+    /// @notice Tests that only the fallback owner can execute changeOwnershipToFallback
+    function testFuzz_changeOwnershipToFallback_onlyFallbackOwner_succeeds(address _caller) external {
+        vm.assume(_caller != fallbackOwner);
+
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(safeInstance.safe);
@@ -527,9 +544,8 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Warp past challenge period
         vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
 
-        // Try from random address - should fail
-        address randomCaller = makeAddr("randomCaller");
-        vm.prank(randomCaller);
+        // Try from non-fallback owner - should fail
+        vm.prank(_caller);
         vm.expectRevert(LivenessModule2.LivenessModule2_UnauthorizedCaller.selector);
         livenessModule2.changeOwnershipToFallback(safeInstance.safe);
 
@@ -543,6 +559,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(newOwners[0], fallbackOwner);
     }
 
+    /// @notice Tests that a new challenge can be started after ownership transfer completes
     function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
         // Start and execute first challenge
         vm.prank(fallbackOwner);
