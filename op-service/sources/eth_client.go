@@ -589,13 +589,6 @@ func (s *EthClient) BalanceAt(ctx context.Context, account common.Address, block
 	return (*big.Int)(&result), err
 }
 
-// BalanceAtHash returns the wei balance of the given account at the given block hash.
-func (s *EthClient) BalanceAtHash(ctx context.Context, account common.Address, blockHash common.Hash) (*big.Int, error) {
-	var result hexutil.Big
-	err := s.client.CallContext(ctx, &result, "eth_getBalance", account, blockHash)
-	return (*big.Int)(&result), err
-}
-
 // CodeAtHash returns the contract code of the given account.
 func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, blockHash common.Hash) ([]byte, error) {
 	var result hexutil.Bytes

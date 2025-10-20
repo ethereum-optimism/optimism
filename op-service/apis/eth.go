@@ -120,7 +120,6 @@ type EthNonce interface {
 type EthBalance interface {
 	// BalanceAt returns the wei balance of the given account.
 	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
-	BalanceAtHash(ctx context.Context, account common.Address, blockHash common.Hash) (*big.Int, error)
 }
 
 type EthCode interface {
