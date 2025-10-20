@@ -39,7 +39,8 @@ func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 				Result:  "[]",
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
+			err := json.NewEncoder(w).Encode(resp)
+			require.NoError(t, err)
 			return
 		}
 
