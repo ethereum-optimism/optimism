@@ -1,17 +1,17 @@
 [
   {
     "bytes": "32",
-    "label": "livenessSafeConfiguration",
+    "label": "_livenessSafeConfiguration",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(address => struct LivenessModule2.ModuleConfig)"
+    "type": "mapping(contract GnosisSafe => struct LivenessModule2.ModuleConfig)"
   },
   {
     "bytes": "32",
     "label": "challengeStartTime",
     "offset": 0,
     "slot": "1",
-    "type": "mapping(address => uint256)"
+    "type": "mapping(contract GnosisSafe => uint256)"
   },
   {
     "bytes": "32",

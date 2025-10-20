@@ -324,14 +324,14 @@ contract DeployOwnership is Deploy {
         removeDeployerFromSafe({ _name: "SecurityCouncilSafe", _newThreshold: exampleCouncilConfig.safeConfig.threshold });
 
         // Verify the module was configured correctly
-        (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).livenessSafeConfiguration(address(safe));
+        LivenessModule2.ModuleConfig memory verifyConfig =
+            LivenessModule2(livenessModule).livenessSafeConfiguration(safe);
         require(
-            configuredPeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
+            verifyConfig.livenessResponsePeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
             "DeployOwnership: configured liveness interval must match expected value"
         );
         require(
-            configuredFallback == exampleCouncilConfig.livenessModuleConfig.fallbackOwner,
+            verifyConfig.fallbackOwner == exampleCouncilConfig.livenessModuleConfig.fallbackOwner,
             "DeployOwnership: configured fallback owner must match expected value"
         );
 
