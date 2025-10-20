@@ -3,6 +3,7 @@ package fusaka
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
@@ -18,10 +19,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 func TestSafeHeadAdvancesAfterOsaka(gt *testing.T) {
@@ -50,30 +51,10 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 	sys.L1EL.WaitForTime(*sys.L1Network.Escape().ChainConfig().BPO1Time)
 	t.Log("BPO1 activated")
 
-	sys.L1EL.WaitForBlock()
-	l1BlockTime := sys.L1EL.EstimateBlockTime()
-	l1ChainConfig := sys.L1Network.Escape().ChainConfig()
-
 	spamBlobs(t, sys) // Raise the blob base fee to make blob parameter changes visible.
 
-	// Wait for the blob base fee to rise above 1 so the blob parameter changes will be visible.
-	for range time.Tick(l1BlockTime) {
-		info, _, err := sys.L1EL.EthClient().InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
-		t.Require().NoError(err)
-		if calcBlobBaseFee(l1ChainConfig, info).Cmp(big.NewInt(1)) > 0 {
-			break
-		}
-		t.Logf("Waiting for blob base fee to rise above 1")
-	}
-
-	l2UnsafeRef := sys.L2CL.SyncStatus().UnsafeL2
-
-	// Get the L1 blob base fee.
-	l1OriginInfo, err := sys.L1EL.EthClient().InfoByHash(t.Ctx(), l2UnsafeRef.L1Origin.Hash)
-	t.Require().NoError(err)
-	l1BlobBaseFee := calcBlobBaseFee(l1ChainConfig, l1OriginInfo)
-
-	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeRef.Hash)
+	l2UnsafeHash, l1BlobBaseFee := waitForNonTrivialBPO1Block(t, sys)
+	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeHash)
 	t.Require().NoError(err)
 
 	// Check the L1 blob base fee in the system deposit tx.
@@ -89,6 +70,45 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 	})
 	t.Require().NoError(err)
 	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)
+}
+
+// waitForNonTrivialBPO1Block will return an L1 blob base fee that can only be calculated using the
+// correct BPO1 parameters (i.e., the Osaka parameters result in a different value). It also
+// returns an L2 block hash from the same epoch.
+func waitForNonTrivialBPO1Block(t devtest.T, sys *presets.Minimal) (common.Hash, *big.Int) {
+	l1ChainConfig := sys.L1Network.Escape().ChainConfig()
+	l1BlockTime := sys.L1EL.EstimateBlockTime()
+	for {
+		l2UnsafeRef := sys.L2CL.SyncStatus().UnsafeL2
+
+		l1Info, _, err := sys.L1EL.EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeRef.L1Origin.Hash)
+		if errors.Is(err, ethereum.NotFound) { // Possible reorg, try again.
+			continue
+		}
+		t.Require().NoError(err)
+
+		// Calculate expected blob base fee with old Osaka parameters.
+		osakaBlobBaseFee := eip4844.CalcBlobFee(l1ChainConfig, &types.Header{
+			Time:          *l1ChainConfig.OsakaTime,
+			ExcessBlobGas: l1Info.ExcessBlobGas(),
+		})
+
+		// Calculate expected blob base fee with new BPO1 parameters.
+		bpo1BlobBaseFee := eip4844.CalcBlobFee(l1ChainConfig, &types.Header{
+			Time:          l1Info.Time(),
+			ExcessBlobGas: l1Info.ExcessBlobGas(),
+		})
+
+		if bpo1BlobBaseFee.Cmp(osakaBlobBaseFee) != 0 {
+			return l2UnsafeRef.Hash, bpo1BlobBaseFee
+		}
+
+		select {
+		case <-t.Ctx().Done():
+			t.Require().Fail("context canceled before finding a block with a divergent base fee")
+		case <-time.After(l1BlockTime):
+		}
+	}
 }
 
 func spamBlobs(t devtest.T, sys *presets.Minimal) {
@@ -133,13 +153,4 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 		defer wg.Done()
 		schedule.Run(t.WithCtx(ctx), spammer)
 	}()
-}
-
-func calcBlobBaseFee(cfg *params.ChainConfig, info eth.BlockInfo) *big.Int {
-	return eip4844.CalcBlobFee(cfg, &types.Header{
-		// It's unfortunate that we can't build a proper header from a BlockInfo.
-		// We do our best to work around deficiencies in the BlockInfo implementation here.
-		Time:          info.Time(),
-		ExcessBlobGas: info.ExcessBlobGas(),
-	})
 }
