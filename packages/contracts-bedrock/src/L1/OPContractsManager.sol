@@ -947,10 +947,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             deployAndSetNewGameImpl({
                 _l2ChainId: _l2ChainId,
                 _disputeGame: permissionedDisputeGame,
-                _newDelayedWeth: getWETH(dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON),
-                _newAnchorStateRegistryProxy: getAnchorStateRegistry(
-                    dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON
-                ),
+                _newDelayedWeth: getWETHV1(IFaultDisputeGame(address(permissionedDisputeGame))),
+                _newAnchorStateRegistryProxy: getAnchorStateRegistryV1(IFaultDisputeGame(address(permissionedDisputeGame))),
                 _gameType: GameTypes.PERMISSIONED_CANNON,
                 _opChainConfig: _opChainConfig
             });
@@ -964,8 +962,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 deployAndSetNewGameImpl({
                     _l2ChainId: _l2ChainId,
                     _disputeGame: permissionlessDisputeGame,
-                    _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
-                    _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                    _newDelayedWeth: getWETHV1(IFaultDisputeGame(address(permissionlessDisputeGame))),
+                    _newAnchorStateRegistryProxy: getAnchorStateRegistryV1(
+                        IFaultDisputeGame(address(permissionlessDisputeGame))
+                    ),
                     _gameType: GameTypes.CANNON,
                     _opChainConfig: _opChainConfig
                 });
