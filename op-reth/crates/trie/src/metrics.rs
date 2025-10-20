@@ -294,8 +294,14 @@ impl<S> OpProofsStorage for OpProofsStorageWithMetrics<S>
 where
     S: OpProofsStorage,
 {
-    type StorageTrieCursor = TrieCursorWithMetrics<S::StorageTrieCursor>;
-    type AccountTrieCursor = TrieCursorWithMetrics<S::AccountTrieCursor>;
+    type StorageTrieCursor<'tx>
+        = TrieCursorWithMetrics<S::StorageTrieCursor<'tx>>
+    where
+        S: 'tx;
+    type AccountTrieCursor<'tx>
+        = TrieCursorWithMetrics<S::AccountTrieCursor<'tx>>
+    where
+        S: 'tx;
     type StorageCursor = HashedCursorWithMetrics<S::StorageCursor>;
     type AccountHashedCursor = HashedCursorWithMetrics<S::AccountHashedCursor>;
 
@@ -393,19 +399,19 @@ where
         self.storage.get_latest_block_number().await
     }
 
-    fn storage_trie_cursor(
+    fn storage_trie_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::StorageTrieCursor> {
+    ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         let cursor = self.storage.storage_trie_cursor(hashed_address, max_block_number)?;
         Ok(TrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
-    fn account_trie_cursor(
+    fn account_trie_cursor<'tx>(
         &self,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::AccountTrieCursor> {
+    ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
         let cursor = self.storage.account_trie_cursor(max_block_number)?;
         Ok(TrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }

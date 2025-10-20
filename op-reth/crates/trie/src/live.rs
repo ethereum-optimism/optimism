@@ -17,24 +17,24 @@ use tracing::debug;
 
 /// Live trie collector for external proofs storage.
 #[derive(Debug)]
-pub struct LiveTrieCollector<Node, PreimageStore>
+pub struct LiveTrieCollector<'tx, Node, PreimageStore>
 where
     Node: FullNodeComponents,
     Node::Provider: StateReader + DatabaseProviderFactory + StateProviderFactory,
 {
     evm_config: Node::Evm,
     provider: Node::Provider,
-    storage: PreimageStore,
+    storage: &'tx PreimageStore,
 }
 
-impl<Node, Store, Primitives> LiveTrieCollector<Node, Store>
+impl<'tx, Node, Store, Primitives> LiveTrieCollector<'tx, Node, Store>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
     Primitives: NodePrimitives,
-    Store: OpProofsStorage + Clone + 'static,
+    Store: 'tx + OpProofsStorage + Clone + 'static,
 {
     /// Create a new `LiveTrieCollector` instance
-    pub const fn new(evm_config: Node::Evm, provider: Node::Provider, storage: Store) -> Self {
+    pub const fn new(evm_config: Node::Evm, provider: Node::Provider, storage: &'tx Store) -> Self {
         Self { evm_config, provider, storage }
     }
 
@@ -74,7 +74,7 @@ where
 
         let state_provider = OpProofsStateProviderRef::new(
             self.provider.state_by_block_hash(block.parent_hash())?,
-            self.storage.clone(),
+            self.storage,
             parent_block_number,
         );
 

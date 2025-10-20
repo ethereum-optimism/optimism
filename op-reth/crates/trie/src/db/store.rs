@@ -1,12 +1,15 @@
+use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
 use crate::{
+    api::OpProofsStorage,
     db::{
+        cursor::Dup,
         models::{
             AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
             MaybeDeleted, StorageTrieHistory, StorageTrieKey, StorageValue, VersionedValue,
         },
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
     },
-    BlockStateDiff, OpProofsStorage, OpProofsStorageError, OpProofsStorageResult,
+    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
 };
 use alloy_primitives::{map::HashMap, B256, U256};
 use itertools::Itertools;
@@ -19,8 +22,6 @@ use reth_db::{
 use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
 use std::path::Path;
-
-use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
 
 /// MDBX implementation of `OpProofsStorage`.
 #[derive(Debug)]
@@ -62,8 +63,14 @@ impl MdbxProofsStorage {
 }
 
 impl OpProofsStorage for MdbxProofsStorage {
-    type StorageTrieCursor = MdbxTrieCursor;
-    type AccountTrieCursor = MdbxTrieCursor;
+    type StorageTrieCursor<'tx>
+        = MdbxTrieCursor<StorageTrieHistory, Dup<'tx, StorageTrieHistory>>
+    where
+        Self: 'tx;
+    type AccountTrieCursor<'tx>
+        = MdbxTrieCursor<AccountTrieHistory, Dup<'tx, AccountTrieHistory>>
+    where
+        Self: 'tx;
     type StorageCursor = MdbxStorageCursor;
     type AccountHashedCursor = MdbxAccountCursor;
 
@@ -173,19 +180,29 @@ impl OpProofsStorage for MdbxProofsStorage {
         self.get_block_number_hash(ProofWindowKey::EarliestBlock).await
     }
 
-    fn storage_trie_cursor(
+    fn storage_trie_cursor<'tx>(
         &self,
-        _hashed_address: B256,
-        _max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::StorageTrieCursor> {
-        unimplemented!()
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
+        let tx = self.env.tx().map_err(|e| OpProofsStorageError::Other(e.into()))?;
+        let cursor = tx
+            .cursor_dup_read::<StorageTrieHistory>()
+            .map_err(|e| OpProofsStorageError::Other(e.into()))?;
+
+        Ok(MdbxTrieCursor::new(cursor, max_block_number, Some(hashed_address)))
     }
 
-    fn account_trie_cursor(
+    fn account_trie_cursor<'tx>(
         &self,
-        _max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::AccountTrieCursor> {
-        unimplemented!()
+        max_block_number: u64,
+    ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
+        let tx = self.env.tx().map_err(|e| OpProofsStorageError::Other(e.into()))?;
+        let cursor = tx
+            .cursor_dup_read::<AccountTrieHistory>()
+            .map_err(|e| OpProofsStorageError::Other(e.into()))?;
+
+        Ok(MdbxTrieCursor::new(cursor, max_block_number, None))
     }
 
     fn storage_hashed_cursor(

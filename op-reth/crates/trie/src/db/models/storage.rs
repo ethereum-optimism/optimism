@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Used to efficiently index storage branches by both account address and trie path.
 /// The encoding ensures lexicographic ordering: first by address, then by path.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct StorageTrieKey {
     /// Hashed account address
     pub hashed_address: B256,

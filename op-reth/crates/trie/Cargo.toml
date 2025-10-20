@@ -49,10 +49,10 @@ itertools.workspace = true
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils"] }
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
+tempfile.workspace = true
 test-case.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 reth-trie = { workspace = true, features = ["test-utils"] }
-tempfile.workspace = true
 
 [features]
 serde-bincode-compat = [
