@@ -261,16 +261,16 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
 }
 
 /// @title TimelockGuard_TimelockDelay_Test
-/// @notice Tests for timelockConfiguration function
+/// @notice Tests for TimelockDelay function
 contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
     /// @notice Ensures an unconfigured Safe reports a zero timelock delay.
-    function test_timelockConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
+    function test_timelockDelay_returnsZeroForUnconfiguredSafe_succeeds() external view {
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
         assertEq(delay, 0);
     }
 
     /// @notice Validates the configuration view reflects the stored timelock delay.
-    function test_timelockConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
+    function test_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds() external {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
         assertEq(delay, TIMELOCK_DELAY);
@@ -787,7 +787,6 @@ contract TimelockGuard_CheckAfterExecution_Test is TimelockGuard_TestInit {
             timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
         assertEq(uint256(scheduledTx.executionTime), expectedExecutionTime);
-
     }
 
     /// @notice Verifies unconfigured guard allows checkAfterExecution.
