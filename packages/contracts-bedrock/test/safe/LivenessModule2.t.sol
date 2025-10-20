@@ -228,6 +228,11 @@ contract LivenessModule2_ClearLivenessModule_Test is LivenessModule2_TestInit {
     function test_clearLivenessModule_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
+        // Start a challenge to test that clearing also cancels it
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(safeInstance.safe);
+        assertGt(livenessModule2.challengeStartTime(safeInstance.safe), 0);
+
         // First disable the module at the Safe level
         SafeTestLib.execTransaction(
             safeInstance,
@@ -237,6 +242,9 @@ contract LivenessModule2_ClearLivenessModule_Test is LivenessModule2_TestInit {
             Enum.Operation.Call
         );
 
+        // Clear should emit ChallengeCancelled then ModuleCleared
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeCancelled(address(safeInstance.safe));
         vm.expectEmit(true, true, true, true);
         emit ModuleCleared(address(safeInstance.safe));
 
@@ -252,6 +260,7 @@ contract LivenessModule2_ClearLivenessModule_Test is LivenessModule2_TestInit {
         LivenessModule2.ModuleConfig memory clearedConfig = livenessModule2.livenessSafeConfiguration(safeInstance.safe);
         assertEq(clearedConfig.livenessResponsePeriod, 0);
         assertEq(clearedConfig.fallbackOwner, address(0));
+        assertEq(livenessModule2.challengeStartTime(safeInstance.safe), 0);
     }
 
     function test_clearLivenessModule_notConfigured_reverts() external {
