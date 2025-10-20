@@ -1,4 +1,4 @@
-package osaka
+package fusaka
 
 import (
 	"context"
