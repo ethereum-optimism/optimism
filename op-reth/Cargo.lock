@@ -8663,6 +8663,7 @@ version = "1.10.2"
 version = "1.9.3"
 >>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
+ "alloy-eips",
  "alloy-primitives",
  "auto_impl",
  "bytes",

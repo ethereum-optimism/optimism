@@ -44,7 +44,7 @@ impl MdbxProofsStorage {
         let result = self.env.view(|tx| {
             let mut cursor = tx.cursor_read::<ProofWindow>().ok()?;
             let value = cursor.seek_exact(key).ok()?;
-            value.map(|(_, val)| (val.0, val.1))
+            value.map(|(_, val)| (val.number(), val.hash()))
         });
         Ok(result?)
     }
@@ -56,7 +56,8 @@ impl MdbxProofsStorage {
     ) -> OpProofsStorageResult<()> {
         self.env.update(|tx| {
             let mut cursor = tx.new_cursor::<ProofWindow>()?;
-            cursor.append(ProofWindowKey::EarliestBlock, &BlockNumberHash(block_number, hash))?;
+            cursor
+                .append(ProofWindowKey::EarliestBlock, &BlockNumberHash::new(block_number, hash))?;
             Ok(())
         })?
     }
