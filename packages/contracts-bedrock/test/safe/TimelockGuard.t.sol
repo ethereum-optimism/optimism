@@ -267,8 +267,6 @@ contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
     function test_timelockConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
         assertEq(delay, 0);
-        // configured is now determined by timelockDelay == 0
-        assertEq(delay == 0, true);
     }
 
     /// @notice Validates the configuration view reflects the stored timelock delay.
@@ -276,8 +274,6 @@ contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
         _configureGuard(safeInstance, TIMELOCK_DELAY);
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
         assertEq(delay, TIMELOCK_DELAY);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
     }
 }
 
@@ -293,8 +289,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         uint256 delay = timelockGuard.timelockDelay(safe);
         assertEq(delay, TIMELOCK_DELAY);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
     }
 
     /// @notice Confirms delays above the maximum revert during configuration.
@@ -324,8 +318,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         uint256 delay = timelockGuard.timelockDelay(safe);
         assertEq(delay, ONE_YEAR);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
     }
 
     /// @notice Demonstrates the guard can be reconfigured to a new delay.
