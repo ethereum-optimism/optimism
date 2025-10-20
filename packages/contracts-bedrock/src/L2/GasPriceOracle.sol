@@ -226,7 +226,7 @@ contract GasPriceOracle is ISemver {
         if (isJovian) {
             return _gasUsed * operatorScalar * 100 + operatorConstant;
         } else {
-            return (_gasUsed * operatorScalar / 1e6) + operatorConstant;
+            return Arithmetic.saturatingAdd(Arithmetic.saturatingMul(_gasUsed, operatorScalar) / 1e6, operatorConstant);
         }
     }
 
