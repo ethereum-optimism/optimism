@@ -289,7 +289,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -465,5 +465,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameArgsLength",
+    "type": "error"
   }
 ]

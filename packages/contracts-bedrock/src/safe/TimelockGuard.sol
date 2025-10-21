@@ -9,6 +9,7 @@ import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
@@ -149,6 +150,14 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Error for when the contract is not at least version 1.3.0
     error TimelockGuard_InvalidVersion();
 
+    /// @notice Error for when trying to clear guard while it is still enabled
+    error TimelockGuard_GuardStillEnabled();
+
+    /// @notice Emitted when some transactions are not cancelled.
+    /// @param safe The Safe whose transactions are not cancelled.
+    /// @param uncancelledCount The number of transactions that are not cancelled.
+    event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -196,9 +205,7 @@ abstract contract TimelockGuard is IGuard {
     /// @param _safe The Safe address
     /// @return The current guard address
     function _isGuardEnabled(Safe _safe) internal view returns (bool) {
-        // keccak256("guard_manager.guard.address") from GuardManager
-        bytes32 guardSlot = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
-        address guard = abi.decode(_safe.getStorageAt(uint256(guardSlot), 1), (address));
+        address guard = abi.decode(_safe.getStorageAt(uint256(Constants.GUARD_STORAGE_SLOT), 1), (address));
         return guard == address(this);
     }
 
@@ -451,6 +458,56 @@ abstract contract TimelockGuard is IGuard {
 
         // Verify that any other extensions which are enabled on the Safe are configured correctly.
         _checkCombinedConfig(callingSafe);
+    }
+
+    /// @notice Clears the timelock guard configuration for a Safe.
+    /// @dev Note: Clearing the configuration also cancels all pending transactions.
+    ///      This function is intended for use when a Safe wants to permanently remove
+    ///      the TimelockGuard configuration. Typical usage pattern:
+    ///      1. Safe disables the guard via GuardManager.setGuard(address(0)).
+    ///      2. Safe calls this clearTimelockGuard() function to remove stored configuration.
+    ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
+    function clearTimelockGuard() external {
+        Safe callingSafe = Safe(payable(msg.sender));
+        SafeState storage safeState = _safeState[callingSafe];
+
+        // Check if the calling safe has configuration set
+        if (safeState.timelockDelay == 0) {
+            revert TimelockGuard_GuardNotConfigured();
+        }
+
+        // Check that this guard is NOT enabled on the calling Safe
+        // This prevents clearing configuration while guard is still enabled
+        if (_isGuardEnabled(callingSafe)) {
+            revert TimelockGuard_GuardStillEnabled();
+        }
+
+        // Clear the configuration (guard should already be disabled by caller)
+        // set the timelock delay to 0 to clear the configuration
+        safeState.timelockDelay = 0;
+
+        // Reset the cancellation threshold to 0 (unconfigured state)
+        safeState.cancellationThreshold = 0;
+
+        // Get all pending transaction hashes
+        bytes32[] memory hashes = safeState.pendingTxHashes.values();
+
+        uint256 n = hashes.length <= 100 ? hashes.length : 100;
+
+        // Cancel all pending transactions up to 100
+        // It is very unlikely that there will be more than 100 pending transactions, so we can safely limit the
+        // number of iterations to 100 in order to prevent gas limit issues.
+        // If there are more than 100 pending transactions, then we emit an event to inform the user that some
+        // transactions were not cancelled.
+        for (uint256 i = 0; i < n; i++) {
+            safeState.pendingTxHashes.remove(hashes[i]);
+            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
+            emit TransactionCancelled(callingSafe, hashes[i]);
+        }
+
+        if (hashes.length > 100) {
+            emit TransactionsNotCancelled(callingSafe, hashes.length - 100);
+        }
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.

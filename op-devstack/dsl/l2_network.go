@@ -241,11 +241,9 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	}
 	blockNum, err := rollupCfg.TargetBlockNumber(activationTime)
 	require.NoError(err)
-	NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum).ID()
-	activationBlock, err := el.EthClient().BlockRefByNumber(t.Ctx(), blockNum)
-	require.NoError(err, "Failed to get activation block")
-	t.Logger().Info("Activation block", "block", activationBlock.ID())
-	return activationBlock.ID()
+	activationBlock := eth.ToBlockID(NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum))
+	t.Logger().Info("Activation block", "block", activationBlock)
+	return activationBlock
 
 }
 
