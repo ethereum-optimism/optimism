@@ -509,7 +509,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
                     IFaultDisputeGameV2.__constructor__,
                     (
                         IFaultDisputeGameV2.GameConstructorParams({
-                            gameType: GAME_TYPE,
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
@@ -534,7 +533,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
                     IFaultDisputeGameV2.__constructor__,
                     (
                         IFaultDisputeGameV2.GameConstructorParams({
-                            gameType: GAME_TYPE,
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
@@ -559,7 +557,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
                     IFaultDisputeGameV2.__constructor__,
                     (
                         IFaultDisputeGameV2.GameConstructorParams({
-                            gameType: GAME_TYPE,
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
@@ -592,34 +589,10 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGame_TestInit {
                     IFaultDisputeGameV2.__constructor__,
                     (
                         IFaultDisputeGameV2.GameConstructorParams({
-                            gameType: GAME_TYPE,
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
                             maxClockDuration: Duration.wrap(_maxClockDuration)
-                        })
-                    )
-                )
-            )
-        });
-    }
-
-    /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the `_gameType`
-    ///         parameter is set to the reserved `type(uint32).max` game type.
-    function test_constructor_reservedGameType_reverts() public {
-        vm.expectRevert(ReservedGameType.selector);
-        DeployUtils.create1({
-            _name: "FaultDisputeGameV2",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
-                    (
-                        IFaultDisputeGameV2.GameConstructorParams({
-                            gameType: GameType.wrap(type(uint32).max),
-                            maxGameDepth: 16,
-                            splitDepth: 8,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days)
                         })
                     )
                 )
@@ -2903,7 +2876,14 @@ contract FaultDisputeGame_Uncategorized_Test is FaultDisputeGame_TestInit {
         // Construct the expected CWIA data that the proxy will pass to the implementation,
         // alongside any extra calldata passed by the user.
         Hash l1Head = gameProxy.l1Head();
-        bytes memory cwiaData = abi.encodePacked(address(this), gameProxy.rootClaim(), l1Head, gameProxy.extraData());
+        bytes memory cwiaData;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            cwiaData = abi.encodePacked(
+                address(this), gameProxy.rootClaim(), l1Head, gameProxy.gameType(), gameProxy.extraData()
+            );
+        } else {
+            cwiaData = abi.encodePacked(address(this), gameProxy.rootClaim(), l1Head, gameProxy.extraData());
+        }
 
         // We expect a `ReceiveETH` event to be emitted when 0 bytes of calldata are sent; The
         // fallback is always reached *within the minimal proxy* in `LibClone`'s version of

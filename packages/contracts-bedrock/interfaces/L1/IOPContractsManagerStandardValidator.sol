@@ -34,6 +34,8 @@ interface IOPContractsManagerStandardValidator {
         address challenger;
     }
 
+    error InvalidGameArgsLength();
+
     function version() external view returns (string memory);
     function anchorStateRegistryImpl() external view returns (address);
     function challenger() external view returns (address);

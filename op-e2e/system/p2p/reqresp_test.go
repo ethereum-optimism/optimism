@@ -144,6 +144,9 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	e2esys.ConfigureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
+	// Ensure L1 chain configuration is provided for the sync node
+	syncNodeCfg.L1ChainConfig = sys.L1GenesisCfg.Config
+
 	syncerNode, err := rollupNode.New(ctx, syncNodeCfg, cfg.Loggers["syncer"], "", metrics.NewMetrics(""))
 	require.NoError(t, err)
 	err = syncerNode.Start(ctx)
