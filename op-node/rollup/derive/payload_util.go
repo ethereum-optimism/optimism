@@ -95,6 +95,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		return eth.SystemConfig{}, err
 	}
 	d, e, m := eip1559.DecodeOptimismExtraData(rollupCfg, uint64(payload.Timestamp), payload.ExtraData)
+	r.EIP1559Params = new(eth.Bytes8)
 	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
 
 	if rollupCfg.IsIsthmus(uint64(payload.Timestamp)) {

@@ -241,9 +241,16 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 	}
 	if d.L2ChainConfig.IsJovian(uint64(timestamp)) {
 		attrs.MinBaseFee = d.SystemConfig.MinBaseFee
+		if attrs.MinBaseFee == nil {
+			attrs.MinBaseFee = new(uint64)
+			*attrs.MinBaseFee = 0
+		}
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
 		attrs.EIP1559Params = d.SystemConfig.EIP1559Params
+		if attrs.EIP1559Params == nil {
+			attrs.EIP1559Params = &eth.Bytes8{}
+		}
 	}
 	return &attrs, nil
 }
