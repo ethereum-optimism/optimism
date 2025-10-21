@@ -221,10 +221,9 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		// of the contracts-bedrock folder so upgrading directly would revert.
 		t.Run("upgrade superchain config", func(t *testing.T) {
 			upgradeConfig := embedded.UpgradeSuperchainConfigInput{
-				Prank:                superchainProxyAdminOwner,
-				Opcm:                 impls.Opcm,
-				SuperchainConfig:     superchain.SuperchainConfigAddr,
-				SuperchainProxyAdmin: superchainProxyAdmin,
+				Prank:            superchainProxyAdminOwner,
+				Opcm:             impls.Opcm,
+				SuperchainConfig: superchain.SuperchainConfigAddr,
 			}
 
 			err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)

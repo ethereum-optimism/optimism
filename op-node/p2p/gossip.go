@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
@@ -48,8 +49,10 @@ const (
 // Message domains, the msg id function uncompresses to keep data monomorphic,
 // but invalid compressed data will need a unique different id.
 
-var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
-var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
+var (
+	MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
+	MessageDomainValidSnappy   = [4]byte{1, 0, 0, 0}
+)
 
 type GossipSetupConfigurables interface {
 	PeerScoringParams() *ScoringParams
@@ -262,7 +265,6 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 }
 
 func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion, gossipConf GossipSetupConfigurables) pubsub.ValidatorEx {
-
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New[uint64, *seenBlocks](1000)
@@ -380,15 +382,21 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		}
 
 		if blockVersion.HasBlobProperties() {
-			// [REJECT] if the block is on a topic >= V3 and has a blob gas used value that is not zero
-			if payload.BlobGasUsed == nil || *payload.BlobGasUsed != 0 {
-				log.Warn("payload is on v3 topic, but has non-zero blob gas used", "bad_hash", payload.BlockHash.String(), "blob_gas_used", payload.BlobGasUsed)
+			// [REJECT] if the block is on a topic >= V3 and has a nil blob gas used
+			if payload.BlobGasUsed == nil {
+				log.Warn("payload is on v3 topic, but has nil blob gas used", "bad_hash", payload.BlockHash.String())
+				return pubsub.ValidationReject
+				// [REJECT] if the block is on a topic >= V3 and has a non-zero blob gas used field pre-Jovian
+			} else if !cfg.IsDAFootprintBlockLimit(uint64(payload.Timestamp)) && *payload.BlobGasUsed != 0 {
+				log.Warn("payload is on v3 topic, but has non-zero blob gas used",
+					"bad_hash", payload.BlockHash.String(), "blob_gas_used", *payload.BlobGasUsed)
 				return pubsub.ValidationReject
 			}
 
 			// [REJECT] if the block is on a topic >= V3 and has an excess blob gas value that is not zero
 			if payload.ExcessBlobGas == nil || *payload.ExcessBlobGas != 0 {
-				log.Warn("payload is on v3 topic, but has non-zero excess blob gas", "bad_hash", payload.BlockHash.String(), "excess_blob_gas", payload.ExcessBlobGas)
+				log.Warn("payload is on v3 topic, but has non-zero excess blob gas",
+					"bad_hash", payload.BlockHash.String(), "excess_blob_gas", ptr.Str(payload.ExcessBlobGas))
 				return pubsub.ValidationReject
 			}
 		}
@@ -504,7 +512,7 @@ type publisher struct {
 var _ GossipOut = (*publisher)(nil)
 
 func combinePeers(allPeers ...[]peer.ID) []peer.ID {
-	var seen = make(map[peer.ID]bool)
+	seen := make(map[peer.ID]bool)
 	var res []peer.ID
 	for _, peers := range allPeers {
 		for _, p := range peers {
@@ -674,7 +682,6 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
 		pubsub.WithValidatorConcurrency(4))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to register gossip topic: %w", err)
 	}
@@ -707,8 +714,10 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 	}, nil
 }
 
-type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
-type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
+type (
+	TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
+	MessageHandler  func(ctx context.Context, from peer.ID, msg any) error
+)
 
 func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg any) error {

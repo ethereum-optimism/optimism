@@ -298,11 +298,6 @@
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
-      },
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "_superchainProxyAdmin",
-        "type": "address"
       }
     ],
     "name": "upgradeSuperchainConfig",
@@ -364,6 +359,22 @@
   {
     "inputs": [],
     "name": "IdentityPrecompileCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "devFeature",
+        "type": "bytes32"
+      }
+    ],
+    "name": "InvalidDevFeatureAccess",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameArgsLength",
     "type": "error"
   },
   {

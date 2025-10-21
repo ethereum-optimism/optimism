@@ -162,6 +162,9 @@ abstract contract TimelockGuard is IGuard, IERC165 {
     /// @param uncancelledCount The number of transactions that are not cancelled.
     event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
 
+    /// @notice Error for when the caller is not an owner of the Safe
+    error TimelockGuard_NotOwner();
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -225,11 +228,6 @@ abstract contract TimelockGuard is IGuard, IERC165 {
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
     function cancellationThreshold(Safe _safe) public view returns (uint256) {
-        // Return 0 if guard is not enabled
-        if (!_isGuardEnabled(_safe)) {
-            return 0;
-        }
-
         return _safeState[_safe].cancellationThreshold;
     }
 
@@ -255,7 +253,7 @@ abstract contract TimelockGuard is IGuard, IERC165 {
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockConfiguration(Safe _safe) public view returns (uint256) {
+    function timelockDelay(Safe _safe) public view returns (uint256) {
         return _safeState[_safe].timelockDelay;
     }
 
@@ -310,7 +308,7 @@ abstract contract TimelockGuard is IGuard, IERC165 {
         address _gasToken,
         address payable _refundReceiver,
         bytes memory, /* signatures */
-        address /* msgSender */
+        address _msgSender
     )
         external
         view
@@ -325,6 +323,12 @@ abstract contract TimelockGuard is IGuard, IERC165 {
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a
             // delay of zero.
             return;
+        }
+
+        // Limit execution of transactions to owners of the Safe only.
+        // This ensures that an attacker cannot simply collect valid signatures, but must also control a private key.
+        if (!callingSafe.isOwner(_msgSender)) {
+            revert TimelockGuard_NotOwner();
         }
 
         // Get the nonce of the Safe for the transaction being executed,
