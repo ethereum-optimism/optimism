@@ -4,15 +4,12 @@ pragma solidity 0.8.15;
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { Guard } from "safe-contracts/base/GuardManager.sol";
+import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-// Interfaces
-import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
@@ -68,7 +65,7 @@ import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-abstract contract TimelockGuard is Guard {
+abstract contract TimelockGuard is BaseGuard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction
@@ -677,17 +674,5 @@ abstract contract TimelockGuard is Guard {
     ///         the Safe UI.
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                    ERC165 Support                          //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice ERC165 interface detection
-    /// @param _interfaceId The interface identifier to check
-    /// @return True if the contract implements the interface
-    function supportsInterface(bytes4 _interfaceId) external view virtual override returns (bool) {
-        return _interfaceId == type(Guard).interfaceId // 0xe6d7a83a
-            || _interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }
 }

@@ -563,7 +563,7 @@
     "inputs": [
       {
         "internalType": "bytes4",
-        "name": "_interfaceId",
+        "name": "interfaceId",
         "type": "bytes4"
       }
     ],
