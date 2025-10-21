@@ -39,6 +39,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
 		gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.Engine.EthClient())
+		require.NoError(t, err)
 		t.Logf("L2 Genesis Time: %d, JovianTime: %d ", env.Sequencer.RollupCfg.Genesis.L2Time, *env.Sequencer.RollupCfg.JovianTime)
 
 		if jovianAtGenesis {
