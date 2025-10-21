@@ -37,7 +37,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 
 	sysCfg := chConfig.Genesis.SystemConfig
 
-	genesisSysConfig := eth.NullableSystemConfig{
+	genesisSysConfig := eth.SystemConfig{
 		BatcherAddr: sysCfg.BatcherAddr,
 		Overhead:    eth.Bytes32(sysCfg.Overhead),
 		Scalar:      eth.Bytes32(sysCfg.Scalar),

@@ -206,11 +206,10 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		ParentBeaconBlockRoot: parentBeaconRoot,
 	}
 	if ba.rollupCfg.IsHolocene(nextL2Time) {
-		r.EIP1559Params = new(eth.Bytes8)
-		*r.EIP1559Params = sysConfig.EIP1559Params
+		r.EIP1559Params = sysConfig.EIP1559Params
 	}
 	if ba.rollupCfg.IsMinBaseFee(nextL2Time) {
-		r.MinBaseFee = &sysConfig.MinBaseFee
+		r.MinBaseFee = sysConfig.MinBaseFee
 	}
 	return r, nil
 }

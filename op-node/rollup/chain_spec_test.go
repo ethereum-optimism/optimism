@@ -26,7 +26,7 @@ var testConfig = Config{
 			Number: 105235063,
 		},
 		L2Time: 0,
-		SystemConfig: eth.NullableSystemConfig{
+		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x6887246668a3b87f54deb3b94ba47a6f63f32985"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),

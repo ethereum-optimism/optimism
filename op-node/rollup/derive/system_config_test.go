@@ -36,9 +36,13 @@ var (
 	oneUint256 = abi.Arguments{
 		{Type: uint256T},
 	}
-	eip1559Params     = []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}
-	operatorFeeParams = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7, 0xd, 0x8}
-	minBaseFee        = uint64(1e9)
+	eip1559Params               = []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}
+	eip1559ParamsBytes8         = eth.Bytes8(eip1559Params)
+	operatorFeeParams           = []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x7, 0xd, 0x8}
+	operatorFeeParamsBytes32    = eth.Bytes32(operatorFeeParams)
+	minBaseFee                  = uint64(1e9)
+	daFootprintGasScalarDefault = uint16(eth.DAFootprintGasScalarDefault)
+	oneHundred                  = uint16(100)
 )
 
 // TestProcessSystemConfigUpdateLogEvent tests the parsing of an event and mutating the
@@ -210,7 +214,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params: eth.Bytes8(eip1559Params),
+				EIP1559Params: &eip1559ParamsBytes8,
 			},
 			err: false,
 		},
@@ -232,7 +236,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				OperatorFeeParams: eth.Bytes32(operatorFeeParams),
+				OperatorFeeParams: &operatorFeeParamsBytes32,
 			},
 			err: false,
 		},
@@ -254,7 +258,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				MinBaseFee: minBaseFee,
+				MinBaseFee: &minBaseFee,
 			},
 			err: false,
 		},
@@ -276,7 +280,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				DAFootprintGasScalar: 100,
+				DAFootprintGasScalar: &oneHundred,
 			},
 			err: false,
 		},
@@ -298,7 +302,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				DAFootprintGasScalar: eth.DAFootprintGasScalarDefault,
+				DAFootprintGasScalar: &daFootprintGasScalarDefault,
 			},
 			err: false,
 		},

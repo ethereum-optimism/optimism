@@ -367,7 +367,7 @@ func TestRollupConfig(t *testing.T) {
 	for _, testCase := range testCases {
 		rollupCfg := &rollup.Config{
 			Genesis: rollup.Genesis{
-				SystemConfig: eth.NullableSystemConfig{
+				SystemConfig: eth.SystemConfig{
 					BatcherAddr: common.Address{},
 					Overhead:    [32]byte{},
 					Scalar:      [32]byte{},

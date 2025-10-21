@@ -308,7 +308,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			BatcherAddr:   common.Address{42},
 			Overhead:      [32]byte{},
 			Scalar:        [32]byte{},
-			EIP1559Params: eip1559Params,
+			EIP1559Params: &eip1559Params,
 		}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
@@ -456,8 +456,8 @@ func TestPreparePayloadAttributes(t *testing.T) {
 				BatcherAddr:   common.Address{42},
 				Overhead:      [32]byte{},
 				Scalar:        [32]byte{},
-				EIP1559Params: eip1559Params,
-				MinBaseFee:    minBaseFee,
+				EIP1559Params: &eip1559Params,
+				MinBaseFee:    &minBaseFee,
 			}
 			l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 			defer l1CfgFetcher.AssertExpectations(t)

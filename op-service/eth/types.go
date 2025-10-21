@@ -3,7 +3,6 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -591,12 +590,16 @@ type ForkchoiceUpdatedResult struct {
 	PayloadID *PayloadID `json:"payloadId"`
 }
 
-const DAFootprintGasScalarDefault = 400
+const DAFootprintGasScalarDefault = uint16(400)
 
 // SystemConfig represents the rollup system configuration that carries over in every L2 block,
 // and may be changed through L1 system config events.
 // The initial SystemConfig at rollup genesis is embedded in the rollup configuration.
+// The SystenConfig is _versioned_ meaning that fields from a particular fork
+// should only be set if that fork is active.
 type SystemConfig struct {
+	// Bedrock fields
+
 	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
 	// Overhead identifies the L1 fee overhead.
@@ -607,106 +610,36 @@ type SystemConfig struct {
 	// Pre-Ecotone this is passed as-is to the engine.
 	// Post-Ecotone this encodes multiple pieces of scalar data.
 	Scalar Bytes32 `json:"scalar"`
-	// GasLimit identifies the L2 block gas limit
-	GasLimit uint64 `json:"gasLimit"`
 	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
 	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
-	EIP1559Params Bytes8 `json:"eip1559Params"`
-	// OperatorFeeParams identifies the operator fee parameters.
-	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
-	// MinBaseFee identifies the minimum base fee.
-	MinBaseFee uint64 `json:"minBaseFee"`
-	// DAFootprintGasScalar identifies the DA footprint gas scalar.
-	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
-	// More fields can be added for future SystemConfig versions.
-
-	// MarshalPreHolocene indicates whether or not this struct should be
-	// marshaled in the pre-Holocene format. The pre-Holocene format does
-	// not marshal the EIP1559Params field. The presence of this field in
-	// pre-Holocene codebases causes the rollup config to be rejected.
-	MarshalPreHolocene bool `json:"-"`
-}
-
-// NullableSystemConfig is a SystemConfig where fields introduced in hardforks
-// are optional. It should be kept in sync with the SystemConfig type.
-type NullableSystemConfig struct {
-	// Bedrock fields
-	BatcherAddr common.Address `json:"batcherAddr"`
-	Overhead    Bytes32        `json:"overhead"`
-	Scalar      Bytes32        `json:"scalar"`
-	GasLimit    uint64         `json:"gasLimit"`
+	GasLimit uint64 `json:"gasLimit"`
 
 	// Holocene fields
+
+	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
+	// value will be 0 if Holocene is not active, or if derivation has yet to
+	// process any EIP_1559_PARAMS system config update events.
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 
 	// Isthmus fields
+	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams *Bytes32 `json:"operatorFeeParams,omitempty"`
 
 	// Jovian fields
-	MinBaseFee           *uint64 `json:"minBaseFee,omitempty"`
+	// MinBaseFee identifies the minimum base fee.
+	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
+	// DAFootprintGasScalar identifies the DA footprint gas scalar.
 	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty"`
-}
-
-// ToSystemConfig converts a NullableSystemConfig to a SystemConfig.
-// It sets the fields that are present in the NullableSystemConfig,
-// which otherwise take on default values.
-func (sysCfg *NullableSystemConfig) ToSystemConfig() SystemConfig {
-	s := SystemConfig{
-		BatcherAddr: sysCfg.BatcherAddr,
-		Overhead:    sysCfg.Overhead,
-		Scalar:      sysCfg.Scalar,
-		GasLimit:    sysCfg.GasLimit,
-	}
-	if sysCfg.EIP1559Params != nil {
-		s.EIP1559Params = *sysCfg.EIP1559Params
-	}
-	if sysCfg.OperatorFeeParams != nil {
-		s.OperatorFeeParams = *sysCfg.OperatorFeeParams
-	}
-	if sysCfg.MinBaseFee != nil {
-		s.MinBaseFee = *sysCfg.MinBaseFee
-	}
-	if sysCfg.DAFootprintGasScalar != nil {
-		s.DAFootprintGasScalar = *sysCfg.DAFootprintGasScalar
-	}
-	return s
 }
 
 func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
 	if daFootprintGasScalar == 0 {
-		sysCfg.DAFootprintGasScalar = DAFootprintGasScalarDefault
+		sysCfg.DAFootprintGasScalar = new(uint16)
+		*sysCfg.DAFootprintGasScalar = DAFootprintGasScalarDefault
 	} else {
-		sysCfg.DAFootprintGasScalar = daFootprintGasScalar
+		sysCfg.DAFootprintGasScalar = &daFootprintGasScalar
 	}
-}
-
-func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
-	if sysCfg.MarshalPreHolocene {
-		return jsonMarshalPreHolocene(sysCfg)
-	}
-	return jsonMarshalHolocene(sysCfg)
-}
-
-func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
-	type sysCfgMarshaling SystemConfig
-	return json.Marshal(sysCfgMarshaling(sysCfg))
-}
-
-func jsonMarshalPreHolocene(sysCfg SystemConfig) ([]byte, error) {
-	type sysCfgMarshaling struct {
-		BatcherAddr common.Address `json:"batcherAddr"`
-		Overhead    Bytes32        `json:"overhead"`
-		Scalar      Bytes32        `json:"scalar"`
-		GasLimit    uint64         `json:"gasLimit"`
-	}
-	sc := sysCfgMarshaling{
-		BatcherAddr: sysCfg.BatcherAddr,
-		Overhead:    sysCfg.Overhead,
-		Scalar:      sysCfg.Scalar,
-		GasLimit:    sysCfg.GasLimit,
-	}
-	return json.Marshal(sc)
 }
 
 // The Ecotone upgrade introduces a versioned L1 scalar format
@@ -788,7 +721,10 @@ type OperatorFeeParams struct {
 }
 
 func (sysCfg *SystemConfig) OperatorFee() OperatorFeeParams {
-	return DecodeOperatorFeeParams(sysCfg.OperatorFeeParams)
+	if sysCfg.OperatorFeeParams == nil {
+		panic("OperatorFeeParams is nil")
+	}
+	return DecodeOperatorFeeParams(*sysCfg.OperatorFeeParams)
 }
 
 // DecodeScalar decodes the operatorFeeScalar and operatorFeeConstant from a 32-byte scalar value.

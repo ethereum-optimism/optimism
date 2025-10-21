@@ -519,7 +519,11 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 		l1BlockInfo.OperatorFeeConstant = operatorFee.Constant
 	}
 	if isJovianActivated {
-		l1BlockInfo.DAFootprintGasScalar = sysCfg.DAFootprintGasScalar
+		if sysCfg.DAFootprintGasScalar != nil {
+			l1BlockInfo.DAFootprintGasScalar = *sysCfg.DAFootprintGasScalar
+		} else {
+			panic("SystemConfig.DAFootprintGasScalar is nil")
+		}
 	}
 
 	// 2. Now marshal actual data

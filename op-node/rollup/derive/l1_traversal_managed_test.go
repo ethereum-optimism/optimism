@@ -22,7 +22,7 @@ func TestL1TraversalManaged(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	a := testutils.RandomBlockRef(rng)
 	// Load up the initial state with a reset
-	l1Cfg := eth.NullableSystemConfig{
+	l1Cfg := eth.SystemConfig{
 		BatcherAddr: testutils.RandomAddress(rng),
 		Overhead:    [32]byte{42},
 		Scalar:      [32]byte{69},
@@ -35,7 +35,7 @@ func TestL1TraversalManaged(t *testing.T) {
 	l1F := &testutils.MockL1Source{}
 	tr := NewL1TraversalManaged(testlog.Logger(t, log.LevelError), cfg, l1F)
 
-	_ = tr.Reset(context.Background(), a, l1Cfg.ToSystemConfig())
+	_ = tr.Reset(context.Background(), a, l1Cfg)
 
 	// First call will not succeed, we count the first block as consumed-already,
 	// since other stages had it too.

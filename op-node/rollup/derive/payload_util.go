@@ -59,7 +59,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 				"expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s",
 				rollupCfg.Genesis.L2.Number, payload.BlockHash, rollupCfg.Genesis.L2.Hash)
 		}
-		return rollupCfg.Genesis.SystemConfig.ToSystemConfig(), nil
+		return rollupCfg.Genesis.SystemConfig, nil
 	}
 
 	if len(payload.Transactions) == 0 {
@@ -98,15 +98,15 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 	copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
 
 	if rollupCfg.IsIsthmus(uint64(payload.Timestamp)) {
-		r.OperatorFeeParams = eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
+		operatorFeeParams := eth.Bytes32(eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
 			Scalar:   info.OperatorFeeScalar,
 			Constant: info.OperatorFeeConstant,
-		})
+		}))
+		r.OperatorFeeParams = &operatorFeeParams
 	}
 
 	if rollupCfg.IsMinBaseFee(uint64(payload.Timestamp)) {
-		// ValidateOptimismExtraData returning a nil error guarantees that m is not nil
-		r.MinBaseFee = *m
+		r.MinBaseFee = m
 	}
 	if rollupCfg.IsDAFootprintBlockLimit(uint64(payload.Timestamp)) {
 		r.SetDAFootprintGasScalar(info.DAFootprintGasScalar)

@@ -705,7 +705,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 				Number: 0,
 			},
 			L2Time:       10000000,
-			SystemConfig: eth.NullableSystemConfig{},
+			SystemConfig: eth.SystemConfig{},
 		},
 		BlockTime:         2,
 		MaxSequencerDrift: 15 * 60,

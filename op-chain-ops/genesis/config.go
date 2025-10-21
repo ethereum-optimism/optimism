@@ -1115,8 +1115,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 
 // GenesisSystemConfig converts a DeployConfig to a eth.SystemConfig. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) GenesisSystemConfig() eth.NullableSystemConfig {
-	s := eth.NullableSystemConfig{
+func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
+	s := eth.SystemConfig{
 		BatcherAddr: d.BatchSenderAddress,
 		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
 		Scalar:      d.FeeScalar(),

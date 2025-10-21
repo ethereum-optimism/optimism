@@ -115,7 +115,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 		node:          node,
 		L2Client:      l2Client,
 		l2Engine:      l2Engine,
-		SystemConfig:  rollupGenesis.SystemConfig.ToSystemConfig(),
+		SystemConfig:  rollupGenesis.SystemConfig,
 		L1ChainConfig: l1Genesis.Config,
 		L2ChainConfig: l2Genesis.Config,
 		L1Head:        eth.BlockToInfo(l1Block),
@@ -240,12 +240,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
 	if d.L2ChainConfig.IsJovian(uint64(timestamp)) {
-		attrs.MinBaseFee = new(uint64)
-		*attrs.MinBaseFee = d.SystemConfig.MinBaseFee
+		attrs.MinBaseFee = d.SystemConfig.MinBaseFee
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
-		attrs.EIP1559Params = new(eth.Bytes8)
-		*attrs.EIP1559Params = d.SystemConfig.EIP1559Params
+		attrs.EIP1559Params = d.SystemConfig.EIP1559Params
 	}
 	return &attrs, nil
 }

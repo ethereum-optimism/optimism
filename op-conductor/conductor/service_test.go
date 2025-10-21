@@ -59,7 +59,7 @@ func mockConfig(t *testing.T) Config {
 					Number: 0,
 				},
 				L2Time: now,
-				SystemConfig: eth.NullableSystemConfig{
+				SystemConfig: eth.SystemConfig{
 					BatcherAddr: [20]byte{1},
 					Overhead:    [32]byte{1},
 					Scalar:      [32]byte{1},

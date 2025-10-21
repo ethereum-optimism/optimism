@@ -66,7 +66,7 @@ func TestAltDAFinalityData(t *testing.T) {
 			L1:     refA.ID(),
 			L2:     refA0.ID(),
 			L2Time: refA0.Time,
-			SystemConfig: eth.NullableSystemConfig{
+			SystemConfig: eth.SystemConfig{
 				BatcherAddr: common.Address{42},
 				Overhead:    [32]byte{123},
 				Scalar:      [32]byte{42},

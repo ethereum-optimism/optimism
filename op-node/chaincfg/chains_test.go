@@ -53,7 +53,7 @@ var mainnetCfg = rollup.Config{
 			Number: 105235063,
 		},
 		L2Time: 1686068903,
-		SystemConfig: eth.NullableSystemConfig{
+		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x6887246668a3b87f54deb3b94ba47a6f63f32985"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
@@ -92,7 +92,7 @@ var sepoliaCfg = rollup.Config{
 			Number: 0,
 		},
 		L2Time: 1691802540,
-		SystemConfig: eth.NullableSystemConfig{
+		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
@@ -132,7 +132,7 @@ var sepoliaDev0Cfg = rollup.Config{
 			Number: 0,
 		},
 		L2Time: 1706484048,
-		SystemConfig: eth.NullableSystemConfig{
+		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x19cc7073150d9f5888f09e0e9016d2a39667df14"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),

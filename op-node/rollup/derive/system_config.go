@@ -174,7 +174,8 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.OperatorFeeParams = params
+		destSysCfg.OperatorFeeParams = new(eth.Bytes32)
+		*destSysCfg.OperatorFeeParams = params
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
@@ -193,7 +194,8 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.MinBaseFee = minBaseFee
+		destSysCfg.MinBaseFee = new(uint64)
+		*destSysCfg.MinBaseFee = minBaseFee
 		return nil
 	case SystemConfigUpdateDAFootprintGasScalar:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {

@@ -36,7 +36,7 @@ func randConfig() *Config {
 			L1:     eth.BlockID{Hash: randHash(), Number: 424242},
 			L2:     eth.BlockID{Hash: randHash(), Number: 1337},
 			L2Time: uint64(time.Now().Unix()),
-			SystemConfig: eth.NullableSystemConfig{
+			SystemConfig: eth.SystemConfig{
 				BatcherAddr: randAddr(),
 				Overhead:    randHash(),
 				Scalar:      randHash(),

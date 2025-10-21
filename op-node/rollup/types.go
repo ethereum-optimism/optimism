@@ -49,7 +49,7 @@ type Genesis struct {
 	// Initial system configuration values.
 	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
 	// unlike later L2 blocks.
-	SystemConfig eth.NullableSystemConfig `json:"system_config"`
+	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
 type AltDAConfig struct {
