@@ -9,7 +9,6 @@ import { DisputeGames } from "../setup/DisputeGames.sol";
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
