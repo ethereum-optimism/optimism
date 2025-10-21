@@ -8,7 +8,8 @@ import "test/safe-tools/SafeTestTools.sol";
 /// @title SafeSigners_TestInit
 /// @notice Reusable test initialization for `SafeSigners` tests.
 abstract contract SafeSigners_TestInit is Test {
-    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x20c13b0b;
+    // EIP-1271 magic value: bytes4(keccak256("isValidSignature(bytes32,bytes)"))
+    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
 
     enum SigTypes {
         Eoa,
@@ -85,9 +86,9 @@ contract SafeSigners_GetNSigners_Test is SafeSigners_TestInit, SafeTestTools {
                 contractSigs++;
                 address addr = SafeTestLib.decodeSmartContractWalletAsAddress(pks[i]);
                 r = bytes32(uint256(uint160(addr)));
-                // nosemgrep: sol-style-use-abi-encodecall
+                // Safe v1.5.0 uses EIP-1271 standard: isValidSignature(bytes32,bytes)
                 vm.mockCall(
-                    addr, abi.encodeWithSignature("isValidSignature(bytes,bytes)"), abi.encode(EIP1271_MAGIC_VALUE)
+                    addr, abi.encodeWithSignature("isValidSignature(bytes32,bytes)"), abi.encode(EIP1271_MAGIC_VALUE)
                 );
                 v = 0;
                 // s needs to point to data that comes after the signatures
