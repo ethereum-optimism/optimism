@@ -8384,7 +8384,6 @@ version = "1.10.2"
 version = "1.9.3"
 >>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
- "alloy-primitives",
  "derive_more",
  "eyre",
  "futures",
@@ -8394,15 +8393,17 @@ dependencies = [
  "reth-exex",
  "reth-node-api",
  "reth-node-types",
- "reth-optimism-primitives",
  "reth-optimism-trie",
  "reth-provider",
+<<<<<<< HEAD:op-reth/Cargo.lock
  "serde",
 <<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",
 =======
  "thiserror 2.0.17",
 >>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
+=======
+>>>>>>> cfe990e62b (chore(exex): Add missing crate header to `reth-optimism-exex` (#271)):Cargo.lock
  "tokio",
 ]
 

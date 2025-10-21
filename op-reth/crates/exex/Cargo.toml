@@ -19,20 +19,13 @@ reth-node-api.workspace = true
 reth-provider.workspace = true
 reth-chainspec.workspace = true
 
-# ethereum
-alloy-primitives.workspace = true
-
 # op-reth
-# serde-bincode-compat is needed since exex is a dep of stages and stages uses bincode dep
-reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat"] }
 # proofs exex handles `TrieUpdates` in notifications
 reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat"] }
 
 # misc
 eyre.workspace = true
 futures-util.workspace = true
-serde.workspace = true
-thiserror.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
