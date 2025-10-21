@@ -101,13 +101,13 @@ func TestSystemConfigMarshaling(t *testing.T) {
 		OperatorFeeParams:    &Bytes32{},
 		GasLimit:             1234,
 		MinBaseFee:           new(uint64),
+		EIP1559Params:        new(Bytes8),
 		DAFootprintGasScalar: new(uint16),
-		// Leave EIP1559 params empty to prove that the
-		// zero value is sent.
 	}
 	*sysConfig.MinBaseFee = 0
 	*sysConfig.DAFootprintGasScalar = DAFootprintGasScalarDefault
 	*sysConfig.OperatorFeeParams = Bytes32{0x1, 0x2, 0x3}
+	*sysConfig.EIP1559Params = Bytes8{}
 	j, err := json.Marshal(sysConfig)
 	require.NoError(t, err)
 	require.Equal(t, `{"batcherAddr":"0x4100000000000000000000000000000000000000","overhead":"0x0405060000000000000000000000000000000000000000000000000000000000","scalar":"0x0708090000000000000000000000000000000000000000000000000000000000","gasLimit":1234,"eip1559Params":"0x0000000000000000","operatorFeeParams":"0x0102030000000000000000000000000000000000000000000000000000000000","minBaseFee":0,"daFootprintGasScalar":400}`, string(j))
