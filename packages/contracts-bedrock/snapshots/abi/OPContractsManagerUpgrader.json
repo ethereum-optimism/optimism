@@ -298,11 +298,6 @@
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
-      },
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "_superchainProxyAdmin",
-        "type": "address"
       }
     ],
     "name": "upgradeSuperchainConfig",

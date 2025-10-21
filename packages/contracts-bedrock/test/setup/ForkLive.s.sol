@@ -217,8 +217,7 @@ contract ForkLive is Deployer, StdAssertions {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
