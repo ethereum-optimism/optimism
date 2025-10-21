@@ -269,11 +269,12 @@ contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
         assertEq(delay, 0);
     }
 
-    /// @notice Validates the configuration view reflects the stored timelock delay.
-    function test_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds() external {
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    /// @notice Fuzz test: Validates the configuration view reflects the stored timelock delay for any valid delay.
+    function testFuzz_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds(uint256 _delay) external {
+        _delay = bound(_delay, 1, ONE_YEAR); // Restrict to valid range
+        _configureGuard(safeInstance, _delay);
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
-        assertEq(delay, TIMELOCK_DELAY);
+        assertEq(delay, _delay);
     }
 }
 
@@ -789,11 +790,10 @@ contract TimelockGuard_CheckAfterExecution_Test is TimelockGuard_TestInit {
         assertEq(uint256(scheduledTx.executionTime), expectedExecutionTime);
     }
 
-    /// @notice Verifies unconfigured guard allows checkAfterExecution.
-    function test_checkAfterExecution_unconfiguredGuard_succeeds() external {
-        bytes32 randomHash = keccak256("random");
+    /// @notice Fuzz test: Verifies unconfigured guard allows checkAfterExecution for any _hash.
+    function testFuzz_checkAfterExecution_unconfiguredGuard_succeeds(bytes32 _hash) external {
         vm.prank(address(unguardedSafe.safe));
-        timelockGuard.checkAfterExecution(randomHash, true);
+        timelockGuard.checkAfterExecution(_hash, true);
     }
 }
 
