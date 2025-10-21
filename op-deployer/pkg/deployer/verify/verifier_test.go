@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,8 +18,32 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
+
+func bootstrapContractAddresses() map[string]common.Address {
+	addrType := reflect.TypeOf(common.Address{})
+	structTypes := []reflect.Type{
+		reflect.TypeOf(opcm.DeploySuperchainOutput{}),
+		reflect.TypeOf(opcm.DeployImplementationsOutput{}),
+	}
+
+	addresses := make(map[string]common.Address)
+	index := int64(1)
+
+	for _, structType := range structTypes {
+		for i := 0; i < structType.NumField(); i++ {
+			field := structType.Field(i)
+			if field.Type == addrType {
+				addresses[field.Name] = common.BigToAddress(big.NewInt(index))
+				index++
+			}
+		}
+	}
+
+	return addresses
+}
 
 func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
@@ -50,11 +76,9 @@ func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 
 	verifier.etherscan = NewEtherscanClient(testAPIKey, fakeServer.URL, rate.NewLimiter(rate.Inf, 1))
 
+	bundle := bootstrapContractAddresses()
+
 	bundleFile := filepath.Join(testCacheDir, "contracts.json")
-	bundle := map[string]common.Address{
-		"SystemConfigProxy":   common.HexToAddress("0x02f909cf91c2134e70a67950b7f27db7c8ee55d6"),
-		"OptimismPortalProxy": common.HexToAddress("0x7bd8879acf1e74547455c7ddc07f5c3f4a3c133d"),
-	}
 	bundleData, err := json.Marshal(bundle)
 	require.NoError(t, err)
 	err = os.WriteFile(bundleFile, bundleData, 0o644)
