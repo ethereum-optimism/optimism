@@ -169,7 +169,6 @@ The batcher tries to ensure that batches are posted at a minimum frequency speci
 ### Runtime batcher flushing
 It is possible to manually trigger the batcher to post data to the DA layer without restarting it, like so:
 ```bash
-# Runtime controller switching
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_flushBatcher","params":[],"id":1}' \
   http://localhost:8545
