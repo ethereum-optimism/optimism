@@ -158,7 +158,9 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
 		if err != nil {
-			return nil, NewCriticalError(err)
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel", "error", err)
+			bs.FlushChannel()
+			return nil, NotEnoughData
 		}
 		bs.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.

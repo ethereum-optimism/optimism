@@ -582,7 +582,9 @@ func (b *SpanBatch) ToRawSpanBatch() (*RawSpanBatch, error) {
 
 // GetSingularBatches converts SpanBatchElements after L2 safe head to SingularBatches.
 // Since SpanBatchElement does not contain EpochHash, set EpochHash from the given L1 blocks.
-// The result SingularBatches do not contain ParentHash yet. It must be set by BatchQueue.
+// The result SingularBatches do not contain the ParentHash yet. It must be set by the
+// BatchQueue/BatchStage. If this function returns an error, derivation must treat this as an
+// invalid batch and not as a critical derivation error.
 func (b *SpanBatch) GetSingularBatches(l1Origins []eth.L1BlockRef, l2SafeHead eth.L2BlockRef) ([]*SingularBatch, error) {
 	var singularBatches []*SingularBatch
 	originIdx := 0
