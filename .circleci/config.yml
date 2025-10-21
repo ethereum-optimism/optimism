@@ -1321,6 +1321,11 @@ jobs:
               tar -czf testlogs.tar.gz -C ./tmp testlogs
             fi
           when: always
+      - run:
+          name: Clean up op-deployer artifacts
+          command: |
+            rm -rf ~/.op-deployer/*
+          when: always
       - store_artifacts:
           path: testlogs*.tar.gz
           when: always
@@ -1767,7 +1772,7 @@ jobs:
             jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
       - slack/notify:
-          channel: notify-ci-failures
+          channel: C03N11M0BBN  # "notify-ci" channel
           event: always
           retries: 1
           retry_delay: 3

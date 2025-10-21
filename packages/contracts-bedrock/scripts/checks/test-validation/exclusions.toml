@@ -94,4 +94,5 @@ contracts = [
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
     "TransactionBuilder",                       # Transaction builder helper library in TimelockGuard test file
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
+    "LivenessModule2_TestUtils",                 # Test utils library in LivenessModule2 test file
 ]

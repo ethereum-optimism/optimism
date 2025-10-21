@@ -387,3 +387,20 @@ func (cl *L2CLNode) Reset(lvl types.SafetyLevel, target eth.L2BlockRef) {
 			return errors.New("waiting to reset")
 		}))
 }
+
+func (cl *L2CLNode) AppendUnsafePayloadUntilTip(verEL, seqEL *L2ELNode, maxAttempts int) {
+	trial := 0
+	cl.require.NoError(
+		retry.Do0(cl.ctx, 200, &retry.FixedStrategy{Dur: 250 * time.Millisecond}, func() error {
+			verUnsafe := verEL.BlockRefByLabel(eth.Unsafe)
+			seqUnsafe := seqEL.BlockRefByLabel(eth.Unsafe)
+			gap := seqUnsafe.Number - verUnsafe.Number
+			cl.log.Info("Filling in the gap by appending unsafe payload", "gap", gap, "ver", verUnsafe, "seq", seqUnsafe, "trial", trial)
+			if gap == 0 {
+				return nil
+			}
+			trial += 1
+			cl.SignalTarget(seqEL, verUnsafe.Number+1)
+			return fmt.Errorf("unsafe gap with size %d still exists", gap)
+		}))
+}

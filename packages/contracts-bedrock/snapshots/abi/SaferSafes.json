@@ -180,6 +180,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "clearTimelockGuard",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -787,6 +794,25 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract GnosisSafe",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "uncancelledCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "TransactionsNotCancelled",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "LivenessModule2_ChallengeAlreadyExists",
     "type": "error"
@@ -859,6 +885,11 @@
   {
     "inputs": [],
     "name": "TimelockGuard_GuardNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_GuardStillEnabled",
     "type": "error"
   },
   {
