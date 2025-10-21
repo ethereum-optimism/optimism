@@ -11,6 +11,7 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { DummyGuard } from "test/mocks/DummyGuard.sol";
 
 /// @title LivenessModule2_TestUtils
 /// @notice Reusable helper methods for LivenessModule2 tests.
@@ -465,15 +466,16 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         timeAfterExpiry = bound(timeAfterExpiry, 1, 365 days);
 
         // Set a guard to verify it gets removed
-        address mockGuard = makeAddr("mockGuard");
+        DummyGuard otherGuard = new DummyGuard();
+
         SafeTestLib.execTransaction(
             safeInstance,
             address(safeInstance.safe),
             0,
-            abi.encodeCall(GuardManager.setGuard, (mockGuard)),
+            abi.encodeCall(GuardManager.setGuard, (address(otherGuard))),
             Enum.Operation.Call
         );
-        assertEq(_getGuard(safeInstance), mockGuard);
+        assertEq(_getGuard(safeInstance), address(otherGuard));
 
         // Start a challenge
         vm.prank(fallbackOwner);
