@@ -599,7 +599,6 @@ const DAFootprintGasScalarDefault = uint16(400)
 // should only be set if that fork is active.
 type SystemConfig struct {
 	// Bedrock fields
-
 	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
 	// Overhead identifies the L1 fee overhead.
@@ -616,7 +615,6 @@ type SystemConfig struct {
 	GasLimit uint64 `json:"gasLimit"`
 
 	// Holocene fields
-
 	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
 	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
@@ -631,6 +629,17 @@ type SystemConfig struct {
 	MinBaseFee *uint64 `json:"minBaseFee,omitempty"`
 	// DAFootprintGasScalar identifies the DA footprint gas scalar.
 	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty"`
+
+	// Fields from future forks should be added here as nullable pointers.
+}
+
+func (sysCfg *SystemConfig) PreHoloceneSystemConfig() SystemConfig {
+	return SystemConfig{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    sysCfg.Overhead,
+		Scalar:      sysCfg.Scalar,
+		GasLimit:    sysCfg.GasLimit,
+	}
 }
 
 func (sysCfg *SystemConfig) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
