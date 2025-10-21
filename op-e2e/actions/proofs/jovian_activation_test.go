@@ -38,14 +38,22 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool, minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
+		gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.Engine.EthClient())
 		t.Logf("L2 Genesis Time: %d, JovianTime: %d ", env.Sequencer.RollupCfg.Genesis.L2Time, *env.Sequencer.RollupCfg.JovianTime)
 
 		if jovianAtGenesis {
 			// Verify Jovian is active at genesis
 			require.True(t, env.Sequencer.RollupCfg.IsJovian(env.Sequencer.RollupCfg.Genesis.L2Time), "Jovian should be active at genesis")
 		} else {
+			require.False(t, env.Sequencer.RollupCfg.IsJovian(env.Engine.L2Chain().CurrentBlock().Time), "Jovian should be not active at genesis")
+
+			// Check GPO status
+			isJovian, err := gpo.IsJovian(nil)
+			require.NoError(t, err)
+			require.False(t, isJovian, "GPO should report that Jovian is not active")
+
 			// If Jovian is not activated at genesis, build some blocks up to the activation block
-			// and verify that the extra data is Jovian
+			// and verify that the extra data is Holocene
 			for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.JovianTime {
 				b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 				expectedHoloceneExtraData := eip1559.EncodeHoloceneExtraData(250, 6)
@@ -53,6 +61,11 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				env.Sequencer.ActL2EmptyBlock(t)
 			}
 		}
+
+		// Check GPO status
+		isJovian, err := gpo.IsJovian(nil)
+		require.NoError(t, err)
+		require.True(t, isJovian, "GPO should report that Jovian is active")
 
 		// Build the activation block
 		env.Sequencer.ActL2EmptyBlock(t)
@@ -69,12 +82,6 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		// It should have a zero min base fee
 		actualMinBaseFee := binary.BigEndian.Uint64(blockAfterActivation.Extra()[9:17])
 		require.Equal(t, uint64(0), actualMinBaseFee, "activation block should have a zero min base fee")
-
-		gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.Engine.EthClient())
-		require.NoError(t, err)
-		isJovian, err := gpo.IsJovian(nil)
-		require.NoError(t, err)
-		require.True(t, isJovian, "GPO should report that Jovian is active")
 
 		// Allow L1->L2 derivation to propagate the SystemConfig change & build L2 blocks up to the L1 origin that includes the SystemConfig change
 		env.Sequencer.ActL1HeadSignal(t)
