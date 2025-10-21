@@ -522,7 +522,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 		if sysCfg.DAFootprintGasScalar != nil {
 			l1BlockInfo.DAFootprintGasScalar = *sysCfg.DAFootprintGasScalar
 		} else {
-			panic("SystemConfig.DAFootprintGasScalar is nil")
+			l1BlockInfo.DAFootprintGasScalar = eth.DAFootprintGasScalarDefault
 		}
 	}
 

@@ -722,7 +722,10 @@ type OperatorFeeParams struct {
 
 func (sysCfg *SystemConfig) OperatorFee() OperatorFeeParams {
 	if sysCfg.OperatorFeeParams == nil {
-		panic("OperatorFeeParams is nil")
+		return OperatorFeeParams{
+			Scalar:   0,
+			Constant: 0,
+		}
 	}
 	return DecodeOperatorFeeParams(*sysCfg.OperatorFeeParams)
 }
