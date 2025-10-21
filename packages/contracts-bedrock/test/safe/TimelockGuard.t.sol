@@ -260,9 +260,9 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
     }
 }
 
-/// @title TimelockGuard_TimelockConfiguration_Test
+/// @title TimelockGuard_TimelockDelay_Test
 /// @notice Tests for timelockConfiguration function
-contract TimelockGuard_TimelockConfiguration_Test is TimelockGuard_TestInit {
+contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
     /// @notice Ensures an unconfigured Safe reports a zero timelock delay.
     function test_timelockConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
