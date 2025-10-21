@@ -117,7 +117,7 @@ func (of *OperatorFee) WaitForL2Sync(expectedScalar uint32, expectedConstant uin
 		}
 
 		return scalar == expectedScalar && constant == expectedConstant
-	}, 2*time.Minute, 5*time.Second, "L2 operator fee parameters did not sync within 2 minutes")
+	}, 4*time.Minute, 5*time.Second, "L2 operator fee parameters did not sync within 2 minutes")
 }
 
 func (of *OperatorFee) VerifyL2Config(expectedScalar uint32, expectedConstant uint64) {

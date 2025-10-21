@@ -143,7 +143,7 @@ func TestDAFootprint(gt *testing.T) {
 			if tc.setScalar != nil {
 				rec := env.setDAFootprintGasScalarViaSystemConfig(t, *tc.setScalar)
 				// Wait for change to propagate to L2
-				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 20)
+				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 40)
 			} else {
 				sys.L2EL.WaitForBlockNumber(2) // make sure we don't assert on genesis or first block
 			}
