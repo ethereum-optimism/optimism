@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
-import { Guard as BaseGuard } from "safe-contracts/base/GuardManager.sol";
+import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 // Libraries
@@ -12,7 +12,6 @@ import { SafeSigners } from "src/safe/SafeSigners.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 
 /// @title LivenessGuard
 /// @notice This Guard contract is used to track the liveness of Safe owners.
@@ -31,8 +30,8 @@ contract LivenessGuard is ISemver, BaseGuard {
     event OwnerRecorded(address owner);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.2
-    string public constant version = "1.0.2";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The safe account for which this contract will be the guard.
     Safe internal immutable SAFE;
@@ -160,17 +159,5 @@ contract LivenessGuard is ISemver, BaseGuard {
         lastLive[msg.sender] = block.timestamp;
 
         emit OwnerRecorded(msg.sender);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                    ERC165 Support                          //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice ERC165 interface detection
-    /// @param _interfaceId The interface identifier to check
-    /// @return True if the contract implements the interface
-    function supportsInterface(bytes4 _interfaceId) external view virtual override returns (bool) {
-        return _interfaceId == type(BaseGuard).interfaceId // 0xe6d7a83a
-            || _interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }
 }
