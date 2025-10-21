@@ -199,6 +199,14 @@
     "initCodeHash": "0x2e7dd6ce76c611114d941e1ac39cbdb972b80f77a4191786125086820879dea1",
     "sourceCodeHash": "0x1a2548ff9b3dd372043da7675340811057f24083e39b771369eb4b915f4a271a"
   },
+  "src/safe/LivenessGuard.sol:LivenessGuard": {
+    "initCodeHash": "0x81ce57bee13c727d1f3dc96cafd7f8d31ff9a9b41a7b81051f4a00d3d2b2f99f",
+    "sourceCodeHash": "0xad872c99ce577412717c79ee825705e61003ed978bc66d99d0547a43f2027dd0"
+  },
+  "src/safe/LivenessModule.sol:LivenessModule": {
+    "initCodeHash": "0xa4a06e8778dbb6883ece8f56538ba15bc01b3031bba9a12ad9d187e7c8aaa942",
+    "sourceCodeHash": "0xa86a835a520daa21d9deef5e2725fd024c2cc1e832541fbcd42ed697c8649885"
+  },
   "src/safe/SaferSafes.sol:SaferSafes": {
     "initCodeHash": "0xc546c21b73dce6c0b04ab5ddca56f61f648e26fc8345d0dcf160d94767dc4af6",
     "sourceCodeHash": "0x22d773a7d6cc981b374b7cdc823e418293e0a82714757cac1ebb6079b2f9650b"
