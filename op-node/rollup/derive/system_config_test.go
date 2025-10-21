@@ -319,7 +319,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, config, test.config)
+			require.Equal(t, test.config, config)
 		})
 	}
 }
