@@ -896,7 +896,7 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   contracts-bedrock-heavy-fuzz-nightly:
@@ -940,7 +940,7 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1061,6 +1061,12 @@ jobs:
           disable_search: true
           files: ./packages/contracts-bedrock/lcov-all.info
           flags: contracts-bedrock-tests
+      - save_cache:
+          name: Save forked state
+          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          when: always
+          paths:
+            - "~/.foundry/cache"
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
@@ -1139,13 +1145,13 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - save_cache:
           name: Save forked state
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
           when: always
           paths:
-            - "/root/.foundry/cache"
+            - "~/.foundry/cache"
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
