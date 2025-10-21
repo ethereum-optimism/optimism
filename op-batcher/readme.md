@@ -181,6 +181,9 @@ cast rpc admin_flushBatcher -r http://localhost:8545
 ```
 The command can either be run on the batcher host machine itself, or remotely by replacing `localhost` with the appropriate remote hostname.
 
+### Enabling the `admin` API
+This is disabled by default but can be set with `OP_BATCHER_RPC_ENABLE_ADMIN=true` or `--rpc.enable-admin=true`. It is necessary to allow the commands above to work.
+
 ## Known issues and future work
 
 Link to [open issues with the `op-batcher` tag](https://github.com/ethereum-optimism/optimism/issues?q=is%3Aopen+is%3Aissue+label%3AA-op-batcher).
