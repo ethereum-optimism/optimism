@@ -5,11 +5,13 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +39,7 @@ func WithPrivateKey(pkHex string) CLITestRunnerOption {
 }
 
 func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
-	workDir := t.TempDir()
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	return &CLITestRunner{
 		workDir: workDir,
 	}
@@ -46,7 +48,7 @@ func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner 
 // NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
 // Defaults can be overridden using functional options.
 func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
-	workDir := t.TempDir()
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
@@ -110,11 +112,13 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	stdout := newCaptureOutputWriter()
 	stderr := newCaptureOutputWriter()
 
-	// Add "op-deployer" as the first argument if not already present
-	fullArgs := args
-	if len(args) == 0 || args[0] != "op-deployer" {
-		fullArgs = append([]string{"op-deployer"}, args...)
+	// Ensure command format is: op-deployer --cache-dir <path> <subcommand and flags>
+	cacheDir := filepath.Join(r.workDir, ".cache")
+	commandArgs := args
+	if len(args) > 0 && args[0] == "op-deployer" {
+		commandArgs = args[1:] // Skip "op-deployer" if already present
 	}
+	fullArgs := append([]string{"op-deployer", "--cache-dir", cacheDir}, commandArgs...)
 
 	// Run the CLI command using the testable interface
 	err = RunCLI(ctx, stdout, stderr, fullArgs)

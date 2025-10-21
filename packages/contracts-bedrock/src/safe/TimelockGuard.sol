@@ -68,7 +68,7 @@ import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-abstract contract TimelockGuard is Guard {
+abstract contract TimelockGuard is IGuard, IERC165 {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction

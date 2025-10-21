@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { Safe } from "safe-contracts/Safe.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
@@ -261,49 +262,46 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
 }
 
 /// @title TimelockGuard_TimelockDelay_Test
-/// @notice Tests for timelockConfiguration function
+/// @notice Tests for TimelockDelay function
 contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
     /// @notice Ensures an unconfigured Safe reports a zero timelock delay.
-    function test_timelockConfiguration_returnsZeroForUnconfiguredSafe_succeeds() external view {
+    function test_timelockDelay_returnsZeroForUnconfiguredSafe_succeeds() external view {
         uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
         assertEq(delay, 0);
-        // configured is now determined by timelockDelay == 0
-        assertEq(delay == 0, true);
     }
 
-    /// @notice Validates the configuration view reflects the stored timelock delay.
-    function test_timelockConfiguration_returnsConfigurationForConfiguredSafe_succeeds() external {
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-        uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
-        assertEq(delay, TIMELOCK_DELAY);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
+    /// @notice Fuzz test: Validates the configuration view reflects the stored timelock delay for any valid delay.
+    function testFuzz_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds(uint256 _delay_) external {
+        _delay_ = bound(_delay_, 1, ONE_YEAR); // Restrict to valid range
+        _configureGuard(safeInstance, _delay_);
+        uint256 delay_ = timelockGuard.timelockDelay(safeInstance.safe);
+        assertEq(delay_, _delay_);
     }
 }
 
 /// @title TimelockGuard_ConfigureTimelockGuard_Test
 /// @notice Tests for configureTimelockGuard function
 contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
-    /// @notice Verifies the guard can be configured with a standard delay.
-    function test_configureTimelockGuard_succeeds() external {
-        vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, TIMELOCK_DELAY);
+    /// @notice Verifies the guard can be configured with various valid delays.
+    function testFuzz_configureTimelockGuard_validDelay_succeeds(uint256 _delay) external {
+        _delay = bound(_delay, 1, ONE_YEAR);
 
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
+        vm.expectEmit(true, true, true, true);
+        emit GuardConfigured(safe, _delay);
+
+        _configureGuard(safeInstance, _delay);
 
         uint256 delay = timelockGuard.timelockDelay(safe);
-        assertEq(delay, TIMELOCK_DELAY);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
+        assertEq(delay, _delay);
     }
 
     /// @notice Confirms delays above the maximum revert during configuration.
-    function test_configureTimelockGuard_revertsIfDelayTooLong_reverts() external {
-        uint256 tooLongDelay = ONE_YEAR + 1;
+    function testFuzz_configureTimelockGuard_delayTooLong_reverts(uint256 _delay) external {
+        _delay = bound(_delay, ONE_YEAR + 1, type(uint256).max);
 
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
         vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(tooLongDelay);
+        timelockGuard.configureTimelockGuard(_delay);
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
@@ -324,8 +322,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         uint256 delay = timelockGuard.timelockDelay(safe);
         assertEq(delay, ONE_YEAR);
-        // configured is now determined by timelockDelay != 0
-        assertEq(delay != 0, true);
     }
 
     /// @notice Demonstrates the guard can be reconfigured to a new delay.
@@ -733,6 +729,75 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     }
 }
 
+/// @title TimelockGuard_CheckAfterExecution_Test
+/// @notice Tests for checkAfterExecution function
+contract TimelockGuard_CheckAfterExecution_Test is TimelockGuard_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _configureGuard(safeInstance, TIMELOCK_DELAY);
+    }
+
+    /// @notice Verifies successful execution updates state and resets threshold.
+    function test_checkAfterExecution_successfulExecution_succeeds() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
+        vm.warp(expectedExecutionTime);
+
+        // Verify initial cancellation threshold
+        uint256 initialThreshold = timelockGuard.cancellationThreshold(safeInstance.safe);
+        assertEq(initialThreshold, 1);
+
+        // Call checkAfterExecution with successful execution
+        vm.expectEmit(true, true, true, true);
+        emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.checkAfterExecution(dummyTx.hash, true);
+
+        // Verify transaction state changed to Executed
+        TimelockGuard.ScheduledTransaction memory scheduledTx =
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Executed));
+
+        // Verify transaction removed from pending list
+        TimelockGuard.ScheduledTransaction[] memory pending = timelockGuard.pendingTransactions(safeInstance.safe);
+        assertEq(pending.length, 0);
+
+        // Verify cancellation threshold was reset to 1
+        assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
+
+        // Verify transaction cannot be executed again
+        vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyExecuted.selector);
+        dummyTx.executeTransaction(safeInstance.owners[0]);
+    }
+
+    /// @notice Verifies transaction state remains unchanged on execution failure.
+    function test_checkAfterExecution_failedExecution_succeeds() external {
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
+        dummyTx.scheduleTransaction(timelockGuard);
+
+        uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
+        vm.warp(expectedExecutionTime);
+
+        // Call checkAfterExecution with failed execution
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.checkAfterExecution(dummyTx.hash, false);
+
+        // Verify transaction state remains unchanged
+        TimelockGuard.ScheduledTransaction memory scheduledTx =
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
+        assertEq(uint256(scheduledTx.executionTime), expectedExecutionTime);
+    }
+
+    /// @notice Fuzz test: Verifies unconfigured guard allows checkAfterExecution for any _hash.
+    function testFuzz_checkAfterExecution_unconfiguredGuard_succeeds(bytes32 _hash) external {
+        vm.prank(address(unguardedSafe.safe));
+        timelockGuard.checkAfterExecution(_hash, true);
+    }
+}
+
 /// @title TimelockGuard_MaxCancellationThreshold_Test
 /// @notice Tests for the maxCancellationThreshold function in TimelockGuard
 contract TimelockGuard_MaxCancellationThreshold_Test is TimelockGuard_TestInit {
@@ -979,5 +1044,25 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         vm.expectRevert(TimelockGuard.TimelockGuard_GuardStillEnabled.selector);
         vm.prank(address(safeInstance.safe));
         timelockGuard.clearTimelockGuard();
+    }
+}
+
+/// @title TimelockGuard_SupportsInterface_Test
+/// @notice Tests ERC165 interface support for TimelockGuard
+contract TimelockGuard_SupportsInterface_Test is TimelockGuard_TestInit {
+    function test_supportsInterface_iTransactionGuard_succeeds() external view {
+        bytes4 interfaceId = 0xe6d7a83a; // ITransactionGuard interface ID
+        assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support ITransactionGuard");
+    }
+
+    function test_supportsInterface_ierc165_succeeds() external view {
+        bytes4 interfaceId = 0x01ffc9a7; // IERC165 interface ID
+        assertTrue(timelockGuard.supportsInterface(interfaceId), "Should support IERC165");
+    }
+
+    function test_supportsInterface_invalidInterface_fails(bytes4 _interfaceId) external view {
+        vm.assume(_interfaceId != type(ITransactionGuard).interfaceId);
+        vm.assume(_interfaceId != type(IERC165).interfaceId);
+        assertFalse(timelockGuard.supportsInterface(_interfaceId), "Should not support invalid interface");
     }
 }

@@ -10,6 +10,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 /// @title LivenessModule2_TestUtils
 /// @notice Reusable helper methods for LivenessModule2 tests.
@@ -108,8 +109,8 @@ contract LivenessModule2_TestInit is LivenessModule2_TestUtils {
     }
 }
 
-/// @title LivenessModule2_Configure_Test
-/// @notice Tests configuring and clearing the module
+/// @title LivenessModule2_ConfigureLivenessModule_Test
+/// @notice Tests configuring the module
 contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestInit {
     function test_configureLivenessModule_succeeds() external {
         vm.expectEmit(true, true, true, true);
@@ -219,9 +220,18 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         challengeEndTime = livenessModule2.getChallengePeriodEnd(safeInstance.safe);
         assertEq(challengeEndTime, 0);
     }
+}
 
-    function test_clear_succeeds() external {
+/// @title LivenessModule2_ClearLivenessModule_Test
+/// @notice Tests clearing the module configuration
+contract LivenessModule2_ClearLivenessModule_Test is LivenessModule2_TestInit {
+    function test_clearLivenessModule_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+
+        // Start a challenge to test that clearing also cancels it
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(safeInstance.safe);
+        assertGt(livenessModule2.challengeStartTime(safeInstance.safe), 0);
 
         // First disable the module at the Safe level
         SafeTestLib.execTransaction(
@@ -232,6 +242,9 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
             Enum.Operation.Call
         );
 
+        // Clear should emit ChallengeCancelled then ModuleCleared
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeCancelled(address(safeInstance.safe));
         vm.expectEmit(true, true, true, true);
         emit ModuleCleared(address(safeInstance.safe));
 
@@ -247,15 +260,16 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         LivenessModule2.ModuleConfig memory clearedConfig = livenessModule2.livenessSafeConfiguration(safeInstance.safe);
         assertEq(clearedConfig.livenessResponsePeriod, 0);
         assertEq(clearedConfig.fallbackOwner, address(0));
+        assertEq(livenessModule2.challengeStartTime(safeInstance.safe), 0);
     }
 
-    function test_clear_notEnabled_reverts() external {
+    function test_clearLivenessModule_notConfigured_reverts() external {
         vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.clearLivenessModule();
     }
 
-    function test_clear_moduleStillEnabled_reverts() external {
+    function test_clearLivenessModule_moduleStillEnabled_reverts() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // Try to clear while module is still enabled (should revert)
@@ -450,6 +464,17 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Bound time to reasonable values (1 second to 365 days after expiry)
         timeAfterExpiry = bound(timeAfterExpiry, 1, 365 days);
 
+        // Set a guard to verify it gets removed
+        address mockGuard = makeAddr("mockGuard");
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(GuardManager.setGuard, (mockGuard)),
+            Enum.Operation.Call
+        );
+        assertEq(_getGuard(safeInstance), mockGuard);
+
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(safeInstance.safe);
@@ -473,6 +498,9 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         // Verify challenge is reset
         uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(safeInstance.safe);
         assertEq(challengeEndTime, 0);
+
+        // Verify guard was removed
+        assertEq(_getGuard(safeInstance), address(0));
     }
 
     /// @notice Tests that changeOwnershipToFallback reverts if module is not configured

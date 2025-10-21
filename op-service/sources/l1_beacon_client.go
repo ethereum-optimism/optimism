@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -303,30 +304,53 @@ func (cl *L1BeaconClient) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hash
 	if err != nil {
 		return nil, err
 	}
+	blobs, errBeaconBlobs := cl.beaconBlobs(ctx, slot, hashes)
+	if errBeaconBlobs == nil {
+		return blobs, nil
+	}
+	// If fetching from the post-Fulu /blobs/ endpoint fails, fall back to /blob_sidecars/.
+	errBeaconBlobs = fmt.Errorf("failed to get blobs: %w", errBeaconBlobs)
+	blobSidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("%w; failed to get blob sidecars for L1BlockRef %s after falling back: %w", errBeaconBlobs, ref, err)
+	}
+	blobs, err = blobsFromSidecars(blobSidecars, hashes)
+	if err != nil {
+		return nil, fmt.Errorf("%w; failed to get blobs from sidecars for L1BlockRef %s after falling back: %w", errBeaconBlobs, ref, err)
+	}
+	return blobs, nil
+}
+
+func (cl *L1BeaconClient) beaconBlobs(ctx context.Context, slot uint64, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	resp, err := cl.cl.BeaconBlobs(ctx, slot, hashes)
 	if err != nil {
-		// We would normally check for an explicit error like "method not found", but the Beacon
-		// API doesn't standardize such a response. Thus, we interpret all errors as
-		// "method not found" and fall back to fetching sidecars.
-		blobSidecars, err := cl.getBlobSidecars(ctx, slot, hashes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get blob sidecars for L1BlockRef %s: %w", ref, err)
-		}
-		blobs, err := blobsFromSidecars(blobSidecars, hashes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get blobs from sidecars for L1BlockRef %s: %w", ref, err)
-		}
-		return blobs, nil
+		return nil, fmt.Errorf("get blobs from beacon client: %w", err)
 	}
 	if len(resp.Data) != len(hashes) {
 		return nil, fmt.Errorf("expected %d blobs but got %d", len(hashes), len(resp.Data))
 	}
-	var blobs []*eth.Blob
-	for i, blob := range resp.Data {
-		if err := verifyBlob(blob, hashes[i].Hash); err != nil {
-			return nil, fmt.Errorf("blob %d failed verification: %w", i, err)
+	// This function guarantees that the returned blobs will be ordered according to the provided
+	// hashes. The BeaconBlobs call above has a different ordering. From the getBlobs spec:
+	//   The returned blobs are ordered based on their kzg commitments in the block.
+	// https://ethereum.github.io/beacon-APIs/beacon-node-oapi.yaml
+	//
+	// This loop
+	//   1. verifies the integrity of each blob, and
+	//   2. rearranges the blobs to match the order of the provided hashes.
+	blobs := make([]*eth.Blob, len(hashes))
+	for _, blob := range resp.Data {
+		commitment, err := blob.ComputeKZGCommitment()
+		if err != nil {
+			return nil, fmt.Errorf("compute blob kzg commitment: %w", err)
 		}
-		blobs = append(blobs, blob)
+		got := eth.KZGToVersionedHash(commitment)
+		idx := slices.IndexFunc(hashes, func(indexedHash eth.IndexedBlobHash) bool {
+			return got == indexedHash.Hash
+		})
+		if idx == -1 {
+			return nil, fmt.Errorf("received a blob hash that does not match any expected hash: %s", got)
+		}
+		blobs[idx] = blob
 	}
 	return blobs, nil
 }
