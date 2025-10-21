@@ -429,56 +429,7 @@ abstract contract TimelockGuard is Guard {
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
     }
 
-    /// @notice Encodes transaction data according to EIP-712 for Safe transactions
-    /// @dev This reimplements the logic from Safe's encodeTransactionData which was removed in v1.5.0
-    ///      and moved to CompatibilityFallbackHandler. We reimplement it here to avoid depending on
-    ///      the fallback handler being configured.
-    /// @param _safe The Safe contract
-    /// @param _to Destination address
-    /// @param _value Ether value
-    /// @param _data Data payload
-    /// @param _operation Operation type
-    /// @param _safeTxGas Gas for Safe transaction
-    /// @param _baseGas Base gas costs
-    /// @param _gasPrice Gas price
-    /// @param _gasToken Gas token address
-    /// @param _refundReceiver Refund receiver address
-    /// @param _nonce Transaction nonce
-    /// @return Transaction hash data bytes
-    function _encodeTransactionData(
-        Safe _safe,
-        address _to,
-        uint256 _value,
-        bytes memory _data,
-        Enum.Operation _operation,
-        uint256 _safeTxGas,
-        uint256 _baseGas,
-        uint256 _gasPrice,
-        address _gasToken,
-        address payable _refundReceiver,
-        uint256 _nonce
-    )
-        internal
-        view
-        returns (bytes memory)
-    {
-        bytes32 safeTxHash = keccak256(
-            abi.encode(
-                SAFE_TX_TYPEHASH,
-                _to,
-                _value,
-                keccak256(_data),
-                _operation,
-                _safeTxGas,
-                _baseGas,
-                _gasPrice,
-                _gasToken,
-                _refundReceiver,
-                _nonce
-            )
-        );
-        return abi.encodePacked(bytes1(0x19), bytes1(0x01), _safe.domainSeparator(), safeTxHash);
-    }
+    // (reverted) _encodeTransactionData helper removed; we rely on Safe.encodeTransactionData in v1.4.1
 
     ////////////////////////////////////////////////////////////////
     //              External State-Changing Functions             //
@@ -598,8 +549,7 @@ abstract contract TimelockGuard is Guard {
 
         // Get the encoded transaction data as defined in the Safe
         // The format of the string returned is: "0x1901{domainSeparator}{safeTxHash}"
-        bytes memory txHashData = _encodeTransactionData(
-            _safe,
+        bytes memory txHashData = _safe.encodeTransactionData(
             _params.to,
             _params.value,
             _params.data,
@@ -696,8 +646,8 @@ abstract contract TimelockGuard is Guard {
         // replacement feature. However we do not enforce that here, to allow for flexibility,
         // and to avoid the need for logic to retrieve the nonce from the transaction being
         // cancelled.
-        bytes memory cancellationTxData = _encodeTransactionData(
-            _safe, address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), _nonce
+        bytes memory cancellationTxData = _safe.encodeTransactionData(
+            address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
         );
         bytes32 cancellationTxHash = _safe.getTransactionHash(
             address(this), 0, txData, Enum.Operation.Call, 0, 0, 0, address(0), address(0), _nonce
