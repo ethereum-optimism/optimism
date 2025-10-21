@@ -494,7 +494,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
     /// @notice Tests that changeOwnershipToFallback reverts if called before response period expires
     function testFuzz_changeOwnershipToFallback_beforeResponsePeriod_reverts(uint256 timeElapsed) external {
         // Bound time to be within response period (not yet expired)
-        timeElapsed = bound(timeElapsed, 0, CHALLENGE_PERIOD);
+        timeElapsed = bound(timeElapsed, 0, CHALLENGE_PERIOD - 1);
 
         // Start a challenge
         vm.prank(fallbackOwner);
