@@ -25,8 +25,8 @@ import (
 func bootstrapContractAddresses() map[string]common.Address {
 	addrType := reflect.TypeOf(common.Address{})
 	structTypes := []reflect.Type{
-		reflect.TypeOf(opcm.DeploySuperchainOutput{}),
-		reflect.TypeOf(opcm.DeployImplementationsOutput{}),
+		reflect.TypeOf((*opcm.DeploySuperchainOutput)(nil)).Elem(),
+		reflect.TypeOf((*opcm.DeployImplementationsOutput)(nil)).Elem(),
 	}
 
 	addresses := make(map[string]common.Address)
