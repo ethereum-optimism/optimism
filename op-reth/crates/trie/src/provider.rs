@@ -1,11 +1,11 @@
 //! Provider for external proofs storage
 
 use crate::{
-    api::{OpProofsHashedCursor, OpProofsStorage, OpProofsStorageError},
     proof::{
         DatabaseProof, DatabaseStateRoot, DatabaseStorageProof, DatabaseStorageRoot,
         DatabaseTrieWitness,
     },
+    OpProofsHashedCursorRO, OpProofsStorage, OpProofsStorageError, OpProofsStore,
 };
 use alloy_primitives::keccak256;
 use derive_more::Constructor;
@@ -29,12 +29,12 @@ use std::fmt::Debug;
 
 /// State provider for external proofs storage.
 #[derive(Constructor)]
-pub struct OpProofsStateProviderRef<'a, Storage: OpProofsStorage> {
+pub struct OpProofsStateProviderRef<'a, Storage: OpProofsStore> {
     /// Historical state provider for non-state related tasks.
     latest: Box<dyn StateProvider + 'a>,
 
     /// Storage provider for state lookups.
-    storage: &'a Storage,
+    storage: &'a OpProofsStorage<Storage>,
 
     /// Max block number that can be used for state lookups.
     block_number: BlockNumber,
@@ -42,7 +42,7 @@ pub struct OpProofsStateProviderRef<'a, Storage: OpProofsStorage> {
 
 impl<'a, Storage> Debug for OpProofsStateProviderRef<'a, Storage>
 where
-    Storage: OpProofsStorage + 'a + Debug,
+    Storage: OpProofsStore + 'a + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpProofsStateProviderRef")
@@ -58,7 +58,7 @@ impl From<OpProofsStorageError> for ProviderError {
     }
 }
 
-impl<'a, Storage: OpProofsStorage> BlockHashReader for OpProofsStateProviderRef<'a, Storage> {
+impl<'a, Storage: OpProofsStore> BlockHashReader for OpProofsStateProviderRef<'a, Storage> {
     fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>> {
         self.latest.block_hash(number)
     }
@@ -72,7 +72,7 @@ impl<'a, Storage: OpProofsStorage> BlockHashReader for OpProofsStateProviderRef<
     }
 }
 
-impl<'a, Storage: OpProofsStorage + Clone> StateRootProvider
+impl<'a, Storage: OpProofsStore + Clone> StateRootProvider
     for OpProofsStateProviderRef<'a, Storage>
 {
     fn state_root(&self, state: HashedPostState) -> ProviderResult<B256> {
@@ -102,7 +102,7 @@ impl<'a, Storage: OpProofsStorage + Clone> StateRootProvider
     }
 }
 
-impl<'a, Storage: OpProofsStorage + Clone> StorageRootProvider
+impl<'a, Storage: OpProofsStore + Clone> StorageRootProvider
     for OpProofsStateProviderRef<'a, Storage>
 {
     fn storage_root(&self, address: Address, storage: HashedStorage) -> ProviderResult<B256> {
@@ -137,7 +137,7 @@ impl<'a, Storage: OpProofsStorage + Clone> StorageRootProvider
     }
 }
 
-impl<'a, Storage: OpProofsStorage + Clone> StateProofProvider
+impl<'a, Storage: OpProofsStore + Clone> StateProofProvider
     for OpProofsStateProviderRef<'a, Storage>
 {
     fn proof(
@@ -166,15 +166,13 @@ impl<'a, Storage: OpProofsStorage + Clone> StateProofProvider
     }
 }
 
-impl<'a, Storage: OpProofsStorage> HashedPostStateProvider
-    for OpProofsStateProviderRef<'a, Storage>
-{
+impl<'a, Storage: OpProofsStore> HashedPostStateProvider for OpProofsStateProviderRef<'a, Storage> {
     fn hashed_post_state(&self, bundle_state: &BundleState) -> HashedPostState {
         HashedPostState::from_bundle_state::<KeccakKeyHasher>(bundle_state.state())
     }
 }
 
-impl<'a, Storage: OpProofsStorage> AccountReader for OpProofsStateProviderRef<'a, Storage> {
+impl<'a, Storage: OpProofsStore> AccountReader for OpProofsStateProviderRef<'a, Storage> {
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         let hashed_key = keccak256(address.0);
         Ok(self
@@ -189,7 +187,7 @@ impl<'a, Storage: OpProofsStorage> AccountReader for OpProofsStateProviderRef<'a
 
 impl<'a, Storage> StateProvider for OpProofsStateProviderRef<'a, Storage>
 where
-    Storage: OpProofsStorage + Clone,
+    Storage: OpProofsStore + Clone,
 {
     fn storage(&self, address: Address, storage_key: B256) -> ProviderResult<Option<StorageValue>> {
         let hashed_key = keccak256(storage_key);
@@ -203,7 +201,7 @@ where
     }
 }
 
-impl<'a, Storage: OpProofsStorage> BytecodeReader for OpProofsStateProviderRef<'a, Storage> {
+impl<'a, Storage: OpProofsStore> BytecodeReader for OpProofsStateProviderRef<'a, Storage> {
     fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
         self.latest.bytecode_by_hash(code_hash)
     }

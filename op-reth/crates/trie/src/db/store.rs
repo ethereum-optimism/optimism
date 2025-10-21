@@ -1,6 +1,5 @@
 use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
 use crate::{
-    api::OpProofsStorage,
     db::{
         cursor::Dup,
         models::{
@@ -9,7 +8,7 @@ use crate::{
         },
         MdbxAccountCursor, MdbxStorageCursor, MdbxTrieCursor,
     },
-    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
+    BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
 };
 use alloy_primitives::{map::HashMap, B256, U256};
 use itertools::Itertools;
@@ -63,7 +62,7 @@ impl MdbxProofsStorage {
     }
 }
 
-impl OpProofsStorage for MdbxProofsStorage {
+impl OpProofsStore for MdbxProofsStorage {
     type StorageTrieCursor<'tx>
         = MdbxTrieCursor<StorageTrieHistory, Dup<'tx, StorageTrieHistory>>
     where

@@ -5,7 +5,7 @@ use crate::{
         AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
         MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
     },
-    OpProofsHashedCursor, OpProofsStorageError, OpProofsStorageResult, OpProofsTrieCursor,
+    OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult, OpProofsTrieCursorRO,
 };
 use alloy_primitives::{B256, U256};
 use reth_db::{
@@ -180,7 +180,7 @@ impl<
     }
 }
 
-impl<Cursor> OpProofsTrieCursor for MdbxTrieCursor<AccountTrieHistory, Cursor>
+impl<Cursor> OpProofsTrieCursorRO for MdbxTrieCursor<AccountTrieHistory, Cursor>
 where
     Cursor: DbCursorRO<AccountTrieHistory> + DbDupCursorRO<AccountTrieHistory> + Send + Sync,
 {
@@ -215,7 +215,7 @@ where
     }
 }
 
-impl<Cursor> OpProofsTrieCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
+impl<Cursor> OpProofsTrieCursorRO for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
     Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
 {
@@ -278,7 +278,7 @@ where
     }
 }
 
-impl<Cursor> OpProofsHashedCursor for MdbxStorageCursor<Cursor>
+impl<Cursor> OpProofsHashedCursorRO for MdbxStorageCursor<Cursor>
 where
     Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
 {
@@ -310,7 +310,7 @@ where
     }
 }
 
-impl<Cursor> OpProofsHashedCursor for MdbxAccountCursor<Cursor>
+impl<Cursor> OpProofsHashedCursorRO for MdbxAccountCursor<Cursor>
 where
     Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
 {
@@ -920,7 +920,7 @@ mod tests {
         let mut cur = account_trie_cursor(&tx, 100);
 
         // Wrapper should return (Nibbles, BranchNodeCompact)
-        let out = OpProofsTrieCursor::seek_exact(&mut cur, k).expect("ok").expect("some");
+        let out = OpProofsTrieCursorRO::seek_exact(&mut cur, k).expect("ok").expect("some");
         assert_eq!(out.0, k);
     }
 
@@ -939,7 +939,7 @@ mod tests {
         let tx = db.tx().expect("ro tx");
         let mut cur = account_trie_cursor(&tx, 10);
 
-        let out = OpProofsTrieCursor::seek_exact(&mut cur, k).expect("ok");
+        let out = OpProofsTrieCursorRO::seek_exact(&mut cur, k).expect("ok");
         assert!(out.is_none(), "account seek_exact must filter tombstone");
     }
 
@@ -960,15 +960,15 @@ mod tests {
         let mut cur = account_trie_cursor(&tx, 100);
 
         // seek at k1
-        let out1 = OpProofsTrieCursor::seek(&mut cur, k1).expect("ok").expect("some");
+        let out1 = OpProofsTrieCursorRO::seek(&mut cur, k1).expect("ok").expect("some");
         assert_eq!(out1.0, k1);
 
         // current should be k1
-        let cur_k = OpProofsTrieCursor::current(&mut cur).expect("ok").expect("some");
+        let cur_k = OpProofsTrieCursorRO::current(&mut cur).expect("ok").expect("some");
         assert_eq!(cur_k, k1);
 
         // next should move to k2
-        let out2 = OpProofsTrieCursor::next(&mut cur).expect("ok").expect("some");
+        let out2 = OpProofsTrieCursorRO::next(&mut cur).expect("ok").expect("some");
         assert_eq!(out2.0, k2);
     }
 
@@ -994,12 +994,12 @@ mod tests {
 
         // Cursor bound to A must not see B’s data
         let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
-        let out_a = OpProofsTrieCursor::seek_exact(&mut cur_a, path).expect("ok");
+        let out_a = OpProofsTrieCursorRO::seek_exact(&mut cur_a, path).expect("ok");
         assert!(out_a.is_none(), "no data for addr A");
 
         // Cursor bound to B should see it
         let mut cur_b = storage_trie_cursor(&tx, 100, addr_b);
-        let out_b = OpProofsTrieCursor::seek_exact(&mut cur_b, path).expect("ok").expect("some");
+        let out_b = OpProofsTrieCursorRO::seek_exact(&mut cur_b, path).expect("ok").expect("some");
         assert_eq!(out_b.0, path);
     }
 
@@ -1026,7 +1026,7 @@ mod tests {
         let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
         // seek at p1: for A there is no p1; the next key >= p1 under A is p2
-        let out = OpProofsTrieCursor::seek(&mut cur_a, p1).expect("ok").expect("some");
+        let out = OpProofsTrieCursorRO::seek(&mut cur_a, p1).expect("ok").expect("some");
         assert_eq!(out.0, p2);
     }
 
@@ -1051,10 +1051,10 @@ mod tests {
         let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
         // position at p1 (A)
-        let _ = OpProofsTrieCursor::seek_exact(&mut cur_a, p1).expect("ok").expect("some");
+        let _ = OpProofsTrieCursorRO::seek_exact(&mut cur_a, p1).expect("ok").expect("some");
 
         // next should reach boundary; impl filters different address and returns None
-        let out = OpProofsTrieCursor::next(&mut cur_a).expect("ok");
+        let out = OpProofsTrieCursorRO::next(&mut cur_a).expect("ok");
         assert!(out.is_none(), "next() should stop when next key is a different address");
     }
 
@@ -1074,9 +1074,9 @@ mod tests {
         let tx = db.tx().expect("ro tx");
         let mut cur = storage_trie_cursor(&tx, 100, addr);
 
-        let _ = OpProofsTrieCursor::seek_exact(&mut cur, p).expect("ok").expect("some");
+        let _ = OpProofsTrieCursorRO::seek_exact(&mut cur, p).expect("ok").expect("some");
 
-        let now = OpProofsTrieCursor::current(&mut cur).expect("ok").expect("some");
+        let now = OpProofsTrieCursorRO::current(&mut cur).expect("ok").expect("some");
         assert_eq!(now, p);
     }
 
@@ -1096,7 +1096,7 @@ mod tests {
         let mut cur = storage_cursor(&tx, 100, addr);
 
         let (got_slot, got_val) =
-            OpProofsHashedCursor::seek(&mut cur, slot).expect("ok").expect("some");
+            OpProofsHashedCursorRO::seek(&mut cur, slot).expect("ok").expect("some");
         assert_eq!(got_slot, slot);
         assert_eq!(got_val, U256::from(7));
     }
@@ -1117,7 +1117,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 10, addr);
 
-        let out = OpProofsHashedCursor::seek(&mut cur, slot).expect("ok");
+        let out = OpProofsHashedCursorRO::seek(&mut cur, slot).expect("ok");
         assert!(out.is_none(), "wrapper must filter tombstoned latest");
     }
 
@@ -1138,10 +1138,10 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 100, addr);
 
-        let (k1, v1) = OpProofsHashedCursor::seek(&mut cur, s1).expect("ok").expect("some");
+        let (k1, v1) = OpProofsHashedCursorRO::seek(&mut cur, s1).expect("ok").expect("some");
         assert_eq!((k1, v1), (s1, U256::from(11)));
 
-        let (k2, v2) = OpProofsHashedCursor::next(&mut cur).expect("ok").expect("some");
+        let (k2, v2) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
         assert_eq!((k2, v2), (s2, U256::from(22)));
     }
 
@@ -1159,7 +1159,8 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 100);
 
-        let (got_key, _acc) = OpProofsHashedCursor::seek(&mut cur, key).expect("ok").expect("some");
+        let (got_key, _acc) =
+            OpProofsHashedCursorRO::seek(&mut cur, key).expect("ok").expect("some");
         assert_eq!(got_key, key);
     }
 
@@ -1178,7 +1179,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 10);
 
-        let out = OpProofsHashedCursor::seek(&mut cur, key).expect("ok");
+        let out = OpProofsHashedCursorRO::seek(&mut cur, key).expect("ok");
         assert!(out.is_none(), "wrapper must filter tombstoned latest");
     }
 
@@ -1198,10 +1199,10 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 100);
 
-        let (got1, _) = OpProofsHashedCursor::seek(&mut cur, k1).expect("ok").expect("some");
+        let (got1, _) = OpProofsHashedCursorRO::seek(&mut cur, k1).expect("ok").expect("some");
         assert_eq!(got1, k1);
 
-        let (got2, _) = OpProofsHashedCursor::next(&mut cur).expect("ok").expect("some");
+        let (got2, _) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
         assert_eq!(got2, k2);
     }
 }

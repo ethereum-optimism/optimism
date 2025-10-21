@@ -74,3 +74,4 @@ serde-bincode-compat = [
     "alloy-genesis/serde-bincode-compat",
     "reth-ethereum-primitives/serde-bincode-compat",
 ]
+metrics = ["reth-trie/metrics"]

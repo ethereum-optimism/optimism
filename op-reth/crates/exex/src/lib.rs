@@ -14,7 +14,7 @@ use reth_chainspec::ChainInfo;
 use reth_exex::{ExExContext, ExExEvent};
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
-use reth_optimism_trie::{BackfillJob, OpProofsStorage};
+use reth_optimism_trie::{BackfillJob, OpProofsStore};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 
 /// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
@@ -26,7 +26,7 @@ use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
 pub struct OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents,
-    S: OpProofsStorage + Clone,
+    S: OpProofsStore + Clone,
 {
     /// The ExEx context containing the node related utilities e.g. provider, notifications,
     /// events.
@@ -43,7 +43,7 @@ impl<Node, S, Primitives> OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
     Primitives: NodePrimitives,
-    S: OpProofsStorage + Clone,
+    S: OpProofsStore + Clone,
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {

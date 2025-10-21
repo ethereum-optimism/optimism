@@ -14,8 +14,8 @@
 
 pub mod api;
 pub use api::{
-    BlockStateDiff, OpProofsHashedCursor, OpProofsStorage, OpProofsStorageError,
-    OpProofsStorageResult, OpProofsTrieCursor,
+    BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult,
+    OpProofsStore, OpProofsTrieCursorRO,
 };
 
 pub mod backfill;
@@ -28,11 +28,27 @@ pub use in_memory::{
 
 pub mod db;
 
+#[cfg(feature = "metrics")]
 pub mod metrics;
-pub use metrics::OpProofsStorageWithMetrics;
+#[cfg(feature = "metrics")]
+pub use metrics::{
+    OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsStorage, OpProofsTrieCursor,
+    StorageMetrics,
+};
+
+#[cfg(not(feature = "metrics"))]
+/// Alias for [`OpProofsStore`] type without metrics (`metrics` feature is disabled).
+pub type OpProofsStorage<S> = S;
 
 pub mod proof;
 
 pub mod provider;
 
 pub mod live;
+
+pub mod cursor;
+#[cfg(not(feature = "metrics"))]
+pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor};
+
+pub mod cursor_factory;
+pub use cursor_factory::{OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory};

@@ -9,7 +9,7 @@ use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
-use reth_optimism_trie::{provider::OpProofsStateProviderRef, OpProofsStorage};
+use reth_optimism_trie::{provider::OpProofsStateProviderRef, OpProofsStorage, OpProofsStore};
 use reth_provider::{BlockIdReader, ProviderError, ProviderResult, StateProofProvider};
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
@@ -32,14 +32,14 @@ pub trait EthApiOverride {
 /// Overrides applied to the `eth_` namespace of the RPC API for historical proofs ExEx.
 pub struct EthApiExt<Eth, P> {
     eth_api: Eth,
-    preimage_store: P,
+    preimage_store: OpProofsStorage<P>,
 }
 
 impl<Eth, P> EthApiExt<Eth, P>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
-    P: OpProofsStorage + Clone + 'static,
+    P: OpProofsStore + Clone + 'static,
 {
     async fn state_provider(
         &self,
@@ -87,7 +87,7 @@ impl<Eth, P> EthApiOverrideServer for EthApiExt<Eth, P>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
-    P: OpProofsStorage + Clone + 'static,
+    P: OpProofsStore + Clone + 'static,
 {
     async fn get_proof(
         &self,

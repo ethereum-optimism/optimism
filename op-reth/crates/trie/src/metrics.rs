@@ -1,10 +1,11 @@
 //! Storage wrapper that records metrics for all operations.
 
-use crate::api::{
-    BlockStateDiff, OpProofsHashedCursor, OpProofsStorage, OpProofsStorageResult,
-    OpProofsTrieCursor,
+use crate::{
+    cursor, BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageResult, OpProofsStore,
+    OpProofsTrieCursorRO,
 };
 use alloy_primitives::{map::HashMap, B256, U256};
+use derive_more::Constructor;
 use metrics::{Counter, Histogram};
 use reth_metrics::Metrics;
 use reth_primitives_traits::Account;
@@ -16,6 +17,22 @@ use std::{
     time::{Duration, Instant},
 };
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
+
+/// Alias for [`OpProofsStorageWithMetrics`].
+pub type OpProofsStorage<S> = OpProofsStorageWithMetrics<S>;
+
+/// Alias for [`OpProofsTrieCursor`](cursor::OpProofsTrieCursor) with metrics layer.
+pub type OpProofsTrieCursor<C> = cursor::OpProofsTrieCursor<OpProofsTrieCursorWithMetrics<C>>;
+
+/// Alias for [`OpProofsHashedAccountCursor`](cursor::OpProofsHashedAccountCursor) with metrics
+/// layer.
+pub type OpProofsHashedAccountCursor<C> =
+    cursor::OpProofsHashedAccountCursor<OpProofsHashedCursorWithMetrics<C>>;
+
+/// Alias for [`OpProofsHashedStorageCursor`](cursor::OpProofsHashedStorageCursor) with metrics
+/// layer.
+pub type OpProofsHashedStorageCursor<C> =
+    cursor::OpProofsHashedStorageCursor<OpProofsHashedCursorWithMetrics<C>>;
 
 /// Types of storage operations that can be tracked.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, EnumCount, EnumIter)]
@@ -200,19 +217,72 @@ pub struct BlockMetrics {
     pub hashed_storages_written_total: Counter,
 }
 
+/// Wrapper for [`OpProofsTrieCursor`] that records metrics.
+#[derive(Debug, Constructor, Clone)]
+pub struct OpProofsTrieCursorWithMetrics<C> {
+    cursor: C,
+    metrics: Arc<StorageMetrics>,
+}
+
+impl<C: OpProofsTrieCursorRO> OpProofsTrieCursorRO for OpProofsTrieCursorWithMetrics<C> {
+    #[inline]
+    fn seek_exact(
+        &mut self,
+        path: Nibbles,
+    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+        self.metrics.record_operation(StorageOperation::TrieCursorSeekExact, || {
+            self.cursor.seek_exact(path)
+        })
+    }
+
+    #[inline]
+    fn seek(
+        &mut self,
+        path: Nibbles,
+    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+        self.metrics.record_operation(StorageOperation::TrieCursorSeek, || self.cursor.seek(path))
+    }
+
+    #[inline]
+    fn next(&mut self) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+        self.metrics.record_operation(StorageOperation::TrieCursorNext, || self.cursor.next())
+    }
+
+    #[inline]
+    fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
+        self.metrics.record_operation(StorageOperation::TrieCursorCurrent, || self.cursor.current())
+    }
+}
+
+/// Wrapper for [`OpProofsHashedCursorRO`] type that records metrics.
+#[derive(Debug, Constructor, Clone)]
+pub struct OpProofsHashedCursorWithMetrics<C> {
+    cursor: C,
+    metrics: Arc<StorageMetrics>,
+}
+
+impl<C: OpProofsHashedCursorRO> OpProofsHashedCursorRO for OpProofsHashedCursorWithMetrics<C> {
+    type Value = C::Value;
+
+    #[inline]
+    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+        self.metrics.record_operation(StorageOperation::HashedCursorSeek, || self.cursor.seek(key))
+    }
+
+    #[inline]
+    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+        self.metrics.record_operation(StorageOperation::HashedCursorNext, || self.cursor.next())
+    }
+}
+
 /// Wrapper around [`OpProofsStorage`] that records metrics for all operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor)]
 pub struct OpProofsStorageWithMetrics<S> {
     storage: S,
     metrics: Arc<StorageMetrics>,
 }
 
 impl<S> OpProofsStorageWithMetrics<S> {
-    /// Create a new storage wrapper with metrics.
-    pub const fn new(storage: S, metrics: Arc<StorageMetrics>) -> Self {
-        Self { storage, metrics }
-    }
-
     /// Get the underlying storage.
     pub const fn inner(&self) -> &S {
         &self.storage
@@ -224,93 +294,28 @@ impl<S> OpProofsStorageWithMetrics<S> {
     }
 }
 
-/// Wrapper for [`OpProofsTrieCursor`] that records metrics.
-#[derive(Debug)]
-pub struct TrieCursorWithMetrics<C> {
-    cursor: C,
-    metrics: Arc<StorageMetrics>,
-}
-
-impl<C> TrieCursorWithMetrics<C> {
-    /// Create a new cursor wrapper with metrics.
-    pub const fn new(cursor: C, metrics: Arc<StorageMetrics>) -> Self {
-        Self { cursor, metrics }
-    }
-}
-
-impl<C: OpProofsTrieCursor> OpProofsTrieCursor for TrieCursorWithMetrics<C> {
-    fn seek_exact(
-        &mut self,
-        path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.metrics.record_operation(StorageOperation::TrieCursorSeekExact, || {
-            self.cursor.seek_exact(path)
-        })
-    }
-
-    fn seek(
-        &mut self,
-        path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.metrics.record_operation(StorageOperation::TrieCursorSeek, || self.cursor.seek(path))
-    }
-
-    fn next(&mut self) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.metrics.record_operation(StorageOperation::TrieCursorNext, || self.cursor.next())
-    }
-
-    fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
-        self.metrics.record_operation(StorageOperation::TrieCursorCurrent, || self.cursor.current())
-    }
-}
-
-/// Wrapper for [`OpProofsHashedCursor`] that records metrics.
-#[derive(Debug)]
-pub struct HashedCursorWithMetrics<C> {
-    cursor: C,
-    metrics: Arc<StorageMetrics>,
-}
-
-impl<C> HashedCursorWithMetrics<C> {
-    /// Create a new cursor wrapper with metrics.
-    pub const fn new(cursor: C, metrics: Arc<StorageMetrics>) -> Self {
-        Self { cursor, metrics }
-    }
-}
-
-impl<C: OpProofsHashedCursor> OpProofsHashedCursor for HashedCursorWithMetrics<C> {
-    type Value = C::Value;
-
-    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        self.metrics.record_operation(StorageOperation::HashedCursorSeek, || self.cursor.seek(key))
-    }
-
-    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        self.metrics.record_operation(StorageOperation::HashedCursorNext, || self.cursor.next())
-    }
-}
-
-impl<S> OpProofsStorage for OpProofsStorageWithMetrics<S>
+impl<S> OpProofsStore for OpProofsStorageWithMetrics<S>
 where
-    S: OpProofsStorage,
+    S: OpProofsStore,
 {
     type StorageTrieCursor<'tx>
-        = TrieCursorWithMetrics<S::StorageTrieCursor<'tx>>
+        = OpProofsTrieCursorWithMetrics<S::StorageTrieCursor<'tx>>
     where
         S: 'tx;
     type AccountTrieCursor<'tx>
-        = TrieCursorWithMetrics<S::AccountTrieCursor<'tx>>
+        = OpProofsTrieCursorWithMetrics<S::AccountTrieCursor<'tx>>
     where
         S: 'tx;
     type StorageCursor<'tx>
-        = HashedCursorWithMetrics<S::StorageCursor<'tx>>
+        = OpProofsHashedCursorWithMetrics<S::StorageCursor<'tx>>
     where
         S: 'tx;
     type AccountHashedCursor<'tx>
-        = HashedCursorWithMetrics<S::AccountHashedCursor<'tx>>
+        = OpProofsHashedCursorWithMetrics<S::AccountHashedCursor<'tx>>
     where
         S: 'tx;
 
+    #[inline]
     async fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,
@@ -332,6 +337,7 @@ where
         result
     }
 
+    #[inline]
     async fn store_storage_branches(
         &self,
         hashed_address: B256,
@@ -354,6 +360,7 @@ where
         result
     }
 
+    #[inline]
     async fn store_hashed_accounts(
         &self,
         accounts: Vec<(B256, Option<Account>)>,
@@ -375,6 +382,7 @@ where
         result
     }
 
+    #[inline]
     async fn store_hashed_storages(
         &self,
         hashed_address: B256,
@@ -397,49 +405,56 @@ where
         result
     }
 
+    #[inline]
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.storage.get_earliest_block_number().await
     }
 
+    #[inline]
     async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
         self.storage.get_latest_block_number().await
     }
 
+    #[inline]
     fn storage_trie_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         let cursor = self.storage.storage_trie_cursor(hashed_address, max_block_number)?;
-        Ok(TrieCursorWithMetrics::new(cursor, self.metrics.clone()))
+        Ok(OpProofsTrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
+    #[inline]
     fn account_trie_cursor<'tx>(
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
         let cursor = self.storage.account_trie_cursor(max_block_number)?;
-        Ok(TrieCursorWithMetrics::new(cursor, self.metrics.clone()))
+        Ok(OpProofsTrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
+    #[inline]
     fn storage_hashed_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
         let cursor = self.storage.storage_hashed_cursor(hashed_address, max_block_number)?;
-        Ok(HashedCursorWithMetrics::new(cursor, self.metrics.clone()))
+        Ok(OpProofsHashedCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
+    #[inline]
     fn account_hashed_cursor<'tx>(
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
         let cursor = self.storage.account_hashed_cursor(max_block_number)?;
-        Ok(HashedCursorWithMetrics::new(cursor, self.metrics.clone()))
+        Ok(OpProofsHashedCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
     // no metrics for these
+    #[inline]
     async fn store_trie_updates(
         &self,
         block_number: u64,
@@ -448,10 +463,11 @@ where
         self.storage.store_trie_updates(block_number, block_state_diff).await
     }
 
+    #[inline]
     async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
         self.storage.fetch_trie_updates(block_number).await
     }
-
+    #[inline]
     async fn prune_earliest_state(
         &self,
         new_earliest_block_number: u64,
@@ -460,6 +476,7 @@ where
         self.storage.prune_earliest_state(new_earliest_block_number, diff).await
     }
 
+    #[inline]
     async fn replace_updates(
         &self,
         latest_common_block_number: u64,
@@ -468,6 +485,7 @@ where
         self.storage.replace_updates(latest_common_block_number, blocks_to_add).await
     }
 
+    #[inline]
     async fn set_earliest_block_number(
         &self,
         block_number: u64,

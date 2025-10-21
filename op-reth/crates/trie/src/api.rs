@@ -26,17 +26,22 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(#[from] DatabaseError),
-
     /// Other error
     #[error("Other error: {0}")]
     Other(eyre::Error),
+}
+
+impl From<OpProofsStorageError> for DatabaseError {
+    fn from(error: OpProofsStorageError) -> Self {
+        Self::Other(error.to_string())
+    }
 }
 
 /// Result type for storage operations
 pub type OpProofsStorageResult<T> = Result<T, OpProofsStorageError>;
 
 /// Seeks and iterates over trie nodes in the database by path (lexicographical order)
-pub trait OpProofsTrieCursor: Send + Sync {
+pub trait OpProofsTrieCursorRO: Send + Sync {
     /// Seek to an exact path, otherwise return None if not found.
     fn seek_exact(
         &mut self,
@@ -58,7 +63,7 @@ pub trait OpProofsTrieCursor: Send + Sync {
 }
 
 /// Seeks and iterates over hashed entries in the database by key.
-pub trait OpProofsHashedCursor: Send + Sync {
+pub trait OpProofsHashedCursorRO: Send + Sync {
     /// Value returned by the cursor.
     type Value: Debug;
 
@@ -89,29 +94,29 @@ pub struct BlockStateDiff {
 /// Only leaf nodes and some branch nodes are stored. The bottom layer of branch nodes
 /// are not stored to reduce write amplification. This matches Reth's non-historical trie storage.
 #[auto_impl(Arc)]
-pub trait OpProofsStorage: Send + Sync + Debug {
+pub trait OpProofsStore: Send + Sync + Debug {
     /// Cursor for iterating over trie branches.
-    type StorageTrieCursor<'tx>: OpProofsTrieCursor + 'tx
+    type StorageTrieCursor<'tx>: OpProofsTrieCursorRO + 'tx
     where
         Self: 'tx;
 
     /// Cursor for iterating over account trie branches.
-    type AccountTrieCursor<'tx>: OpProofsTrieCursor + 'tx
+    type AccountTrieCursor<'tx>: OpProofsTrieCursorRO + 'tx
     where
         Self: 'tx;
 
     /// Cursor for iterating over storage leaves.
-    type StorageCursor<'tx>: OpProofsHashedCursor<Value = U256> + 'tx
+    type StorageCursor<'tx>: OpProofsHashedCursorRO<Value = U256> + 'tx
     where
         Self: 'tx;
 
     /// Cursor for iterating over account leaves.
-    type AccountHashedCursor<'tx>: OpProofsHashedCursor<Value = Account> + 'tx
+    type AccountHashedCursor<'tx>: OpProofsHashedCursorRO<Value = Account> + 'tx
     where
         Self: 'tx;
 
     /// Store a batch of account trie branches. Used for saving existing state. For live state
-    /// capture, use [store_trie_updates](OpProofsStorage::store_trie_updates).
+    /// capture, use [store_trie_updates](OpProofsStore::store_trie_updates).
     fn store_account_branches(
         &self,
         account_nodes: Vec<(Nibbles, Option<BranchNodeCompact>)>,

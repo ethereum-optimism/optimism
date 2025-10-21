@@ -1,6 +1,6 @@
 //! Backfill job for proofs storage. Handles storing the existing state into the proofs storage.
 
-use crate::OpProofsStorage;
+use crate::OpProofsStore;
 use alloy_primitives::B256;
 use reth_db::{
     cursor::{DbCursorRO, DbDupCursorRO},
@@ -21,7 +21,7 @@ const BACKFILL_LOG_THRESHOLD: usize = 100000;
 
 /// Backfill job for external storage.
 #[derive(Debug)]
-pub struct BackfillJob<'a, Tx: DbTx, S: OpProofsStorage + Send> {
+pub struct BackfillJob<'a, Tx: DbTx, S: OpProofsStore + Send> {
     storage: S,
     tx: &'a Tx,
 }
@@ -196,7 +196,7 @@ async fn backfill<
     Ok(total_entries)
 }
 
-impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
+impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
     /// Create a new backfill job.
     pub const fn new(storage: S, tx: &'a Tx) -> Self {
         Self { storage, tx }
@@ -348,7 +348,7 @@ impl<'a, Tx: DbTx, S: OpProofsStorage + Send> BackfillJob<'a, Tx, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InMemoryProofsStorage, OpProofsHashedCursor, OpProofsTrieCursor};
+    use crate::{InMemoryProofsStorage, OpProofsHashedCursorRO, OpProofsTrieCursorRO};
     use alloy_primitives::{keccak256, Address, U256};
     use reth_db::{
         cursor::DbCursorRW, test_utils::create_test_rw_db, transaction::DbTxMut, Database,
