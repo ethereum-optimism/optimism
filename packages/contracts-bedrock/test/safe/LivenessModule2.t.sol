@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 import { Constants } from "src/libraries/Constants.sol";
 

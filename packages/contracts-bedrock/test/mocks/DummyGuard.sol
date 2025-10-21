@@ -42,4 +42,3 @@ contract DummyGuard is BaseGuard {
         emit CheckedAfterExecution(hash, success);
     }
 }
-

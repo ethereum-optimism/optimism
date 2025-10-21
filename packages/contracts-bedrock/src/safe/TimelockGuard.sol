@@ -124,7 +124,8 @@ abstract contract TimelockGuard is Guard {
     }
 
     /// @notice EIP-712 typehash for Safe transaction
-    /// @dev keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)")
+    /// @dev keccak256("SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256
+    /// baseGas,uint256 gasPrice,address gasToken,address refundReceiver,uint256 nonce)")
     bytes32 private constant SAFE_TX_TYPEHASH = 0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8;
 
     /// @notice Mapping from Safe address to its timelock guard state.

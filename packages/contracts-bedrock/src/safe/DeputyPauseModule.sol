@@ -80,8 +80,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
     mapping(bytes32 => bool) public usedNonces;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.2.0
+    string public constant version = "2.2.0";
 
     /// @param _guardianSafe Address of the Guardian Safe.
     /// @param _foundationSafe Address of the Foundation Safe.

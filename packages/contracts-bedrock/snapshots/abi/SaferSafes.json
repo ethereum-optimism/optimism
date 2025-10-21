@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -30,7 +30,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -49,7 +49,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -62,7 +62,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "",
         "type": "address"
       }
@@ -81,7 +81,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -227,7 +227,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -246,7 +246,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -277,7 +277,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -296,7 +296,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -386,7 +386,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -461,7 +461,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -562,7 +562,26 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "bytes4",
+        "name": "_interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -596,7 +615,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -672,7 +691,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -742,7 +761,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -761,7 +780,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -780,7 +799,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -805,7 +824,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
