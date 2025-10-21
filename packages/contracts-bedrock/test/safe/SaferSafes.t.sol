@@ -9,7 +9,7 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { ITransactionGuard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { Guard } from "safe-contracts/base/GuardManager.sol";
 import { DummyGuard } from "test/mocks/DummyGuard.sol";
 
 // Import the test utils from LivenessModule2 tests

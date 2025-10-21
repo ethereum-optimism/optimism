@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { ITransactionGuard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { Guard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -68,7 +68,7 @@ import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-abstract contract TimelockGuard is IGuard {
+abstract contract TimelockGuard is Guard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction
@@ -298,7 +298,7 @@ abstract contract TimelockGuard is IGuard {
     //                 Guard Interface Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Implementation of IGuard interface.Called by the Safe before executing a transaction
+    /// @notice Implementation of Guard interface.Called by the Safe before executing a transaction
     /// @dev This function is used to check that the transaction has been scheduled and is ready to execute.
     ///      It only reads the state of the contract, and potentially reverts in order to protect against execution of
     ///      unscheduled, early or cancelled transactions.
@@ -366,7 +366,7 @@ abstract contract TimelockGuard is IGuard {
         }
     }
 
-    /// @notice Implementation of IGuard interface. Called by the Safe after executing a transaction
+    /// @notice Implementation of Guard interface. Called by the Safe after executing a transaction
     /// @dev This function is used to update the state of the contract after the transaction has been executed.
     ///      Although making state changes here is a violation of the Checks-Effects-Interactions pattern, it
     ///      safe to do in this case because we trust that the Safe does not enable arbitrary calls without
@@ -737,7 +737,7 @@ abstract contract TimelockGuard is IGuard {
     /// @param _interfaceId The interface identifier to check
     /// @return True if the contract implements the interface
     function supportsInterface(bytes4 _interfaceId) external view virtual override returns (bool) {
-        return _interfaceId == type(IGuard).interfaceId // 0xe6d7a83a
+        return _interfaceId == type(Guard).interfaceId // 0xe6d7a83a
             || _interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }
 }

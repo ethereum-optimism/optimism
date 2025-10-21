@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ITransactionGuard, BaseTransactionGuard } from "safe-contracts/base/GuardManager.sol";
+import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 /// @title DummyGuard
 /// @notice A minimal guard implementation for testing purposes that does nothing.
-///         This guard implements the ITransactionGuard interface with ERC165 support
+///         This guard implements the Guard interface with ERC165 support
 ///         but performs no actual validation. Useful for testing guard setup/removal.
-contract DummyGuard is BaseTransactionGuard {
+contract DummyGuard is BaseGuard {
     /// @notice Emitted when checkTransaction is called
     event CheckedTransaction(address indexed safe, address to, uint256 value);
 
