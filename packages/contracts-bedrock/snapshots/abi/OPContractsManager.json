@@ -847,6 +847,11 @@
             "internalType": "uint256",
             "name": "l2ChainID",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
@@ -893,6 +898,11 @@
             "internalType": "uint256",
             "name": "l2ChainID",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
