@@ -169,8 +169,7 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame =
-            IFaultDisputeGame(opToml.readAddressOr(".addresses.FaultDisputeGame", address(0)));
+        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         artifacts.save("FaultDisputeGame", address(faultDisputeGame));
         artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
