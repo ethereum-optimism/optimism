@@ -16,7 +16,6 @@ use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
 use reth_optimism_trie::{BackfillJob, OpProofsStorage};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
-use std::sync::Arc;
 
 /// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
 ///
@@ -27,13 +26,13 @@ use std::sync::Arc;
 pub struct OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents,
-    S: OpProofsStorage,
+    S: OpProofsStorage + Clone,
 {
     /// The ExEx context containing the node related utilities e.g. provider, notifications,
     /// events.
     ctx: ExExContext<Node>,
     /// The type of storage DB.
-    storage: Arc<S>,
+    storage: S,
     /// The window to span blocks for proofs history. Value is the number of blocks, received as
     /// cli arg.
     #[expect(dead_code)]
@@ -44,7 +43,7 @@ impl<Node, S, Primitives> OpProofsExEx<Node, S>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
     Primitives: NodePrimitives,
-    S: OpProofsStorage,
+    S: OpProofsStorage + Clone,
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {

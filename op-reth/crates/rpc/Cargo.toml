@@ -28,6 +28,8 @@ reth-node-builder.workspace = true
 reth-chainspec.workspace = true
 reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
+reth-rpc-convert.workspace = true
+reth-provider.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
@@ -37,6 +39,7 @@ reth-optimism-txpool.workspace = true
 # TODO remove node-builder import
 reth-optimism-primitives = { workspace = true, features = ["reth-codec", "serde-bincode-compat", "serde"] }
 reth-optimism-forks.workspace = true
+reth-optimism-trie.workspace = true
 
 # ethereum
 alloy-eips.workspace = true
@@ -45,6 +48,7 @@ alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-debug.workspace = true
+alloy-serde.workspace = true
 alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 alloy-consensus.workspace = true
