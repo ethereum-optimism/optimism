@@ -171,21 +171,24 @@ impl<C: OpProofsHashedCursor<Value = U256> + Send + Sync> HashedStorageCursor
 
 /// Factory for creating hashed account cursors for [`OpProofsStorage`].
 #[derive(Debug, Clone)]
-pub struct OpProofsHashedAccountCursorFactory<Storage: OpProofsStorage> {
-    storage: Storage,
+pub struct OpProofsHashedAccountCursorFactory<'tx, Storage: OpProofsStorage> {
+    storage: &'tx Storage,
     block_number: u64,
+    _marker: core::marker::PhantomData<&'tx ()>,
 }
 
-impl<Storage: OpProofsStorage> OpProofsHashedAccountCursorFactory<Storage> {
+impl<'tx, Storage: OpProofsStorage + 'tx> OpProofsHashedAccountCursorFactory<'tx, Storage> {
     /// Creates a new `OpProofsHashedAccountCursorFactory` instance.
-    pub const fn new(storage: Storage, block_number: u64) -> Self {
-        Self { storage, block_number }
+    pub const fn new(storage: &'tx Storage, block_number: u64) -> Self {
+        Self { storage, block_number, _marker: core::marker::PhantomData }
     }
 }
 
-impl<Storage: OpProofsStorage> HashedCursorFactory for OpProofsHashedAccountCursorFactory<Storage> {
-    type AccountCursor = OpProofsHashedAccountCursor<Storage::AccountHashedCursor>;
-    type StorageCursor = OpProofsHashedStorageCursor<Storage::StorageCursor>;
+impl<'tx, Storage: OpProofsStorage + 'tx> HashedCursorFactory
+    for OpProofsHashedAccountCursorFactory<'tx, Storage>
+{
+    type AccountCursor = OpProofsHashedAccountCursor<Storage::AccountHashedCursor<'tx>>;
+    type StorageCursor = OpProofsHashedStorageCursor<Storage::StorageCursor<'tx>>;
 
     fn hashed_account_cursor(&self) -> Result<Self::AccountCursor, DatabaseError> {
         Ok(OpProofsHashedAccountCursor::new(self.storage.account_hashed_cursor(self.block_number)?))
@@ -225,13 +228,16 @@ pub trait DatabaseProof<'tx, Storage> {
 }
 
 impl<'tx, Storage: OpProofsStorage + Clone> DatabaseProof<'tx, Storage>
-    for Proof<OpProofsTrieCursorFactory<'tx, Storage>, OpProofsHashedAccountCursorFactory<Storage>>
+    for Proof<
+        OpProofsTrieCursorFactory<'tx, Storage>,
+        OpProofsHashedAccountCursorFactory<'tx, Storage>,
+    >
 {
     /// Create a new [`Proof`] instance from [`OpProofsStorage`].
     fn from_tx(storage: &'tx Storage, block_number: u64) -> Self {
         Self::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
-            OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+            OpProofsHashedAccountCursorFactory::new(storage, block_number),
         )
     }
 
@@ -251,7 +257,7 @@ impl<'tx, Storage: OpProofsStorage + Clone> DatabaseProof<'tx, Storage>
                 &nodes_sorted,
             ))
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
             .with_prefix_sets_mut(input.prefix_sets)
@@ -273,7 +279,7 @@ impl<'tx, Storage: OpProofsStorage + Clone> DatabaseProof<'tx, Storage>
                 &nodes_sorted,
             ))
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
             .with_prefix_sets_mut(input.prefix_sets)
@@ -308,14 +314,14 @@ pub trait DatabaseStorageProof<'tx, Storage> {
 impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStorageProof<'tx, Storage>
     for StorageProof<
         OpProofsTrieCursorFactory<'tx, Storage>,
-        OpProofsHashedAccountCursorFactory<Storage>,
+        OpProofsHashedAccountCursorFactory<'tx, Storage>,
     >
 {
     /// Create a new [`StorageProof`] from [`OpProofsStorage`] and account address.
     fn from_tx(storage: &'tx Storage, block_number: u64, address: Address) -> Self {
         Self::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
-            OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+            OpProofsHashedAccountCursorFactory::new(storage, block_number),
             address,
         )
     }
@@ -335,7 +341,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStorageProof<'tx, Stor
         );
         Self::from_tx(storage, block_number, address)
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
             .with_prefix_set_mut(prefix_set)
@@ -358,7 +364,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStorageProof<'tx, Stor
         );
         Self::from_tx(storage, block_number, address)
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
             .with_prefix_set_mut(prefix_set)
@@ -408,7 +414,7 @@ pub trait DatabaseStateRoot<'tx, Storage: OpProofsStorage + 'tx + Clone>: Sized 
 impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStateRoot<'tx, Storage>
     for StateRoot<
         OpProofsTrieCursorFactory<'tx, Storage>,
-        OpProofsHashedAccountCursorFactory<Storage>,
+        OpProofsHashedAccountCursorFactory<'tx, Storage>,
     >
 {
     fn overlay_root(
@@ -421,7 +427,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStateRoot<'tx, Storage
         StateRoot::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ),
         )
@@ -439,7 +445,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStateRoot<'tx, Storage
         StateRoot::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ),
         )
@@ -460,7 +466,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStateRoot<'tx, Storage
                 &nodes_sorted,
             ),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ),
         )
@@ -481,7 +487,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStateRoot<'tx, Storage
                 &nodes_sorted,
             ),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ),
         )
@@ -504,7 +510,7 @@ pub trait DatabaseStorageRoot<'tx, Storage: OpProofsStorage + 'tx + Clone> {
 impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStorageRoot<'tx, Storage>
     for StorageRoot<
         OpProofsTrieCursorFactory<'tx, Storage>,
-        OpProofsHashedAccountCursorFactory<Storage>,
+        OpProofsHashedAccountCursorFactory<'tx, Storage>,
     >
 {
     fn overlay_root(
@@ -519,7 +525,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseStorageRoot<'tx, Stora
         StorageRoot::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
             HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ),
             address,
@@ -547,13 +553,13 @@ pub trait DatabaseTrieWitness<'tx, Storage: OpProofsStorage + 'tx + Clone> {
 impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseTrieWitness<'tx, Storage>
     for TrieWitness<
         OpProofsTrieCursorFactory<'tx, Storage>,
-        OpProofsHashedAccountCursorFactory<Storage>,
+        OpProofsHashedAccountCursorFactory<'tx, Storage>,
     >
 {
     fn from_tx(storage: &'tx Storage, block_number: u64) -> Self {
         Self::new(
             OpProofsTrieCursorFactory::new(storage, block_number),
-            OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+            OpProofsHashedAccountCursorFactory::new(storage, block_number),
         )
     }
 
@@ -571,7 +577,7 @@ impl<'tx, Storage: OpProofsStorage + 'tx + Clone> DatabaseTrieWitness<'tx, Stora
                 &nodes_sorted,
             ))
             .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
-                OpProofsHashedAccountCursorFactory::new(storage.clone(), block_number),
+                OpProofsHashedAccountCursorFactory::new(storage, block_number),
                 &state_sorted,
             ))
             .with_prefix_sets_mut(input.prefix_sets)

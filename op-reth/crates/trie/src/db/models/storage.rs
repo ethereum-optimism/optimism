@@ -59,7 +59,7 @@ impl Decode for StorageTrieKey {
 ///
 /// Used to efficiently index storage values by both account address and storage key.
 /// The encoding ensures lexicographic ordering: first by address, then by storage key.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct HashedStorageKey {
     /// Hashed account address
     pub hashed_address: B256,

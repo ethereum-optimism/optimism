@@ -382,8 +382,8 @@ impl OpProofsHashedCursor for InMemoryAccountCursor {
 impl OpProofsStorage for InMemoryProofsStorage {
     type StorageTrieCursor<'tx> = InMemoryTrieCursor;
     type AccountTrieCursor<'tx> = InMemoryTrieCursor;
-    type StorageCursor = InMemoryStorageCursor;
-    type AccountHashedCursor = InMemoryAccountCursor;
+    type StorageCursor<'tx> = InMemoryStorageCursor;
+    type AccountHashedCursor<'tx> = InMemoryAccountCursor;
 
     async fn store_account_branches(
         &self,
@@ -480,11 +480,11 @@ impl OpProofsStorage for InMemoryProofsStorage {
         Ok(InMemoryTrieCursor::new(&inner, None, max_block_number))
     }
 
-    fn storage_hashed_cursor(
+    fn storage_hashed_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::StorageCursor> {
+    ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
         let inner = self
             .inner
             .try_read()
@@ -492,10 +492,10 @@ impl OpProofsStorage for InMemoryProofsStorage {
         Ok(InMemoryStorageCursor::new(&inner, hashed_address, max_block_number))
     }
 
-    fn account_hashed_cursor(
+    fn account_hashed_cursor<'tx>(
         &self,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::AccountHashedCursor> {
+    ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
         let inner = self
             .inner
             .try_read()

@@ -101,10 +101,14 @@ pub trait OpProofsStorage: Send + Sync + Debug {
         Self: 'tx;
 
     /// Cursor for iterating over storage leaves.
-    type StorageCursor: OpProofsHashedCursor<Value = U256>;
+    type StorageCursor<'tx>: OpProofsHashedCursor<Value = U256> + 'tx
+    where
+        Self: 'tx;
 
     /// Cursor for iterating over account leaves.
-    type AccountHashedCursor: OpProofsHashedCursor<Value = Account>;
+    type AccountHashedCursor<'tx>: OpProofsHashedCursor<Value = Account> + 'tx
+    where
+        Self: 'tx;
 
     /// Store a batch of account trie branches. Used for saving existing state. For live state
     /// capture, use [store_trie_updates](OpProofsStorage::store_trie_updates).
@@ -160,17 +164,17 @@ pub trait OpProofsStorage: Send + Sync + Debug {
     ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>>;
 
     /// Get a storage cursor for the storage backend
-    fn storage_hashed_cursor(
+    fn storage_hashed_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::StorageCursor>;
+    ) -> OpProofsStorageResult<Self::StorageCursor<'tx>>;
 
     /// Get an account hashed cursor for the storage backend
-    fn account_hashed_cursor(
+    fn account_hashed_cursor<'tx>(
         &self,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::AccountHashedCursor>;
+    ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>>;
 
     /// Store a batch of trie updates.
     ///

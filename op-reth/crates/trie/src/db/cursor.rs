@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 
 use crate::{
-    db::{AccountTrieHistory, MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue},
+    db::{
+        AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
+        MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
+    },
     OpProofsHashedCursor, OpProofsStorageError, OpProofsStorageResult, OpProofsTrieCursor,
 };
 use alloy_primitives::{B256, U256};
@@ -260,45 +263,80 @@ where
 
 /// MDBX implementation of `OpProofsHashedCursor` for storage state.
 #[derive(Debug)]
-pub struct MdbxStorageCursor {}
+pub struct MdbxStorageCursor<Cursor> {
+    inner: BlockNumberVersionedCursor<HashedStorageHistory, Cursor>,
+    hashed_address: B256,
+}
 
-impl OpProofsHashedCursor for MdbxStorageCursor {
+impl<Cursor> MdbxStorageCursor<Cursor>
+where
+    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
+{
+    ///  Initializes new [`MdbxStorageCursor`]
+    pub const fn new(cursor: Cursor, block_number: u64, hashed_address: B256) -> Self {
+        Self { inner: BlockNumberVersionedCursor::new(cursor, block_number), hashed_address }
+    }
+}
+
+impl<Cursor> OpProofsHashedCursor for MdbxStorageCursor<Cursor>
+where
+    Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
+{
     type Value = U256;
 
-    fn seek(&mut self, _key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        unimplemented!()
+    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+        let storage_key = HashedStorageKey::new(self.hashed_address, key);
+        self.inner.seek(storage_key).map(|opt| opt.map(|(k, v)| (k.hashed_storage_key, v.0)))
     }
 
     fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        unimplemented!()
+        self.inner.next().map(|opt| opt.map(|(k, v)| (k.hashed_storage_key, v.0)))
     }
 }
 
 /// MDBX implementation of `OpProofsHashedCursor` for account state.
 #[derive(Debug)]
-pub struct MdbxAccountCursor {}
+pub struct MdbxAccountCursor<Cursor> {
+    inner: BlockNumberVersionedCursor<HashedAccountHistory, Cursor>,
+}
 
-impl OpProofsHashedCursor for MdbxAccountCursor {
+impl<Cursor> MdbxAccountCursor<Cursor>
+where
+    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
+{
+    /// Initializes new `MdbxAccountCursor`
+    pub const fn new(cursor: Cursor, block_number: u64) -> Self {
+        Self { inner: BlockNumberVersionedCursor::new(cursor, block_number) }
+    }
+}
+
+impl<Cursor> OpProofsHashedCursor for MdbxAccountCursor<Cursor>
+where
+    Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
+{
     type Value = Account;
 
-    fn seek(&mut self, _key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        unimplemented!()
+    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+        self.inner.seek(key)
     }
 
     fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        unimplemented!()
+        self.inner.next()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::models;
+    use crate::db::{models, StorageValue};
     use reth_db::{
-        cursor::DbDupCursorRW,
         mdbx::{init_db_for, DatabaseArguments},
+        DatabaseEnv,
+    };
+    use reth_db_api::{
+        cursor::DbDupCursorRW,
         transaction::{DbTx, DbTxMut},
-        Database, DatabaseEnv,
+        Database,
     };
     use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
     use tempfile::TempDir;
@@ -340,6 +378,30 @@ mod tests {
         c.append_dup(key, vv).expect("append dup");
     }
 
+    fn append_hashed_storage(
+        wtx: &<DatabaseEnv as Database>::TXMut,
+        addr: B256,
+        slot: B256,
+        block: u64,
+        val: Option<U256>,
+    ) {
+        let mut c = wtx.cursor_dup_write::<HashedStorageHistory>().expect("dup write");
+        let key = HashedStorageKey::new(addr, slot);
+        let vv = VersionedValue { block_number: block, value: MaybeDeleted(val.map(StorageValue)) };
+        c.append_dup(key, vv).expect("append dup");
+    }
+
+    fn append_hashed_account(
+        wtx: &<DatabaseEnv as Database>::TXMut,
+        key: B256,
+        block: u64,
+        val: Option<Account>,
+    ) {
+        let mut c = wtx.cursor_dup_write::<HashedAccountHistory>().expect("dup write");
+        let vv = VersionedValue { block_number: block, value: MaybeDeleted(val) };
+        c.append_dup(key, vv).expect("append dup");
+    }
+
     // Open a dup-RO cursor and wrap it in a BlockNumberVersionedCursor with a given bound.
     fn version_cursor(
         tx: &<DatabaseEnv as Database>::TX,
@@ -366,6 +428,23 @@ mod tests {
     ) -> MdbxTrieCursor<StorageTrieHistory, Dup<'_, StorageTrieHistory>> {
         let c = tx.cursor_dup_read::<StorageTrieHistory>().expect("dup ro cursor");
         MdbxTrieCursor::new(c, max_block, Some(address))
+    }
+
+    fn storage_cursor(
+        tx: &'_ <DatabaseEnv as Database>::TX,
+        max_block: u64,
+        address: B256,
+    ) -> MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
+        let c = tx.cursor_dup_read::<HashedStorageHistory>().expect("dup ro cursor");
+        MdbxStorageCursor::new(c, max_block, address)
+    }
+
+    fn account_cursor(
+        tx: &'_ <DatabaseEnv as Database>::TX,
+        max_block: u64,
+    ) -> MdbxAccountCursor<Dup<'_, HashedAccountHistory>> {
+        let c = tx.cursor_dup_read::<HashedAccountHistory>().expect("dup ro cursor");
+        MdbxAccountCursor::new(c, max_block)
     }
 
     // Assert helper: ensure the chosen VersionedValue has the expected block and deletion flag.
@@ -999,5 +1078,130 @@ mod tests {
 
         let now = OpProofsTrieCursor::current(&mut cur).expect("ok").expect("some");
         assert_eq!(now, p);
+    }
+
+    #[test]
+    fn hashed_storage_seek_maps_slot_and_value() {
+        let db = setup_db();
+        let addr = B256::from([0xAA; 32]);
+        let slot = B256::from([0x10; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_storage(&wtx, addr, slot, 10, Some(U256::from(7)));
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = storage_cursor(&tx, 100, addr);
+
+        let (got_slot, got_val) =
+            OpProofsHashedCursor::seek(&mut cur, slot).expect("ok").expect("some");
+        assert_eq!(got_slot, slot);
+        assert_eq!(got_val, U256::from(7));
+    }
+
+    #[test]
+    fn hashed_storage_seek_filters_tombstone() {
+        let db = setup_db();
+        let addr = B256::from([0xAB; 32]);
+        let slot = B256::from([0x11; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_storage(&wtx, addr, slot, 5, Some(U256::from(1)));
+            append_hashed_storage(&wtx, addr, slot, 9, None); // latest ≤ max is tombstone
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = storage_cursor(&tx, 10, addr);
+
+        let out = OpProofsHashedCursor::seek(&mut cur, slot).expect("ok");
+        assert!(out.is_none(), "wrapper must filter tombstoned latest");
+    }
+
+    #[test]
+    fn hashed_storage_seek_and_next_roundtrip() {
+        let db = setup_db();
+        let addr = B256::from([0xAC; 32]);
+        let s1 = B256::from([0x01; 32]);
+        let s2 = B256::from([0x02; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_storage(&wtx, addr, s1, 10, Some(U256::from(11)));
+            append_hashed_storage(&wtx, addr, s2, 10, Some(U256::from(22)));
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = storage_cursor(&tx, 100, addr);
+
+        let (k1, v1) = OpProofsHashedCursor::seek(&mut cur, s1).expect("ok").expect("some");
+        assert_eq!((k1, v1), (s1, U256::from(11)));
+
+        let (k2, v2) = OpProofsHashedCursor::next(&mut cur).expect("ok").expect("some");
+        assert_eq!((k2, v2), (s2, U256::from(22)));
+    }
+
+    #[test]
+    fn hashed_account_seek_maps_key_and_value() {
+        let db = setup_db();
+        let key = B256::from([0x20; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_account(&wtx, key, 10, Some(Account::default()));
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = account_cursor(&tx, 100);
+
+        let (got_key, _acc) = OpProofsHashedCursor::seek(&mut cur, key).expect("ok").expect("some");
+        assert_eq!(got_key, key);
+    }
+
+    #[test]
+    fn hashed_account_seek_filters_tombstone() {
+        let db = setup_db();
+        let key = B256::from([0x21; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_account(&wtx, key, 5, Some(Account::default()));
+            append_hashed_account(&wtx, key, 9, None); // latest ≤ max is tombstone
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = account_cursor(&tx, 10);
+
+        let out = OpProofsHashedCursor::seek(&mut cur, key).expect("ok");
+        assert!(out.is_none(), "wrapper must filter tombstoned latest");
+    }
+
+    #[test]
+    fn hashed_account_seek_and_next_roundtrip() {
+        let db = setup_db();
+        let k1 = B256::from([0x01; 32]);
+        let k2 = B256::from([0x02; 32]);
+
+        {
+            let wtx = db.tx_mut().expect("rw");
+            append_hashed_account(&wtx, k1, 10, Some(Account::default()));
+            append_hashed_account(&wtx, k2, 10, Some(Account::default()));
+            wtx.commit().expect("commit");
+        }
+
+        let tx = db.tx().expect("ro");
+        let mut cur = account_cursor(&tx, 100);
+
+        let (got1, _) = OpProofsHashedCursor::seek(&mut cur, k1).expect("ok").expect("some");
+        assert_eq!(got1, k1);
+
+        let (got2, _) = OpProofsHashedCursor::next(&mut cur).expect("ok").expect("some");
+        assert_eq!(got2, k2);
     }
 }

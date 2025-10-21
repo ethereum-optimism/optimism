@@ -302,8 +302,14 @@ where
         = TrieCursorWithMetrics<S::AccountTrieCursor<'tx>>
     where
         S: 'tx;
-    type StorageCursor = HashedCursorWithMetrics<S::StorageCursor>;
-    type AccountHashedCursor = HashedCursorWithMetrics<S::AccountHashedCursor>;
+    type StorageCursor<'tx>
+        = HashedCursorWithMetrics<S::StorageCursor<'tx>>
+    where
+        S: 'tx;
+    type AccountHashedCursor<'tx>
+        = HashedCursorWithMetrics<S::AccountHashedCursor<'tx>>
+    where
+        S: 'tx;
 
     async fn store_account_branches(
         &self,
@@ -416,19 +422,19 @@ where
         Ok(TrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
-    fn storage_hashed_cursor(
+    fn storage_hashed_cursor<'tx>(
         &self,
         hashed_address: B256,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::StorageCursor> {
+    ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
         let cursor = self.storage.storage_hashed_cursor(hashed_address, max_block_number)?;
         Ok(HashedCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
-    fn account_hashed_cursor(
+    fn account_hashed_cursor<'tx>(
         &self,
         max_block_number: u64,
-    ) -> OpProofsStorageResult<Self::AccountHashedCursor> {
+    ) -> OpProofsStorageResult<Self::AccountHashedCursor<'tx>> {
         let cursor = self.storage.account_hashed_cursor(max_block_number)?;
         Ok(HashedCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
