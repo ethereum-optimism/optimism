@@ -154,7 +154,7 @@ The batcher includes sophisticated throttling mechanisms to manage data availabi
 --throttle-threshold=1000000
 --throttle-controller-type=quadratic
 
-# Runtime controller switching
+# Runtime controller inspection
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
   http://localhost:8545
