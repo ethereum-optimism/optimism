@@ -166,6 +166,16 @@ curl -X POST -H "Content-Type: application/json" \
 
 The batcher tries to ensure that batches are posted at a minimum frequency specified by `MAX_CHANNEL_DURATION`. To achieve this, it caches the l1 origin of the last submitted channel, and will force close a channel if the timestamp of the l1 head moves beyond the timestamp of that l1 origin plus `MAX_CHANNEL_DURATION`. When clearing its state, e.g. following the detection of a reorg, the batcher will not clear the cached l1 origin: this way, the regular posting of batches will not be disturbed by events like reorgs.
 
+### Runtime batcher flushing
+It is possible to manually trigger the batcher to post data to the DA layer without restarting it, like so:
+```bash
+# Runtime controller switching
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_flushBatcher","params":[],"id":1}' \
+  http://localhost:8545
+```
+The command can either be run on the batcher host machine itself, or remotely by replacing `localhost` with the appropriate remote hostname.
+
 ## Known issues and future work
 
 Link to [open issues with the `op-batcher` tag](https://github.com/ethereum-optimism/optimism/issues?q=is%3Aopen+is%3Aissue+label%3AA-op-batcher).
