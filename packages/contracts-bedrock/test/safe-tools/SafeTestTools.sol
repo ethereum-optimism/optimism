@@ -8,7 +8,7 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
-import { Enum } from "safe-contracts/libraries/Enum.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
 import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
 import "./CompatibilityFallbackHandler_1_3_0.sol";
 

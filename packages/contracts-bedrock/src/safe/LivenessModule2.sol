@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
-import { Enum } from "safe-contracts/libraries/Enum.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 

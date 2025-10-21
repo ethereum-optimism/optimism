@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ITransactionGuard, BaseTransactionGuard } from "safe-contracts/base/GuardManager.sol";
-import { Enum } from "safe-contracts/libraries/Enum.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
 
 /// @title DummyGuard
 /// @notice A minimal guard implementation for testing purposes that does nothing.

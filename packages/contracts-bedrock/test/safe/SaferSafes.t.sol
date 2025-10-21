@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Enum } from "safe-contracts/libraries/Enum.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { SaferSafes } from "src/safe/SaferSafes.sol";

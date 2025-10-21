@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
-import { Enum } from "safe-contracts/libraries/Enum.sol";
+import { Enum } from "safe-contracts/common/Enum.sol";
 import { ITransactionGuard as IGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
