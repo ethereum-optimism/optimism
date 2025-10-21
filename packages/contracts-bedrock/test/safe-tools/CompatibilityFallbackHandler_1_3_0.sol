@@ -88,7 +88,7 @@ contract CompatibilityFallbackHandler is DefaultCallbackHandler, ISignatureValid
      * @param _signature Signature byte array associated with _data
      * @return a bool upon valid or invalid signature with corresponding _data
      */
-    function isValidSignature(bytes memory _data, bytes memory _signature) public view returns (bytes4) {
+    function isValidSignature(bytes memory _data, bytes memory _signature) public view override returns (bytes4) {
         // Caller should be a Safe
         GnosisSafe safe = GnosisSafe(payable(msg.sender));
         bytes32 messageHash = getMessageHashForSafe(safe, _data);
@@ -127,9 +127,9 @@ contract CompatibilityFallbackHandler is DefaultCallbackHandler, ISignatureValid
      * @notice See
      * https://github.com/gnosis/util-contracts/blob/bb5fe5fb5df6d8400998094fb1b32a178a47c3a1/contracts/StorageAccessible.sol
      */
-    function isValidSignature(bytes32 _dataHash, bytes calldata _signature) external view override returns (bytes4) {
+    function isValidSignature(bytes32 _dataHash, bytes calldata _signature) external view returns (bytes4) {
         ISignatureValidator validator = ISignatureValidator(msg.sender);
-        bytes4 value = validator.isValidSignature(_dataHash, _signature);
+        bytes4 value = validator.isValidSignature(abi.encode(_dataHash), _signature);
         return (value == EIP1271_MAGIC_VALUE) ? UPDATED_MAGIC_VALUE : bytes4(0);
     }
 
