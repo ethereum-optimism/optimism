@@ -11,6 +11,9 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+// Interfaces
+import { IERC165 } from "safe-contracts/interfaces/IERC165.sol";
+
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
 /// @dev This is a singleton contract, any Safe on the network can use this guard to enforce a timelock delay, and
@@ -668,5 +671,17 @@ abstract contract TimelockGuard is IGuard {
     ///         the Safe UI.
     function signCancellation(bytes32) public {
         emit Message("This function is not meant to be called, did you mean to call cancelTransaction?");
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                    ERC165 Support                          //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice ERC165 interface detection
+    /// @param _interfaceId The interface identifier to check
+    /// @return True if the contract implements the interface
+    function supportsInterface(bytes4 _interfaceId) external view virtual override returns (bool) {
+        return _interfaceId == type(IGuard).interfaceId // 0xe6d7a83a
+            || _interfaceId == type(IERC165).interfaceId; // 0x01ffc9a7
     }
 }
