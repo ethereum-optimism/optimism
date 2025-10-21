@@ -9,7 +9,7 @@ import {
 } from "scripts/deploy/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
 
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";

@@ -2,8 +2,8 @@
 pragma solidity 0.8.25;
 
 // Safe
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
+import { Safe } from "safe-contracts/Safe.sol";
+import { Enum } from "safe-contracts/libraries/Enum.sol";
 
 // Contracts
 import { EIP712 } from "@openzeppelin/contracts-v5/utils/cryptography/EIP712.sol";

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
+import { Safe } from "safe-contracts/Safe.sol";
+import { Enum } from "safe-contracts/libraries/Enum.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 interface ILivenessGuard is ISemver {

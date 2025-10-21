@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Enum } from "safe-contracts/common/Enum.sol";
+import { Enum } from "safe-contracts/libraries/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { SaferSafes } from "src/safe/SaferSafes.sol";
@@ -9,7 +9,7 @@ import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { ITransactionGuard as IGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Import the test utils from LivenessModule2 tests
 import { LivenessModule2_TestUtils } from "test/safe/LivenessModule2.t.sol";
