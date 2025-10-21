@@ -21,6 +21,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
@@ -108,11 +109,19 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     /// @notice Thrown when testing with an unsupported chain ID.
     error UnsupportedChainId();
 
+    struct PreUpgradeState {
+        Claim cannonAbsolutePrestate;
+        Claim permissionedAbsolutePrestate;
+        IDelayedWETH permissionlessWethProxy;
+        IDelayedWETH permissionedCannonWethProxy;
+    }
+
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
     string public opChain = Config.forkOpChain();
+    PreUpgradeState preUpgradeState;
 
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -151,6 +160,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
 
+        // grab the pre-upgrade state
+        preUpgradeState = PreUpgradeState({
+            cannonAbsolutePrestate: IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)))
+                .absolutePrestate(),
+            permissionedAbsolutePrestate: IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate(),
+            permissionlessWethProxy: delayedWeth,
+            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+        });
+
         // Since this superchainConfig is already at the expected reinitializer version...
         // We do this to pass the reinitializer check when trying to upgrade the superchainConfig contract.
 
@@ -186,8 +206,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Execute the SuperchainConfig upgrade.
         // nosemgrep: sol-safety-trycatch-eip150
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
@@ -246,11 +265,20 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Create validationOverrides
+        address challengerOverride;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            LibGameArgs.GameArgs memory gameArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            challengerOverride = gameArgs.challenger;
+        } else {
+            challengerOverride = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).challenger();
+        }
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
-            challenger: IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
-                .challenger()
+            challenger: challengerOverride
         });
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
@@ -280,6 +308,76 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             false,
             validationOverrides
         );
+
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride);
+    }
+
+    function permissionedGameProposer() internal view returns (address) {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            LibGameArgs.GameArgs memory gameArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            return gameArgs.proposer;
+        } else {
+            return IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
+                .proposer();
+        }
+    }
+
+    /// @notice Runs some smoke tests after an upgrade
+    function _runPostUpgradeSmokeTests(
+        IOPContractsManager _opcm,
+        IOPContractsManager.OpChainConfig memory _opChainConfig,
+        address _challenger
+    )
+        internal
+    {
+        address expectedProposer = permissionedGameProposer();
+        bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
+        if (expectedAbsolutePrestate == bytes32(0)) {
+            expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
+        }
+        address expectedVm = address(_opcm.implementations().mipsImpl);
+
+        Claim claim = Claim.wrap(bytes32(uint256(1)));
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON);
+        vm.deal(address(_challenger), bondAmount);
+        (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
+        uint256 l2BlockNumber = rootBlockNumber + 1;
+
+        // Deploy live games and ensure they're configured correctly
+        GameType[] memory gameTypes = new GameType[](2);
+        gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
+        gameTypes[1] = GameTypes.CANNON;
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            GameType gt = gameTypes[i];
+            vm.prank(expectedProposer, expectedProposer);
+            IPermissionedDisputeGame game = IPermissionedDisputeGame(
+                address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
+            );
+            (,,,, Claim rootClaim,,) = game.claimData(0);
+
+            vm.assertEq(gt.raw(), game.gameType().raw());
+            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
+            vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
+            vm.assertEq(l2ChainId, game.l2ChainId());
+            vm.assertEq(302400, game.maxClockDuration().raw());
+            vm.assertEq(10800, game.clockExtension().raw());
+            vm.assertEq(73, game.maxGameDepth());
+            vm.assertEq(30, game.splitDepth());
+            vm.assertEq(l2BlockNumber, game.l2BlockNumber());
+            vm.assertEq(expectedVm, address(game.vm()));
+            vm.assertEq(expectedProposer, game.gameCreator());
+            vm.assertEq(claim.raw(), rootClaim.raw());
+            vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
+
+            if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+                vm.assertEq(_challenger, game.challenger());
+                vm.assertEq(expectedProposer, game.proposer());
+            } else {
+                vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
+            }
+        }
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -1243,6 +1341,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runPastUpgrades(upgrader);
     }
 
+    function getDisputeGameV2AbsolutePrestate(GameType _gameType) internal view returns (Claim) {
+        bytes memory gameArgsBytes = disputeGameFactory.gameArgs(_gameType);
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
+        return Claim.wrap(gameArgs.absolutePrestate);
+    }
+
     function test_upgradeOPChainOnly_succeeds() public {
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);
@@ -1297,11 +1401,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter = IPermissionedDisputeGame(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-        ).absolutePrestate();
-        Claim fdgPrestateAfter =
-            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
 
         // Assert that the absolute prestate is the non-zero value we set.
         assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
@@ -1329,11 +1440,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runCurrentUpgrade(upgrader);
 
         // Get the absolute prestate after the upgrade
-        Claim pdgPrestateAfter = IPermissionedDisputeGame(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-        ).absolutePrestate();
-        Claim fdgPrestateAfter =
-            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
 
         // Assert that the absolute prestate is the same as before the upgrade.
         assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
@@ -1416,8 +1534,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         vm.expectEmit(address(superchainConfig));
         emit Upgraded(impls.superchainConfigImpl);
         DelegateCaller(superchainPAO).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 
@@ -1426,7 +1543,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
         vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
-        opcm.upgradeSuperchainConfig(superchainConfig, superchainProxyAdmin);
+        opcm.upgradeSuperchainConfig(superchainConfig);
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
@@ -1442,8 +1559,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 
         vm.expectRevert("Ownable: caller is not the owner");
         DelegateCaller(delegateCaller).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 
@@ -1461,8 +1577,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Try to upgrade the SuperchainConfig contract again, should fail.
         vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
         DelegateCaller(upgrader).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         );
     }
 }

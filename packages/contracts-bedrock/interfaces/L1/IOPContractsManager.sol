@@ -94,7 +94,7 @@ interface IOPContractsManagerUpgrader {
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -343,8 +343,7 @@ interface IOPContractsManager {
 
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
-    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.

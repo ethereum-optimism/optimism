@@ -67,12 +67,12 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // LivenessModule2 checks
         LivenessModuleConfig memory lmConfig = exampleSecurityCouncilConfig.livenessModuleConfig;
-        (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).livenessSafeConfiguration(address(securityCouncilSafe));
-        assertEq(configuredPeriod, lmConfig.livenessInterval);
-        assertEq(configuredFallback, lmConfig.fallbackOwner);
+        LivenessModule2.ModuleConfig memory moduleConfig =
+            LivenessModule2(livenessModule).livenessSafeConfiguration(Safe(payable(securityCouncilSafe)));
+        assertEq(moduleConfig.livenessResponsePeriod, lmConfig.livenessInterval);
+        assertEq(moduleConfig.fallbackOwner, lmConfig.fallbackOwner);
 
         // Verify no active challenge exists initially
-        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(address(securityCouncilSafe)), 0);
+        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(Safe(payable(securityCouncilSafe))), 0);
     }
 }
