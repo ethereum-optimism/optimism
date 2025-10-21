@@ -16,17 +16,17 @@ reth-optimism-primitives = { workspace = true, features = ["serde"] }
 reth-optimism-evm.workspace = true
 reth-chain-state = { workspace = true, features = ["serde"] }
 reth-primitives-traits = { workspace = true, features = ["serde"] }
+reth-engine-primitives = { workspace = true, features = ["std"] }
 reth-execution-types = { workspace = true, features = ["serde"] }
 reth-evm.workspace = true
 reth-revm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-errors.workspace = true
+reth-payload-primitives.workspace = true
 reth-storage-api.workspace = true
-reth-node-api.workspace = true
 reth-tasks.workspace = true
 reth-metrics.workspace = true
-reth-trie.workspace = true
 
 # alloy
 alloy-eips = { workspace = true, features = ["serde"] }

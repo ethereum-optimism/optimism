@@ -1,7 +1,8 @@
 use crate::FlashBlockCompleteSequenceRx;
 use alloy_primitives::B256;
-use reth_node_api::{ConsensusEngineHandle, EngineApiMessageVersion};
+use reth_engine_primitives::ConsensusEngineHandle;
 use reth_optimism_payload_builder::OpPayloadTypes;
+use reth_payload_primitives::EngineApiMessageVersion;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tracing::warn;
 
