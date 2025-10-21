@@ -452,7 +452,8 @@ impl OpProofsStorage for InMemoryProofsStorage {
             // We don't have a hash stored, so return a default
             Ok(Some((block, B256::ZERO)))
         } else {
-            Ok(None)
+            // otherwise return earliest block if set
+            Ok(inner.earliest_block)
         }
     }
 

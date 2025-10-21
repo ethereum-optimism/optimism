@@ -16,7 +16,6 @@ workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
-reth-node-api.workspace = true
 reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
@@ -48,17 +47,30 @@ itertools.workspace = true
 
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils"] }
-tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
 test-case.workspace = true
 reth-db = { workspace = true, features = ["test-utils"] }
 # workaround for failing doc test <https://github.com/op-rs/op-reth/pull/234>
 reth-db-api = { workspace = true, features = ["test-utils"] }
 reth-trie = { workspace = true, features = ["test-utils"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-node-api.workspace = true
+alloy-consensus.workspace = true
+alloy-genesis.workspace = true
+reth-chainspec.workspace = true
+reth-db-common.workspace = true
+reth-ethereum-primitives.workspace = true
+reth-evm-ethereum.workspace = true
+reth-testing-utils.workspace = true
+secp256k1.workspace = true
 
 [features]
 serde-bincode-compat = [
     "reth-primitives-traits/serde-bincode-compat",
     "reth-trie/serde-bincode-compat",
+    "alloy-consensus/serde-bincode-compat",
     "alloy-eips/serde-bincode-compat",
+    "alloy-genesis/serde-bincode-compat",
+    "reth-ethereum-primitives/serde-bincode-compat",
 ]

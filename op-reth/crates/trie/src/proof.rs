@@ -9,6 +9,7 @@ use alloy_primitives::{
     map::{B256Map, HashMap},
     Address, Bytes, B256, U256,
 };
+use core::marker;
 use reth_db::DatabaseError;
 use reth_execution_errors::{StateProofError, StateRootError, StorageRootError, TrieWitnessError};
 use reth_primitives_traits::Account;
@@ -75,7 +76,7 @@ where
 pub struct OpProofsTrieCursorFactory<'tx, Storage: OpProofsStorage> {
     storage: &'tx Storage,
     block_number: u64,
-    _marker: core::marker::PhantomData<&'tx ()>,
+    _marker: marker::PhantomData<&'tx ()>,
 }
 
 impl<'tx, Storage: OpProofsStorage> OpProofsTrieCursorFactory<'tx, Storage> {
