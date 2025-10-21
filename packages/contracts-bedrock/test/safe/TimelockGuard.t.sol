@@ -270,11 +270,11 @@ contract TimelockGuard_TimelockDelay_Test is TimelockGuard_TestInit {
     }
 
     /// @notice Fuzz test: Validates the configuration view reflects the stored timelock delay for any valid delay.
-    function testFuzz_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds(uint256 _delay) external {
-        _delay = bound(_delay, 1, ONE_YEAR); // Restrict to valid range
-        _configureGuard(safeInstance, _delay);
-        uint256 delay = timelockGuard.timelockDelay(safeInstance.safe);
-        assertEq(delay, _delay);
+    function testFuzz_timelockDelay_returnsConfigurationForConfiguredSafe_succeeds(uint256 _delay_) external {
+        _delay_ = bound(_delay_, 1, ONE_YEAR); // Restrict to valid range
+        _configureGuard(safeInstance, _delay_);
+        uint256 delay_ = timelockGuard.timelockDelay(safeInstance.safe);
+        assertEq(delay_, _delay_);
     }
 }
 
