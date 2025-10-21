@@ -44,7 +44,7 @@ impl MdbxProofsStorage {
         let result = self.env.view(|tx| {
             let mut cursor = tx.cursor_read::<ProofWindow>().ok()?;
             let value = cursor.seek_exact(key).ok()?;
-            value.map(|(_, val)| (val.number(), val.hash()))
+            value.map(|(_, val)| (val.number(), *val.hash()))
         });
         Ok(result?)
     }

@@ -49,8 +49,8 @@ impl BlockNumberHash {
     }
 
     /// Get the block hash.
-    pub const fn hash(&self) -> B256 {
-        self.0.hash
+    pub const fn hash(&self) -> &B256 {
+        &self.0.hash
     }
 }
 
