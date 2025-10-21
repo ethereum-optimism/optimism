@@ -594,8 +594,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         )
                 ) {
                     address impl = implementations().faultDisputeGameV2Impl;
-                    // Always use the permissioned game to get the anchor state registry because it is guaranteed to
-                    // exist.
                     bytes memory gameArgs = abi.encodePacked(
                         gameConfig.disputeAbsolutePrestate, // 32 bytes
                         gameConfig.vm, // 20 bytes
@@ -2140,9 +2138,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.4.0
+    /// @custom:semver 4.5.0
     function version() public pure virtual returns (string memory) {
-        return "4.4.0";
+        return "4.5.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
