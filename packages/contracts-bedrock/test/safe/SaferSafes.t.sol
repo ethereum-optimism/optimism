@@ -1,231 +1,350 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { SafeCompatibilityTest } from "test/safe-tools/SafeCompatibilityTest.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
+import "test/safe-tools/SafeTestTools.sol";
+
 import { SaferSafes } from "src/safe/SaferSafes.sol";
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
 
-/// @title SaferSafes_Uncategorized_Test
-/// @notice Tests SaferSafes (module + guard) compatibility across all Safe versions
-/// @dev This tests enabling and configuring SaferSafes as both a module and guard
-///      across Safe versions v1.0.0 through v1.5.0 on Mainnet fork
-contract SaferSafes_Uncategorized_Test is SafeCompatibilityTest {
-    SaferSafes public saferSafes;
-    address public fallbackOwner;
+import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
+import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
 
-    // Configuration constants
-    uint256 constant TIMELOCK_DELAY = 7 days;
-    uint256 constant LIVENESS_RESPONSE_PERIOD = 21 days;
+// Import the test utils from LivenessModule2 tests
+import { LivenessModule2_TestUtils } from "test/safe/LivenessModule2.t.sol";
 
-    // Guard was introduced in v1.3.0, so skip v1.0.0, v1.1.1, v1.2.0
-    string[] public guardSkipVersions;
+/// @title SaferSafes_TestInit
+/// @notice Reusable test initialization for `SaferSafes` tests.
+abstract contract SaferSafes_TestInit is LivenessModule2_TestUtils {
+    using SafeTestLib for SafeInstance;
 
-    function setUp() public override {
-        // Initialize Safe versions on mainnet fork
-        super.setUp();
+    // Events
+    event ModuleConfigured(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
+    event GuardConfigured(address indexed safe, uint256 timelockDelay, uint256 cancellationThreshold);
+    event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
-        // Deploy SaferSafes contract
+    uint256 constant INIT_TIME = 10;
+    uint256 constant NUM_OWNERS = 5;
+    uint256 constant THRESHOLD = 3;
+    uint256 constant CHALLENGE_PERIOD = 7 days;
+
+    SaferSafes saferSafes;
+    SafeInstance safeInstance;
+    address fallbackOwner;
+    address[] owners;
+    uint256[] ownerPKs;
+
+    function setUp() public virtual {
+        vm.warp(INIT_TIME);
+
+        // Deploy the SaferSafes contract
         saferSafes = new SaferSafes();
+        livenessModule2 = LivenessModule2(address(saferSafes));
+
+        // Create Safe owners
+        (address[] memory _owners, uint256[] memory _keys) = SafeTestLib.makeAddrsAndKeys("owners", NUM_OWNERS);
+        owners = _owners;
+        ownerPKs = _keys;
+
+        // Set up Safe with owners
+        safeInstance = _setupSafe(ownerPKs, THRESHOLD);
 
         // Set fallback owner
         fallbackOwner = makeAddr("fallbackOwner");
 
-        // Initialize guard skip versions (guards introduced in v1.3.0)
-        guardSkipVersions.push("v1.0.0");
-        guardSkipVersions.push("v1.1.1");
-        guardSkipVersions.push("v1.2.0");
+        // Enable the module and guard on the Safe
+        safeInstance.enableModule(address(saferSafes));
+        safeInstance.setGuard(address(saferSafes));
+    }
+}
 
-        vm.label(address(saferSafes), "SaferSafes");
-        vm.label(fallbackOwner, "FallbackOwner");
+/// @title SaferSafes_Uncategorized_Test
+/// @notice Tests for SaferSafes configuration functionality.
+contract SaferSafes_Uncategorized_Test is SaferSafes_TestInit {
+    function test_version_succeeds() external view {
+        assertTrue(bytes(saferSafes.version()).length > 0);
     }
 
-    /// ============ STRICT MODE TESTS ============
-    /// These tests will FAIL if any Safe version doesn't support the functionality
+    /// @notice Test successful configuration when liveness response period is at least 2x timelock delay.
+    function test_configure_livenessModuleFirst_succeeds() public {
+        uint256 timelockDelay = 7 days;
+        uint256 livenessResponsePeriod = 21 days; // Much greater than 2 * 7 days = 14 days (should succeed)
 
-    /// @notice Test that SaferSafes can be enabled as a module on all versions
-    function test_strict_enableModule_succeeds() public {
-        forEachSafeVersion(this._testEnableModule);
-    }
-
-    /// @notice Test that SaferSafes can be enabled as a guard on all versions
-    function test_strict_setGuard_succeeds() public {
-        forEachSafeVersion(this._testSetGuard, guardSkipVersions);
-    }
-
-    /// @notice Test enabling both module and guard together
-    function test_strict_enableBoth_succeeds() public {
-        forEachSafeVersion(this._testEnableModuleAndGuard, guardSkipVersions);
-    }
-
-    /// @notice Test full configuration: enable module, enable guard, configure both
-    function test_strict_fullConfiguration_succeeds() public {
-        forEachSafeVersion(this._testFullConfiguration, guardSkipVersions);
-    }
-
-    /// ============ VERBOSE MODE TESTS ============
-    /// These tests will LOG failures instead of reverting
-    /// Use these to discover which versions support which features
-
-    /// @notice VERBOSE: Discover which versions support SaferSafes as a module
-    function test_verbose_enableModule_works() public {
-        forEachSafeVersionVerbose(this._testEnableModule);
-    }
-
-    /// @notice VERBOSE: Discover which versions support SaferSafes as a guard
-    function test_verbose_setGuard_works() public {
-        forEachSafeVersionVerbose(this._testSetGuard, guardSkipVersions);
-    }
-
-    /// @notice VERBOSE: Discover which versions support both module and guard
-    function test_verbose_enableBoth_works() public {
-        forEachSafeVersionVerbose(this._testEnableModuleAndGuard, guardSkipVersions);
-    }
-
-    /// @notice VERBOSE: Discover which versions support full SaferSafes configuration
-    function test_verbose_fullConfiguration_works() public {
-        forEachSafeVersionVerbose(this._testFullConfiguration, guardSkipVersions);
-    }
-
-    /// @notice VERBOSE: Test configuration validation (liveness period must be >= 2x timelock)
-    function test_verbose_configurationValidation_reverts() public {
-        forEachSafeVersionVerbose(this._testConfigurationValidation, guardSkipVersions);
-    }
-
-    /// ============ IMPLEMENTATION FUNCTIONS ============
-
-    /// @notice Implementation: Enable SaferSafes as a module
-    function _testEnableModule(SafeVersion memory safeVersion) external {
-        // Prepare transaction to enable SaferSafes as a module
-        bytes memory data = abi.encodeCall(safeVersion.safe.enableModule, (address(saferSafes)));
-
-        // Execute transaction
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, data, Enum.Operation.Call);
-
-        // Verify module is enabled
-        bool isEnabled = safeVersion.safe.isModuleEnabled(address(saferSafes));
-        assertTrue(isEnabled, string.concat("SaferSafes module should be enabled on ", safeVersion.version));
-    }
-
-    /// @notice Implementation: Set SaferSafes as the guard
-    function _testSetGuard(SafeVersion memory safeVersion) external {
-        // Prepare transaction to set SaferSafes as guard
-        bytes memory data = abi.encodeCall(safeVersion.safe.setGuard, (address(saferSafes)));
-
-        // Execute transaction
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, data, Enum.Operation.Call);
-
-        // Verify guard is set by checking storage
-        bytes32 guardSlot = bytes32(uint256(keccak256("guard_manager.guard.address")) - 1);
-        bytes32 guardValue = vm.load(address(safeVersion.safe), guardSlot);
-        address currentGuard = address(uint160(uint256(guardValue)));
-
-        assertEq(
-            currentGuard, address(saferSafes), string.concat("SaferSafes guard should be set on ", safeVersion.version)
-        );
-    }
-
-    /// @notice Implementation: Enable both module and guard
-    function _testEnableModuleAndGuard(SafeVersion memory safeVersion) external {
-        // Enable module
-        bytes memory moduleData = abi.encodeCall(safeVersion.safe.enableModule, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, moduleData, Enum.Operation.Call);
-
-        // Set guard
-        bytes memory guardData = abi.encodeCall(safeVersion.safe.setGuard, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, guardData, Enum.Operation.Call);
-
-        // Verify both are enabled
-        assertTrue(
-            safeVersion.safe.isModuleEnabled(address(saferSafes)),
-            string.concat("Module should be enabled on ", safeVersion.version)
-        );
-
-        bytes32 guardSlot = bytes32(uint256(keccak256("guard_manager.guard.address")) - 1);
-        bytes32 guardValue = vm.load(address(safeVersion.safe), guardSlot);
-        address currentGuard = address(uint160(uint256(guardValue)));
-
-        assertEq(currentGuard, address(saferSafes), string.concat("Guard should be set on ", safeVersion.version));
-    }
-
-    /// @notice Implementation: Full configuration including liveness module and timelock guard
-    function _testFullConfiguration(SafeVersion memory safeVersion) external {
-        // 1. Enable SaferSafes as a module
-        bytes memory enableModuleData = abi.encodeCall(safeVersion.safe.enableModule, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, enableModuleData, Enum.Operation.Call);
-
-        // 2. Set SaferSafes as guard
-        bytes memory setGuardData = abi.encodeCall(safeVersion.safe.setGuard, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, setGuardData, Enum.Operation.Call);
-
-        // 3. Configure the liveness module
+        // Configure the liveness module FIRST
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: LIVENESS_RESPONSE_PERIOD,
+            livenessResponsePeriod: livenessResponsePeriod,
             fallbackOwner: fallbackOwner
         });
 
-        bytes memory configureModuleData = abi.encodeCall(saferSafes.configureLivenessModule, (moduleConfig));
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureLivenessModule(moduleConfig);
 
-        _executeSafeTransaction(safeVersion.safe, address(saferSafes), 0, configureModuleData, Enum.Operation.Call);
+        // Configure the timelock guard SECOND (this will trigger the check)
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureTimelockGuard(timelockDelay);
 
-        // 4. Configure the timelock guard
-        bytes memory configureGuardData = abi.encodeCall(saferSafes.configureTimelockGuard, (TIMELOCK_DELAY));
-
-        _executeSafeTransaction(safeVersion.safe, address(saferSafes), 0, configureGuardData, Enum.Operation.Call);
-
-        // Verify configurations
+        // Verify configurations were set
         (uint256 storedLivenessResponsePeriod, address storedFallbackOwner) =
-            saferSafes.livenessSafeConfiguration(address(safeVersion.safe));
-
-        assertEq(
-            storedLivenessResponsePeriod,
-            LIVENESS_RESPONSE_PERIOD,
-            string.concat("Liveness response period should be set on ", safeVersion.version)
-        );
-
-        assertEq(
-            storedFallbackOwner, fallbackOwner, string.concat("Fallback owner should be set on ", safeVersion.version)
-        );
-
-        assertEq(
-            saferSafes.timelockConfiguration(safeVersion.safe),
-            TIMELOCK_DELAY,
-            string.concat("Timelock delay should be set on ", safeVersion.version)
-        );
+            saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
+        assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
     }
 
-    /// @notice Implementation: Test configuration validation
-    /// @dev This should fail because liveness period (13 days) < 2 * timelock (14 days)
-    function _testConfigurationValidation(SafeVersion memory safeVersion) external {
-        // Enable module and guard first
-        bytes memory enableModuleData = abi.encodeCall(safeVersion.safe.enableModule, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, enableModuleData, Enum.Operation.Call);
+    function test_configure_timelockGuardFirst_succeeds() public {
+        uint256 timelockDelay = 7 days;
+        uint256 livenessResponsePeriod = 21 days; // Much greater than 2 * 7 days = 14 days (should succeed)
 
-        bytes memory setGuardData = abi.encodeCall(safeVersion.safe.setGuard, (address(saferSafes)));
-        _executeSafeTransaction(safeVersion.safe, address(safeVersion.safe), 0, setGuardData, Enum.Operation.Call);
-
-        // Configure liveness module first with INVALID period (too short)
-        uint256 invalidLivenessPeriod = 13 days; // This is < 2 * 7 days = 14 days
+        // Configure the timelock guard FIRST
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureTimelockGuard(timelockDelay);
 
         LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
-            livenessResponsePeriod: invalidLivenessPeriod,
+            livenessResponsePeriod: livenessResponsePeriod,
             fallbackOwner: fallbackOwner
         });
 
-        bytes memory configureModuleData = abi.encodeCall(saferSafes.configureLivenessModule, (moduleConfig));
+        // Configure the liveness module SECOND (this will trigger the check)
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureLivenessModule(moduleConfig);
 
-        _executeSafeTransaction(safeVersion.safe, address(saferSafes), 0, configureModuleData, Enum.Operation.Call);
+        // Verify configurations were set
+        (uint256 storedLivenessResponsePeriod, address storedFallbackOwner) =
+            saferSafes.livenessSafeConfiguration(address(safeInstance.safe));
+        assertEq(storedLivenessResponsePeriod, livenessResponsePeriod);
+        assertEq(storedFallbackOwner, fallbackOwner);
+        assertEq(saferSafes.timelockConfiguration(safeInstance.safe), timelockDelay);
+    }
 
-        // Now configure timelock guard - this SHOULD revert with validation error
-        bytes memory configureGuardData = abi.encodeCall(saferSafes.configureTimelockGuard, (TIMELOCK_DELAY));
+    /// @notice Test that attempting to incorrectly configure the timelock guard after first configuring the liveness
+    /// module fails.
+    /// @dev This test would fail if timelock guard configuration also triggered validation
+    function test_configure_livenessModuleFirstInvalidConfig_reverts() public {
+        uint256 timelockDelay = 7 days;
+        uint256 livenessResponsePeriod = 13 days; // This is invalid: 13 < 2*7
 
-        // This should revert with SaferSafes_InsufficientLivenessResponsePeriod
-        _executeSafeTransaction(safeVersion.safe, address(saferSafes), 0, configureGuardData, Enum.Operation.Call);
+        // Configure liveness module first
+        LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
+            livenessResponsePeriod: livenessResponsePeriod,
+            fallbackOwner: fallbackOwner
+        });
 
-        // If we reach here in verbose mode, it means the validation didn't work
-        // In strict mode, this would have already reverted
-        revert(
-            "SaferSafes_Uncategorized_Test: expected SaferSafes_InsufficientLivenessResponsePeriod but transaction succeeded"
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureLivenessModule(moduleConfig);
+
+        // Now configure timelock guard
+        vm.prank(address(safeInstance.safe));
+        vm.expectRevert(SaferSafes.SaferSafes_InsufficientLivenessResponsePeriod.selector);
+        saferSafes.configureTimelockGuard(timelockDelay);
+    }
+
+    function test_configure_timelockGuardFirstInvalidConfig_reverts() public {
+        uint256 timelockDelay = 7 days;
+        uint256 livenessResponsePeriod = 13 days; // This is invalid: 13 < 2*7
+
+        // Configure timelock guard first
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureTimelockGuard(timelockDelay);
+
+        LivenessModule2.ModuleConfig memory moduleConfig = LivenessModule2.ModuleConfig({
+            livenessResponsePeriod: livenessResponsePeriod,
+            fallbackOwner: fallbackOwner
+        });
+
+        // Configure liveness module second - this will trigger the check
+        vm.expectRevert(SaferSafes.SaferSafes_InsufficientLivenessResponsePeriod.selector);
+        vm.prank(address(safeInstance.safe));
+        saferSafes.configureLivenessModule(moduleConfig);
+    }
+}
+
+/// @title SaferSafes_ChangeOwnershipToFallback_Test
+/// @notice Tests the ownership transfer after successful challenge
+contract SaferSafes_ChangeOwnershipToFallback_Test is SaferSafes_TestInit {
+    function setUp() public override {
+        super.setUp();
+
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+
+        // enable the guard
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(GuardManager.setGuard, (address(livenessModule2))),
+            Enum.Operation.Call
         );
+    }
+
+    function _assertOwnershipChanged() internal view {
+        // Verify ownership changed
+        address[] memory newOwners = safeInstance.safe.getOwners();
+        assertEq(newOwners.length, 1);
+        assertEq(newOwners[0], fallbackOwner);
+        assertEq(safeInstance.safe.getThreshold(), 1);
+
+        // Verify challenge is reset
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
+        assertEq(challengeEndTime, 0);
+
+        // Verify guard is deactivated
+        assertEq(_getGuard(safeInstance), address(0));
+    }
+
+    function test_changeOwnershipToFallback_succeeds() external {
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Execute ownership transfer
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
+
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        _assertOwnershipChanged();
+    }
+
+    function test_changeOwnershipToFallback_withOtherGuard_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        // Create a mock guard
+        address dummyGuard = makeAddr("dummyGuard");
+        vm.mockCall(
+            dummyGuard,
+            abi.encodeCall(
+                IGuard.checkTransaction,
+                (address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), payable(address(0)), "", address(0))
+            ),
+            ""
+        );
+        vm.mockCall(dummyGuard, abi.encodeCall(IGuard.checkAfterExecution, (bytes32(0), false)), "");
+
+        // Enable the mock guard on the Safe
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(GuardManager.setGuard, (dummyGuard)),
+            Enum.Operation.Call
+        );
+
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Execute ownership transfer
+        vm.expectEmit(true, true, true, true);
+        emit ChallengeSucceeded(address(safeInstance.safe), fallbackOwner);
+
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // These checks include ensuring that the guard is deactivated
+        _assertOwnershipChanged();
+    }
+
+    function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
+        address newSafe = makeAddr("newSafe");
+
+        vm.prank(fallbackOwner);
+        vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
+        livenessModule2.changeOwnershipToFallback(newSafe);
+    }
+
+    function test_changeOwnershipToFallback_noChallenge_reverts() external {
+        vm.prank(fallbackOwner);
+        vm.expectRevert(LivenessModule2.LivenessModule2_ChallengeDoesNotExist.selector);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+    }
+
+    function test_changeOwnershipToFallback_beforeResponsePeriod_reverts() external {
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Try to execute before response period expires
+        vm.prank(fallbackOwner);
+        vm.expectRevert(LivenessModule2.LivenessModule2_ResponsePeriodActive.selector);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+    }
+
+    function test_changeOwnershipToFallback_moduleDisabledAtSafeLevel_reverts() external {
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Disable the module at Safe level
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
+            Enum.Operation.Call
+        );
+
+        // Try to execute ownership transfer - should revert because module is disabled at Safe level
+        vm.prank(fallbackOwner);
+        vm.expectRevert(LivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+    }
+
+    function test_changeOwnershipToFallback_onlyFallbackOwner_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Try from random address - should fail
+        address randomCaller = makeAddr("randomCaller");
+        vm.prank(randomCaller);
+        vm.expectRevert(LivenessModule2.LivenessModule2_UnauthorizedCaller.selector);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // Execute from fallback owner - should succeed
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // Verify ownership changed
+        address[] memory newOwners = safeInstance.safe.getOwners();
+        assertEq(newOwners.length, 1);
+        assertEq(newOwners[0], fallbackOwner);
+    }
+
+    function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+        // Start and execute first challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+        vm.prank(fallbackOwner);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+
+        // Re-configure the module
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configureLivenessModule(
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
+
+        // Start a new challenge (as fallback owner)
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
+        assertGt(challengeEndTime, 0);
     }
 }
