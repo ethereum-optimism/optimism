@@ -20,7 +20,7 @@ reth-optimism-payload-builder.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-exex.workspace = true
-reth-optimism-trie.workspace = true
+reth-optimism-trie = { workspace = true, features = ["metrics"] }
 reth-node-builder.workspace = true
 reth-db-api.workspace = true
 reth-chainspec.workspace = true
