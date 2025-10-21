@@ -169,8 +169,7 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame =
-            IFaultDisputeGame(opToml.readAddressOr(".addresses.FaultDisputeGame", address(0)));
+        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         artifacts.save("FaultDisputeGame", address(faultDisputeGame));
         artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
@@ -218,8 +217,7 @@ contract ForkLive is Deployer, StdAssertions {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {

@@ -9,10 +9,9 @@ import (
 )
 
 type UpgradeSuperchainConfigInput struct {
-	Prank                common.Address `json:"prank"`
-	Opcm                 common.Address `json:"opcm"`
-	SuperchainConfig     common.Address `json:"superchainConfig"`
-	SuperchainProxyAdmin common.Address `json:"superchainProxyAdmin"`
+	Prank            common.Address `json:"prank"`
+	Opcm             common.Address `json:"opcm"`
+	SuperchainConfig common.Address `json:"superchainConfig"`
 }
 
 type UpgradeSuperchainConfigScript script.DeployScriptWithoutOutput[UpgradeSuperchainConfigInput]

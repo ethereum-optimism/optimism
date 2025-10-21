@@ -49,7 +49,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       }
@@ -62,7 +62,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract GnosisSafe",
         "name": "",
         "type": "address"
       }
@@ -81,7 +81,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       }
@@ -163,7 +163,7 @@
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "_msgSender",
         "type": "address"
       }
     ],
@@ -227,7 +227,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract GnosisSafe",
         "name": "_safe",
         "type": "address"
       }
@@ -246,22 +246,29 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
+        "internalType": "contract GnosisSafe",
+        "name": "_safe",
         "type": "address"
       }
     ],
     "name": "livenessSafeConfiguration",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "livenessResponsePeriod",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "fallbackOwner",
-        "type": "address"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "livenessResponsePeriod",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "fallbackOwner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct LivenessModule2.ModuleConfig",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -560,7 +567,7 @@
         "type": "address"
       }
     ],
-    "name": "timelockConfiguration",
+    "name": "timelockDelay",
     "outputs": [
       {
         "internalType": "uint256",
@@ -900,6 +907,11 @@
   {
     "inputs": [],
     "name": "TimelockGuard_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_NotOwner",
     "type": "error"
   },
   {
