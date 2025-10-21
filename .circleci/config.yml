@@ -1321,6 +1321,11 @@ jobs:
               tar -czf testlogs.tar.gz -C ./tmp testlogs
             fi
           when: always
+      - run:
+          name: Clean up op-deployer artifacts
+          command: |
+            rm -rf ~/.op-deployer/*
+          when: always
       - store_artifacts:
           path: testlogs*.tar.gz
           when: always
