@@ -94,7 +94,7 @@ contract OPContractsManager_Harness is OPContractsManager {
 
 /// @title OPContractsManager_Upgrade_Harness
 /// @notice Exposes internal functions for testing.
-contract OPContractsManager_Upgrade_Harness is CommonTest {
+contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     // The Upgraded event emitted by the Proxy contract.
     event Upgraded(address indexed implementation);
 
@@ -270,25 +270,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Create validationOverrides
-        address challengerOverride;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
-            challengerOverride = gameArgs.challenger;
-        } else {
-            challengerOverride = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).challenger();
-        }
+        address challengerOverride = permissionedGameChallenger(disputeGameFactory);
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
             challenger: challengerOverride
         });
 
-        // Grab the validator before we do the error assertion because otherwise the assertion will
+        // Grab the validator, etc before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
+        address proposer = permissionedGameProposer(disputeGameFactory);
 
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
@@ -309,35 +301,24 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 sysCfg: opChainConfigs[0].systemConfigProxy,
                 absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: deploy.cfg().l2OutputOracleProposer()
+                proposer: proposer
             }),
             false,
             validationOverrides
         );
 
-        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride);
-    }
-
-    function permissionedGameProposer() internal view returns (address) {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
-            return gameArgs.proposer;
-        } else {
-            return IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
-                .proposer();
-        }
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride, proposer);
     }
 
     /// @notice Runs some smoke tests after an upgrade
     function _runPostUpgradeSmokeTests(
         IOPContractsManager _opcm,
         IOPContractsManager.OpChainConfig memory _opChainConfig,
-        address _challenger
+        address _challenger,
+        address _expectedProposer
     )
         internal
     {
-        address expectedProposer = permissionedGameProposer();
         bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
         if (expectedAbsolutePrestate == bytes32(0)) {
             expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
@@ -356,7 +337,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         gameTypes[1] = GameTypes.CANNON;
         for (uint256 i = 0; i < gameTypes.length; i++) {
             GameType gt = gameTypes[i];
-            vm.prank(expectedProposer, expectedProposer);
+            vm.prank(_expectedProposer, _expectedProposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
                 address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
             );
@@ -372,14 +353,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.assertEq(30, game.splitDepth());
             vm.assertEq(l2BlockNumber, game.l2BlockNumber());
             vm.assertEq(expectedVm, address(game.vm()));
-            vm.assertEq(expectedProposer, game.gameCreator());
+            vm.assertEq(_expectedProposer, game.gameCreator());
             vm.assertEq(claim.raw(), rootClaim.raw());
             vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
 
             if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
                 vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
                 vm.assertEq(_challenger, game.challenger());
-                vm.assertEq(expectedProposer, game.proposer());
+                vm.assertEq(_expectedProposer, game.proposer());
             } else {
                 vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }

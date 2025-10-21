@@ -11,6 +11,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { GameType, Claim } from "src/dispute/lib/LibUDT.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import "../../interfaces/dispute/IDisputeGame.sol";
@@ -78,6 +79,24 @@ contract DisputeGames is FeatureFlags {
         if (_gameArg == GameArg.CHALLENGER) return 144;
 
         revert DisputeGames_UnsupportedGameArg(_gameArg);
+    }
+
+    function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(_dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            challenger_ = gameArgs.challenger;
+        } else {
+            challenger_ = IPermissionedDisputeGame(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON))).challenger();
+        }
+    }
+
+    function permissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(_dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
+            proposer_ = gameArgs.proposer;
+        } else {
+            proposer_ = IPermissionedDisputeGame(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON))).proposer();
+        }
     }
 
     function mockGameImplPrestate(IDisputeGameFactory _dgf, GameType _gameType, bytes32 _prestate) internal {
