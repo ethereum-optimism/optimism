@@ -158,6 +158,9 @@ The batcher includes sophisticated throttling mechanisms to manage data availabi
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
   http://localhost:8545
+
+# or
+cast rpc admin_getThrottleController -r http://localhost:8545
 ```
 
 **📖 For complete documentation, configuration guides, and troubleshooting, see [Enhanced DA Throttling Mechanisms](./throttling.md)**
@@ -172,6 +175,9 @@ It is possible to manually trigger the batcher to post data to the DA layer with
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_flushBatcher","params":[],"id":1}' \
   http://localhost:8545
+
+# or
+cast rpc admin_flushBatcher -r http://localhost:8545
 ```
 The command can either be run on the batcher host machine itself, or remotely by replacing `localhost` with the appropriate remote hostname.
 
