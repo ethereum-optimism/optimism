@@ -11,11 +11,10 @@ use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_node::{args::RollupArgs, OpNode};
 use reth_optimism_rpc::eth::proofs::{EthApiExt, EthApiOverrideServer};
 use reth_optimism_trie::{
-    db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage, OpProofsStore, StorageMetrics,
+    db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage, OpProofsStore,
 };
-use tracing::info;
-
 use std::{path::PathBuf, sync::Arc};
+use tracing::info;
 
 #[global_allocator]
 static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::new_allocator();
@@ -113,10 +112,7 @@ fn main() {
 
         if args.proofs_history_storage_in_mem {
             // todo: enable launch without metrics
-            let storage = OpProofsStorage::new(
-                Arc::new(InMemoryProofsStorage::new()),
-                Arc::new(StorageMetrics::default()),
-            );
+            let storage = Arc::new(InMemoryProofsStorage::new()).into();
 
             launch_node_with_storage(builder, args.clone(), storage).await?;
         } else {
@@ -127,13 +123,11 @@ fn main() {
             info!(target: "reth::cli", "Using on-disk storage for proofs history");
 
             // todo: enable launch without metrics
-            let storage = OpProofsStorage::new(
-                Arc::new(
-                    MdbxProofsStorage::new(&path)
-                        .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-                ),
-                Arc::new(StorageMetrics::default()),
-            );
+            let storage = Arc::new(
+                MdbxProofsStorage::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+            )
+            .into();
 
             launch_node_with_storage(builder, args.clone(), storage).await?;
         }
