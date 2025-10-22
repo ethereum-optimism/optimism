@@ -32,7 +32,7 @@ func TestJovianNetworkTransactions(t *testing.T) {
 	require.Equal(t, deployGasPriceOracleSender, common.HexToAddress("0x4210000000000000000000000000000000000007"))
 	require.Equal(t, deployJovianGasPriceOracleSource.SourceHash(), deployGasPriceOracle.SourceHash())
 	require.Nil(t, deployGasPriceOracle.To())
-	require.Equal(t, uint64(1_625_000), deployGasPriceOracle.Gas())
+	require.Equal(t, uint64(1_750_714), deployGasPriceOracle.Gas())
 	require.Equal(t, gasPriceOracleJovianDeploymentBytecode, deployGasPriceOracle.Data())
 
 	updateGasPriceOracleSender, updateGasPriceOracle := toDepositTxn(t, upgradeTxns[3])

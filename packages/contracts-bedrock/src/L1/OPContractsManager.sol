@@ -462,6 +462,24 @@ abstract contract OPContractsManagerBase {
         }
     }
 
+    /// @notice Retrieves the BigStepper VM for a given v1 or v2 game
+    function getVM(
+        IDisputeGameFactory _disputeGameFactory,
+        IDisputeGame _disputeGame,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (IBigStepper)
+    {
+        bytes memory gameArgsBytes = _disputeGameFactory.gameArgs(_gameType);
+        if (gameArgsBytes.length == 0) {
+            return IFaultDisputeGame(address(_disputeGame)).vm();
+        } else {
+            return IBigStepper(LibGameArgs.decode(gameArgsBytes).vm);
+        }
+    }
+
     /// @notice Sets a game implementation on the dispute game factory
     /// @param _dgf The dispute game factory
     /// @param _gameType The game type
@@ -688,8 +706,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                             getAnchorStateRegistry(gameConfig.systemConfig),
                             gameL2ChainId
                         ),
-                        getProposerV1(IPermissionedDisputeGame(address(existingGame))),
-                        getChallengerV1(IPermissionedDisputeGame(address(existingGame)))
+                        getProposer(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType),
+                        getChallenger(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType)
                     );
                 } else {
                     constructorData = encodePermissionlessFDGConstructor(
@@ -804,23 +822,20 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     revert OPContractsManager.PrestateRequired();
                 }
 
-                // Grab the existing game constructor params and init bond.
-                IFaultDisputeGame.GameConstructorParams memory gameParams = getGameConstructorParams(existingGame);
-
                 // Create a new game input with the updated prestate.
                 OPContractsManager.AddGameInput memory input = OPContractsManager.AddGameInput({
                     disputeAbsolutePrestate: prestate,
                     saltMixer: reusableSaltMixer(_prestateUpdateInputs[i].systemConfigProxy),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
                     proxyAdmin: _prestateUpdateInputs[i].systemConfigProxy.proxyAdmin(),
-                    delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
-                    disputeGameType: gameParams.gameType,
-                    disputeMaxGameDepth: gameParams.maxGameDepth,
-                    disputeSplitDepth: gameParams.splitDepth,
-                    disputeClockExtension: gameParams.clockExtension,
-                    disputeMaxClockDuration: gameParams.maxClockDuration,
+                    delayedWETH: getWETH(dgf, existingGame, gameType),
+                    disputeGameType: gameType,
+                    disputeMaxGameDepth: existingGame.maxGameDepth(),
+                    disputeSplitDepth: existingGame.splitDepth(),
+                    disputeClockExtension: existingGame.clockExtension(),
+                    disputeMaxClockDuration: existingGame.maxClockDuration(),
                     initialBond: dgf.initBonds(gameType),
-                    vm: gameParams.vm,
+                    vm: getVM(dgf, existingGame, gameType),
                     permissioned: gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
                         || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
                 });
@@ -993,7 +1008,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Update the PermissionedDisputeGame.
             // We're reusing the same DelayedWETH and ASR contracts.
-            deployAndSetNewGameImpl({
+            deployAndSetNewGameImplV1({
                 _l2ChainId: _l2ChainId,
                 _disputeGame: permissionedDisputeGame,
                 _newDelayedWeth: getWETHV1(IFaultDisputeGame(address(permissionedDisputeGame))),
@@ -1008,7 +1023,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // If it exists, replace its implementation.
             // We're reusing the same DelayedWETH and ASR contracts.
             if (address(permissionlessDisputeGame) != address(0)) {
-                deployAndSetNewGameImpl({
+                deployAndSetNewGameImplV1({
                     _l2ChainId: _l2ChainId,
                     _disputeGame: permissionlessDisputeGame,
                     _newDelayedWeth: getWETHV1(IFaultDisputeGame(address(permissionlessDisputeGame))),
@@ -1087,14 +1102,14 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         assertValidContractAddress(address(_config.proxyAdmin));
     }
 
-    /// @notice Deploys and sets a new dispute game implementation
+    /// @notice Deploys and sets a new v1 dispute game implementation
     /// @param _l2ChainId The L2 chain ID
     /// @param _disputeGame The current dispute game implementation
     /// @param _newDelayedWeth The new delayed WETH implementation
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _gameType The type of game to deploy
     /// @param _opChainConfig The OP chain configuration
-    function deployAndSetNewGameImpl(
+    function deployAndSetNewGameImplV1(
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
         IDelayedWETH _newDelayedWeth,
@@ -2138,9 +2153,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.5.0
+    /// @custom:semver 4.6.0
     function version() public pure virtual returns (string memory) {
-        return "4.5.0";
+        return "4.6.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
