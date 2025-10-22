@@ -377,7 +377,8 @@ abstract contract TimelockGuard is BaseGuard {
     /// @dev This function is used to update the state of the contract after the transaction has
     ///      been executed. Although making state changes here is a violation of the
     ///      Checks-Effects-Interactions pattern, it safe to do in this case because we trust that
-    ///      the Safe does not enable arbitrary calls without proper authorization checks.
+    ///      the Safe does not enable arbitrary calls without proper authorization checks. Also, we
+    ///      can't do these state changes in `chackTransaction` because it is a view function.
     function checkAfterExecution(bytes32 _txHash, bool _success) external override {
         Safe callingSafe = Safe(payable(msg.sender));
         // If the timelock delay is zero, we return immediately.
