@@ -280,7 +280,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             challenger: initialChallenger
         });
 
-        // Grab the validator, etc before we do the error assertion because otherwise the assertion will
+        // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
 
