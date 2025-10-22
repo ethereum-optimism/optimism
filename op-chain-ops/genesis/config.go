@@ -714,6 +714,18 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+type FeeMarketConfig struct {
+	// MinBaseFee is the minimum base fee that for each block.
+	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+}
+
+func (f *FeeMarketConfig) Check(log log.Logger) error {
+	// All values are valid.
+	return nil
+}
+
 // L2InitializationConfig represents all L2 configuration
 // data that can be configured before the deployment of any L1 contracts.
 type L2InitializationConfig struct {
@@ -729,7 +741,7 @@ type L2InitializationConfig struct {
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
 	AltDADeployConfig
-	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+	FeeMarketConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -1122,6 +1134,7 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		MinBaseFee:        d.MinBaseFee,
 		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
 		// reflect the genesis state and is not used inside derivation.
 		DAFootprintGasScalar: d.DAFootprintGasScalar,
