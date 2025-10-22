@@ -201,8 +201,8 @@ abstract contract LivenessModule2 {
     ///      1. Safe disables the module via ModuleManager.disableModule().
     ///      2. Safe calls this clearLivenessModule() function to remove stored configuration.
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
-    ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
-    ///      for potential future re-enabling.
+    ///      Never calling clearLivenessModule() after disabling keeps configuration data
+    ///      persistent for potential future re-enabling.
     function clearLivenessModule() external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -333,8 +333,8 @@ abstract contract LivenessModule2 {
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
+        // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
         _safe.execTransactionFromModule({
             to: address(_safe),
@@ -349,8 +349,9 @@ abstract contract LivenessModule2 {
     //                   Internal View Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
-    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    ///         guard's configuration is valid in the context of other extensions that are enabled
+    ///         on the Safe.
     function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Asserts that the module is configured for the given Safe.
