@@ -108,7 +108,7 @@ optimism_package:
           - --eigenda.signer-private-key-hex={{ $eigendaV1SignerKey }}
           - --eigenda.eth-rpc={{ $eigendaBackendEthRpc }}
           # V2 flags
-          - --eigenda.v2.cert-verifier-router-or-immutable-verifier-addr=0x58D2B844a894f00b7E6F9F492b9F43aD54Cd4429
+          - --eigenda.v2.cert-verifier-router-or-immutable-verifier-addr=0x17ec4112c4BbD540E2c1fE0A49D264a280176F0D
           - --eigenda.v2.disperser-rpc=disperser-testnet-sepolia.eigenda.xyz:443
           - --eigenda.v2.signer-payment-key-hex={{ $eigendaV2SignerKey }}
           - --eigenda.v2.eth-rpc={{ $eigendaBackendEthRpc }}
