@@ -81,21 +81,25 @@ contract DisputeGames is FeatureFlags {
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }
 
-    function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(_dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
+    function permissionedGameChallenger(IDisputeGameFactory _dgf) internal returns (address challenger_) {
+        GameType gameType = GameTypes.PERMISSIONED_CANNON;
+        (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
+        if (gameArgsExist) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsData);
             challenger_ = gameArgs.challenger;
         } else {
-            challenger_ = IPermissionedDisputeGame(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON))).challenger();
+            challenger_ = IPermissionedDisputeGame(address(_dgf.gameImpls(gameType))).challenger();
         }
     }
 
-    function permissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(_dgf.gameArgs(GameTypes.PERMISSIONED_CANNON));
+    function permissionedGameProposer(IDisputeGameFactory _dgf) internal returns (address proposer_) {
+        GameType gameType = GameTypes.PERMISSIONED_CANNON;
+        (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
+        if (gameArgsExist) {
+            LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsData);
             proposer_ = gameArgs.proposer;
         } else {
-            proposer_ = IPermissionedDisputeGame(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON))).proposer();
+            proposer_ = IPermissionedDisputeGame(address(_dgf.gameImpls(gameType))).proposer();
         }
     }
 
@@ -167,6 +171,24 @@ contract DisputeGames is FeatureFlags {
             address gameAddr = address(_dgf.gameImpls(_gameType));
             vm.mockCall(gameAddr, abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(_challenger));
         }
+    }
+
+    function _getGameArgs(
+        IDisputeGameFactory _dgf,
+        GameType _gameType
+    )
+        private
+        returns (bool gameArgsExist_, bytes memory gameArgs_)
+    {
+        if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            return (false, gameArgs_);
+        }
+
+        bytes memory gameArgsCallData = abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType));
+        (bool success, bytes memory gameArgs) = address(_dgf).call(gameArgsCallData);
+
+        gameArgsExist_ = success && gameArgs.length > 0;
+        gameArgs_ = gameArgsExist_ ? gameArgs : bytes("");
     }
 
     function _mockGameArg(

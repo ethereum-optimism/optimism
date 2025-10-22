@@ -202,6 +202,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     )
         internal
     {
+        // Grab some values before we upgrade, to be checked later
+        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = permissionedGameProposer(disputeGameFactory);
+
         // Always start by upgrading the SuperchainConfig contract.
         // Temporarily replace the superchainPAO with a DelegateCaller.
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
@@ -270,17 +274,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         }
 
         // Create validationOverrides
-        address challengerOverride = permissionedGameChallenger(disputeGameFactory);
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
-            challenger: challengerOverride
+            challenger: initialChallenger
         });
 
         // Grab the validator, etc before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
         IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
-        address proposer = permissionedGameProposer(disputeGameFactory);
 
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
@@ -301,13 +303,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
                 sysCfg: opChainConfigs[0].systemConfigProxy,
                 absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
                 l2ChainID: l2ChainId,
-                proposer: proposer
+                proposer: initialProposer
             }),
             false,
             validationOverrides
         );
 
-        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride, proposer);
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
     /// @notice Runs some smoke tests after an upgrade
