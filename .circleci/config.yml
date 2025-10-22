@@ -2460,7 +2460,7 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
-          parallelism: 4
+          parallelism: 3
           no_output_timeout: 19m
           test_timeout: 20m
           requires:
@@ -2474,7 +2474,7 @@ workflows:
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 4
+          parallelism: 3
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
@@ -2746,6 +2746,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-supernode-docker-release
             - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
@@ -2924,6 +2925,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2953,6 +2955,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
