@@ -1,4 +1,4 @@
-//! Provides proof operation implementations for [`OpProofsStore`].
+//! Implements [`TrieCursorFactory`] and [`HashedCursorFactory`] for [`OpProofsStore`] types.
 
 use crate::{
     OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsStorage, OpProofsStore,
