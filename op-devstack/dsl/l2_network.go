@@ -231,7 +231,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	el := n.Escape().L2ELNode(match.FirstL2EL)
 
 	rollupCfg := n.Escape().RollupConfig()
-	maybeActivationTime := rollupCfg.ActivationTimeFor(forkName)
+	maybeActivationTime := rollupCfg.ActivationTime(forkName)
 	require.NotNil(maybeActivationTime, "Required fork is not scheduled for activation")
 	activationTime := *maybeActivationTime
 	if activationTime == 0 {
