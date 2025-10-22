@@ -53,7 +53,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
         }
 
         // If the liveness response period is 0, then the liveness module is enabled but not
-        /// configured.
+        // configured.
         // Challenging is not possible, so we don't need to perform any further checks.
         if (livenessResponsePeriod == 0) {
             return;
