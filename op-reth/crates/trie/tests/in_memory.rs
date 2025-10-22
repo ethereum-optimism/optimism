@@ -1,4 +1,4 @@
-//! Common test suite for `OpProofsStorage` implementations.
+//! Common test suite for [`OpProofsStorage`] implementations.
 
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_optimism_trie::{
@@ -1103,9 +1103,9 @@ async fn test_large_batch_operations<S: OpProofsStore>(
     Ok(())
 }
 
-/// Test wiped storage in `HashedPostState`
+/// Test wiped storage in [`HashedPostState`]
 ///
-/// When `store_trie_updates` receives a `HashedPostState` with wiped=true for a storage entry,
+/// When `store_trie_updates` receives a [`HashedPostState`] with wiped=true for a storage entry,
 /// it should iterate all existing values for that address and create deletion entries for them.
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
 #[tokio::test]

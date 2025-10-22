@@ -34,7 +34,7 @@ where
     T: Table<Value = VersionedValue<V>> + DupSort<SubKey = u64>,
     Cursor: DbCursorRO<T> + DbDupCursorRO<T>,
 {
-    /// Initializes new `BlockNumberVersionedCursor`
+    /// Initializes new [`BlockNumberVersionedCursor`].
     pub const fn new(cursor: Cursor, max_block_number: u64) -> Self {
         Self { _table: PhantomData, cursor, max_block_number }
     }
@@ -161,7 +161,7 @@ where
     }
 }
 
-/// MDBX implementation of `OpProofsTrieCursor`.
+/// MDBX implementation of [`OpProofsTrieCursor`].
 #[derive(Debug)]
 pub struct MdbxTrieCursor<T: Table + DupSort, Cursor> {
     inner: BlockNumberVersionedCursor<T, Cursor>,
@@ -174,7 +174,7 @@ impl<
         Cursor: DbCursorRO<T> + DbDupCursorRO<T>,
     > MdbxTrieCursor<T, Cursor>
 {
-    /// Initializes new `MdbxTrieCursor`
+    /// Initializes new [`MdbxTrieCursor`].
     pub const fn new(cursor: Cursor, max_block_number: u64, hashed_address: Option<B256>) -> Self {
         Self { inner: BlockNumberVersionedCursor::new(cursor, max_block_number), hashed_address }
     }
@@ -261,7 +261,7 @@ where
     }
 }
 
-/// MDBX implementation of `OpProofsHashedCursor` for storage state.
+/// MDBX implementation of [`OpProofsHashedCursor`] for storage state.
 #[derive(Debug)]
 pub struct MdbxStorageCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedStorageHistory, Cursor>,
@@ -294,7 +294,7 @@ where
     }
 }
 
-/// MDBX implementation of `OpProofsHashedCursor` for account state.
+/// MDBX implementation of [`OpProofsHashedCursor`] for account state.
 #[derive(Debug)]
 pub struct MdbxAccountCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedAccountHistory, Cursor>,

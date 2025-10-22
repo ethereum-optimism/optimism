@@ -140,7 +140,7 @@ impl InMemoryProofsStorage {
     }
 }
 
-/// In-memory implementation of `OpProofsTrieCursor`
+/// In-memory implementation of [`OpProofsTrieCursor`].
 #[derive(Debug)]
 pub struct InMemoryTrieCursor {
     /// Current position in the iteration (-1 means not positioned yet)
@@ -250,7 +250,7 @@ impl OpProofsTrieCursorRO for InMemoryTrieCursor {
     }
 }
 
-/// In-memory implementation of `OpProofsHashedCursor` for storage slots
+/// In-memory implementation of [`OpProofsHashedCursor`] for storage slots
 #[derive(Debug)]
 pub struct InMemoryStorageCursor {
     /// Current position in the iteration (-1 means not positioned yet)

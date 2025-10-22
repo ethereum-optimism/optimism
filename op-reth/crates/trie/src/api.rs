@@ -197,7 +197,7 @@ pub trait OpProofsStore: Send + Sync + Debug {
         block_number: u64,
     ) -> impl Future<Output = OpProofsStorageResult<BlockStateDiff>> + Send;
 
-    /// Applies `BlockStateDiff` to the earliest state (updating/deleting nodes) and updates the
+    /// Applies [`BlockStateDiff`] to the earliest state (updating/deleting nodes) and updates the
     /// earliest block number.
     fn prune_earliest_state(
         &self,

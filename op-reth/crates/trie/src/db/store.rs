@@ -22,14 +22,14 @@ use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
 use std::path::Path;
 
-/// MDBX implementation of `OpProofsStorage`.
+/// MDBX implementation of [`OpProofsStorage`].
 #[derive(Debug)]
 pub struct MdbxProofsStorage {
     env: DatabaseEnv,
 }
 
 impl MdbxProofsStorage {
-    /// Creates a new `MdbxProofsStorage` instance with the given path.
+    /// Creates a new [`MdbxProofsStorage`] instance with the given path.
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
         let env = init_db_for::<_, super::models::Tables>(path, DatabaseArguments::default())
             .map_err(OpProofsStorageError::Other)?;
