@@ -264,6 +264,9 @@ abstract contract LivenessModule2 {
             revert LivenessModule2_ResponsePeriodActive();
         }
 
+        // Reset the challenge state to allow a new challenge
+        delete challengeStartTime[_safe];
+
         // Get current owners
         address[] memory owners = _safe.getOwners();
 
@@ -295,9 +298,6 @@ abstract contract LivenessModule2 {
         if (finalOwners.length != 1 || finalOwners[0] != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_OwnershipTransferFailed();
         }
-
-        // Reset the challenge state to allow a new challenge
-        delete challengeStartTime[_safe];
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
