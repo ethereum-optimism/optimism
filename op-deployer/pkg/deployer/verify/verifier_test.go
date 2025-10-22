@@ -87,6 +87,8 @@ func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 	err = verifier.verifyContractBundle(context.Background(), bundleFile, "")
 	require.NoError(t, err)
 	require.Equal(t, len(bundle), verifier.numSkipped, "all contracts should be skipped as already verified")
+	// Ensure we actually have contracts to test with
+	require.Greater(t, len(bundle), 0, "contract bundle is empty")
 	require.Equal(t, 0, verifier.numFailed)
 	require.Equal(t, 0, verifier.numVerified)
 }
