@@ -2,7 +2,7 @@
 
 use crate::{error::L1BlockInfoError, revm_spec_by_timestamp_after_bedrock, OpBlockExecutionError};
 use alloy_consensus::Transaction;
-use alloy_primitives::{hex, U256};
+use alloy_primitives::{hex, U16, U256};
 use op_revm::L1BlockInfo;
 use reth_execution_errors::BlockExecutionError;
 use reth_optimism_forks::OpHardforks;
@@ -13,6 +13,10 @@ const L1_BLOCK_ECOTONE_SELECTOR: [u8; 4] = hex!("440a5e20");
 
 /// The function selector of the "setL1BlockValuesIsthmus" function in the `L1Block` contract.
 const L1_BLOCK_ISTHMUS_SELECTOR: [u8; 4] = hex!("098999be");
+
+/// The function selector of the "setL1BlockValuesJovian" function in the `L1Block` contract.
+/// This is the first 4 bytes of `keccak256("setL1BlockValuesJovian()")`.
+const L1_BLOCK_JOVIAN_SELECTOR: [u8; 4] = hex!("3db6be2b");
 
 /// Extracts the [`L1BlockInfo`] from the L2 block. The L1 info transaction is always the first
 /// transaction in the L2 block.
@@ -52,11 +56,14 @@ pub fn extract_l1_info_from_tx<T: Transaction>(
 /// If the input is shorter than 4 bytes.
 pub fn parse_l1_info(input: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
     // Parse the L1 info transaction into an L1BlockInfo struct, depending on the function selector.
-    // There are currently 3 variants:
+    // There are currently 4 variants:
+    // - Jovian
     // - Isthmus
     // - Ecotone
     // - Bedrock
-    if input[0..4] == L1_BLOCK_ISTHMUS_SELECTOR {
+    if input[0..4] == L1_BLOCK_JOVIAN_SELECTOR {
+        parse_l1_info_tx_jovian(input[4..].as_ref())
+    } else if input[0..4] == L1_BLOCK_ISTHMUS_SELECTOR {
         parse_l1_info_tx_isthmus(input[4..].as_ref())
     } else if input[0..4] == L1_BLOCK_ECOTONE_SELECTOR {
         parse_l1_info_tx_ecotone(input[4..].as_ref())
@@ -88,14 +95,12 @@ pub fn parse_l1_info_tx_bedrock(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
     let l1_fee_scalar = U256::try_from_be_slice(&data[224..256])
         .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::FeeScalarConversion))?;
 
-    let l1block = L1BlockInfo {
+    Ok(L1BlockInfo {
         l1_base_fee,
         l1_fee_overhead: Some(l1_fee_overhead),
         l1_base_fee_scalar: l1_fee_scalar,
         ..Default::default()
-    };
-
-    Ok(l1block)
+    })
 }
 
 /// Updates the L1 block values for an Ecotone upgraded chain.
@@ -142,15 +147,13 @@ pub fn parse_l1_info_tx_ecotone(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
     let l1_blob_base_fee = U256::try_from_be_slice(&data[64..96])
         .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BlobBaseFeeConversion))?;
 
-    let l1block = L1BlockInfo {
+    Ok(L1BlockInfo {
         l1_base_fee,
         l1_base_fee_scalar,
         l1_blob_base_fee: Some(l1_blob_base_fee),
         l1_blob_base_fee_scalar: Some(l1_blob_base_fee_scalar),
         ..Default::default()
-    };
-
-    Ok(l1block)
+    })
 }
 
 /// Updates the L1 block values for an Isthmus upgraded chain.
@@ -205,7 +208,7 @@ pub fn parse_l1_info_tx_isthmus(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
         OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::OperatorFeeConstantConversion)
     })?;
 
-    let l1block = L1BlockInfo {
+    Ok(L1BlockInfo {
         l1_base_fee,
         l1_base_fee_scalar,
         l1_blob_base_fee: Some(l1_blob_base_fee),
@@ -213,9 +216,78 @@ pub fn parse_l1_info_tx_isthmus(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecu
         operator_fee_scalar: Some(operator_fee_scalar),
         operator_fee_constant: Some(operator_fee_constant),
         ..Default::default()
-    };
+    })
+}
 
-    Ok(l1block)
+/// Updates the L1 block values for an Jovian upgraded chain.
+/// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+/// Params are expected to be in the following order:
+///   1. _baseFeeScalar       L1 base fee scalar
+///   2. _blobBaseFeeScalar   L1 blob base fee scalar
+///   3. _sequenceNumber      Number of L2 blocks since epoch start.
+///   4. _timestamp           L1 timestamp.
+///   5. _number              L1 blocknumber.
+///   6. _basefee             L1 base fee.
+///   7. _blobBaseFee         L1 blob base fee.
+///   8. _hash                L1 blockhash.
+///   9. _batcherHash         Versioned hash to authenticate batcher by.
+///  10. _operatorFeeScalar   Operator fee scalar
+///  11. _operatorFeeConstant Operator fee constant
+///  12. _daFootprintGasScalar DA footprint gas scalar
+pub fn parse_l1_info_tx_jovian(data: &[u8]) -> Result<L1BlockInfo, OpBlockExecutionError> {
+    if data.len() != 174 {
+        return Err(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::UnexpectedCalldataLength));
+    }
+
+    // https://github.com/ethereum-optimism/op-geth/blob/60038121c7571a59875ff9ed7679c48c9f73405d/core/types/rollup_cost.go#L317-L328
+    //
+    // data layout assumed for Ecotone:
+    // offset type varname
+    // 0     <selector>
+    // 4     uint32 _basefeeScalar (start offset in this scope)
+    // 8     uint32 _blobBaseFeeScalar
+    // 12    uint64 _sequenceNumber,
+    // 20    uint64 _timestamp,
+    // 28    uint64 _l1BlockNumber
+    // 36    uint256 _basefee,
+    // 68    uint256 _blobBaseFee,
+    // 100   bytes32 _hash,
+    // 132   bytes32 _batcherHash,
+    // 164   uint32 _operatorFeeScalar
+    // 168   uint64 _operatorFeeConstant
+    // 176   uint16 _daFootprintGasScalar
+
+    let l1_base_fee_scalar = U256::try_from_be_slice(&data[..4])
+        .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BaseFeeScalarConversion))?;
+    let l1_blob_base_fee_scalar = U256::try_from_be_slice(&data[4..8]).ok_or({
+        OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BlobBaseFeeScalarConversion)
+    })?;
+    let l1_base_fee = U256::try_from_be_slice(&data[32..64])
+        .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BaseFeeConversion))?;
+    let l1_blob_base_fee = U256::try_from_be_slice(&data[64..96])
+        .ok_or(OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::BlobBaseFeeConversion))?;
+    let operator_fee_scalar = U256::try_from_be_slice(&data[160..164]).ok_or({
+        OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::OperatorFeeScalarConversion)
+    })?;
+    let operator_fee_constant = U256::try_from_be_slice(&data[164..172]).ok_or({
+        OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::OperatorFeeConstantConversion)
+    })?;
+    let da_footprint_gas_scalar: u16 = U16::try_from_be_slice(&data[172..174])
+        .ok_or({
+            OpBlockExecutionError::L1BlockInfo(L1BlockInfoError::DaFootprintGasScalarConversion)
+        })?
+        .to();
+
+    Ok(L1BlockInfo {
+        l1_base_fee,
+        l1_base_fee_scalar,
+        l1_blob_base_fee: Some(l1_blob_base_fee),
+        l1_blob_base_fee_scalar: Some(l1_blob_base_fee_scalar),
+        operator_fee_scalar: Some(operator_fee_scalar),
+        operator_fee_constant: Some(operator_fee_constant),
+        da_footprint_gas_scalar: Some(da_footprint_gas_scalar),
+        ..Default::default()
+    })
 }
 
 /// An extension trait for [`L1BlockInfo`] that allows us to calculate the L1 cost of a transaction
@@ -282,6 +354,7 @@ mod tests {
     use super::*;
     use alloy_consensus::{Block, BlockBody};
     use alloy_eips::eip2718::Decodable2718;
+    use alloy_primitives::keccak256;
     use reth_optimism_chainspec::OP_MAINNET;
     use reth_optimism_forks::OpHardforks;
     use reth_optimism_primitives::OpTransactionSigned;
@@ -306,6 +379,12 @@ mod tests {
         assert_eq!(l1_info.l1_base_fee_scalar, U256::from(1_000_000));
         assert_eq!(l1_info.l1_blob_base_fee, None);
         assert_eq!(l1_info.l1_blob_base_fee_scalar, None);
+    }
+
+    #[test]
+    fn test_verify_set_jovian() {
+        let hash = &keccak256("setL1BlockValuesJovian()")[..4];
+        assert_eq!(hash, L1_BLOCK_JOVIAN_SELECTOR)
     }
 
     #[test]
@@ -407,5 +486,34 @@ mod tests {
         assert_eq!(l1_block_info.l1_blob_base_fee_scalar, l1_blob_base_fee_scalar);
         assert_eq!(l1_block_info.operator_fee_scalar, operator_fee_scalar);
         assert_eq!(l1_block_info.operator_fee_constant, operator_fee_constant);
+    }
+
+    #[test]
+    fn parse_l1_info_jovian() {
+        // L1 block info from a devnet with Isthmus activated
+        const DATA: &[u8] = &hex!(
+            "3db6be2b00000558000c5fc500000000000000030000000067a9f765000000000000002900000000000000000000000000000000000000000000000000000000006a6d09000000000000000000000000000000000000000000000000000000000000000172fcc8e8886636bdbe96ba0e4baab67ea7e7811633f52b52e8cf7a5123213b6f000000000000000000000000d3f2c5afb2d76f5579f326b0cd7da5f5a4126c3500004e2000000000000001f4dead"
+        );
+
+        // expected l1 block info verified against expected l1 fee and operator fee for tx.
+        let l1_base_fee = U256::from(6974729);
+        let l1_base_fee_scalar = U256::from(1368);
+        let l1_blob_base_fee = Some(U256::from(1));
+        let l1_blob_base_fee_scalar = Some(U256::from(810949));
+        let operator_fee_scalar = Some(U256::from(20000));
+        let operator_fee_constant = Some(U256::from(500));
+        let da_footprint_gas_scalar: Option<u16> = Some(U16::from(0xdead).to());
+
+        // test
+
+        let l1_block_info = parse_l1_info(DATA).unwrap();
+
+        assert_eq!(l1_block_info.l1_base_fee, l1_base_fee);
+        assert_eq!(l1_block_info.l1_base_fee_scalar, l1_base_fee_scalar);
+        assert_eq!(l1_block_info.l1_blob_base_fee, l1_blob_base_fee);
+        assert_eq!(l1_block_info.l1_blob_base_fee_scalar, l1_blob_base_fee_scalar);
+        assert_eq!(l1_block_info.operator_fee_scalar, operator_fee_scalar);
+        assert_eq!(l1_block_info.operator_fee_constant, operator_fee_constant);
+        assert_eq!(l1_block_info.da_footprint_gas_scalar, da_footprint_gas_scalar);
     }
 }

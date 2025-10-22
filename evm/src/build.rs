@@ -46,7 +46,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
             evm_env,
             execution_ctx: ctx,
             transactions,
-            output: BlockExecutionResult { receipts, gas_used, .. },
+            output: BlockExecutionResult { receipts, gas_used, blob_gas_used, requests: _ },
             bundle_state,
             state_root,
             state_provider,
@@ -80,7 +80,11 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
         };
 
         let (excess_blob_gas, blob_gas_used) =
-            if self.chain_spec.is_ecotone_active_at_timestamp(timestamp) {
+            if self.chain_spec.is_jovian_active_at_timestamp(timestamp) {
+                // In jovian, we're using the blob gas used field to store the current da
+                // footprint's value.
+                (Some(0), Some(*blob_gas_used))
+            } else if self.chain_spec.is_ecotone_active_at_timestamp(timestamp) {
                 (Some(0), Some(0))
             } else {
                 (None, None)

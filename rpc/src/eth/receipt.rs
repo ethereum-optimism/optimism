@@ -131,10 +131,14 @@ pub struct OpReceiptFieldsBuilder {
     pub l1_blob_base_fee: Option<u128>,
     /// The current L1 blob base fee scalar.
     pub l1_blob_base_fee_scalar: Option<u128>,
+    /* ---------------------------------------- Isthmus ---------------------------------------- */
     /// The current operator fee scalar.
     pub operator_fee_scalar: Option<u128>,
     /// The current L1 blob base fee scalar.
     pub operator_fee_constant: Option<u128>,
+    /* ---------------------------------------- Jovian ----------------------------------------- */
+    /// The current DA footprint gas scalar.
+    pub da_footprint_gas_scalar: Option<u16>,
 }
 
 impl OpReceiptFieldsBuilder {
@@ -154,6 +158,7 @@ impl OpReceiptFieldsBuilder {
             l1_blob_base_fee_scalar: None,
             operator_fee_scalar: None,
             operator_fee_constant: None,
+            da_footprint_gas_scalar: None,
         }
     }
 
@@ -205,6 +210,8 @@ impl OpReceiptFieldsBuilder {
                 l1_block_info.operator_fee_constant.map(|constant| constant.saturating_to());
         }
 
+        self.da_footprint_gas_scalar = l1_block_info.da_footprint_gas_scalar;
+
         Ok(self)
     }
 
@@ -236,6 +243,7 @@ impl OpReceiptFieldsBuilder {
             l1_blob_base_fee_scalar,
             operator_fee_scalar,
             operator_fee_constant,
+            da_footprint_gas_scalar,
         } = self;
 
         OpTransactionReceiptFields {
@@ -249,7 +257,7 @@ impl OpReceiptFieldsBuilder {
                 l1_blob_base_fee_scalar,
                 operator_fee_scalar,
                 operator_fee_constant,
-                da_footprint_gas_scalar: None,
+                da_footprint_gas_scalar,
             },
             deposit_nonce,
             deposit_receipt_version,
@@ -409,7 +417,7 @@ mod test {
             l1_blob_base_fee_scalar,
             operator_fee_scalar,
             operator_fee_constant,
-            ..
+            da_footprint_gas_scalar,
         } = receipt_meta.l1_block_info;
 
         assert_eq!(
@@ -452,6 +460,11 @@ mod test {
             operator_fee_constant,
             TX_META_TX_1_OP_MAINNET_BLOCK_124665056.l1_block_info.operator_fee_constant,
             "incorrect operator fee constant"
+        );
+        assert_eq!(
+            da_footprint_gas_scalar,
+            TX_META_TX_1_OP_MAINNET_BLOCK_124665056.l1_block_info.da_footprint_gas_scalar,
+            "incorrect da footprint gas scalar"
         );
     }
 
@@ -540,7 +553,7 @@ mod test {
             l1_blob_base_fee_scalar,
             operator_fee_scalar,
             operator_fee_constant,
-            ..
+            da_footprint_gas_scalar,
         } = receipt_meta.l1_block_info;
 
         assert_eq!(l1_gas_price, Some(14121491676), "incorrect l1 base fee (former gas price)");
@@ -552,5 +565,6 @@ mod test {
         assert_eq!(l1_blob_base_fee_scalar, Some(1055762), "incorrect l1 blob base fee scalar");
         assert_eq!(operator_fee_scalar, None, "incorrect operator fee scalar");
         assert_eq!(operator_fee_constant, None, "incorrect operator fee constant");
+        assert_eq!(da_footprint_gas_scalar, None, "incorrect da footprint gas scalar");
     }
 }

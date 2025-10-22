@@ -143,8 +143,8 @@ where
         self.block_info.timestamp.store(header.timestamp(), Ordering::Relaxed);
         self.block_info.number.store(header.number(), Ordering::Relaxed);
 
-        if let Some(Ok(cost_addition)) = tx.map(reth_optimism_evm::extract_l1_info_from_tx) {
-            *self.block_info.l1_block_info.write() = cost_addition;
+        if let Some(Ok(l1_block_info)) = tx.map(reth_optimism_evm::extract_l1_info_from_tx) {
+            *self.block_info.l1_block_info.write() = l1_block_info;
         }
 
         if self.chain_spec().is_interop_active_at_timestamp(header.timestamp()) {

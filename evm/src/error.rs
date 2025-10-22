@@ -38,6 +38,9 @@ pub enum L1BlockInfoError {
     /// Operator fee constant conversion error
     #[error("could not convert operator fee constant")]
     OperatorFeeConstantConversion,
+    /// DA foootprint gas scalar constant conversion error
+    #[error("could not convert DA footprint gas scalar constant")]
+    DaFootprintGasScalarConversion,
     /// Optimism hardforks not active
     #[error("Optimism hardforks are not active")]
     HardforksNotActive,

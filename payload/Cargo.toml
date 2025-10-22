@@ -44,6 +44,7 @@ op-alloy-consensus.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-debug.workspace = true
 alloy-consensus.workspace = true
+alloy-evm.workspace = true
 
 # misc
 derive_more.workspace = true

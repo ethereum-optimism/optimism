@@ -1,5 +1,4 @@
 //! Optimism payload builder implementation.
-
 use crate::{
     config::{OpBuilderConfig, OpDAConfig},
     error::OpPayloadBuilderError,
@@ -7,6 +6,7 @@ use crate::{
     OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives,
 };
 use alloy_consensus::{BlockHeader, Transaction, Typed2718};
+use alloy_evm::Evm as AlloyEvm;
 use alloy_primitives::{B256, U256};
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
@@ -14,10 +14,12 @@ use reth_basic_payload_builder::*;
 use reth_chain_state::ExecutedBlock;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
+    block::BlockExecutorFor,
     execute::{
         BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutor, BlockValidationError,
     },
-    ConfigureEvm, Database, Evm,
+    op_revm::{constants::L1_BLOCK_CONTRACT, L1BlockInfo},
+    ConfigureEvm, Database,
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_forks::OpHardforks;
@@ -340,6 +342,11 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         let mut db = State::builder().with_database(db).with_bundle_update().build();
 
+        // Load the L1 block contract into the database cache. If the L1 block contract is not
+        // pre-loaded the database will panic when trying to fetch the DA footprint gas
+        // scalar.
+        db.load_cache_account(L1_BLOCK_CONTRACT).map_err(BlockExecutionError::other)?;
+
         let mut builder = ctx.block_builder(&mut db)?;
 
         // 1. apply pre-execution changes
@@ -509,15 +516,25 @@ impl ExecutionInfo {
         tx_data_limit: Option<u64>,
         block_data_limit: Option<u64>,
         tx_gas_limit: u64,
+        da_footprint_gas_scalar: Option<u16>,
     ) -> bool {
         if tx_data_limit.is_some_and(|da_limit| tx_da_size > da_limit) {
             return true;
         }
 
-        if block_data_limit
-            .is_some_and(|da_limit| self.cumulative_da_bytes_used + tx_da_size > da_limit)
-        {
+        let total_da_bytes_used = self.cumulative_da_bytes_used.saturating_add(tx_da_size);
+
+        if block_data_limit.is_some_and(|da_limit| total_da_bytes_used > da_limit) {
             return true;
+        }
+
+        // Post Jovian: the tx DA footprint must be less than the block gas limit
+        if let Some(da_footprint_gas_scalar) = da_footprint_gas_scalar {
+            let tx_da_footprint =
+                total_da_bytes_used.saturating_mul(da_footprint_gas_scalar as u64);
+            if tx_da_footprint > block_gas_limit {
+                return true;
+            }
         }
 
         self.cumulative_gas_used + tx_gas_limit > block_gas_limit
@@ -586,7 +603,13 @@ where
     pub fn block_builder<'a, DB: Database>(
         &'a self,
         db: &'a mut State<DB>,
-    ) -> Result<impl BlockBuilder<Primitives = Evm::Primitives> + 'a, PayloadBuilderError> {
+    ) -> Result<
+        impl BlockBuilder<
+                Primitives = Evm::Primitives,
+                Executor: BlockExecutorFor<'a, Evm::BlockExecutorFactory, DB>,
+            > + 'a,
+        PayloadBuilderError,
+    > {
         self.evm_config
             .builder_for_next_block(
                 db,
@@ -649,14 +672,18 @@ where
     /// Executes the given best transactions and updates the execution info.
     ///
     /// Returns `Ok(Some(())` if the job was cancelled.
-    pub fn execute_best_transactions(
+    pub fn execute_best_transactions<Builder>(
         &self,
         info: &mut ExecutionInfo,
-        builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
+        builder: &mut Builder,
         mut best_txs: impl PayloadTransactions<
             Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
-    ) -> Result<Option<()>, PayloadBuilderError> {
+    ) -> Result<Option<()>, PayloadBuilderError>
+    where
+        Builder: BlockBuilder<Primitives = Evm::Primitives>,
+        <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
+    {
         let block_gas_limit = builder.evm_mut().block().gas_limit();
         let block_da_limit = self.da_config.max_da_block_size();
         let tx_da_limit = self.da_config.max_da_tx_size();
@@ -666,12 +693,23 @@ where
             let interop = tx.interop_deadline();
             let tx_da_size = tx.estimated_da_size();
             let tx = tx.into_consensus();
+
+            let da_footprint_gas_scalar = self
+                .chain_spec
+                .is_jovian_active_at_timestamp(self.attributes().timestamp())
+                .then_some(
+                    L1BlockInfo::fetch_da_footprint_gas_scalar(builder.evm_mut().db_mut()).expect(
+                        "DA footprint should always be available from the database post jovian",
+                    ),
+                );
+
             if info.is_tx_over_limits(
                 tx_da_size,
                 block_gas_limit,
                 tx_da_limit,
                 block_da_limit,
                 tx.gas_limit(),
+                da_footprint_gas_scalar,
             ) {
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
