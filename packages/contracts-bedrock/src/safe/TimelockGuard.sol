@@ -173,13 +173,13 @@ abstract contract TimelockGuard is BaseGuard {
 
     /// @notice Emitted when a transaction is scheduled for a Safe.
     /// @param safe The Safe whose transaction is scheduled.
-    /// @param txHash The identifier of the scheduled transaction (nonce-independent).
+    /// @param txHash The identifier of the scheduled transaction.
     /// @param executionTime The timestamp when execution becomes valid.
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txHash, uint256 executionTime);
 
     /// @notice Emitted when a transaction is cancelled for a Safe.
     /// @param safe The Safe whose transaction is cancelled.
-    /// @param txHash The identifier of the cancelled transaction (nonce-independent).
+    /// @param txHash The identifier of the cancelled transaction.
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
 
     /// @notice Emitted when the cancellation threshold is updated
@@ -190,7 +190,7 @@ abstract contract TimelockGuard is BaseGuard {
 
     /// @notice Emitted when a transaction is executed for a Safe.
     /// @param safe The Safe whose transaction is executed.
-    /// @param txHash The identifier of the executed transaction (nonce-independent).
+    /// @param txHash The identifier of the executed transaction.
     event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
     /// @notice Used to emit a message, primarily to ensure that the cancelTransaction function is
