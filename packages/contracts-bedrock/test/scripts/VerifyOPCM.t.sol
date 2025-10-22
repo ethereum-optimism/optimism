@@ -109,7 +109,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         }
     }
 
-    function test_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
+    function testFuzz_run_bitmapNotEmptyOnMainnet_reverts(bytes32 _devFeatureBitmap, uint256 chainIdIdx) public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
@@ -121,8 +121,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             address(opcm), abi.encodeCall(IOPContractsManager.devFeatureBitmap, ()), abi.encode(_devFeatureBitmap)
         );
 
-        // Set the chain ID to 1.
-        vm.chainId(1);
+        // Set to production chain id
+        uint256[4] memory productionChainIds = [uint256(1), uint256(11155111), uint256(17000), uint256(560048)];
+        chainIdIdx = chainIdIdx % productionChainIds.length;
+        uint256 chainId = productionChainIds[chainIdIdx];
+        vm.chainId(chainId);
 
         // Disable testing environment.
         vm.etch(address(0xbeefcafe), bytes(""));

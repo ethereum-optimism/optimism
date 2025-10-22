@@ -972,9 +972,29 @@ contract VerifyOPCM is Script {
         bool isTestingEnvironment = address(0xbeefcafe).code.length > 0;
 
         // Check if any dev features are enabled.
-        if (block.chainid == 1 && !isTestingEnvironment && devFeatureBitmap != bytes32(0)) {
+        if (_isProductionChain(block.chainid) && !isTestingEnvironment && devFeatureBitmap != bytes32(0)) {
             revert VerifyOPCM_DevFeatureBitmapNotEmpty();
         }
+    }
+
+    function _isProductionChain(uint256 _chainId) internal pure returns (bool) {
+        if (_chainId == 1) {
+            // Mainnet
+            return true;
+        }
+        if (_chainId == 11155111) {
+            // Sepolia
+            return true;
+        }
+        if (_chainId == 17000) {
+            // Holesky
+            return true;
+        }
+        if (_chainId == 560048) {
+            // Hoodi
+            return true;
+        }
+        return false;
     }
 
     /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for
