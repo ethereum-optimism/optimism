@@ -13,6 +13,7 @@ import { Constants } from "src/libraries/Constants.sol";
 
 /// @title TimelockGuard
 /// @notice This guard provides timelock functionality for Safe transactions
+///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This is a singleton contract, any Safe on the network can use this guard to enforce a timelock delay, and
 ///      allow a subset of signers to cancel a transaction if they do not agree with the execution. This provides
 ///      significant security improvements over the Safe's default execution mechanism, which will allow any transaction

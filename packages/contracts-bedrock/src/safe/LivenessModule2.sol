@@ -12,6 +12,7 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
+///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
