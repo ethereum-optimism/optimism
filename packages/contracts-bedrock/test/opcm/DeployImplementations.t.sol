@@ -362,6 +362,27 @@ contract DeployImplementations_Test is Test {
             302400,
             "PermissionedDisputeGameV2 maxClockDuration incorrect"
         );
+
+        assertEq(
+            output.opcm.blueprints().permissionedDisputeGame1,
+            address(0),
+            "PermissionedDisputeGame1 blueprint should not be deployed"
+        );
+        assertEq(
+            output.opcm.blueprints().permissionedDisputeGame2,
+            address(0),
+            "PermissionedDisputeGame2 blueprint should not be deployed"
+        );
+        assertEq(
+            output.opcm.blueprints().permissionlessDisputeGame1,
+            address(0),
+            "PermissionlessDisputeGame1 blueprint should not be deployed"
+        );
+        assertEq(
+            output.opcm.blueprints().permissionlessDisputeGame1,
+            address(0),
+            "PermissionlessDisputeGame2 blueprint should not be deployed"
+        );
     }
 
     function test_v2ParamsValidation_withFlagDisabled_succeeds() public {
