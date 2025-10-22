@@ -9,7 +9,7 @@ import (
 )
 
 func TestJovianNetworkTransactions(t *testing.T) {
-	upgradeTxns, err := JovianNetworkUpgradeTransactions(true, true)
+	upgradeTxns, err := JovianNetworkUpgradeTransactions()
 	require.NoError(t, err)
 	require.Len(t, upgradeTxns, 5)
 
