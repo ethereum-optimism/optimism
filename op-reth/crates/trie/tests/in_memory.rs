@@ -1,4 +1,4 @@
-//! Common test suite for [`OpProofsStorage`] implementations.
+//! Common test suite for [`OpProofsStore`] implementations.
 
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_optimism_trie::{

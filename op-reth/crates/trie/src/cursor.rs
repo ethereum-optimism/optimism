@@ -12,7 +12,7 @@ use reth_trie::{
     BranchNodeCompact, Nibbles,
 };
 
-/// Manages reading storage or account trie nodes from [`OpProofsTrieCursor`].
+/// Manages reading storage or account trie nodes from [`OpProofsTrieCursorRO`].
 #[derive(Debug, Clone, Constructor, From)]
 pub struct OpProofsTrieCursor<C: OpProofsTrieCursorRO>(pub C);
 

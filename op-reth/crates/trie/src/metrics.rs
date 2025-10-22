@@ -21,7 +21,7 @@ use strum::{EnumCount, EnumIter, IntoEnumIterator};
 /// Alias for [`OpProofsStorageWithMetrics`].
 pub type OpProofsStorage<S> = OpProofsStorageWithMetrics<S>;
 
-/// Alias for [`OpProofsTrieCursor`](cursor::OpProofsTrieCursor) with metrics layer.
+/// Alias for [`OpProofsTrieCursorRO`](cursor::OpProofsTrieCursor) with metrics layer.
 pub type OpProofsTrieCursor<C> = cursor::OpProofsTrieCursor<OpProofsTrieCursorWithMetrics<C>>;
 
 /// Alias for [`OpProofsHashedAccountCursor`](cursor::OpProofsHashedAccountCursor) with metrics
@@ -217,7 +217,7 @@ pub struct BlockMetrics {
     pub hashed_storages_written_total: Counter,
 }
 
-/// Wrapper for [`OpProofsTrieCursor`] that records metrics.
+/// Wrapper for [`OpProofsTrieCursorRO`] that records metrics.
 #[derive(Debug, Constructor, Clone)]
 pub struct OpProofsTrieCursorWithMetrics<C> {
     cursor: C,
@@ -275,7 +275,7 @@ impl<C: OpProofsHashedCursorRO> OpProofsHashedCursorRO for OpProofsHashedCursorW
     }
 }
 
-/// Wrapper around [`OpProofsStorage`] that records metrics for all operations.
+/// Wrapper around [`OpProofsStore`] type that records metrics for all operations.
 #[derive(Debug, Clone)]
 pub struct OpProofsStorageWithMetrics<S> {
     storage: S,

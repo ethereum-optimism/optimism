@@ -161,7 +161,7 @@ where
     }
 }
 
-/// MDBX implementation of [`OpProofsTrieCursor`].
+/// MDBX implementation of [`OpProofsTrieCursorRO`].
 #[derive(Debug)]
 pub struct MdbxTrieCursor<T: Table + DupSort, Cursor> {
     inner: BlockNumberVersionedCursor<T, Cursor>,
@@ -261,7 +261,7 @@ where
     }
 }
 
-/// MDBX implementation of [`OpProofsHashedCursor`] for storage state.
+/// MDBX implementation of [`OpProofsHashedCursorRO`] for storage state.
 #[derive(Debug)]
 pub struct MdbxStorageCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedStorageHistory, Cursor>,
@@ -294,7 +294,7 @@ where
     }
 }
 
-/// MDBX implementation of [`OpProofsHashedCursor`] for account state.
+/// MDBX implementation of [`OpProofsHashedCursorRO`] for account state.
 #[derive(Debug)]
 pub struct MdbxAccountCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedAccountHistory, Cursor>,

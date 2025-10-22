@@ -22,7 +22,7 @@ use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
 use std::path::Path;
 
-/// MDBX implementation of [`OpProofsStorage`].
+/// MDBX implementation of [`OpProofsStore`].
 #[derive(Debug)]
 pub struct MdbxProofsStorage {
     env: DatabaseEnv,
