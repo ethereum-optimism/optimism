@@ -11,6 +11,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title SaferSafes
 /// @notice Combined Safe extensions providing both liveness module and timelock guard functionality
+///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This contract can be enabled simultaneously as both a module and a guard on a Safe:
 ///      - As a module: provides liveness challenge functionality to prevent multisig deadlock
 ///      - As a guard: provides timelock functionality for transaction delays and cancellation
