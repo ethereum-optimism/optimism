@@ -15,6 +15,36 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///      +----------------------+
+///      | Start (no challenge) |<---------------------------+
+///      +----------------------+                            |
+///       |                                                  | respond() by Safe
+///       |  challenge() by fallbackOwner                    | OR
+///       |                                                  | configureLivenessModule() by Safe
+///       v                                                  | OR
+///      +--------------------------------------+            | clearLivenessModule() by Safe
+///      | Challenge Started                    |            |
+///      | challengeStartTime = block.timestamp |------------+
+///      +--------------------------------------+            |
+///       |                                                  |
+///       |  block.timestamp >= challengeStartTime +         |
+///       |                     livenessResponsePeriod       |
+///       v                                                  |
+///      +-----+-----------------------------------------+   |
+///      | Ready to transfer ownership to fallback owner |---+
+///      +-----+-----------------------------------------+
+///       |
+///       |  changeOwnershipToFallback() by fallbackOwner
+///       |
+///       v
+///      +------------------------------+
+///      | Ownership Transferred        |
+///      | - fallback owner sole owner  |
+///      | - guard cleared              |
+///      | - challenge cleared          |
+///      +------------------------------+
+///
 abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
