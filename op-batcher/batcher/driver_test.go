@@ -55,6 +55,10 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	cfg := defaultTestRollupConfig
 	cfg.Genesis.L1.Number = genesisL1Origin
 
+	var closeAppFn context.CancelCauseFunc = func(cause error) {
+		t.Fatalf("closeAppFn called, batcher hit a critical error: %v", cause)
+	}
+
 	return NewBatchSubmitter(DriverSetup{
 		Log:          testlog.Logger(t, log.LevelDebug),
 		Metr:         metrics.NoopMetrics,
@@ -66,7 +70,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
-	}, nil), ep
+	}, closeAppFn), ep
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {

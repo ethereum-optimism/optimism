@@ -115,9 +115,13 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			opt(batcherID, batcherCLIConfig)
 		}
 
+		var closeAppFn context.CancelCauseFunc = func(cause error) {
+			logger.Error("Batcher hit a critical error", "cause", cause)
+		}
+
 		batcher, err := bss.BatcherServiceFromCLIConfig(
 			p.Ctx(), "0.0.1", batcherCLIConfig,
-			logger, nil)
+			logger, closeAppFn)
 		require.NoError(err)
 		require.NoError(batcher.Start(p.Ctx()))
 		p.Cleanup(func() {
