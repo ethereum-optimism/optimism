@@ -317,7 +317,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         IOPContractsManager _opcm,
         IOPContractsManager.OpChainConfig memory _opChainConfig,
         address _challenger,
-        address _expectedProposer
+        address _proposer
     )
         internal
     {
@@ -339,7 +339,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         gameTypes[1] = GameTypes.CANNON;
         for (uint256 i = 0; i < gameTypes.length; i++) {
             GameType gt = gameTypes[i];
-            vm.prank(_expectedProposer, _expectedProposer);
+            vm.prank(_proposer, _proposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
                 address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
             );
@@ -355,14 +355,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             vm.assertEq(30, game.splitDepth());
             vm.assertEq(l2BlockNumber, game.l2BlockNumber());
             vm.assertEq(expectedVm, address(game.vm()));
-            vm.assertEq(_expectedProposer, game.gameCreator());
+            vm.assertEq(_proposer, game.gameCreator());
             vm.assertEq(claim.raw(), rootClaim.raw());
             vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
 
             if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
                 vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
                 vm.assertEq(_challenger, game.challenger());
-                vm.assertEq(_expectedProposer, game.proposer());
+                vm.assertEq(_proposer, game.proposer());
             } else {
                 vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }
