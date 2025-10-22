@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Safe
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 
 // Safe Extensions
 import { LivenessModule2 } from "./LivenessModule2.sol";
@@ -22,8 +22,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      functionality is not desired, then there is no need to enable or configure it.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
@@ -39,7 +39,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
         }
 
         uint256 timelockDelay = _safeState[_safe].timelockDelay;
-        uint256 livenessResponsePeriod = livenessSafeConfiguration[address(_safe)].livenessResponsePeriod;
+        uint256 livenessResponsePeriod = _livenessSafeConfiguration[_safe].livenessResponsePeriod;
 
         // If the timelock delay is 0, then the timelock guard is enabled but not configured.
         // No delay is applied to transactions, so we don't need to perform any further checks.

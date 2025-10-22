@@ -131,49 +131,65 @@ func (of *OperatorFee) VerifyL2Config(expectedScalar uint32, expectedConstant ui
 }
 
 func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.Int, expectedScalar uint32, expectedConstant uint64) OperatorFeeValidationResult {
-	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
-	of.require.NoError(err)
-
+	// Ensure there is at least one user transaction, to trigger flow of operator fees to vault.
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(of.ctx)
 	of.require.NoError(err)
 	of.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	blockHash := receipt.BlockHash
-	blockRef, err := from.el.stackEL().EthClient().BlockRefByHash(of.ctx, blockHash)
-	of.require.NoError(err)
-	isJovian := of.l2Network.IsForkActive(rollup.Jovian, blockRef.Time)
-
-	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
+	info, txs, err := from.el.stackEL().EthClient().InfoAndTxsByHash(of.ctx, blockHash)
 	of.require.NoError(err)
 
+	// Infer active fork from block info
+	isJovian := of.l2Network.IsForkActive(rollup.Jovian, info.Time())
+
+	// Verify GPO upgraded and jovian active
+	isJovianinGPO, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
+	of.require.NoError(err)
+	if isJovian {
+		of.require.Equal(isJovianinGPO, true)
+	} else {
+		of.require.Equal(isJovianinGPO, false)
+	}
+
+	// Get updated balance in operator fee vault to compute delta
+	vaultAfter, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, receipt.BlockNumber)
+	of.require.NoError(err)
+	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, big.NewInt(0).Sub(receipt.BlockNumber, big.NewInt(1)))
+	of.require.NoError(err)
 	vaultIncrease := new(big.Int).Sub(vaultAfter, vaultBefore)
 
-	var expectedOperatorFee *big.Int
-	if expectedScalar == 0 && expectedConstant == 0 {
-		expectedOperatorFee = big.NewInt(0)
-	} else {
-		isJovianinGPO, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
-		of.require.NoError(err)
+	// Loop through transactions in block to compute expected operator fee vault increase
+	expectedOperatorFeeVaultIncrease := big.NewInt(0)
+	if !(expectedScalar == 0 && expectedConstant == 0) {
+		// The test submits one user transaction but we loop over all user transactions
+		// to make the test robust to any other traffic on the chain.
+		for _, tx := range txs {
+			if tx.Type() == types.DepositTxType {
+				continue
+			}
+			receipt, err := from.el.stackEL().EthClient().TransactionReceipt(of.ctx, tx.Hash())
+			of.require.NoError(err)
 
-		operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))
-		if isJovian {
-			of.require.Equal(isJovianinGPO, true)
-			// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
-			operatorFee.Mul(operatorFee, big.NewInt(100))
-		} else {
-			of.require.Equal(isJovianinGPO, false)
-			// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
-			operatorFee.Div(operatorFee, big.NewInt(1000000))
+			operatorFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), big.NewInt(int64(expectedScalar)))
+			if isJovian {
+				// Jovian formula: (gasUsed * operatorFeeScalar * 100) + operatorFeeConstant
+				operatorFee.Mul(operatorFee, big.NewInt(100))
+			} else {
+				// Isthmus formula: (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant
+				operatorFee.Div(operatorFee, big.NewInt(1000000))
+			}
+			operatorFee.Add(operatorFee, big.NewInt(int64(expectedConstant)))
+			expectedOperatorFeeVaultIncrease =
+				expectedOperatorFeeVaultIncrease.Add(expectedOperatorFeeVaultIncrease, operatorFee)
 		}
-		operatorFee.Add(operatorFee, big.NewInt(int64(expectedConstant)))
-		expectedOperatorFee = operatorFee
 	}
 
 	// Use Cmp for big.Int comparison to avoid representation issues
-	of.require.Equal(0, expectedOperatorFee.Cmp(vaultIncrease),
+	of.require.Equal(0, expectedOperatorFeeVaultIncrease.Cmp(vaultIncrease),
 		"operator fee vault balance mismatch: expected %s, got %s",
-		expectedOperatorFee.String(), vaultIncrease.String())
+		expectedOperatorFeeVaultIncrease.String(), vaultIncrease.String())
 
 	actualTotalFee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
 	if receipt.L1Fee != nil {
@@ -190,7 +206,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 
 	return OperatorFeeValidationResult{
 		TransactionReceipt:   receipt,
-		ExpectedOperatorFee:  expectedOperatorFee,
+		ExpectedOperatorFee:  expectedOperatorFeeVaultIncrease,
 		ActualTotalFee:       actualTotalFee,
 		VaultBalanceIncrease: vaultIncrease,
 	}

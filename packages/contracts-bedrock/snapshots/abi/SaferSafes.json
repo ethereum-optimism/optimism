@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -30,7 +30,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -49,7 +49,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -62,7 +62,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract Safe",
         "name": "",
         "type": "address"
       }
@@ -81,7 +81,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -163,7 +163,7 @@
       },
       {
         "internalType": "address",
-        "name": "",
+        "name": "_msgSender",
         "type": "address"
       }
     ],
@@ -227,7 +227,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -246,22 +246,29 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
+        "internalType": "contract Safe",
+        "name": "_safe",
         "type": "address"
       }
     ],
     "name": "livenessSafeConfiguration",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "livenessResponsePeriod",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "fallbackOwner",
-        "type": "address"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "livenessResponsePeriod",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "fallbackOwner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct LivenessModule2.ModuleConfig",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -270,7 +277,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -289,7 +296,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
@@ -379,7 +386,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -454,7 +461,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -555,12 +562,31 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "bytes4",
+        "name": "interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       }
     ],
-    "name": "timelockConfiguration",
+    "name": "timelockDelay",
     "outputs": [
       {
         "internalType": "uint256",
@@ -589,7 +615,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -665,7 +691,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -735,7 +761,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -754,7 +780,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -773,7 +799,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -798,7 +824,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe",
         "type": "address"
       },
@@ -900,6 +926,11 @@
   {
     "inputs": [],
     "name": "TimelockGuard_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockGuard_NotOwner",
     "type": "error"
   },
   {

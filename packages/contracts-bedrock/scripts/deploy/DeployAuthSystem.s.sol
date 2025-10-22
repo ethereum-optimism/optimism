@@ -5,7 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { CommonBase } from "forge-std/Base.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";

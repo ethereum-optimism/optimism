@@ -2,9 +2,9 @@
 pragma solidity 0.8.15;
 
 // Safe
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { Guard as IGuard } from "safe-contracts/base/GuardManager.sol";
+import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
 
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -65,7 +65,7 @@ import { Constants } from "src/libraries/Constants.sol";
 /// | Quorum+             | challenge +                    | cancelTransaction                        |
 /// |                     | changeOwnershipToFallback      |                                          |
 /// +-------------------------------------------------------------------------------------------------+
-abstract contract TimelockGuard is IGuard {
+abstract contract TimelockGuard is BaseGuard {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice Allowed states of a transaction
@@ -158,6 +158,9 @@ abstract contract TimelockGuard is IGuard {
     /// @param uncancelledCount The number of transactions that are not cancelled.
     event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
 
+    /// @notice Error for when the caller is not an owner of the Safe
+    error TimelockGuard_NotOwner();
+
     /// @notice Emitted when a Safe configures the guard
     /// @param safe The Safe whose guard is configured.
     /// @param timelockDelay The timelock delay in seconds.
@@ -221,11 +224,6 @@ abstract contract TimelockGuard is IGuard {
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
     function cancellationThreshold(Safe _safe) public view returns (uint256) {
-        // Return 0 if guard is not enabled
-        if (!_isGuardEnabled(_safe)) {
-            return 0;
-        }
-
         return _safeState[_safe].cancellationThreshold;
     }
 
@@ -251,7 +249,7 @@ abstract contract TimelockGuard is IGuard {
     /// @notice Returns the timelock delay for a given Safe
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
-    function timelockConfiguration(Safe _safe) public view returns (uint256) {
+    function timelockDelay(Safe _safe) public view returns (uint256) {
         return _safeState[_safe].timelockDelay;
     }
 
@@ -291,7 +289,7 @@ abstract contract TimelockGuard is IGuard {
     //                 Guard Interface Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Implementation of IGuard interface.Called by the Safe before executing a transaction
+    /// @notice Implementation of Guard interface.Called by the Safe before executing a transaction
     /// @dev This function is used to check that the transaction has been scheduled and is ready to execute.
     ///      It only reads the state of the contract, and potentially reverts in order to protect against execution of
     ///      unscheduled, early or cancelled transactions.
@@ -306,7 +304,7 @@ abstract contract TimelockGuard is IGuard {
         address _gasToken,
         address payable _refundReceiver,
         bytes memory, /* signatures */
-        address /* msgSender */
+        address _msgSender
     )
         external
         view
@@ -321,6 +319,12 @@ abstract contract TimelockGuard is IGuard {
             // It is also just a reasonable thing to do, since an unconfigured Safe must have a
             // delay of zero.
             return;
+        }
+
+        // Limit execution of transactions to owners of the Safe only.
+        // This ensures that an attacker cannot simply collect valid signatures, but must also control a private key.
+        if (!callingSafe.isOwner(_msgSender)) {
+            revert TimelockGuard_NotOwner();
         }
 
         // Get the nonce of the Safe for the transaction being executed,
@@ -359,7 +363,7 @@ abstract contract TimelockGuard is IGuard {
         }
     }
 
-    /// @notice Implementation of IGuard interface. Called by the Safe after executing a transaction
+    /// @notice Implementation of Guard interface. Called by the Safe after executing a transaction
     /// @dev This function is used to update the state of the contract after the transaction has been executed.
     ///      Although making state changes here is a violation of the Checks-Effects-Interactions pattern, it
     ///      safe to do in this case because we trust that the Safe does not enable arbitrary calls without
@@ -421,6 +425,8 @@ abstract contract TimelockGuard is IGuard {
         safeState.cancellationThreshold = 1;
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
     }
+
+    // (reverted) _encodeTransactionData helper removed; we rely on Safe.encodeTransactionData in v1.4.1
 
     ////////////////////////////////////////////////////////////////
     //              External State-Changing Functions             //
