@@ -95,8 +95,8 @@ where
         let this = self.clone();
         let timeout_duration = self.send_raw_transaction_sync_timeout();
         async move {
-            let hash = EthTransactions::send_raw_transaction(&this, tx).await?;
             let mut canonical_stream = this.provider().canonical_state_stream();
+            let hash = EthTransactions::send_raw_transaction(&this, tx).await?;
             let flashblock_rx = this.pending_block_rx();
             let mut flashblock_stream = flashblock_rx.map(WatchStream::new);
 
