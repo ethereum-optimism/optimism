@@ -169,8 +169,7 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame =
-            IFaultDisputeGame(opToml.readAddressOr(".addresses.FaultDisputeGame", address(0)));
+        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         artifacts.save("FaultDisputeGame", address(faultDisputeGame));
         artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
@@ -218,8 +217,7 @@ contract ForkLive is Deployer, StdAssertions {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
@@ -261,8 +259,8 @@ contract ForkLive is Deployer, StdAssertions {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // U16a.
-            _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
+            // past upgrades to run.
         } else {
             revert UnsupportedChainId();
         }

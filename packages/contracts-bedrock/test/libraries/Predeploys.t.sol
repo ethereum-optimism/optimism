@@ -12,7 +12,7 @@ import { Fork } from "scripts/libraries/Config.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
-contract Predeploys_TestInit is CommonTest {
+abstract contract Predeploys_TestInit is CommonTest {
     //////////////////////////////////////////////////////
     /// Internal helpers
     //////////////////////////////////////////////////////

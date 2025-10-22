@@ -144,11 +144,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 						"internalType": "address"
 					}
 				]
-			},
-			{
-				"name": "_upgradeController",
-				"type": "address",
-				"internalType": "address"
 			}
 		]`
 
@@ -161,6 +156,6 @@ func TestCalculateTypeSlots(t *testing.T) {
 			totalSlots += calculateTypeSlots(arg.Type)
 		}
 
-		require.Equal(t, 25, totalSlots)
+		require.Equal(t, 24, totalSlots)
 	})
 }

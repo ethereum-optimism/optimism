@@ -10,7 +10,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 
 /// @title DeployUtils_TestInit
 /// @notice Reusable test initialization for `DeployUtils` tests.
-contract DeployUtils_TestInit is Test {
+abstract contract DeployUtils_TestInit is Test {
     /// @notice Helper function to test the revert message of assertUniqueAddresses with duplicate
     ///         addresses.
     /// @dev This function only exists because expectRevert only accepts a calldata argument but

@@ -2,10 +2,12 @@ package contracts
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -22,6 +24,7 @@ const (
 	methodGameCount   = "gameCount"
 	methodGameAtIndex = "gameAtIndex"
 	methodGameImpls   = "gameImpls"
+	methodGameArgs    = "gameArgs"
 	methodInitBonds   = "initBonds"
 	methodCreateGame  = "create"
 	methodGames       = "games"
@@ -33,20 +36,56 @@ var (
 	ErrEventNotFound = errors.New("event not found")
 )
 
+//go:embed abis/DisputeGameFactory-1.2.0.json
+var disputeGameFactoryAbi120 []byte
+
+type gameArgsFunc func(ctx context.Context, caller *batching.MultiCaller, block rpcblock.Block, contract *batching.BoundContract, gameType faultTypes.GameType) ([]byte, error)
+
+func getGameArgsLatest(ctx context.Context, caller *batching.MultiCaller, block rpcblock.Block, contract *batching.BoundContract, gameType faultTypes.GameType) ([]byte, error) {
+	result, err := caller.SingleCall(ctx, block, contract.Call(methodGameArgs, gameType))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get game args: %w", err)
+	}
+	return result.GetBytes(0), nil
+}
+
+func getGameArgsNoOp(_ context.Context, _ *batching.MultiCaller, _ rpcblock.Block, _ *batching.BoundContract, _ faultTypes.GameType) ([]byte, error) {
+	return nil, nil
+}
+
 type DisputeGameFactoryContract struct {
 	metrics     metrics.ContractMetricer
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
 	abi         *abi.ABI
+
+	// getGameArgs supports the gameArgs call to the contract which is only supported from v1.3.0 onwards
+	getGameArgs gameArgsFunc
 }
 
-func NewDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) *DisputeGameFactoryContract {
+func NewDisputeGameFactoryContract(ctx context.Context, m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (*DisputeGameFactoryContract, error) {
 	factoryAbi := snapshots.LoadDisputeGameFactoryABI()
+
+	var builder VersionedBuilder[*DisputeGameFactoryContract]
+	preGameArgsFactory := func() (*DisputeGameFactoryContract, error) {
+		legacyAbi := mustParseAbi(disputeGameFactoryAbi120)
+		return newDisputeGameFactoryContract(m, addr, caller, legacyAbi, getGameArgsNoOp), nil
+	}
+	builder.AddVersion(1, 0, preGameArgsFactory)
+	builder.AddVersion(1, 1, preGameArgsFactory)
+	builder.AddVersion(1, 2, preGameArgsFactory)
+	return builder.Build(ctx, caller, factoryAbi, addr, func() (*DisputeGameFactoryContract, error) {
+		return newDisputeGameFactoryContract(m, addr, caller, factoryAbi, getGameArgsLatest), nil
+	})
+}
+
+func newDisputeGameFactoryContract(m metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller, factoryAbi *abi.ABI, getGameArgs gameArgsFunc) *DisputeGameFactoryContract {
 	return &DisputeGameFactoryContract{
 		metrics:     m,
 		multiCaller: caller,
 		contract:    batching.NewBoundContract(factoryAbi, addr),
 		abi:         factoryAbi,
+		getGameArgs: getGameArgs,
 	}
 }
 
@@ -77,13 +116,73 @@ func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, bl
 	return f.decodeGame(idx, result), nil
 }
 
-func (f *DisputeGameFactoryContract) GetGameImpl(ctx context.Context, gameType faultTypes.GameType) (common.Address, error) {
+func (f *DisputeGameFactoryContract) getGameImpl(ctx context.Context, gameType faultTypes.GameType) (common.Address, error) {
 	defer f.metrics.StartContractRequest("GetGameImpl")()
 	result, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameImpls, gameType))
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to load game impl for type %v: %w", gameType, err)
 	}
 	return result.GetAddress(0), nil
+}
+
+func (f *DisputeGameFactoryContract) HasGameImpl(ctx context.Context, gameType faultTypes.GameType) (bool, error) {
+	impl, err := f.getGameImpl(ctx, gameType)
+	if err != nil {
+		return false, err
+	}
+	return impl != (common.Address{}), nil
+}
+
+func (f *DisputeGameFactoryContract) GetGameVm(ctx context.Context, gameType faultTypes.GameType) (*VMContract, error) {
+	defer f.metrics.StartContractRequest("GetGameVm")()
+	gameArgs, err := f.getGameArgs(ctx, f.multiCaller, rpcblock.Latest, f.contract, gameType)
+	if err != nil {
+		return nil, err
+	}
+	if len(gameArgs) == 0 {
+		// V1 contract, so get the VM and oracle address from the implementation contract
+		disputeGame, err := f.faultDisputeGameForType(ctx, gameType)
+		if err != nil {
+			return nil, err
+		}
+		return disputeGame.Vm(ctx)
+	}
+	// V2 contract, so load the VM address from game args
+	args, err := gameargs.Parse(gameArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse game args for game type %v: %w", gameType, err)
+	}
+	return NewVMContract(args.Vm, f.multiCaller), nil
+}
+
+func (f *DisputeGameFactoryContract) GetGamePrestate(ctx context.Context, gameType faultTypes.GameType) (common.Hash, error) {
+	defer f.metrics.StartContractRequest("GetGamePrestate")()
+	gameArgs, err := f.getGameArgs(ctx, f.multiCaller, rpcblock.Latest, f.contract, gameType)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	if len(gameArgs) == 0 {
+		// V1 contract, so get the VM and oracle address from the implementation contract
+		disputeGame, err := f.faultDisputeGameForType(ctx, gameType)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return disputeGame.GetAbsolutePrestateHash(ctx)
+	}
+	// V2 contract, so load the VM address from game args
+	args, err := gameargs.Parse(gameArgs)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to parse game args for game type %v: %w", gameType, err)
+	}
+	return args.AbsolutePrestate, nil
+}
+
+func (f *DisputeGameFactoryContract) faultDisputeGameForType(ctx context.Context, gameType faultTypes.GameType) (FaultDisputeGameContract, error) {
+	addr, err := f.getGameImpl(ctx, gameType)
+	if err != nil {
+		return nil, err
+	}
+	return NewFaultDisputeGameContract(ctx, f.metrics, addr, f.multiCaller)
 }
 
 func (f *DisputeGameFactoryContract) GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error) {

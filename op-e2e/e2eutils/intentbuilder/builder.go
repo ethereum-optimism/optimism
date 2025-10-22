@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -28,6 +29,9 @@ type L1Configurator interface {
 	WithGasLimit(v uint64) L1Configurator
 	WithExcessBlobGas(v uint64) L1Configurator
 	WithPragueOffset(v uint64) L1Configurator
+	WithOsakaOffset(v uint64) L1Configurator
+	WithBPO1Offset(v uint64) L1Configurator
+	WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
 }
 
@@ -55,6 +59,7 @@ type L2Configurator interface {
 	L2FeesConfigurator
 	L2HardforkConfigurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
+	WithDAFootprintGasScalar(scalar uint16)
 }
 
 type ContractsConfigurator interface {
@@ -306,6 +311,24 @@ func (c *l1Configurator) WithPragueOffset(v uint64) L1Configurator {
 	return c
 }
 
+func (c *l1Configurator) WithOsakaOffset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.OsakaTimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithBPO1Offset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BPO1TimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BlobSchedule = schedule
+	return c
+}
+
 func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator {
 	c.initL1DevGenesisParams()
 	c.builder.intent.L1DevGenesisParams.Prefund[addr] = (*hexutil.U256)(&amount)
@@ -400,6 +423,10 @@ func (c *l2Configurator) WithEIP1559Elasticity(value uint64) {
 
 func (c *l2Configurator) WithOperatorFeeScalar(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].OperatorFeeScalar = uint32(value)
+}
+
+func (c *l2Configurator) WithDAFootprintGasScalar(value uint16) {
+	c.builder.intent.Chains[c.chainIndex].DAFootprintGasScalar = value
 }
 
 func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {

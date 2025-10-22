@@ -5,11 +5,13 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/stretchr/testify/require"
 )
@@ -21,31 +23,50 @@ type CLITestRunner struct {
 	privateKeyHex string
 }
 
-// NewCLITestRunner creates a new CLI test runner
-func NewCLITestRunner(t *testing.T) *CLITestRunner {
-	// Create a temporary working directory for tests
-	workDir := t.TempDir()
+// CLITestRunnerOption is a functional option for configuring CLITestRunner
+type CLITestRunnerOption func(*CLITestRunner)
 
+func WithL1RPC(rpcURL string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.l1RPC = rpcURL
+	}
+}
+
+func WithPrivateKey(pkHex string) CLITestRunnerOption {
+	return func(r *CLITestRunner) {
+		r.privateKeyHex = pkHex
+	}
+}
+
+func NewCLITestRunner(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	return &CLITestRunner{
 		workDir: workDir,
 	}
 }
 
-// NewCLITestRunnerWithNetwork creates a new CLI test runner with network setup
-func NewCLITestRunnerWithNetwork(t *testing.T) *CLITestRunner {
-	workDir := t.TempDir()
+// NewCLITestRunnerWithNetwork creates a new CLI test runner with default network setup.
+// Defaults can be overridden using functional options.
+func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLITestRunner {
+	workDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
+	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, _ := devnet.DefaultAnvilRPC(t, lgr)
-
-	// Get private key
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 
-	return &CLITestRunner{
+	runner := &CLITestRunner{
 		workDir:       workDir,
 		l1RPC:         l1RPC,
 		privateKeyHex: pkHex,
 	}
+
+	// Apply options to override defaults
+	for _, opt := range opts {
+		opt(runner)
+	}
+
+	return runner
 }
 
 // GetWorkDir returns the working directory for this test runner
@@ -91,11 +112,13 @@ func (r *CLITestRunner) Run(ctx context.Context, args []string, env map[string]s
 	stdout := newCaptureOutputWriter()
 	stderr := newCaptureOutputWriter()
 
-	// Add "op-deployer" as the first argument if not already present
-	fullArgs := args
-	if len(args) == 0 || args[0] != "op-deployer" {
-		fullArgs = append([]string{"op-deployer"}, args...)
+	// Ensure command format is: op-deployer --cache-dir <path> <subcommand and flags>
+	cacheDir := filepath.Join(r.workDir, ".cache")
+	commandArgs := args
+	if len(args) > 0 && args[0] == "op-deployer" {
+		commandArgs = args[1:] // Skip "op-deployer" if already present
 	}
+	fullArgs := append([]string{"op-deployer", "--cache-dir", cacheDir}, commandArgs...)
 
 	// Run the CLI command using the testable interface
 	err = RunCLI(ctx, stdout, stderr, fullArgs)

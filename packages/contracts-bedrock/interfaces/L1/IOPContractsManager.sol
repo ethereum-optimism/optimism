@@ -59,7 +59,7 @@ interface IOPContractsManagerGameTypeAdder {
         returns (IOPContractsManager.AddGameOutput[] memory);
 
     function updatePrestate(
-        IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs,
+        IOPContractsManager.UpdatePrestateInput[] memory _prestateUpdateInputs,
         address _superchainConfig
     )
         external;
@@ -94,7 +94,7 @@ interface IOPContractsManagerUpgrader {
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -216,6 +216,8 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
@@ -223,6 +225,13 @@ interface IOPContractsManager {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
+    }
+
+    /// @notice The input required to identify a chain for updating prestates
+    struct UpdatePrestateInput {
+        ISystemConfig systemConfigProxy;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     struct AddGameInput {
@@ -255,9 +264,6 @@ interface IOPContractsManager {
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);
-
-    /// @notice Address of the ProxyAdmin contract shared by all chains.
-    function superchainProxyAdmin() external view returns (IProxyAdmin);
 
     // -------- Errors --------
 
@@ -297,6 +303,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error InvalidDevFeatureAccess(bytes32 devFeature);
+
     // -------- Methods --------
 
     function __constructor__(
@@ -306,9 +314,7 @@ interface IOPContractsManager {
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin,
-        address _upgradeController
+        IProtocolVersions _protocolVersions
     )
         external;
 
@@ -337,16 +343,15 @@ interface IOPContractsManager {
 
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
-    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.
     function addGameType(AddGameInput[] memory _gameConfigs) external returns (AddGameOutput[] memory);
 
     /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
-    /// @param _prestateUpdateInputs The new prestate hash to use
-    function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) external;
+    /// @param _prestateUpdateInputs The new prestates to use
+    function updatePrestate(UpdatePrestateInput[] memory _prestateUpdateInputs) external;
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
@@ -383,6 +388,4 @@ interface IOPContractsManager {
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
-
-    function upgradeController() external view returns (address);
 }

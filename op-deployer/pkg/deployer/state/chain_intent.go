@@ -76,6 +76,7 @@ type ChainIntent struct {
 	UseRevenueShare            bool                      `json:"useRevenueShare,omitempty" toml:"useRevenueShare,omitempty"`
 	ChainFeesRecipient         common.Address            `json:"chainFeesRecipient,omitempty" toml:"chainFeesRecipient,omitempty"`
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`

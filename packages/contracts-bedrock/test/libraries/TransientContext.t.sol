@@ -10,7 +10,7 @@ import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
 /// @title TransientContext_TestInit
 /// @notice Reusable test initialization for `TransientContext` tests.
-contract TransientContext_TestInit is Test {
+abstract contract TransientContext_TestInit is Test {
     /// @notice Slot for call depth.
     bytes32 internal callDepthSlot = bytes32(uint256(keccak256("transient.calldepth")) - 1);
 }

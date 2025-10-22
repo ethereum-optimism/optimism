@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "_safe",
         "type": "address"
       },
@@ -161,7 +161,7 @@
     "name": "safe",
     "outputs": [
       {
-        "internalType": "contract GnosisSafe",
+        "internalType": "contract Safe",
         "name": "safe_",
         "type": "address"
       }

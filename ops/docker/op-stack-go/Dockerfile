@@ -26,18 +26,16 @@ FROM --platform=$BUILDPLATFORM golang:1.23.8-alpine3.20 AS builder
 RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq bash
 
 # Install mise (the apk version is outdated)
-RUN curl https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+COPY ./ops/scripts/install_mise.sh /tmp/install_mise.sh
+RUN MISE_INSTALL_PATH=/usr/local/bin/mise sh /tmp/install_mise.sh
 
 ARG TARGETARCH
-
-# Install yq
-RUN wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$TARGETARCH -O /usr/local/bin/yq && \
-  chmod +x /usr/local/bin/yq
 
 # Install versioned toolchain
 COPY ./mise.toml .
 RUN mise trust
 RUN mise install -v -y just && cp $(mise which just) /usr/local/bin/just && just --version
+RUN mise install -v -y yq && cp $(mise which yq) /usr/local/bin/yq && yq --version
 # mise does not install the alpine binary for forge, so we download it manually
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
 RUN set -e && \
@@ -157,6 +155,11 @@ ARG OP_SUPERVISOR_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
+ARG OP_SUPERNODE_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supernode && make op-supernode  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERNODE_VERSION"
+
 FROM --platform=$BUILDPLATFORM builder AS op-test-sequencer-builder
 ARG OP_TEST_SEQUENCER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-test-sequencer && make op-test-sequencer  \
@@ -248,6 +251,10 @@ CMD ["da-server"]
 FROM $TARGET_BASE_IMAGE AS op-supervisor-target
 COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
 CMD ["op-supervisor"]
+
+FROM $TARGET_BASE_IMAGE AS op-supernode-target
+COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
+CMD ["op-supernode"]
 
 FROM $TARGET_BASE_IMAGE AS op-test-sequencer-target
 COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequencer /usr/local/bin/

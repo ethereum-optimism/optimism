@@ -30,7 +30,7 @@ contract L1ERC721Bridge_TestERC721_Harness is ERC721 {
 
 /// @title L1ERC721Bridge_TestInit
 /// @notice Test contract for L1ERC721Bridge initialization and setup.
-contract L1ERC721Bridge_TestInit is CommonTest {
+abstract contract L1ERC721Bridge_TestInit is CommonTest {
     L1ERC721Bridge_TestERC721_Harness internal localToken;
     L1ERC721Bridge_TestERC721_Harness internal remoteToken;
     uint256 internal constant tokenId = 1;

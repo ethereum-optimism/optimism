@@ -191,7 +191,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 		}
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
-			presets.WithELSyncTarget(targetBlock),
+			presets.WithELSyncActive(),
 			presets.WithSyncTesterELInitialState(eth.FCUState{
 				Latest: blk,
 				Safe:   0,
@@ -256,7 +256,10 @@ func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) 
 		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
 		attempts = 5
 		// Signal L2CL for finishing EL Sync
-		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+		// Must send consecutive three payloads due to default EL Sync policy
+		for i := 2; i >= 0; i-- {
+			sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock-uint64(i))
+		}
 	} else {
 		l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")

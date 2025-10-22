@@ -161,9 +161,10 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		Transactions: b.transactions,
 	}
 
+	cfg := b.evm.ChainConfig()
 	// Processing for EIP-7685 requests would happen here, but is skipped on OP.
 	// Kept here to minimize diff.
-	if b.dataProvider.Config().IsPrague(b.header.Number, b.header.Time) && !b.dataProvider.Config().IsIsthmus(b.header.Time) {
+	if cfg.IsPrague(b.header.Number, b.header.Time) && !cfg.IsIsthmus(b.header.Time) {
 		_requests := [][]byte{}
 		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
 		// EIP-7002

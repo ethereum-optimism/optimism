@@ -59,6 +59,7 @@ type EngineAPI interface {
 	ForkchoiceUpdatedV3(engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 	ForkchoiceUpdatedV2(engine.ForkchoiceStateV1, *engine.PayloadAttributes) (engine.ForkChoiceResponse, error)
 
+	GetPayloadV5(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV4(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV3(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(engine.PayloadID) (*engine.ExecutionPayloadEnvelope, error)
@@ -157,8 +158,10 @@ func (f *FakePoS) Start() error {
 					Withdrawals:           withdrawals,
 				}
 				parentBeaconBlockRoot := f.FakeBeaconBlockRoot(head.Time) // parent beacon block root
-				isCancun := f.config.IsCancun(new(big.Int).SetUint64(head.Number.Uint64()+1), newBlockTime)
-				isPrague := f.config.IsPrague(new(big.Int).SetUint64(head.Number.Uint64()+1), newBlockTime)
+				nextHeight := new(big.Int).SetUint64(head.Number.Uint64() + 1)
+				isCancun := f.config.IsCancun(nextHeight, newBlockTime)
+				isPrague := f.config.IsPrague(nextHeight, newBlockTime)
+				isOsaka := f.config.IsOsaka(nextHeight, newBlockTime)
 				if isCancun {
 					attrs.BeaconRoot = &parentBeaconBlockRoot
 				}
@@ -192,7 +195,9 @@ func (f *FakePoS) Start() error {
 					return nil
 				}
 				var envelope *engine.ExecutionPayloadEnvelope
-				if isPrague {
+				if isOsaka {
+					envelope, err = f.engineAPI.GetPayloadV5(*res.PayloadID)
+				} else if isPrague {
 					envelope, err = f.engineAPI.GetPayloadV4(*res.PayloadID)
 				} else if isCancun {
 					envelope, err = f.engineAPI.GetPayloadV3(*res.PayloadID)

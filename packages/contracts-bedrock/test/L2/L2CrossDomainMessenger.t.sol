@@ -20,7 +20,7 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
-contract L2CrossDomainMessenger_TestInit is CommonTest {
+abstract contract L2CrossDomainMessenger_TestInit is CommonTest {
     /// @notice Receiver address for testing
     address recipient = address(0xabbaacdc);
 }

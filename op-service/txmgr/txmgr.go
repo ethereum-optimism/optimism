@@ -364,8 +364,14 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if candidate.To == nil {
 			return nil, errors.New("blob txs cannot deploy contracts")
 		}
-		// Use configuration to determine whether to enable cell proofs
-		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, m.cfg.EnableCellProofs); err != nil {
+
+		// Use configuration to determine whether to enable cell proofs.
+		// We add a 12s buffer, because cell proofs are likely _not_
+		// supported before the Fusaka fork and legacy blob proofs
+		// may well be accepted after the Fusaka fork.
+		useCellProofs := m.cfg.CellProofTime < uint64(time.Now().Add(-12*time.Second).Unix())
+		m.l.Debug("crafting Blob transaction", "useCellProofs", useCellProofs)
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, useCellProofs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
 	}

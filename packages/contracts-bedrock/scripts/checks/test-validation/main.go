@@ -194,9 +194,12 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 
 func checkTestMethodName(artifact *solc.ForgeArtifact, contractName string, functionName string, _ string) []error {
 	// Check for uncategorized test pattern
-	if functionName == "Uncategorized" {
-		// Pattern: <ContractName>_Uncategorized_Test
-		return nil
+	allowedFunctionNames := []string{"Uncategorized", "Integration"}
+	for _, allowed := range allowedFunctionNames {
+		if functionName == allowed {
+			// Pattern: <ContractName>_Uncategorized_Test or <ContractName>_Integration_Test
+			return nil
+		}
 	}
 	// Pattern: <ContractName>_<FunctionName>_Test - validate function exists
 	if !checkFunctionExists(artifact, functionName) {
@@ -250,6 +253,11 @@ func checkSrcPath(artifact *solc.ForgeArtifact) bool {
 // Validates that contract name matches the file path
 func checkContractNameFilePath(artifact *solc.ForgeArtifact) bool {
 	for filePath, contractName := range artifact.Metadata.Settings.CompilationTarget {
+
+		if isExcludedTest(contractName) {
+			continue
+		}
+
 		// Split contract name to get the base contract name (before first underscore)
 		contractParts := strings.Split(contractName, "_")
 		// Split file path to get individual path components

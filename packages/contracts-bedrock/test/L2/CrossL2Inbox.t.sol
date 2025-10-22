@@ -41,7 +41,7 @@ contract CrossL2Inbox_ValidateMessageRelayer_Harness is Test {
 
 /// @title CrossL2Inbox_Test_Init
 /// @notice Reusable test initialization for `CrossL2Inbox` tests.
-contract CrossL2Inbox_TestInit is CommonTest {
+abstract contract CrossL2Inbox_TestInit is CommonTest {
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
     CrossL2Inbox_ValidateMessageRelayer_Harness public validateMessageRelayer;

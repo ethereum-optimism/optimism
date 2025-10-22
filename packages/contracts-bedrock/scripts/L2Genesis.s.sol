@@ -174,11 +174,13 @@ contract L2Genesis is Script {
             return;
         }
 
-        if (forkEquals(_fork, Fork.INTEROP)) {
+        activateJovian();
+
+        if (forkEquals(_fork, Fork.JOVIAN)) {
             return;
         }
 
-        if (forkEquals(_fork, Fork.JOVIAN)) {
+        if (forkEquals(_fork, Fork.INTEROP)) {
             return;
         }
     }
@@ -661,6 +663,11 @@ contract L2Genesis is Script {
         // Initialize the proxy with the actual values
         address sharesCalculator = revSharesCalculator;
         IFeeSplitter(payable(Predeploys.FEE_SPLITTER)).initialize(ISharesCalculator(sharesCalculator));
+    }
+
+    function activateJovian() internal {
+        vm.prank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setJovian();
     }
 
     /// @notice Sets the bytecode in state

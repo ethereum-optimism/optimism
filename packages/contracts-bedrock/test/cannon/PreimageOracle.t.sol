@@ -38,7 +38,7 @@ function precompilePreimageKey(address _precompile, uint64 _gas, bytes memory _i
 
 /// @title PreimageOracle_TestInit
 /// @notice Reusable test initialization for `PreimageOracle` tests.
-contract PreimageOracle_TestInit is Test {
+abstract contract PreimageOracle_TestInit is Test {
     /// @notice The PreimageOracle contract to test.
     IPreimageOracle internal oracle;
 

@@ -9,7 +9,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -33,7 +32,7 @@ contract DeployImplementations_Test is Test {
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-    address upgradeController = makeAddr("upgradeController");
+    address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
@@ -157,7 +156,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1ProxyAdminOwner,
             challenger
         );
 
@@ -319,8 +318,8 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.upgradeController = address(0);
-        vm.expectRevert("DeployImplementations: upgradeController not set");
+        input.l1ProxyAdminOwner = address(0);
+        vm.expectRevert("DeployImplementations: L1ProxyAdminOwner not set");
         deployImplementations.run(input);
     }
 
@@ -335,11 +334,6 @@ contract DeployImplementations_Test is Test {
         );
 
         // Validate constructor args for FaultDisputeGameV2
-        assertEq(
-            uint256(output.faultDisputeGameV2Impl.gameType().raw()),
-            uint256(GameTypes.CANNON.raw()),
-            "FaultDisputeGameV2 gameType incorrect"
-        );
         assertEq(output.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
         assertEq(output.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
         assertEq(
@@ -352,11 +346,6 @@ contract DeployImplementations_Test is Test {
         );
 
         // Validate constructor args for PermissionedDisputeGameV2
-        assertEq(
-            uint256(output.permissionedDisputeGameV2Impl.gameType().raw()),
-            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
-            "PermissionedDisputeGameV2 gameType incorrect"
-        );
         assertEq(
             output.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
         );
@@ -476,11 +465,6 @@ contract DeployImplementations_Test is Test {
         );
 
         // Validate constructor args for FaultDisputeGameV2
-        assertEq(
-            uint256(output1.faultDisputeGameV2Impl.gameType().raw()),
-            uint256(GameTypes.CANNON.raw()),
-            "FaultDisputeGameV2 gameType incorrect"
-        );
         assertEq(output1.faultDisputeGameV2Impl.maxGameDepth(), 73, "FaultDisputeGameV2 maxGameDepth incorrect");
         assertEq(output1.faultDisputeGameV2Impl.splitDepth(), 30, "FaultDisputeGameV2 splitDepth incorrect");
         assertEq(
@@ -493,11 +477,6 @@ contract DeployImplementations_Test is Test {
         );
 
         // Validate constructor args for PermissionedDisputeGameV2
-        assertEq(
-            uint256(output1.permissionedDisputeGameV2Impl.gameType().raw()),
-            uint256(GameTypes.PERMISSIONED_CANNON.raw()),
-            "PermissionedDisputeGameV2 gameType incorrect"
-        );
         assertEq(
             output1.permissionedDisputeGameV2Impl.maxGameDepth(), 73, "PermissionedDisputeGameV2 maxGameDepth incorrect"
         );
@@ -557,7 +536,7 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController,
+            l1ProxyAdminOwner,
             challenger
         );
     }
