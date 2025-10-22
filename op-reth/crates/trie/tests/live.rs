@@ -1,11 +1,9 @@
 //! End-to-end test of the live trie collector.
 
-#![cfg(not(feature = "metrics"))] // todo: this can be removed with smol fixes
-#![expect(unused_crate_dependencies)]
-
 use alloy_consensus::{constants::ETH_TO_WEI, BlockHeader, Header, TxEip2930};
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, TxKind, B256, U256};
+use derive_more::Constructor;
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
 use reth_db::Database;
 use reth_db_common::init::init_genesis;
@@ -15,6 +13,7 @@ use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{FullNodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
     backfill::BackfillJob, in_memory::InMemoryProofsStorage, live::LiveTrieCollector,
+    OpProofsStorage,
 };
 use reth_primitives_traits::{
     crypto::secp256k1::public_key_to_address, Block as _, RecoveredBlock,
@@ -43,39 +42,25 @@ struct TxSpec {
 
 impl TxSpec {
     /// Create a simple transfer transaction
-    fn transfer(to: Address, value: U256) -> Self {
+    const fn transfer(to: Address, value: U256) -> Self {
         Self { to, value, nonce: None }
     }
 }
 
 /// Specification for a block in the test chain
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Constructor)]
 struct BlockSpec {
     /// Transactions to include in this block
     txs: Vec<TxSpec>,
 }
 
-impl BlockSpec {
-    /// Create a block spec with the given transactions
-    fn new(txs: Vec<TxSpec>) -> Self {
-        Self { txs }
-    }
-}
-
 /// Configuration for a test scenario
-#[derive(Debug)]
+#[derive(Debug, Constructor)]
 struct TestScenario {
     /// Blocks to execute before running the backfill job
     blocks_before_backfill: Vec<BlockSpec>,
     /// Blocks to execute after backfill using the live collector
     blocks_after_backfill: Vec<BlockSpec>,
-}
-
-impl TestScenario {
-    /// Create a simple scenario with blocks before and after backfill
-    fn new(blocks_before_backfill: Vec<BlockSpec>, blocks_after_backfill: Vec<BlockSpec>) -> Self {
-        Self { blocks_before_backfill, blocks_after_backfill }
-    }
 }
 
 /// Helper to create a chain spec with a genesis account funded
@@ -221,7 +206,7 @@ async fn run_test_scenario<N>(
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
     key_pair: Keypair,
-    storage: Arc<InMemoryProofsStorage>,
+    storage: OpProofsStorage<Arc<InMemoryProofsStorage>>,
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
@@ -299,7 +284,7 @@ where
 /// (3) Executes a block and calculates the state root using the stored state
 #[tokio::test]
 async fn test_execute_and_store_block_updates() {
-    let storage = Arc::new(InMemoryProofsStorage::new());
+    let storage = Arc::new(InMemoryProofsStorage::new()).into();
 
     // Create a keypair for signing transactions
     let secp = Secp256k1::new();
@@ -331,7 +316,7 @@ async fn test_execute_and_store_block_updates() {
 /// Test with multiple blocks before and after backfill
 #[tokio::test]
 async fn test_multiple_blocks_before_and_after_backfill() {
-    let storage = Arc::new(InMemoryProofsStorage::new());
+    let storage = Arc::new(InMemoryProofsStorage::new()).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());
@@ -367,7 +352,7 @@ async fn test_multiple_blocks_before_and_after_backfill() {
 /// Test with blocks containing multiple transactions
 #[tokio::test]
 async fn test_blocks_with_multiple_transactions() {
-    let storage = Arc::new(InMemoryProofsStorage::new());
+    let storage = Arc::new(InMemoryProofsStorage::new()).into();
 
     let secp = Secp256k1::new();
     let key_pair = Keypair::new(&secp, &mut thread_rng());
