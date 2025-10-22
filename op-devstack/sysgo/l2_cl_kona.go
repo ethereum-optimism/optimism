@@ -3,8 +3,11 @@ package sysgo
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	url2 "net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -42,6 +45,9 @@ type KonaNode struct {
 	p devtest.P
 
 	sub *SubProcess
+
+	areMetricsEnabled  bool
+	addMetricsCallback func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
 }
 
 func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
@@ -86,11 +92,21 @@ func (k *KonaNode) Start() {
 	// And inspect them along the way, to get the RPC server address.
 	logOut := logpipe.ToLogger(k.p.Logger().New("src", "stdout"))
 	logErr := logpipe.ToLogger(k.p.Logger().New("src", "stderr"))
-	userRPC := make(chan string, 1)
+	userRPCChan := make(chan string, 1)
+	defer close(userRPCChan)
+
+	metricsEndpointChan := make(chan PrometheusMetricsEndpoint, 1)
+	defer close(metricsEndpointChan)
+
 	onLogEntry := func(e logpipe.LogEntry) {
-		switch e.LogMessage() {
+		msg := e.LogMessage()
+		switch msg {
 		case "RPC server bound to address":
-			userRPC <- "http://" + e.FieldValue("addr").(string)
+			userRPCChan <- "http://" + e.FieldValue("addr").(string)
+		default:
+			if endpoint := k.tryParseKonaMetricsFromLog(msg); endpoint != nil {
+				metricsEndpointChan <- *endpoint
+			}
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
@@ -108,7 +124,13 @@ func (k *KonaNode) Start() {
 	k.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &userRPCAddr), "need user RPC")
+	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+
+	if k.areMetricsEnabled {
+		var metricsEndpoint PrometheusMetricsEndpoint
+		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need user RPC")
+		k.addMetricsCallback("kona-node", metricsEndpoint)
+	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
 }
@@ -133,6 +155,30 @@ func (k *KonaNode) UserRPC() string {
 
 func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 	return k.interopEndpoint, k.interopJwtSecret
+}
+
+// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
+const metricsPrefix = "Serving metrics at: "
+
+// tryParseKonaMetricsFromLog attempts to parse a running kona metrics server endpoint from
+// the provided log message.
+//
+// If the log message doesn't appear to be metrics-related, nil will be returned. See: `metricsPrefix`.
+func (k *KonaNode) tryParseKonaMetricsFromLog(msg string) *PrometheusMetricsEndpoint {
+	if !strings.HasPrefix(msg, metricsPrefix) {
+		return nil
+	}
+
+	url, err := url2.Parse(strings.Split(msg, metricsPrefix)[1])
+	k.p.Require().NoError(err, fmt.Sprintf("invalid kona metrics url output to logs: %s", msg))
+	port := url.Port()
+	k.p.Require().NotEmpty(port, fmt.Sprintf("empty port url in kona metrics url; log line: %s", msg))
+	return &PrometheusMetricsEndpoint{
+		host:              url.Host,
+		port:              port,
+		isLocal:           true,
+		isRunningInDocker: false,
+	}
 }
 
 var _ L2CLNode = (*KonaNode)(nil)
@@ -178,6 +224,9 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NoError(err, "must write l1 chain config")
 		p.Require().NoError(err, os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
 
+		//NB: Defaults to false on parsing err
+		areMetricsEnabled, _ := strconv.ParseBool(GetEnvVarOrDefault("KONA_METRICS_ENABLED", "false"))
+
 		envVars := []string{
 			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
@@ -187,18 +236,23 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
-			"KONA_NODE_P2P_NO_DISCOVERY=true",
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-			"KONA_NODE_RPC_ADDR=127.0.0.1",
-			"KONA_NODE_RPC_PORT=0",
-			"KONA_NODE_RPC_WS_ENABLED=true",
-			"KONA_METRICS_ENABLED=false",
-			"KONA_LOG_LEVEL=3", // info level
-			"KONA_LOG_STDOUT_FORMAT=json",
+			"KONA_METRICS_ENABLED=" + fmt.Sprintf("%t", areMetricsEnabled),
+			PropagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+			PropagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
+			PropagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
+			PropagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
+			PropagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS to pick its own port, but
+			// prometheus doesn't expose that port, so we can't log it and parse it here.
+			// If/when that gets changed, update this default to "0".
+			PropagateEnvVarOrDefault("KONA_METRICS_PORT", GetAvailableLocalPort()),
+			PropagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
+			PropagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 			// p2p ports
-			"KONA_NODE_P2P_LISTEN_IP=127.0.0.1",
-			"KONA_NODE_P2P_LISTEN_TCP_PORT=0",
-			"KONA_NODE_P2P_LISTEN_UDP_PORT=0",
+			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
+			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
 		if cfg.IsSequencer {
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
@@ -224,15 +278,17 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
 
 		k := &KonaNode{
-			id:               l2CLID,
-			userRPC:          "", // retrieved from logs
-			interopEndpoint:  "", // retrieved from logs
-			interopJwtSecret: eth.Bytes32{},
-			el:               l2ELID,
-			execPath:         execPath,
-			args:             []string{"node"},
-			env:              envVars,
-			p:                p,
+			id:                 l2CLID,
+			userRPC:            "", // retrieved from logs
+			interopEndpoint:    "", // retrieved from logs
+			interopJwtSecret:   eth.Bytes32{},
+			el:                 l2ELID,
+			execPath:           execPath,
+			args:               []string{"node"},
+			env:                envVars,
+			p:                  p,
+			areMetricsEnabled:  areMetricsEnabled,
+			addMetricsCallback: orch.RegisterMetricsEndpoints,
 		}
 		p.Logger().Info("Starting kona-node")
 		k.Start()

@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,6 +18,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
+
+type PrometheusMetricsEndpoint struct {
+	name              string
+	host              string
+	port              string
+	isLocal           bool
+	isRunningInDocker bool
+}
 
 type Orchestrator struct {
 	p devtest.P
@@ -49,6 +58,9 @@ type Orchestrator struct {
 	batchers       locks.RWMap[stack.L2BatcherID, *L2Batcher]
 	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
+
+	// Prometheus endpoints to scrape
+	metricsEndpoints locks.RWMap[string, []PrometheusMetricsEndpoint]
 
 	syncTester *SyncTesterService
 	faucet     *FaucetService
@@ -136,6 +148,14 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	}
 	o.faucet.hydrate(sys)
 	o.sysHook.PostHydrate(sys)
+}
+
+// RegisterMetricsEndpoints is called by components when they are started (or earlier) to register
+// their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
+func (o *Orchestrator) RegisterMetricsEndpoints(serviceName string, endpoints ...PrometheusMetricsEndpoint) {
+	// NB: there may be multiple services with the same name, but we'll register them as separate metrics endpoints
+	for i := 1; !o.metricsEndpoints.SetIfMissing(fmt.Sprintf("%s_%d", serviceName, i), endpoints); i++ {
+	}
 }
 
 type hydrator interface {
