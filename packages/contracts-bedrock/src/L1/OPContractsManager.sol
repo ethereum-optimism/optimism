@@ -706,8 +706,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                             getAnchorStateRegistry(gameConfig.systemConfig),
                             gameL2ChainId
                         ),
-                        getProposerV1(IPermissionedDisputeGame(address(existingGame))),
-                        getChallengerV1(IPermissionedDisputeGame(address(existingGame)))
+                        getProposer(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType),
+                        getChallenger(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType)
                     );
                 } else {
                     constructorData = encodePermissionlessFDGConstructor(

@@ -1088,6 +1088,42 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         }
     }
 
+    /// @notice Mocks the existence of a previous SuperPermissionedDisputeGame so we can add a real
+    /// SuperPermissionedDisputeGame implementation by calling opcm.updatePrestate.
+    function _mockSuperPermissionedGame() internal {
+        // If this feature flag is set then OPContractsManager_TestInit deployed a V2 game
+        // Mock gameArgs accordingly for the v2 deployed game
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            vm.mockCall(
+                address(chainDeployOutput1.disputeGameFactoryProxy),
+                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+                abi.encode(opcm.implementations().permissionedDisputeGameV2Impl)
+            );
+            // It suffices to mock the proposer and challenger gameArgs
+            vm.mockCall(
+                address(chainDeployOutput1.disputeGameFactoryProxy),
+                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+                abi.encodePacked(bytes32(0), address(0), address(0), address(0), uint256(0), proposer, challenger)
+            );
+            vm.mockCall(
+                address(opcm.implementations().permissionedDisputeGameV2Impl),
+                abi.encodeCall(IDisputeGame.gameType, ()),
+                abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+            );
+        } else {
+            vm.mockCall(
+                address(chainDeployOutput1.disputeGameFactoryProxy),
+                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+                abi.encode(chainDeployOutput1.permissionedDisputeGame)
+            );
+            vm.mockCall(
+                address(chainDeployOutput1.permissionedDisputeGame),
+                abi.encodeCall(IDisputeGame.gameType, ()),
+                abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+            );
+        }
+    }
+
     /// @notice Tests that we can update the prestate when only the PermissionedDisputeGame exists.
     function test_updatePrestate_pdgOnlyWithValidInput_succeeds() public {
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
@@ -1120,21 +1156,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     ///         shouldn't matter because the function is independent of other game types that
     ///         exist.
     function test_updatePrestate_withSuperGame_succeeds() public {
-        // TODO(#17972): Remove skip once dispute-game v2 supports the Super DG.
-        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
-        // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
-        // SuperPermissionedDisputeGame implementation.
-        vm.mockCall(
-            address(chainDeployOutput1.disputeGameFactoryProxy),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(chainDeployOutput1.permissionedDisputeGame)
-        );
-        vm.mockCall(
-            address(chainDeployOutput1.permissionedDisputeGame),
-            abi.encodeCall(IDisputeGame.gameType, ()),
-            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-        );
+        _mockSuperPermissionedGame();
 
         // Add a SuperPermissionedDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
@@ -1262,23 +1284,9 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     }
 
     function test_updatePrestate_cannonKonaWithSuperGame_succeeds() public {
-        // TODO(#17972): Remove skip if DEPLOY_V2_DISPUTE_GAMES is enabled once dispute-game v2 supports the Super DG.
-        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
         skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
-        // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
-        // SuperPermissionedDisputeGame implementation.
-        vm.mockCall(
-            address(chainDeployOutput1.disputeGameFactoryProxy),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(chainDeployOutput1.permissionedDisputeGame)
-        );
-        vm.mockCall(
-            address(chainDeployOutput1.permissionedDisputeGame),
-            abi.encodeCall(IDisputeGame.gameType, ()),
-            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-        );
 
+        _mockSuperPermissionedGame();
         // Add a SuperPermissionedDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
         addGameType(input1);
