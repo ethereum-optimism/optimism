@@ -715,7 +715,7 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 }
 
 type FeeMarketConfig struct {
-	// MinBaseFee is the minimum base fee that for each block.
+	// MinBaseFee is the minimum base applied to each block.
 	MinBaseFee uint64 `json:"minBaseFee"`
 	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
 	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
@@ -740,8 +740,8 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
-	AltDADeployConfig
 	FeeMarketConfig
+	AltDADeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
