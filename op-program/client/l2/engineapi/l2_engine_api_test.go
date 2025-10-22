@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -21,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestNewPayloadV4 tests the NewPayloadV4 behavior with pre- and post-Isthmus payload
+// attributes.
 func TestNewPayloadV4(t *testing.T) {
 	cases := []struct {
 		isthmusTime       uint64
@@ -35,7 +38,7 @@ func TestNewPayloadV4(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
 	for _, c := range cases {
-		genesis := createGenesisWithForkTimeOffset(c.isthmusTime)
+		genesis := createGenesisWithIsthmusTimeOffset(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
 			NetworkId:   genesis.Config.ChainID.Uint64(),
 			Genesis:     genesis,
@@ -47,25 +50,12 @@ func TestNewPayloadV4(t *testing.T) {
 		require.NotNil(t, engineAPI)
 		genesisBlock := backend.GetHeaderByNumber(0)
 		genesisHash := genesisBlock.Hash()
-		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
-		minBaseFee := uint64(1e9)
-		minBaseFeePtr := &minBaseFee
-		gasLimit := eth.Uint64Quantity(4712388)
+		attribs := createPayloadAttributes(genesisBlock.Time + c.blockTime)
 		result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 			HeadBlockHash:      genesisHash,
 			SafeBlockHash:      genesisHash,
 			FinalizedBlockHash: genesisHash,
-		}, &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(genesisBlock.Time + c.blockTime),
-			PrevRandao:            eth.Bytes32{0x11},
-			SuggestedFeeRecipient: common.Address{0x33},
-			Withdrawals:           &types.Withdrawals{},
-			ParentBeaconBlockRoot: &common.Hash{0x22},
-			NoTxPool:              false,
-			GasLimit:              &gasLimit,
-			EIP1559Params:         &eip1559Params,
-			MinBaseFee:            minBaseFeePtr,
-		})
+		}, attribs)
 		require.NoError(t, err)
 		require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
 		require.NotNil(t, result.PayloadID)
@@ -86,11 +76,10 @@ func TestNewPayloadV4(t *testing.T) {
 		newPayloadResult, err := engineAPI.NewPayloadV4(context.Background(), envelope.ExecutionPayload, []common.Hash{}, envelope.ParentBeaconBlockRoot, []hexutil.Bytes{})
 		if c.expectedError != "" {
 			require.ErrorContains(t, err, c.expectedError)
-			continue
 		} else {
 			require.NoError(t, err)
+			require.EqualValues(t, engine.VALID, newPayloadResult.Status)
 		}
-		require.EqualValues(t, engine.VALID, newPayloadResult.Status)
 	}
 }
 
@@ -102,25 +91,12 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	require.NotNil(t, engineAPI)
 	genesis := backend.GetHeaderByNumber(0)
 	genesisHash := genesis.Hash()
-	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
-	minBaseFee := uint64(1e9)
-	minBaseFeePtr := &minBaseFee
-	gasLimit := eth.Uint64Quantity(genesis.GasLimit)
+	attribs := createPayloadAttributes(genesis.Time + 1)
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
 		SafeBlockHash:      genesisHash,
 		FinalizedBlockHash: genesisHash,
-	}, &eth.PayloadAttributes{
-		Timestamp:             eth.Uint64Quantity(genesis.Time + 1),
-		PrevRandao:            eth.Bytes32{0x11},
-		SuggestedFeeRecipient: common.Address{0x33},
-		Withdrawals:           &types.Withdrawals{},
-		ParentBeaconBlockRoot: &common.Hash{0x22},
-		NoTxPool:              false,
-		GasLimit:              &gasLimit,
-		EIP1559Params:         &eip1559Params,
-		MinBaseFee:            minBaseFeePtr,
-	})
+	}, attribs)
 	require.NoError(t, err)
 	require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
 	require.NotNil(t, result.PayloadID)
@@ -135,6 +111,20 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	foundLog := logs.FindLog(testlog.NewMessageFilter("Using existing beacon payload"))
 	require.NotNil(t, foundLog)
 	require.Equal(t, envelope.ExecutionPayload.BlockHash, foundLog.AttrValue("hash"))
+}
+
+func createPayloadAttributes(ts uint64) *eth.PayloadAttributes {
+	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+	gasLimit := eth.Uint64Quantity(30e6)
+	return &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(ts),
+		PrevRandao:            eth.Bytes32{0x11},
+		SuggestedFeeRecipient: common.Address{0x33},
+		Withdrawals:           &types.Withdrawals{},
+		ParentBeaconBlockRoot: &common.Hash{0x22},
+		GasLimit:              &gasLimit,
+		EIP1559Params:         &eip1559Params,
+	}
 }
 
 func newStubBackendWithConfig(t *testing.T, ethCfg *ethconfig.Config) *stubCachingBackend {
@@ -154,7 +144,7 @@ func newStubBackendWithConfig(t *testing.T, ethCfg *ethconfig.Config) *stubCachi
 }
 
 func newStubBackend(t *testing.T) *stubCachingBackend {
-	genesis := createGenesis()
+	genesis := createIsthmusGenesis()
 	ethCfg := &ethconfig.Config{
 		NetworkId:   genesis.Config.ChainID.Uint64(),
 		Genesis:     genesis,
@@ -164,11 +154,11 @@ func newStubBackend(t *testing.T) *stubCachingBackend {
 	return newStubBackendWithConfig(t, ethCfg)
 }
 
-func createGenesis() *core.Genesis {
-	return createGenesisWithForkTimeOffset(0)
+func createIsthmusGenesis() *core.Genesis {
+	return createGenesisWithIsthmusTimeOffset(0)
 }
 
-func createGenesisWithForkTimeOffset(forkTimeOffset uint64) *core.Genesis {
+func createGenesisWithIsthmusTimeOffset(forkTimeOffset uint64) *core.Genesis {
 	deployConfig := &genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{
@@ -189,21 +179,7 @@ func createGenesisWithForkTimeOffset(forkTimeOffset uint64) *core.Genesis {
 		},
 	}
 
-	// Enable all forks up to the specified time
-	ts := hexutil.Uint64(0)
-	deployConfig.L2GenesisRegolithTimeOffset = &ts
-	deployConfig.L2GenesisCanyonTimeOffset = &ts
-	deployConfig.L2GenesisDeltaTimeOffset = &ts
-	deployConfig.L2GenesisEcotoneTimeOffset = &ts
-	deployConfig.L2GenesisFjordTimeOffset = &ts
-	deployConfig.L2GenesisGraniteTimeOffset = &ts
-	deployConfig.L2GenesisHoloceneTimeOffset = &ts
-
-	// Set fork time for latest forks
-	offset := hexutil.Uint64(forkTimeOffset)
-	deployConfig.L2GenesisIsthmusTimeOffset = &offset
-	deployConfig.L2GenesisInteropTimeOffset = &offset
-	deployConfig.L2GenesisJovianTimeOffset = &offset
+	deployConfig.ActivateForkAtOffset(rollup.Isthmus, forkTimeOffset)
 
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	if err != nil {

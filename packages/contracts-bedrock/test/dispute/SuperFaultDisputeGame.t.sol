@@ -58,7 +58,7 @@ contract ClaimCreditReenter {
 
 /// @title BaseSuperFaultDisputeGame_TestInit
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
-contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
+abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
 
@@ -127,7 +127,7 @@ contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
 /// @title SuperFaultDisputeGame_TestInit
 /// @notice Reusable test initialization for `SuperFaultDisputeGame` tests.
-contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_TestInit {
+abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
 

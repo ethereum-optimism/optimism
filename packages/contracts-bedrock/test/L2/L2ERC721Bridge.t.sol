@@ -67,7 +67,7 @@ contract L2ERC721Bridge_NonCompliantERC721_Harness {
 
 /// @title L2ERC721Bridge_TestInit
 /// @notice Reusable test initialization for `L2ERC721Bridge` tests.
-contract L2ERC721Bridge_TestInit is CommonTest {
+abstract contract L2ERC721Bridge_TestInit is CommonTest {
     L2ERC721Bridge_TestMintableERC721_Harness internal localToken;
     L2ERC721Bridge_TestERC721_Harness internal remoteToken;
     uint256 internal constant tokenId = 1;

@@ -102,7 +102,7 @@ contract ManageDrippie is Script {
             console.log("%s already active", _name);
         } else {
             // TODO: Better way to handle this?
-            console.log("WARNING: % could not be activated", _name);
+            console.log("WARNING: %s could not be activated", _name);
         }
     }
 }

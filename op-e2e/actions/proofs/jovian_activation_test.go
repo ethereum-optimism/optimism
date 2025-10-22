@@ -8,11 +8,10 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/stretchr/testify/require"
 )
@@ -36,16 +35,24 @@ func setMinBaseFeeViaSystemConfig(t actionsHelpers.Testing, env *helpers.L2Fault
 }
 
 func Test_ProgramAction_JovianActivation(gt *testing.T) {
-
 	runJovianDerivationTest := func(gt *testing.T, testCfg *helpers.TestCfg[any], genesisConfigFn func(*genesis.DeployConfig), jovianAtGenesis bool, minBaseFee uint64) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), genesisConfigFn)
+		gpo, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, env.Engine.EthClient())
+		require.NoError(t, err)
 		t.Logf("L2 Genesis Time: %d, JovianTime: %d ", env.Sequencer.RollupCfg.Genesis.L2Time, *env.Sequencer.RollupCfg.JovianTime)
 
 		if jovianAtGenesis {
 			// Verify Jovian is active at genesis
 			require.True(t, env.Sequencer.RollupCfg.IsJovian(env.Sequencer.RollupCfg.Genesis.L2Time), "Jovian should be active at genesis")
 		} else {
+			require.False(t, env.Sequencer.RollupCfg.IsJovian(env.Engine.L2Chain().CurrentBlock().Time), "Jovian should be not active at genesis")
+
+			// Check GPO status
+			isJovian, err := gpo.IsJovian(nil)
+			require.NoError(t, err)
+			require.False(t, isJovian, "GPO should report that Jovian is not active")
+
 			// If Jovian is not activated at genesis, build some blocks up to the activation block
 			// and verify that the extra data is Holocene
 			for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.JovianTime {
@@ -55,6 +62,11 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 				env.Sequencer.ActL2EmptyBlock(t)
 			}
 		}
+
+		// Check GPO status
+		isJovian, err := gpo.IsJovian(nil)
+		require.NoError(t, err)
+		require.True(t, isJovian, "GPO should report that Jovian is active")
 
 		// Build the activation block
 		env.Sequencer.ActL2EmptyBlock(t)
@@ -111,36 +123,28 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 	}{
 		"JovianActivationAfterGenesis": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				// Activate Isthmus at genesis
-				zero := hexutil.Uint64(0)
-				dc.L2GenesisIsthmusTimeOffset = &zero
-				// Then set Jovian at 10s
-				ten := hexutil.Uint64(10)
-				dc.L2GenesisJovianTimeOffset = &ten
+				dc.ActivateForkAtOffset(rollup.Jovian, 10)
 			},
 			jovianAtGenesis: false,
 			minBaseFee:      0,
 		},
 		"JovianActivationAtGenesisZeroMinBaseFee": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				zero := hexutil.Uint64(0)
-				dc.L2GenesisJovianTimeOffset = &zero
+				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
 			jovianAtGenesis: true,
 			minBaseFee:      0,
 		},
 		"JovianActivationAtGenesisMinBaseFeeMedium": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				zero := hexutil.Uint64(0)
-				dc.L2GenesisJovianTimeOffset = &zero
+				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
 			jovianAtGenesis: true,
 			minBaseFee:      1_000_000_000, // 1 gwei
 		},
 		"JovianActivationAtGenesisMinBaseFeeHigh": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				zero := hexutil.Uint64(0)
-				dc.L2GenesisJovianTimeOffset = &zero
+				dc.ActivateForkAtGenesis(rollup.Jovian)
 			},
 			jovianAtGenesis: true,
 			minBaseFee:      2_000_000_000, // 2 gwei
@@ -150,27 +154,15 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 	for name, tt := range tests {
 		gt.Run(name, func(t *testing.T) {
 			matrix := helpers.NewMatrix[any]()
-			defer matrix.Run(t)
-
-			matrix.AddTestCase(
+			matrix.AddDefaultTestCasesWithName(
 				"HonestClaim-"+name,
 				nil,
 				helpers.NewForkMatrix(helpers.Isthmus),
 				func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis, tt.minBaseFee)
 				},
-				helpers.ExpectNoError(),
 			)
-			matrix.AddTestCase(
-				"JunkClaim-"+name,
-				nil,
-				helpers.NewForkMatrix(helpers.Isthmus),
-				func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-					runJovianDerivationTest(gt, testCfg, tt.genesisConfigFn, tt.jovianAtGenesis, tt.minBaseFee)
-				},
-				helpers.ExpectError(claim.ErrClaimNotValid),
-				helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-			)
+			matrix.Run(t)
 		})
 	}
 }

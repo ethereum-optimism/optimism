@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
@@ -11,7 +11,7 @@ import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @title LivenessModule_TestInit
 /// @notice Reusable test initialization for `LivenessModule` tests.
-contract LivenessModule_TestInit is Test, SafeTestTools {
+abstract contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     error OwnerRemovalFailed(string reason);

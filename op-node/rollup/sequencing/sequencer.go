@@ -571,6 +571,12 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Isthmus upgrade block")
 	}
 
+	// For the Jovian activation block we must not include any sequencer transactions.
+	if d.rollupCfg.IsJovianActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Jovian upgrade block")
+	}
+
 	// For the Interop activation block we must not include any sequencer transactions.
 	if d.rollupCfg.IsInteropActivationBlock(uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true

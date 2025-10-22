@@ -226,6 +226,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 			p2pConfig, err = p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 			require.NoError(err, "failed to load p2p config")
+			p2pConfig.NoDiscovery = cfg.NoDiscovery
 		}
 
 		// specify interop config, but do not configure anything, to disable indexing mode
@@ -240,6 +241,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				RPCJwtSecretPath: jwtPath,
 			}
 		}
+
+		// Set the req-resp sync flag as per config
+		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 
 		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
 		l2EngineAddr := l2EL.EngineRPC()

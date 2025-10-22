@@ -168,6 +168,12 @@ contract PermissionlessDisputeGameMock is ModernMockContract {
     }
 }
 
+contract PermissionlessCannonKonaDisputeGameMock is ModernMockContract {
+    function weth() external pure returns (address) {
+        return WETH_PERMISSIONLESS;
+    }
+}
+
 contract OracleMock is ModernMockContract {
     address public oracle;
 
@@ -199,6 +205,7 @@ contract FetchChainInfoTest is Test {
         address superchainConfig;
         address permissionedGame;
         address permissionlessGame;
+        address permissionlessCannonKonaGame;
         address l2OutputOracle;
         address mips;
         address preimageOracle;
@@ -335,53 +342,11 @@ contract FetchChainInfoTest is Test {
     }
 
     function test_modernPermissionless_succeeds() public {
-        TestContext memory ctx = _prepareModernTestContext();
+        _test_modernPermissionless_succeeds(false);
+    }
 
-        ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
-        ctx.permissionedGame = address(new PermissionedDisputeGameMock());
-        ctx.permissionlessGame = address(new PermissionlessDisputeGameMock());
-        ctx.superchainConfig = address(new ModernMockContract());
-        ctx.mips = address(new OracleMock());
-        ctx.preimageOracle = address(new ModernMockContract());
-        ctx.anchorStateRegistry = address(new ModernMockContract());
-
-        ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
-        ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
-        ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
-        ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
-        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
-        ModernMockContract(payable(ctx.optimismPortal)).set_systemConfig(ctx.systemConfigProxy);
-
-        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
-        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
-            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
-        );
-
-        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
-        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
-        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_vm(ctx.mips);
-        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_anchorStateRegistry(ctx.anchorStateRegistry);
-
-        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
-
-        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
-
-        fetchChainInfo = new FetchChainInfo();
-        fetchChainInfo.run(ctx.input, ctx.output);
-
-        assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
-        assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
-        assertEq(ctx.output.opChainGuardian(), TEST_GUARDIAN, "OpChainGuardian should match");
-        assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
-        assertEq(ctx.output.faultDisputeGameImpl(), ctx.permissionlessGame, "FaultDisputeGame should match");
-        assertEq(ctx.output.challenger(), TEST_CHALLENGER, "Challenger should match");
-        assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should match");
-        assertEq(ctx.output.mipsImpl(), ctx.mips, "MIPS should match");
-        assertEq(ctx.output.preimageOracleImpl(), ctx.preimageOracle, "PreimageOracle should match");
-        assertEq(ctx.output.anchorStateRegistryProxy(), ctx.anchorStateRegistry, "AnchorStateRegistry should match");
-
-        assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
-        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
+    function test_modernPermissionlessCannonKona_succeeds() public {
+        _test_modernPermissionless_succeeds(true);
     }
 
     // Test to verify fallback mechanism for guardian() to GUARDIAN()
@@ -452,12 +417,24 @@ contract FetchChainInfoTest is Test {
 
     // Test delayedWETH mechanism for permissioned and permissionless games
     function test_delayedWeth_succeeds() public {
+        _test_delayedWeth_succeeds(false);
+    }
+
+    // Test delayedWETH mechanism for permissioned and permissionless games
+    function test_delayedWethWithCannonKona_succeeds() public {
+        _test_delayedWeth_succeeds(true);
+    }
+
+    function _test_delayedWeth_succeeds(bool _withCannonKona) internal {
         TestContext memory ctx = _prepareModernTestContext();
 
         // Setup dispute game factory with both game types
         ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
         ctx.permissionedGame = address(new PermissionedDisputeGameMock());
         ctx.permissionlessGame = address(new PermissionlessDisputeGameMock());
+        if (_withCannonKona) {
+            ctx.permissionlessCannonKonaGame = address(new PermissionlessCannonKonaDisputeGameMock());
+        }
         ctx.mips = address(new OracleMock());
 
         ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
@@ -465,6 +442,11 @@ contract FetchChainInfoTest is Test {
         ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
 
         DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
+        if (_withCannonKona) {
+            DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+                GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
+            );
+        }
         DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
             GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
         );
@@ -486,5 +468,70 @@ contract FetchChainInfoTest is Test {
         assertEq(
             ctx.output.delayedWethPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match"
         );
+    }
+
+    function _test_modernPermissionless_succeeds(bool _withCannonKona) internal {
+        TestContext memory ctx = _prepareModernTestContext();
+
+        ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
+        ctx.permissionedGame = address(new PermissionedDisputeGameMock());
+        ctx.permissionlessGame = address(new PermissionlessDisputeGameMock());
+        if (_withCannonKona) {
+            ctx.permissionlessCannonKonaGame = address(new PermissionlessCannonKonaDisputeGameMock());
+        }
+        ctx.superchainConfig = address(new ModernMockContract());
+        ctx.mips = address(new OracleMock());
+        ctx.preimageOracle = address(new ModernMockContract());
+        ctx.anchorStateRegistry = address(new ModernMockContract());
+
+        ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
+        ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
+        ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
+        ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_systemConfig(ctx.systemConfigProxy);
+
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
+        if (_withCannonKona) {
+            DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+                GameTypes.CANNON_KONA, ctx.permissionlessCannonKonaGame
+            );
+        }
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
+        );
+
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_vm(ctx.mips);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_anchorStateRegistry(ctx.anchorStateRegistry);
+
+        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
+
+        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
+
+        fetchChainInfo = new FetchChainInfo();
+        fetchChainInfo.run(ctx.input, ctx.output);
+
+        assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
+        assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
+        assertEq(ctx.output.opChainGuardian(), TEST_GUARDIAN, "OpChainGuardian should match");
+        assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
+        assertEq(ctx.output.faultDisputeGameImpl(), ctx.permissionlessGame, "FaultDisputeGame should match");
+        if (_withCannonKona) {
+            assertEq(
+                ctx.output.faultDisputeGameCannonKonaImpl(),
+                ctx.permissionlessCannonKonaGame,
+                "FaultDisputeGameCannonKona should match"
+            );
+        }
+        assertEq(ctx.output.challenger(), TEST_CHALLENGER, "Challenger should match");
+        assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should match");
+        assertEq(ctx.output.mipsImpl(), ctx.mips, "MIPS should match");
+        assertEq(ctx.output.preimageOracleImpl(), ctx.preimageOracle, "PreimageOracle should match");
+        assertEq(ctx.output.anchorStateRegistryProxy(), ctx.anchorStateRegistry, "AnchorStateRegistry should match");
+
+        assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
+        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
     }
 }

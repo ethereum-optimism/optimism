@@ -10,7 +10,7 @@ import { TransferOnion } from "src/periphery/TransferOnion.sol";
 
 /// @title TransferOnion_TestInit
 /// @notice Reusable test initialization for `TransferOnion` tests.
-contract TransferOnion_TestInit is Test {
+abstract contract TransferOnion_TestInit is Test {
     /// @notice TransferOnion
     TransferOnion internal onion;
 

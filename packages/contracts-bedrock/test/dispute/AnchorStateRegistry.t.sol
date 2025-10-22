@@ -16,7 +16,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title AnchorStateRegistry_TestInit
 /// @notice Reusable test initialization for `AnchorStateRegistry` tests.
-contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit {
+abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit {
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
     uint256 validL2BlockNumber;
 
