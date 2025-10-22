@@ -49,18 +49,10 @@ if [ -f "$PROMO_JSON" ]; then
     fi
   fi
 
-  # Ensure URL points to the artifacts page of the report job
-  REPORT_ARTIFACTS_URL="$REPORT_JOB_URL"
-  if [ -n "$REPORT_ARTIFACTS_URL" ]; then
-    if ! printf '%s' "$REPORT_ARTIFACTS_URL" | grep -q '/artifacts\($\|[?#]\)'; then
-      REPORT_ARTIFACTS_URL="${REPORT_ARTIFACTS_URL%/}/artifacts"
-    fi
-  fi
-
   # Build Block Kit blocks (header + link + divider + per-candidate sections)
   # See: https://docs.slack.dev/block-kit
   SLACK_BLOCKS=$(jq -c \
-    --arg url "${REPORT_ARTIFACTS_URL}" \
+    --arg url "${REPORT_JOB_URL}" \
     --arg job "${REPORT_JOB_URL}" \
     --slurpfile meta "${PROMO_JSON%/*}/metadata.json" '
     def name_or_pkg(t): (if ((t.test_name|tostring)|length) == 0 then "(package)" else t.test_name end);
@@ -103,7 +95,7 @@ if [ -f "$PROMO_JSON" ]; then
         (
           [
             {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: Flake-Shake Promotion Candidates (\($root.candidates|length)) — \(if $date != "" then $date else (now|strftime("%Y-%m-%d")) end)"}},
-            {"type":"section","text":{"type":"mrkdwn","text": (if $pr_url != "" then "PR: <\($pr_url)|Open PR>  •  Artifacts: <\($url)|CircleCI Job>" else "Artifacts: <\($url)|CircleCI Job>" end) }},
+            {"type":"section","text":{"type":"mrkdwn","text": (if $pr_url != "" then "<\($pr_url)|Pull Request>  •  <\($url)|CircleCI Job>" else "Artifacts: <\($url)|CircleCI Job>" end) }},
             {"type":"divider"}
           ]
         )
