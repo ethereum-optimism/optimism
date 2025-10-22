@@ -163,5 +163,10 @@ Go stack env vars:
 - `DEVSTACK_L1EL_KIND=geth` to select geth as default L1 EL node
 - `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
 
+Observability env vars:
+- `SYSGO_DOCKER_EXEC_PATH` to set local path to docker executable (defaults to `/usr/local/bin/docker`)
+- `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
+- `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)
+
 Other useful env vars:
 - `DISABLE_OP_E2E_LEGACY=true` to disable the op-e2e package from loading build-artifacts that are not used by devstack.
