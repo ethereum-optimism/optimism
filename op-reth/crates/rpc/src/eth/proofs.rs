@@ -1,11 +1,11 @@
 //! Historical proofs RPC server implementation.
 
+use crate::metrics::EthApiExtMetrics;
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
 use alloy_rpc_types_eth::EIP1186AccountProofResponse;
 use alloy_serde::JsonStorageKey;
 use async_trait::async_trait;
-use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
@@ -13,6 +13,7 @@ use reth_optimism_trie::{provider::OpProofsStateProviderRef, OpProofsStorage, Op
 use reth_provider::{BlockIdReader, ProviderError, ProviderResult, StateProofProvider};
 use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
+use std::time::Instant;
 
 #[cfg_attr(not(test), rpc(server, namespace = "eth"))]
 #[cfg_attr(test, rpc(server, client, namespace = "eth"))]
@@ -28,11 +29,12 @@ pub trait EthApiOverride {
     ) -> RpcResult<EIP1186AccountProofResponse>;
 }
 
-#[derive(Debug, Constructor)]
+#[derive(Debug)]
 /// Overrides applied to the `eth_` namespace of the RPC API for historical proofs ExEx.
 pub struct EthApiExt<Eth, P> {
     eth_api: Eth,
     preimage_store: OpProofsStorage<P>,
+    metrics: EthApiExtMetrics,
 }
 
 impl<Eth, P> EthApiExt<Eth, P>
@@ -41,6 +43,12 @@ where
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
 {
+    /// Creates a new instance with the provided ETH API and proof store.
+    pub fn new(eth_api: Eth, preimage_store: OpProofsStorage<P>) -> Self {
+        let metrics = EthApiExtMetrics::default();
+        Self { eth_api, preimage_store, metrics }
+    }
+
     async fn state_provider(
         &self,
         block_id: Option<BlockId>,
@@ -95,11 +103,28 @@ where
         keys: Vec<JsonStorageKey>,
         block_number: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        let state = self.state_provider(block_number).await.map_err(Into::into)?;
-        let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+        self.metrics.get_proof_requests.increment(1);
+        let start = Instant::now();
 
-        let proof = state.proof(Default::default(), address, &storage_keys).map_err(Into::into)?;
+        let result = async {
+            let state = self.state_provider(block_number).await.map_err(Into::into)?;
+            let storage_keys: Vec<_> = keys.iter().map(|key| key.as_b256()).collect();
 
-        return Ok(proof.into_eip1186_response(keys));
+            let proof =
+                state.proof(Default::default(), address, &storage_keys).map_err(Into::into)?;
+
+            Ok(proof.into_eip1186_response(keys))
+        }
+        .await;
+
+        match &result {
+            Ok(_) => {
+                self.metrics.get_proof_latency.record(start.elapsed().as_secs_f64());
+                self.metrics.get_proof_successful_responses.increment(1);
+            }
+            Err(_) => self.metrics.get_proof_failures.increment(1),
+        }
+
+        result
     }
 }
