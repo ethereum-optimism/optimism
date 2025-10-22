@@ -1091,37 +1091,26 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @notice Mocks the existence of a previous SuperPermissionedDisputeGame so we can add a real
     /// SuperPermissionedDisputeGame implementation by calling opcm.updatePrestate.
     function _mockSuperPermissionedGame() internal {
-        // If this feature flag is set then OPContractsManager_TestInit deployed a V2 game
-        // Mock gameArgs accordingly for the v2 deployed game
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            vm.mockCall(
-                address(chainDeployOutput1.disputeGameFactoryProxy),
-                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-                abi.encode(opcm.implementations().permissionedDisputeGameV2Impl)
-            );
-            // It suffices to mock the proposer and challenger gameArgs
-            vm.mockCall(
-                address(chainDeployOutput1.disputeGameFactoryProxy),
-                abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-                abi.encodePacked(bytes32(0), address(0), address(0), address(0), uint256(0), proposer, challenger)
-            );
-            vm.mockCall(
-                address(opcm.implementations().permissionedDisputeGameV2Impl),
-                abi.encodeCall(IDisputeGame.gameType, ()),
-                abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-            );
-        } else {
-            vm.mockCall(
-                address(chainDeployOutput1.disputeGameFactoryProxy),
-                abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-                abi.encode(chainDeployOutput1.permissionedDisputeGame)
-            );
-            vm.mockCall(
-                address(chainDeployOutput1.permissionedDisputeGame),
-                abi.encodeCall(IDisputeGame.gameType, ()),
-                abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-            );
-        }
+        vm.mockCall(
+            address(chainDeployOutput1.disputeGameFactoryProxy),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(chainDeployOutput1.permissionedDisputeGame)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IDisputeGame.gameType, ()),
+            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.proposer, ()),
+            abi.encode(proposer)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
+            abi.encode(challenger)
+        );
     }
 
     /// @notice Tests that we can update the prestate when only the PermissionedDisputeGame exists.
