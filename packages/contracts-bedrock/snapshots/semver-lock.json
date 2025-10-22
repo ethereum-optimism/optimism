@@ -208,8 +208,8 @@
     "sourceCodeHash": "0x7fc4789b082bc8ecd29c4c75a06058f0ff0b72f1c1028a42db6f1c35269c8865"
   },
   "src/safe/SaferSafes.sol:SaferSafes": {
-    "initCodeHash": "0xdc5a50da6e564ed8f12c922c66418c4a7330a02381b360ecfcdf449d08b541c7",
-    "sourceCodeHash": "0x7c92d99c6782f7472a506ab6ac1dcc9d192a164c0d3257301493ad2c9f686f03"
+    "initCodeHash": "0x54eb5d9d4dd6c7a6ac5c223c7e166cf30e93e11acb8caefab73eac596dba5af7",
+    "sourceCodeHash": "0xeb7745b3f5626573d1e935affbbb0e6b455e729f1d8b2da84ab0d5a46f848377"
   },
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20": {
     "initCodeHash": "0x3c85eed0d017dca8eda6396aa842ddc12492587b061e8c756a8d32c4610a9658",
