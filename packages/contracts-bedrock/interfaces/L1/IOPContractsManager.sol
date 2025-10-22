@@ -218,6 +218,8 @@ interface IOPContractsManager {
         address mipsImpl;
         address faultDisputeGameV2Impl;
         address permissionedDisputeGameV2Impl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading.

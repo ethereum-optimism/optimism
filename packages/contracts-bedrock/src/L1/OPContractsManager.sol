@@ -261,21 +261,6 @@ abstract contract OPContractsManagerBase {
         return Bytes.slice(dataWithSelector, 4);
     }
 
-    function encodePermissionedSuperFDGConstructor(
-        ISuperFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector =
-            abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
         IDisputeGameFactory _disputeGameFactory,
@@ -1926,42 +1911,24 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
 
-            // Deploy the new SuperPermissionedDisputeGame.
             // NOTE that we use a chain id of 0 here (instead of the block timestamp) because the
             // use of the chain id is different and actually passed into the constructor of the
             // dispute game contracts. Since these are Super dispute games and involve multiple
             // chains, the contracts enforce that the chain id is zero.
-            ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
-                Blueprint.deployFrom(
-                    blueprints().superPermissionedDisputeGame1,
-                    blueprints().superPermissionedDisputeGame2,
-                    computeSalt(
-                        block.timestamp,
-                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
-                        "SuperPermissionedDisputeGame"
-                    ),
-                    encodePermissionedSuperFDGConstructor(
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
-                            weth: newPermissionedDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
-                            l2ChainId: 0
-                        }),
-                        _input.gameParameters.proposer,
-                        _input.gameParameters.challenger
-                    )
-                )
+            bytes memory gameArgs = abi.encodePacked(
+                _input.opChainConfigs[0].absolutePrestate.raw(),
+                address(getImplementations().mipsImpl),
+                newAnchorStateRegistry,
+                address(newPermissionedDelayedWETHProxy),
+                uint256(0), // l2ChainId
+                _input.gameParameters.proposer,
+                _input.gameParameters.challenger
             );
-
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
-                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
+                GameTypes.SUPER_PERMISSIONED_CANNON,
+                IDisputeGame(implementations().superPermissionedDisputeGameImpl),
+                gameArgs
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
@@ -1988,35 +1955,17 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
 
-            // Deploy the new SuperFaultDisputeGame.
-            ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
-                Blueprint.deployFrom(
-                    blueprints().superPermissionlessDisputeGame1,
-                    blueprints().superPermissionlessDisputeGame2,
-                    computeSalt(
-                        block.timestamp,
-                        reusableSaltMixer(_input.opChainConfigs[0].systemConfigProxy),
-                        "SuperFaultDisputeGame"
-                    ),
-                    encodePermissionlessSuperFDGConstructor(
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
-                            weth: newPermissionlessDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
-                            l2ChainId: 0
-                        })
-                    )
-                )
-            );
-
             // Register the new SuperFaultDisputeGame.
-            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
+            bytes memory gameArgs = abi.encodePacked(
+                _input.opChainConfigs[0].absolutePrestate.raw(),
+                address(getImplementations().mipsImpl),
+                newAnchorStateRegistry,
+                address(newPermissionlessDelayedWETHProxy),
+                uint256(0) // l2ChainId
+            );
+            newDisputeGameFactory.setImplementation(
+                GameTypes.SUPER_CANNON, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs
+            );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
     }
@@ -2090,6 +2039,7 @@ contract OPContractsManager is ISemver {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
+        // TODO(inphi): The super games are migrated to v2 dgs. Remove the super blueprints.
         address superPermissionedDisputeGame1;
         address superPermissionedDisputeGame2;
         address superPermissionlessDisputeGame1;
@@ -2114,6 +2064,8 @@ contract OPContractsManager is ISemver {
         address mipsImpl;
         address faultDisputeGameV2Impl;
         address permissionedDisputeGameV2Impl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading, along with new prestate hashes
@@ -2153,9 +2105,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.0.0
+    /// @custom:semver 5.1.0
     function version() public pure virtual returns (string memory) {
-        return "5.0.0";
+        return "5.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

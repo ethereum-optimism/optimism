@@ -26,19 +26,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
         address counteredBy;
     }
 
-    struct GameConstructorParams {
-        GameType gameType;
-        Claim absolutePrestate;
-        uint256 maxGameDepth;
-        uint256 splitDepth;
-        Duration clockExtension;
-        Duration maxClockDuration;
-        IBigStepper vm;
-        IDelayedWETH weth;
-        IAnchorStateRegistry anchorStateRegistry;
-        uint256 l2ChainId;
-    }
-
     error AlreadyInitialized();
     error AnchorRootNotFound();
     error BadExtraData();
@@ -129,8 +116,7 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function vm() external view returns (IBigStepper vm_);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
+    function l2ChainId() external view returns (uint256 l2ChainId_);
 
-    function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger) external;
+    function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params) external;
 }

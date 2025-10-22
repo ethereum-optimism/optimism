@@ -8,6 +8,7 @@ import (
 	"path"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -234,13 +235,13 @@ var (
 	optimismPortalFn      = w3.MustNewFunc("optimismPortal()", "address")
 	disputeGameFactoryFn  = w3.MustNewFunc("disputeGameFactory()", "address")
 	gameImplsFn           = w3.MustNewFunc("gameImpls(uint32)", "address")
+	gameArgsFn            = w3.MustNewFunc("gameArgs(uint32)", "bytes")
 	ownerFn               = w3.MustNewFunc("owner()", "address")
 	proxyAdminFn          = w3.MustNewFunc("proxyAdmin()", "address")
 	adminFn               = w3.MustNewFunc("admin()", "address")
 	proxyAdminOwnerFn     = w3.MustNewFunc("proxyAdminOwner()", "address")
 	ethLockboxFn          = w3.MustNewFunc("ethLockbox()", "address")
 	anchorStateRegistryFn = w3.MustNewFunc("anchorStateRegistry()", "address")
-	wethFn                = w3.MustNewFunc("weth()", "address")
 	transferOwnershipFn   = w3.MustNewFunc("transferOwnership(address)", "")
 )
 
@@ -385,13 +386,12 @@ func resetOwnershipAfterMigration(
 
 	gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
 	for _, gameType := range gameTypes {
-		var game common.Address
-		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameImplsFn, gameType).Returns(&game))
+		var gameArgsBytes []byte
+		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameArgsFn, gameType).Returns(&gameArgsBytes))
 		t.Require().NoError(err)
-		var wethProxy common.Address
-		err = w3Client.Call(w3eth.CallFunc(game, wethFn).Returns(&wethProxy))
-		t.Require().NoError(err, "failed to get weth proxy")
-		wethAdminOwner := getProxyAdminOwner(t, w3Client, wethProxy)
+		gameArgs, err := gameargs.Parse(gameArgsBytes)
+		t.Require().NoErrorf(err, "invalid game args for gameType %d", gameType)
+		wethAdminOwner := getProxyAdminOwner(t, w3Client, gameArgs.Weth)
 		t.Require().Equal(l1PAO, wethAdminOwner, "wethProxy proxy admin owner is not the L1PAO")
 	}
 }
