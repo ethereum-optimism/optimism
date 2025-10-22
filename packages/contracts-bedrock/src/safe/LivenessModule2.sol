@@ -17,6 +17,7 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
 ///
+///      Follows a state machine diagram for the lifecycle of this contract:
 ///      +----------------------+
 ///      | Start (no challenge) |<---------------------------+
 ///      +----------------------+                            |
