@@ -20,12 +20,12 @@
     "sourceCodeHash": "0xfca613b5d055ffc4c3cbccb0773ddb9030abedc1aa6508c9e2e7727cc0cd617b"
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
-    "initCodeHash": "0xf7b6062115f54d3dc05832ff85994f779f6605190c3575546fc0294538b5c126",
-    "sourceCodeHash": "0xbe7ceb48b39fc1d6c311b9d6dd9095ee72fa5cf82f72d27ec4511c97c01b02aa"
+    "initCodeHash": "0x0fec1db69fa99c31c4b13140bceee87419b8d3342cc952063a7a268242f3a199",
+    "sourceCodeHash": "0x2b0abd0e179a5449be392b301677554fa1d4f93af1083baa23f43ccf3cac9d02"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x6ab0be61f62cc466aa725b7f6c1e9886f2698c32fa5d99fe257242fce736fda9",
-    "sourceCodeHash": "0x8d77293ed8297f507f85c6876c9843d77e2bbbaed7f0be7e5ff71055105e6442"
+    "initCodeHash": "0xe0e6d892d38211dc0165ca00dc1e8aa558eb7a1240560260e23262f066f6be72",
+    "sourceCodeHash": "0xe40f42a857c9b0905db4c91d61073d9dd572a6bc49921c5ee6e875cf54dc9407"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x5bf576ea7f566e402a997204988471fc9b971410aa9dff8fe810b10baf6b7456",

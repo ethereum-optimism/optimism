@@ -2153,9 +2153,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 4.6.0
+    /// @custom:semver 5.0.0
     function version() public pure virtual returns (string memory) {
-        return "4.6.0";
+        return "5.0.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
