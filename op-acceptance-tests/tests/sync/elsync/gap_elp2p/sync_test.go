@@ -276,3 +276,69 @@ func TestELP2PFCUInvalidHash(gt *testing.T) {
 		sys.L2ELB.DisconnectPeerWith(sys.L2EL)
 	})
 }
+
+func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	logger := t.Logger()
+
+	// Advance few blocks to make sure reference node advanced
+	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+
+	sys.L2CLB.Stop()
+
+	// At this point, L2ELB has no ELP2P, and L2CL connection
+	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
+
+	// Try to advance non canonical chain
+	targetNum := startNum + 1
+	logger.Info("NewPayload", "target", targetNum)
+	sys.L2ELB.NewPayload(sys.L2EL, targetNum).IsValid()
+
+	// FCU to advance unsafe and safe normally, promoting non canonical chain to canonical
+	logger.Info("ForkchoiceUpdate", "target", targetNum)
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, targetNum, 0, nil).IsValid()
+	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
+	sys.L2ELB.SafeHead().NumEqualTo(targetNum)
+	logger.Info("Canonical chain advanced for unsafe and safe", "number", targetNum)
+
+	// Try to advance non canonical chain
+	safeTargetNum := startNum + 2
+	logger.Info("NewPayload", "target", safeTargetNum)
+	sys.L2ELB.NewPayload(sys.L2EL, safeTargetNum).IsValid()
+
+	// FCU safe normally, but target unsafe which cannot be synced because of the gap
+	unsafeTargetNum := safeTargetNum + 5
+	attempts := 5
+	logger.Info("ForkchoiceUpdate", "safeTarget", safeTargetNum, "unsafeTarget", unsafeTargetNum)
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, unsafeTargetNum, safeTargetNum, 0, nil).Retry(attempts).ResultAllSyncing()
+	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
+	sys.L2ELB.SafeHead().NumEqualTo(targetNum)
+	logger.Info("Canonical chain not advanced for unsafe and safe", "number", targetNum)
+
+	// Try to advance non canonical chain
+	safeTargetNum = startNum + 3
+	logger.Info("NewPayload", "target", safeTargetNum)
+	sys.L2ELB.NewPayload(sys.L2EL, safeTargetNum).IsValid()
+
+	// FCU safe normally, but target unsafe which cannot be synced because of the gap
+	unsafeTargetNum = safeTargetNum + 6
+	logger.Info("ForkchoiceUpdate", "safeTarget", safeTargetNum, "unsafeTarget", unsafeTargetNum)
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, unsafeTargetNum, safeTargetNum, 0, nil).Retry(attempts).ResultAllSyncing()
+	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
+	sys.L2ELB.SafeHead().NumEqualTo(targetNum)
+	logger.Info("Canonical chain not advanced for unsafe and safe", "number", targetNum)
+
+	// Enable EL P2P to update both unsafe and safe at once using EL Sync
+	sys.L2ELB.PeerWith(sys.L2EL)
+	logger.Info("ForkchoiceUpdate", "safeTarget", safeTargetNum, "unsafeTarget", unsafeTargetNum)
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, unsafeTargetNum, safeTargetNum, 0, nil).WaitUntilValid(attempts)
+	sys.L2ELB.UnsafeHead().NumEqualTo(unsafeTargetNum)
+	sys.L2ELB.SafeHead().NumEqualTo(safeTargetNum)
+	logger.Info("Canonical chain advanced for unsafe and safe", "safeTarget", safeTargetNum, "unsafeTarget", unsafeTargetNum)
+
+	t.Cleanup(func() {
+		sys.L2CLB.Start()
+		sys.L2ELB.DisconnectPeerWith(sys.L2EL)
+	})
+}
