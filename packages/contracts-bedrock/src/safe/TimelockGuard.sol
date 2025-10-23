@@ -442,7 +442,7 @@ abstract contract TimelockGuard is BaseGuard {
         // `encodeTransactionData` was removed from the safe, and the `isValidSignature` function
         // signature changed. If the guard were to be enabled for an unsupported version the safe
         // would be rendered permanently unusable.
-        if (SemverComp.lt(callingSafe.VERSION(), "1.4.0") || SemverComp.gte(callingSafe.VERSION(), "1.5.0")) {
+        if (SemverComp.lt(callingSafe.VERSION(), "1.3.0") || SemverComp.gte(callingSafe.VERSION(), "1.5.0")) {
             revert TimelockGuard_InvalidVersion();
         }
 

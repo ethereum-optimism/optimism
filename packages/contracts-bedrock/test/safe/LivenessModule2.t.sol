@@ -195,7 +195,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
-    function test_configureLivenessModule_revertsIfVersionTooOld_reverts() external {
+    function test_configureLivenessModule_withVersionTooOld_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
         vm.expectRevert(LivenessModule2.LivenessModule2_InvalidVersion.selector, address(livenessModule2));
@@ -206,7 +206,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
-    function test_configureLivenessModule_revertsIfVersionTooNew_reverts() external {
+    function test_configureLivenessModule_withVersionTooNew_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.6.0"));
         vm.expectRevert(LivenessModule2.LivenessModule2_InvalidVersion.selector, address(livenessModule2));
