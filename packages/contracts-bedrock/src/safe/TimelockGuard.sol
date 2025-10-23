@@ -167,11 +167,6 @@ abstract contract TimelockGuard is BaseGuard {
     /// @notice Error for when trying to clear guard while it is still enabled
     error TimelockGuard_GuardStillEnabled();
 
-    /// @notice Emitted when some transactions are not cancelled.
-    /// @param safe The Safe whose transactions are not cancelled.
-    /// @param uncancelledCount The number of transactions that are not cancelled.
-    event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
-
     /// @notice Error for when the caller is not an owner of the Safe
     error TimelockGuard_NotOwner();
 
@@ -478,7 +473,6 @@ abstract contract TimelockGuard is BaseGuard {
     ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
-        SafeState storage safeState = _currentSafeState(callingSafe);
 
         // Check that this guard is NOT enabled on the calling Safe
         // This prevents clearing configuration while guard is still enabled

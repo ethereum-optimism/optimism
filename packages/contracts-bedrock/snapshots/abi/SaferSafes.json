@@ -820,25 +820,6 @@
     "type": "event"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "contract Safe",
-        "name": "safe",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "uncancelledCount",
-        "type": "uint256"
-      }
-    ],
-    "name": "TransactionsNotCancelled",
-    "type": "event"
-  },
-  {
     "inputs": [],
     "name": "LivenessModule2_ChallengeAlreadyExists",
     "type": "error"
