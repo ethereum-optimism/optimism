@@ -228,6 +228,7 @@ abstract contract LivenessModule2 {
 
         // Erase the configuration data for this safe
         delete _livenessSafeConfiguration[callingSafe];
+
         // Also clear any active challenge
         _cancelChallenge(callingSafe);
         emit ModuleCleared(address(callingSafe));
