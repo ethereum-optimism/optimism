@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -133,9 +134,9 @@ func TestDAFootprint(gt *testing.T) {
 		setScalar *uint16
 		expected  uint16
 	}{
-		{"DefaultScalar", nil, uint16(eth.DAFootprintGasScalarDefault)},
+		{"DefaultScalar", nil, uint16(derive.DAFootprintGasScalarDefault)},
 		{"Scalar1000", &s1000, uint16(1000)},
-		{"ScalarZeroUsesDefault", &s0, uint16(eth.DAFootprintGasScalarDefault)},
+		{"ScalarZeroUsesDefault", &s0, uint16(derive.DAFootprintGasScalarDefault)},
 	}
 
 	for _, tc := range cases {
@@ -145,7 +146,7 @@ func TestDAFootprint(gt *testing.T) {
 				// Wait for change to propagate to L2
 				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 20)
 			} else {
-				sys.L2EL.WaitForBlockNumber(2) // make sure we don't assert on genesis or first block
+				sys.L2EL.WaitForBlockNumber(1) // make sure we don't assert on genesis
 			}
 			env.expectL1BlockDAFootprintGasScalar(t, tc.expected)
 

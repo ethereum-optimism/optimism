@@ -92,6 +92,28 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 302400,
                 "PermissionedDisputeGameV2 maxClockDuration incorrect"
             );
+
+            // Ensure legacy blueprints were not deployed
+            assertEq(
+                output.opcm.blueprints().permissionedDisputeGame1,
+                address(0),
+                "PermissionedDisputeGame1 blueprint should not be deployed"
+            );
+            assertEq(
+                output.opcm.blueprints().permissionedDisputeGame2,
+                address(0),
+                "PermissionedDisputeGame2 blueprint should not be deployed"
+            );
+            assertEq(
+                output.opcm.blueprints().permissionlessDisputeGame1,
+                address(0),
+                "PermissionlessDisputeGame1 blueprint should not be deployed"
+            );
+            assertEq(
+                output.opcm.blueprints().permissionlessDisputeGame1,
+                address(0),
+                "PermissionlessDisputeGame2 blueprint should not be deployed"
+            );
         } else {
             assertEq(address(output.faultDisputeGameV2Impl), address(0), "FaultDisputeGameV2 should not be deployed");
             assertEq(

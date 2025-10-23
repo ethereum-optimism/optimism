@@ -27,6 +27,7 @@ interface IOPContractsManagerStandardValidator {
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
+        address proposer;
     }
 
     struct ValidationOverrides {

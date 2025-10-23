@@ -12,9 +12,41 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
+///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///      Follows a state machine diagram for the lifecycle of this contract:
+///      +----------------------+
+///      | Start (no challenge) |<---------------------------+
+///      +----------------------+                            |
+///       |                                                  | respond() by Safe
+///       |  challenge() by fallbackOwner                    | OR
+///       |                                                  | configureLivenessModule() by Safe
+///       v                                                  | OR
+///      +--------------------------------------+            | clearLivenessModule() by Safe
+///      | Challenge Started                    |            |
+///      | challengeStartTime = block.timestamp |------------+
+///      +--------------------------------------+            |
+///       |                                                  |
+///       |  block.timestamp >= challengeStartTime +         |
+///       |                     livenessResponsePeriod       |
+///       v                                                  |
+///      +-----+-----------------------------------------+   |
+///      | Ready to transfer ownership to fallback owner |---+
+///      +-----+-----------------------------------------+
+///       |
+///       |  changeOwnershipToFallback() by fallbackOwner
+///       |
+///       v
+///      +------------------------------+
+///      | Ownership Transferred        |
+///      | - fallback owner sole owner  |
+///      | - guard cleared              |
+///      | - challenge cleared          |
+///      +------------------------------+
+///
 abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
@@ -169,8 +201,8 @@ abstract contract LivenessModule2 {
     ///      1. Safe disables the module via ModuleManager.disableModule().
     ///      2. Safe calls this clearLivenessModule() function to remove stored configuration.
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
-    ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
-    ///      for potential future re-enabling.
+    ///      Never calling clearLivenessModule() after disabling keeps configuration data
+    ///      persistent for potential future re-enabling.
     function clearLivenessModule() external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -301,8 +333,8 @@ abstract contract LivenessModule2 {
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
+        // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
         _safe.execTransactionFromModule({
             to: address(_safe),
@@ -317,8 +349,9 @@ abstract contract LivenessModule2 {
     //                   Internal View Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
-    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    ///         guard's configuration is valid in the context of other extensions that are enabled
+    ///         on the Safe.
     function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Asserts that the module is configured for the given Safe.

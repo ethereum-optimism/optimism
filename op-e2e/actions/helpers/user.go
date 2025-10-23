@@ -285,7 +285,7 @@ func (s *BasicUser[B]) MakeTransaction(t Testing) *types.Transaction {
 
 // ActMakeTx makes a tx with the predetermined contents (see randomization and other actions)
 // and sends it to the tx pool
-func (s *BasicUser[B]) ActMakeTx(t Testing) {
+func (s *BasicUser[B]) ActMakeTx(t Testing) *types.Transaction {
 	t.Helper()
 	tx := s.MakeTransaction(t)
 	err := s.env.EthCl.SendTransaction(t.Ctx(), tx)
@@ -293,6 +293,7 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 	s.lastTxHash = tx.Hash()
 	// reset the calldata
 	s.txCallData = []byte{}
+	return tx
 }
 
 func (s *BasicUser[B]) ActCheckReceiptStatusOfLastTx(success bool) func(t Testing) {
