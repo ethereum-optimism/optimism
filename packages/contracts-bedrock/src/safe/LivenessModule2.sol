@@ -7,6 +7,9 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
@@ -16,6 +19,9 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///     This guard is compatible only with Safe versions 1.3.x and 1.4.x. Enabling it for a Safe
+///     from any other version will brick the Safe.
 ///
 ///      Follows a state machine diagram for the lifecycle of this contract:
 ///      +----------------------+
@@ -72,6 +78,9 @@ abstract contract LivenessModule2 {
 
     /// @notice Error for when Safe is not configured for this module.
     error LivenessModule2_ModuleNotConfigured();
+
+    /// @notice Error for when the contract is not between 1.3.x and 1.5.x
+    error LivenessModule2_InvalidVersion();
 
     /// @notice Error for when a challenge already exists.
     error LivenessModule2_ChallengeAlreadyExists();
@@ -169,6 +178,14 @@ abstract contract LivenessModule2 {
         // fallbackOwner must not be zero address to have a valid ownership recipient.
         if (_config.fallbackOwner == address(0)) {
             revert LivenessModule2_InvalidFallbackOwner();
+        }
+
+        // Check that the safe contract version is between 1.3.x and 1.5.x
+        // Prior to version 1.3.0, GuardManager.setGuard didn't exist. If the module were to be
+        // enabled for an unsupported version the module would fail to transfer ownership when
+        // required.
+        if (SemverComp.lt(callingSafe.VERSION(), "1.3.0") || SemverComp.gte(callingSafe.VERSION(), "1.6.0")) {
+            revert LivenessModule2_InvalidVersion();
         }
 
         // Check that this module is enabled on the calling Safe.

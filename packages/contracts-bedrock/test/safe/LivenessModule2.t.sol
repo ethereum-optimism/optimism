@@ -194,6 +194,29 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         );
     }
 
+
+    /// @notice Checks configuration reverts when the contract is too old.
+    function test_configureLivenessModule_revertsIfVersionTooOld_reverts() external {
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
+        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidVersion.selector, address(livenessModule2));
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configureLivenessModule(
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
+    }
+
+    /// @notice Checks configuration reverts when the contract is too old.
+    function test_configureLivenessModule_revertsIfVersionTooNew_reverts() external {
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.6.0"));
+        vm.expectRevert(LivenessModule2.LivenessModule2_InvalidVersion.selector, address(livenessModule2));
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configureLivenessModule(
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
+    }
+
     function test_configureLivenessModule_cancelsExistingChallenge_succeeds() external {
         // First configure the module
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
