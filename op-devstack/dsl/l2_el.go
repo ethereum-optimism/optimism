@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -263,17 +264,39 @@ func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResu
 
 // ForkchoiceUpdate fetches FCU target hashes from the reference EL node, and FCU update with attributes
 func (el *L2ELNode) ForkchoiceUpdate(refNode *L2ELNode, unsafe, safe, finalized uint64, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
+	unsafeHash := refNode.BlockRefByNumber(unsafe).Hash
+	safeHash := refNode.BlockRefByNumber(safe).Hash
+	finalizedHash := refNode.BlockRefByNumber(finalized).Hash
+	el.log.Info("ForkchoiceUpdate with reference node", "unsafe", unsafe, "safe", safe, "finalized", finalized, "node", el, "refNode", refNode)
+	return el.ForkchoiceUpdateRaw(unsafeHash, safeHash, finalizedHash, attr)
+}
+
+// ForkchoiceUpdateRaw calls FCU with block hashes with attributes
+func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, attr *eth.PayloadAttributes) *ForkchoiceUpdateResult {
 	result := &ForkchoiceUpdateResult{T: el.t}
 	refresh := func() {
-		el.log.Info("ForkchoiceUpdate", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el, "refNode", refNode)
+		result.RefreshCnt += 1
+		el.log.Info("ForkchoiceUpdateRaw", "unsafe", unsafe, "safe", safe, "finalized", finalized, "attr", attr, "node", el)
 		state := &eth.ForkchoiceState{
-			HeadBlockHash:      refNode.BlockRefByNumber(unsafe).Hash,
-			SafeBlockHash:      refNode.BlockRefByNumber(safe).Hash,
-			FinalizedBlockHash: refNode.BlockRefByNumber(finalized).Hash,
+			HeadBlockHash:      unsafe,
+			SafeBlockHash:      safe,
+			FinalizedBlockHash: finalized,
 		}
 		res, err := el.inner.L2EngineClient().ForkchoiceUpdate(el.ctx, state, attr)
 		result.Result = res
 		result.Err = err
+		if result.Result != nil {
+			switch result.Result.PayloadStatus.Status {
+			case eth.ExecutionValid:
+				result.ValidCnt += 1
+			case eth.ExecutionSyncing:
+				result.SyncingCnt += 1
+			case eth.ExecutionInvalid:
+				result.InvalidCnt += 1
+			default:
+				el.require.NoError(fmt.Errorf("invalid fcu payload status: %s", result.Result.PayloadStatus.Status))
+			}
+		}
 	}
 	result.Refresh = refresh
 	result.Refresh()
@@ -320,4 +343,22 @@ func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 
 func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
+}
+
+func (el *L2ELNode) UnsafeHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Unsafe)}
+}
+
+func (el *L2ELNode) SafeHead() *BlockRefResult {
+	return &BlockRefResult{T: el.t, BlockRef: el.BlockRefByLabel(eth.Safe)}
+}
+
+type BlockRefResult struct {
+	T        devtest.T
+	BlockRef eth.L2BlockRef
+}
+
+func (r *BlockRefResult) NumEqualTo(num uint64) *BlockRefResult {
+	r.T.Require().Equal(num, r.BlockRef.Number)
+	return r
 }
