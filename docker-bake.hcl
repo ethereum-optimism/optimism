@@ -111,7 +111,8 @@ target "op-node" {
     OP_NODE_VERSION = "${OP_NODE_VERSION}"
   }
   target = "op-node-target"
-  platforms = split(",", PLATFORMS)
+  # platforms = split(",", PLATFORMS)
+  platforms = ["linux/amd64"]   # <--- target architecture
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-node:${tag}"]
 }
 
@@ -229,7 +230,8 @@ target "op-supernode" {
     OP_SUPERNODE_VERSION = "${OP_SUPERNODE_VERSION}"
   }
   target = "op-supernode-target"
-  platforms = split(",", PLATFORMS)
+  # platforms = split(",", PLATFORMS)
+  platforms = ["linux/amd64"]   # <--- target architecture
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supernode:${tag}"]
 }
 

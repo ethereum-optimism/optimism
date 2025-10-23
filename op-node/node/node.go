@@ -175,6 +175,11 @@ func NewWithOverride(ctx context.Context, cfg *config.Config, log log.Logger, ap
 		cancel:     cfg.Cancel,
 		tracer:     cfg.Tracer,
 	}
+
+	n.log.Trace("configuration values",
+		"cfg.P2pEnabled", cfg.P2PEnabled(),
+		"node.P2p", n.p2pEnabled(),
+	)
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
@@ -203,7 +208,6 @@ type InitializationOverrides struct {
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
 
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
-
 	var err error
 
 	n.eventSys, n.eventDrain, err = initEventSystem(n)
@@ -252,9 +256,20 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		return fmt.Errorf("failed to init the P2P signer: %w", err)
 	}
 
+	n.log.Trace("p2p config",
+		"config.p2p.disabled", cfg.P2P.Disabled(),
+		"req/res", cfg.P2P.ReqRespSyncEnabled(),
+		"node.p2pEnabled", n.p2pEnabled(),
+	)
 	n.p2pNode, err = initP2P(cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
+	}
+
+	if n.p2pNode != nil {
+		n.log.Trace("p2p node is enabled")
+	} else {
+		n.log.Trace("p2p node is not enabled")
 	}
 
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
@@ -712,8 +727,10 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		if p2pNode.Dv5Udp() != nil {
 			go p2pNode.DiscoveryProcess(node.resourcesCtx, node.log, &cfg.Rollup, cfg.P2P.TargetPeers())
 		}
+		fmt.Println("init p2p returning a p2p node")
 		return p2pNode, nil
 	}
+	fmt.Println("init p2p returning nil")
 	return nil, nil
 }
 
@@ -786,7 +803,8 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 }
 
 func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil && p2pNode.AltSyncEnabled() {
+	p2pNode := n.getP2PNodeIfEnabled()
+	if p2pNode != nil && p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
 			n.log.Debug(
 				"ignoring request to sync L2 range, timestamp is too old for p2p",
@@ -797,6 +815,13 @@ func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) 
 		}
 		return p2pNode.RequestL2Range(ctx, start, end)
 	}
+
+	if p2pNode == nil {
+		n.log.Trace("p2p node is nil")
+	} else {
+		n.log.Trace("p2p ode is not nil, AltSyncEnabled", "enabled", p2pNode.AltSyncEnabled())
+	}
+
 	n.log.Debug("ignoring request to sync L2 range, no sync method available", "start", start, "end", end)
 	return nil
 }

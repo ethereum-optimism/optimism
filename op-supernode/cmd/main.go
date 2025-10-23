@@ -77,12 +77,26 @@ func main() {
 			// Based on the top level L1 and Beacon addresses
 			vcli.WithStringOverride(opnodeflags.L1NodeAddr.Name, cfg.L1NodeAddr)
 			vcli.WithStringOverride(opnodeflags.BeaconAddr.Name, cfg.L1BeaconAddr)
+
 			// Disable P2P for virtual nodes and set the peerstore and discovery paths to memory
 			// this is disabled at the CLI level to allow config construction
-			vcli.WithBoolOverride(opnodeflags.DisableP2PName, true)
-			vcli.WithStringOverride(opnodeflags.PeerstorePathName, "memory")
-			vcli.WithStringOverride(opnodeflags.DiscoveryPathName, "memory")
+			// vcli.WithBoolOverride(opnodeflags.DisableP2PName, true)
+			// WTF is this ^^^^^^^^^^^
+
+			// vcli.WithStringOverride(opnodeflags.PeerstorePathName, "memory")
+			// vcli.WithStringOverride(opnodeflags.DiscoveryPathName, "memory")
+
 			cfg, err := opnode.NewConfig(vcli, l)
+			l.Trace("[supernode-action] configuration details",
+				"p2p.enabled", !cfg.P2P.Disabled(),
+				"p2p.target_peers", cfg.P2P.TargetPeers(),
+				"p2p.ban_peers", cfg.P2P.BanPeers(),
+				"p2p.ban_threshold", cfg.P2P.BanThreshold(),
+				"p2p.ban_duration", cfg.P2P.BanDuration(),
+				"p2p.req_resp_sync_enabled", cfg.P2P.ReqRespSyncEnabled(),
+				"p2p.gossip_timestamp_threshold", cfg.P2P.GetGossipTimestampThreshold(),
+			)
+
 			if err != nil {
 				return nil, fmt.Errorf("failed to create virtual node config: %w", err)
 			}

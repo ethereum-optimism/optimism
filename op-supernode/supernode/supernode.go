@@ -70,6 +70,23 @@ func New(ctx context.Context, log gethlog.Logger, version string, requestStop co
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
+
+		if p2pCfg := vnCfgs[chainID].P2P; p2pCfg != nil {
+			log.Debug("[supernode.go-New] p2p config values for chain",
+				"chain", id,
+				"p2p.enabled", !p2pCfg.Disabled(),
+				"p2p.target_peers", p2pCfg.TargetPeers(),
+				"p2p.ban_peers", p2pCfg.BanPeers(),
+				"p2p.ban_threshold", p2pCfg.BanThreshold(),
+				"p2p.ban_duration", p2pCfg.BanDuration(),
+				"p2p.req_resp_sync_enabled", p2pCfg.ReqRespSyncEnabled(),
+				"p2p.gossip_timestamp_threshold", p2pCfg.GetGossipTimestampThreshold(),
+			)
+			// Dump full P2P config struct for complete visibility
+			log.Debug("p2p full config object", "chain", id, "p2p_config", fmt.Sprintf("%+v", p2pCfg))
+		} else {
+			log.Debug("p2p config for chain", "chain", id, "p2p", "nil (disabled)")
+		}
 		s.chains[chainID] = cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter.SetHandler, s.metricsRouter.SetHandler)
 	}
 	addr := net.JoinHostPort(cfg.RPCConfig.ListenAddr, strconv.Itoa(cfg.RPCConfig.ListenPort))

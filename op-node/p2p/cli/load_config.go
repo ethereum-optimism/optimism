@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
 
-func NewConfig(ctx cliiface.Context, blockTime uint64) (*p2p.Config, error) {
+func NewConfig(ctx cliiface.Context, blockTime uint64, log log.Logger) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.Bool(flags.DisableP2PName) {
@@ -34,12 +34,18 @@ func NewConfig(ctx cliiface.Context, blockTime uint64) (*p2p.Config, error) {
 		return conf, nil
 	}
 
+	log.Trace("p2p is enabled, loading p2p configs")
+
+	log.Trace("loading private key")
 	p, err := loadNetworkPrivKey(ctx)
 	if err != nil {
+		log.Error("failed to load private key")
 		return nil, fmt.Errorf("failed to load p2p priv key: %w", err)
 	}
 	conf.Priv = p
+	log.Trace("loaded private key", "key", conf.Priv.GetPublic().Type().String())
 
+	log.Trace("loading listening opts")
 	if err := loadListenOpts(conf, ctx); err != nil {
 		return nil, fmt.Errorf("failed to load p2p listen options: %w", err)
 	}

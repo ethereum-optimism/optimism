@@ -3,6 +3,7 @@ package virtual_node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
@@ -70,6 +71,25 @@ func generateVirtualNodeID() string {
 func NewVirtualNode(cfg *opnodecfg.Config, log gethlog.Logger, initOverload *rollupNode.InitializationOverrides, appVersion string) *simpleVirtualNode {
 	vnID := generateVirtualNodeID()
 	l := log.New("chain_id", cfg.Rollup.L2ChainID.String(), "vn_id", vnID)
+	// l.Trace("dumping opnodecfg.Config values", "config", fmt.Sprintf("%+v", *cfg))
+
+	// Dump P2P configuration details if P2P is enabled
+	if cfg.P2P != nil {
+		l.Trace("P2P configuration details",
+			"p2p.enabled", !cfg.P2P.Disabled(),
+			"p2p.target_peers", cfg.P2P.TargetPeers(),
+			"p2p.ban_peers", cfg.P2P.BanPeers(),
+			"p2p.ban_threshold", cfg.P2P.BanThreshold(),
+			"p2p.ban_duration", cfg.P2P.BanDuration(),
+			"p2p.req_resp_sync_enabled", cfg.P2P.ReqRespSyncEnabled(),
+			"p2p.gossip_timestamp_threshold", cfg.P2P.GetGossipTimestampThreshold(),
+		)
+		// Dump full P2P config struct for complete visibility
+		l.Trace("P2P full configuration", "p2p_config", fmt.Sprintf("%+v", cfg.P2P))
+	} else {
+		l.Trace("P2P configuration", "p2p", "nil (disabled)")
+	}
+
 	return &simpleVirtualNode{
 		vnID:             vnID,
 		cfg:              cfg,
