@@ -33,5 +33,5 @@ type DeployDisputeGameScript script.DeployScriptWithOutput[DeployDisputeGameInpu
 
 // NewDeployDisputeGameScript loads and validates the DeployDisputeGame2 script contract
 func NewDeployDisputeGameScript(host *script.Host) (DeployDisputeGameScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployDisputeGameInput, DeployDisputeGameOutput](host, "DeployDisputeGame2.s.sol", "DeployDisputeGame2")
+	return script.NewDeployScriptWithOutputFromFile[DeployDisputeGameInput, DeployDisputeGameOutput](host, "DeployDisputeGame.s.sol", "DeployDisputeGame")
 }

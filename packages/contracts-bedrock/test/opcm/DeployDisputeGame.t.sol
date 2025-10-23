@@ -14,10 +14,10 @@ import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { DeployDisputeGame2 } from "scripts/deploy/DeployDisputeGame2.s.sol";
+import { DeployDisputeGame } from "scripts/deploy/DeployDisputeGame.s.sol";
 
-contract DeployDisputeGame2_Test is Test {
-    DeployDisputeGame2 deployDisputeGame;
+contract DeployDisputeGame_Test is Test {
+    DeployDisputeGame deployDisputeGame;
 
     PreimageOracle preimageOracle;
 
@@ -30,7 +30,7 @@ contract DeployDisputeGame2_Test is Test {
     address defaultChallenger = makeAddr("Challenger");
 
     function setUp() public {
-        deployDisputeGame = new DeployDisputeGame2();
+        deployDisputeGame = new DeployDisputeGame();
         preimageOracle = new PreimageOracle(0, 0);
         bigStepper = new DeployDisputeGameBigStepper(preimageOracle);
 
@@ -40,7 +40,7 @@ contract DeployDisputeGame2_Test is Test {
     }
 
     function testFuzz_run_withFaultDisputeGame_succeeds(
-        DeployDisputeGame2.Input memory _input,
+        DeployDisputeGame.Input memory _input,
         uint32 _gameType,
         uint32 _clockExtension,
         uint64 _maxClockDuration,
@@ -79,7 +79,7 @@ contract DeployDisputeGame2_Test is Test {
     }
 
     function testFuzz_run_withPermissionedDisputeGame_succeeds(
-        DeployDisputeGame2.Input memory _input,
+        DeployDisputeGame.Input memory _input,
         uint32 _gameType,
         uint32 _clockExtension,
         uint64 _maxClockDuration,
@@ -116,7 +116,7 @@ contract DeployDisputeGame2_Test is Test {
     }
 
     function test_run_nullInputsWithFaultDisputeGame_reverts() public {
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultFaultDisputeGameInput();
         input.release = "";
@@ -160,7 +160,7 @@ contract DeployDisputeGame2_Test is Test {
     function test_run_proposerWithFaultDisputeGame_reverts(address _proposerOrChallenger) public {
         vm.assume(_proposerOrChallenger != address(0));
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultFaultDisputeGameInput();
         input.proposer = _proposerOrChallenger;
@@ -174,7 +174,7 @@ contract DeployDisputeGame2_Test is Test {
     }
 
     function test_run_nullInputsWithPermissionedDisputeGame_reverts() public {
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.proposer = address(0);
@@ -191,7 +191,7 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(!LibString.eq(_gameKind, "PermissionedDisputeGame"));
         vm.assume(!LibString.eq(_gameKind, "FaultDisputeGame"));
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.gameKind = _gameKind;
@@ -202,7 +202,7 @@ contract DeployDisputeGame2_Test is Test {
     function test_run_withClockExtensionTooLarge_reverts(uint256 _clockExtension) public {
         vm.assume(_clockExtension > type(uint64).max);
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.clockExtension = _clockExtension;
@@ -218,7 +218,7 @@ contract DeployDisputeGame2_Test is Test {
     function test_run_withGameTypeTooLarge_reverts(uint256 _gameType) public {
         vm.assume(_gameType > type(uint32).max);
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.gameType = _gameType;
@@ -234,7 +234,7 @@ contract DeployDisputeGame2_Test is Test {
     function test_run_withMaxClockDurationTooLarge_reverts(uint256 _maxClockDuration) public {
         vm.assume(_maxClockDuration > type(uint64).max);
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.maxClockDuration = _maxClockDuration;
@@ -247,8 +247,8 @@ contract DeployDisputeGame2_Test is Test {
         deployDisputeGame.run(input);
     }
 
-    function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
-        input_ = DeployDisputeGame2.Input({
+    function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame.Input memory input_) {
+        input_ = DeployDisputeGame.Input({
             release: "op-contracts",
             gameKind: "FaultDisputeGame",
             gameType: 1,
@@ -266,8 +266,8 @@ contract DeployDisputeGame2_Test is Test {
         });
     }
 
-    function defaultPermissionedDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
-        input_ = DeployDisputeGame2.Input({
+    function defaultPermissionedDisputeGameInput() private view returns (DeployDisputeGame.Input memory input_) {
+        input_ = DeployDisputeGame.Input({
             release: "op-contracts",
             gameKind: "PermissionedDisputeGame",
             gameType: 1,
