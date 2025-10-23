@@ -420,7 +420,36 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 PDG should be null when disabled");
     }
 
-    function test_v2ParamsValidation_withHugeValues_reverts() public {
+    function test_invalidV2GameParams_withV2Disabled_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        DeployImplementations.Input memory input;
+
+        // When V2 flag is disabled, out-of-range values are ok
+        input = defaultInput();
+        input.faultGameV2ClockExtension = type(uint256).max;
+        input.faultGameV2MaxClockDuration = type(uint256).max;
+        input.faultGameV2MaxGameDepth = 300;
+        input.faultGameV2SplitDepth = 1; // < 2
+        input.faultGameV2ClockExtension = 0;
+        // Should not revert
+        deployImplementations.run(input);
+
+        // Reset and test invalid split depth (too large, >= maxGameDepth)
+        input = defaultInput();
+        input.faultGameV2MaxGameDepth = 50;
+        input.faultGameV2SplitDepth = 50; // splitDepth + 1 must be < maxGameDepth
+        // Should not revert
+        deployImplementations.run(input);
+
+        // Reset and test maxClockDuration < clockExtension
+        input = defaultInput();
+        input.faultGameV2ClockExtension = 1000;
+        input.faultGameV2MaxClockDuration = 500; // < clockExtension
+        // Should not revert
+        deployImplementations.run(input);
+    }
+
+    function test_invalidV2GameParams_withV2Enabled_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         // When V2 flag is enabled, huge V2 params should be rejected
