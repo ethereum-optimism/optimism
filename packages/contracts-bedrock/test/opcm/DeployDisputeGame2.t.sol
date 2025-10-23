@@ -53,7 +53,6 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);
         vm.assume(!LibString.eq(_input.release, ""));
-        vm.assume(!LibString.eq(_input.standardVersionsToml, ""));
         vm.assume(address(_input.anchorStateRegistryProxy) != address(0));
         vm.assume(address(_input.delayedWethProxy) != address(0));
 
@@ -69,7 +68,7 @@ contract DeployDisputeGame2_Test is Test {
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
-        _input.vm = bigStepper;
+        _input.vmAddress = bigStepper;
 
         // For FaultDisputeGame, these must be empty
         _input.challenger = address(0);
@@ -93,7 +92,6 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);
         vm.assume(!LibString.eq(_input.release, ""));
-        vm.assume(!LibString.eq(_input.standardVersionsToml, ""));
         vm.assume(address(_input.anchorStateRegistryProxy) != address(0));
         vm.assume(address(_input.delayedWethProxy) != address(0));
         vm.assume(_input.challenger != address(0));
@@ -111,7 +109,7 @@ contract DeployDisputeGame2_Test is Test {
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
-        _input.vm = bigStepper;
+        _input.vmAddress = bigStepper;
 
         // Run the deployment script.
         deployDisputeGame.run(_input);
@@ -123,11 +121,6 @@ contract DeployDisputeGame2_Test is Test {
         input = defaultFaultDisputeGameInput();
         input.release = "";
         vm.expectRevert("DeployDisputeGame: release not set");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.standardVersionsToml = "";
-        vm.expectRevert("DeployDisputeGame: standardVersionsToml not set");
         deployDisputeGame.run(input);
 
         input = defaultFaultDisputeGameInput();
@@ -257,7 +250,6 @@ contract DeployDisputeGame2_Test is Test {
     function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
         input_ = DeployDisputeGame2.Input({
             release: "op-contracts",
-            standardVersionsToml: "op-versions.toml",
             gameKind: "FaultDisputeGame",
             gameType: 1,
             absolutePrestate: bytes32(uint256(1)),
@@ -268,7 +260,7 @@ contract DeployDisputeGame2_Test is Test {
             l2ChainId: 1,
             delayedWethProxy: defaultDelayedWethProxy,
             anchorStateRegistryProxy: defaultAnchorStateRegistryProxy,
-            vm: bigStepper,
+            vmAddress: bigStepper,
             proposer: address(0),
             challenger: address(0)
         });
@@ -277,7 +269,6 @@ contract DeployDisputeGame2_Test is Test {
     function defaultPermissionedDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
         input_ = DeployDisputeGame2.Input({
             release: "op-contracts",
-            standardVersionsToml: "op-versions.toml",
             gameKind: "PermissionedDisputeGame",
             gameType: 1,
             absolutePrestate: bytes32(uint256(1)),
@@ -288,7 +279,7 @@ contract DeployDisputeGame2_Test is Test {
             l2ChainId: 1,
             delayedWethProxy: defaultDelayedWethProxy,
             anchorStateRegistryProxy: defaultAnchorStateRegistryProxy,
-            vm: bigStepper,
+            vmAddress: bigStepper,
             proposer: defaultProposer,
             challenger: defaultChallenger
         });
