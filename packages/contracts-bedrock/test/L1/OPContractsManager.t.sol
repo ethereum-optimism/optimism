@@ -1136,8 +1136,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     ///         shouldn't matter because the function is independent of other game types that
     ///         exist.
     function test_updatePrestate_withSuperGame_succeeds() public {
-        // TODO(#17561): support updatePrestate for v2 super dispute game
-        vm.skip(true);
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         _mockSuperPermissionedGame();
 
@@ -1173,31 +1172,24 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
         );
 
-        // Grab the SuperPermissionedDisputeGame.
-        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
-            address(
-                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                    GameTypes.SUPER_PERMISSIONED_CANNON
-                )
+        LibGameArgs.GameArgs memory permissionedGameArgs = LibGameArgs.decode(
+            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameArgs(
+                GameTypes.SUPER_PERMISSIONED_CANNON
             )
         );
-
-        // Grab the SuperFaultDisputeGame.
-        IPermissionedDisputeGame fdg = IPermissionedDisputeGame(
-            address(
-                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                    GameTypes.SUPER_CANNON
-                )
+        LibGameArgs.GameArgs memory cannonGameArgs = LibGameArgs.decode(
+            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameArgs(
+                GameTypes.SUPER_CANNON
             )
         );
 
         // Check the prestate values.
-        assertEq(pdg.absolutePrestate().raw(), prestate.raw(), "pdg prestate mismatch");
-        assertEq(fdg.absolutePrestate().raw(), prestate.raw(), "fdg prestate mismatch");
+        assertEq(permissionedGameArgs.absolutePrestate, prestate.raw(), "pdg prestate mismatch");
+        assertEq(cannonGameArgs.absolutePrestate, prestate.raw(), "fdg prestate mismatch");
 
         // Ensure that the WETH contracts are not reverting
-        pdg.weth().balanceOf(address(0));
-        fdg.weth().balanceOf(address(0));
+        IDelayedWETH(payable(permissionedGameArgs.weth)).balanceOf(address(0));
+        IDelayedWETH(payable(cannonGameArgs.weth)).balanceOf(address(0));
     }
 
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is for

@@ -385,7 +385,7 @@ abstract contract OPContractsManagerBase {
         return IAnchorStateRegistry(IOptimismPortal(payable(_systemConfig.optimismPortal())).anchorStateRegistry());
     }
 
-    /// @notice Retrieves the constructor params for a given game.
+    /// @notice Retrieves the constructor params for a given v1 game.
     function getGameConstructorParams(IFaultDisputeGame _disputeGame)
         internal
         view
@@ -394,19 +394,7 @@ abstract contract OPContractsManagerBase {
         // Grab the game type first, it'll determine if we need to pull the L2 chain ID from the
         // contract or if we just return zero (Super games).
         GameType gameType = _disputeGame.gameType();
-
-        // If the game type is a Super game, then we don't need to pull the L2 chain ID from the
-        // contract.
-        uint256 l2ChainId;
-        if (
-            gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-                || gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
-        ) {
-            l2ChainId = 0;
-        } else {
-            l2ChainId = getL2ChainId(_disputeGame);
-        }
+        uint256 l2ChainId = getL2ChainId(_disputeGame);
 
         // Return the constructor params.
         return IFaultDisputeGame.GameConstructorParams({
@@ -692,22 +680,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                         blueprint1 = bps.permissionedDisputeGame1;
                         blueprint2 = bps.permissionedDisputeGame2;
                         gameL2ChainId = l2ChainId;
-                    } else if (
-                        gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()
-                            || (
-                                isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-                                    && gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
-                            )
-                    ) {
-                        gameContractName = "SuperFaultDisputeGame";
-                        blueprint1 = bps.superPermissionlessDisputeGame1;
-                        blueprint2 = bps.superPermissionlessDisputeGame2;
-                        gameL2ChainId = 0;
-                    } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-                        gameContractName = "SuperPermissionedDisputeGame";
-                        blueprint1 = bps.superPermissionedDisputeGame1;
-                        blueprint2 = bps.superPermissionedDisputeGame2;
-                        gameL2ChainId = 0;
                     } else {
                         revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
                     }
@@ -2083,11 +2055,6 @@ contract OPContractsManager is ISemver {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
-        // TODO(#17561): The super games are migrated to v2 dgs. Remove the super blueprints.
-        address superPermissionedDisputeGame1;
-        address superPermissionedDisputeGame2;
-        address superPermissionlessDisputeGame1;
-        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
