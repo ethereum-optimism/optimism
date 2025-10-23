@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,6 +45,7 @@ func requireL1BlockDAFootprintGasScalarEquals(t actionsHelpers.Testing, env *hel
 }
 
 func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
+	const lowDAFootprintGasScalar = 30
 	// Builds a block whose DA footprint is high (near but below gas limit),
 	// then verifies header BlobGasUsed and next block basefee calculation.
 	runStep := func(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, setScalar *uint16) {
@@ -61,13 +63,12 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 			// Move one block past origin transition to apply the config change to new blocks
 			env.Sequencer.ActL2EmptyBlock(t)
 		}
+		isLowScalar := effectiveScalar == lowDAFootprintGasScalar
 
 		// Prepare to assemble a single L2 block close to the gas limit by including
 		// multiple user-space txs with deterministic calldata size.
 		rollupCfg := env.Sequencer.RollupCfg
 		gasLimit := rollupCfg.Genesis.SystemConfig.GasLimit
-		// Keep a small headroom to ensure we never exceed the gas limit
-		targetLimit := gasLimit - 10_000
 
 		l2Cl := env.Engine.EthClient()
 		chainID := rollupCfg.L2ChainID
@@ -86,7 +87,7 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 		_, err = rng.Read(payload)
 		require.NoError(t, err)
 
-		var runningDAFootprint uint64
+		var runningDAFootprint, runningGas uint64
 		var builtTxs []*types.Transaction
 
 		env.Sequencer.ActL2StartBlock(t)
@@ -97,8 +98,8 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 				ChainID:   chainID,
 				Nonce:     nonce,
 				To:        &common.Address{},
-				Gas:       250_000,
-				GasFeeCap: big.NewInt(5_000_000_000), // 5 gwei
+				Gas:       params.TxGas + 40*dataSize, // cover floor calldata gas
+				GasFeeCap: big.NewInt(5_000_000_000),  // 5 gwei
 				GasTipCap: big.NewInt(2),
 				Value:     big.NewInt(0),
 				Data:      payload,
@@ -107,17 +108,20 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 
 			// Estimate incremental DA footprint if we include this tx.
 			est := tx.RollupCostData().EstimatedDASize().Uint64() * uint64(effectiveScalar)
-			if runningDAFootprint+est > targetLimit {
+			if runningDAFootprint+est > gasLimit {
+				break
+			} else if isLowScalar && runningGas+tx.Gas() > gasLimit {
 				break
 			}
 
 			// Send to txpool then include in the in-progress L2 block.
-			err := l2Cl.SendTransaction(t.Ctx(), tx)
+			err = l2Cl.SendTransaction(t.Ctx(), tx)
 			require.NoError(t, err)
 			_, err = env.Engine.EngineApi.IncludeTx(tx, env.Dp.Addresses.Alice)
 			require.NoError(t, err)
 
 			runningDAFootprint += est
+			runningGas += tx.Gas()
 			builtTxs = append(builtTxs, tx)
 			nonce++
 		}
@@ -146,12 +150,19 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 		}
 		require.Equal(t, expectedDAFootprint, blockDAFootprint, "DA footprint mismatch with header")
 		require.Less(t, blockDAFootprint, gasLimit, "DA footprint should be below gas limit")
-		require.Greater(t, blockDAFootprint, header.GasUsed, "DA footprint should exceed gas used")
+		if !isLowScalar {
+			require.Greater(t, blockDAFootprint, header.GasUsed, "DA footprint should exceed gas used")
+		} else {
+			require.Less(t, blockDAFootprint, header.GasUsed, "DA footprint should be less than gas used for low scalar")
+		}
 
 		// Verify base fee update uses DA footprint against the gas target
 		gasTarget := gasLimit / rollupCfg.ChainOpConfig.EIP1559Elasticity
 		parentBaseFee := blk.BaseFee()
 		delta := new(big.Int).SetUint64(blockDAFootprint - gasTarget) // safe: we aim for > gasTarget
+		if isLowScalar {
+			delta = new(big.Int).SetUint64(header.GasUsed - gasTarget)
+		}
 		inc := new(big.Int).Mul(delta, parentBaseFee)
 		inc.Div(inc, new(big.Int).SetUint64(gasTarget))
 		inc.Div(inc, new(big.Int).SetUint64(*rollupCfg.ChainOpConfig.EIP1559DenominatorCanyon))
@@ -182,6 +193,8 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 		runStep(t, env, nil)
 		runStep(t, env, ptr(uint16(1000)))
 		runStep(t, env, ptr(uint16(0)))
+		// special case to test that a low value effectively disables the DA footprint block limit
+		runStep(t, env, ptr(uint16(lowDAFootprintGasScalar)))
 
 		// Run the FP program up to the current safe head
 		env.BatchMineAndSync(t)

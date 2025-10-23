@@ -74,10 +74,10 @@ type L1BlockInfo struct {
 	DAFootprintGasScalar uint16 // added by Jovian upgrade
 }
 
-// SetDAFootprintGasScalar sets the DAFootprintGasScalar field, defaulting to
+// SetDAFootprintGasScalarOrDefault sets the DAFootprintGasScalar field, defaulting to
 // DAFootprintGasScalarDefault if 0 is provided. This helps in translating the gas scalar value from
 // the L1 SystemConfig representation to the L1BlockInfo representation.
-func (info *L1BlockInfo) SetDAFootprintGasScalar(daFootprintGasScalar uint16) {
+func (info *L1BlockInfo) SetDAFootprintGasScalarOrDefault(daFootprintGasScalar uint16) {
 	if daFootprintGasScalar == 0 {
 		info.DAFootprintGasScalar = DAFootprintGasScalarDefault
 	} else {
@@ -532,7 +532,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 	}
 	if isJovianActivated {
 		// Use setter to make sure 0 is translated to default value.
-		l1BlockInfo.SetDAFootprintGasScalar(sysCfg.DAFootprintGasScalar)
+		l1BlockInfo.SetDAFootprintGasScalarOrDefault(sysCfg.DAFootprintGasScalar)
 	}
 
 	// 2. Now marshal actual data
