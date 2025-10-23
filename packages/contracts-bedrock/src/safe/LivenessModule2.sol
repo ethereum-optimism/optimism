@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Safe
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
@@ -12,9 +12,41 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
+///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///      Follows a state machine diagram for the lifecycle of this contract:
+///      +----------------------+
+///      | Start (no challenge) |<---------------------------+
+///      +----------------------+                            |
+///       |                                                  | respond() by Safe
+///       |  challenge() by fallbackOwner                    | OR
+///       |                                                  | configureLivenessModule() by Safe
+///       v                                                  | OR
+///      +--------------------------------------+            | clearLivenessModule() by Safe
+///      | Challenge Started                    |            |
+///      | challengeStartTime = block.timestamp |------------+
+///      +--------------------------------------+            |
+///       |                                                  |
+///       |  block.timestamp >= challengeStartTime +         |
+///       |                     livenessResponsePeriod       |
+///       v                                                  |
+///      +-----+-----------------------------------------+   |
+///      | Ready to transfer ownership to fallback owner |---+
+///      +-----+-----------------------------------------+
+///       |
+///       |  changeOwnershipToFallback() by fallbackOwner
+///       |
+///       v
+///      +------------------------------+
+///      | Ownership Transferred        |
+///      | - fallback owner sole owner  |
+///      | - guard cleared              |
+///      | - challenge cleared          |
+///      +------------------------------+
+///
 abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
@@ -27,10 +59,10 @@ abstract contract LivenessModule2 {
     }
 
     /// @notice Mapping from Safe address to its configuration.
-    mapping(address => ModuleConfig) public livenessSafeConfiguration;
+    mapping(Safe => ModuleConfig) internal _livenessSafeConfiguration;
 
     /// @notice Mapping from Safe address to active challenge start time (0 if none).
-    mapping(address => uint256) public challengeStartTime;
+    mapping(Safe => uint256) public challengeStartTime;
 
     /// @notice Reserved address used as previous owner to the first owner in a Safe.
     address internal constant SENTINEL_OWNER = address(0x1);
@@ -95,23 +127,40 @@ abstract contract LivenessModule2 {
     /// @param fallbackOwner The address that claimed ownership if the Safe is unresponsive.
     event ChallengeSucceeded(address indexed safe, address fallbackOwner);
 
+    ////////////////////////////////////////////////////////////////
+    //                   External View Functions                  //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Returns challenge_start_time + liveness_response_period if challenge exists, or
     ///         0 if not.
     /// @param _safe The Safe address to query.
     /// @return The challenge end timestamp, or 0 if no challenge.
-    function getChallengePeriodEnd(address _safe) public view returns (uint256) {
+    function getChallengePeriodEnd(Safe _safe) public view returns (uint256) {
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
             return 0;
         }
-        ModuleConfig storage config = livenessSafeConfiguration[_safe];
+        ModuleConfig storage config = _livenessSafeConfiguration[_safe];
         return startTime + config.livenessResponsePeriod;
     }
+
+    /// @notice Returns the configuration for a given Safe.
+    /// @param _safe The Safe address to query.
+    /// @return The ModuleConfig for the Safe.
+    function livenessSafeConfiguration(Safe _safe) public view returns (ModuleConfig memory) {
+        return _livenessSafeConfiguration[_safe];
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //              External State-Changing Functions             //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Configures the module for a Safe that has already enabled it.
     /// @param _config The configuration parameters for the module containing the response
     ///                period and fallback owner.
     function configureLivenessModule(ModuleConfig memory _config) external {
+        Safe callingSafe = Safe(payable(msg.sender));
+
         // Validate configuration parameters to ensure module can function properly.
         // livenessResponsePeriod must be > 0 to allow time for Safe owners to respond.
         if (_config.livenessResponsePeriod == 0) {
@@ -123,10 +172,10 @@ abstract contract LivenessModule2 {
         }
 
         // Check that this module is enabled on the calling Safe.
-        _assertModuleEnabled(msg.sender);
+        _assertModuleEnabled(callingSafe);
 
         // Store the configuration for this safe
-        livenessSafeConfiguration[msg.sender] = _config;
+        _livenessSafeConfiguration[callingSafe] = _config;
 
         // Clear any existing challenge when configuring/re-configuring.
         // This is necessary because changing the configuration (especially
@@ -137,18 +186,13 @@ abstract contract LivenessModule2 {
         // Additionally, a Safe that is able to successfully trigger the configuration function
         // is necessarily live, so cancelling the challenge also makes sense from a
         // theoretical standpoint.
-        _cancelChallenge(msg.sender);
+        _cancelChallenge(callingSafe);
 
         emit ModuleConfigured(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
 
         // Verify that any other extensions which are enabled on the Safe are configured correctly.
-        _checkCombinedConfig(Safe(payable(msg.sender)));
+        _checkCombinedConfig(callingSafe);
     }
-
-    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
-    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
-    /// @param _safe The Safe instance to check the configuration against
-    function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Clears the module configuration for a Safe.
     /// @dev Note: Clearing the configuration also cancels any ongoing challenges.
@@ -157,26 +201,28 @@ abstract contract LivenessModule2 {
     ///      1. Safe disables the module via ModuleManager.disableModule().
     ///      2. Safe calls this clearLivenessModule() function to remove stored configuration.
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
-    ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
-    ///      for potential future re-enabling.
+    ///      Never calling clearLivenessModule() after disabling keeps configuration data
+    ///      persistent for potential future re-enabling.
     function clearLivenessModule() external {
+        Safe callingSafe = Safe(payable(msg.sender));
+
         // Check if the calling safe has configuration set
-        _assertModuleConfigured(msg.sender);
+        _assertModuleConfigured(callingSafe);
 
         // Check that this module is NOT enabled on the calling Safe
         // This prevents clearing configuration while module is still enabled
-        _assertModuleNotEnabled(msg.sender);
+        _assertModuleNotEnabled(callingSafe);
 
         // Erase the configuration data for this safe
-        delete livenessSafeConfiguration[msg.sender];
+        delete _livenessSafeConfiguration[callingSafe];
         // Also clear any active challenge
-        _cancelChallenge(msg.sender);
-        emit ModuleCleared(msg.sender);
+        _cancelChallenge(callingSafe);
+        emit ModuleCleared(address(callingSafe));
     }
 
     /// @notice Challenges an enabled safe.
     /// @param _safe The Safe address to challenge.
-    function challenge(address _safe) external {
+    function challenge(Safe _safe) external {
         // Check if the calling safe has configuration set
         _assertModuleConfigured(_safe);
 
@@ -184,7 +230,7 @@ abstract contract LivenessModule2 {
         _assertModuleEnabled(_safe);
 
         // Check that the caller is the fallback owner
-        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
+        if (msg.sender != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -195,26 +241,28 @@ abstract contract LivenessModule2 {
 
         // Set the challenge start time and emit the event
         challengeStartTime[_safe] = block.timestamp;
-        emit ChallengeStarted(_safe, block.timestamp);
+        emit ChallengeStarted(address(_safe), block.timestamp);
     }
 
     /// @notice Responds to a challenge for an enabled safe, canceling it.
     function respond() external {
+        Safe callingSafe = Safe(payable(msg.sender));
+
         // Check if the calling safe has configuration set.
-        _assertModuleConfigured(msg.sender);
+        _assertModuleConfigured(callingSafe);
 
         // Check that this module is enabled on the calling Safe.
-        _assertModuleEnabled(msg.sender);
+        _assertModuleEnabled(callingSafe);
 
         // Check that a challenge exists
-        uint256 startTime = challengeStartTime[msg.sender];
+        uint256 startTime = challengeStartTime[callingSafe];
         if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
         // Cancel the challenge without checking if response period has expired
         // This allows the Safe to respond at any time, providing more flexibility
-        _cancelChallenge(msg.sender);
+        _cancelChallenge(callingSafe);
     }
 
     /// @notice With successful challenge, removes all current owners from enabled safe,
@@ -224,7 +272,7 @@ abstract contract LivenessModule2 {
     ///      fallback owner effectively becomes its own fallback owner, maintaining
     ///      the ability to challenge itself if needed.
     /// @param _safe The Safe address to transfer ownership of.
-    function changeOwnershipToFallback(address _safe) external {
+    function changeOwnershipToFallback(Safe _safe) external {
         // Ensure Safe is configured with this module to prevent unauthorized execution.
         _assertModuleConfigured(_safe);
 
@@ -232,7 +280,7 @@ abstract contract LivenessModule2 {
         _assertModuleEnabled(_safe);
 
         // Only fallback owner can execute ownership transfer (per specs update)
-        if (msg.sender != livenessSafeConfiguration[_safe].fallbackOwner) {
+        if (msg.sender != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
@@ -248,61 +296,68 @@ abstract contract LivenessModule2 {
             revert LivenessModule2_ResponsePeriodActive();
         }
 
-        Safe targetSafe = Safe(payable(_safe));
+        // Reset the challenge state to allow a new challenge
+        delete challengeStartTime[_safe];
 
         // Get current owners
-        address[] memory owners = targetSafe.getOwners();
+        address[] memory owners = _safe.getOwners();
 
         // Remove all owners after the first one
         // Note: This loop is safe as real-world Safes have limited owners (typically < 10)
         // Gas limits would only be a concern with hundreds/thousands of owners
         while (owners.length > 1) {
-            targetSafe.execTransactionFromModule({
-                to: _safe,
+            _safe.execTransactionFromModule({
+                to: address(_safe),
                 value: 0,
                 operation: Enum.Operation.Call,
                 data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNER, owners[0], 1))
             });
-            owners = targetSafe.getOwners();
+            owners = _safe.getOwners();
         }
 
         // Now swap the remaining single owner with the fallback owner
-        targetSafe.execTransactionFromModule({
-            to: _safe,
+        _safe.execTransactionFromModule({
+            to: address(_safe),
             value: 0,
             operation: Enum.Operation.Call,
             data: abi.encodeCall(
-                OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], livenessSafeConfiguration[_safe].fallbackOwner)
+                OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], _livenessSafeConfiguration[_safe].fallbackOwner)
             )
         });
 
         // Sanity check: verify the fallback owner is now the only owner
-        address[] memory finalOwners = targetSafe.getOwners();
-        if (finalOwners.length != 1 || finalOwners[0] != livenessSafeConfiguration[_safe].fallbackOwner) {
+        address[] memory finalOwners = _safe.getOwners();
+        if (finalOwners.length != 1 || finalOwners[0] != _livenessSafeConfiguration[_safe].fallbackOwner) {
             revert LivenessModule2_OwnershipTransferFailed();
         }
 
-        // Reset the challenge state to allow a new challenge
-        delete challengeStartTime[_safe];
-        emit ChallengeSucceeded(_safe, livenessSafeConfiguration[_safe].fallbackOwner);
-
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
+        // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
-        targetSafe.execTransactionFromModule({
-            to: _safe,
+        _safe.execTransactionFromModule({
+            to: address(_safe),
             value: 0,
             operation: Enum.Operation.Call,
             data: abi.encodeCall(GuardManager.setGuard, (address(0)))
         });
+        emit ChallengeSucceeded(address(_safe), _livenessSafeConfiguration[_safe].fallbackOwner);
     }
+
+    ////////////////////////////////////////////////////////////////
+    //                   Internal View Functions                  //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    ///         guard's configuration is valid in the context of other extensions that are enabled
+    ///         on the Safe.
+    function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Asserts that the module is configured for the given Safe.
     /// @param _safe The Safe address to check.
-    function _assertModuleConfigured(address _safe) internal view {
-        ModuleConfig storage config = livenessSafeConfiguration[_safe];
+    function _assertModuleConfigured(Safe _safe) internal view {
+        ModuleConfig storage config = _livenessSafeConfiguration[_safe];
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotConfigured();
         }
@@ -310,29 +365,31 @@ abstract contract LivenessModule2 {
 
     /// @notice Asserts that the module is enabled for the given Safe.
     /// @param _safe The Safe address to check.
-    function _assertModuleEnabled(address _safe) internal view {
-        Safe safe = Safe(payable(_safe));
-        if (!safe.isModuleEnabled(address(this))) {
+    function _assertModuleEnabled(Safe _safe) internal view {
+        if (!_safe.isModuleEnabled(address(this))) {
             revert LivenessModule2_ModuleNotEnabled();
         }
     }
 
     /// @notice Asserts that the module is not enabled for the given Safe.
     /// @param _safe The Safe address to check.
-    function _assertModuleNotEnabled(address _safe) internal view {
-        Safe safe = Safe(payable(_safe));
-        if (safe.isModuleEnabled(address(this))) {
+    function _assertModuleNotEnabled(Safe _safe) internal view {
+        if (_safe.isModuleEnabled(address(this))) {
             revert LivenessModule2_ModuleStillEnabled();
         }
     }
 
+    ////////////////////////////////////////////////////////////////
+    //             Internal State-Changing Functions              //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Internal function to cancel a challenge and emit the appropriate event.
     /// @param _safe The Safe address for which to cancel the challenge.
-    function _cancelChallenge(address _safe) internal {
+    function _cancelChallenge(Safe _safe) internal {
         // Early return if no challenge exists
         if (challengeStartTime[_safe] == 0) return;
 
         delete challengeStartTime[_safe];
-        emit ChallengeCancelled(_safe);
+        emit ChallengeCancelled(address(_safe));
     }
 }

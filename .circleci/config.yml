@@ -896,7 +896,7 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   contracts-bedrock-heavy-fuzz-nightly:
@@ -940,7 +940,7 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-heavy-fuzz-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   # AI Contracts Test Maintenance System
@@ -1061,6 +1061,12 @@ jobs:
           disable_search: true
           files: ./packages/contracts-bedrock/lcov-all.info
           flags: contracts-bedrock-tests
+      - save_cache:
+          name: Save forked state
+          key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
+          when: always
+          paths:
+            - "~/.foundry/cache"
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
@@ -1139,13 +1145,13 @@ jobs:
           name: Save Go build cache
           key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
           paths:
-            - "/root/.cache/go-build"
+            - "~/.cache/go-build"
       - save_cache:
           name: Save forked state
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
           when: always
           paths:
-            - "/root/.foundry/cache"
+            - "~/.foundry/cache"
       - store_artifacts:
           path: packages/contracts-bedrock/failed-test-traces.log
           when: on_fail
@@ -1320,6 +1326,11 @@ jobs:
             else
               tar -czf testlogs.tar.gz -C ./tmp testlogs
             fi
+          when: always
+      - run:
+          name: Clean up op-deployer artifacts
+          command: |
+            rm -rf ~/.op-deployer/*
           when: always
       - store_artifacts:
           path: testlogs*.tar.gz
@@ -1767,7 +1778,7 @@ jobs:
             jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
       - slack/notify:
-          channel: notify-ci-failures
+          channel: C03N11M0BBN  # "notify-ci" channel
           event: always
           retries: 1
           retry_delay: 3
@@ -2449,7 +2460,7 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
-          parallelism: 4
+          parallelism: 2
           no_output_timeout: 19m
           test_timeout: 20m
           requires:
@@ -2463,7 +2474,7 @@ workflows:
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 4
+          parallelism: 2
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
@@ -2735,6 +2746,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-supernode-docker-release
             - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
@@ -2913,6 +2925,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper
@@ -2942,6 +2955,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-supernode
                 - op-test-sequencer
                 - cannon
                 - op-dripper

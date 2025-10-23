@@ -84,7 +84,7 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initMetricsServer(&cfg.MetricsConfig); err != nil {
 		return fmt.Errorf("failed to init metrics server: %w", err)
 	}
-	if err := s.initFactoryContract(cfg); err != nil {
+	if err := s.initFactoryContract(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to create factory contract bindings: %w", err)
 	}
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
@@ -254,8 +254,11 @@ func (s *Service) initMetricsServer(cfg *opmetrics.CLIConfig) error {
 	return nil
 }
 
-func (s *Service) initFactoryContract(cfg *config.Config) error {
-	factoryContract := contracts.NewDisputeGameFactoryContract(s.metrics, cfg.GameFactoryAddress, s.l1Caller)
+func (s *Service) initFactoryContract(ctx context.Context, cfg *config.Config) error {
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(ctx, s.metrics, cfg.GameFactoryAddress, s.l1Caller)
+	if err != nil {
+		return fmt.Errorf("failed to create dispute game factory contract: %w", err)
+	}
 	s.factoryContract = factoryContract
 	return nil
 }

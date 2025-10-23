@@ -14,16 +14,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+	gn "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type OpReth struct {
 	mu sync.Mutex
 
-	id      stack.L2ELNodeID
-	l2Net   *L2Network
-	jwtPath string
-	authRPC string
-	userRPC string
+	id        stack.L2ELNodeID
+	l2Net     *L2Network
+	jwtPath   string
+	jwtSecret [32]byte
+	authRPC   string
+	userRPC   string
 
 	authProxy *tcpproxy.Proxy
 	userProxy *tcpproxy.Proxy
@@ -46,6 +49,14 @@ func (n *OpReth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
+	// Do not have to check whether client is readOnly because
+	// all external L2 Clients will be wrapped with op-geth sysgo devstack, supporting readOnly
+	var engineCl client.RPC
+	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(n.jwtSecret))
+	engineCl, err = client.NewRPC(system.T().Ctx(), system.Logger(), n.authRPC, client.WithGethRPCOptions(auth))
+	require.NoError(err)
+	system.T().Cleanup(engineCl.Close)
+
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
@@ -54,7 +65,8 @@ func (n *OpReth) hydrate(system stack.ExtensibleSystem) {
 			Client:       rpcCl,
 			ChainID:      n.id.ChainID(),
 		},
-		ID: n.id,
+		EngineClient: engineCl,
+		ID:           n.id,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, string(match.OpReth))
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
@@ -157,7 +169,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		orch.l2ELOptions.Apply(p, id, cfg)       // apply global options
 		L2ELOptionBundle(opts).Apply(p, id, cfg) // apply specific options
 
-		jwtPath, _ := orch.writeDefaultJWT()
+		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
 		useInterop := l2Net.genesis.Config.InteropTime != nil
 
@@ -232,15 +244,16 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		}
 
 		l2EL := &OpReth{
-			id:       id,
-			l2Net:    l2Net,
-			jwtPath:  jwtPath,
-			authRPC:  "",
-			userRPC:  "",
-			execPath: execPath,
-			args:     args,
-			env:      []string{},
-			p:        p,
+			id:        id,
+			l2Net:     l2Net,
+			jwtPath:   jwtPath,
+			jwtSecret: jwtSecret,
+			authRPC:   "",
+			userRPC:   "",
+			execPath:  execPath,
+			args:      args,
+			env:       []string{},
+			p:         p,
 		}
 
 		p.Logger().Info("Starting op-reth")

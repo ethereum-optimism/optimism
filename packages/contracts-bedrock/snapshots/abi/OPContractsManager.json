@@ -802,11 +802,6 @@
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
-      },
-      {
-        "internalType": "contract IProxyAdmin",
-        "name": "_superchainProxyAdmin",
-        "type": "address"
       }
     ],
     "name": "upgradeSuperchainConfig",
@@ -832,6 +827,11 @@
             "internalType": "uint256",
             "name": "l2ChainID",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
@@ -873,6 +873,11 @@
             "internalType": "uint256",
             "name": "l2ChainID",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
