@@ -451,47 +451,53 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     function test_invalidV2GameParams_withV2Enabled_reverts() public {
         skipIfDevFeatureDisabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
-        // When V2 flag is enabled, huge V2 params should be rejected
-        DeployImplementations.Input memory input = defaultInput();
+        DeployImplementations.Input memory input;
 
         // Test that huge clock extension is rejected
+        input = defaultInput();
         input.faultGameV2ClockExtension = type(uint256).max;
         vm.expectRevert("DeployImplementations: faultGameV2ClockExtension too large for uint64");
         deployImplementations.run(input);
 
         // Reset and test huge max clock duration
-        input.faultGameV2ClockExtension = 100;
+        input = defaultInput();
         input.faultGameV2MaxClockDuration = type(uint256).max;
         vm.expectRevert("DeployImplementations: faultGameV2MaxClockDuration too large for uint64");
         deployImplementations.run(input);
 
         // Reset and test huge max game depth
-        input.faultGameV2MaxClockDuration = 200;
-        input.faultGameV2MaxGameDepth = 300; // > 200
+        input = defaultInput();
+        input.faultGameV2MaxGameDepth = 300;
         vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)");
         deployImplementations.run(input);
 
-        // Reset and test invalid split depth (too large, >= maxGameDepth)
+        // Reset and test zero max game depth
+        input = defaultInput();
+        input.faultGameV2MaxGameDepth = 0;
+        vm.expectRevert("DeployImplementations: faultGameV2MaxGameDepth out of valid range (1-125)");
+        deployImplementations.run(input);
+
+        // Reset and test invalid split depth
+        input = defaultInput();
         input.faultGameV2MaxGameDepth = 50;
-        input.faultGameV2SplitDepth = 50; // splitDepth + 1 must be < maxGameDepth
+        input.faultGameV2SplitDepth = 49; // splitDepth + 1 must be < maxGameDepth
         vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
         deployImplementations.run(input);
 
         // Reset and test invalid split depth (too small, < 2)
-        input.faultGameV2MaxGameDepth = 50;
+        input = defaultInput();
         input.faultGameV2SplitDepth = 1; // < 2
         vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
         deployImplementations.run(input);
 
         // Reset and test clock extension = 0 (must be > 0 when V2 enabled)
-        input.faultGameV2SplitDepth = 10;
+        input = defaultInput();
         input.faultGameV2ClockExtension = 0;
-        input.faultGameV2MaxClockDuration = 1000;
         vm.expectRevert("DeployImplementations: faultGameV2ClockExtension must be > 0");
         deployImplementations.run(input);
 
         // Reset and test maxClockDuration < clockExtension
+        input = defaultInput();
         input.faultGameV2ClockExtension = 1000;
         input.faultGameV2MaxClockDuration = 500; // < clockExtension
         vm.expectRevert("DeployImplementations: maxClockDuration must be >= clockExtension");
