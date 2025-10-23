@@ -486,7 +486,7 @@ abstract contract OPContractsManagerBase {
     )
         internal
     {
-        if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+        if (!isSuperGameVariant(_gameType) && !isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             revert OPContractsManager.InvalidDevFeatureAccess(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
         }
         _dgf.setImplementation(_gameType, _newGame, _gameArgs);
@@ -500,6 +500,12 @@ abstract contract OPContractsManagerBase {
     /// @notice Returns true iff the game type is CANNON_KONA or SUPER_CANNON_KONA
     function isCannonKonaOrSuperCannonKonaGameType(GameType _gameType) internal pure returns (bool) {
         return _gameType.raw() == GameTypes.CANNON_KONA.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
+    }
+
+    /// @notice Returns true iff the game type uses super roots
+    function isSuperGameVariant(GameType _gameType) internal pure returns (bool) {
+        return (_gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw())
+            || (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw());
     }
 }
 
@@ -592,8 +598,10 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             IFaultDisputeGame existingGame =
                 IFaultDisputeGame(address(getGameImplementation(dgf, gameConfig.disputeGameType)));
 
-            // Super games don't support V2 contracts yet so fallback to the V1 contracts for those game types.
-            if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            if (
+                isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                    || isSuperGameVariant(gameConfig.disputeGameType)
+            ) {
                 if (
                     isCannonOrSuperCannonGameType(gameConfig.disputeGameType)
                         || (
@@ -603,34 +611,25 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 ) {
                     uint32 gameType = gameConfig.disputeGameType.raw();
                     address impl;
-                    uint256 l2ChainIdGameArg;
                     if (gameType == GameTypes.CANNON.raw() || gameType == GameTypes.CANNON_KONA.raw()) {
-                        impl = implementations().faultDisputeGameV2Impl;
-                        l2ChainIdGameArg = l2ChainId;
+                        impl = getImplementations().faultDisputeGameV2Impl;
                     } else {
-                        impl = implementations().superFaultDisputeGameImpl;
-                        l2ChainIdGameArg = 0;
+                        impl = getImplementations().superFaultDisputeGameImpl;
                     }
-
-                    bytes memory gameArgs = LibGameArgs.encode(LibGameArgs.GameArgs({
-                        absolutePrestate: gameConfig.disputeAbsolutePrestate.raw(),
-                        vm: address(gameConfig.vm),
-                        anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
-                        weth: address(outputs[i].delayedWETH),
-                        l2ChainId: l2ChainIdGameArg,
-                        proposer: address(0),
-                        challenger: address(0)
-                    }));
-
-                    /*
-                    bytes memory gameArgs = abi.encodePacked(
-                        gameConfig.disputeAbsolutePrestate, // 32 bytes
-                        gameConfig.vm, // 20 bytes
-                        address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))), // 20 bytes
-                        address(outputs[i].delayedWETH), // 20 bytes
-                        l2ChainIdGameArg // 32 bytes
+                    bytes memory gameArgs = LibGameArgs.encode(
+                        LibGameArgs.GameArgs({
+                            absolutePrestate: gameConfig.disputeAbsolutePrestate.raw(),
+                            vm: address(gameConfig.vm),
+                            anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
+                            weth: address(outputs[i].delayedWETH),
+                            l2ChainId: gameType == GameTypes.CANNON.raw() || gameType == GameTypes.CANNON_KONA.raw()
+                                ? l2ChainId
+                                : 0, // must be zero for SUPER game types
+                            proposer: address(0),
+                            challenger: address(0)
+                        })
                     );
-                    */
+
                     setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(impl), gameArgs);
                     outputs[i].faultDisputeGame = IFaultDisputeGame(impl);
                 } else if (
@@ -643,17 +642,22 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     } else {
                         impl = implementations().superPermissionedDisputeGameImpl;
                     }
-                    bytes memory gameArgs = abi.encodePacked(
-                        gameConfig.disputeAbsolutePrestate, // 32 bytes
-                        gameConfig.vm, // 20 bytes
-                        address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))), // 20 bytes
-                        address(outputs[i].delayedWETH), // 20 bytes
-                        gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw() ? l2ChainId : 0, // 32
-                            // bytes
-                        getProposer(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType), // 20
-                            // bytes
-                        getChallenger(dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType) // 20
-                            // bytes
+                    bytes memory gameArgs = LibGameArgs.encode(
+                        LibGameArgs.GameArgs({
+                            absolutePrestate: gameConfig.disputeAbsolutePrestate.raw(),
+                            vm: address(gameConfig.vm),
+                            anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
+                            weth: address(outputs[i].delayedWETH),
+                            l2ChainId: gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                                ? l2ChainId
+                                : 0, // must be zero for SUPER gam types
+                            proposer: getProposer(
+                                dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType
+                            ),
+                            challenger: getChallenger(
+                                dgf, IPermissionedDisputeGame(address(existingGame)), gameConfig.disputeGameType
+                            )
+                        })
                     );
                     setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(impl), gameArgs);
                     outputs[i].faultDisputeGame = IFaultDisputeGame(payable(impl));
@@ -1950,14 +1954,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // use of the chain id is different and actually passed into the constructor of the
             // dispute game contracts. Since these are Super dispute games and involve multiple
             // chains, the contracts enforce that the chain id is zero.
-            bytes memory gameArgs = abi.encodePacked(
-                _input.opChainConfigs[0].absolutePrestate.raw(),
-                address(getImplementations().mipsImpl),
-                newAnchorStateRegistry,
-                address(newPermissionedDelayedWETHProxy),
-                uint256(0), // l2ChainId
-                _input.gameParameters.proposer,
-                _input.gameParameters.challenger
+            bytes memory gameArgs = LibGameArgs.encode(
+                LibGameArgs.GameArgs({
+                    absolutePrestate: _input.opChainConfigs[0].absolutePrestate.raw(),
+                    vm: address(getImplementations().mipsImpl),
+                    anchorStateRegistry: address(newAnchorStateRegistry),
+                    weth: address(newPermissionedDelayedWETHProxy),
+                    l2ChainId: uint256(0),
+                    proposer: _input.gameParameters.proposer,
+                    challenger: _input.gameParameters.challenger
+                })
             );
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
@@ -1991,12 +1997,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             );
 
             // Register the new SuperFaultDisputeGame.
-            bytes memory gameArgs = abi.encodePacked(
-                _input.opChainConfigs[0].absolutePrestate.raw(),
-                address(getImplementations().mipsImpl),
-                newAnchorStateRegistry,
-                address(newPermissionlessDelayedWETHProxy),
-                uint256(0) // l2ChainId
+            bytes memory gameArgs = LibGameArgs.encode(
+                LibGameArgs.GameArgs({
+                    absolutePrestate: _input.opChainConfigs[0].absolutePrestate.raw(),
+                    vm: address(getImplementations().mipsImpl),
+                    anchorStateRegistry: address(newAnchorStateRegistry),
+                    weth: address(newPermissionlessDelayedWETHProxy),
+                    l2ChainId: uint256(0),
+                    proposer: address(0),
+                    challenger: address(0)
+                })
             );
             newDisputeGameFactory.setImplementation(
                 GameTypes.SUPER_CANNON, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs

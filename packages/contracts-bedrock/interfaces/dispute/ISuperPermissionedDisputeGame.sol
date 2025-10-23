@@ -57,7 +57,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     error InvalidBondDistributionMode();
     error GameNotFinalized();
     error GameNotResolved();
-    error ReservedGameType();
     error BadAuth();
     error GamePaused();
 
@@ -116,7 +115,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function vm() external view returns (IBigStepper vm_);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
-    function l2ChainId() external view returns (uint256 l2ChainId_);
 
     function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params) external;
 }

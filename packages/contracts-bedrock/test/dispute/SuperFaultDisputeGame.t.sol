@@ -28,7 +28,6 @@ import { IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 contract ClaimCreditReenter {
     Vm internal immutable vm;
@@ -115,7 +114,6 @@ abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestI
         assertEq(address(gameProxy.weth()), address(delayedWeth));
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
-        assertEq(gameProxy.l2ChainId(), 0);
 
         // Label the proxy
         vm.label(address(gameProxy), "SuperFaultDisputeGame_Clone");

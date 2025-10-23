@@ -89,7 +89,6 @@ abstract contract SuperPermissionedDisputeGame_TestInit is DisputeGameFactory_Te
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
         assertEq(address(gameProxy.gameCreator()), PROPOSER);
-        assertEq(gameProxy.l2ChainId(), 0);
 
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
