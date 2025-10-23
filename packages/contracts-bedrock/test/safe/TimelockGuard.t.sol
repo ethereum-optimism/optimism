@@ -305,7 +305,7 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
-    function test_configureTimelockGuard_revertsIfVersionTooOld_reverts() external {
+    function test_configureTimelockGuard_withVersionTooOld_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector, address(timelockGuard));
@@ -314,10 +314,19 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
     }
 
     /// @notice Checks configuration reverts when the contract is too old.
-    function test_configureTimelockGuard_revertsIfVersionTooNew_reverts() external {
+    function test_configureTimelockGuard_withVersionTooNew_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.5.0"));
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector, address(timelockGuard));
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
+    }
+
+    /// @notice Checks configuration does not revert if using patch releases of supported versions.
+    ///         Safe Versions: https://github.com/safe-global/safe-smart-account/tags
+    function test_configureTimelockGuard_withPatchReleases_succeeds() external {
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.3.0-rc.1"));
         vm.prank(address(safeInstance.safe));
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
