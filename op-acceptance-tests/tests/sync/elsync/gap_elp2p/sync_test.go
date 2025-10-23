@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // TestL2ELP2PCanonicalChainAdvancedByFCU verifies the interaction between NewPayload,
@@ -226,6 +227,49 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	_, err = sys.L2ELB.Escape().L2EthClient().BlockRefByNumber(t.Ctx(), targetNum)
 	require.ErrorIs(err, ethereum.NotFound)
 	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, 0, 0, nil).IsSyncing()
+
+	t.Cleanup(func() {
+		sys.L2CLB.Start()
+		sys.L2ELB.DisconnectPeerWith(sys.L2EL)
+	})
+}
+
+func TestELP2PFCUInvalidHash(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	logger := t.Logger()
+	genesis := sys.L2ELB.BlockRefByNumber(0)
+
+	// Advance few blocks to make sure reference node advanced
+	sys.L2CL.Advanced(types.LocalUnsafe, 10, 30)
+
+	sys.L2CLB.Stop()
+
+	// At this point, L2ELB has no ELP2P, and L2CL connection
+	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
+
+	// Peer to confirm EL Syncing is working
+	sys.L2ELB.PeerWith(sys.L2EL)
+
+	// Trigger EL Sync to valid hash
+	targetNum := startNum + 3
+	attempts := 5
+	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, 0, 0, nil).WaitUntilValid(attempts)
+	// head advanced
+	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
+	logger.Info("Canonical chain advanced", "number", targetNum)
+
+	unsafeHashInvalid := common.MaxHash // must be non-existent invalid hash
+	// We retry FCU using the invalid hash
+	// The ELP2P enabled L2EL will ask other peers but fail to fetch the block with the invalid hash
+	// Example logs from L2EL(geth)
+	//  "Fetching the unknown forkchoice head from network"  hash=0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+	//  "Fetching batch of headers"
+	//  "Could not retrieve unknown head from peers"
+	sys.L2ELB.ForkchoiceUpdateRaw(unsafeHashInvalid, genesis.Hash, genesis.Hash, nil).Retry(attempts).ResultAllSyncing()
+
+	sys.L2ELB.UnsafeHead().NumEqualTo(targetNum)
+	logger.Info("Canonical chain not advanced", "number", targetNum)
 
 	t.Cleanup(func() {
 		sys.L2CLB.Start()
