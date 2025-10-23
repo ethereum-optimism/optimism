@@ -21,9 +21,6 @@ import (
 
 // TestCLIBootstrap tests the bootstrap commands via CLI
 func TestCLIBootstrap(t *testing.T) {
-	runner := NewCLITestRunnerWithNetwork(t)
-	workDir := runner.GetWorkDir()
-
 	// Use the same chain ID that anvil runs on
 	l1ChainID := uint64(devnet.DefaultChainID)
 	l1ChainIDBig := big.NewInt(int64(l1ChainID))
@@ -39,6 +36,9 @@ func TestCLIBootstrap(t *testing.T) {
 	challenger := shared.AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainIDBig))
 
 	t.Run("bootstrap superchain", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain.json")
 
 		// Run bootstrap superchain command
@@ -65,6 +65,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap superchain with custom protocol versions", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_custom.json")
 
 		// Use a custom protocol version - create v1.0.0 with custom build
@@ -102,6 +105,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap superchain paused", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_paused.json")
 
 		// Run bootstrap superchain command with paused flag
@@ -129,6 +135,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap implementations", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		// First, we need a superchain deployment
 		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_for_impls.json")
 		runner.ExpectSuccessWithNetwork(t, []string{
@@ -193,6 +202,9 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap proxy", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+		workDir := runner.GetWorkDir()
+
 		proxyOutputFile := filepath.Join(workDir, "bootstrap_proxy.json")
 
 		// Run bootstrap proxy command
@@ -217,6 +229,8 @@ func TestCLIBootstrap(t *testing.T) {
 	})
 
 	t.Run("bootstrap with stdout output", func(t *testing.T) {
+		runner := NewCLITestRunnerWithNetwork(t)
+
 		// Test that stdout output works (no --outfile flag)
 		output := runner.ExpectSuccessWithNetwork(t, []string{
 			"bootstrap", "proxy",
