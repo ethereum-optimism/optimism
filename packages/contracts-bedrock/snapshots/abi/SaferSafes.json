@@ -860,6 +860,11 @@
   },
   {
     "inputs": [],
+    "name": "LivenessModule2_InvalidVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LivenessModule2_ModuleNotConfigured",
     "type": "error"
   },
