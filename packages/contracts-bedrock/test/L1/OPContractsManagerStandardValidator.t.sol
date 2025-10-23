@@ -267,7 +267,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: systemConfig,
-            proxyAdmin: proxyAdmin,
             delayedWETH: delayedWeth,
             disputeGameType: _gameType,
             disputeAbsolutePrestate: absolutePrestate,

@@ -272,7 +272,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // Create validationOverrides
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
+            l1PAOMultisig: opChainConfigs[0].systemConfigProxy.proxyAdmin().owner(),
             challenger: initialChallenger
         });
 
