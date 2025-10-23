@@ -110,7 +110,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 "PermissionlessDisputeGame1 blueprint should not be deployed"
             );
             assertEq(
-                output.opcm.blueprints().permissionlessDisputeGame1,
+                output.opcm.blueprints().permissionlessDisputeGame2,
                 address(0),
                 "PermissionlessDisputeGame2 blueprint should not be deployed"
             );
