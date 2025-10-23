@@ -88,13 +88,13 @@ optimism_package:
         proposal_interval: 10m
       da_params:
         enabled: true
-        image: ghcr.io/layr-labs/eigenda-proxy:2.2.1
+        image: ghcr.io/layr-labs/eigenda-proxy:2.4.0
         cmd:
           - --addr=0.0.0.0
           - --port=3100
           - --storage.backends-to-enable=V1,V2
           - --storage.dispersal-backend={{ $proxyDispersalBackend }} #v1 or v2
-          - --api-enabled=admin # to enable changing dispersal-backend to v2 without restarting
+          - --apis.enabled=admin,op-generic,op-keccak # admin to enable changing dispersal-backend to v2 without restarting
           - --eigenda.v2.max-blob-length=1MiB # makes startup faster by only loading 1MiB/2MiB of G1/G2 SRS points.
           - --eigenda.v2.network=sepolia_testnet
         {{- if $useProxyMemstore }}
