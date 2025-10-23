@@ -44,7 +44,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
             return;
         }
 
-        uint256 timelockDelay = _safeState[_safe].timelockDelay;
+        uint256 timelockDelay = _currentSafeState(_safe).timelockDelay;
         uint256 livenessResponsePeriod = _livenessSafeConfiguration[_safe].livenessResponsePeriod;
 
         // If the timelock delay is 0, then the timelock guard is enabled but not configured.
