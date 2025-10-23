@@ -63,6 +63,8 @@ var AllForks = []ForkName{
 	// ADD NEW FORKS HERE!
 }
 
+var LatestFork = AllForks[len(AllForks)-1]
+
 func ForksFrom(fork ForkName) []ForkName {
 	for i, f := range AllForks {
 		if f == fork {

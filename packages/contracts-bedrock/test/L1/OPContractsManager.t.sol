@@ -94,7 +94,7 @@ contract OPContractsManager_Harness is OPContractsManager {
 
 /// @title OPContractsManager_Upgrade_Harness
 /// @notice Exposes internal functions for testing.
-contract OPContractsManager_Upgrade_Harness is CommonTest {
+contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     // The Upgraded event emitted by the Proxy contract.
     event Upgraded(address indexed implementation);
 
@@ -202,6 +202,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     )
         internal
     {
+        // Grab some values before we upgrade, to be checked later
+        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
+        address initialProposer = permissionedGameProposer(disputeGameFactory);
+
         // Always start by upgrading the SuperchainConfig contract.
         // Temporarily replace the superchainPAO with a DelegateCaller.
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
@@ -270,20 +274,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         }
 
         // Create validationOverrides
-        address challengerOverride;
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
-            challengerOverride = gameArgs.challenger;
-        } else {
-            challengerOverride = IPermissionedDisputeGame(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-            ).challenger();
-        }
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
-            challenger: challengerOverride
+            challenger: initialChallenger
         });
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
@@ -308,35 +302,25 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 proxyAdmin: opChainConfigs[0].proxyAdmin,
                 sysCfg: opChainConfigs[0].systemConfigProxy,
                 absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                l2ChainID: l2ChainId
+                l2ChainID: l2ChainId,
+                proposer: initialProposer
             }),
             false,
             validationOverrides
         );
 
-        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], challengerOverride);
-    }
-
-    function permissionedGameProposer() internal view returns (address) {
-        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-            LibGameArgs.GameArgs memory gameArgs =
-                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON));
-            return gameArgs.proposer;
-        } else {
-            return IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)))
-                .proposer();
-        }
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
     /// @notice Runs some smoke tests after an upgrade
     function _runPostUpgradeSmokeTests(
         IOPContractsManager _opcm,
         IOPContractsManager.OpChainConfig memory _opChainConfig,
-        address _challenger
+        address _challenger,
+        address _proposer
     )
         internal
     {
-        address expectedProposer = permissionedGameProposer();
         bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
         if (expectedAbsolutePrestate == bytes32(0)) {
             expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
@@ -355,7 +339,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         gameTypes[1] = GameTypes.CANNON;
         for (uint256 i = 0; i < gameTypes.length; i++) {
             GameType gt = gameTypes[i];
-            vm.prank(expectedProposer, expectedProposer);
+            vm.prank(_proposer, _proposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
                 address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
             );
@@ -371,14 +355,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.assertEq(30, game.splitDepth());
             vm.assertEq(l2BlockNumber, game.l2BlockNumber());
             vm.assertEq(expectedVm, address(game.vm()));
-            vm.assertEq(expectedProposer, game.gameCreator());
+            vm.assertEq(_proposer, game.gameCreator());
             vm.assertEq(claim.raw(), rootClaim.raw());
             vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
 
             if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
                 vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
                 vm.assertEq(_challenger, game.challenger());
-                vm.assertEq(expectedProposer, game.proposer());
+                vm.assertEq(_proposer, game.proposer());
             } else {
                 vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }
@@ -948,12 +932,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Skip UpdatePrestate tests when V2 dispute games enabled
-        // UpdatePrestate feature not yet implemented for V2
-        // TODO(#17261): Remove skip when V2 dispute game support for updatePrestate implemented
-        skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-
         prestateUpdater = opcm;
     }
 
@@ -961,6 +939,55 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     /// @param _input The input to the OPCM updatePrestate function.
     function _runUpdatePrestateAndChecks(IOPContractsManager.UpdatePrestateInput memory _input) internal {
         _runUpdatePrestateAndChecks(_input, bytes(""));
+    }
+
+    /// @notice Returns the game args of a v1 or v2 game.
+    function _getParsedGameArgs(
+        IDisputeGameFactory _dgf,
+        GameType _gameType
+    )
+        internal
+        view
+        returns (LibGameArgs.GameArgs memory gameArgs_)
+    {
+        bytes memory args = _dgf.gameArgs(_gameType);
+        if (args.length == 0) {
+            IPermissionedDisputeGame game = IPermissionedDisputeGame(address(_dgf.gameImpls(_gameType)));
+            gameArgs_.absolutePrestate = game.absolutePrestate().raw();
+            gameArgs_.vm = address(game.vm());
+            gameArgs_.anchorStateRegistry = address(game.anchorStateRegistry());
+            gameArgs_.weth = address(game.weth());
+            gameArgs_.l2ChainId = game.l2ChainId();
+            if (
+                game.gameType().raw() == GameTypes.PERMISSIONED_CANNON.raw()
+                    || game.gameType().raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+            ) {
+                gameArgs_.proposer = game.proposer();
+                gameArgs_.challenger = game.challenger();
+            }
+            return gameArgs_;
+        } else {
+            return LibGameArgs.decode(args);
+        }
+    }
+
+    function _assertGameArgsEqual(
+        LibGameArgs.GameArgs memory a,
+        LibGameArgs.GameArgs memory b,
+        bool _skipPrestateCheck
+    )
+        internal
+        pure
+    {
+        if (!_skipPrestateCheck) {
+            assertEq(a.absolutePrestate, b.absolutePrestate, "absolutePrestate mismatch");
+        }
+        assertEq(a.vm, b.vm, "vm mismatch");
+        assertEq(a.anchorStateRegistry, b.anchorStateRegistry, "anchorStateRegistry mismatch");
+        assertEq(a.weth, b.weth, "weth mismatch");
+        assertEq(a.l2ChainId, b.l2ChainId, "l2ChainId mismatch");
+        assertEq(a.proposer, b.proposer, "proposer mismatch");
+        assertEq(a.challenger, b.challenger, "challenger mismatch");
     }
 
     /// @notice Runs the OPCM updatePrestate function and checks the results.
@@ -980,6 +1007,18 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
                 GameTypes.CANNON_KONA
             )
         ) != address(0);
+
+        // Retrieve current game args before updatePrestate
+        IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
+        LibGameArgs.GameArgs memory pdgArgsBefore = _getParsedGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
+        LibGameArgs.GameArgs memory cannonArgsBefore;
+        LibGameArgs.GameArgs memory cannonKonaArgsBefore;
+        if (expectCannonUpdated) {
+            cannonArgsBefore = _getParsedGameArgs(dgf, GameTypes.CANNON);
+        }
+        if (expectCannonKonaUpdated) {
+            cannonKonaArgsBefore = _getParsedGameArgs(dgf, GameTypes.CANNON_KONA);
+        }
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
@@ -1002,63 +1041,60 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             return;
         }
 
-        // Grab the PermissionedDisputeGame.
-        IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
-            address(
-                IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                    GameTypes.PERMISSIONED_CANNON
-                )
-            )
-        );
-        assertEq(pdg.absolutePrestate().raw(), _input.cannonPrestate.raw(), "permissioned game prestate mismatch");
+        LibGameArgs.GameArgs memory pdgArgsAfter = _getParsedGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
+        _assertGameArgsEqual(pdgArgsBefore, pdgArgsAfter, true);
+        assertEq(pdgArgsAfter.absolutePrestate, _input.cannonPrestate.raw(), "permissioned game prestate mismatch");
         // Ensure that the WETH contracts are not reverting
-        pdg.weth().balanceOf(address(0));
+        IDelayedWETH(payable(pdgArgsAfter.weth)).balanceOf(address(0));
 
         if (expectCannonUpdated) {
-            IPermissionedDisputeGame game = IPermissionedDisputeGame(
-                address(
-                    IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                        GameTypes.CANNON
-                    )
-                )
-            );
-            assertEq(game.absolutePrestate().raw(), _input.cannonPrestate.raw(), "cannon game prestate mismatch");
+            LibGameArgs.GameArgs memory cannonArgsAfter = _getParsedGameArgs(dgf, GameTypes.CANNON);
+            _assertGameArgsEqual(cannonArgsBefore, cannonArgsAfter, true);
+            assertEq(cannonArgsAfter.absolutePrestate, _input.cannonPrestate.raw(), "cannon game prestate mismatch");
             // Ensure that the WETH contracts are not reverting
-            game.weth().balanceOf(address(0));
+            IDelayedWETH(payable(cannonArgsAfter.weth)).balanceOf(address(0));
         } else {
-            assertEq(
-                address(
-                    IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                        GameTypes.CANNON
-                    )
-                ),
-                (address(0)),
-                "cannon game should not exist"
-            );
+            assertEq(address(dgf.gameImpls(GameTypes.CANNON)), (address(0)), "cannon game should not exist");
         }
 
         if (expectCannonKonaUpdated) {
-            IPermissionedDisputeGame game = IPermissionedDisputeGame(
-                address(
-                    IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                        GameTypes.CANNON_KONA
-                    )
-                )
-            );
-            assertEq(game.absolutePrestate().raw(), _input.cannonKonaPrestate.raw(), "cannon game prestate mismatch");
-            // Ensure that the WETH contracts are not reverting
-            game.weth().balanceOf(address(0));
-        } else {
+            LibGameArgs.GameArgs memory cannonKonaArgsAfter = _getParsedGameArgs(dgf, GameTypes.CANNON_KONA);
+            _assertGameArgsEqual(cannonKonaArgsBefore, cannonKonaArgsAfter, true);
             assertEq(
-                address(
-                    IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                        GameTypes.CANNON_KONA
-                    )
-                ),
-                (address(0)),
-                "cannon_kona game should not exist"
+                cannonKonaArgsAfter.absolutePrestate,
+                _input.cannonKonaPrestate.raw(),
+                "cannon-kona game prestate mismatch"
             );
+            // Ensure that the WETH contracts are not reverting
+            IDelayedWETH(payable(cannonKonaArgsAfter.weth)).balanceOf(address(0));
+        } else {
+            assertEq(address(dgf.gameImpls(GameTypes.CANNON_KONA)), (address(0)), "cannon_kona game should not exist");
         }
+    }
+
+    /// @notice Mocks the existence of a previous SuperPermissionedDisputeGame so we can add a real
+    /// SuperPermissionedDisputeGame implementation by calling opcm.updatePrestate.
+    function _mockSuperPermissionedGame() internal {
+        vm.mockCall(
+            address(chainDeployOutput1.disputeGameFactoryProxy),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encode(chainDeployOutput1.permissionedDisputeGame)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IDisputeGame.gameType, ()),
+            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.proposer, ()),
+            abi.encode(proposer)
+        );
+        vm.mockCall(
+            address(chainDeployOutput1.permissionedDisputeGame),
+            abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
+            abi.encode(challenger)
+        );
     }
 
     /// @notice Tests that we can update the prestate when only the PermissionedDisputeGame exists.
@@ -1093,18 +1129,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     ///         shouldn't matter because the function is independent of other game types that
     ///         exist.
     function test_updatePrestate_withSuperGame_succeeds() public {
-        // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
-        // SuperPermissionedDisputeGame implementation.
-        vm.mockCall(
-            address(chainDeployOutput1.disputeGameFactoryProxy),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(chainDeployOutput1.permissionedDisputeGame)
-        );
-        vm.mockCall(
-            address(chainDeployOutput1.permissionedDisputeGame),
-            abi.encodeCall(IDisputeGame.gameType, ()),
-            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-        );
+        _mockSuperPermissionedGame();
 
         // Add a SuperPermissionedDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
@@ -1233,19 +1258,8 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
     function test_updatePrestate_cannonKonaWithSuperGame_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
-        // Mock out the existence of a previous SuperPermissionedDisputeGame so we can add a real
-        // SuperPermissionedDisputeGame implementation.
-        vm.mockCall(
-            address(chainDeployOutput1.disputeGameFactoryProxy),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(chainDeployOutput1.permissionedDisputeGame)
-        );
-        vm.mockCall(
-            address(chainDeployOutput1.permissionedDisputeGame),
-            abi.encodeCall(IDisputeGame.gameType, ()),
-            abi.encode(GameTypes.SUPER_PERMISSIONED_CANNON)
-        );
 
+        _mockSuperPermissionedGame();
         // Add a SuperPermissionedDisputeGame implementation via addGameType.
         IOPContractsManager.AddGameInput memory input1 = newGameInputFactory(GameTypes.SUPER_PERMISSIONED_CANNON);
         addGameType(input1);
