@@ -10,13 +10,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 // configureDevstackEnvVars sets the appropriate env vars to use a mise-installed geth binary for
@@ -60,19 +57,10 @@ func TestMain(m *testing.M) {
 
 	presets.DoMain(m, stack.MakeCommon(stack.Combine[*sysgo.Orchestrator](
 		sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}),
-		sysgo.WithDeployerOptions(func(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
-			_, l1Config := builder.WithL1(sysgo.DefaultL1ID)
-			l1Config.WithOsakaOffset(0)
-			// Make the BPO fork happen after Osaka so we can easily use geth's eip4844.CalcBlobFee
-			// to calculate the blob base fee using the Osaka parameters.
-			l1Config.WithBPO1Offset(1)
-			l1Config.WithL1BlobSchedule(&params.BlobScheduleConfig{
-				Cancun: params.DefaultCancunBlobConfig,
-				Osaka:  params.DefaultOsakaBlobConfig,
-				Prague: params.DefaultPragueBlobConfig,
-				BPO1:   params.DefaultBPO1BlobConfig,
-			})
-		}),
+		sysgo.WithDeployerOptions(
+			sysgo.WithDefaultBPOBlobSchedule,
+			sysgo.WithForkAtL1Genesis(forks.BPO1),
+		),
 		sysgo.WithBatcherOption(func(_ stack.L2BatcherID, cfg *batcher.CLIConfig) {
 			cfg.DataAvailabilityType = flags.BlobsType
 			cfg.TxMgrConfig.CellProofTime = 0 // Force cell proofs to be used
