@@ -53,7 +53,7 @@ contract DeployImplementations is Script {
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
         bytes32 devFeatureBitmap;
-        // V2 Dispute Game parameters
+        // Super and V2 Dispute Game parameters
         uint256 faultGameV2MaxGameDepth;
         uint256 faultGameV2SplitDepth;
         uint256 faultGameV2ClockExtension;

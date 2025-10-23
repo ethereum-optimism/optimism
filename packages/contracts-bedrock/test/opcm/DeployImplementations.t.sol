@@ -227,32 +227,32 @@ contract DeployImplementations_Test is Test {
                 "permissioned super game should be deployed when enabled"
             );
             // Verify super game constructor parameters match fuzz inputs
-            assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "FDGv2 maxGameDepth");
-            assertEq(output.superFaultDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "FDGv2 splitDepth");
+            assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "SuperDG maxGameDepth");
+            assertEq(output.superFaultDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "SuperDG splitDepth");
             assertEq(
                 output.superFaultDisputeGameImpl.clockExtension().raw(),
                 uint64(_faultGameV2ClockExtension),
-                "FDGv2 clockExtension"
+                "SuperDG clockExtension"
             );
             assertEq(
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),
-                "FDGv2 maxClockDuration"
+                "SuperDG maxClockDuration"
             );
 
             assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "PDGv2 maxGameDepth"
+                output.superPermissionedDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "PSuperDG maxGameDepth"
             );
-            assertEq(output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PDGv2 splitDepth");
+            assertEq(output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth");
             assertEq(
                 output.superPermissionedDisputeGameImpl.clockExtension().raw(),
                 uint64(_faultGameV2ClockExtension),
-                "PDGv2 clockExtension"
+                "PSuperDG clockExtension"
             );
             assertEq(
                 output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),
-                "PDGv2 maxClockDuration"
+                "PSuperDG maxClockDuration"
             );
         } else {
             assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");
