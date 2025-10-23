@@ -356,6 +356,7 @@ abstract contract LivenessModule2 {
             operation: Enum.Operation.Call,
             data: abi.encodeCall(GuardManager.setGuard, (address(0)))
         });
+
         emit ChallengeSucceeded(address(_safe), _livenessSafeConfiguration[_safe].fallbackOwner);
     }
 
