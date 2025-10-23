@@ -4,12 +4,15 @@ use clap::{builder::ArgPredicate, Parser};
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
-use reth_node_builder::{NodeBuilder, WithLaunchContext};
+use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
 use reth_optimism_exex::OpProofsExEx;
 use reth_optimism_node::{args::RollupArgs, OpNode};
-use reth_optimism_rpc::eth::proofs::{EthApiExt, EthApiOverrideServer};
+use reth_optimism_rpc::{
+    debug::{DebugApiExt, DebugApiOverrideServer},
+    eth::proofs::{EthApiExt, EthApiOverrideServer},
+};
 use reth_optimism_trie::{
     db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage, OpProofsStore,
 };
@@ -87,8 +90,16 @@ where
         })
         .extend_rpc_modules(move |ctx| {
             if proofs_history_enabled {
-                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage_clone);
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage_clone.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage_clone,
+                    Box::new(ctx.node().task_executor().clone()),
+                    ctx.node().evm_config().clone(),
+                );
                 ctx.modules.replace_configured(api_ext.into_rpc())?;
+                ctx.modules.replace_configured(debug_ext.into_rpc())?;
             }
             Ok(())
         })
