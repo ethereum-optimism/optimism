@@ -24,6 +24,8 @@ type mockInnerNode struct {
 	stopErr   error
 	startFunc func(ctx context.Context)
 	started   bool
+	safeTs    uint64
+	haveSafe  bool
 }
 
 func newMockInnerNode() *mockInnerNode {
@@ -49,6 +51,11 @@ func (m *mockInnerNode) Stop(ctx context.Context) error {
 		close(m.stopCh)
 	}
 	return m.stopErr
+}
+
+// SafeL2Timestamp implements the innerNode interface method used by VirtualNode for safety checks
+func (m *mockInnerNode) SafeL2Timestamp() (uint64, bool) {
+	return m.safeTs, m.haveSafe
 }
 
 // Test helpers

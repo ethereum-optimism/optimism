@@ -31,6 +31,9 @@ type mockVirtualNode struct {
 	stopFunc     func(ctx context.Context) error
 	blockOnStart bool
 	startSignal  chan struct{}
+	// safe timestamp mock behavior
+	safeTs  uint64
+	safeErr error
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -71,6 +74,11 @@ func (m *mockVirtualNode) Stop(ctx context.Context) error {
 		return m.stopFunc(ctx)
 	}
 	return m.stopErr
+}
+
+// SafeTimestamp implements virtual_node.VirtualNode SafeTimestamp
+func (m *mockVirtualNode) SafeTimestamp(ctx context.Context) (uint64, error) {
+	return m.safeTs, m.safeErr
 }
 
 // Test helpers
