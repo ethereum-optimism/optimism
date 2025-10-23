@@ -131,10 +131,12 @@ contract DeployImplementations_Test is Test {
         _faultGameV2ClockExtension = bound(_faultGameV2ClockExtension, 1, 7 days);
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
+        bool usesV2GameParameters = DevFeatures.isDevFeatureEnabled(
+            _devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES
+        ) || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
         // When V2 is not enabled, set V2 params to 0 to match script expectations
         // Otherwise ensure they remain within bounds already set
-        bool isV2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-        if (!isV2Enabled) {
+        if (!usesV2GameParameters) {
             _faultGameV2MaxGameDepth = 0;
             _faultGameV2SplitDepth = 0;
             _faultGameV2ClockExtension = 0;
@@ -213,6 +215,52 @@ contract DeployImplementations_Test is Test {
         } else {
             assertEq(address(output.faultDisputeGameV2Impl), address(0), "V2 should be null when disabled");
             assertEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 should be null when disabled");
+        }
+        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        if (superGamesEnabled) {
+            assertNotEq(
+                address(output.superFaultDisputeGameImpl), address(0), "super game should be deployed when enabled"
+            );
+            assertNotEq(
+                address(output.superPermissionedDisputeGameImpl),
+                address(0),
+                "permissioned super game should be deployed when enabled"
+            );
+            // Verify super game constructor parameters match fuzz inputs
+            assertEq(output.superFaultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "FDGv2 maxGameDepth");
+            assertEq(output.superFaultDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "FDGv2 splitDepth");
+            assertEq(
+                output.superFaultDisputeGameImpl.clockExtension().raw(),
+                uint64(_faultGameV2ClockExtension),
+                "FDGv2 clockExtension"
+            );
+            assertEq(
+                output.superFaultDisputeGameImpl.maxClockDuration().raw(),
+                uint64(_faultGameV2MaxClockDuration),
+                "FDGv2 maxClockDuration"
+            );
+
+            assertEq(
+                output.superPermissionedDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "PDGv2 maxGameDepth"
+            );
+            assertEq(output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PDGv2 splitDepth");
+            assertEq(
+                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
+                uint64(_faultGameV2ClockExtension),
+                "PDGv2 clockExtension"
+            );
+            assertEq(
+                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
+                uint64(_faultGameV2MaxClockDuration),
+                "PDGv2 maxClockDuration"
+            );
+        } else {
+            assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");
+            assertEq(
+                address(output.superPermissionedDisputeGameImpl),
+                address(0),
+                "super permissioned game should be null when disabled"
+            );
         }
 
         // Address contents assertions
