@@ -216,6 +216,16 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         );
     }
 
+    /// @notice Checks configuration succeeds even with pre-release versions of the Safe contract.
+    function test_configureLivenessModule_withPreReleaseVersion_succeeds() external {
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.3.0-rc.1"));
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.configureLivenessModule(
+            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
+    }
+
     function test_configureLivenessModule_cancelsExistingChallenge_succeeds() external {
         // First configure the module
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
