@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -343,7 +344,6 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 }
 
 func TestBatchSubmitter_CriticalError(t *testing.T) {
-
 	criticalErrors := []error{
 		eth.InputError{
 			Code: eth.MethodNotFound,
@@ -354,7 +354,7 @@ func TestBatchSubmitter_CriticalError(t *testing.T) {
 	}
 
 	for _, e := range criticalErrors {
-		require.True(t, isCriticalThrottlingRPCError(e))
+		assert.True(t, isCriticalThrottlingRPCError(e), "false positive: %s", e)
 	}
 
 	nonCriticalErrors := []error{
@@ -365,7 +365,7 @@ func TestBatchSubmitter_CriticalError(t *testing.T) {
 	}
 
 	for _, e := range nonCriticalErrors {
-		require.False(t, isCriticalThrottlingRPCError(e))
+		assert.False(t, isCriticalThrottlingRPCError(e), "false negative: %s", e)
 	}
 
 }
