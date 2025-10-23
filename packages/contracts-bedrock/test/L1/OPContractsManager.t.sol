@@ -942,7 +942,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     }
 
     /// @notice Returns the game args of a v1 or v2 game.
-    function _getGameArgs(
+    function _getParsedGameArgs(
         IDisputeGameFactory _dgf,
         GameType _gameType
     )
@@ -1010,14 +1010,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
         // Retrieve current game args before updatePrestate
         IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
-        LibGameArgs.GameArgs memory pdgArgsBefore = _getGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
+        LibGameArgs.GameArgs memory pdgArgsBefore = _getParsedGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
         LibGameArgs.GameArgs memory cannonArgsBefore;
         LibGameArgs.GameArgs memory cannonKonaArgsBefore;
         if (expectCannonUpdated) {
-            cannonArgsBefore = _getGameArgs(dgf, GameTypes.CANNON);
+            cannonArgsBefore = _getParsedGameArgs(dgf, GameTypes.CANNON);
         }
         if (expectCannonKonaUpdated) {
-            cannonKonaArgsBefore = _getGameArgs(dgf, GameTypes.CANNON_KONA);
+            cannonKonaArgsBefore = _getParsedGameArgs(dgf, GameTypes.CANNON_KONA);
         }
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
@@ -1041,14 +1041,14 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             return;
         }
 
-        LibGameArgs.GameArgs memory pdgArgsAfter = _getGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
+        LibGameArgs.GameArgs memory pdgArgsAfter = _getParsedGameArgs(dgf, GameTypes.PERMISSIONED_CANNON);
         _assertGameArgsEqual(pdgArgsBefore, pdgArgsAfter, true);
         assertEq(pdgArgsAfter.absolutePrestate, _input.cannonPrestate.raw(), "permissioned game prestate mismatch");
         // Ensure that the WETH contracts are not reverting
         IDelayedWETH(payable(pdgArgsAfter.weth)).balanceOf(address(0));
 
         if (expectCannonUpdated) {
-            LibGameArgs.GameArgs memory cannonArgsAfter = _getGameArgs(dgf, GameTypes.CANNON);
+            LibGameArgs.GameArgs memory cannonArgsAfter = _getParsedGameArgs(dgf, GameTypes.CANNON);
             _assertGameArgsEqual(cannonArgsBefore, cannonArgsAfter, true);
             assertEq(cannonArgsAfter.absolutePrestate, _input.cannonPrestate.raw(), "cannon game prestate mismatch");
             // Ensure that the WETH contracts are not reverting
@@ -1058,7 +1058,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         }
 
         if (expectCannonKonaUpdated) {
-            LibGameArgs.GameArgs memory cannonKonaArgsAfter = _getGameArgs(dgf, GameTypes.CANNON_KONA);
+            LibGameArgs.GameArgs memory cannonKonaArgsAfter = _getParsedGameArgs(dgf, GameTypes.CANNON_KONA);
             _assertGameArgsEqual(cannonKonaArgsBefore, cannonKonaArgsAfter, true);
             assertEq(
                 cannonKonaArgsAfter.absolutePrestate,
