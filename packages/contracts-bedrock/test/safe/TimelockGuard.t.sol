@@ -699,12 +699,12 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     /// @notice Test that checkTransaction treats failed transactions the same as successful ones
     function test_checkTransaction_failedTransaction_succeeds() external {
         // Build a transaction that will revert (call a contract that always reverts)
-        TransactionBuilder.Transaction memory failingTx = _createEmptyTransaction(safeInstance);
+        TransactionBuilder.Transaction memory dummyTx = _createEmptyTransaction(safeInstance);
         Reverter reverter = new Reverter();
-        failingTx.params.to = address(reverter);
+        dummyTx.params.to = address(reverter);
         // empty data triggers fallback, which reverts
-        failingTx.updateTransaction();
-        failingTx.scheduleTransaction(timelockGuard);
+        dummyTx.updateTransaction();
+        dummyTx.scheduleTransaction(timelockGuard);
 
         // Advance time past timelock delay
         uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
@@ -719,27 +719,27 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
 
         // Expect TransactionExecuted event when the guard confirms execution in checkTransaction
         vm.expectEmit(true, true, true, true);
-        emit TransactionExecuted(safeInstance.safe, failingTx.hash);
+        emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
 
         // Call checkTransaction as if from the Safe, with an owner as msgSender
         vm.prank(address(safeInstance.safe));
         timelockGuard.checkTransaction(
-            failingTx.params.to,
-            failingTx.params.value,
-            failingTx.params.data,
-            failingTx.params.operation,
-            failingTx.params.safeTxGas,
-            failingTx.params.baseGas,
-            failingTx.params.gasPrice,
-            failingTx.params.gasToken,
-            failingTx.params.refundReceiver,
+            dummyTx.params.to,
+            dummyTx.params.value,
+            dummyTx.params.data,
+            dummyTx.params.operation,
+            dummyTx.params.safeTxGas,
+            dummyTx.params.baseGas,
+            dummyTx.params.gasPrice,
+            dummyTx.params.gasToken,
+            dummyTx.params.refundReceiver,
             "",
             safeInstance.owners[0]
         );
 
         // State should reflect execution, even if the transaction failed
         TimelockGuard.ScheduledTransaction memory scheduledTx =
-            timelockGuard.scheduledTransaction(safeInstance.safe, failingTx.hash);
+            timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Executed));
         TimelockGuard.ScheduledTransaction[] memory pending = timelockGuard.pendingTransactions(safe);
         assertEq(pending.length, 0);
@@ -755,20 +755,20 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         assertEq(timelockGuard.timelockDelay(unguardedSafe.safe), 0);
 
         // Build a dummy tx for the unconfigured Safe
-        TransactionBuilder.Transaction memory txUnconfigured = _createDummyTransaction(unguardedSafe);
+        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(unguardedSafe);
 
         // Should not revert: guard returns early when timelock delay is zero
         vm.prank(address(unguardedSafe.safe));
         timelockGuard.checkTransaction(
-            txUnconfigured.params.to,
-            txUnconfigured.params.value,
-            txUnconfigured.params.data,
-            txUnconfigured.params.operation,
-            txUnconfigured.params.safeTxGas,
-            txUnconfigured.params.baseGas,
-            txUnconfigured.params.gasPrice,
-            txUnconfigured.params.gasToken,
-            txUnconfigured.params.refundReceiver,
+            dummyTx.params.to,
+            dummyTx.params.value,
+            dummyTx.params.data,
+            dummyTx.params.operation,
+            dummyTx.params.safeTxGas,
+            dummyTx.params.baseGas,
+            dummyTx.params.gasPrice,
+            dummyTx.params.gasToken,
+            dummyTx.params.refundReceiver,
             "",
             unguardedSafe.owners[0]
         );
@@ -867,75 +867,6 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
         dummyTx.executeTransaction(nonOwner);
     }
 }
-
-/// @title TimelockGuard_CheckAfterExecution_Test
-/// @notice Tests for checkAfterExecution function
-// contract TimelockGuard_CheckAfterExecution_Test is TimelockGuard_TestInit {
-//     function setUp() public override {
-//         super.setUp();
-//         _configureGuard(safeInstance, TIMELOCK_DELAY);
-//     }
-//
-//     /// @notice Verifies successful execution updates state and resets threshold.
-//     function test_checkAfterExecution_successfulExecution_succeeds() external {
-//         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
-//         dummyTx.scheduleTransaction(timelockGuard);
-//
-//         uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
-//         vm.warp(expectedExecutionTime);
-//
-//         // Verify initial cancellation threshold
-//         uint256 initialThreshold = timelockGuard.cancellationThreshold(safeInstance.safe);
-//         assertEq(initialThreshold, 1);
-//
-//         // Call checkAfterExecution with successful execution
-//         vm.expectEmit(true, true, true, true);
-//         emit TransactionExecuted(safeInstance.safe, dummyTx.hash);
-//         vm.prank(address(safeInstance.safe));
-//         timelockGuard.checkAfterExecution(dummyTx.hash, true);
-//
-//         // Verify transaction state changed to Executed
-//         TimelockGuard.ScheduledTransaction memory scheduledTx =
-//             timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
-//         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Executed));
-//
-//         // Verify transaction removed from pending list
-//         TimelockGuard.ScheduledTransaction[] memory pending = timelockGuard.pendingTransactions(safeInstance.safe);
-//         assertEq(pending.length, 0);
-//
-//         // Verify cancellation threshold was reset to 1
-//         assertEq(timelockGuard.cancellationThreshold(safeInstance.safe), 1);
-//
-//         // Verify transaction cannot be executed again
-//         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyExecuted.selector);
-//         dummyTx.executeTransaction(safeInstance.owners[0]);
-//     }
-//
-//     /// @notice Verifies transaction state remains unchanged on execution failure.
-//     function test_checkAfterExecution_failedExecution_succeeds() external {
-//         TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
-//         dummyTx.scheduleTransaction(timelockGuard);
-//
-//         uint256 expectedExecutionTime = block.timestamp + TIMELOCK_DELAY;
-//         vm.warp(expectedExecutionTime);
-//
-//         // Call checkAfterExecution with failed execution
-//         vm.prank(address(safeInstance.safe));
-//         timelockGuard.checkAfterExecution(dummyTx.hash, false);
-//
-//         // Verify transaction state remains unchanged
-//         TimelockGuard.ScheduledTransaction memory scheduledTx =
-//             timelockGuard.scheduledTransaction(safeInstance.safe, dummyTx.hash);
-//         assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Pending));
-//         assertEq(uint256(scheduledTx.executionTime), expectedExecutionTime);
-//     }
-//
-//     /// @notice Fuzz test: Verifies unconfigured guard allows checkAfterExecution for any _hash.
-//     function testFuzz_checkAfterExecution_unconfiguredGuard_succeeds(bytes32 _hash) external {
-//         vm.prank(address(unguardedSafe.safe));
-//         timelockGuard.checkAfterExecution(_hash, true);
-//     }
-// }
 
 /// @title TimelockGuard_MaxCancellationThreshold_Test
 /// @notice Tests for the maxCancellationThreshold function in TimelockGuard
