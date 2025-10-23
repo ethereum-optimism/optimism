@@ -1,0 +1,54 @@
+# A simple network configuration for kurtosis (https://github.com/ethpandaops/optimism-package)
+# Spins up a 2 EL/CL networks. One with op-geth/op-node and one with op-reth/op-node.
+
+optimism_package:
+  faucet:
+    enabled: true
+  chains:
+    chain0:
+      # Chain with only two nodes
+      participants:
+        sequencer:
+          el:
+            type: op-geth
+            log_level: "debug"
+          cl:
+            type: op-node
+            log_level: "debug"
+          sequencer: true
+        validator:
+          el:
+            type: op-reth
+            # Note: we use the local image for now. This allows us to run the tests in CI pipelines without publishing new docker images every time.
+            image: op-reth:local
+            extra_params: [--proofs-history, --proofs-history.storage-path=/data/proofs-history]
+          cl: 
+            type: op-node
+            log_level: "debug"
+          sequencer: false
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        seconds_per_slot: 2
+  global_log_level: "info"
+  global_node_selectors: {}
+  global_tolerations: []
+  persistent: false
+ethereum_package:
+  participants:
+  - el_type: geth
+    cl_type: teku
+    cl_image: consensys/teku:25.7.1
+  network_params:
+    preset: minimal
+    genesis_delay: 5
+    additional_preloaded_contracts: '
+      {
+        "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+          "balance": "0ETH",
+          "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3",
+          "storage": {},
+          "nonce": "1"
+        }
+      }
+    '
