@@ -341,3 +341,31 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	t.Run("two failing endpoints", testThrottlingEndpoints(0, 2))
 	t.Run("one normal endpoint, one failing endpoint", testThrottlingEndpoints(1, 1))
 }
+
+func TestBatchSubmitter_CriticalError(t *testing.T) {
+
+	criticalErrors := []error{
+		eth.InputError{
+			Code: eth.MethodNotFound,
+		},
+		eth.InputError{
+			Code: eth.InvalidParams,
+		},
+	}
+
+	for _, e := range criticalErrors {
+		require.True(t, isCriticalThrottlingRPCError(e))
+	}
+
+	nonCriticalErrors := []error{
+		eth.InputError{
+			Code: eth.UnsupportedFork,
+		},
+		errors.New("timeout"),
+	}
+
+	for _, e := range nonCriticalErrors {
+		require.False(t, isCriticalThrottlingRPCError(e))
+	}
+
+}
