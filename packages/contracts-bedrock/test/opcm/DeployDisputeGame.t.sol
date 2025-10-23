@@ -118,26 +118,16 @@ contract DeployDisputeGame_Test is Test {
     function test_run_nullInputsWithFaultDisputeGame_reverts() public {
         DeployDisputeGame.Input memory input;
 
+        // Test case: release not set
         input = defaultFaultDisputeGameInput();
         input.release = "";
         vm.expectRevert("DeployDisputeGame: release not set");
         deployDisputeGame.run(input);
 
+        // Test case: l2ChainId not set
         input = defaultFaultDisputeGameInput();
         input.l2ChainId = 0;
         vm.expectRevert("DeployDisputeGame: l2ChainId not set");
-        deployDisputeGame.run(input);
-
-        // Test case: clockExtension not set
-        input = defaultFaultDisputeGameInput();
-        input.clockExtension = 0;
-        vm.expectRevert("DeployDisputeGame: clockExtension not set");
-        deployDisputeGame.run(input);
-
-        // Test case: maxClockDuration not set
-        input = defaultFaultDisputeGameInput();
-        input.maxClockDuration = 0;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration not set");
         deployDisputeGame.run(input);
 
         // Test case: maxGameDepth not set
@@ -146,11 +136,13 @@ contract DeployDisputeGame_Test is Test {
         vm.expectRevert("DeployDisputeGame: maxGameDepth not set");
         deployDisputeGame.run(input);
 
+        // Test case: delayedWethProxy not set
         input = defaultFaultDisputeGameInput();
         input.delayedWethProxy = IDelayedWETH(payable(address(0)));
         vm.expectRevert("DeployDisputeGame: delayedWethProxy not set");
         deployDisputeGame.run(input);
 
+        // Test case: anchorStateRegistryProxy not set
         input = defaultFaultDisputeGameInput();
         input.anchorStateRegistryProxy = IAnchorStateRegistry(payable(address(0)));
         vm.expectRevert("DeployDisputeGame: anchorStateRegistryProxy not set");

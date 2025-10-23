@@ -108,18 +108,16 @@ contract DeployDisputeGame is Script {
         require(_input.maxGameDepth != 0, "DeployDisputeGame: maxGameDepth not set");
         require(_input.splitDepth != 0, "DeployDisputeGame: splitDepth not set");
         require(_input.clockExtension <= type(uint64).max, "DeployDisputeGame: clockExtension must fit inside uint64");
-        require(_input.clockExtension != 0, "DeployDisputeGame: clockExtension not set");
         require(
             _input.maxClockDuration <= type(uint64).max, "DeployDisputeGame: maxClockDuration must fit inside uint64"
         );
-        require(_input.maxClockDuration != 0, "DeployDisputeGame: maxClockDuration not set");
         require(_input.l2ChainId != 0, "DeployDisputeGame: l2ChainId not set");
         require(address(_input.delayedWethProxy) != address(0), "DeployDisputeGame: delayedWethProxy not set");
         require(
             address(_input.anchorStateRegistryProxy) != address(0),
             "DeployDisputeGame: anchorStateRegistryProxy not set"
         );
-        require(address(_input.vmAddress) != address(0), "DeployDisputeGame: vm not set");
+        require(address(_input.vmAddress) != address(0), "DeployDisputeGame: vmAddress not set");
         require(!LibString.eq(_input.release, ""), "DeployDisputeGame: release not set");
         require(
             LibString.eq(_input.gameKind, "FaultDisputeGame")
