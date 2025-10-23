@@ -241,9 +241,13 @@ contract DeployImplementations_Test is Test {
             );
 
             assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "PSuperDG maxGameDepth"
+                output.superPermissionedDisputeGameImpl.maxGameDepth(),
+                _faultGameV2MaxGameDepth,
+                "PSuperDG maxGameDepth"
             );
-            assertEq(output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth");
+            assertEq(
+                output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth"
+            );
             assertEq(
                 output.superPermissionedDisputeGameImpl.clockExtension().raw(),
                 uint64(_faultGameV2ClockExtension),
