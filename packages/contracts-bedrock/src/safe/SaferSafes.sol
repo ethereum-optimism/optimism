@@ -25,8 +25,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      desired, then there is no need to enable or configure it.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.2
-    string public constant version = "1.5.2";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
