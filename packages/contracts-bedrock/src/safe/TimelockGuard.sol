@@ -45,8 +45,7 @@ import { Constants } from "src/libraries/Constants.sol";
 ///     removing them from the pending transactions queue, and resetting the cancellation
 ///     threshold.
 /// Safe Version Compatibility:
-///     This guard is compatible only with Safe versions 1.3.x and 1.4.x. Enabling it for a Safe
-///     from any other version will brick the Safe.
+///     This guard is compatible only with Safe version 1.4.1.
 /// Threats Mitigated and Integration With LivenessModule:
 ///     This Guard is designed to protect against a number of well-defined scenarios, defined on
 ///     the two axes of amount of keys compromised, and type of compromise.
@@ -159,7 +158,7 @@ abstract contract TimelockGuard is BaseGuard {
     /// @notice Error for when a transaction has already been executed
     error TimelockGuard_TransactionAlreadyExecuted();
 
-    /// @notice Error for when the contract is not 1.3.x or 1.4.x
+    /// @notice Error for when the contract is not 1.4.1
     error TimelockGuard_InvalidVersion();
 
     /// @notice Error for when trying to clear guard while it is still enabled
@@ -437,12 +436,10 @@ abstract contract TimelockGuard is BaseGuard {
         // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
 
-        // Check that the safe contract is version 1.3.x or 1.4.x
-        // Prior to version 1.3.0, checkSignatures() was not exposed as a public function, on 1.5.0
-        // `encodeTransactionData` was removed from the safe, and the `isValidSignature` function
-        // signature changed. If the guard were to be enabled for an unsupported version the safe
-        // would be rendered permanently unusable.
-        if (SemverComp.lt(callingSafe.VERSION(), "1.3.0") || SemverComp.gte(callingSafe.VERSION(), "1.5.0")) {
+        // Check that the safe contract is version 1.4.1
+        // There have been breaking changes at every minor version, and we can only support one
+        // version.
+        if (!SemverComp.eq(callingSafe.VERSION(), "1.4.1")) {
             revert TimelockGuard_InvalidVersion();
         }
 
