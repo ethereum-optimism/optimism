@@ -105,5 +105,5 @@ func (r *ForkchoiceUpdateResult) Retry(attempts int) *ForkchoiceUpdateResult {
 }
 
 func (r *ForkchoiceUpdateResult) ResultAllSyncing() {
-	r.T.Require().True(r.RefreshCnt == r.SyncingCnt)
+	r.T.Require().Equal(r.RefreshCnt, r.SyncingCnt)
 }
