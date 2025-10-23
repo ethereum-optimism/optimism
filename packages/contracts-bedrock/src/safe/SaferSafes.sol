@@ -22,7 +22,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      enabled or disabled independently of the other. When installing either component, it
 ///      should first be enabled, and then configured. If a component's functionality is not
 ///      desired, then there is no need to enable or configure it.
-///      This contract is compatible only with the Safe contract version 1.3.x and 1.4.x due to the
+///      This contract is compatible only with the Safe contract version 1.4.1 due to the
 ///      compatibility restrictions in the LivenessModule2 and TimelockGuard contracts.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
