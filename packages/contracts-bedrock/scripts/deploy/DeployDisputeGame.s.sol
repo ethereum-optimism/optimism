@@ -125,13 +125,8 @@ contract DeployDisputeGame is Script {
             "DeployDisputeGame: unknown game kind"
         );
 
-        if (LibString.eq(_input.gameKind, "FaultDisputeGame")) {
-            require(_input.proposer == address(0), "DeployDisputeGame: proposer must be empty");
-            require(_input.challenger == address(0), "DeployDisputeGame: challenger must be empty");
-        } else {
-            require(_input.proposer != address(0), "DeployDisputeGame: proposer not set");
-            require(_input.challenger != address(0), "DeployDisputeGame: challenger not set");
-        }
+        require(_input.proposer != address(0), "DeployDisputeGame: proposer not set");
+        require(_input.challenger != address(0), "DeployDisputeGame: challenger not set");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) internal view {

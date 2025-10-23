@@ -55,6 +55,8 @@ contract DeployDisputeGame_Test is Test {
         vm.assume(!LibString.eq(_input.release, ""));
         vm.assume(address(_input.anchorStateRegistryProxy) != address(0));
         vm.assume(address(_input.delayedWethProxy) != address(0));
+        vm.assume(_input.challenger != address(0));
+        vm.assume(_input.proposer != address(0));
 
         // These come from the constructor or FaultDisputeGame
         vm.assume(_gameType != type(uint32).max);
@@ -69,10 +71,6 @@ contract DeployDisputeGame_Test is Test {
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
         _input.vmAddress = bigStepper;
-
-        // For FaultDisputeGame, these must be empty
-        _input.challenger = address(0);
-        _input.proposer = address(0);
 
         // Run the deployment script.
         deployDisputeGame.run(_input);
@@ -146,22 +144,6 @@ contract DeployDisputeGame_Test is Test {
         input = defaultFaultDisputeGameInput();
         input.anchorStateRegistryProxy = IAnchorStateRegistry(payable(address(0)));
         vm.expectRevert("DeployDisputeGame: anchorStateRegistryProxy not set");
-        deployDisputeGame.run(input);
-    }
-
-    function test_run_proposerWithFaultDisputeGame_reverts(address _proposerOrChallenger) public {
-        vm.assume(_proposerOrChallenger != address(0));
-
-        DeployDisputeGame.Input memory input;
-
-        input = defaultFaultDisputeGameInput();
-        input.proposer = _proposerOrChallenger;
-        vm.expectRevert("DeployDisputeGame: proposer must be empty");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.challenger = _proposerOrChallenger;
-        vm.expectRevert("DeployDisputeGame: challenger must be empty");
         deployDisputeGame.run(input);
     }
 
@@ -253,8 +235,8 @@ contract DeployDisputeGame_Test is Test {
             delayedWethProxy: defaultDelayedWethProxy,
             anchorStateRegistryProxy: defaultAnchorStateRegistryProxy,
             vmAddress: bigStepper,
-            proposer: address(0),
-            challenger: address(0)
+            proposer: defaultProposer,
+            challenger: defaultChallenger
         });
     }
 
