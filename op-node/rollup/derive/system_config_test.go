@@ -59,7 +59,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		{
 			// The log data is ignored by consensus and no modifications to the
 			// system config occur.
-			name: "SystemConfigUpdateUnsafeBlockSigner",
+			name: "UnsafeBlockSigner",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -79,7 +79,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		},
 		{
 			// The batcher address should be updated.
-			name: "SystemConfigUpdateBatcher",
+			name: "Batcher",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -103,7 +103,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		},
 		{
 			// The overhead and the scalar should be updated.
-			name: "SystemConfigUpdateGasConfig",
+			name: "GasConfig",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -129,7 +129,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		},
 		{
 			// The gas limit should be updated.
-			name: "SystemConfigUpdateGasLimit",
+			name: "GasLimit",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -153,7 +153,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		},
 		{
 			// The ecotone scalars should be updated
-			name: "SystemConfigUpdateGasConfigEcotone",
+			name: "GasConfigEcotone",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -180,7 +180,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			l1Time:      200,
 		},
 		{
-			name: "SystemConfigOneTopic",
+			name: "OneTopic",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -193,7 +193,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err:    true,
 		},
 		{
-			name: "SystemConfigUpdateEIP1559Params",
+			name: "EIP1559Params",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -215,7 +215,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "SystemConfigUpdateOperatorFeeParams",
+			name: "OperatorFeeParams",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -237,7 +237,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "SystemConfigUpdateMinBaseFee",
+			name: "UpdateMinBaseFee",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -259,7 +259,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "SystemConfigUpdateDAFootprintGasScalar",
+			name: "DAFootprintGasScalar",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
@@ -277,28 +277,6 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			},
 			config: eth.SystemConfig{
 				DAFootprintGasScalar: 100,
-			},
-			err: false,
-		},
-		{
-			name: "SystemConfigUpdateDAFootprintGasScalar_default",
-			log: &types.Log{
-				Topics: []common.Hash{
-					ConfigUpdateEventABIHash,
-					ConfigUpdateEventVersion0,
-					SystemConfigUpdateDAFootprintGasScalar,
-				},
-			},
-			hook: func(t *testing.T, log *types.Log) *types.Log {
-				numberData, err := oneUint16.Pack(uint16(0))
-				require.NoError(t, err)
-				data, err := bytesArgs.Pack(numberData)
-				require.NoError(t, err)
-				log.Data = data
-				return log
-			},
-			config: eth.SystemConfig{
-				DAFootprintGasScalar: eth.DAFootprintGasScalarDefault,
 			},
 			err: false,
 		},

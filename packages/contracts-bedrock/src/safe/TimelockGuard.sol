@@ -38,6 +38,12 @@ import { Constants } from "src/libraries/Constants.sol";
 ///     required to cancel a transaction) starts at 1, and is automatically increased by 1 after
 ///     each cancellation.
 ///     The cancellation threshold is reset to 1 after any transaction is executed successfully.
+/// Failed transactions:
+///     The execTransaction call by the Safe doesn't revert if the called transaction fails and it
+///     returns a false success value instead, bumping the nonce as with successful transactions.
+///     The TimelockGuard matches this behaviour by marking failed transactions as Executed,
+///     removing them from the pending transactions queue, and resetting the cancellation
+///     threshold.
 /// Safe Version Compatibility:
 ///     This guard is compatible only with Safe versions 1.4.1.
 /// Threats Mitigated and Integration With LivenessModule:
@@ -316,7 +322,6 @@ abstract contract TimelockGuard is BaseGuard {
         address _msgSender
     )
         external
-        view
         override
     {
         Safe callingSafe = Safe(payable(msg.sender));
@@ -371,42 +376,22 @@ abstract contract TimelockGuard is BaseGuard {
         if (scheduledTx.executionTime > block.timestamp) {
             revert TimelockGuard_TransactionNotReady();
         }
-    }
-
-    /// @notice Implementation of Guard interface. Called by the Safe after executing a transaction
-    /// @dev This function is used to update the state of the contract after the transaction has
-    ///      been executed. Although making state changes here is a violation of the
-    ///      Checks-Effects-Interactions pattern, it safe to do in this case because we trust that
-    ///      the Safe does not enable arbitrary calls without proper authorization checks.
-    function checkAfterExecution(bytes32 _txHash, bool _success) external override {
-        Safe callingSafe = Safe(payable(msg.sender));
-        // If the timelock delay is zero, we return immediately.
-        // This is important in order to allow a Safe which has the guard set, but not configured,
-        // to complete the setup process.
-        // It is also just a reasonable thing to do, since an unconfigured Safe must have a delay of zero, and so
-        // we do not expect the transaction to have been scheduled.
-        if (_safeState[callingSafe].timelockDelay == 0) {
-            return;
-        }
-
-        // If the transaction failed, then we return early and leave the transaction in its current
-        // state, which allows the transaction to be retried. This is consistent with the Safe's
-        // own behaviour, which does not increment the nonce if the call fails.
-        if (!_success) {
-            return;
-        }
-
-        ScheduledTransaction storage scheduledTx = _safeState[callingSafe].scheduledTransactions[_txHash];
-
-        // Set the transaction as executed
-        scheduledTx.state = TransactionState.Executed;
-        _safeState[callingSafe].pendingTxHashes.remove(_txHash);
 
         // Reset the cancellation threshold
         _resetCancellationThreshold(callingSafe);
 
-        emit TransactionExecuted(callingSafe, _txHash);
+        // Set the transaction as executed.
+        // Reverts in transaction as called from the Safe will be caught and ignored, with the Safe
+        // bumping the nonce regardless. We accordingly set the transaction as executed and remove
+        // it from the pending transactions anyway, as it can't be retried.
+        scheduledTx.state = TransactionState.Executed;
+        _safeState[callingSafe].pendingTxHashes.remove(txHash);
+
+        emit TransactionExecuted(callingSafe, txHash);
     }
+
+    /// @notice Implementation of Guard interface. Called by the Safe after executing a transaction
+    function checkAfterExecution(bytes32 _txHash, bool _success) external override { }
 
     ////////////////////////////////////////////////////////////////
     //              Internal State-Changing Functions             //

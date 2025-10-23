@@ -209,7 +209,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.SetDAFootprintGasScalar(daFootprintGasScalar)
+		destSysCfg.DAFootprintGasScalar = daFootprintGasScalar
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
