@@ -194,7 +194,6 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         );
     }
 
-
     /// @notice Checks configuration reverts when the contract is too old.
     function test_configureLivenessModule_revertsIfVersionTooOld_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
