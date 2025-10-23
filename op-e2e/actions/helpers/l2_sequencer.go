@@ -211,7 +211,7 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 }
 
 func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) {
-	require.NotNil(t, s.RollupCfg.ActivationTimeFor(fork), "cannot activate %s when it is not scheduled", fork)
+	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
 	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
 		s.ActL2EmptyBlock(t)
 	}
