@@ -401,9 +401,8 @@ contract VerifyOPCM is Script {
         internal
         returns (bool)
     {
-        // TODO(#17561): For now skip verification of super dispute game implementations while the super game is being refactored
-        // to v2 DG.
-        // Once the migration is complete, we can remove this skip.
+        // TODO(#17561): For now skip verification of super dispute game implementations while the super game is being
+        // refactored to v2 DG. Once the migration is complete, we can remove this skip.
         if (
             Bytes.equal(bytes(_target.name), bytes("SuperFaultDisputeGame"))
                 || Bytes.equal(bytes(_target.name), bytes("SuperPermissionedDisputeGame"))
