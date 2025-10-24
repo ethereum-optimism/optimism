@@ -37,7 +37,6 @@ for pair in "${pairs[@]}"; do
   arch="${pair#*_}"
   url="https://github.com/foundry-rs/foundry/releases/download/${VER}/foundry_${VER}_${os}_${arch}.tar.gz"
   out="${TMP_DIR}/foundry_${VER}_${pair}.tar.gz"
-  ext="${TMP_DIR}/foundry_${VER}_${pair}"
 
   echo "--------------------------------"
   echo "Processing ${pair}..."
@@ -45,12 +44,8 @@ for pair in "${pairs[@]}"; do
   echo "Downloading ${url}"
   curl -fsSL --retry 3 --retry-delay 1 -o "${out}" "${url}"
 
-  echo "Extracting forge"
-  mkdir -p "${ext}"
-  tar -xzf "${out}" -C ${ext} forge
-
   echo "Computing checksum"
-  sha="$(shasum -a 256 "${ext}/forge" | awk '{print $1}')"
+  sha="$(shasum -a 256 "${out}" | awk '{print $1}')"
   echo "Checksum for ${pair}: ${sha}"
   sums+=("${sha}")
 done

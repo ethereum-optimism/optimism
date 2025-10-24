@@ -28,27 +28,29 @@ ARG TARGETARCH
 
 RUN apk add --no-cache curl bash git jq
 
-# Set foundry installation directory for foundryup
-ENV PATH="/root/.foundry/bin:${PATH}"
-
-# Make sure we install for alpine
-#
-# foundryup uses this to narrow down the linux distribution for forge installation
-ENV FOUNDRYUP_PLATFORM=alpine
-
-# Install foundryup
-RUN curl -L https://foundry.paradigm.xyz | SHELL=/bin/bash bash
-
-# Install forge
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
-RUN foundryup --install "$(jq -r '.forge' /tmp/op-deployer-versions.json)"
 
 # Verify forge checksums
 RUN <<-EOF
-    ACTUAL_SHA="$(sha256sum "$(which forge)" | awk '{print $1}')"
-    EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRYUP_PLATFORM}_${TARGETARCH}" '.checksums[$arch]' /tmp/op-deployer-versions.json)"
+    #!/bin/bash
+    set -e
+
+    FOUNDRY_VERSION="$(jq -r '.forge' /tmp/op-deployer-versions.json)"
+    FOUNDRY_PLATFORM=alpine_${TARGETARCH}
+    FOUNDRY_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_${FOUNDRY_PLATFORM}.tar.gz"
+    DOWNLOAD_PATH="/tmp/forge.tar.gz"
+
+    # Download the artifact archive
+    curl -fL -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
+
+    # Ensure the checksum matches our expectations
+    ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
+    EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' /tmp/op-deployer-versions.json)"
 
     [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
+
+    # Extract the archive
+    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
 EOF
 
 # Display installed version for visibility
@@ -57,7 +59,7 @@ RUN forge --version
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.23.8-alpine3.21 AS builder
 
-RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq bash
+RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq bash just
 
 ARG TARGETARCH
 
@@ -84,6 +86,9 @@ ARG GIT_COMMIT
 ARG GIT_DATE
 
 ARG TARGETOS
+
+# Show just version
+RUN just --version
 
 # separate docker-builds:
 # - proxyd
@@ -176,7 +181,7 @@ FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
 
 # Add forge
-COPY --from=builder_foundry /root/.foundry/bin/forge /usr/local/bin/forge
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
 
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
