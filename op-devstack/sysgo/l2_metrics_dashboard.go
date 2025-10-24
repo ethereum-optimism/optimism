@@ -167,12 +167,12 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 		dashboard := &L2MetricsDashboard{
 			p: p,
 
-			prometheusExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "/usr/local/bin/docker"),
+			prometheusExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "docker"),
 			prometheusArgs:     prometheusArgs,
 			prometheusEnv:      []string{},
 			prometheusEndpoint: prometheusEndpoint,
 
-			grafanaExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "/usr/local/bin/docker"),
+			grafanaExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "docker"),
 			grafanaArgs:     grafanaArgs,
 			grafanaEnv:      grafanaEnv,
 		}

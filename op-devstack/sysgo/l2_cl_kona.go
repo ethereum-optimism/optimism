@@ -104,7 +104,7 @@ func (k *KonaNode) Start() {
 		case "RPC server bound to address":
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
 		default:
-			if endpoint := k.tryParseKonaMetricsFromLog(msg); endpoint != nil {
+			if endpoint := k.tryParseMetricsFromLog(msg); endpoint != nil {
 				metricsEndpointChan <- *endpoint
 			}
 		}
@@ -128,7 +128,7 @@ func (k *KonaNode) Start() {
 
 	if k.areMetricsEnabled {
 		var metricsEndpoint PrometheusMetricsEndpoint
-		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need user RPC")
+		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
 		k.registerMetricsEndpoints("kona-node", metricsEndpoint)
 	}
 
@@ -158,18 +158,18 @@ func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 }
 
 // Matching messages like "Serving metrics at: http://0.0.0.0:9091"
-const metricsPrefix = "Serving metrics at: "
+const konaMetricsPrefix = "Serving metrics at: "
 
-// tryParseKonaMetricsFromLog attempts to parse a running kona metrics server endpoint from
+// tryParseMetricsFromLog attempts to parse a running kona metrics server endpoint from
 // the provided log message.
 //
-// If the log message doesn't appear to be metrics-related, nil will be returned. See: `metricsPrefix`.
-func (k *KonaNode) tryParseKonaMetricsFromLog(msg string) *PrometheusMetricsEndpoint {
-	if !strings.HasPrefix(msg, metricsPrefix) {
+// If the log message doesn't appear to be metrics-related, nil will be returned. See: `konaMetricsPrefix`.
+func (k *KonaNode) tryParseMetricsFromLog(msg string) *PrometheusMetricsEndpoint {
+	if !strings.HasPrefix(msg, konaMetricsPrefix) {
 		return nil
 	}
 
-	parsedUrl, err := url.Parse(strings.Split(msg, metricsPrefix)[1])
+	parsedUrl, err := url.Parse(strings.Split(msg, konaMetricsPrefix)[1])
 	k.p.Require().NoError(err, fmt.Sprintf("invalid kona metrics url output to logs: %s", msg))
 	port := parsedUrl.Port()
 	k.p.Require().NotEmpty(port, fmt.Sprintf("empty port url in kona metrics url; log line: %s", msg))
