@@ -5,14 +5,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	v200 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
+	v500 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v5_0_0"
 )
 
 type Upgrader struct {
 }
 
 func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
-	return v200.DefaultUpgrader.Upgrade(host, input)
+	return v500.DefaultUpgrader.Upgrade(host, input)
 }
 
 func (u *Upgrader) ArtifactsURL() string {
