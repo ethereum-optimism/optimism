@@ -102,7 +102,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;
-        for (uint256 i; i < _portals.length; i++) {
+        for (uint256 i; i < 1; i++) {
             _authorizePortal(_portals[i]);
         }
     }
