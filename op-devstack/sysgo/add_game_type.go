@@ -57,7 +57,6 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 		L1ProxyAdminOwner:       l1PAO,
 		OPCMImpl:                opcmAddr,
 		SystemConfigProxy:       o.wb.outL2Deployment[l2ChainID].SystemConfigProxyAddr(),
-		OPChainProxyAdmin:       o.wb.outL2Deployment[l2ChainID].ProxyAdminAddr(),
 		DelayedWETHProxy:        o.wb.outL2Deployment[l2ChainID].PermissionlessDelayedWETHProxyAddr(),
 		DisputeGameType:         gameType,
 		DisputeAbsolutePrestate: absolutePrestate,
@@ -70,6 +69,8 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 		Permissionless:          true,
 		SaltMixer:               fmt.Sprintf("devstack-%s-%s", l2ChainID, absolutePrestate.Hex()),
 	}
+
+	OPChainProxyAdmin := o.wb.outL2Deployment[l2ChainID].ProxyAdminAddr()
 
 	_, addGameTypeCalldata, err := manage.AddGameType(t.Ctx(), cfg)
 	require.NoError(err, "failed to create add game type calldata")
@@ -85,7 +86,7 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 	t.Log("Deploying delegate call proxy contract")
 	delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1PAO)
 	// transfer ownership to the proxy so that we can delegatecall the opcm
-	transferOwnership(t, l1PAOKey, client, cfg.OPChainProxyAdmin, delegateCallProxy)
+	transferOwnership(t, l1PAOKey, client, OPChainProxyAdmin, delegateCallProxy)
 	dgf := o.wb.outL2Deployment[l2ChainID].DisputeGameFactoryProxyAddr()
 	transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
 
@@ -96,7 +97,7 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 	require.NoError(err, "failed to wait for add game type receipt")
 
 	// reset ProxyAdmin ownership transfers
-	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, cfg.OPChainProxyAdmin, l1PAO)
+	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, OPChainProxyAdmin, l1PAO)
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
 }
 
