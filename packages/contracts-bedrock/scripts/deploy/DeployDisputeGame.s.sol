@@ -286,7 +286,7 @@ contract DeployDisputeGame is Script {
         if (LibString.eq(_dgi.gameKind(), "FaultDisputeGame")) {
             impl = IPermissionedDisputeGame(
                 DeployUtils.createDeterministic({
-                    _name: "FaultDisputeGame",
+                    _name: "FaultDisputeGameV2",
                     _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (args))),
                     _salt: DeployUtils.DEFAULT_SALT
                 })
@@ -294,7 +294,7 @@ contract DeployDisputeGame is Script {
         } else {
             impl = IPermissionedDisputeGame(
                 DeployUtils.createDeterministic({
-                    _name: "PermissionedDisputeGame",
+                    _name: "PermissionedDisputeGameV2",
                     _args: DeployUtils.encodeConstructor(
                         abi.encodeCall(
                             IPermissionedDisputeGameV2.__constructor__, (args, _dgi.proposer(), _dgi.challenger())
