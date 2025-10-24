@@ -122,7 +122,7 @@ contract DeployOPChain is Script {
         if (isDevFeatureV2DisputeGamesEnabled(opcm)) {
             address pdg = IOPContractsManager(opcm).implementations().permissionedDisputeGameV2Impl;
             vm.label(pdg, "permissionedDisputeGame");
-            output_.permissionedDisputeGame = pdg;
+            output_.permissionedDisputeGame = IPermissionedDisputeGame(pdg);
         }
 
         checkOutput(_input, output_);
