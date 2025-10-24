@@ -143,13 +143,17 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		// Now wind forward to jovian
 		unsafeL2Head = env.Sequencer.ActBuildL2ToJovian(t)
 
-		// Check GPO status
-		checkGPOStatusAndCall(true, receipt.GasUsed)
-
 		// reset accounting
 		aliceInitialBalance, _, _, _, operatorFeeVaultInitialBalance = getCurrentBalances(unsafeL2Head.Number)
 
 		unsafeL2Head, receipt = buildL2BlockWithSingleTx()
+
+		// Check that the scalars are in the receipt
+		require.Equal(t, testOperatorFeeScalar, uint32(*receipt.OperatorFeeScalar))
+		require.Equal(t, testOperatorFeeConstant, *receipt.OperatorFeeConstant)
+
+		// Check GPO status
+		checkGPOStatusAndCall(true, receipt.GasUsed)
 
 		// Assert balance changes
 		aliceFinalBalance, _, _, _, operatorFeeVaultFinalBalance = getCurrentBalances(unsafeL2Head.Number)
