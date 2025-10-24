@@ -258,6 +258,11 @@ func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope
 func (el *L2ELNode) NewPayload(refNode *L2ELNode, number uint64) *NewPayloadResult {
 	el.log.Info("NewPayload", "number", number, "node", el, "refNode", refNode)
 	payload := refNode.PayloadByNumber(number)
+	return el.NewPayloadRaw(payload)
+}
+
+func (el *L2ELNode) NewPayloadRaw(payload *eth.ExecutionPayloadEnvelope) *NewPayloadResult {
+	el.log.Info("NewPayloadRaw", "number", payload.ExecutionPayload.BlockNumber)
 	status, err := el.inner.L2EngineClient().NewPayload(el.ctx, payload.ExecutionPayload, payload.ParentBeaconBlockRoot)
 	return &NewPayloadResult{T: el.t, Status: status, Err: err}
 }

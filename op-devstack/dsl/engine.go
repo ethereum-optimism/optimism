@@ -34,6 +34,12 @@ func (r *NewPayloadResult) IsValid() *NewPayloadResult {
 	return r
 }
 
+func (r *NewPayloadResult) IsInvalid() *NewPayloadResult {
+	r.IsPayloadStatus(eth.ExecutionInvalid)
+	r.T.Require().NoError(r.Err)
+	return r
+}
+
 type ForkchoiceUpdateResult struct {
 	T          devtest.T
 	Refresh    func()
