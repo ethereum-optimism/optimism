@@ -128,6 +128,65 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 address(output.disputeGameFactoryImpl), address(0), "DisputeGameFactory should still be deployed"
             );
         }
+
+        // for the super DG implementation deployments
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            assertNotEq(
+                address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should be deployed"
+            );
+            assertNotEq(
+                address(output.superPermissionedDisputeGameImpl),
+                address(0),
+                "SuperPermissionedDisputeGame should be deployed"
+            );
+
+            // Validate constructor args for SuperFaultDisputeGame
+            assertEq(
+                output.superFaultDisputeGameImpl.maxGameDepth(), 73, "SuperFaultDisputeGame maxGameDepth incorrect"
+            );
+            assertEq(output.superFaultDisputeGameImpl.splitDepth(), 30, "SuperFaultDisputeGame splitDepth incorrect");
+            assertEq(
+                output.superFaultDisputeGameImpl.clockExtension().raw(),
+                10800,
+                "SuperFaultDisputeGame clockExtension incorrect"
+            );
+            assertEq(
+                output.superFaultDisputeGameImpl.maxClockDuration().raw(),
+                302400,
+                "SuperFaultDisputeGame maxClockDuration incorrect"
+            );
+
+            // Validate constructor args for SuperPermissionedDisputeGame
+            assertEq(
+                output.superPermissionedDisputeGameImpl.maxGameDepth(),
+                73,
+                "SuperPermissionedDisputeGame maxGameDepth incorrect"
+            );
+            assertEq(
+                output.superPermissionedDisputeGameImpl.splitDepth(),
+                30,
+                "SuperPermissionedDisputeGame splitDepth incorrect"
+            );
+            assertEq(
+                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
+                10800,
+                "SuperPermissionedDisputeGame clockExtension incorrect"
+            );
+            assertEq(
+                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
+                302400,
+                "SuperPermissionedDisputeGame maxClockDuration incorrect"
+            );
+        } else {
+            assertEq(
+                address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should not be deployed"
+            );
+            assertEq(
+                address(output.superPermissionedDisputeGameImpl),
+                address(0),
+                "SuperPermissionedDisputeGame should not be deployed"
+            );
+        }
     }
 
     function test_reuseImplementation_succeeds() public {
