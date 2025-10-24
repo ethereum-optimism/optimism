@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
@@ -151,12 +152,13 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 
 func (h *FactoryHelper) PreimageHelper(ctx context.Context) *preimage.Helper {
 	opts := &bind.CallOpts{Context: ctx}
-	gameAddr, err := h.Factory.GameImpls(opts, cannonGameType)
+	gameArgsData, err := h.Factory.GameArgs(opts, cannonGameType)
 	h.Require.NoError(err)
+	gameArgs, err := gameargs.Parse(gameArgsData)
+	h.Require.NoError(err)
+
 	caller := batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize)
-	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, gameAddr, caller)
-	h.Require.NoError(err)
-	vm, err := game.Vm(ctx)
+	vm := contracts.NewVMContract(gameArgs.Vm, caller)
 	h.Require.NoError(err)
 	oracle, err := vm.Oracle(ctx)
 	h.Require.NoError(err)
