@@ -75,6 +75,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
 	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
 	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
+	st.ImplementationsDeployment.FaultDisputeGameV2Impl = impls.FaultDisputeGameV2
+	st.ImplementationsDeployment.PermissionedDisputeGameV2Impl = impls.PermissionedDisputeGameV2
 
 	return nil
 }

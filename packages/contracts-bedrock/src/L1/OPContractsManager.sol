@@ -68,7 +68,7 @@ contract OPContractsManagerContractsContainer {
     ) {
         blueprint = _blueprints;
         implementation = _implementations;
-        devFeatureBitmap = DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
+        devFeatureBitmap = _devFeatureBitmap;
 
         // Development features MUST NOT be enabled on Mainnet.
         if (block.chainid == 1 && !_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {

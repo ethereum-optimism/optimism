@@ -29,6 +29,7 @@ func testOutputCannonGame(t *testing.T, allocType config.AllocType) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	disputeGameFactory.VerifyV2()
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 4, common.Hash{0x01})
 	arena := createOutputGameArena(t, sys, game)
 	testCannonGame(t, ctx, arena, &game.SplitGameHelper)

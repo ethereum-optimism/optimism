@@ -162,11 +162,28 @@ type ApplyPipelineOpts struct {
 	PreStateBuilder    pipeline.PreStateBuilder
 }
 
+func or(values ...common.Hash) common.Hash {
+	var out common.Hash
+	for i := 0; i < 32; i++ {
+		for _, v := range values {
+			out[i] |= v[i]
+		}
+	}
+	return out
+}
+
 func ApplyPipeline(
 	ctx context.Context,
 	opts ApplyPipelineOpts,
 ) error {
 	intent := opts.Intent
+	// Temporarily force enable V2 dispute game contracts to be enabled
+	current := intent.GlobalDeployOverrides["devFeatureBitmap"]
+	var currentBitmap common.Hash
+	if current != nil {
+		currentBitmap = current.(common.Hash)
+	}
+	intent.GlobalDeployOverrides["devFeatureBitmap"] = or(currentBitmap, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100"))
 	if err := intent.Check(); err != nil {
 		return err
 	}

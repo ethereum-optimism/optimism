@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -103,33 +106,55 @@ func deployDisputeGame(
 	}
 	lgr.Info("vm deployed", "vmAddr", vmAddr)
 
-	lgr.Info("deploying dispute game")
-	out, err := opcm.DeployDisputeGame(env.L1ScriptHost, opcm.DeployDisputeGameInput{
-		Release:                  "dev",
-		VmAddress:                vmAddr,
-		GameKind:                 "FaultDisputeGame",
-		GameType:                 game.DisputeGameType,
-		AbsolutePrestate:         game.DisputeAbsolutePrestate,
-		MaxGameDepth:             game.DisputeMaxGameDepth,
-		SplitDepth:               game.DisputeSplitDepth,
-		ClockExtension:           game.DisputeClockExtension,
-		MaxClockDuration:         game.DisputeMaxClockDuration,
-		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
-		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
-		L2ChainId:                thisIntent.ID,
-		Proposer:                 thisIntent.Roles.Proposer,
-		Challenger:               thisIntent.Roles.Challenger,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to deploy dispute game: %w", err)
-	}
-	lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
+	//lgr.Info("deploying dispute game")
+	//out, err := opcm.DeployDisputeGame(env.L1ScriptHost, opcm.DeployDisputeGameInput{
+	//	Release:                  "dev",
+	//	VmAddress:                vmAddr,
+	//	GameKind:                 "FaultDisputeGame",
+	//	GameType:                 game.DisputeGameType,
+	//	AbsolutePrestate:         game.DisputeAbsolutePrestate,
+	//	MaxGameDepth:             game.DisputeMaxGameDepth,
+	//	SplitDepth:               game.DisputeSplitDepth,
+	//	ClockExtension:           game.DisputeClockExtension,
+	//	MaxClockDuration:         game.DisputeMaxClockDuration,
+	//	DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+	//	AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
+	//	L2ChainId:                thisIntent.ID,
+	//	Proposer:                 thisIntent.Roles.Proposer,
+	//	Challenger:               thisIntent.Roles.Challenger,
+	//})
+	//if err != nil {
+	//	return fmt.Errorf("failed to deploy dispute game: %w", err)
+	//}
+	//lgr.Info("dispute game deployed", "impl", out.DisputeGameImpl)
 
+	args := gameargs.GameArgs{
+		AbsolutePrestate:    game.DisputeAbsolutePrestate,
+		Vm:                  vmAddr,
+		AnchorStateRegistry: thisState.OpChainContracts.AnchorStateRegistryProxy,
+		Weth:                thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		L2ChainID:           eth.ChainIDFromBytes32(thisIntent.ID),
+		Proposer:            thisIntent.Roles.Proposer,
+		Challenger:          thisIntent.Roles.Challenger,
+	}
+	var disputeGameImpl common.Address
+	var gameArgs []byte
+	if game.DisputeGameType == uint32(types.PermissionedGameType) {
+		disputeGameImpl = st.ImplementationsDeployment.PermissionedDisputeGameV2Impl
+		gameArgs = args.PackPermissioned()
+	} else {
+		disputeGameImpl = st.ImplementationsDeployment.FaultDisputeGameV2Impl
+		gameArgs = args.PackPermissionless()
+	}
+	if disputeGameImpl == (common.Address{}) {
+		panic("No implementation for dispute game")
+	}
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
 		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
-		Impl:                out.DisputeGameImpl,
+		Impl:                disputeGameImpl,
 		GameType:            game.DisputeGameType,
+		GameArgs:            gameArgs,
 		AnchorStateRegistry: common.Address{},
 	}
 	if game.MakeRespected {
@@ -145,7 +170,7 @@ func deployDisputeGame(
 	thisState.AdditionalDisputeGames = append(thisState.AdditionalDisputeGames, state.AdditionalDisputeGameState{
 		GameType:      game.DisputeGameType,
 		VMType:        game.VMType,
-		GameAddress:   out.DisputeGameImpl,
+		GameAddress:   disputeGameImpl,
 		OracleAddress: oracleAddr,
 		VMAddress:     vmAddr,
 	})

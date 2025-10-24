@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -443,4 +444,22 @@ func (h *FactoryHelper) StartChallenger(ctx context.Context, name string, option
 		_ = c.Close()
 	})
 	return c
+}
+
+func (h *FactoryHelper) VerifyV2() {
+	gameType := cannonGameType
+	impl, err := h.Factory.GameImpls(&bind.CallOpts{}, gameType)
+	h.Require.NoError(err, "Failed to get game impl")
+	h.Require.NotEmpty(impl, "Implementation should not be empty")
+	caller := batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize)
+	contract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, impl, caller)
+	h.Require.NoError(err, "Failed to create disputeGame contract")
+	prestate, err := contract.GetAbsolutePrestateHash(context.Background())
+	h.Require.NoError(err, "Failed to get prestate")
+	h.Require.Empty(prestate, "Prestate should be empty")
+	dgf, err := contracts.NewDisputeGameFactoryContract(context.Background(), metrics.NoopContractMetrics, h.FactoryAddr, caller)
+	h.Require.NoError(err, "Failed to create disputeGame factory contract")
+	argsPrestate, err := dgf.GetGamePrestate(context.Background(), challengerTypes.GameType(gameType))
+	h.Require.NoError(err, "Failed to get prestate")
+	h.Require.NotEmpty(argsPrestate, "Game args should have prestate")
 }
