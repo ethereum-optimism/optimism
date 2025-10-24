@@ -52,8 +52,28 @@ func NewCLITestRunnerWithNetwork(t *testing.T, opts ...CLITestRunnerOption) *CLI
 
 	// Set up defaults
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	l1RPC, _ := devnet.DefaultAnvilRPC(t, lgr)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Poll until we can get the chain ID, maximum 10 seconds
+	// Helps prevent race condition where anvil env is accessed before its ready
+	var anvilReady bool
+	for range 25 {
+		if _, err := l1Client.ChainID(ctx); err == nil {
+			anvilReady = true
+			t.Log("Anvil is ready and responding")
+			break
+		}
+		// Exit early if context expired
+		if ctx.Err() != nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.True(t, anvilReady, "Anvil did not become ready in time")
 
 	runner := &CLITestRunner{
 		workDir:       workDir,
