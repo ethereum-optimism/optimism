@@ -163,6 +163,10 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// Optional override of the default constant (1800) max sequencer drift that Fjord introduces.
+	// Standard chains must leave this field unset. If nil, the default constant is used.
+	MaxSequencerDriftFjord *uint64 `json:"max_sequencer_drift_fjord,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
