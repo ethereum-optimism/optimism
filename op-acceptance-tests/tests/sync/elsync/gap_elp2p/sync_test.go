@@ -342,3 +342,49 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 		sys.L2ELB.DisconnectPeerWith(sys.L2EL)
 	})
 }
+
+func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
+	logger := t.Logger()
+	require := t.Require()
+
+	// Advance few blocks to make sure reference node advanced
+	sys.L2CL.Advanced(types.LocalUnsafe, 4, 30)
+
+	// At this point, L2ELB has no ELP2P, and L2CL connection
+	startNum := sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number
+
+	// We check L2ELB can be advanced using the valid payload first
+	attempts := 3
+	targetNum := startNum + 1
+	sys.L2CLB.SignalTarget(sys.L2EL, targetNum)
+	sys.L2ELB.Reached(eth.Unsafe, targetNum, attempts)
+	logger.Info("Canonical chain advanced", "number", targetNum)
+
+	// Assume sequencer crafted invalid payload and broadcasted via P2P
+	// Simulate the situation using the admin_postUnsafePayload API
+	targetNum = startNum + 2
+	payload := sys.L2EL.PayloadByNumber(targetNum)
+	// inject fault to the payload and provide to the L2CLB
+	payload.ExecutionPayload.StateRoot = eth.Bytes32{}
+	// Make sure to update the block hash included at payload to CL relay the payload to the EL
+	newHash, ok := payload.CheckBlockHash()
+	require.False(ok)
+	logger.Info("Injected fault to payload", "newHash", newHash, "prevHash", payload.ExecutionPayload.BlockHash)
+	payload.ExecutionPayload.BlockHash = newHash
+	_, ok = payload.CheckBlockHash()
+	require.True(ok)
+	// L2CLB will relay the payload to the L2ELB using the engine_newPayload
+	// L2ELB will return INVALID because payload is invalid, due to wrong stateRoot
+	// ex) op-geth will call InsertBlockWithoutSetHead() to execute the payload while engine_newPayload
+
+	// Post invalid payload with the fault that can be only checked at the EL side
+	sys.L2CLB.PostUnsafePayload(payload)
+	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
+	sys.L2ELB.NotAdvanced(eth.Unsafe)
+	// EL did not advance
+	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
+	// CL did not advance
+	sys.L2CLB.UnsafeHead().NumEqualTo(startNum + 1)
+}
