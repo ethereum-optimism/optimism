@@ -119,6 +119,12 @@ contract DeployOPChain is Script {
             delayedWETHPermissionlessGameProxy: deployOutput.delayedWETHPermissionlessGameProxy
         });
 
+        if (isDevFeatureV2DisputeGamesEnabled(opcm)) {
+            address pdg = IOPContractsManager(opcm).implementations().permissionedDisputeGameV2Impl;
+            vm.label(pdg, "permissionedDisputeGame");
+            output_.permissionedDisputeGame = pdg;
+        }
+
         checkOutput(_input, output_);
     }
 
