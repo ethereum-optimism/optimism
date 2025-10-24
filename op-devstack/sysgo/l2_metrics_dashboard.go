@@ -28,13 +28,7 @@ const GrafanaHost = "0.0.0.0"
 const GrafanaServerPort = "3000"
 const GrafanaDockerPort = "3000"
 
-type L2MetricsDashboard interface {
-	stack.Lifecycle
-	hydrate(system stack.ExtensibleSystem)
-	Endpoint() string
-}
-
-type L2GrafanaDashboard struct {
+type L2MetricsDashboard struct {
 	p devtest.P
 
 	grafanaExecPath   string
@@ -50,19 +44,23 @@ type L2GrafanaDashboard struct {
 	prometheusEndpoint string
 }
 
-func (g *L2GrafanaDashboard) hydrate(system stack.ExtensibleSystem) {
-	// TODO:
-	//  if other components are running, store prometheus metrics scraping endpoints
-	//  if not, store an array of components to query at start-time
-	//		If going this route, create a generic interface for components to implement
-}
-
-func (g *L2GrafanaDashboard) Start() {
+func (g *L2MetricsDashboard) Start() {
 	g.startPrometheus()
 	g.startGrafana()
 }
 
-func (g *L2GrafanaDashboard) startPrometheus() {
+func (g *L2MetricsDashboard) Stop() {
+	err := g.grafanaSubprocess.Stop()
+	g.p.Require().NoError(err, "Grafana must stop")
+
+	err = g.prometheusSubprocess.Stop()
+	g.p.Require().NoError(err, "Prometheus must stop")
+
+	g.grafanaSubprocess = nil
+	g.prometheusSubprocess = nil
+}
+
+func (g *L2MetricsDashboard) startPrometheus() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
 	logOut := logpipe.ToLogger(g.p.Logger().New("src", "stdout"))
@@ -100,10 +98,10 @@ func (g *L2GrafanaDashboard) startPrometheus() {
 		time.Sleep(interval)
 	}
 
-	g.p.Logger().Info(fmt.Sprintf("Prometheus started at %s...", g.prometheusEndpoint))
+	g.p.Logger().Info(fmt.Sprintf("Prometheus started at %s", g.prometheusEndpoint))
 }
 
-func (g *L2GrafanaDashboard) startGrafana() {
+func (g *L2MetricsDashboard) startGrafana() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
 	logOut := logpipe.ToLogger(g.p.Logger().New("src", "stdout"))
@@ -124,30 +122,22 @@ func (g *L2GrafanaDashboard) startGrafana() {
 		g.p.Logger().Error(fmt.Sprintf("Error starting grafana: %+v", err))
 		g.p.Require().NoError(err, "Must start")
 	}
-}
 
-func (g *L2GrafanaDashboard) Stop() {
-	err := g.grafanaSubprocess.Stop()
-	g.p.Require().NoError(err, "Grafana must stop")
-
-	err = g.prometheusSubprocess.Stop()
-	g.p.Require().NoError(err, "Prometheus must stop")
-
-	g.grafanaSubprocess = nil
-	g.prometheusSubprocess = nil
+	g.p.Logger().Info("Grafana started")
 }
 
 func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
-		p := orch.P()
-
 		// don't start prometheus or grafana if there is nothing exporting metrics.
-		if orch.metricsEndpoints.Len() == 0 {
+		if orch.l2MetricsEndpoints.Len() == 0 {
 			return
 		}
 
+		p := orch.P()
+
 		prometheusEndpoint := fmt.Sprintf("http://%s:%s", PrometheusHost, PrometheusServerPort)
-		promConfig := getPrometheusConfigFilePath(p, &orch.metricsEndpoints)
+		promConfig := getPrometheusConfigFilePath(p, &orch.l2MetricsEndpoints)
+		// these are args to run via docker; see dashboard definition below
 		prometheusArgs := []string{
 			"run",
 			"-p", fmt.Sprintf("%s:%s", PrometheusServerPort, PrometheusDockerPort),
@@ -155,10 +145,11 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			"prom/prometheus",
 			"--config.file=/etc/prometheus/prometheus.yml",
 		}
-		p.TempDir()
 
+		grafanaEndpoint := fmt.Sprintf("http://%s:%s", GrafanaHost, GrafanaServerPort)
 		grafanaProvDir := getGrafanaProvisioningDirPath(p)
 		grafanaDataDir := getGrafanaDataDir(p)
+		// these are args to run via docker; see dashboard definition below
 		grafanaArgs := []string{
 			"run",
 			"-p", fmt.Sprintf("%s:%s", GrafanaServerPort, GrafanaDockerPort),
@@ -173,7 +164,7 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			PropagateEnvVarOrDefault("GF_INSTALL_PLUGINS", "grafana-piechart-panel"),
 		}
 
-		dashboard := &L2GrafanaDashboard{
+		dashboard := &L2MetricsDashboard{
 			p: p,
 
 			prometheusExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "/usr/local/bin/docker"),
@@ -190,10 +181,11 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 
 		dashboard.Start()
 		p.Cleanup(dashboard.Stop)
-		p.Logger().Info("Metrics dashboard is up", "url", fmt.Sprintf("http://%s:%s", GrafanaHost, GrafanaServerPort))
+		p.Logger().Info("Metrics dashboard is up", "url", grafanaEndpoint)
 	})
 }
 
+// TODO: If our needs get more complex, use https://pkg.go.dev/github.com/prometheus/prometheus/config instead.
 type prometheusConfig struct {
 	Global        prometheusGlobalConfig        `yaml:"global"`
 	ScrapeConfigs []prometheusScrapeConfigEntry `yaml:"scrape_configs"`
@@ -224,7 +216,7 @@ func endpointHostPortString(p PrometheusMetricsEndpoint) string {
 	return fmt.Sprintf("%s:%s", host, p.port)
 }
 
-// Returns the path to dynamically-generated the prometheus.yml file for metrics.
+// Returns the path to the dynamically-generated prometheus.yml file for metrics scraping.
 func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[string, []PrometheusMetricsEndpoint]) string {
 
 	var scrapeConfigs []prometheusScrapeConfigEntry
@@ -267,8 +259,11 @@ func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[stri
 }
 
 // getGrafanaProvisioningDirPath returns the path to the grafana provisioning dir for metrics.
-// If the provisioning dir env var is set, this function will use it. If not, a temp dir
+// If the provisioning dir env var is set, this function will use that path. If not, a temp dir
 // will be created and removed when this process terminates.
+// Note: from the returned directory, the generated prometheus.yml will be at:
+//
+//	returned_dir_path/provisioning/datasources/prometheus.yml
 func getGrafanaProvisioningDirPath(p devtest.P) string {
 	// If the caller provides a Grafana provisioning directory, use that, otherwise use a temp dir
 	baseDir := os.Getenv(GrafanaProvisioningDirEnvVar)
@@ -309,7 +304,7 @@ datasources:
 }
 
 // getGrafanaDataDir returns the path to the grafana provisioning dir for metrics.
-// If the data dir env var is set, this function will use it. If not, a temp dir
+// If the data dir env var is set, this function will use that path. If not, a temp dir
 // will be created and removed when this process terminates.
 func getGrafanaDataDir(p devtest.P) string {
 	// If the caller provides a Grafana data directory, use that, otherwise use a temp dir

@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	url2 "net/url"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -46,8 +46,8 @@ type KonaNode struct {
 
 	sub *SubProcess
 
-	areMetricsEnabled  bool
-	addMetricsCallback func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
+	areMetricsEnabled        bool
+	registerMetricsEndpoints func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
 }
 
 func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
@@ -129,7 +129,7 @@ func (k *KonaNode) Start() {
 	if k.areMetricsEnabled {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need user RPC")
-		k.addMetricsCallback("kona-node", metricsEndpoint)
+		k.registerMetricsEndpoints("kona-node", metricsEndpoint)
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
@@ -169,12 +169,12 @@ func (k *KonaNode) tryParseKonaMetricsFromLog(msg string) *PrometheusMetricsEndp
 		return nil
 	}
 
-	url, err := url2.Parse(strings.Split(msg, metricsPrefix)[1])
+	parsedUrl, err := url.Parse(strings.Split(msg, metricsPrefix)[1])
 	k.p.Require().NoError(err, fmt.Sprintf("invalid kona metrics url output to logs: %s", msg))
-	port := url.Port()
+	port := parsedUrl.Port()
 	k.p.Require().NotEmpty(port, fmt.Sprintf("empty port url in kona metrics url; log line: %s", msg))
 	return &PrometheusMetricsEndpoint{
-		host:              url.Host,
+		host:              parsedUrl.Host,
 		port:              port,
 		isLocal:           true,
 		isRunningInDocker: false,
@@ -243,9 +243,9 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 			PropagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
-			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS to pick its own port, but
-			// prometheus doesn't expose that port, so we can't log it and parse it here.
-			// If/when that gets changed, update this default to "0".
+			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but prometheus doesn't expose that port, so we can't log it and
+			// parse it here. If/when that gets changed, update this default to "0".
 			PropagateEnvVarOrDefault("KONA_METRICS_PORT", GetAvailableLocalPort()),
 			PropagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
 			PropagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
@@ -278,17 +278,17 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
 
 		k := &KonaNode{
-			id:                 l2CLID,
-			userRPC:            "", // retrieved from logs
-			interopEndpoint:    "", // retrieved from logs
-			interopJwtSecret:   eth.Bytes32{},
-			el:                 l2ELID,
-			execPath:           execPath,
-			args:               []string{"node"},
-			env:                envVars,
-			p:                  p,
-			areMetricsEnabled:  areMetricsEnabled,
-			addMetricsCallback: orch.RegisterMetricsEndpoints,
+			id:                       l2CLID,
+			userRPC:                  "", // retrieved from logs
+			interopEndpoint:          "", // retrieved from logs
+			interopJwtSecret:         eth.Bytes32{},
+			el:                       l2ELID,
+			execPath:                 execPath,
+			args:                     []string{"node"},
+			env:                      envVars,
+			p:                        p,
+			areMetricsEnabled:        areMetricsEnabled,
+			registerMetricsEndpoints: orch.RegisterL2MetricsEndpoints,
 		}
 		p.Logger().Info("Starting kona-node")
 		k.Start()

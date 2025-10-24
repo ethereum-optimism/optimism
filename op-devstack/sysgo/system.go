@@ -82,6 +82,8 @@ func defaultMinimalSystemOpts(ids *DefaultMinimalSystemIDs, dest *DefaultMinimal
 		ids.L2EL,
 	}))
 
+	opt.Add(WithL2MetricsDashboard())
+
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = *ids
 	}))
@@ -162,6 +164,8 @@ func DefaultTwoL2System(dest *DefaultTwoL2SystemIDs) stack.Option[*Orchestrator]
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, nil))
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(WithL2MetricsDashboard())
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
@@ -265,6 +269,8 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 
 	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
 
+	opt.Add(WithL2MetricsDashboard())
+
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
@@ -365,6 +371,9 @@ func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Or
 	// Note: we provide L2 CL nodes still, even though they are not used post-interop.
 	// Since we may create an interop infra-setup, before interop is even scheduled to run.
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, &ids.Supervisor))
+
+	opt.Add(WithL2MetricsDashboard())
+
 	return opt
 }
 
@@ -425,6 +434,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	}))
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(WithL2MetricsDashboard())
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
@@ -490,6 +501,8 @@ func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...Dep
 		ids.L2BEL, ids.L2AEL,
 	}))
 
+	opt.Add(WithL2MetricsDashboard())
+
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
@@ -543,6 +556,8 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	// P2P connect L2CL nodes
 	opt.Add(WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL))
 	opt.Add(WithL2CLP2PConnection(ids.L2BCL, ids.L2B2CL))
+
+	opt.Add(WithL2MetricsDashboard())
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
