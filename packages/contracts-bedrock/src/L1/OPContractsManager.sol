@@ -480,12 +480,12 @@ abstract contract OPContractsManagerBase {
     }
 
     /// @notice Returns true iff the game type is CANNON or SUPER_CANNON
-    function isCannonOrSuperCannonGameType(GameType _gameType) internal pure returns (bool) {
+    function isCannonGameVariant(GameType _gameType) internal pure returns (bool) {
         return _gameType.raw() == GameTypes.CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON.raw();
     }
 
     /// @notice Returns true iff the game type is CANNON_KONA or SUPER_CANNON_KONA
-    function isCannonKonaOrSuperCannonKonaGameType(GameType _gameType) internal pure returns (bool) {
+    function isKonaGameVariant(GameType _gameType) internal pure returns (bool) {
         return _gameType.raw() == GameTypes.CANNON_KONA.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw();
     }
 
@@ -493,6 +493,23 @@ abstract contract OPContractsManagerBase {
     function isSuperGameVariant(GameType _gameType) internal pure returns (bool) {
         return (_gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw())
             || (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw());
+    }
+
+    /// @notice Returns the dispute game implementation address in opcm for the specified game type
+    function getDisputeGameImplementation(GameType _gameType) internal view returns (address) {
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            return getImplementations().superPermissionedDisputeGameImpl;
+        } else if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+            return getImplementations().permissionedDisputeGameV2Impl;
+        } else if (
+            _gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()
+        ) {
+            return getImplementations().superFaultDisputeGameImpl;
+        } else if (_gameType.raw() == GameTypes.CANNON.raw() || _gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+            return getImplementations().faultDisputeGameV2Impl;
+        } else {
+            revert OPContractsManager_InvalidGameType();
+        }
     }
 }
 
@@ -590,28 +607,18 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     || isSuperGameVariant(gameConfig.disputeGameType)
             ) {
                 if (
-                    isCannonOrSuperCannonGameType(gameConfig.disputeGameType)
-                        || (
-                            isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-                                && isCannonKonaOrSuperCannonKonaGameType(gameConfig.disputeGameType)
-                        )
+                    isCannonGameVariant(gameConfig.disputeGameType)
+                        || (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && isKonaGameVariant(gameConfig.disputeGameType))
                 ) {
-                    uint32 gameType = gameConfig.disputeGameType.raw();
-                    address impl;
-                    if (gameType == GameTypes.CANNON.raw() || gameType == GameTypes.CANNON_KONA.raw()) {
-                        impl = getImplementations().faultDisputeGameV2Impl;
-                    } else {
-                        impl = getImplementations().superFaultDisputeGameImpl;
-                    }
+                    address impl = getDisputeGameImplementation(gameConfig.disputeGameType);
                     bytes memory gameArgs = LibGameArgs.encode(
                         LibGameArgs.GameArgs({
                             absolutePrestate: gameConfig.disputeAbsolutePrestate.raw(),
                             vm: address(gameConfig.vm),
                             anchorStateRegistry: address(getAnchorStateRegistry(ISystemConfig(gameConfig.systemConfig))),
                             weth: address(outputs[i].delayedWETH),
-                            l2ChainId: gameType == GameTypes.CANNON.raw() || gameType == GameTypes.CANNON_KONA.raw()
-                                ? l2ChainId
-                                : 0, // must be zero for SUPER game types
+                            // must be zero for SUPER game types
+                            l2ChainId: isSuperGameVariant(gameConfig.disputeGameType) ? 0 : l2ChainId,
                             proposer: address(0),
                             challenger: address(0)
                         })
@@ -623,12 +630,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
                         || gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
                 ) {
-                    address impl;
-                    if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                        impl = implementations().permissionedDisputeGameV2Impl;
-                    } else {
-                        impl = implementations().superPermissionedDisputeGameImpl;
-                    }
+                    address impl = getDisputeGameImplementation(gameConfig.disputeGameType);
                     bytes memory gameArgs = LibGameArgs.encode(
                         LibGameArgs.GameArgs({
                             absolutePrestate: gameConfig.disputeAbsolutePrestate.raw(),

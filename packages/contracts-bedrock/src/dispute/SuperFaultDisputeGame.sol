@@ -279,7 +279,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // The maximum clock extension may not be greater than the maximum clock duration.
         if (uint64(maxClockExtension) > MAX_CLOCK_DURATION.raw()) revert InvalidClockExtension();
 
-        // The l2ChainId must be still exist, yet zero-valued, in the game args for legacy reasons.
+        // The l2ChainId must still exist, yet zero-valued, in the game args for legacy reasons.
         if (_l2ChainId() != 0) revert NoChainIdNeeded();
 
         // Do not allow the game to be initialized if the root claim corresponds to a l2 sequence number (timestamp) at

@@ -21,7 +21,7 @@
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
     "initCodeHash": "0x3c4a51c5845588b4d19570cc1bae0099c15f43051d66b41c28d27d3c918a2e72",
-    "sourceCodeHash": "0xd2bbb0b0410acb24d82916b556b5584c41b5c646a10aea9f2337db5e824df17a"
+    "sourceCodeHash": "0x4a011105a9c1019cef7f35aa8f6eef131c29c54078e1df57d2089a43f7d81f3a"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
     "initCodeHash": "0xe0e6d892d38211dc0165ca00dc1e8aa558eb7a1240560260e23262f066f6be72",
@@ -169,7 +169,7 @@
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
     "initCodeHash": "0x388bba903940171322e271b37a9359d4da100afb809a6d6b6b9e798532fca743",
-    "sourceCodeHash": "0xbfb6897c4396de603240373a01fdb0e92be75fcbdd3c1b78cfa9f91b6d0cd3ea"
+    "sourceCodeHash": "0xb59dcd864cb535fc8a5b3e788e163f090f362c1a3444d10a27f674b4b11165b2"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
     "initCodeHash": "0x4686e904225a7bce9b7d6b7e9827f557881cf4fab375df3a565b5667062db923",
