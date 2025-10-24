@@ -234,6 +234,21 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	})
 }
 
+// TestELP2PFCUInvalidHash verifies that when an Execution Layer (EL) client
+// receives a Forkchoice Update (FCU) with an unknown head hash (invalid or
+// non-existent) during EL syncing, it remains in the "SYNCING" state and does
+// not advance its canonical chain.
+//
+// In this scenario, the node is EL syncing, and the target forkchoice head hash
+// does not exist in any connected EL peers. When the EL processes an FCU with
+// such an unknown hash, it attempts to fetch the corresponding block from peers
+// once. If the block cannot be retrieved, the EL reports SYNCING. The EL will not
+// retry automatically, but each subsequent FCU with the same unknown hash will
+// trigger another one-time fetch attempt, again resulting in SYNCING.
+//
+// This behavior ensures that the EL client safely handles invalid or unknown
+// forkchoice targets by consistently reporting SYNCING for each FCU attempt
+// and by avoiding advancement of the chain on invalid data.
 func TestELP2PFCUInvalidHash(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
@@ -277,6 +292,19 @@ func TestELP2PFCUInvalidHash(gt *testing.T) {
 	})
 }
 
+// TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P verifies Engine API semantics
+// where ForkchoiceUpdate (FCU) validates the unsafe target first and, if the unsafe
+// head is not directly appendable (e.g., there is a gap), FCU returns SYNCING and
+// exits early without updating the safe head—even when the provided safe hash is
+// independently appendable.
+//
+// The presence or absence of EL P2P is not the core factor here. Disabling EL P2P
+// in this test simply makes the gap persist so the condition is observable. The
+// key behavior is that FCU's unsafe-first check causes an early return, so the safe
+// head is not bumped when the unsafe target cannot be immediately synced.
+//
+// This validates that safe head updates are contingent on the unsafe target passing
+// appendability/sync checks first, per Engine API behavior.
 func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
@@ -343,6 +371,27 @@ func TestSafeDoesNotAdvanceWhenUnsafeIsSyncing_NoELP2P(gt *testing.T) {
 	})
 }
 
+// TestInvalidPayloadThroughCLP2P verifies that invalid L2 payloads propagated via
+// CL P2P (simulated with admin_postUnsafePayload) do not advance either the CL or EL.
+//
+// The test first confirms normal progress on a valid target, then exercises three
+// invalid cases and asserts no advancement on both sides (unsafe head remains at
+// startNum+1):
+//
+//  1. CL-detectable invalidity (bad block hash):
+//     The payload is mutated (e.g., StateRoot) without updating BlockHash.
+//     The CL rejects it immediately (hash mismatch) and does not relay it to the EL.
+//
+//  2. EL-only invalidity (bad state root):
+//     The payload's BlockHash is recomputed so the CL relays it via engine_newPayload,
+//     but the EL rejects it during execution due to an invalid state root.
+//
+//  3. EL-only invalidity via invalid parent:
+//     A new payload builds on a previously rejected block (an invalid parent),
+//     causing the EL to reject it as referencing an invalid ancestor.
+//
+// In all scenarios, both CL and EL remain at the same head height, confirming that
+// invalid payloads—whether rejected at the CL or EL—do not advance the chain.
 func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
