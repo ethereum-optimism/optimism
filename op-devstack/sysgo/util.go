@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 )
 
 // GetEnvVarOrDefault returns the value of the provided env var or the provided default value if unset or empty.
@@ -28,9 +29,14 @@ func PropagateEnvVarOrDefault(envVarName string, defaultValue string) string {
 
 // NB: arbitrary start port with a low probability of conflict
 var availableLocalPortStart = 20_000
+var availableLocalPortMutex sync.Mutex
 
 // GetAvailableLocalPort searches for and returns a currently unused local port.
+// Note: this function is threadsafe.
 func GetAvailableLocalPort() string {
+	availableLocalPortMutex.Lock()
+	defer availableLocalPortMutex.Unlock()
+
 	for port := availableLocalPortStart; port < 65_535; port++ {
 		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 		if err != nil {
