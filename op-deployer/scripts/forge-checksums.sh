@@ -18,6 +18,11 @@ pairs=(
   "alpine_arm64"
 )
 
+# Array to hold checksums
+#
+# Its indices correspond to those in the `pairs` array.
+sums=()
+
 # Resolve paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JSON_PATH="${SCRIPT_DIR}/../pkg/deployer/forge/version.json"
@@ -26,14 +31,13 @@ JSON_PATH="${SCRIPT_DIR}/../pkg/deployer/forge/version.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-declare -A sums
-
 # Download each tarball and compute sha256 over the tar.gz (matches code path)
 for pair in "${pairs[@]}"; do
   os="${pair%_*}"
   arch="${pair#*_}"
   url="https://github.com/foundry-rs/foundry/releases/download/${VER}/foundry_${VER}_${os}_${arch}.tar.gz"
   out="${TMP_DIR}/foundry_${VER}_${pair}.tar.gz"
+  ext="${TMP_DIR}/foundry_${VER}_${pair}"
 
   echo "--------------------------------"
   echo "Processing ${pair}..."
@@ -41,10 +45,14 @@ for pair in "${pairs[@]}"; do
   echo "Downloading ${url}"
   curl -fsSL --retry 3 --retry-delay 1 -o "${out}" "${url}"
 
+  echo "Extracting forge"
+  mkdir -p "${ext}"
+  tar -xzf "${out}" -C ${ext} forge
+
   echo "Computing checksum"
-  sha="$(shasum -a 256 "${out}" | awk '{print $1}')"
+  sha="$(shasum -a 256 "${ext}/forge" | awk '{print $1}')"
   echo "Checksum for ${pair}: ${sha}"
-  sums["${pair}"]="${sha}"
+  sums+=("${sha}")
 done
 
 echo "--------------------------------"
@@ -53,21 +61,17 @@ echo "Writing results to ${JSON_PATH}"
 
 # Write version.json
 mkdir -p "$(dirname "${JSON_PATH}")"
-{
-  printf '{\n'
-  printf '  "forge": "%s",\n' "${VER}"
-  printf '  "checksums": {\n'
-  for ((i=0; i<${#pairs[@]}; i++)); do
-    key="${pairs[$i]}"
-    val="${sums[$key]}"
-    if (( i < ${#pairs[@]} - 1 )); then
-      printf '    "%s": "%s",\n' "${key}" "${val}"
-    else
-      printf '    "%s": "%s"\n' "${key}" "${val}"
-    fi
-  done
-  printf '  }\n'
-  printf '}\n'
-} > "${JSON_PATH}"
+
+# build JSON arrays for keys and values in the same order
+keys_json=$(printf '%s\n' "${pairs[@]}" | jq -R -s -c 'split("\n")[:-1]')
+vals_json=$(printf '%s\n' "${sums[@]}" | jq -R -s -c 'split("\n")[:-1]')
+
+# zip them into an object with jq and write version.json
+jq -n --arg ver "$VER" --argjson keys "$keys_json" --argjson vals "$vals_json" '
+  {
+    forge: $ver,
+    checksums: ( reduce range(0; $keys|length) as $i ({}; . + { ($keys[$i]): $vals[$i] }) )
+  }
+' > "${JSON_PATH}"
 
 echo "Success!"
