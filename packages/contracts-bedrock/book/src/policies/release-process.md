@@ -13,9 +13,15 @@ First select a tag string based on the guidance in [Monorepo Contracts Release V
      from the dropdown.
 1. Populate the release notes. If the tag is a release candidate, check the `Set as a pre-release`  option, and uncheck the
    `Set as the latest release` option.
-1. Deploy the OPCM using the `op-deployer bootstrap implementations` [command](https://devdocs.optimism.io/op-deployer/user-guide/bootstrap.html),
+1. Deploy the OPCM using the following op-deployer just recipes (which call the `op-deployer bootstrap implementations` [command](https://devdocs.optimism.io/op-deployer/user-guide/bootstrap.html)),
    this will write the addresses of the deployed contracts to `stdout` (or to disk if you provide an `--outfile` argument).
-   Do this on both Sepolia and Mainnet.
+   ```
+   cd op-deployer
+   just build // compiles contracts, builds go binary
+   just deploy-opcm // deploys the implementations contracts bundle
+   just verify-opcm // verifies contracts on block-explorer
+   ```
+   Deploy and verify contracts on both Sepolia and Mainnet.
 1. In the superchain-registry edit the following files to add a new `[<tag-string>]` entry, with the addresses from the
    previous step:
    - [standard-versions-mainnet.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)
@@ -49,5 +55,5 @@ Once a release has passed governance, a new tag should be created without the `-
 instructions in "Creating a tagged release" once again. It should not be necessary to redeploy the contracts with `op-deployer`,
 but a new entry will be required in the superchain-registry's toml files regardless.
 When creating release notes, _uncheck_ the `Set as a pre-release`  option, and _uncheck_ the
-   `Set as the latest release` option (latest releases are reserved for non-contract packages). 
+   `Set as the latest release` option (latest releases are reserved for non-contract packages).
 

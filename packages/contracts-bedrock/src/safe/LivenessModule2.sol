@@ -7,15 +7,19 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
 ///         and if the Safe doesn't respond within the challenge period, ownership transfers
 ///         to the fallback owner.
-///         This contract is compatible only with the Safe contract version 1.4.1.
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///     This guard is compatible only with Safe version 1.4.1.
 ///
 ///      Follows a state machine diagram for the lifecycle of this contract:
 ///      +----------------------+
@@ -72,6 +76,9 @@ abstract contract LivenessModule2 {
 
     /// @notice Error for when Safe is not configured for this module.
     error LivenessModule2_ModuleNotConfigured();
+
+    /// @notice Error for when the contract is not 1.4.1.
+    error LivenessModule2_InvalidVersion();
 
     /// @notice Error for when a challenge already exists.
     error LivenessModule2_ChallengeAlreadyExists();
@@ -171,6 +178,12 @@ abstract contract LivenessModule2 {
             revert LivenessModule2_InvalidFallbackOwner();
         }
 
+        // Check that the safe contract version is 1.4.1. There have been breaking changes at every
+        // minor version, and we can only support one version.
+        if (!SemverComp.eq(callingSafe.VERSION(), "1.4.1")) {
+            revert LivenessModule2_InvalidVersion();
+        }
+
         // Check that this module is enabled on the calling Safe.
         _assertModuleEnabled(callingSafe);
 
@@ -215,6 +228,7 @@ abstract contract LivenessModule2 {
 
         // Erase the configuration data for this safe
         delete _livenessSafeConfiguration[callingSafe];
+
         // Also clear any active challenge
         _cancelChallenge(callingSafe);
         emit ModuleCleared(address(callingSafe));
@@ -342,6 +356,7 @@ abstract contract LivenessModule2 {
             operation: Enum.Operation.Call,
             data: abi.encodeCall(GuardManager.setGuard, (address(0)))
         });
+
         emit ChallengeSucceeded(address(_safe), _livenessSafeConfiguration[_safe].fallbackOwner);
     }
 

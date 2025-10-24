@@ -317,11 +317,19 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(_delay);
     }
 
-    /// @notice Checks configuration reverts when the contract is too old.
-    function test_configureTimelockGuard_revertsIfVersionTooOld_reverts() external {
+    /// @notice Checks configuration reverts when the contract is not 1.4.1.
+    function test_configureTimelockGuard_withWrongVersion_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.2.0"));
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.4.0"));
         vm.expectRevert(TimelockGuard.TimelockGuard_InvalidVersion.selector, address(timelockGuard));
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
+    }
+
+    /// @notice Checks configuration succeeds even with pre-release versions of the Safe contract.
+    function test_configureTimelockGuard_withPatchReleases_succeeds() external {
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.4.1-rc.1"));
         vm.prank(address(safeInstance.safe));
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
@@ -1067,42 +1075,9 @@ contract TimelockGuard_ClearTimelockGuard_Test is TimelockGuard_TestInit {
         assertEq(timelockGuard.timelockDelay(safe), 0);
         assertEq(timelockGuard.cancellationThreshold(safe), 0);
 
-        // Verify pending transaction was cancelled
+        // Verify pending transaction doesn't exist anymore
         scheduledTx = timelockGuard.scheduledTransaction(safe, dummyTx.hash);
-        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.Cancelled));
-    }
-
-    function test_clearTimelockGuard_moreThan100PendingTransactions_succeeds() external {
-        // First configure the guard
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-
-        // Schedule a transaction to create pending state
-        TransactionBuilder.Transaction memory dummyTx = _createDummyTransaction(safeInstance);
-
-        // Schedule more than 100 transactions
-        for (uint256 i = 0; i < 150; i++) {
-            dummyTx.setNonce(dummyTx.nonce + 1);
-            dummyTx.updateTransaction();
-            dummyTx.scheduleTransaction(timelockGuard);
-        }
-
-        _disableGuard(safeInstance);
-
-        // Clear the guard configuration
-        vm.prank(address(safeInstance.safe));
-        vm.expectEmit(true, true, true, true);
-        emit TransactionsNotCancelled(safeInstance.safe, 50);
-        timelockGuard.clearTimelockGuard();
-
-        // Ensure that the call is below a safe gas limit. The EIP-7825 limit is 16,777,216, so 12M is a safe limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 12_000_000);
-
-        // Ensure the remaining pending transactions are 50 as expected
-        assertEq(timelockGuard.pendingTransactions(Safe(payable(address(safeInstance.safe)))).length, 50);
-
-        // Verify configuration is cleared
-        assertEq(timelockGuard.timelockDelay(safe), 0);
-        assertEq(timelockGuard.cancellationThreshold(safe), 0);
+        assertEq(uint256(scheduledTx.state), uint256(TimelockGuard.TransactionState.NotScheduled));
     }
 
     /// @notice Verifies that clearTimelockGuard reverts when guard is still enabled

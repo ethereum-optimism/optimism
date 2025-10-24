@@ -45,7 +45,7 @@ import { Constants } from "src/libraries/Constants.sol";
 ///     removing them from the pending transactions queue, and resetting the cancellation
 ///     threshold.
 /// Safe Version Compatibility:
-///     This guard is compatible only with Safe versions 1.4.1.
+///     This guard is compatible only with Safe version 1.4.1.
 /// Threats Mitigated and Integration With LivenessModule:
 ///     This Guard is designed to protect against a number of well-defined scenarios, defined on
 ///     the two axes of amount of keys compromised, and type of compromise.
@@ -131,8 +131,11 @@ abstract contract TimelockGuard is BaseGuard {
         EnumerableSet.Bytes32Set pendingTxHashes;
     }
 
-    /// @notice Mapping from Safe address to its timelock guard state.
-    mapping(Safe => SafeState) internal _safeState;
+    /// @notice Mapping from Safe address to a mapping of configuration nonce to its state.
+    mapping(Safe => mapping(uint256 => SafeState)) internal _safeStates;
+
+    /// @notice Mapping from Safe address to the current configuration nonce.
+    mapping(Safe => uint256) internal _safeConfigNonces;
 
     /// @notice Error for when guard is not enabled for the Safe
     error TimelockGuard_GuardNotEnabled();
@@ -163,11 +166,6 @@ abstract contract TimelockGuard is BaseGuard {
 
     /// @notice Error for when trying to clear guard while it is still enabled
     error TimelockGuard_GuardStillEnabled();
-
-    /// @notice Emitted when some transactions are not cancelled.
-    /// @param safe The Safe whose transactions are not cancelled.
-    /// @param uncancelledCount The number of transactions that are not cancelled.
-    event TransactionsNotCancelled(Safe indexed safe, uint256 uncancelledCount);
 
     /// @notice Error for when the caller is not an owner of the Safe
     error TimelockGuard_NotOwner();
@@ -224,6 +222,13 @@ abstract contract TimelockGuard is BaseGuard {
         return guard == address(this);
     }
 
+    /// @notice Returns a storage reference to the current SafeState for a given Safe.
+    /// @param _safe The Safe address to query.
+    /// @return The current SafeState storage reference.
+    function _currentSafeState(Safe _safe) internal view returns (SafeState storage) {
+        return _safeStates[_safe][_safeConfigNonces[_safe]];
+    }
+
     /// @notice Internal helper function which can be overriden in a child contract to check if the
     ///         guard's configuration is valid in the context of other extensions that are enabled
     ///         on the Safe.
@@ -237,7 +242,7 @@ abstract contract TimelockGuard is BaseGuard {
     /// @param _safe The Safe address to query
     /// @return The current cancellation threshold
     function cancellationThreshold(Safe _safe) public view returns (uint256) {
-        return _safeState[_safe].cancellationThreshold;
+        return _currentSafeState(_safe).cancellationThreshold;
     }
 
     /// @notice Returns the maximum cancellation threshold for a given safe
@@ -264,14 +269,14 @@ abstract contract TimelockGuard is BaseGuard {
     /// @param _safe The Safe address to query
     /// @return The timelock delay in seconds
     function timelockDelay(Safe _safe) public view returns (uint256) {
-        return _safeState[_safe].timelockDelay;
+        return _currentSafeState(_safe).timelockDelay;
     }
 
     /// @notice Returns the scheduled transaction for a given Safe and tx hash
     /// @dev This function is necessary to properly expose the scheduledTransactions mapping, as
     ///      simply making the mapping public will return a tuple instead of a struct.
     function scheduledTransaction(Safe _safe, bytes32 _txHash) public view returns (ScheduledTransaction memory) {
-        return _safeState[_safe].scheduledTransactions[_txHash];
+        return _currentSafeState(_safe).scheduledTransactions[_txHash];
     }
 
     /// @notice Returns the list of all scheduled but not cancelled or executed transactions for
@@ -284,7 +289,7 @@ abstract contract TimelockGuard is BaseGuard {
     ///      too much gas to fit in a block.
     /// @return List of pending transaction hashes
     function pendingTransactions(Safe _safe) external view returns (ScheduledTransaction[] memory) {
-        SafeState storage safeState = _safeState[_safe];
+        SafeState storage safeState = _currentSafeState(_safe);
 
         // Get the list of pending transaction hashes
         bytes32[] memory hashes = safeState.pendingTxHashes.values();
@@ -326,7 +331,7 @@ abstract contract TimelockGuard is BaseGuard {
     {
         Safe callingSafe = Safe(payable(msg.sender));
 
-        if (_safeState[callingSafe].timelockDelay == 0) {
+        if (_currentSafeState(callingSafe).timelockDelay == 0) {
             // We return immediately. This is important in order to allow a Safe which has the
             // guard set, but not configured, to complete the setup process.
 
@@ -353,7 +358,7 @@ abstract contract TimelockGuard is BaseGuard {
         );
 
         // Get the scheduled transaction
-        ScheduledTransaction storage scheduledTx = _safeState[callingSafe].scheduledTransactions[txHash];
+        ScheduledTransaction storage scheduledTx = _currentSafeState(callingSafe).scheduledTransactions[txHash];
 
         // Check if the transaction was cancelled
         if (scheduledTx.state == TransactionState.Cancelled) {
@@ -385,7 +390,7 @@ abstract contract TimelockGuard is BaseGuard {
         // bumping the nonce regardless. We accordingly set the transaction as executed and remove
         // it from the pending transactions anyway, as it can't be retried.
         scheduledTx.state = TransactionState.Executed;
-        _safeState[callingSafe].pendingTxHashes.remove(txHash);
+        _currentSafeState(callingSafe).pendingTxHashes.remove(txHash);
 
         emit TransactionExecuted(callingSafe, txHash);
     }
@@ -401,7 +406,7 @@ abstract contract TimelockGuard is BaseGuard {
     /// @dev This function must be called only once and only when calling cancel
     /// @param _safe The Safe address to increase the cancellation threshold for.
     function _increaseCancellationThreshold(Safe _safe) internal {
-        SafeState storage safeState = _safeState[_safe];
+        SafeState storage safeState = _currentSafeState(_safe);
 
         if (safeState.cancellationThreshold < maxCancellationThreshold(_safe)) {
             uint256 oldThreshold = safeState.cancellationThreshold;
@@ -414,7 +419,7 @@ abstract contract TimelockGuard is BaseGuard {
     /// @dev This function must be called only once and only when calling checkAfterExecution
     /// @param _safe The Safe address to reset the cancellation threshold for.
     function _resetCancellationThreshold(Safe _safe) internal {
-        SafeState storage safeState = _safeState[_safe];
+        SafeState storage safeState = _currentSafeState(_safe);
         uint256 oldThreshold = safeState.cancellationThreshold;
         safeState.cancellationThreshold = 1;
         emit CancellationThresholdUpdated(_safe, oldThreshold, 1);
@@ -436,10 +441,10 @@ abstract contract TimelockGuard is BaseGuard {
         // Record the calling Safe
         Safe callingSafe = Safe(payable(msg.sender));
 
-        // Check that the contract is at least version 1.3.0
-        // Prior to version 1.3.0, checkSignatures() was not exposed as a public function, so we need to check the
-        // version otherwise the safe will be bricked.
-        if (SemverComp.lt(callingSafe.VERSION(), "1.3.0")) {
+        // Check that the safe contract is version 1.4.1
+        // There have been breaking changes at every minor version, and we can only support one
+        // version.
+        if (!SemverComp.eq(callingSafe.VERSION(), "1.4.1")) {
             revert TimelockGuard_InvalidVersion();
         }
 
@@ -449,7 +454,7 @@ abstract contract TimelockGuard is BaseGuard {
         }
 
         // Store the timelock delay for this safe
-        _safeState[callingSafe].timelockDelay = _timelockDelay;
+        _currentSafeState(callingSafe).timelockDelay = _timelockDelay;
 
         // Initialize (or reset) the cancellation threshold to 1.
         _resetCancellationThreshold(callingSafe);
@@ -468,12 +473,6 @@ abstract contract TimelockGuard is BaseGuard {
     ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
-        SafeState storage safeState = _safeState[callingSafe];
-
-        // Check if the calling safe has configuration set
-        if (safeState.timelockDelay == 0) {
-            revert TimelockGuard_GuardNotConfigured();
-        }
 
         // Check that this guard is NOT enabled on the calling Safe
         // This prevents clearing configuration while guard is still enabled
@@ -481,32 +480,9 @@ abstract contract TimelockGuard is BaseGuard {
             revert TimelockGuard_GuardStillEnabled();
         }
 
-        // Clear the configuration (guard should already be disabled by caller)
-        // set the timelock delay to 0 to clear the configuration
-        safeState.timelockDelay = 0;
-
-        // Reset the cancellation threshold to 0 (unconfigured state)
-        safeState.cancellationThreshold = 0;
-
-        // Get all pending transaction hashes
-        bytes32[] memory hashes = safeState.pendingTxHashes.values();
-
-        uint256 n = hashes.length <= 100 ? hashes.length : 100;
-
-        // Cancel all pending transactions up to 100
-        // It is very unlikely that there will be more than 100 pending transactions, so we can
-        // safely limit the number of iterations to 100 in order to prevent gas limit issues. If
-        // there are more than 100 pending transactions, then we emit an event to inform the user
-        // that some transactions were not cancelled.
-        for (uint256 i = 0; i < n; i++) {
-            safeState.pendingTxHashes.remove(hashes[i]);
-            safeState.scheduledTransactions[hashes[i]].state = TransactionState.Cancelled;
-            emit TransactionCancelled(callingSafe, hashes[i]);
-        }
-
-        if (hashes.length > 100) {
-            emit TransactionsNotCancelled(callingSafe, hashes.length - 100);
-        }
+        // Clear the configuration by bumping the nonce, all config and pending transactions will
+        // be effectively wiped.
+        _safeConfigNonces[callingSafe]++;
     }
 
     /// @notice Schedule a transaction for execution after the timelock delay.
@@ -534,7 +510,7 @@ abstract contract TimelockGuard is BaseGuard {
         }
 
         // Check that the guard has been configured for the Safe
-        if (_safeState[_safe].timelockDelay == 0) {
+        if (_currentSafeState(_safe).timelockDelay == 0) {
             revert TimelockGuard_GuardNotConfigured();
         }
 
@@ -576,7 +552,7 @@ abstract contract TimelockGuard is BaseGuard {
         // 1. Reschedule a transaction after it has been cancelled
         // 2. Reschedule a pending transaction, which would update the execution time thus
         //    extending the delay for the original transaction.
-        if (_safeState[_safe].scheduledTransactions[txHash].executionTime != 0) {
+        if (_currentSafeState(_safe).scheduledTransactions[txHash].executionTime != 0) {
             revert TimelockGuard_TransactionAlreadyScheduled();
         }
 
@@ -585,12 +561,12 @@ abstract contract TimelockGuard is BaseGuard {
         _safe.checkSignatures(txHash, txHashData, _signatures);
 
         // Calculate the execution time
-        uint256 executionTime = block.timestamp + _safeState[_safe].timelockDelay;
+        uint256 executionTime = block.timestamp + _currentSafeState(_safe).timelockDelay;
 
         // Schedule the transaction and add it to the pending transactions set
-        _safeState[_safe].scheduledTransactions[txHash] =
+        _currentSafeState(_safe).scheduledTransactions[txHash] =
             ScheduledTransaction({ executionTime: executionTime, state: TransactionState.Pending, params: _params });
-        _safeState[_safe].pendingTxHashes.add(txHash);
+        _currentSafeState(_safe).pendingTxHashes.add(txHash);
 
         emit TransactionScheduled(_safe, txHash, executionTime);
     }
@@ -621,13 +597,13 @@ abstract contract TimelockGuard is BaseGuard {
         // There is nothing inherently wrong with cancelling a transaction a transaction that
         // doesn't meet these criteria, but we revert in order to inform the user, and avoid
         // emitting a misleading TransactionCancelled event.
-        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.Cancelled) {
+        if (_currentSafeState(_safe).scheduledTransactions[_txHash].state == TransactionState.Cancelled) {
             revert TimelockGuard_TransactionAlreadyCancelled();
         }
-        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.Executed) {
+        if (_currentSafeState(_safe).scheduledTransactions[_txHash].state == TransactionState.Executed) {
             revert TimelockGuard_TransactionAlreadyExecuted();
         }
-        if (_safeState[_safe].scheduledTransactions[_txHash].state == TransactionState.NotScheduled) {
+        if (_currentSafeState(_safe).scheduledTransactions[_txHash].state == TransactionState.NotScheduled) {
             revert TimelockGuard_TransactionNotScheduled();
         }
 
@@ -649,12 +625,12 @@ abstract contract TimelockGuard is BaseGuard {
         // Verify signatures using the Safe's signature checking logic, with the cancellation
         // threshold as the number of signatures required.
         _safe.checkNSignatures(
-            cancellationTxHash, cancellationTxData, _signatures, _safeState[_safe].cancellationThreshold
+            cancellationTxHash, cancellationTxData, _signatures, _currentSafeState(_safe).cancellationThreshold
         );
 
         // Set the transaction as cancelled, and remove it from the pending transactions set
-        _safeState[_safe].scheduledTransactions[_txHash].state = TransactionState.Cancelled;
-        _safeState[_safe].pendingTxHashes.remove(_txHash);
+        _currentSafeState(_safe).scheduledTransactions[_txHash].state = TransactionState.Cancelled;
+        _currentSafeState(_safe).pendingTxHashes.remove(_txHash);
 
         // Increase the cancellation threshold
         _increaseCancellationThreshold(_safe);

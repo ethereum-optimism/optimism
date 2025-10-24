@@ -85,16 +85,16 @@ This systematic approach ensures comprehensive test improvements without missing
 **Phase 3 - Implementation & Validation**
 *Goal: Apply improvements while maintaining all tests passing*
 - Implement enhancements identified in Phase 1
-- Commit changes using conventional format
+- Commit each distinct change based on what issue it addresses using conventional commit format
 - Add new tests for gaps identified in Phase 2
-- Commit changes using conventional format
+- Commit each test or group based on what coverage gap it fills using conventional commit format
 - Validate each change maintains expected behavior
 - Ensure all tests pass before proceeding to organization
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
 - Reorganize test contracts to match source function declaration order
-- Commit changes using conventional format
+- Commit organization changes (addresses structure/readability) using conventional commit format
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -103,6 +103,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Enhancement-first approach maximizes existing test value
 - Structured validation prevents breaking changes
 - Consistent organization improves maintainability
+- Motivation-based commits make PRs easier to review
 
 *These phases provide analytical structure - you can iterate between them as needed, but ensure each phase's goals are met for comprehensive coverage.*
 </methodology>
@@ -504,6 +505,23 @@ contract L1FeeVault_Version_Test {
 }
 </right>
 </example>
+<example>
+<scenario>Combining unrelated changes in single commit</scenario>
+<wrong>
+// Single commit with both changes:
+- Renamed test_constructor_baseFeeVault_succeeds() to test_constructor_succeeds()
+- Added test_version_validFormat_succeeds()
+// ❌ Two different motivations combined
+</wrong>
+<right>
+// Commit 1: refactor(test): remove redundant contract name from constructor test
+- Renamed test_constructor_baseFeeVault_succeeds() to test_constructor_succeeds()
+
+// Commit 2: test(contracts): add version format validation for BaseFeeVault
+- Added test_version_validFormat_succeeds() using SemverComp.parse()
+// ✓ Each commit addresses one specific issue
+</right>
+</example>
 </examples>
 
 <documentation_standards>
@@ -565,9 +583,11 @@ After successful validation, open a pull request using the default PR template.
 - Example: `ai/improve-l1-standard-bridge-coverage`
 
 **Commit Strategy:**
-- Make discrete commits for each logical change type for easier review
+- Make discrete commits based on the motivation/issue each change addresses
+- Ask "what problem does this change solve?" to determine commit boundaries
+- Even small changes should be separate commits if they solve different problems
 - Use conventional commit format: `type(scope): description`
-- Examples: fuzz conversions, new tests, test enhancements, fixes, organization
+- Example: Don't combine "fix test naming" with "add coverage test" - different motivations
 </pr_submission>
 
 <output_format>
