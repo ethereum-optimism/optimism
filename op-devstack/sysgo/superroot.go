@@ -1,11 +1,13 @@
 package sysgo
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
 	"os"
 	"path"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
@@ -203,6 +205,19 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 
 	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
+
+	// wait for the super root to be ready
+	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute*2)
+	err = wait.For(ctx, time.Second*1, func() (bool, error) {
+		status, err := client.SyncStatus(ctx)
+		if err != nil {
+			return false, err
+		}
+		return timestamp < status.MinSyncedL1.Time, nil
+	})
+	cancel()
+	t.Require().NoError(err, "waiting for supervisor to sync failed")
+
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")
 	return super.SuperRoot
