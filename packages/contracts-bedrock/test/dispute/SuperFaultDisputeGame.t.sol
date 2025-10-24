@@ -5,6 +5,7 @@ pragma solidity ^0.8.15;
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { ByteUtils } from "test/setup/ByteUtils.sol";
 import { stdError } from "forge-std/StdError.sol";
 
 // Scripts
@@ -487,6 +488,22 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
                 address(
                     disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), abi.encode(anchorSeqNo + 1))
                 )
+            )
+        );
+    }
+
+    /// @notice Tests that initialization reverts when a non-zero L2 chain ID is provided.
+    function test_initialize_nonZeroChainId_reverts() public {
+        bytes memory gameArgs = disputeGameFactory.gameArgs(GAME_TYPE);
+        IDisputeGame impl = disputeGameFactory.gameImpls(GAME_TYPE);
+        uint256 l2ChainIdOffset = 92;
+        ByteUtils.overwriteAtOffset(gameArgs, l2ChainIdOffset, abi.encodePacked(uint256(1)));
+        disputeGameFactory.setImplementation(GAME_TYPE, impl, gameArgs);
+
+        vm.expectRevert(ISuperFaultDisputeGame.NoChainIdNeeded.selector);
+        gameProxy = ISuperFaultDisputeGame(
+            payable(
+                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
             )
         );
     }

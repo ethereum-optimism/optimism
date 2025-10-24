@@ -237,7 +237,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         //
         // Explicit checks:
         // - The game must not have already been initialized.
-        // - An output root cannot be proposed at or before the starting l2SequenceNumber.
+        // - A super root cannot be proposed at or before the starting l2SequenceNumber.
 
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
@@ -246,7 +246,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         //
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
+        // super proposal to be created.
         if (msg.data.length != expectedInitCallDataLength()) revert BadExtraData();
 
         // Grab the latest anchor root.
