@@ -20,7 +20,6 @@ import (
 )
 
 type PrometheusMetricsEndpoint struct {
-	name              string
 	host              string
 	port              string
 	isLocal           bool
@@ -59,8 +58,8 @@ type Orchestrator struct {
 	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
-	// Prometheus endpoints to scrape
-	metricsEndpoints locks.RWMap[string, []PrometheusMetricsEndpoint]
+	// service name => prometheus endpoints to scrape
+	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsEndpoint]
 
 	syncTester *SyncTesterService
 	faucet     *FaucetService
@@ -150,11 +149,11 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.sysHook.PostHydrate(sys)
 }
 
-// RegisterMetricsEndpoints is called by components when they are started (or earlier) to register
+// RegisterL2MetricsEndpoints is called by components when they are started (or earlier) to register
 // their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
-func (o *Orchestrator) RegisterMetricsEndpoints(serviceName string, endpoints ...PrometheusMetricsEndpoint) {
+func (o *Orchestrator) RegisterL2MetricsEndpoints(serviceName string, endpoints ...PrometheusMetricsEndpoint) {
 	// NB: there may be multiple services with the same name, but we'll register them as separate metrics endpoints
-	for i := 1; !o.metricsEndpoints.SetIfMissing(fmt.Sprintf("%s_%d", serviceName, i), endpoints); i++ {
+	for i := 1; !o.l2MetricsEndpoints.SetIfMissing(fmt.Sprintf("%s_%d", serviceName, i), endpoints); i++ {
 	}
 }
 

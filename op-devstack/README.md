@@ -61,6 +61,7 @@ Available components:
   - `L2Batcher`: op-batcher, or equivalent
   - `L2Proposer`: op-proposer, or equivalent
   - `L2Challenger`: op-challenger, or equivalent
+  - `L2MetricsDashboard`: runs prometheus and grafana instances if any component registers metrics endpoints with the `Orchestrator`
 - `Supervisor`: op-supervisor service, or equivalent
 - `Faucet`: util to fund eth to test accounts
 
@@ -163,7 +164,7 @@ Go stack env vars:
 - `DEVSTACK_L1EL_KIND=geth` to select geth as default L1 EL node
 - `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
 
-Observability env vars:
+L2 Observability env vars (note: only applicable if any L2 component calls `Orchestrator.RegisterL2MetricsEndpoints`):
 - `SYSGO_DOCKER_EXEC_PATH` to set local path to docker executable (defaults to `/usr/local/bin/docker`)
 - `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
 - `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)
