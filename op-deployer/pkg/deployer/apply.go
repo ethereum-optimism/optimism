@@ -183,6 +183,9 @@ func ApplyPipeline(
 	if current != nil {
 		currentBitmap = current.(common.Hash)
 	}
+	if intent.GlobalDeployOverrides == nil {
+		intent.GlobalDeployOverrides = make(map[string]any)
+	}
 	intent.GlobalDeployOverrides["devFeatureBitmap"] = or(currentBitmap, common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100"))
 	if err := intent.Check(); err != nil {
 		return err
