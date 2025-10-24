@@ -261,7 +261,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.opcmGameTypeAdder), address(0), "1100");
 
         // Check V2 contracts based on feature flag
-        if (isV2Enabled) {
+        bool v2Enabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        if (v2Enabled) {
             assertNotEq(address(output.faultDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
             assertNotEq(address(output.permissionedDisputeGameV2Impl), address(0), "V2 should be deployed when enabled");
 
@@ -365,7 +366,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertNotEq(address(output.opcmGameTypeAdder).code, empty, "2300");
 
         // V2 contracts code existence based on feature flag
-        if (isV2Enabled) {
+        if (v2Enabled) {
             assertNotEq(address(output.faultDisputeGameV2Impl).code, empty, "V2 FDG should have code when enabled");
             assertNotEq(
                 address(output.permissionedDisputeGameV2Impl).code, empty, "V2 PDG should have code when enabled"
@@ -373,6 +374,21 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         } else {
             assertEq(address(output.faultDisputeGameV2Impl).code, empty, "V2 FDG should be empty when disabled");
             assertEq(address(output.permissionedDisputeGameV2Impl).code, empty, "V2 PDG should be empty when disabled");
+        }
+        if (superGamesEnabled) {
+            assertNotEq(address(output.superFaultDisputeGameImpl).code, empty, "Super DG should have code when enabled");
+            assertNotEq(
+                address(output.superPermissionedDisputeGameImpl).code,
+                empty,
+                "Super Permissioned DG should have code when enabled"
+            );
+        } else {
+            assertEq(address(output.superFaultDisputeGameImpl).code, empty, "Super DG should be empty when disabled");
+            assertEq(
+                address(output.superPermissionedDisputeGameImpl).code,
+                empty,
+                "Super Permissioned DG should be empty when disabled"
+            );
         }
 
         // Architecture assertions.
@@ -474,6 +490,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     function test_invalidV2GameParams_withV2Disabled_succeeds() public {
         skipIfDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
+        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP); // for the Super DG
         DeployImplementations.Input memory input;
 
         // When V2 flag is disabled, out-of-range values are ok
