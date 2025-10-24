@@ -15,6 +15,8 @@ import { LibString } from "@solady/utils/LibString.sol";
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -270,17 +272,11 @@ contract DeployDisputeGame is Script {
 
     function deployDisputeGameImpl(DeployDisputeGameInput _dgi, DeployDisputeGameOutput _dgo) internal {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
-        IFaultDisputeGame.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(uint32(_dgi.gameType())),
-            absolutePrestate: Claim.wrap(_dgi.absolutePrestate()),
+        IFaultDisputeGameV2.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
             maxGameDepth: _dgi.maxGameDepth(),
             splitDepth: _dgi.splitDepth(),
             clockExtension: Duration.wrap(uint64(_dgi.clockExtension())),
-            maxClockDuration: Duration.wrap(uint64(_dgi.maxClockDuration())),
-            vm: IBigStepper(address(_dgi.vmAddress())),
-            weth: _dgi.delayedWethProxy(),
-            anchorStateRegistry: _dgi.anchorStateRegistryProxy(),
-            l2ChainId: _dgi.l2ChainId()
+            maxClockDuration: Duration.wrap(uint64(_dgi.maxClockDuration()))
         });
 
         // PermissionedDisputeGame is used as the type here because it is a superset of
@@ -291,7 +287,7 @@ contract DeployDisputeGame is Script {
             impl = IPermissionedDisputeGame(
                 DeployUtils.createDeterministic({
                     _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (args))),
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGameV2.__constructor__, (args))),
                     _salt: DeployUtils.DEFAULT_SALT
                 })
             );
@@ -300,7 +296,9 @@ contract DeployDisputeGame is Script {
                 DeployUtils.createDeterministic({
                     _name: "PermissionedDisputeGame",
                     _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(IPermissionedDisputeGame.__constructor__, (args, _dgi.proposer(), _dgi.challenger()))
+                        abi.encodeCall(
+                            IPermissionedDisputeGameV2.__constructor__, (args, _dgi.proposer(), _dgi.challenger())
+                        )
                     ),
                     _salt: DeployUtils.DEFAULT_SALT
                 })
