@@ -272,7 +272,7 @@ contract DeployDisputeGame is Script {
 
     function deployDisputeGameImpl(DeployDisputeGameInput _dgi, DeployDisputeGameOutput _dgo) internal {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
-        IFaultDisputeGameV2.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
+        IFaultDisputeGameV2.GameConstructorParams memory args = IFaultDisputeGameV2.GameConstructorParams({
             maxGameDepth: _dgi.maxGameDepth(),
             splitDepth: _dgi.splitDepth(),
             clockExtension: Duration.wrap(uint64(_dgi.clockExtension())),
