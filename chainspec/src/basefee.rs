@@ -76,7 +76,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
 
     use op_alloy_consensus::encode_jovian_extra_data;
     use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};

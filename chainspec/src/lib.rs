@@ -517,7 +517,7 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 
 #[cfg(test)]
 mod tests {
-    use alloc::string::String;
+    use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
     use alloy_primitives::b256;
     use reth_chainspec::{test_fork_ids, BaseFeeParams, BaseFeeParamsKind};
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn test_storage_root_consistency() {
         use alloy_primitives::{B256, U256};
-        use std::str::FromStr;
+        use core::str::FromStr;
 
         let k1 =
             B256::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
