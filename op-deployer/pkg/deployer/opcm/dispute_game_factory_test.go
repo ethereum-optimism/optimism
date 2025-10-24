@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/gameargs"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -51,6 +52,7 @@ func TestSetDisputeGameImpl(t *testing.T) {
 		Impl:                common.Address{'I'},
 		GameType:            999,
 		AnchorStateRegistry: common.Address{}, // Do not set as respected game type as we aren't authorized
+		GameArgs:            gameargs.GameArgs{}.PackPermissionless(),
 	}
 	require.NoError(t, SetDisputeGameImpl(host, input))
 }
