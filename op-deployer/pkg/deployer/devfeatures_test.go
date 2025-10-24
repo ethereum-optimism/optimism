@@ -84,17 +84,7 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 }
 
-func or(values ...[32]byte) [32]byte {
-	var out [32]byte
-	for i := 0; i < 32; i++ {
-		for _, v := range values {
-			out[i] |= v[i]
-		}
-	}
-	return out
-}
-
-func not(a [32]byte) [32]byte {
+func not(a common.Hash) [32]byte {
 	var out [32]byte
 	for i := 0; i < 32; i++ {
 		out[i] = ^a[i]
