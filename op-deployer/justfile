@@ -98,7 +98,6 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
     --l1-proxy-admin-owner $L1_PROXY_ADMIN_OWNER \
-    --l1-contracts-release {{release}} \
     --superchain-proxy-admin $SUPERCHAIN_PROXY_ADMIN \
     --challenger $CHALLENGER \
     --outfile deploy-${NETWORK}.json

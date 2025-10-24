@@ -165,7 +165,7 @@ func TestCLIBootstrap(t *testing.T) {
 			"--mips-version", strconv.Itoa(int(standard.MIPSVersion)),
 			"--protocol-versions-proxy", superchainOutput.ProtocolVersionsProxy.Hex(),
 			"--superchain-config-proxy", superchainOutput.SuperchainConfigProxy.Hex(),
-			"--upgrade-controller", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
+			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(), // Use proxy admin owner as upgrade controller
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
 		}, nil)
