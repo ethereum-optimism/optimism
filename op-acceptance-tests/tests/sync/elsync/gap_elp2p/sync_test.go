@@ -348,6 +348,7 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	logger := t.Logger()
 	require := t.Require()
+	ctx := t.Ctx()
 
 	// Advance few blocks to make sure reference node advanced
 	sys.L2CL.Advanced(types.LocalUnsafe, 4, 30)
@@ -364,10 +365,23 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 
 	// Assume sequencer crafted invalid payload and broadcasted via P2P
 	// Simulate the situation using the admin_postUnsafePayload API
+
+	// Scenario 1: Invalid Payload can be checked at the CL side
 	targetNum = startNum + 2
 	payload := sys.L2EL.PayloadByNumber(targetNum)
-	// inject fault to the payload and provide to the L2CLB
+	// inject fault to the payload
 	payload.ExecutionPayload.StateRoot = eth.Bytes32{}
+	logger.Info("Injected fault to payload but not updated hash")
+	// Post invalid payload with the fault that can be checked at the CL side
+	require.Error(sys.L2CLB.Escape().RollupAPI().PostUnsafePayload(ctx, payload))
+	// ex) op-node error msg: "payload has bad block hash"
+	// CL will not send the payload but drop immediately due to hash mismatch
+	// EL did not advance
+	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
+	// CL did not advance
+	sys.L2CLB.UnsafeHead().NumEqualTo(startNum + 1)
+
+	// Scenario 2: Invalid Payload can be only checked at the EL side
 	// Make sure to update the block hash included at payload to CL relay the payload to the EL
 	newHash, ok := payload.CheckBlockHash()
 	require.False(ok)
@@ -378,9 +392,30 @@ func TestInvalidPayloadThroughCLP2P(gt *testing.T) {
 	// L2CLB will relay the payload to the L2ELB using the engine_newPayload
 	// L2ELB will return INVALID because payload is invalid, due to wrong stateRoot
 	// ex) op-geth will call InsertBlockWithoutSetHead() to execute the payload while engine_newPayload
-
 	// Post invalid payload with the fault that can be only checked at the EL side
 	sys.L2CLB.PostUnsafePayload(payload)
+	// ex) op-geth error msg: "ignoring bad block: invalid merkle root"
+	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
+	sys.L2ELB.NotAdvanced(eth.Unsafe)
+	// EL did not advance
+	sys.L2ELB.UnsafeHead().NumEqualTo(startNum + 1)
+	// CL did not advance
+	sys.L2CLB.UnsafeHead().NumEqualTo(startNum + 1)
+
+	// Scenario 3: Invalid Payload can be only checked at the EL side, invalid because invalid parent
+	// Try to build on top of previously rejected block with block number startNum + 2
+	targetNum = startNum + 3
+	payload2 := sys.L2EL.PayloadByNumber(targetNum)
+	payload2.ExecutionPayload.ParentHash = payload.ExecutionPayload.BlockHash
+	newHash, ok = payload2.CheckBlockHash()
+	require.False(ok)
+	logger.Info("Updated payload parent to invalid payload", "newHash", newHash)
+	payload2.ExecutionPayload.BlockHash = newHash
+	_, ok = payload.CheckBlockHash()
+	require.True(ok)
+	// Post invalid payload with the fault that can be only checked at the EL side
+	sys.L2CLB.PostUnsafePayload(payload)
+	// ex) op-geth error msg: "ignoring bad block: links to previously rejected block"
 	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
 	sys.L2ELB.NotAdvanced(eth.Unsafe)
 	// EL did not advance
