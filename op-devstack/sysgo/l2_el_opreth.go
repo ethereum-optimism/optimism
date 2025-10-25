@@ -185,7 +185,7 @@ func (n *OpReth) JWTPath() string {
 // Matching messages like "Starting metrics endpoint at 127.0.0.1:9091"
 const opRethMetricsPrefix = "Starting metrics endpoint at "
 
-// tryParseMetricsFromLog attempts to parse a running kona metrics server endpoint from
+// tryParseMetricsFromLog attempts to parse a running op-reth metrics server endpoint from
 // the provided log message.
 //
 // If the log message doesn't appear to be metrics-related, nil will be returned. See: `opRethMetricsPrefix`.
@@ -295,7 +295,9 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		//NB: Defaults to false on parsing err
 		areMetricsEnabled, _ := strconv.ParseBool(GetEnvVarOrDefault("OP_RETH_METRICS_ENABLED", "false"))
 		if areMetricsEnabled {
-			args = append(args, "--metrics="+GetAvailableLocalPort())
+			metricsPort, err := GetAvailableLocalPort()
+			p.Require().NoError(err, "WithOpReth: getting metrics port")
+			args = append(args, "--metrics="+metricsPort)
 		}
 
 		if supervisorRPC != "" {

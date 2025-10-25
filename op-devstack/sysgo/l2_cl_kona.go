@@ -243,10 +243,6 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
 			PropagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
-			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
-			// own port, but prometheus doesn't expose that port, so we can't log it and
-			// parse it here. If/when that gets changed, update this default to "0".
-			PropagateEnvVarOrDefault("KONA_METRICS_PORT", GetAvailableLocalPort()),
 			PropagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
 			PropagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 			// p2p ports
@@ -254,6 +250,17 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
 			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
+
+		if areMetricsEnabled {
+			metricsPort, err := GetAvailableLocalPort()
+			p.Require().NoError(err, "WithKonaNode: getting metrics port")
+
+			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but prometheus doesn't expose that port, so we can't log it and
+			// parse it here. If/when that gets changed, update this default to "0".
+			envVars = append(envVars, PropagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+		}
+
 		if cfg.IsSequencer {
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 			require.NoError(err, "need p2p key for sequencer")
