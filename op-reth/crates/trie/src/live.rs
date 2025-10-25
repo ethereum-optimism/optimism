@@ -5,6 +5,7 @@ use crate::{
     provider::OpProofsStateProviderRef,
     OpProofsStorage,
 };
+use alloy_eips::{eip1898::BlockWithParent, NumHash};
 use derive_more::Constructor;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_primitives_traits::{AlloyBlockHeader, BlockTy, RecoveredBlock};
@@ -14,7 +15,7 @@ use reth_provider::{
 };
 use reth_revm::database::StateProviderDatabase;
 use std::time::Instant;
-use tracing::debug;
+use tracing::info;
 
 /// Live trie collector for external proofs storage.
 #[derive(Debug, Constructor)]
@@ -64,7 +65,8 @@ where
             .into());
         }
 
-        let block_number = block.number();
+        let block_ref =
+            BlockWithParent::new(block.parent_hash(), NumHash::new(block.number(), block.hash()));
 
         // TODO: should we check block hash here?
 
@@ -101,19 +103,24 @@ where
 
         self.storage
             .store_trie_updates(
-                block_number,
+                block_ref,
                 BlockStateDiff { trie_updates, post_state: hashed_state },
             )
             .await?;
 
         let write_trie_updates_duration = start.elapsed() - calculate_state_root_duration;
+        let execute_and_store_total_duration = start.elapsed();
 
-        debug!("execute_and_store_block_updates duration: {:?}", start.elapsed());
-        debug!("- fetch_block_duration: {:?}", fetch_block_duration);
-        debug!("- init_provider_duration: {:?}", init_provider_duration);
-        debug!("- execute_block_duration: {:?}", execute_block_duration);
-        debug!("- calculate_state_root_duration: {:?}", calculate_state_root_duration);
-        debug!("- write_trie_updates_duration: {:?}", write_trie_updates_duration);
+        info!(
+            block_number = block.number(),
+            ?execute_and_store_total_duration,
+            ?fetch_block_duration,
+            ?init_provider_duration,
+            ?execute_block_duration,
+            ?calculate_state_root_duration,
+            ?write_trie_updates_duration,
+            "Stored trie updates",
+        );
 
         Ok(())
     }

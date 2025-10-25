@@ -4,6 +4,7 @@ use crate::{
     BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult,
     OpProofsStore, OpProofsTrieCursorRO,
 };
+use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_primitives_traits::Account;
 use reth_trie::{updates::TrieUpdates, BranchNodeCompact, HashedPostState, Nibbles};
@@ -506,12 +507,12 @@ impl OpProofsStore for InMemoryProofsStorage {
 
     async fn store_trie_updates(
         &self,
-        block_number: u64,
+        block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
-        inner.store_trie_updates(block_number, block_state_diff);
+        inner.store_trie_updates(block_ref.block.number, block_state_diff);
 
         Ok(())
     }
@@ -628,6 +629,7 @@ impl OpProofsStore for InMemoryProofsStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_eips::NumHash;
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;
 
@@ -662,9 +664,11 @@ mod tests {
         let block_state_diff =
             BlockStateDiff { trie_updates: trie_updates.clone(), post_state: post_state.clone() };
 
-        storage.store_trie_updates(5, block_state_diff).await?;
+        const BLOCK: BlockWithParent =
+            BlockWithParent::new(B256::ZERO, NumHash::new(5, B256::ZERO));
+        storage.store_trie_updates(BLOCK, block_state_diff).await?;
 
-        let retrieved_diff = storage.fetch_trie_updates(5).await?;
+        let retrieved_diff = storage.fetch_trie_updates(BLOCK.block.number).await?;
         assert_eq!(retrieved_diff.trie_updates, trie_updates);
         assert_eq!(retrieved_diff.post_state, post_state);
 

@@ -4,6 +4,7 @@ use crate::{
     cursor, BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageResult, OpProofsStore,
     OpProofsTrieCursorRO,
 };
+use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use derive_more::Constructor;
 use metrics::{Counter, Histogram};
@@ -462,10 +463,10 @@ where
     #[inline]
     async fn store_trie_updates(
         &self,
-        block_number: u64,
+        block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<()> {
-        self.storage.store_trie_updates(block_number, block_state_diff).await
+        self.storage.store_trie_updates(block_ref, block_state_diff).await
     }
 
     #[inline]
