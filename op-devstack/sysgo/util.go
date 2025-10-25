@@ -1,6 +1,7 @@
 package sysgo
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -33,7 +34,7 @@ var availableLocalPortMutex sync.Mutex
 
 // GetAvailableLocalPort searches for and returns a currently unused local port.
 // Note: this function is threadsafe.
-func GetAvailableLocalPort() string {
+func GetAvailableLocalPort() (string, error) {
 	availableLocalPortMutex.Lock()
 	defer availableLocalPortMutex.Unlock()
 
@@ -44,9 +45,8 @@ func GetAvailableLocalPort() string {
 		}
 		_ = ln.Close()
 		availableLocalPortStart = port + 1
-		return fmt.Sprintf("%d", port)
+		return fmt.Sprintf("%d", port), nil
 	}
 
-	// NB: this is a hack, but it should never happen, so don't return & check for error on every call.
-	return "[should never happen] no available port found... this will err when you try to use it"
+	return "", errors.New("could not find open port")
 }
