@@ -37,7 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v5_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -718,11 +718,6 @@ func TestIntentConfiguration(t *testing.T) {
 func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.StatDirFs, implementationsConfig bootstrap.ImplementationsConfig) {
 	lgr := implementationsConfig.Logger
 
-	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, stopL1())
-	})
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -734,7 +729,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	// Now test the OPCM upgrade using the deployed impls.Opcm
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
-		rpcClient, err := rpc.Dial(forkedL1.RPCUrl())
+		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
 		require.NoError(t, err)
 
 		host, err := env.DefaultForkedScriptHost(
@@ -762,13 +757,12 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Then run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
-			upgradeConfig := v2_0_0.UpgradeOPChainInput{
+			upgradeConfig := v5_0_0.UpgradeOPChainInput{
 				Prank: superchainProxyAdminOwner,
 				Opcm:  impls.Opcm,
-				EncodedChainConfigs: []v2_0_0.OPChainConfig{
+				EncodedChainConfigs: []v5_0_0.OPChainConfig{
 					{
 						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-						ProxyAdmin:        implementationsConfig.SuperchainProxyAdmin,
 						AbsolutePrestate:  common.Hash{'A', 'P'},
 					},
 				},

@@ -1944,7 +1944,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 IDisputeGame(implementations().superPermissionedDisputeGameImpl),
                 gameArgs
             );
-            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, input.gameParameters.initBond);
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
 
         // If the permissionless game is being used, set that up too.
@@ -1968,9 +1968,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 getImplementations().delayedWETHImpl,
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
-
-            // Fix stack too deep
-            MigrateInput memory input = _input;
 
             // Register the new SuperFaultDisputeGame.
             bytes memory gameArgs = LibGameArgs.encode(
@@ -2119,9 +2116,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.1.0
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.1.0";
+        return "5.2.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
