@@ -718,11 +718,6 @@ func TestIntentConfiguration(t *testing.T) {
 func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.StatDirFs, implementationsConfig bootstrap.ImplementationsConfig) {
 	lgr := implementationsConfig.Logger
 
-	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, stopL1())
-	})
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -734,7 +729,7 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	// Now test the OPCM upgrade using the deployed impls.Opcm
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
-		rpcClient, err := rpc.Dial(forkedL1.RPCUrl())
+		rpcClient, err := rpc.Dial(implementationsConfig.L1RPCUrl)
 		require.NoError(t, err)
 
 		host, err := env.DefaultForkedScriptHost(
