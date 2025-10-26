@@ -6,6 +6,10 @@ import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { InvalidGameArgsLength } from "src/dispute/lib/Errors.sol";
 
 contract LibGameArgs_Harness {
+    function encode(LibGameArgs.GameArgs memory _args) public pure returns (bytes memory) {
+        return LibGameArgs.encode(_args);
+    }
+
     function decode(bytes memory _buf) public pure returns (LibGameArgs.GameArgs memory) {
         return LibGameArgs.decode(_buf);
     }
@@ -30,6 +34,46 @@ contract LibGameArgs_Decode_Test is Test {
         uint256 l2ChainId;
         address proposer;
         address challenger;
+    }
+
+    function test_encodeAndDecodeRoundTrip_succeeds() public {
+        LibGameArgs.GameArgs memory args = LibGameArgs.GameArgs({
+            absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
+            vm: vm.randomAddress(),
+            anchorStateRegistry: address(0x2),
+            weth: address(0x3),
+            l2ChainId: 42,
+            proposer: address(0x123),
+            challenger: address(0x456)
+        });
+
+        bytes memory encoded = harness.encode(args);
+        LibGameArgs.GameArgs memory decoded = harness.decode(encoded);
+
+        assertEq(decoded.absolutePrestate, args.absolutePrestate);
+        assertEq(decoded.vm, args.vm);
+        assertEq(decoded.anchorStateRegistry, args.anchorStateRegistry);
+        assertEq(decoded.weth, args.weth);
+        assertEq(decoded.l2ChainId, args.l2ChainId);
+        assertEq(decoded.proposer, args.proposer);
+        assertEq(decoded.challenger, args.challenger);
+    }
+
+    function test_encodePartialRoundTrip_succeeds() public {
+        LibGameArgs.GameArgs memory args = LibGameArgs.GameArgs({
+            absolutePrestate: keccak256(abi.encodePacked("absolutePrestate")),
+            vm: vm.randomAddress(),
+            anchorStateRegistry: address(0x2),
+            weth: address(0x3),
+            l2ChainId: 42,
+            proposer: address(0),
+            challenger: address(0)
+        });
+
+        bytes memory encoded = harness.encode(args);
+        bytes memory expected =
+            abi.encodePacked(args.absolutePrestate, args.vm, args.anchorStateRegistry, args.weth, args.l2ChainId);
+        assertEq(encoded, expected);
     }
 
     function test_decodeFull_succeeds() public {

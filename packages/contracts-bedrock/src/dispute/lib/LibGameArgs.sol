@@ -20,6 +20,25 @@ library LibGameArgs {
         address challenger;
     }
 
+    /// @notice Encodes the game arguments into a bytes array.
+    function encode(GameArgs memory _args) internal pure returns (bytes memory) {
+        if (_args.proposer == address(0) && _args.challenger == address(0)) {
+            return abi.encodePacked(
+                _args.absolutePrestate, _args.vm, _args.anchorStateRegistry, _args.weth, _args.l2ChainId
+            );
+        } else {
+            return abi.encodePacked(
+                _args.absolutePrestate,
+                _args.vm,
+                _args.anchorStateRegistry,
+                _args.weth,
+                _args.l2ChainId,
+                _args.proposer,
+                _args.challenger
+            );
+        }
+    }
+
     /// @notice Decodes the game arguments from a bytes array.
     /// @param _gameArgs The bytes array containing the encoded game arguments.
     function decode(bytes memory _gameArgs) internal pure returns (GameArgs memory) {

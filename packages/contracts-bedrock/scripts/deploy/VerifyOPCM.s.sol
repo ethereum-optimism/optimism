@@ -426,6 +426,19 @@ contract VerifyOPCM is Script {
             }
             // If feature is enabled, continue with normal verification
         }
+        // Check if this is a Super dispute game that should be skipped
+        if (_isSuperDisputeGameImplementation(_target.name)) {
+            if (!_isSuperDisputeGamesEnabled(_opcm)) {
+                if (_target.addr == address(0)) {
+                    console.log("[SKIP] Super game not deployed (feature disabled)");
+                    return true; // Consider this "verified" when feature is off
+                } else {
+                    console.log("[FAIL] ERROR: Super game deployed but feature disabled");
+                    success = false;
+                }
+            }
+            // If feature is enabled, continue with normal verification
+        }
 
         // Load artifact information (bytecode, immutable refs) for detailed comparison
         ArtifactInfo memory artifact = _loadArtifactInfo(artifactPath);
@@ -531,12 +544,28 @@ contract VerifyOPCM is Script {
         return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
     }
 
+    /// @notice Checks if super dispute games feature is enabled in the dev feature bitmap.
+    /// @param _opcm The OPContractsManager to check.
+    /// @return True if super dispute games are enabled.
+    function _isSuperDisputeGamesEnabled(IOPContractsManager _opcm) internal view returns (bool) {
+        bytes32 bitmap = _opcm.devFeatureBitmap();
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
     /// @notice Checks if a contract is a V2 dispute game implementation.
     /// @param _contractName The name to check.
     /// @return True if this is a V2 dispute game.
     function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
         return LibString.eq(_contractName, "FaultDisputeGameV2")
             || LibString.eq(_contractName, "PermissionedDisputeGameV2");
+    }
+
+    /// @notice Checks if a contract is a Super dispute game implementation.
+    /// @param _contractName The name to check.
+    /// @return True if this is a V2 dispute game.
+    function _isSuperDisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
+        return LibString.eq(_contractName, "SuperFaultDisputeGame")
+            || LibString.eq(_contractName, "SuperPermissionedDisputeGame");
     }
 
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.

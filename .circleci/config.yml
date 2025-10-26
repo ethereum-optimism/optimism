@@ -2371,7 +2371,7 @@ workflows:
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP","CANNON_KONA","CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES"]
+              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP","CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES"]
           # need this requires to ensure that all FFI JSONs exist
           requires:
             - contracts-bedrock-build

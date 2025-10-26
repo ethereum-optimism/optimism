@@ -117,17 +117,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
     }
 
-    function _getSuperGameConstructorParams(
-        Claim _absolutePrestate,
-        AlphabetVM _vm,
-        GameType _gameType
-    )
-        private
-        view
+    function _getSuperGameConstructorParams()
+        internal
+        pure
         returns (ISuperFaultDisputeGame.GameConstructorParams memory params_)
     {
-        bytes memory args = abi.encode(_getGameConstructorParams(_absolutePrestate, _vm, _gameType, 0));
-        params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
+        return ISuperFaultDisputeGame.GameConstructorParams({
+            maxGameDepth: 2 ** 3,
+            splitDepth: 2 ** 2,
+            clockExtension: Duration.wrap(3 hours),
+            maxClockDuration: Duration.wrap(3.5 days)
+        });
     }
 
     function _setGame(address _gameImpl, GameType _gameType) internal {
@@ -154,19 +154,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        bytes memory immutableArgs;
+        (immutableArgs, vm_, preimageOracle_) = getSuperFaultDisputeGameV2ImmutableArgs(_absolutePrestate);
 
         gameImpl_ = DeployUtils.create1({
             _name: "SuperFaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperFaultDisputeGame.__constructor__,
-                    (_getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_CANNON))
-                )
+                abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, immutableArgs);
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -178,23 +176,10 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
-
-        gameImpl_ = DeployUtils.create1({
-            _name: "SuperPermissionedDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperPermissionedDisputeGame.__constructor__,
-                    (
-                        _getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_PERMISSIONED_CANNON),
-                        _proposer,
-                        _challenger
-                    )
-                )
-            )
-        });
-
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        bytes memory implArgs;
+        (implArgs, vm_, preimageOracle_) =
+            getSuperPermissionedDisputeGameImmutableArgs(_absolutePrestate, _proposer, _challenger);
+        gameImpl_ = setupSuperPermissionedDisputeGame(implArgs);
     }
 
     /// @notice Sets up a fault game implementation
@@ -241,6 +226,22 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
             l2ChainId // 32 bytes (l2ChainId)
+        );
+    }
+
+    /// @notice Sets up immutable data for super fault dispute game implementation
+    function getSuperFaultDisputeGameV2ImmutableArgs(Claim _absolutePrestate)
+        internal
+        returns (bytes memory immutableArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        // Encode the implementation args for CWIA (tightly packed)
+        immutableArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(0) // 32 bytes (l2ChainId)
         );
     }
 
@@ -335,6 +336,29 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         );
     }
 
+    /// @notice Sets up immutable args for Super PDG implementation
+    function getSuperPermissionedDisputeGameImmutableArgs(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (bytes memory implArgs_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
+        // Encode the implementation args for CWIA (tightly packed)
+        implArgs_ = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(0), // 32 bytes (l2ChainId),
+            _proposer, // 20 bytes
+            _challenger // 20 bytes
+        );
+    }
+
     /// @notice Deploys PDG v2 implementation and sets it on the DGF
     function setupPermissionedDisputeGameV2(
         Claim _absolutePrestate,
@@ -361,6 +385,17 @@ abstract contract DisputeGameFactory_TestInit is CommonTest {
         });
 
         _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, _implArgs);
+    }
+
+    /// @notice Deploys Super PDG implementation and sets it on the DGF
+    function setupSuperPermissionedDisputeGame(bytes memory _implArgs) internal returns (address gameImpl_) {
+        gameImpl_ = DeployUtils.create1({
+            _name: "SuperPermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_getSuperGameConstructorParams()))
+            )
+        });
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _implArgs);
     }
 }
 
