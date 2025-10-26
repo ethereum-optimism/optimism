@@ -536,7 +536,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
-          command: forge build <<parameters.build_args>>
+          command: just forge-build <<parameters.build_args>>
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
@@ -572,7 +572,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Build Kontrol summary files
-          command: forge build ./test/kontrol/proofs
+          command: just forge-build ./test/kontrol/proofs
           working_directory: packages/contracts-bedrock
       - notify-failures-on-develop
 

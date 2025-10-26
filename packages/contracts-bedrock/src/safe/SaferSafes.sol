@@ -11,8 +11,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title SaferSafes
 /// @notice Combined Safe extensions providing both liveness module and timelock guard
-///         functionality
-///         This contract is compatible only with the Safe contract version 1.4.1.
+///         functionality.
 /// @dev This contract can be enabled simultaneously as both a module and a guard on a Safe:
 ///      - As a module: provides liveness challenge functionality to prevent multisig deadlock
 ///      - As a guard: provides timelock functionality for transaction delays and cancellation
@@ -23,10 +22,12 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      enabled or disabled independently of the other. When installing either component, it
 ///      should first be enabled, and then configured. If a component's functionality is not
 ///      desired, then there is no need to enable or configure it.
+///      This contract is compatible only with the Safe contract version 1.4.1 due to the
+///      compatibility restrictions in the LivenessModule2 and TimelockGuard contracts.
 contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.2
-    string public constant version = "1.5.2";
+    /// @custom:semver 1.8.0
+    string public constant version = "1.8.0";
 
     /// @notice Error for when the liveness response period is insufficient.
     error SaferSafes_InsufficientLivenessResponsePeriod();
@@ -43,7 +44,7 @@ contract SaferSafes is LivenessModule2, TimelockGuard, ISemver {
             return;
         }
 
-        uint256 timelockDelay = _safeState[_safe].timelockDelay;
+        uint256 timelockDelay = _currentSafeState(_safe).timelockDelay;
         uint256 livenessResponsePeriod = _livenessSafeConfiguration[_safe].livenessResponsePeriod;
 
         // If the timelock delay is 0, then the timelock guard is enabled but not configured.
