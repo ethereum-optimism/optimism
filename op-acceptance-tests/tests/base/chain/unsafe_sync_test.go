@@ -12,8 +12,8 @@ import (
 )
 
 // TestUnsafeSync tests that the verifier nodes are able to sync the unsafe head of the chain.
-// It does this by waiting for the sequencer to produce 10 unsafe blocks and requiring the verifier nodes to
-// be no more than 10 blocks behind the unsafe head.
+// It does this by waiting for the sequencer to produce NUM_UNSAFE_BLOCKS unsafe blocks and requiring the verifier nodes to
+// be progress to the final unsafe head number.
 func TestUnsafeSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
@@ -23,7 +23,7 @@ func TestUnsafeSync(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	l2chainID := sys.L2Chain.Escape().ChainID()
-	const NUM_UNSAFE_BLOCKS = 3
+	const NUM_UNSAFE_BLOCKS = 10
 	const TIMEOUT = 5 * time.Second // time to wait for all verifier nodes to catch up to the sequencer
 
 	// In order for this test to be valid, we need at least 2 L2 EL nodes.
