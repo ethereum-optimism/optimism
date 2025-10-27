@@ -44,7 +44,6 @@ type Runner struct {
 }
 
 func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string, dataDir string, network string, chainID eth.ChainID, runInProcess bool) (*Runner, error) {
-	ctx := context.Background()
 	logCfg := oplog.DefaultCLIConfig()
 	logCfg.Level = log.LevelDebug
 
