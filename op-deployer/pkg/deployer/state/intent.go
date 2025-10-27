@@ -35,6 +35,10 @@ type SuperchainProofParams struct {
 	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
 	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
 	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
 	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
 	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
