@@ -28,8 +28,6 @@ pub struct OpL1BlockInfo {
     l1_block_info: RwLock<L1BlockInfo>,
     /// Current block timestamp.
     timestamp: AtomicU64,
-    /// Current block number.
-    number: AtomicU64,
 }
 
 impl OpL1BlockInfo {
@@ -103,7 +101,6 @@ where
             // so that we will accept txs into the pool before the first block
             if block.header().number() == 0 {
                 this.block_info.timestamp.store(block.header().timestamp(), Ordering::Relaxed);
-                this.block_info.number.store(block.header().number(), Ordering::Relaxed);
             } else {
                 this.update_l1_block_info(block.header(), block.body().transactions().first());
             }
@@ -141,7 +138,6 @@ where
         T: Transaction,
     {
         self.block_info.timestamp.store(header.timestamp(), Ordering::Relaxed);
-        self.block_info.number.store(header.number(), Ordering::Relaxed);
 
         if let Some(Ok(l1_block_info)) = tx.map(reth_optimism_evm::extract_l1_info_from_tx) {
             *self.block_info.l1_block_info.write() = l1_block_info;
