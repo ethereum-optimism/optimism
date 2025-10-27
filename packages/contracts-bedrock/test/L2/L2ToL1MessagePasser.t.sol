@@ -120,6 +120,71 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 
         assertEq(vm.load(address(l2ToL1MessagePasser), slot), bytes32(uint256(1)));
     }
+
+    /// @notice Tests that `initiateWithdrawal` succeeds when called by a contract.
+    function testFuzz_initiateWithdrawal_fromContract_succeeds(
+        address _target,
+        uint256 _gasLimit,
+        uint256 _value,
+        bytes memory _data
+    )
+        external
+    {
+        // Verify caller is a contract (this test contract)
+        assertGt(address(this).code.length, 0);
+
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction({
+                nonce: l2ToL1MessagePasser.messageNonce(),
+                sender: address(this),
+                target: _target,
+                value: _value,
+                gasLimit: _gasLimit,
+                data: _data
+            })
+        );
+
+        vm.expectEmit(address(l2ToL1MessagePasser));
+        emit MessagePassed(
+            l2ToL1MessagePasser.messageNonce(), address(this), _target, _value, _gasLimit, _data, withdrawalHash
+        );
+
+        vm.deal(address(this), _value);
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }(_target, _gasLimit, _data);
+
+        assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);
+    }
+
+    /// @notice Tests that `initiateWithdrawal` succeeds when called by an EOA.
+    function testFuzz_initiateWithdrawal_fromEOA_succeeds(
+        uint256 _gasLimit,
+        address _target,
+        uint256 _value,
+        bytes memory _data
+    )
+        external
+    {
+        uint256 nonce = l2ToL1MessagePasser.messageNonce();
+
+        // Verify caller is an EOA (alice has no code)
+        assertEq(alice.code.length, 0);
+
+        // EOA emulation
+        vm.prank(alice, alice);
+        vm.deal(alice, _value);
+        bytes32 withdrawalHash =
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(nonce, alice, _target, _value, _gasLimit, _data));
+
+        vm.expectEmit(address(l2ToL1MessagePasser));
+        emit MessagePassed(nonce, alice, _target, _value, _gasLimit, _data, withdrawalHash);
+
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+
+        // the sent messages mapping is filled
+        assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);
+        // the nonce increments
+        assertEq(nonce + 1, l2ToL1MessagePasser.messageNonce());
+    }
 }
 
 /// @title L2ToL1MessagePasser_MessageNonce_Test
