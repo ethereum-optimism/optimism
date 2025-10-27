@@ -201,7 +201,9 @@ reth-engine-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v
 reth-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-ethereum-forks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
+reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
+reth-evm-ethereum = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-exex = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-execution-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-execution-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
@@ -229,6 +231,7 @@ reth-revm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", defa
 reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-rpc-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
+reth-rpc-convert = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-rpc-engine-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
@@ -240,6 +243,7 @@ reth-static-file-types = { git = "https://github.com/paradigmxyz/reth", tag = "v
 reth-storage-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-storage-errors = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
+reth-testing-utils = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2", default-features = false }
 reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
 reth-trie = { git = "https://github.com/paradigmxyz/reth", tag = "v1.10.2" }
@@ -377,6 +381,7 @@ tempfile = "3.20"
 test-fuzz = "7"
 rstest = "0.24.0"
 test-case = "3"
+serial_test = "3.2"
 
 # ==================== COMPRESSION ====================
 brotli = "8"

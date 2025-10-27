@@ -65,6 +65,9 @@ reth-evm-ethereum.workspace = true
 reth-testing-utils.workspace = true
 secp256k1.workspace = true
 
+# misc
+serial_test.workspace = true
+
 [features]
 serde-bincode-compat = [
     "reth-primitives-traits/serde-bincode-compat",

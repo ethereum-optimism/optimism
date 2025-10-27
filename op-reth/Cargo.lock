@@ -8382,11 +8382,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-exex"
-<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
-=======
-version = "1.9.3"
->>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "derive_more",
@@ -8400,15 +8396,8 @@ dependencies = [
  "reth-node-types",
  "reth-optimism-trie",
  "reth-provider",
-<<<<<<< HEAD:op-reth/Cargo.lock
  "serde",
-<<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",
-=======
- "thiserror 2.0.17",
->>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
-=======
->>>>>>> cfe990e62b (chore(exex): Add missing crate header to `reth-optimism-exex` (#271)):Cargo.lock
  "tokio",
  "tracing",
 ]
@@ -8670,11 +8659,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-trie"
-<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
-=======
-version = "1.9.3"
->>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8704,14 +8689,11 @@ dependencies = [
  "reth-trie",
  "secp256k1 0.30.0",
  "serde",
+ "serial_test",
  "strum 0.27.2",
  "tempfile",
  "test-case",
-<<<<<<< HEAD:op-reth/Cargo.lock
  "thiserror 2.0.18",
-=======
- "thiserror 2.0.17",
->>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
  "tokio",
  "tracing",
 ]
@@ -10314,6 +10296,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scc"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46e6f046b7fef48e2660c57ed794263155d713de679057f2d0c169bfc6e756cc"
+dependencies = [
+ "sdd",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10368,6 +10359,12 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "sdd"
+version = "3.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490dcfcbfef26be6800d11870ff2df8774fa6e86d047e3e8c8a76b25655e41ca"
 
 [[package]]
 name = "sec1"
@@ -10607,6 +10604,31 @@ checksum = "a84f14a19e9a014bb9f4512488d9829a68e04ecabffb0f9904cd1ace94598177"
 dependencies = [
  "base16ct",
  "serde",
+]
+
+[[package]]
+name = "serial_test"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b258109f244e1d6891bf1053a55d63a5cd4f8f4c30cf9a1280989f80e7a1fa9"
+dependencies = [
+ "futures",
+ "log",
+ "once_cell",
+ "parking_lot",
+ "scc",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d69265a08751de7844521fd15003ae0a888e035773ba05695c5c759a6f89eef"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.107",
 ]
 
 [[package]]
