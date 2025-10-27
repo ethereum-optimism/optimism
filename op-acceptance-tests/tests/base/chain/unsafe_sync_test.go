@@ -17,8 +17,14 @@ import (
 func TestUnsafeSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
+
+	// Stop batcher so there is no sync from deriving from L1
+	// This won't work on external networks.
+	sys.L2Batcher.Stop()
+
 	l2chainID := sys.L2Chain.Escape().ChainID()
-	const NUM_UNSAFE_BLOCKS = 10
+	const NUM_UNSAFE_BLOCKS = 3
+	const TIMEOUT = 5 * time.Second // time to wait for all verifier nodes to catch up to the sequencer
 
 	// In order for this test to be valid, we need at least 2 L2 EL nodes.
 	t.Require().Greater(len(sys.L2Chain.L2ELNodes()), 1, "expected at least 2 L2 EL nodes")
@@ -58,7 +64,11 @@ func TestUnsafeSync(gt *testing.T) {
 		}
 		return true
 	}
-	require.Eventually(t, allVerifierNodesInSync, 30*time.Second, time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime)*time.Second)
+
+	require.Eventually(t, allVerifierNodesInSync, TIMEOUT, time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime)*time.Second,
+		"all verifier nodes did not progress to the final unsafe head number within %s",
+		TIMEOUT,
+	)
 	t.Log("All verifier nodes progressed to the final unsafe head number", finalUnsafeHeadNumber)
 
 	// Final sanity check on the block hashes being consistent.
