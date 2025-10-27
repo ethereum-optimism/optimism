@@ -119,6 +119,8 @@ contract L2ToL1MessagePasser_Burn_Test is CommonTest {
         l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
 
         assertEq(address(l2ToL1MessagePasser).balance, _value);
+        
+        vm.expectEmit(address(l2ToL1MessagePasser));
         emit WithdrawerBalanceBurnt(_value);
         l2ToL1MessagePasser.burn();
 
