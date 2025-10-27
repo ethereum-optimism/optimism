@@ -193,6 +193,11 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             // Deploy a permissionless FaultDisputeGame.
             IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON);
             fdgImpl = output.faultDisputeGame;
+
+            // Deploy cannon-kona
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                addGameType(GameTypes.CANNON_KONA);
+            }
         }
     }
 
