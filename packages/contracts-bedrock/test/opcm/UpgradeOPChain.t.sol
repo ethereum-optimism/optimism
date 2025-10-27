@@ -203,7 +203,7 @@ contract UpgradeOPChain_Test is Test {
         upgradeOPChain.run(uoci);
     }
 
-    function test_upgrade_unexpectedEncoding_reverts(
+    function testFuzz_upgrade_unexpectedEncoding_reverts(
         IOPContractsManager.OpChainConfig[] memory _opChainConfigs,
         IOPContractsManagerPre4_1_0.OpChainConfig[] memory _opChainConfigsPre410
     )

@@ -37,7 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v5_0_0"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v6_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -757,10 +757,10 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 
 		// Then run the OPCM upgrade
 		t.Run("upgrade opcm", func(t *testing.T) {
-			upgradeConfig := v5_0_0.UpgradeOPChainInput{
+			upgradeConfig := v6_0_0.UpgradeOPChainInput{
 				Prank: superchainProxyAdminOwner,
 				Opcm:  impls.Opcm,
-				EncodedChainConfigs: []v5_0_0.OPChainConfig{
+				EncodedChainConfigs: []v6_0_0.OPChainConfig{
 					{
 						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
 						AbsolutePrestate:  common.Hash{'A', 'P'},
