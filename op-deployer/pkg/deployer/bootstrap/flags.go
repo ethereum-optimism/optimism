@@ -63,6 +63,30 @@ var (
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_GAME_FINALITY_DELAY_SECONDS"),
 		Value:   standard.DisputeGameFinalityDelaySeconds,
 	}
+	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
+		Name:    "dispute-max-game-depth",
+		Usage:   "Maximum depth of the dispute game tree (value as string). Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_GAME_DEPTH"),
+		Value:   standard.DisputeMaxGameDepth,
+	}
+	DisputeSplitDepthFlag = &cli.Uint64Flag{
+		Name:    "dispute-split-depth",
+		Usage:   "Depth at which the dispute game tree splits (value as string). Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_SPLIT_DEPTH"),
+		Value:   standard.DisputeSplitDepth,
+	}
+	DisputeClockExtensionFlag = &cli.Uint64Flag{
+		Name:    "dispute-clock-extension",
+		Usage:   "Clock extension in seconds for dispute game timing. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_CLOCK_EXTENSION"),
+		Value:   standard.DisputeClockExtension,
+	}
+	DisputeMaxClockDurationFlag = &cli.Uint64Flag{
+		Name:    "dispute-max-clock-duration",
+		Usage:   "Maximum clock duration in seconds for dispute game timing. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_CLOCK_DURATION"),
+		Value:   standard.DisputeMaxClockDuration,
+	}
 	MIPSVersionFlag = &cli.Uint64Flag{
 		Name:    MIPSVersionFlagName,
 		Usage:   "MIPS version.",
@@ -159,6 +183,10 @@ var ImplementationsFlags = []cli.Flag{
 	ChallengePeriodSecondsFlag,
 	ProofMaturityDelaySecondsFlag,
 	DisputeGameFinalityDelaySecondsFlag,
+	DisputeMaxGameDepthFlag,
+	DisputeSplitDepthFlag,
+	DisputeClockExtensionFlag,
+	DisputeMaxClockDurationFlag,
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	L1ProxyAdminOwnerFlag,
