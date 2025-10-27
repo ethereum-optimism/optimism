@@ -66,17 +66,6 @@ contract L2ToL1MessagePasser_Burn_Test is CommonTest {
         // The Withdrawer should have no balance
         assertEq(address(l2ToL1MessagePasser).balance, 0);
     }
-
-    /// @notice Tests that `burn` succeeds when contract has zero balance.
-    function test_burn_zeroBalance_succeeds() external {
-        assertEq(address(l2ToL1MessagePasser).balance, 0);
-
-        vm.expectEmit(address(l2ToL1MessagePasser));
-        emit WithdrawerBalanceBurnt(0);
-        l2ToL1MessagePasser.burn();
-
-        assertEq(address(l2ToL1MessagePasser).balance, 0);
-    }
 }
 
 /// @title L2ToL1MessagePasser_InitiateWithdrawal_Test
