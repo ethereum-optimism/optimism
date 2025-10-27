@@ -234,7 +234,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	})
 }
 
-// TestELP2PFCUInvalidHash verifies that when an Execution Layer (EL) client
+// TestELP2PFCUUnavailableHash verifies that when an Execution Layer (EL) client
 // receives a Forkchoice Update (FCU) with an unknown head hash (invalid or
 // non-existent) during EL syncing, it remains in the "SYNCING" state and does
 // not advance its canonical chain.
@@ -249,7 +249,7 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 // This behavior ensures that the EL client safely handles invalid or unknown
 // forkchoice targets by consistently reporting SYNCING for each FCU attempt
 // and by avoiding advancement of the chain on invalid data.
-func TestELP2PFCUInvalidHash(gt *testing.T) {
+func TestELP2PFCUUnavailableHash(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	logger := t.Logger()
