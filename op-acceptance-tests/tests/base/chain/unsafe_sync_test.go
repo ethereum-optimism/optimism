@@ -42,12 +42,12 @@ func TestUnsafeSync(gt *testing.T) {
 				continue
 			}
 			verifierUnsafeHead := el.ChainSyncStatus(l2chainID, types.LocalUnsafe)
-			lag := int64(verifierUnsafeHead.Number) - int64(sequencerUnsafeHead.Number)
+			lag := uint64(verifierUnsafeHead.Number) - uint64(sequencerUnsafeHead.Number)
 			if lag > 0 {
-				t.Require().Fail("verifier unsafe head is ahead of sequencer unsafe head")
+				t.Require().Fail("verifier unsafe head is ahead of sequencer unsafe head", "verifier", el.ID(), "verifier unsafe head", verifierUnsafeHead.Number, "sequencer unsafe head", sequencerUnsafeHead.Number)
 			}
 			if lag < 0 {
-				t.Require().Greater(lag, -MAX_LAG, "verifier (%s) unsafe head (number %d) is too far behind sequencer unsafe head (number %d)", el.ID(), verifierUnsafeHead.Number, sequencerUnsafeHead.Number)
+				t.Require().Greater(lag, uint64(MAX_LAG), "verifier (%s) unsafe head (number %d) is too far behind sequencer unsafe head (number %d) with max lag %d", el.ID(), verifierUnsafeHead.Number, sequencerUnsafeHead.Number, MAX_LAG)
 			}
 			t.Logf("verifier (%s) unsafe head (number %d) is %d blocks behind sequencer unsafe head (number %d)", el.ID(), verifierUnsafeHead.Number, lag, sequencerUnsafeHead.Number)
 		}
