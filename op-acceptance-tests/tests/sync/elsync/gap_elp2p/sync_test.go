@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum"
+	ethereum "github.com/ethereum/go-ethereum"
 )
 
 // TestL2ELP2PCanonicalChainAdvancedByFCU verifies the interaction between NewPayload,
@@ -177,15 +177,17 @@ func TestL2ELP2PCanonicalChainAdvancedByFCU(gt *testing.T) {
 	// Finally peer for enabling ELP2P
 	sys.L2ELB.PeerWith(sys.L2EL)
 
-	// We allow three attempts. Most of the time, two attempts are enough
-	// At first attempt, L2EL starts EL Sync, returing SYNCING.
-	// Before second attempt, L2EL finishes EL Sync, and updates targetNum as canonical
-	// At second attempt, L2EL returns VALID since targetNum is already canonical
+	// We do NOT need to resend the same FCU just because peers have connected;
+	// the EL continues syncing toward the last forkchoice target asynchronously.
+	//
+	// Once the EL has downloaded and validated the required data,
+	// a subsequent FCU call (even with the same target) may immediately return VALID.
+	//
+	// In practice, after peers are established, one or two FCU calls
+	// typically observe VALID — though this depends on the EL’s sync progress
+	// and network conditions.
 	attempts := 3
 
-	// FCU to target block which can be eventually validated, because ELP2P enabled
-	sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, 0, 0, nil).IsSyncing()
-	// In rare cases, EL is not ready to trigger EL Sync even though peers attached
 	// Retry a few times until the first EL Sync is complete
 	sys.L2ELB.FinishedELSync(sys.L2EL, targetNum, 0, 0)
 
