@@ -198,7 +198,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: absolutePrestate.raw(),
+                cannonPrestate: absolutePrestate.raw(),
+                cannonKonaPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -221,7 +222,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                absolutePrestate: absolutePrestate.raw(),
+                cannonPrestate: absolutePrestate.raw(),
+                cannonKonaPrestate: bytes32(0),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
