@@ -92,7 +92,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     uint256 l2ChainId;
 
     /// @notice The absolute prestate, either from config or dummy value if fork test.
-    Claim absolutePrestate;
+    Claim cannonPrestate;
+
+    /// @notice The CannonKona absolute prestate.
+    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKona")));
 
     /// @notice The proposer role set on the PermissionedDisputeGame instance.
     address proposer;
@@ -134,7 +137,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         // address in fork tests but it's fine.
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
-            absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            cannonPrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
             proposer = address(123);
 
             vm.mockCall(
@@ -173,7 +176,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             );
         } else {
             l2ChainId = deployInput.l2ChainId;
-            absolutePrestate = deployInput.disputeAbsolutePrestate;
+            cannonPrestate = deployInput.disputeAbsolutePrestate;
             proposer = deployInput.roles.proposer;
         }
 
@@ -191,12 +194,12 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdgImpl)));
         } else {
             // Deploy a permissionless FaultDisputeGame.
-            IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON);
+            IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);
             fdgImpl = output.faultDisputeGame;
 
             // Deploy cannon-kona
             if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                addGameType(GameTypes.CANNON_KONA);
+                addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
             }
         }
     }
@@ -209,8 +212,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                cannonPrestate: absolutePrestate.raw(),
-                cannonKonaPrestate: bytes32(0),
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -233,8 +236,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
-                cannonPrestate: absolutePrestate.raw(),
-                cannonKonaPrestate: bytes32(0),
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
                 l2ChainID: l2ChainId,
                 proposer: proposer
             }),
@@ -254,8 +257,14 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         });
     }
 
-    function addGameType(GameType _gameType) internal returns (IOPContractsManager.AddGameOutput memory) {
-        IOPContractsManager.AddGameInput memory input = newGameInputFactory(_gameType);
+    function addGameType(
+        GameType _gameType,
+        Claim _prestate
+    )
+        internal
+        returns (IOPContractsManager.AddGameOutput memory)
+    {
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory(_gameType, _prestate);
         return addGameType(input);
     }
 
@@ -278,14 +287,21 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         return addGameOutAll[0];
     }
 
-    function newGameInputFactory(GameType _gameType) internal view returns (IOPContractsManager.AddGameInput memory) {
+    function newGameInputFactory(
+        GameType _gameType,
+        Claim _prestate
+    )
+        internal
+        view
+        returns (IOPContractsManager.AddGameInput memory)
+    {
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: systemConfig,
             proxyAdmin: proxyAdmin,
             delayedWETH: delayedWeth,
             disputeGameType: _gameType,
-            disputeAbsolutePrestate: absolutePrestate,
+            disputeAbsolutePrestate: _prestate,
             disputeMaxGameDepth: 73,
             disputeSplitDepth: 30,
             disputeClockExtension: Duration.wrap(10800),
@@ -1407,14 +1423,26 @@ contract OPContractsManagerStandardValidator_PreimageOracle_Test is OPContractsM
 /// @notice Tests validation of `FaultDisputeGame` configuration
 contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContractsManagerStandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) implementation is null.
-    function test_validate_faultDisputeGameNullImplementation_succeeds() public {
+    ///         FaultDisputeGame (permissionless) Cannon implementation is null.
+    function test_validate_faultDisputeGameNullCannonImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)),
             abi.encode(address(0))
         );
         assertEq("PLDG-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) CannonKona implementation is null.
+    function test_validate_faultDisputeGameNullCannonKonaImplementation_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)),
+            abi.encode(address(0))
+        );
+        assertEq("CKDG-10", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1441,8 +1469,8 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) game args are invalid.
-    function test_validate_faultDisputeGameInvalidGameArgs_succeeds() public {
+    ///         FaultDisputeGame (permissionless) Cannon game args are invalid.
+    function test_validate_faultDisputeGameInvalidCannonGameArgs_succeeds() public {
         bytes memory invalidGameArgs = hex"123456";
         GameType gameType = GameTypes.CANNON;
         vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (gameType)), abi.encode(invalidGameArgs));
@@ -1451,8 +1479,19 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
-    function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
+    ///         FaultDisputeGame (permissionless) CannonKona game args are invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaGameArgs_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        bytes memory invalidGameArgs = hex"123456";
+        GameType gameType = GameTypes.CANNON_KONA;
+        vm.mockCall(address(dgf), abi.encodeCall(IDisputeGameFactory.gameArgs, (gameType)), abi.encode(invalidGameArgs));
+
+        assertEq("CKDG-GARGS-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) Cannon absolute prestate is invalid.
+    function test_validate_faultDisputeGameInvalidCannonAbsolutePrestate_succeeds() public {
         bytes32 badPrestate = bytes32(uint256(0xbadbad));
         mockGameImplPrestate(dgf, GameTypes.CANNON, badPrestate);
 
@@ -1460,8 +1499,18 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) VM address is invalid.
-    function test_validate_faultDisputeGameInvalidVM_succeeds() public {
+    ///         FaultDisputeGame (permissionless) CannonKona absolute prestate is invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaAbsolutePrestate_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        bytes32 badPrestate = cannonPrestate.raw(); // Use the wrong prestate
+        mockGameImplPrestate(dgf, GameTypes.CANNON_KONA, badPrestate);
+
+        assertEq("CKDG-40", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) Cannon VM address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonVM_succeeds() public {
         address badVM = address(0xbad);
         mockGameImplVM(dgf, GameTypes.CANNON, badVM);
         vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
@@ -1471,10 +1520,35 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) ASR address is invalid.
-    function test_validate_faultDisputeGameInvalidASR_succeeds() public {
+    ///         FaultDisputeGame (permissionless) CannonKona VM address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaVM_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        address badVM = address(0xbad);
+        mockGameImplVM(dgf, GameTypes.CANNON_KONA, badVM);
+        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
+
+        assertEq("CKDG-VM-10,CKDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) Cannon ASR address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonASR_succeeds() public {
+        _mockInvalidASR(GameTypes.CANNON);
+        assertEq("PLDG-ANCHORP-10,PLDG-ANCHORP-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) CannonKona ASR address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaASR_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        _mockInvalidASR(GameTypes.CANNON_KONA);
+        assertEq("CKDG-ANCHORP-10,CKDG-ANCHORP-20", _validate(true));
+    }
+
+    function _mockInvalidASR(GameType _gameType) internal {
         address badASR = address(0xbad);
-        mockGameImplASR(dgf, GameTypes.CANNON, badASR);
+        mockGameImplASR(dgf, _gameType, badASR);
 
         // Mock invalid values
         vm.mockCall(badASR, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
@@ -1490,15 +1564,26 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(sysCfg));
         vm.mockCall(badASR, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
         vm.mockCall(badASR, abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(uint64(100)));
-
-        assertEq("PLDG-ANCHORP-10,PLDG-ANCHORP-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) Weth address is invalid.
-    function test_validate_faultDisputeGameInvalidWeth_succeeds() public {
+    ///         FaultDisputeGame (permissionless) Cannon Weth address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonWeth_succeeds() public {
+        _mockInvalidWeth(GameTypes.CANNON);
+        assertEq("PLDG-DWETH-10,PLDG-DWETH-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) CannonKona Weth address is invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaWeth_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        _mockInvalidWeth(GameTypes.CANNON_KONA);
+        assertEq("CKDG-DWETH-10,CKDG-DWETH-20", _validate(true));
+    }
+
+    function _mockInvalidWeth(GameType _gameType) internal {
         address badWeth = address(0xbad);
-        mockGameImplWeth(dgf, GameTypes.CANNON, badWeth);
+        mockGameImplWeth(dgf, _gameType, badWeth);
 
         // Mock invalid values
         vm.mockCall(badWeth, abi.encodeCall(IStaticERC1967Proxy.implementation, ()), abi.encode(address(0xdeadbeef)));
@@ -1517,8 +1602,6 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         );
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
-
-        assertEq("PLDG-DWETH-10,PLDG-DWETH-20", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1533,12 +1616,22 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.
-    function test_validate_faultDisputeGameInvalidL2ChainId_succeeds() public {
+    ///         FaultDisputeGame (permissionless) Cannon L2 Chain ID is invalid.
+    function test_validate_faultDisputeGameInvalidCannonL2ChainId_succeeds() public {
         uint256 badChainId = l2ChainId + 1;
         mockGameImplL2ChainId(dgf, GameTypes.CANNON, badChainId);
 
         assertEq("PLDG-60", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) CannonKona L2 Chain ID is invalid.
+    function test_validate_faultDisputeGameInvalidCannonKonaL2ChainId_succeeds() public {
+        skipIfDevFeatureDisabled(DevFeatures.CANNON_KONA);
+        uint256 badChainId = l2ChainId + 1;
+        mockGameImplL2ChainId(dgf, GameTypes.CANNON_KONA, badChainId);
+
+        assertEq("CKDG-60", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
