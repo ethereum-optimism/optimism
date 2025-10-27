@@ -551,6 +551,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidPermissionlessDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
+        GameType _gameType,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
         IProxyAdmin _admin,
@@ -561,12 +562,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        GameType gameType = GameTypes.CANNON;
-
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
-        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, _errorPrefix);
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, _gameType, _sysCfg, _errorPrefix);
         if (failedToGetImpl) {
             // Return early on failure to avoid trying to validate an invalid dispute game
             return _errors;
@@ -580,7 +579,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 absolutePrestate: _absolutePrestate,
                 l2ChainID: _l2ChainID,
                 admin: _admin,
-                gameType: gameType,
+                gameType: _gameType,
                 overrides: _overrides,
                 errorPrefix: _errorPrefix
             })
@@ -856,7 +855,14 @@ contract OPContractsManagerStandardValidator is ISemver {
             _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
-            _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _input.proxyAdmin, _overrides, "PLDG"
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _input.proxyAdmin,
+            _overrides,
+            "PLDG"
         );
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
