@@ -35,12 +35,12 @@ func TestDeployDisputeGame(t *testing.T) {
 		Release:                  "dev",
 		VmAddress:                vmAddr,
 		GameKind:                 "PermissionedDisputeGame",
-		GameType:                 big.NewInt(1),
+		GameType:                 1,
 		AbsolutePrestate:         common.Hash{'A'},
 		MaxGameDepth:             big.NewInt(int64(standard.DisputeMaxGameDepth)),
 		SplitDepth:               big.NewInt(int64(standard.DisputeSplitDepth)),
-		ClockExtension:           big.NewInt(int64(standard.DisputeClockExtension)),
-		MaxClockDuration:         big.NewInt(int64(standard.DisputeMaxClockDuration)),
+		ClockExtension:           standard.DisputeClockExtension,
+		MaxClockDuration:         standard.DisputeMaxClockDuration,
 		DelayedWethProxy:         common.Address{'D'},
 		AnchorStateRegistryProxy: common.Address{'A'},
 		L2ChainId:                big.NewInt(69),
@@ -81,5 +81,4 @@ func deployDisputeGameScriptVM(t *testing.T, host *script.Host) common.Address {
 	host.Label(bigStepperAddress, "BigStepper")
 
 	return bigStepperAddress
-
 }

@@ -27,12 +27,12 @@ contract DeployDisputeGame is Script {
         // Specify which game kind is being deployed here.
         string gameKind;
         // All inputs required to deploy FaultDisputeGame.
-        uint256 gameType;
+        GameType gameType;
         bytes32 absolutePrestate;
         uint256 maxGameDepth;
         uint256 splitDepth;
-        uint256 clockExtension;
-        uint256 maxClockDuration;
+        uint64 clockExtension;
+        uint64 maxClockDuration;
         IDelayedWETH delayedWethProxy;
         IAnchorStateRegistry anchorStateRegistryProxy;
         IBigStepper vmAddress;
@@ -57,12 +57,12 @@ contract DeployDisputeGame is Script {
     function deployDisputeGameImpl(Input memory _input, Output memory _output) internal {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
         IFaultDisputeGame.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(uint32(_input.gameType)),
+            gameType: _input.gameType,
             absolutePrestate: Claim.wrap(_input.absolutePrestate),
             maxGameDepth: _input.maxGameDepth,
             splitDepth: _input.splitDepth,
-            clockExtension: Duration.wrap(uint64(_input.clockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration)),
+            clockExtension: Duration.wrap(_input.clockExtension),
+            maxClockDuration: Duration.wrap(_input.maxClockDuration),
             vm: _input.vmAddress,
             weth: _input.delayedWethProxy,
             anchorStateRegistry: _input.anchorStateRegistryProxy,
@@ -103,14 +103,9 @@ contract DeployDisputeGame is Script {
     }
 
     function assertValidInput(Input memory _input) internal pure {
-        require(_input.gameType <= type(uint32).max, "DeployDisputeGame: gameType must fit inside uint32");
         require(_input.absolutePrestate != bytes32(0), "DeployDisputeGame: absolutePrestate not set");
         require(_input.maxGameDepth != 0, "DeployDisputeGame: maxGameDepth not set");
         require(_input.splitDepth != 0, "DeployDisputeGame: splitDepth not set");
-        require(_input.clockExtension <= type(uint64).max, "DeployDisputeGame: clockExtension must fit inside uint64");
-        require(
-            _input.maxClockDuration <= type(uint64).max, "DeployDisputeGame: maxClockDuration must fit inside uint64"
-        );
         require(_input.l2ChainId != 0, "DeployDisputeGame: l2ChainId not set");
         require(address(_input.delayedWethProxy) != address(0), "DeployDisputeGame: delayedWethProxy not set");
         require(
@@ -134,7 +129,7 @@ contract DeployDisputeGame is Script {
 
         DeployUtils.assertValidContractAddress(address(game));
 
-        require(game.gameType().raw() == uint32(_input.gameType), "DG-10");
+        require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
         require(game.maxGameDepth() == _input.maxGameDepth, "DG-20");
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");

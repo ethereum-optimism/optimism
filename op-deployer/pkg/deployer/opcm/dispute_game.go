@@ -11,12 +11,12 @@ import (
 type DeployDisputeGameInput struct {
 	Release                  string
 	GameKind                 string
-	GameType                 *big.Int
+	GameType                 uint32
 	AbsolutePrestate         common.Hash
 	MaxGameDepth             *big.Int
 	SplitDepth               *big.Int
-	ClockExtension           *big.Int
-	MaxClockDuration         *big.Int
+	ClockExtension           uint64
+	MaxClockDuration         uint64
 	DelayedWethProxy         common.Address
 	AnchorStateRegistryProxy common.Address
 	VmAddress                common.Address

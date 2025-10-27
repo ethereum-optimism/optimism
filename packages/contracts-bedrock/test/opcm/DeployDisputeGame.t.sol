@@ -11,6 +11,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 // Libraries
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
@@ -42,7 +43,7 @@ contract DeployDisputeGame_Test is Test {
     function testFuzz_run_withFaultDisputeGame_succeeds(
         DeployDisputeGame.Input memory _input,
         uint32 _gameType,
-        uint32 _clockExtension,
+        uint64 _clockExtension,
         uint64 _maxClockDuration,
         uint8 _splitDepth,
         uint8 _maxGameDepth
@@ -65,8 +66,8 @@ contract DeployDisputeGame_Test is Test {
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
 
         _input.gameKind = "FaultDisputeGame";
-        _input.gameType = _gameType;
-        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
+        _input.gameType = GameType.wrap(_gameType);
+        _input.clockExtension = uint64(bound(_clockExtension, 1, _maxClockDuration / 2));
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
@@ -79,7 +80,7 @@ contract DeployDisputeGame_Test is Test {
     function testFuzz_run_withPermissionedDisputeGame_succeeds(
         DeployDisputeGame.Input memory _input,
         uint32 _gameType,
-        uint32 _clockExtension,
+        uint64 _clockExtension,
         uint64 _maxClockDuration,
         uint8 _splitDepth,
         uint8 _maxGameDepth
@@ -102,8 +103,8 @@ contract DeployDisputeGame_Test is Test {
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
 
         _input.gameKind = "PermissionedDisputeGame";
-        _input.gameType = _gameType;
-        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
+        _input.gameType = GameType.wrap(_gameType);
+        _input.clockExtension = uint64(bound(_clockExtension, 1, _maxClockDuration / 2));
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
@@ -173,59 +174,11 @@ contract DeployDisputeGame_Test is Test {
         deployDisputeGame.run(input);
     }
 
-    function test_run_withClockExtensionTooLarge_reverts(uint256 _clockExtension) public {
-        vm.assume(_clockExtension > type(uint64).max);
-
-        DeployDisputeGame.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.clockExtension = _clockExtension;
-        vm.expectRevert("DeployDisputeGame: clockExtension must fit inside uint64");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.clockExtension = _clockExtension;
-        vm.expectRevert("DeployDisputeGame: clockExtension must fit inside uint64");
-        deployDisputeGame.run(input);
-    }
-
-    function test_run_withGameTypeTooLarge_reverts(uint256 _gameType) public {
-        vm.assume(_gameType > type(uint32).max);
-
-        DeployDisputeGame.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.gameType = _gameType;
-        vm.expectRevert("DeployDisputeGame: gameType must fit inside uint32");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.gameType = _gameType;
-        vm.expectRevert("DeployDisputeGame: gameType must fit inside uint32");
-        deployDisputeGame.run(input);
-    }
-
-    function test_run_withMaxClockDurationTooLarge_reverts(uint256 _maxClockDuration) public {
-        vm.assume(_maxClockDuration > type(uint64).max);
-
-        DeployDisputeGame.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.maxClockDuration = _maxClockDuration;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration must fit inside uint64");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.maxClockDuration = _maxClockDuration;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration must fit inside uint64");
-        deployDisputeGame.run(input);
-    }
-
     function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame.Input memory input_) {
         input_ = DeployDisputeGame.Input({
             release: "op-contracts",
             gameKind: "FaultDisputeGame",
-            gameType: 1,
+            gameType: GameType.wrap(1),
             absolutePrestate: bytes32(uint256(1)),
             maxGameDepth: 10,
             splitDepth: 2,
@@ -244,7 +197,7 @@ contract DeployDisputeGame_Test is Test {
         input_ = DeployDisputeGame.Input({
             release: "op-contracts",
             gameKind: "PermissionedDisputeGame",
-            gameType: 1,
+            gameType: GameType.wrap(1),
             absolutePrestate: bytes32(uint256(1)),
             maxGameDepth: 10,
             splitDepth: 2,
