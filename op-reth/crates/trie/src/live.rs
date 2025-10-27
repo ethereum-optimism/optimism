@@ -119,7 +119,7 @@ where
             ?execute_block_duration,
             ?calculate_state_root_duration,
             ?write_trie_updates_duration,
-            "Stored trie updates",
+            "Trie updates stored successfully",
         );
 
         Ok(())

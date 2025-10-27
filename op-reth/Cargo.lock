@@ -8388,6 +8388,7 @@ version = "1.10.2"
 version = "1.9.3"
 >>>>>>> 2a60f019b8 (feat: add binary entry point for external proofs in OP (#222)):Cargo.lock
 dependencies = [
+ "alloy-consensus",
  "derive_more",
  "eyre",
  "futures",
@@ -8409,6 +8410,7 @@ dependencies = [
 =======
 >>>>>>> cfe990e62b (chore(exex): Add missing crate header to `reth-optimism-exex` (#271)):Cargo.lock
  "tokio",
+ "tracing",
 ]
 
 [[package]]

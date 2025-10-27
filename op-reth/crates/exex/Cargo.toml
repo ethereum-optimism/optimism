@@ -23,10 +23,14 @@ reth-chainspec.workspace = true
 # proofs exex handles `TrieUpdates` in notifications
 reth-optimism-trie = { workspace = true, features = ["serde-bincode-compat"] }
 
+# alloy
+alloy-consensus.workspace = true
+
 # misc
 eyre.workspace = true
 futures-util.workspace = true
 derive_more.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }

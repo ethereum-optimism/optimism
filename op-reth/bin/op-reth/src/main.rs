@@ -81,20 +81,23 @@ async fn launch_node_with_storage<S>(
 where
     S: OpProofsStore + Clone + 'static,
 {
-    let storage_clone = storage.clone();
+    let storage_exec = storage.clone();
+    let storage_rpc = storage.clone();
     let proofs_history_enabled = args.proofs_history;
     let handle = builder
         .node(OpNode::new(args.rollup_args))
         .install_exex_if(proofs_history_enabled, "proofs-history", async move |exex_context| {
-            Ok(OpProofsExEx::new(exex_context, storage, args.proofs_history_window).run().boxed())
+            Ok(OpProofsExEx::new(exex_context, storage_exec, args.proofs_history_window)
+                .run()
+                .boxed())
         })
         .extend_rpc_modules(move |ctx| {
             if proofs_history_enabled {
-                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage_clone.clone());
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage_rpc.clone());
                 let debug_ext = DebugApiExt::new(
                     ctx.node().provider().clone(),
                     ctx.registry.eth_api().clone(),
-                    storage_clone,
+                    storage_rpc,
                     Box::new(ctx.node().task_executor().clone()),
                     ctx.node().evm_config().clone(),
                 );
