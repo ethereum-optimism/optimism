@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func UnsafeChainStalling_DisabledReqRespSync(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 	require := t.Require()
@@ -56,7 +56,7 @@ func UnsafeChainStalling_DisabledReqRespSync(gt *testing.T, syncMode sync.Mode, 
 	sys.L2CLB.Reached(types.LocalUnsafe, ssA_after.UnsafeL2.Number, 30)
 }
 
-func UnsafeChainStalling_DisabledReqRespSync_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
+func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 	require := t.Require()
