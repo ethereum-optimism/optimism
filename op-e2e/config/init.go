@@ -498,7 +498,7 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	once.Do(func() {
 		f, err := os.Open(path.Join(monorepoRoot, "op-program", "bin", filename))
 		if err != nil {
-			log.Warn("error opening prestate file", "err", err)
+			log.Error("error opening prestate file", "err", err)
 			return
 		}
 		defer f.Close()
@@ -506,7 +506,7 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 		var prestate prestateFile
 		dec := json.NewDecoder(f)
 		if err := dec.Decode(&prestate); err != nil {
-			log.Warn("error decoding prestate file", "err", err)
+			log.Error("error decoding prestate file", "err", err)
 			return
 		}
 
