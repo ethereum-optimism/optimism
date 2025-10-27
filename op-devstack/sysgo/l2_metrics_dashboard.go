@@ -128,8 +128,8 @@ func (g *L2MetricsDashboard) startGrafana() {
 
 func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
-		// don't start prometheus or grafana if there is nothing exporting metrics.
-		if orch.l2MetricsEndpoints.Len() == 0 {
+		// don't start prometheus or grafana if metrics are disabled or there is nothing exporting metrics.
+		if !AreMetricsEnabled() || orch.l2MetricsEndpoints.Len() == 0 {
 			return
 		}
 

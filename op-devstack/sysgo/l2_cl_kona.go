@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -46,7 +45,6 @@ type KonaNode struct {
 
 	sub *SubProcess
 
-	areMetricsEnabled        bool
 	registerMetricsEndpoints func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
 }
 
@@ -126,7 +124,7 @@ func (k *KonaNode) Start() {
 	var userRPCAddr string
 	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 
-	if k.areMetricsEnabled {
+	if AreMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
 		k.registerMetricsEndpoints("kona-node", metricsEndpoint)
@@ -224,9 +222,6 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NoError(err, "must write l1 chain config")
 		p.Require().NoError(err, os.WriteFile(tempL1CfgPath, l1CfgData, 0o644))
 
-		//NB: Defaults to false on parsing err
-		areMetricsEnabled, _ := strconv.ParseBool(GetEnvVarOrDefault("KONA_METRICS_ENABLED", "false"))
-
 		envVars := []string{
 			"KONA_NODE_L1_ETH_RPC=" + l1EL.UserRPC(),
 			"KONA_NODE_L1_BEACON=" + l1CL.beaconHTTPAddr,
@@ -237,7 +232,6 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-			"KONA_METRICS_ENABLED=" + fmt.Sprintf("%t", areMetricsEnabled),
 			PropagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 			PropagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
@@ -251,7 +245,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
 
-		if areMetricsEnabled {
+		if AreMetricsEnabled() {
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithKonaNode: getting metrics port")
 
@@ -259,6 +253,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			// own port, but prometheus doesn't expose that port, so we can't log it and
 			// parse it here. If/when that gets changed, update this default to "0".
 			envVars = append(envVars, PropagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 		}
 
 		if cfg.IsSequencer {
@@ -294,7 +289,6 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			args:                     []string{"node"},
 			env:                      envVars,
 			p:                        p,
-			areMetricsEnabled:        areMetricsEnabled,
 			registerMetricsEndpoints: orch.RegisterL2MetricsEndpoints,
 		}
 		p.Logger().Info("Starting kona-node")

@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -41,7 +40,6 @@ type OpReth struct {
 
 	sub *SubProcess
 
-	areMetricsEnabled        bool
 	registerMetricsEndpoints func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
 }
 
@@ -138,7 +136,7 @@ func (n *OpReth) Start() {
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
 
-	if n.areMetricsEnabled {
+	if AreMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
 		n.registerMetricsEndpoints("op-reth", metricsEndpoint)
@@ -280,9 +278,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			"-vvvv",
 		}
 
-		//NB: Defaults to false on parsing err
-		areMetricsEnabled, _ := strconv.ParseBool(GetEnvVarOrDefault("OP_RETH_METRICS_ENABLED", "false"))
-		if areMetricsEnabled {
+		if AreMetricsEnabled() {
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithOpReth: getting metrics port")
 			args = append(args, "--metrics="+metricsPort)
@@ -302,7 +298,6 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			args:                     args,
 			env:                      []string{},
 			p:                        p,
-			areMetricsEnabled:        areMetricsEnabled,
 			registerMetricsEndpoints: orch.RegisterL2MetricsEndpoints,
 		}
 

@@ -164,28 +164,25 @@ and returns a typed output that the test then may use.
 - `DEVSTACK_L1EL_KIND=geth` to select geth as default L1 EL node
 - `SYSGO_GETH_EXEC_PATH=/path/to/geth` to select the geth executable to run
 
-### Metrics env vars (note: only applicable if any L2 component calls `Orchestrator.RegisterL2MetricsEndpoints`):
+### Metrics env vars:
+- `SYSGO_METRICS_ENABLED` set to `true` to enable metrics to be exposed via prometheus and grafana for all running components that expose metrics (default: `false`)
 - `SYSGO_DOCKER_EXEC_PATH` path to docker executable (defaults to `docker` assuming it is in your `PATH`)
 - `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
 - `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)
-- `KONA_METRICS_ENABLED` set to `true` to enable `kona-node` instances to report metrics.
-- `OP_RETH_METRICS_ENABLED` set to `true` to enable `op-reth` instances to report metrics.
 
 ### Other useful env vars:
 - `DISABLE_OP_E2E_LEGACY=true` to disable the op-e2e package from loading build-artifacts that are not used by devstack.
 
 ## Metrics
-If any component is configured to expose metrics, prometheus and grafana instances will be created via docker to serve them to the user.
+If [metrics are enabled](#metrics-env-vars) and any component is configured to expose metrics, prometheus and grafana instances will be created via docker to serve them to the user.
 
 If metrics are enabled, the grafana instance will be served at `http://localhost:3000`. If that port is in use, the dev stack may fail to deploy.
 
 ### Requirements
-The [Docker](https://docs.docker.com) binary must be installed and either be available in your `PATH` as `docker` or configured via `SYSGO_DOCKER_EXEC_PATH` See [Environment Variables](#environment-variables).
-
-### Enabling Metrics
-Metrics for each applicable component may be enabled/disabled via env vars. See [this](#metrics-env-vars-note-only-applicable-if-any-l2-component-calls-orchestratorregisterl2metricsendpoints) for more info.
+The [Docker](https://docs.docker.com) binary must be installed and either be available in your `PATH` as `docker` or configured via `SYSGO_DOCKER_EXEC_PATH` See [Environment Variables](#metrics-env-vars).
 
 ### Configuring dashboards
 When configuring dashboards, note that there is a single prometheus datasource available at `http://host.docker.internal:9999`.
 
-Note: It is recommended to set a `SYSGO_GRAFANA_PROVISIONING_DIR` and `SYSGO_GRAFANA_DATA_DIR`. This allows any configured datasources, dashboards, and visualizations to persist across restarts. If these variables are not set, temporary directories will be used and any configuration will be lost on restart.
+> [!TIP]
+> It is recommended to set a `SYSGO_GRAFANA_PROVISIONING_DIR` and `SYSGO_GRAFANA_DATA_DIR`. This allows any configured datasources, dashboards, and visualizations to persist across restarts. If these variables are not set, temporary directories will be used and any configuration will be lost on restart.
