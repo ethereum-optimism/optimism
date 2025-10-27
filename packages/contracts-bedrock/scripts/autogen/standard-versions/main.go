@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// generates the standard-versions-<network>.toml file content for a given release tag, to facilitate updates to the
+// Superchain Registry.
+//
+// Usage:
+// go run ./scripts/autogen/standard-versions \
+//   --release <release tag> \
+//   --opcm <OPCM_ADDRESS> \
+//   --rpc-url <RPC_URL>
 func main() {
 	release := flag.String("release", "", "Release version (e.g., op-contracts/v5.0.0-rc.2)")
 	opcm := flag.String("opcm", "", "OPCM contract address")
