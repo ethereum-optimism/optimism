@@ -30,9 +30,9 @@ svm-rs = "0.5.19"
 # GitHub release, so we need to use the aliasing trick to get mise to not error
 # The git ref here should be on the `stable` branch.
 # Updated to use the specific nightly build
-forge = "1.1.0"
-cast = "1.1.0"
-anvil = "1.1.0"
+forge = "1.2.3"
+cast = "1.2.3"
+anvil = "1.2.3"
 
 # Other dependencies
 codecov-uploader = "0.8.0"
