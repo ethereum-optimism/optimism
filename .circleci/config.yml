@@ -1303,19 +1303,30 @@ jobs:
         description: Number machines to distribute the tests across
         type: integer
         default: 1
-    machine: true
-    resource_class: <<parameters.resource_class>>
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: 2xlarge
     circleci_ip_ranges: true
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout-from-workspace
+      - restore_cache:
+          key: go-tests-v2-{{ checksum "go.mod" }}
       - run:
           name: Run Go tests via Makefile
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
+            # set to less than number CPUs (xlarge Docker is 16 CPU) so there's some buffer for things
+            # like Geth
+            export PARALLEL=12
             make <<parameters.rule>>
+      - save_cache:
+          key: go-tests-v2-{{ checksum "go.mod" }}
+          paths:
+            - "~/.cache/go-build"
+            - "~/go"
       - store_test_results:
           path: ./tmp/test-results
       - run:
@@ -2460,7 +2471,7 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
-          parallelism: 2
+          parallelism: 12
           no_output_timeout: 19m
           test_timeout: 20m
           requires:
@@ -2474,7 +2485,7 @@ workflows:
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci" # Run full test suite instead of short
-          parallelism: 2
+          parallelism: 16
           no_output_timeout: 89m # Longer timeout for full tests
           test_timeout: 90m
           notify: true
