@@ -864,6 +864,19 @@ contract OPContractsManagerStandardValidator is ISemver {
             _overrides,
             "PLDG"
         );
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.CANNON_KONA)) {
+            _errors = assertValidPermissionlessDisputeGame(
+                _errors,
+                _input.sysCfg,
+                GameTypes.CANNON_KONA,
+                _input.cannonKonaPrestate,
+                _input.l2ChainID,
+                _input.proxyAdmin,
+                _overrides,
+                "CKDG"
+            );
+        }
+
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
