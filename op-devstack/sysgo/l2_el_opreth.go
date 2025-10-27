@@ -90,8 +90,8 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLogger(n.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(n.p.Logger().New("src", "stderr"))
+	logOut := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stdout"))
+	logErr := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stderr"))
 
 	authRPCChan := make(chan string, 1)
 	defer close(authRPCChan)

@@ -90,8 +90,8 @@ func (k *KonaNode) Start() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
 	// And inspect them along the way, to get the RPC server address.
-	logOut := logpipe.ToLogger(k.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(k.p.Logger().New("src", "stderr"))
+	logOut := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stdout"))
+	logErr := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stderr"))
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
 
