@@ -63,8 +63,8 @@ func (g *L2MetricsDashboard) Stop() {
 func (g *L2MetricsDashboard) startPrometheus() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
-	logOut := logpipe.ToLogger(g.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(g.p.Logger().New("src", "stderr"))
+	logOut := logpipe.ToLogger(g.p.Logger().New("component", "prometheus", "src", "stdout"))
+	logErr := logpipe.ToLogger(g.p.Logger().New("component", "prometheus", "src", "stderr"))
 
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
@@ -104,8 +104,8 @@ func (g *L2MetricsDashboard) startPrometheus() {
 func (g *L2MetricsDashboard) startGrafana() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
-	logOut := logpipe.ToLogger(g.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(g.p.Logger().New("src", "stderr"))
+	logOut := logpipe.ToLogger(g.p.Logger().New("component", "grafana", "src", "stdout"))
+	logErr := logpipe.ToLogger(g.p.Logger().New("component", "grafana", "src", "stderr"))
 
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
