@@ -1279,10 +1279,6 @@ jobs:
         description: Slack user or group to mention when notifying of failures
         type: string
         default: ""
-      resource_class:
-        description: Machine resource class
-        type: string
-        default: ethereum-optimism/latitude-1-go-e2e
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
