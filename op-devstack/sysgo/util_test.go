@@ -25,12 +25,12 @@ func TestGetEnvVarOrDefault(t *testing.T) {
 		defaultValue string
 		expected     string
 	}{
-		{osValue: strPtr("a"), defaultValue: "b", expected: "a"},
-		{osValue: strPtr("a"), defaultValue: "", expected: "a"},
-		{osValue: strPtr(""), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(""), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(unsetVar), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(unsetVar), defaultValue: "", expected: ""},
+		{name: "Use OS value, no default", osValue: strPtr("a"), defaultValue: "", expected: "a"},
+		{name: "Use OS value with default", osValue: strPtr("a"), defaultValue: "b", expected: "a"},
+		{name: "Use empty OS Value with default", osValue: strPtr(""), defaultValue: "b", expected: ""},
+		{name: "Use empty OS Value, no default", osValue: strPtr(""), defaultValue: "", expected: ""},
+		{name: "Use default", osValue: strPtr(unsetVar), defaultValue: "b", expected: "b"},
+		{name: "Use empty default", osValue: strPtr(unsetVar), defaultValue: "", expected: ""},
 	}
 
 	for i, test := range tests {
@@ -57,12 +57,12 @@ func TestPropagateEnvVarOrDefault(t *testing.T) {
 		defaultValue string
 		expected     string
 	}{
-		{osValue: strPtr("a"), defaultValue: "b", expected: "a"},
-		{osValue: strPtr("a"), defaultValue: "", expected: "a"},
-		{osValue: strPtr(""), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(""), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(unsetVar), defaultValue: "b", expected: "b"},
-		{osValue: strPtr(unsetVar), defaultValue: "", expected: ""},
+		{name: "Use OS value, no default", osValue: strPtr("a"), defaultValue: "", expected: "a"},
+		{name: "Use OS value with default", osValue: strPtr("a"), defaultValue: "b", expected: "a"},
+		{name: "Use empty OS Value with default", osValue: strPtr(""), defaultValue: "b", expected: ""},
+		{name: "Use empty OS Value with empty default", osValue: strPtr(""), defaultValue: "", expected: ""},
+		{name: "Use default", osValue: strPtr(unsetVar), defaultValue: "b", expected: "b"},
+		{name: "Use empty default", osValue: strPtr(unsetVar), defaultValue: "", expected: ""},
 	}
 
 	for i, test := range tests {
@@ -76,7 +76,7 @@ func TestPropagateEnvVarOrDefault(t *testing.T) {
 			}
 
 			res := PropagateEnvVarOrDefault(varName, test.defaultValue)
-			if (test.osValue == nil || *test.osValue == "") && test.defaultValue == "" {
+			if (test.osValue != nil && *test.osValue == "") || (test.osValue == nil && test.defaultValue == "") {
 				require.Equal(t, res, "")
 			} else {
 				require.Equal(t, res, fmt.Sprintf("%s=%s", varName, test.expected))
