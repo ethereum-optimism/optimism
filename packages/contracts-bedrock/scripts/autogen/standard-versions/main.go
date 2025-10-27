@@ -22,10 +22,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// First output the release header
+	// Verify that the current git commit matches the release tag
+	if err := verifyGitTag(*release); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 1. First output the release header
 	fmt.Printf("[\"%s\"]\n", *release)
 
-	// Get OPCM version
+	// 2. Get OPCM version
 	opcmVersion, err := getVersion(*opcm, *rpcURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error getting OPCM version: %v\n", err)
@@ -33,7 +39,18 @@ func main() {
 	}
 	fmt.Printf("op_contracts_manager = { version = \"%s\", address = \"%s\" }\n", opcmVersion, strings.ToLower(*opcm))
 
-	// Get the Dispute game versions from the source code (these contracts are deployed via blueprint, so the versions
+	// 3. Get implementations and their versions
+	implementations, err := getImplementations(*opcm, *rpcURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting implementations: %v\n", err)
+		os.Exit(1)
+	}
+	if err := outputImplementations(implementations, *rpcURL); err != nil {
+		fmt.Fprintf(os.Stderr, "Error outputting implementations: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 4. Get the Dispute game versions from the source code (these contracts are deployed via blueprint, so the versions
 	// cannot easily be read for the OPCM's implementations struct).
 	faultVersion, err := extractVersionFromSource("src/dispute/FaultDisputeGame.sol")
 	if err != nil {
@@ -47,19 +64,32 @@ func main() {
 	}
 	fmt.Printf("fault_dispute_game = { version = \"%s\" }\n", faultVersion)
 	fmt.Printf("permissioned_dispute_game = { version = \"%s\" }\n", permissionedVersion)
+}
 
-	// Get implementations and their versions
-	implementations, err := getImplementations(*opcm, *rpcURL)
+// verifyGitTag checks that the current git commit matches the specified tag
+func verifyGitTag(tag string) error {
+	// Get the current commit hash
+	currentCmd := exec.Command("git", "rev-parse", "HEAD")
+	currentOutput, err := currentCmd.Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting implementations: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to get current commit: %w", err)
+	}
+	currentCommit := strings.TrimSpace(string(currentOutput))
+
+	// Get the commit hash for the tag
+	tagCmd := exec.Command("git", "rev-list", "-n", "1", tag)
+	tagOutput, err := tagCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get commit for tag %s: %w (is the tag valid?)", tag, err)
+	}
+	tagCommit := strings.TrimSpace(string(tagOutput))
+
+	// Compare the commits
+	if currentCommit != tagCommit {
+		return fmt.Errorf("current commit (%s) does not match tag %s (%s)", currentCommit[:8], tag, tagCommit[:8])
 	}
 
-	// Output each implementation with its version
-	if err := outputImplementations(implementations, *rpcURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Error outputting implementations: %v\n", err)
-		os.Exit(1)
-	}
+	return nil
 }
 
 // getVersion calls version() on a contract and returns the version string
@@ -233,10 +263,6 @@ var nameMapping = map[string]string{
 	"preimageOracleImpl":                "preimage_oracle",
 	"faultDisputeGameV2Impl":            "fault_dispute_game_v2",
 	"permissionedDisputeGameV2Impl":     "permissioned_dispute_game_v2",
-	"superFaultDisputeGameImpl":         "super_fault_dispute_game",
-	"superPermissionedDisputeGameImpl":  "super_permissioned_dispute_game",
-	"superPermissionlessDisputeGame1":   "super_permissionless_dispute_game_1",
-	"superPermissionlessDisputeGame2":   "super_permissionless_dispute_game_2",
 }
 
 // tomlKeyFromABIName converts an ABI field name to a TOML key
