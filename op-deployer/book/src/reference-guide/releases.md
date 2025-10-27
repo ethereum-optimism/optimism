@@ -104,6 +104,18 @@ return tag == ContractsVXTag
 
 Add the new RC to the [standard versions][std-vers] in the Superchain Registry.
 
+To generate the TOML entry for the new release, use the `standard-versions` script from the contracts-bedrock repository:
+
+```bash
+cd packages/contracts-bedrock
+go run ./scripts/autogen/standard-versions \
+  --release op-contracts/vX.Y.Z \
+  --opcm <OPCM_ADDRESS> \
+  --rpc-url <RPC_URL>
+```
+
+This will output a TOML block that can be added to the standard versions file in the Superchain Registry. 
+
 [std-vers]: https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard
 
 ### Step 4: Update the `validation` Package
