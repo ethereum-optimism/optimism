@@ -41,10 +41,41 @@ contract L2ToL1MessagePasser_Receive_Test is CommonTest {
 
         vm.deal(address(this), _value);
         (bool success,) = address(l2ToL1MessagePasser).call{ value: _value }("");
-        
+
         assertTrue(success);
         assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);
         assertEq(l2ToL1MessagePasser.messageNonce(), nonce + 1);
+    }
+}
+
+/// @title L2ToL1MessagePasser_Burn_Test
+/// @notice Tests the `burn` function of the `L2ToL1MessagePasser` contract.
+contract L2ToL1MessagePasser_Burn_Test is CommonTest {
+    /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
+    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
+        vm.deal(address(this), _value);
+
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+
+        assertEq(address(l2ToL1MessagePasser).balance, _value);
+
+        vm.expectEmit(address(l2ToL1MessagePasser));
+        emit WithdrawerBalanceBurnt(_value);
+        l2ToL1MessagePasser.burn();
+
+        // The Withdrawer should have no balance
+        assertEq(address(l2ToL1MessagePasser).balance, 0);
+    }
+
+    /// @notice Tests that `burn` succeeds when contract has zero balance.
+    function test_burn_zeroBalance_succeeds() external {
+        assertEq(address(l2ToL1MessagePasser).balance, 0);
+
+        vm.expectEmit(address(l2ToL1MessagePasser));
+        emit WithdrawerBalanceBurnt(0);
+        l2ToL1MessagePasser.burn();
+
+        assertEq(address(l2ToL1MessagePasser).balance, 0);
     }
 }
 
@@ -89,38 +120,6 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 
         assertEq(vm.load(address(l2ToL1MessagePasser), slot), bytes32(uint256(1)));
     }
-
-}
-
-/// @title L2ToL1MessagePasser_Burn_Test
-/// @notice Tests the `burn` function of the `L2ToL1MessagePasser` contract.
-contract L2ToL1MessagePasser_Burn_Test is CommonTest {
-    /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
-    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
-        vm.deal(address(this), _value);
-
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
-
-        assertEq(address(l2ToL1MessagePasser).balance, _value);
-        
-        vm.expectEmit(address(l2ToL1MessagePasser));
-        emit WithdrawerBalanceBurnt(_value);
-        l2ToL1MessagePasser.burn();
-
-        // The Withdrawer should have no balance
-        assertEq(address(l2ToL1MessagePasser).balance, 0);
-    }
-
-    /// @notice Tests that `burn` succeeds when contract has zero balance.
-    function test_burn_zeroBalance_succeeds() external {
-        assertEq(address(l2ToL1MessagePasser).balance, 0);
-        
-        vm.expectEmit(address(l2ToL1MessagePasser));
-        emit WithdrawerBalanceBurnt(0);
-        l2ToL1MessagePasser.burn();
-
-        assertEq(address(l2ToL1MessagePasser).balance, 0);
-    }
 }
 
 /// @title L2ToL1MessagePasser_MessageNonce_Test
@@ -129,7 +128,7 @@ contract L2ToL1MessagePasser_MessageNonce_Test is CommonTest {
     /// @notice Tests that messageNonce encodes version in upper bytes.
     function test_messageNonce_encodesVersion_succeeds() external view {
         uint256 nonce = l2ToL1MessagePasser.messageNonce();
-        
+
         // MESSAGE_VERSION is 1, should be in upper 2 bytes
         // Version is stored in bits 240-255 (upper 2 bytes of uint256)
         uint256 version = nonce >> 240;
