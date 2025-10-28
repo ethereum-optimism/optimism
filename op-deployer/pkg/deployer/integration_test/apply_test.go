@@ -156,7 +156,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 //  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
 //  4. call opcm.upgrade on the opcm deployed in [2]
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
+	op_e2e.InitParallel(t)
+
 	t.Run("main upgrade", func(t *testing.T) {
+		op_e2e.InitParallel(t)
 		lgr := testlog.Logger(t, slog.LevelDebug)
 
 		forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
@@ -199,6 +202,7 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 	})
 
 	t.Run("upgrade with DeployV2DisputeGamesDevFlag", func(t *testing.T) {
+		op_e2e.InitParallel(t)
 		lgr := testlog.Logger(t, slog.LevelDebug)
 
 		forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
@@ -243,6 +247,58 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
 		})
 	})
+
+	t.Run("upgrade with CannonKona", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		lgr := testlog.Logger(t, slog.LevelDebug)
+
+		forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+		require.NoError(t, err)
+		pkHex, _, _ := shared.DefaultPrivkey(t)
+		t.Cleanup(func() {
+			require.NoError(t, stopL1())
+		})
+		loc, afactsFS := testutil.LocalArtifacts(t)
+		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+		superchain, err := standard.SuperchainFor(11155111)
+		require.NoError(t, err)
+
+		superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+		require.NoError(t, err)
+
+		superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+		require.NoError(t, err)
+
+		var devFeature common.Hash
+		devFeature = deployer.ToggleDevFeature(devFeature, deployer.DeployV2DisputeGamesDevFlag, true)
+		devFeature = deployer.ToggleDevFeature(devFeature, deployer.CannonKonaDevFlag, true)
+
+		runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, bootstrap.ImplementationsConfig{
+			L1RPCUrl:                        forkedL1.RPCUrl(),
+			PrivateKey:                      pkHex,
+			ArtifactsLocator:                loc,
+			MIPSVersion:                     int(standard.MIPSVersion),
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			DevFeatureBitmap:                devFeature,
+			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+			L1ProxyAdminOwner:               superchainProxyAdminOwner,
+			SuperchainProxyAdmin:            superchainProxyAdmin,
+			CacheDir:                        testCacheDir,
+			Logger:                          lgr,
+			Challenger:                      common.Address{'C'},
+			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
+			FaultGameSplitDepth:             standard.DisputeSplitDepth,
+			FaultGameClockExtension:         standard.DisputeClockExtension,
+			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
+		})
+	})
+
 }
 
 func TestEndToEndApply(t *testing.T) {
@@ -755,15 +811,20 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		})
 
 		// Then run the OPCM upgrade
+		var cannonKonaPrestate common.Hash
+		if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.CannonKonaDevFlag) {
+			cannonKonaPrestate = common.Hash{'K', 'O', 'N', 'A'}
+		}
 		t.Run("upgrade opcm", func(t *testing.T) {
 			upgradeConfig := embedded.UpgradeOPChainInput{
 				Prank: superchainProxyAdminOwner,
 				Opcm:  impls.Opcm,
 				EncodedChainConfigs: []embedded.OPChainConfig{
 					{
-						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-						ProxyAdmin:        implementationsConfig.SuperchainProxyAdmin,
-						CannonPrestate:    common.Hash{'A', 'P'},
+						SystemConfigProxy:  common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						ProxyAdmin:         implementationsConfig.SuperchainProxyAdmin,
+						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
+						CannonKonaPrestate: cannonKonaPrestate,
 					},
 				},
 			}

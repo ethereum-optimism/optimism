@@ -30,3 +30,17 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
 	return featuresIsNonZero && bitmapContainsFeatures
 }
+
+// ToggleDevFeature enables or disables a specific development feature in a feature bitmap.
+func ToggleDevFeature(bitmap, flag common.Hash, enable bool) common.Hash {
+	b := new(big.Int).SetBytes(bitmap[:])
+	f := new(big.Int).SetBytes(flag[:])
+	if enable {
+		b.Or(b, f)
+	} else {
+		b.And(b, new(big.Int).Not(f))
+	}
+	var result common.Hash
+	b.FillBytes(result[:])
+	return result
+}
