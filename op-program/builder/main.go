@@ -88,7 +88,6 @@ func runBuildPrestates(cliCtx *cli.Context) error {
 	logger := setupLogger()
 	ctx := cliCtx.Context
 	releasesOnly := cliCtx.Bool("releases-only")
-	buildNext := versions.GetCurrentVersion() != versions.GetExperimentalVersion()
 
 	root, err := opservice.FindMonorepoRoot(".")
 	if err != nil {
@@ -107,7 +106,7 @@ func runBuildPrestates(cliCtx *cli.Context) error {
 		{programELF, versions.GetCurrentVersion(), "-mt64"},
 		{interopProgramELF, versions.GetCurrentVersion(), "-interop"},
 	}
-	if !releasesOnly && buildNext {
+	if !releasesOnly {
 		prestates = append(prestates, prestateInfo{programELF, versions.GetExperimentalVersion(), "-mt64Next"})
 		prestates = append(prestates, prestateInfo{interopProgramELF, versions.GetExperimentalVersion(), "-interopNext"})
 	}
@@ -118,7 +117,7 @@ func runBuildPrestates(cliCtx *cli.Context) error {
 		}
 	}
 
-	if !releasesOnly && !buildNext {
+	if !releasesOnly {
 		// some tests expect a "next" prestate to exist. So let's fake them if they weren't built.
 		copies := []struct {
 			src, dst string
