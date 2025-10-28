@@ -2,10 +2,10 @@ package sysgo
 
 import "strconv"
 
-const SysgoMetricsEnabledEnvVar = "SYSGO_METRICS_ENABLED"
+const sysgoMetricsEnabledEnvVar = "SYSGO_METRICS_ENABLED"
 
-func AreMetricsEnabled() bool {
-	enabledStr := GetEnvVarOrDefault(SysgoMetricsEnabledEnvVar, "false")
+func areMetricsEnabled() bool {
+	enabledStr := GetEnvVarOrDefault(sysgoMetricsEnabledEnvVar, "false")
 	enabled, err := strconv.ParseBool(enabledStr)
 	// NB: default to false on error parsing enabled setting
 	return err == nil && enabled

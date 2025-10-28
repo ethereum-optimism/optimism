@@ -30,7 +30,7 @@ func TestWithL2MetricsDashboard_DisabledIfEndpointsRegisteredButNotExplicitlyEna
 func TestWithL2MetricsDashboard_DisabledIfNoEndpointsRegisteredButExplicitlyEnabled(t *testing.T) {
 
 	o := &Orchestrator{}
-	err := os.Setenv(SysgoMetricsEnabledEnvVar, "true")
+	err := os.Setenv(sysgoMetricsEnabledEnvVar, "true")
 	require.NoError(t, err, "error setting metrics enabled")
 
 	// This should run without error if disabled

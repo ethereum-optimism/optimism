@@ -124,7 +124,7 @@ func (k *KonaNode) Start() {
 	var userRPCAddr string
 	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 
-	if AreMetricsEnabled() {
+	if areMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
 		k.registerMetricsEndpoints("kona-node", metricsEndpoint)
@@ -245,7 +245,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
 
-		if AreMetricsEnabled() {
+		if areMetricsEnabled() {
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithKonaNode: getting metrics port")
 
