@@ -1748,18 +1748,10 @@ jobs:
       - checkout-from-workspace
       - attach_workspace:
           at: .
-      - run:
-<<<<<<< HEAD
-=======
-          name: Lint/Vet/Build op-acceptance-tests/cmd
-          working_directory: op-acceptance-tests
-          command: |
-            just cmd-check
       - go-restore-cache:
           module: op-acceptance-tests
           namespace: mod
       - run:
->>>>>>> de48826834 (chore: Caching)
           name: Build flake-shake aggregator
           working_directory: op-acceptance-tests
           command: |
