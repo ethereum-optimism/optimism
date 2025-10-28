@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -488,7 +489,11 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT
 	} else if cannonVmType == state.VMTypeCannonNext {
-		filename = "prestate-proof-mt64Next.json"
+		if versions.GetCurrentVersion() != versions.GetExperimentalVersion() {
+			filename = "prestate-proof-mt64Next.json"
+		} else {
+			filename = "prestate-proof-mt64.json"
+		}
 		once = &cannonPrestateMTNextOnce
 		cacheVar = &cannonPrestateMTNext
 	} else {
