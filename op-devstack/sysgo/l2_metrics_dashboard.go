@@ -2,10 +2,9 @@ package sysgo
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -45,19 +44,65 @@ type L2MetricsDashboard struct {
 }
 
 func (g *L2MetricsDashboard) Start() {
-	g.startPrometheus()
-	g.startGrafana()
+	var startWaitGroup sync.WaitGroup
+
+	startWaitGroup.Add(1)
+	go func() {
+		defer startWaitGroup.Done()
+		g.startPrometheus()
+	}()
+
+	startWaitGroup.Add(1)
+	go func() {
+		defer startWaitGroup.Done()
+		g.startGrafana()
+	}()
+
+	startedCh := make(chan struct{})
+	go func() {
+		startWaitGroup.Wait()
+		close(startedCh)
+	}()
+
+	select {
+	case <-g.p.Ctx().Done():
+		g.p.Logger().Info("context done before prometheus and grafana started")
+	case <-startedCh:
+		g.p.Logger().Info("prometheus and grafana started successfully")
+	}
 }
 
 func (g *L2MetricsDashboard) Stop() {
-	err := g.grafanaSubprocess.Stop()
-	g.p.Require().NoError(err, "Grafana must stop")
+	var stopWaitGroup sync.WaitGroup
 
-	err = g.prometheusSubprocess.Stop()
-	g.p.Require().NoError(err, "Prometheus must stop")
+	stopWaitGroup.Add(1)
+	go func() {
+		defer stopWaitGroup.Done()
+		err := g.grafanaSubprocess.Stop()
+		g.p.Require().NoError(err, "Grafana must stop")
+		g.grafanaSubprocess = nil
+	}()
 
-	g.grafanaSubprocess = nil
-	g.prometheusSubprocess = nil
+	stopWaitGroup.Add(1)
+	go func() {
+		defer stopWaitGroup.Done()
+		err := g.prometheusSubprocess.Stop()
+		g.p.Require().NoError(err, "Prometheus must stop")
+		g.prometheusSubprocess = nil
+	}()
+
+	stoppedCh := make(chan struct{})
+	go func() {
+		stopWaitGroup.Wait()
+		close(stoppedCh)
+	}()
+
+	select {
+	case <-g.p.Ctx().Done():
+		g.p.Logger().Info("context done before prometheus and grafana exited")
+	case <-stoppedCh:
+		g.p.Logger().Info("prometheus and grafana stopped successfully")
+	}
 }
 
 func (g *L2MetricsDashboard) startPrometheus() {
@@ -80,22 +125,6 @@ func (g *L2MetricsDashboard) startPrometheus() {
 	if err := g.prometheusSubprocess.Start(g.prometheusExecPath, g.prometheusArgs, g.prometheusEnv); err != nil {
 		g.p.Logger().Error(fmt.Sprintf("Error starting prometheus: %+v", err))
 		g.p.Require().NoError(err, "Must start")
-	}
-
-	// Wait until prometheus is ready
-	url := fmt.Sprintf("%s/-/ready", g.prometheusEndpoint)
-	interval := 2 * time.Second
-
-	for {
-		resp, err := http.Get(url)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			resp.Body.Close()
-			break
-		}
-
-		g.p.Logger().Info(fmt.Sprintf("Waiting for prometheus to start at %s...", g.prometheusEndpoint))
-
-		time.Sleep(interval)
 	}
 
 	g.p.Logger().Info(fmt.Sprintf("Prometheus started at %s", g.prometheusEndpoint))
