@@ -222,7 +222,8 @@ interface IOPContractsManager {
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     /// @notice The input required to identify a chain for updating prestates

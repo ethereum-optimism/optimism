@@ -1049,15 +1049,38 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // If it exists, replace its implementation.
             // We're reusing the same DelayedWETH and ASR contracts.
             if (address(permissionlessDisputeGame) != address(0)) {
-                setNewGameImplV2({
+                IDisputeGameFactory disputeGameFactory =
+                    IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
+                Claim cannonPrestate = _opChainConfig.cannonPrestate.raw() != bytes32(0)
+                    ? _opChainConfig.cannonPrestate
+                    : getAbsolutePrestate(disputeGameFactory, address(permissionlessDisputeGame), GameTypes.CANNON);
+                setNewPermissionlessGameImplV2({
                     _impls: _impls,
                     _l2ChainId: _l2ChainId,
-                    _disputeGame: permissionlessDisputeGame,
+                    _newAbsolutePrestate: cannonPrestate,
                     _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
                     _newAnchorStateRegistryProxy: getAnchorStateRegistry(dgf, permissionlessDisputeGame, GameTypes.CANNON),
                     _gameType: GameTypes.CANNON,
-                    _opChainConfig: _opChainConfig
+                    _disputeGameFactory: disputeGameFactory
                 });
+
+                if (
+                    isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+                        && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0)
+                ) {
+                    setNewPermissionlessGameImplV2({
+                        _impls: _impls,
+                        _l2ChainId: _l2ChainId,
+                        _newAbsolutePrestate: _opChainConfig.cannonKonaPrestate,
+                        // CANNON and CANNON_KONA use the same weth and asr proxy addresses
+                        _newDelayedWeth: getWETH(dgf, permissionlessDisputeGame, GameTypes.CANNON),
+                        _newAnchorStateRegistryProxy: getAnchorStateRegistry(
+                            dgf, permissionlessDisputeGame, GameTypes.CANNON
+                        ),
+                        _gameType: GameTypes.CANNON_KONA,
+                        _disputeGameFactory: disputeGameFactory
+                    });
+                }
             }
         }
     }
@@ -1130,8 +1153,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
         // that already exists on the current dispute game.
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
-            params.absolutePrestate = _opChainConfig.absolutePrestate;
+        if (Claim.unwrap(_opChainConfig.cannonPrestate) != bytes32(0)) {
+            params.absolutePrestate = _opChainConfig.cannonPrestate;
         }
 
         // As a sanity check, if the prestate is zero here, revert.
@@ -1173,6 +1196,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 
+    event Debugme(string);
+    event Prestate(bytes32);
+
     /// @notice Sets the latest dispute game v2 implementations
     /// @param _impls The container for the new dispute game implementations.
     /// @param _l2ChainId The L2 chain ID
@@ -1194,49 +1220,99 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     {
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
-        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
-        // that already exists on the current dispute game.
+
         Claim absolutePrestate;
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) == bytes32(0)) {
-            absolutePrestate = getAbsolutePrestate(disputeGameFactory, address(_disputeGame), _gameType);
+        if (isKonaGameVariant(_gameType)) {
+            absolutePrestate = _opChainConfig.cannonKonaPrestate;
         } else {
-            absolutePrestate = _opChainConfig.absolutePrestate;
+            // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
+            // that already exists on the current dispute game.
+            if (Claim.unwrap(_opChainConfig.cannonPrestate) == bytes32(0)) {
+                absolutePrestate = getAbsolutePrestate(disputeGameFactory, address(_disputeGame), _gameType);
+            } else {
+                // We reuse the cannonPrestate for the permissioned game type
+                // This is only done conventionally. It's not important that the permissioned game uses a specific
+                // prestate
+                absolutePrestate = _opChainConfig.cannonPrestate;
+            }
+            // As a sanity check, if the cannon prestate is zero here, revert.
+            if (absolutePrestate.raw() == bytes32(0)) {
+                revert OPContractsManager.PrestateNotSet();
+            }
         }
 
-        // As a sanity check, if the prestate is zero here, revert.
-        if (absolutePrestate.raw() == bytes32(0)) {
-            revert OPContractsManager.PrestateNotSet();
+        // TODO: DEBUGME
+        if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
+            emit Debugme("cannon kona");
+            emit Prestate(_opChainConfig.cannonKonaPrestate.raw());
+            emit Prestate(getAbsolutePrestate(disputeGameFactory, address(_disputeGame), GameTypes.CANNON_KONA).raw());
+            emit Prestate(absolutePrestate.raw());
         }
 
         IDisputeGame newGame;
         bytes memory gameArgs;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
             newGame = IDisputeGame(_impls.permissionedDisputeGameV2Impl);
-            address proposer =
-                getProposer(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType);
-            address challenger =
-                getChallenger(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType);
-            gameArgs = abi.encodePacked(
-                absolutePrestate, // 32 bytes
-                _impls.mipsImpl, // 20 bytes
-                address(_newAnchorStateRegistryProxy), // 20 bytes
-                address(_newDelayedWeth), // 20 bytes
-                _l2ChainId, // 32 bytes
-                proposer, // 20 bytes
-                challenger // 20 bytes
+            gameArgs = LibGameArgs.encode(
+                LibGameArgs.GameArgs({
+                    absolutePrestate: absolutePrestate.raw(),
+                    vm: address(_impls.mipsImpl),
+                    anchorStateRegistry: address(_newAnchorStateRegistryProxy),
+                    weth: address(_newDelayedWeth),
+                    l2ChainId: _l2ChainId,
+                    proposer: getProposer(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType),
+                    challenger: getChallenger(
+                        disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType
+                    )
+                })
             );
         } else {
             newGame = IDisputeGame(_impls.faultDisputeGameV2Impl);
-            gameArgs = abi.encodePacked(
-                absolutePrestate, // 32 bytes
-                _impls.mipsImpl, // 20 bytes
-                address(_newAnchorStateRegistryProxy), // 20 bytes
-                address(_newDelayedWeth), // 20 bytes
-                _l2ChainId // 32 bytes
+            gameArgs = LibGameArgs.encode(
+                LibGameArgs.GameArgs({
+                    absolutePrestate: absolutePrestate.raw(),
+                    vm: address(_impls.mipsImpl),
+                    anchorStateRegistry: address(_newAnchorStateRegistryProxy),
+                    weth: address(_newDelayedWeth),
+                    l2ChainId: _l2ChainId,
+                    proposer: address(0),
+                    challenger: address(0)
+                })
             );
         }
 
         setDGFImplementation(disputeGameFactory, _gameType, IDisputeGame(newGame), gameArgs);
+    }
+
+    function setNewPermissionlessGameImplV2(
+        OPContractsManager.Implementations memory _impls,
+        uint256 _l2ChainId,
+        Claim _newAbsolutePrestate,
+        IDelayedWETH _newDelayedWeth,
+        IAnchorStateRegistry _newAnchorStateRegistryProxy,
+        GameType _gameType,
+        IDisputeGameFactory _disputeGameFactory
+    )
+        internal
+    {
+        // As a sanity check, if the prestate is zero here, revert.
+        if (_newAbsolutePrestate.raw() == bytes32(0)) {
+            revert OPContractsManager.PrestateNotSet();
+        }
+
+        IDisputeGame newGame = IDisputeGame(_impls.faultDisputeGameV2Impl);
+        bytes memory gameArgs = LibGameArgs.encode(
+            LibGameArgs.GameArgs({
+                absolutePrestate: _newAbsolutePrestate.raw(),
+                vm: address(_impls.mipsImpl),
+                anchorStateRegistry: address(_newAnchorStateRegistryProxy),
+                weth: address(_newDelayedWeth),
+                l2ChainId: _l2ChainId,
+                proposer: address(0),
+                challenger: address(0)
+            })
+        );
+        setDGFImplementation(_disputeGameFactory, _gameType, IDisputeGame(newGame), gameArgs);
     }
 
     /// @notice Retrieves the absolute prestate for a dispute game, handling both V1 and V2 games.
@@ -1770,7 +1846,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
                 revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
             }
-            if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
+            if (_input.opChainConfigs[i].cannonPrestate.raw() != _input.opChainConfigs[0].cannonPrestate.raw()) {
                 revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
             }
         }
@@ -1929,7 +2005,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // chains, the contracts enforce that the chain id is zero.
             bytes memory gameArgs = LibGameArgs.encode(
                 LibGameArgs.GameArgs({
-                    absolutePrestate: _input.opChainConfigs[0].absolutePrestate.raw(),
+                    absolutePrestate: _input.opChainConfigs[0].cannonPrestate.raw(),
                     vm: address(getImplementations().mipsImpl),
                     anchorStateRegistry: address(newAnchorStateRegistry),
                     weth: address(newPermissionedDelayedWETHProxy),
@@ -1972,7 +2048,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Register the new SuperFaultDisputeGame.
             bytes memory gameArgs = LibGameArgs.encode(
                 LibGameArgs.GameArgs({
-                    absolutePrestate: _input.opChainConfigs[0].absolutePrestate.raw(),
+                    absolutePrestate: _input.opChainConfigs[0].cannonPrestate.raw(),
                     vm: address(getImplementations().mipsImpl),
                     anchorStateRegistry: address(newAnchorStateRegistry),
                     weth: address(newPermissionlessDelayedWETHProxy),
@@ -2085,7 +2161,8 @@ contract OPContractsManager is ISemver {
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     /// @notice The input required to identify a chain for updating prestates
@@ -2118,9 +2195,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.1.0
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.1.0";
+        return "5.2.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
