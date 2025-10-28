@@ -167,7 +167,7 @@ impl Default for StorageMetrics {
 
 /// Metrics for individual storage operations.
 #[derive(Metrics, Clone)]
-#[metrics(scope = "external_proofs.storage.operation")]
+#[metrics(scope = "optimism_trie.storage.operation")]
 struct OperationMetrics {
     /// Duration of storage operations in seconds
     duration_seconds: Histogram,
@@ -198,7 +198,7 @@ impl OperationMetrics {
 
 /// High-level block processing metrics.
 #[derive(Metrics, Clone)]
-#[metrics(scope = "external_proofs.block")]
+#[metrics(scope = "optimism_trie.block")]
 pub struct BlockMetrics {
     /// Total time to process a block (end-to-end) in seconds
     pub total_duration_seconds: Histogram,
