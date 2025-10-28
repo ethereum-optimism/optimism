@@ -123,7 +123,7 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 	if optimismChainConfig.IsIsthmus(genesis.Timestamp) {
 		genesis.Alloc[params.HistoryStorageAddress] = types.Account{Nonce: 1, Code: params.HistoryStorageCode, Balance: common.Big0}
 	}
-	if optimismChainConfig.IsMinBaseFee(genesis.Timestamp) {
+	if optimismChainConfig.IsJovian(genesis.Timestamp) {
 		genesis.ExtraData = MinBaseFeeExtraData
 	}
 
