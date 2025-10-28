@@ -11,6 +11,8 @@ mod version;
 pub use version::*;
 mod storage;
 pub use storage::*;
+mod change_set;
+pub use change_set::*;
 
 use alloy_primitives::B256;
 use reth_db::{
@@ -69,5 +71,12 @@ tables! {
     table ProofWindow {
       type Key = ProofWindowKey;
       type Value = BlockNumberHash;
+    }
+
+    /// A reverse mapping of block numbers to a keys of the tables.
+    /// This is used for efficiently locating data by block number.
+    table BlockChangeSet {
+        type Key = u64; // Block number
+        type Value = ChangeSet;
     }
 }

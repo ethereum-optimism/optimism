@@ -8666,6 +8666,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "auto_impl",
+ "bincode 1.3.3",
  "bytes",
  "derive_more",
  "eyre",
