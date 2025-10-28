@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -142,11 +141,11 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.sysHook.PostHydrate(sys)
 }
 
-// RegisterL2MetricsEndpoints is called by components when they are started (or earlier) to register
-// their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
-func (o *Orchestrator) RegisterL2MetricsEndpoints(serviceName string, endpoints ...PrometheusMetricsEndpoint) {
-	// NB: there may be multiple services with the same name, but we'll register them as separate metrics endpoints
-	for i := 1; !o.l2MetricsEndpoints.SetIfMissing(fmt.Sprintf("%s_%d", serviceName, i), endpoints); i++ {
+func (o *Orchestrator) RegisterL2MetricsEndpoints(id stack.IDWithChain, endpoints ...PrometheusMetricsEndpoint) {
+	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
+	if !wasSet {
+		existing, found := o.l2MetricsEndpoints.Get(id.Key())
+		o.p.Require().True(wasSet, "l2MetricsEndpoints endpoints not set", "key", id.Key(), "endpoints", endpoints, "conflicted", found, "conflicts", existing)
 	}
 }
 

@@ -41,7 +41,7 @@ type OpReth struct {
 
 	sub *SubProcess
 
-	registerMetricsEndpoints func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
+	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 var _ L2ELNode = (*OpReth)(nil)
@@ -154,7 +154,7 @@ func (n *OpReth) Start() {
 	if areMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
-		n.registerMetricsEndpoints("op-reth", metricsEndpoint)
+		n.l2MetricsRegistrar.RegisterL2MetricsEndpoints(n.id, metricsEndpoint)
 	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
@@ -278,17 +278,17 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		}
 
 		l2EL := &OpReth{
-			id:                       id,
-			l2Net:                    l2Net,
-			jwtPath:                  jwtPath,
-			jwtSecret:                jwtSecret,
-			authRPC:                  "",
-			userRPC:                  "",
-			execPath:                 execPath,
-			args:                     args,
-			env:                      []string{},
-			p:                        p,
-			registerMetricsEndpoints: orch.RegisterL2MetricsEndpoints,
+			id:                 id,
+			l2Net:              l2Net,
+			jwtPath:            jwtPath,
+			jwtSecret:          jwtSecret,
+			authRPC:            "",
+			userRPC:            "",
+			execPath:           execPath,
+			args:               args,
+			env:                []string{},
+			p:                  orch.p,
+			l2MetricsRegistrar: orch,
 		}
 
 		p.Logger().Info("Starting op-reth")

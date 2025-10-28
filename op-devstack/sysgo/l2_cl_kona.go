@@ -44,7 +44,7 @@ type KonaNode struct {
 
 	sub *SubProcess
 
-	registerMetricsEndpoints func(serviceName string, endpoint ...PrometheusMetricsEndpoint)
+	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
@@ -132,7 +132,7 @@ func (k *KonaNode) Start() {
 	if areMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
-		k.registerMetricsEndpoints("kona-node", metricsEndpoint)
+		k.l2MetricsRegistrar.RegisterL2MetricsEndpoints(k.id, metricsEndpoint)
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
@@ -261,16 +261,16 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
 
 		k := &KonaNode{
-			id:                       l2CLID,
-			userRPC:                  "", // retrieved from logs
-			interopEndpoint:          "", // retrieved from logs
-			interopJwtSecret:         eth.Bytes32{},
-			el:                       l2ELID,
-			execPath:                 execPath,
-			args:                     []string{"node"},
-			env:                      envVars,
-			p:                        p,
-			registerMetricsEndpoints: orch.RegisterL2MetricsEndpoints,
+			id:                 l2CLID,
+			userRPC:            "", // retrieved from logs
+			interopEndpoint:    "", // retrieved from logs
+			interopJwtSecret:   eth.Bytes32{},
+			el:                 l2ELID,
+			execPath:           execPath,
+			args:               []string{"node"},
+			env:                envVars,
+			p:                  p,
+			l2MetricsRegistrar: orch,
 		}
 		p.Logger().Info("Starting kona-node")
 		k.Start()
