@@ -196,7 +196,7 @@ func TestDAFootprint(gt *testing.T) {
 
 			_, txs, err := ethClient.InfoAndTxsByHash(t.Ctx(), info.Hash())
 			require.NoError(err)
-			_, receipts, err := sys.L2EL.Escape().L2EthExtendedClient().FetchReceipts(t.Ctx(), info.Hash())
+			_, receipts, err := sys.L2EL.Escape().L2EthClient().FetchReceipts(t.Ctx(), info.Hash())
 			require.NoError(err)
 
 			var totalDAFootprint uint64
