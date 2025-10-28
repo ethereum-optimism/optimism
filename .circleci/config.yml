@@ -287,7 +287,8 @@ commands:
 
   go-restore-cache:
     parameters:
-      # The go module to cache for (e.g. go-ffi, op-node, etc.)
+      # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
+      # "." can be used to point to the root go.mod and go.sum
       module:
         type: string
       # Version can be used as a cache buster when making breaking changes to caching strategy
