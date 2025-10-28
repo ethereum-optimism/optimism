@@ -161,7 +161,7 @@ func TestDAFootprint(gt *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				eoa := sys.FunderL2.NewFundedEOA(eth.OneEther.Mul(100))
+				eoa := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 				includer := txinclude.NewPersistent(txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig()), struct {
 					*txinclude.Resubmitter
 					*txinclude.Monitor
