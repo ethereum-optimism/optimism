@@ -265,6 +265,9 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		}
 
 		if areMetricsEnabled() {
+			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but that is not currently logged properly so we cannot parse it.
+			// See: https://github.com/op-rs/op-reth/issues/333
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithOpReth: getting metrics port")
 			args = append(args, "--metrics="+metricsPort)
