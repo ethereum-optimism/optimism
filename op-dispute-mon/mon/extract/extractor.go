@@ -109,9 +109,12 @@ func (e *Extractor) enrichGames(ctx context.Context, blockHash common.Hash, game
 	updatedGameData := make(map[common.Address]*monTypes.EnrichedGameData)
 	// Push each game into the channel and store the latest cached game data as a default if fetching fails
 	for _, game := range games {
-		previousData := e.latestGameData[game.Proxy]
-		if previousData != nil {
-			updatedGameData[game.Proxy] = previousData
+		// Only cache data for non-ignored games to ensure ignored games are completely excluded
+		if !e.ignoredGames[game.Proxy] {
+			previousData := e.latestGameData[game.Proxy]
+			if previousData != nil {
+				updatedGameData[game.Proxy] = previousData
+			}
 		}
 		gameCh <- game
 	}

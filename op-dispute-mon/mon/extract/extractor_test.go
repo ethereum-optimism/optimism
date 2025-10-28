@@ -208,6 +208,36 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, firstUpdateTime, actual[gameA].LastUpdateTime)
 		require.Equal(t, secondUpdateTime, actual[gameB].LastUpdateTime)
 	})
+
+	t.Run("IgnorePreviouslyCachedGame", func(t *testing.T) {
+		enricher := &mockEnricher{}
+		extractor, _, games, _, _ := setupExtractorTest(t, enricher)
+		gameA := common.Address{0xaa}
+		gameB := common.Address{0xbb}
+		games.games = []gameTypes.GameMetadata{{Proxy: gameA}, {Proxy: gameB}}
+
+		// First fetch succeeds and the results should be cached
+		enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Zero(t, ignored)
+		require.Zero(t, failed)
+		require.Len(t, enriched, 2)
+
+		// Now add gameA to the ignored games list
+		extractor.ignoredGames[gameA] = true
+
+		// Second fetch should ignore gameA even though it has cached data
+		enriched, ignored, failed, err = extractor.Extract(context.Background(), common.Hash{}, 0)
+		require.NoError(t, err)
+		require.Equal(t, 1, ignored) // gameA is now ignored
+		require.Zero(t, failed)
+		require.Len(t, enriched, 1) // Only gameB should be returned
+		require.Equal(t, gameB, enriched[0].Proxy)
+
+		for _, data := range enriched {
+			require.NotEqual(t, gameA, data.Proxy)
+		}
+	})
 }
 
 func verifyLogs(t *testing.T, logs *testlog.CapturingHandler, createErr, metadataErr, claimsErr, durationErr int) {
