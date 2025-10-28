@@ -27,6 +27,12 @@ const grafanaHost = "0.0.0.0"
 const grafanaServerPort = "3000"
 const grafanaDockerPort = "3000"
 
+type L2MetricsRegistrar interface {
+	// RegisterL2MetricsEndpoints is called by components when they are started (or earlier) to register
+	// their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
+	RegisterL2MetricsEndpoints(serviceName stack.IDWithChain, endpoints ...PrometheusMetricsEndpoint)
+}
+
 type PrometheusMetricsEndpoint struct {
 	host              string
 	port              string
