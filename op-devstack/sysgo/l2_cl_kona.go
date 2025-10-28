@@ -227,12 +227,12 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		}
 
 		if areMetricsEnabled() {
+			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but that is not currently logged properly so we cannot parse it.
+			// See: https://github.com/op-rs/kona/issues/2987
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithKonaNode: getting metrics port")
-
-			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
-			// own port, but prometheus doesn't expose that port, so we can't log it and
-			// parse it here. If/when that gets changed, update this default to "0".
+			
 			envVars = append(envVars, PropagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
 			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 		}
