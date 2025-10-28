@@ -1196,9 +1196,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 
-    event Debugme(string);
-    event Prestate(bytes32);
-
     /// @notice Sets the latest dispute game v2 implementations
     /// @param _impls The container for the new dispute game implementations.
     /// @param _l2ChainId The L2 chain ID
@@ -1239,14 +1236,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             if (absolutePrestate.raw() == bytes32(0)) {
                 revert OPContractsManager.PrestateNotSet();
             }
-        }
-
-        // TODO: DEBUGME
-        if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
-            emit Debugme("cannon kona");
-            emit Prestate(_opChainConfig.cannonKonaPrestate.raw());
-            emit Prestate(getAbsolutePrestate(disputeGameFactory, address(_disputeGame), GameTypes.CANNON_KONA).raw());
-            emit Prestate(absolutePrestate.raw());
         }
 
         IDisputeGame newGame;
