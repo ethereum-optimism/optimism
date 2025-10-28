@@ -35,10 +35,16 @@ func TestSafeHeadAdvancesAfterOsaka(gt *testing.T) {
 	t.Log("Osaka activated")
 
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	for range time.Tick(l2BlockTime) {
+	for {
 		l2SafeRef := sys.L2EL.BlockRefByLabel(eth.Safe)
 		if l1Config.IsOsaka(new(big.Int).SetUint64(l2SafeRef.Number), l2SafeRef.Time) {
 			return
+		}
+		t.Log("L2 safe head predates Osaka activation on L1, waiting for it to advance...")
+		select {
+		case <-time.After(l2BlockTime):
+		case <-t.Ctx().Done():
+			t.Require().Fail("Never found a safe L2 block after Osaka activated on L1")
 		}
 	}
 }
