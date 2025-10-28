@@ -56,7 +56,7 @@ where
         }
 
         if parent_block_number > latest {
-            return Err(OpProofsStorageError::BlockUpdateFailed {
+            return Err(OpProofsStorageError::MissingParentBlock {
                 block_number: block.number(),
                 parent_block_number,
                 latest_block_number: latest,

@@ -25,7 +25,7 @@ pub enum OpProofsStorageError {
     },
     /// Block update failed since parent state
     #[error("Cannot execute block updates for block {block_number} without parent state {parent_block_number} (latest stored block number: {latest_block_number})")]
-    BlockUpdateFailed {
+    MissingParentBlock {
         /// The block number being executed
         block_number: u64,
         /// The parent state of the block being executed
