@@ -900,6 +900,9 @@ jobs:
           name: Check if test list is empty
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
+
+            echo "Test files: $TEST_FILES"
+
             if [ -z "$TEST_FILES" ]; then
               echo "No test files to run. Exiting early."
               circleci-agent step halt
