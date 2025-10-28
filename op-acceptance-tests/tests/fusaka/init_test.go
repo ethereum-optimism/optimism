@@ -63,7 +63,9 @@ func TestMain(m *testing.M) {
 		sysgo.WithDeployerOptions(func(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
 			_, l1Config := builder.WithL1(sysgo.DefaultL1ID)
 			l1Config.WithOsakaOffset(0)
-			l1Config.WithBPO1Offset(0)
+			// Make the BPO fork happen after Osaka so we can easily use geth's eip4844.CalcBlobFee
+			// to calculate the blob base fee using the Osaka parameters.
+			l1Config.WithBPO1Offset(1)
 			l1Config.WithL1BlobSchedule(&params.BlobScheduleConfig{
 				Cancun: params.DefaultCancunBlobConfig,
 				Osaka:  params.DefaultOsakaBlobConfig,
