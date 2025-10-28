@@ -136,7 +136,7 @@ func (n *OpReth) Start() {
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
 
-	if AreMetricsEnabled() {
+	if areMetricsEnabled() {
 		var metricsEndpoint PrometheusMetricsEndpoint
 		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
 		n.registerMetricsEndpoints("op-reth", metricsEndpoint)
@@ -278,7 +278,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			"-vvvv",
 		}
 
-		if AreMetricsEnabled() {
+		if areMetricsEnabled() {
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithOpReth: getting metrics port")
 			args = append(args, "--metrics="+metricsPort)

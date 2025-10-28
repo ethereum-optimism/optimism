@@ -14,19 +14,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const DockerExecutablePathEnvVar = "SYSGO_DOCKER_EXEC_PATH"
-const GrafanaProvisioningDirEnvVar = "SYSGO_GRAFANA_PROVISIONING_DIR"
-const GrafanaDataDirEnvVar = "SYSGO_GRAFANA_DATA_DIR"
+const dockerExecutablePathEnvVar = "SYSGO_DOCKER_EXEC_PATH"
+const grafanaProvisioningDirEnvVar = "SYSGO_GRAFANA_PROVISIONING_DIR"
+const grafanaDataDirEnvVar = "SYSGO_GRAFANA_DATA_DIR"
 
-const DockerToLocalHost = "host.docker.internal"
+const dockerToLocalHost = "host.docker.internal"
 
-const PrometheusHost = "0.0.0.0"
-const PrometheusServerPort = "9999"
-const PrometheusDockerPort = "9090"
+const prometheusHost = "0.0.0.0"
+const prometheusServerPort = "9999"
+const prometheusDockerPort = "9090"
 
-const GrafanaHost = "0.0.0.0"
-const GrafanaServerPort = "3000"
-const GrafanaDockerPort = "3000"
+const grafanaHost = "0.0.0.0"
+const grafanaServerPort = "3000"
+const grafanaDockerPort = "3000"
 
 type L2MetricsDashboard struct {
 	p devtest.P
@@ -129,30 +129,30 @@ func (g *L2MetricsDashboard) startGrafana() {
 func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
 		// don't start prometheus or grafana if metrics are disabled or there is nothing exporting metrics.
-		if !AreMetricsEnabled() || orch.l2MetricsEndpoints.Len() == 0 {
+		if !areMetricsEnabled() || orch.l2MetricsEndpoints.Len() == 0 {
 			return
 		}
 
 		p := orch.P()
 
-		prometheusEndpoint := fmt.Sprintf("http://%s:%s", PrometheusHost, PrometheusServerPort)
+		prometheusEndpoint := fmt.Sprintf("http://%s:%s", prometheusHost, prometheusServerPort)
 		promConfig := getPrometheusConfigFilePath(p, &orch.l2MetricsEndpoints)
 		// these are args to run via docker; see dashboard definition below
 		prometheusArgs := []string{
 			"run",
-			"-p", fmt.Sprintf("%s:%s", PrometheusServerPort, PrometheusDockerPort),
+			"-p", fmt.Sprintf("%s:%s", prometheusServerPort, prometheusDockerPort),
 			"-v", fmt.Sprintf("%s:/etc/prometheus/prometheus.yml:ro", promConfig),
 			"prom/prometheus",
 			"--config.file=/etc/prometheus/prometheus.yml",
 		}
 
-		grafanaEndpoint := fmt.Sprintf("http://%s:%s", GrafanaHost, GrafanaServerPort)
+		grafanaEndpoint := fmt.Sprintf("http://%s:%s", grafanaHost, grafanaServerPort)
 		grafanaProvDir := getGrafanaProvisioningDirPath(p)
 		grafanaDataDir := getGrafanaDataDir(p)
 		// these are args to run via docker; see dashboard definition below
 		grafanaArgs := []string{
 			"run",
-			"-p", fmt.Sprintf("%s:%s", GrafanaServerPort, GrafanaDockerPort),
+			"-p", fmt.Sprintf("%s:%s", grafanaServerPort, grafanaDockerPort),
 			"-v", fmt.Sprintf("%s:/etc/grafana/provisioning:ro", grafanaProvDir),
 			"-v", fmt.Sprintf("%s:/var/lib/grafana", grafanaDataDir),
 			"grafana/grafana",
@@ -167,12 +167,12 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 		dashboard := &L2MetricsDashboard{
 			p: p,
 
-			prometheusExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "docker"),
+			prometheusExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			prometheusArgs:     prometheusArgs,
 			prometheusEnv:      []string{},
 			prometheusEndpoint: prometheusEndpoint,
 
-			grafanaExecPath: GetEnvVarOrDefault(DockerExecutablePathEnvVar, "docker"),
+			grafanaExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			grafanaArgs:     grafanaArgs,
 			grafanaEnv:      grafanaEnv,
 		}
@@ -211,7 +211,7 @@ type prometheusStaticConfig struct {
 func endpointHostPortString(p PrometheusMetricsEndpoint) string {
 	host := p.host
 	if p.isLocal && !p.isRunningInDocker {
-		host = DockerToLocalHost
+		host = dockerToLocalHost
 	}
 	return fmt.Sprintf("%s:%s", host, p.port)
 }
@@ -266,7 +266,7 @@ func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[stri
 //	returned_dir_path/provisioning/datasources/prometheus.yml
 func getGrafanaProvisioningDirPath(p devtest.P) string {
 	// If the caller provides a Grafana provisioning directory, use that, otherwise use a temp dir
-	baseDir := os.Getenv(GrafanaProvisioningDirEnvVar)
+	baseDir := os.Getenv(grafanaProvisioningDirEnvVar)
 	if baseDir == "" {
 		baseDir = filepath.Join(p.TempDir(), "grafana")
 	}
@@ -292,7 +292,7 @@ datasources:
     access: proxy
     url: http://%s:%s
     isDefault: true
-`, DockerToLocalHost, PrometheusServerPort)
+`, dockerToLocalHost, prometheusServerPort)
 
 	if _, err = file.WriteString(contents); err != nil {
 		p.Require().NoError(err, fmt.Sprintf("getGrafanaProvisioningDirPath: error prom file at %s, string: %s", filePath, contents))
@@ -308,7 +308,7 @@ datasources:
 // will be created and removed when this process terminates.
 func getGrafanaDataDir(p devtest.P) string {
 	// If the caller provides a Grafana data directory, use that, otherwise use a temp dir
-	baseDir := os.Getenv(GrafanaDataDirEnvVar)
+	baseDir := os.Getenv(grafanaDataDirEnvVar)
 	if baseDir == "" {
 		baseDir = filepath.Join(p.TempDir(), "grafana-data")
 	}
