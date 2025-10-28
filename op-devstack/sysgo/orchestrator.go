@@ -19,13 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-type PrometheusMetricsEndpoint struct {
-	host              string
-	port              string
-	isLocal           bool
-	isRunningInDocker bool
-}
-
 type Orchestrator struct {
 	p devtest.P
 
