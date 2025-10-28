@@ -138,11 +138,10 @@ func (g *L2MetricsDashboard) startPrometheus() {
 	g.prometheusSubprocess = NewSubProcess(g.p, stdOutLogs, stdErrLogs)
 
 	if err := g.prometheusSubprocess.Start(g.prometheusExecPath, g.prometheusArgs, g.prometheusEnv); err != nil {
-		g.p.Logger().Error(fmt.Sprintf("Error starting prometheus: %+v", err))
-		g.p.Require().NoError(err, "Must start")
+		g.p.Require().NoError(err, "prometheus must start")
 	}
 
-	g.p.Logger().Info(fmt.Sprintf("Prometheus started at %s", g.prometheusEndpoint))
+	g.p.Logger().Info("Prometheus started", "endpoint", g.prometheusEndpoint)
 }
 
 func (g *L2MetricsDashboard) startGrafana() {
@@ -163,8 +162,7 @@ func (g *L2MetricsDashboard) startGrafana() {
 	g.grafanaSubprocess = NewSubProcess(g.p, stdOutLogs, stdErrLogs)
 
 	if err := g.grafanaSubprocess.Start(g.grafanaExecPath, g.grafanaArgs, g.grafanaEnv); err != nil {
-		g.p.Logger().Error(fmt.Sprintf("Error starting grafana: %+v", err))
-		g.p.Require().NoError(err, "Must start")
+		g.p.Require().NoError(err, "Grafana must start")
 	}
 
 	g.p.Logger().Info("Grafana started")
@@ -220,7 +218,7 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			grafanaEnv:      append(grafanaEnv, os.Environ()...),
 		}
 
-		p.Logger().Info(fmt.Sprintf("Starting metrics dashboard: %+v", dashboard))
+		p.Logger().Info("Starting metrics dashboard", "dashboard", dashboard)
 
 		dashboard.Start()
 		p.Cleanup(dashboard.Stop)
@@ -276,17 +274,17 @@ func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[stri
 	}
 
 	b, err := yaml.Marshal(&yamlConfig)
-	p.Require().NoError(err, fmt.Sprintf("getPrometheusConfigFilePath: error creating yaml from scrape configs %+v", scrapeConfigs))
+	p.Require().NoError(err, "getPrometheusConfigFilePath: error creating yaml from scrape configs", "scrapeConfigs", scrapeConfigs)
 
-	p.Logger().Info(fmt.Sprintf(`getPrometheusConfigFilePath: generated prometheus.yml: %s`, string(b)))
+	p.Logger().Info(`getPrometheusConfigFilePath: generated prometheus.yml`, "prometheus.yaml", string(b))
 
 	filePath := filepath.Join(p.TempDir(), "prometheus.yml")
 	file, err := os.Create(filePath)
-	p.Require().NoError(err, fmt.Sprintf("getPrometheusConfigFilePath:error creating prometheus file at %s", filePath))
+	p.Require().NoError(err, "getPrometheusConfigFilePath:error creating prometheus file", "filePath", filePath)
 	defer file.Close()
 
 	_, err = file.Write(b)
-	p.Require().NoError(err, fmt.Sprintf("getPrometheusConfigFilePath:error writing string to prom file at %s, string: %s", filePath, string(b)))
+	p.Require().NoError(err, "getPrometheusConfigFilePath:error writing string to prom file", "filePath", filePath, "contents", string(b))
 
 	return filePath
 }
@@ -306,13 +304,13 @@ func getGrafanaProvisioningDirPath(p devtest.P) string {
 
 	dirPath := filepath.Join(baseDir, "provisioning/datasources")
 	err := os.MkdirAll(dirPath, 0777)
-	p.Require().NoError(err, fmt.Sprintf("getGrafanaProvisioningDirPath: error writing dir path %s", dirPath))
+	p.Require().NoError(err, "getGrafanaProvisioningDirPath: error writing dir path", "dirPath", dirPath)
 
-	p.Logger().Info(fmt.Sprintf("Created grafana/provisioning/datasources dir at %s", dirPath))
+	p.Logger().Info("Created grafana/provisioning/datasources dir", "dirPath", dirPath)
 
 	filePath := filepath.Join(dirPath, "prometheus.yml")
 	file, err := os.Create(filePath)
-	p.Require().NoError(err, fmt.Sprintf("getGrafanaProvisioningDirPath: error creating prometheus file at %s", filePath))
+	p.Require().NoError(err, "getGrafanaProvisioningDirPath: error creating prometheus file", "filePath", filePath)
 	defer file.Close()
 
 	contents := fmt.Sprintf(
@@ -328,10 +326,10 @@ datasources:
 `, dockerToLocalHost, prometheusServerPort)
 
 	if _, err = file.WriteString(contents); err != nil {
-		p.Require().NoError(err, fmt.Sprintf("getGrafanaProvisioningDirPath: error prom file at %s, string: %s", filePath, contents))
+		p.Require().NoError(err, "getGrafanaProvisioningDirPath: error writing prom file", "filePath", filePath, "contents", contents)
 	}
 
-	p.Logger().Info(fmt.Sprintf("getGrafanaProvisioningDirPath: wrote prom config to file %s; config: %s", filePath, contents))
+	p.Logger().Info("getGrafanaProvisioningDirPath: wrote prom config to file", "filePath", filePath, "contents", contents)
 
 	return baseDir
 }
@@ -348,10 +346,10 @@ func getGrafanaDataDir(p devtest.P) string {
 
 	if _, err := os.Stat(baseDir); err != nil && os.IsNotExist(err) {
 		if err := os.Mkdir(baseDir, 0777); err != nil {
-			p.Require().NoError(err, fmt.Sprintf("getGrafanaDataDir: creating grafana data directory at %s", baseDir))
+			p.Require().NoError(err, "getGrafanaDataDir: error creating grafana data directory", "baseDir", baseDir)
 		}
 	} else {
-		p.Require().NoError(err, fmt.Sprintf("getGrafanaDataDir: checking if grafana data directory exists at %s", baseDir))
+		p.Require().NoError(err, "getGrafanaDataDir: checking if grafana data directory exists", "baseDir", baseDir)
 	}
 
 	return baseDir
