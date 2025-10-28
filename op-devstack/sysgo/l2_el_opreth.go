@@ -2,8 +2,6 @@ package sysgo
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,20 +99,25 @@ func (n *OpReth) Start() {
 	defer close(userRPCChan)
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
-		switch msg {
-		case "RPC WS server started":
+		if msg == "RPC WS server started" {
 			select {
 			case userRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
 			}
-		case "RPC auth server started":
+		} else if msg == "RPC auth server started" {
 			select {
 			case authRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
 			}
-		default:
-			if endpoint := n.tryParseMetricsFromLog(msg); endpoint != nil {
-				metricsEndpointChan <- *endpoint
+		} else if hostAndPortString, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
+			// expected format: "Starting metrics endpoint at 127.0.0.1:9091"
+			hostAndPortArray := strings.Split(strings.TrimSpace(hostAndPortString), ":")
+			n.p.Require().Len(hostAndPortArray, 2, "invalid host and port string parsed from log message", "msg", msg, "hostAndPortArray", hostAndPortArray)
+			metricsEndpointChan <- PrometheusMetricsEndpoint{
+				host:              hostAndPortArray[0],
+				port:              hostAndPortArray[1],
+				isLocal:           true,
+				isRunningInDocker: false,
 			}
 		}
 	}
@@ -166,35 +169,6 @@ func (n *OpReth) EngineRPC() string {
 
 func (n *OpReth) JWTPath() string {
 	return n.jwtPath
-}
-
-// Matching messages like "Starting metrics endpoint at 127.0.0.1:9091"
-const opRethMetricsPrefix = "Starting metrics endpoint at "
-
-// tryParseMetricsFromLog attempts to parse a running op-reth metrics server endpoint from
-// the provided log message.
-//
-// If the log message doesn't appear to be metrics-related, nil will be returned. See: `opRethMetricsPrefix`.
-func (n *OpReth) tryParseMetricsFromLog(msg string) *PrometheusMetricsEndpoint {
-	if !strings.HasPrefix(msg, opRethMetricsPrefix) {
-		return nil
-	}
-
-	loggedUrl := strings.Split(msg, opRethMetricsPrefix)[1]
-	if !strings.HasPrefix(loggedUrl, "http://") {
-		loggedUrl = fmt.Sprintf("http://%s", loggedUrl)
-	}
-
-	parsedUrl, err := url.Parse(loggedUrl)
-	n.p.Require().NoError(err, fmt.Sprintf("invalid op-reth metrics url output to logs: %s", msg))
-	port := parsedUrl.Port()
-	n.p.Require().NotEmpty(port, fmt.Sprintf("empty port url in op-reth metrics url; log line: %s", msg))
-	return &PrometheusMetricsEndpoint{
-		host:              parsedUrl.Host,
-		port:              port,
-		isLocal:           true,
-		isRunningInDocker: false,
-	}
 }
 
 func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
