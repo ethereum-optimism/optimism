@@ -24,11 +24,25 @@ pub enum OpProofsStorageError {
         latest_block_hash: B256,
     },
     /// Block update failed since parent state
-    #[error("Cannot execute block updates for block {0} without parent state {1} (latest stored block number: {2})")]
-    BlockUpdateFailed(u64, u64, u64),
+    #[error("Cannot execute block updates for block {block_number} without parent state {parent_block_number} (latest stored block number: {latest_block_number})")]
+    BlockUpdateFailed {
+        /// The block number being executed
+        block_number: u64,
+        /// The parent state of the block being executed
+        parent_block_number: u64,
+        /// Latest stored block number
+        latest_block_number: u64,
+    },
     /// State root mismatch
-    #[error("State root mismatch for block {0} (have: {1}, expected: {2})")]
-    StateRootMismatch(u64, B256, B256),
+    #[error("State root mismatch for block {block_number} (have: {current_state_hash}, expected: {expected_state_hash})")]
+    StateRootMismatch {
+        /// Block number
+        block_number: u64,
+        /// Have state root
+        current_state_hash: B256,
+        /// Expected state root
+        expected_state_hash: B256,
+    },
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(#[from] DatabaseError),
