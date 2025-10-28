@@ -60,176 +60,312 @@
   "links": [],
   "liveNow": false,
   "panels": [
-      {
-          "datasource": {
-              "type": "prometheus",
-              "uid": "${DS_PROMETHEUS}"
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "RPC Server",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Maximum DA transaction size configured on the miner",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
           },
-          "description": "Latency histogram for forwarding a transaction to the Sequencer",
-          "fieldConfig": {
-              "defaults": {
-                  "custom": {
-                      "drawStyle": "line",
-                      "lineInterpolation": "linear",
-                      "barAlignment": 0,
-                      "barWidthFactor": 0.6,
-                      "lineWidth": 1,
-                      "fillOpacity": 0,
-                      "gradientMode": "none",
-                      "spanNulls": false,
-                      "insertNulls": false,
-                      "showPoints": "auto",
-                      "pointSize": 5,
-                      "stacking": {
-                          "mode": "none",
-                          "group": "A"
-                      },
-                      "axisPlacement": "auto",
-                      "axisLabel": "",
-                      "axisColorMode": "text",
-                      "axisBorderShow": false,
-                      "scaleDistribution": {
-                          "type": "linear"
-                      },
-                      "axisCenteredZero": false,
-                      "hideFrom": {
-                          "tooltip": false,
-                          "viz": false,
-                          "legend": false
-                      },
-                      "thresholdsStyle": {
-                          "mode": "off"
-                      }
-                  },
-                  "color": {
-                      "mode": "palette-classic"
-                  },
-                  "mappings": [],
-                  "thresholds": {
-                      "mode": "absolute",
-                      "steps": [
-                          {
-                              "color": "green",
-                              "value": null
-                          },
-                          {
-                              "color": "red",
-                              "value": 80
-                          }
-                      ]
-                  },
-                  "unit": "s"
-              },
-              "overrides": []
-          },
-          "gridPos": {
-              "h": 8,
-              "w": 12,
-              "x": 0,
-              "y": 0
-          },
-          "id": 210,
-          "options": {
-              "tooltip": {
-                  "mode": "single",
-                  "sort": "none"
-              },
-              "legend": {
-                  "showLegend": true,
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "calcs": []
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
               }
+            ]
           },
-          "targets": [
-              {
-                  "datasource": {
-                      "type": "prometheus",
-                      "uid": "Prometheus"
-                  },
-                  "disableTextWrap": false,
-                  "editorMode": "builder",
-                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0\"}",
-                  "fullMetaSearch": false,
-                  "includeNullMetadata": true,
-                  "legendFormat": "min",
-                  "range": true,
-                  "refId": "A",
-                  "useBackend": false
-              },
-              {
-                  "datasource": {
-                      "type": "prometheus",
-                      "uid": "Prometheus"
-                  },
-                  "disableTextWrap": false,
-                  "editorMode": "builder",
-                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.5\"}",
-                  "fullMetaSearch": false,
-                  "hide": false,
-                  "includeNullMetadata": true,
-                  "legendFormat": "p50",
-                  "range": true,
-                  "refId": "B",
-                  "useBackend": false
-              },
-              {
-                  "datasource": {
-                      "type": "prometheus",
-                      "uid": "Prometheus"
-                  },
-                  "disableTextWrap": false,
-                  "editorMode": "builder",
-                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.9\"}",
-                  "fullMetaSearch": false,
-                  "hide": false,
-                  "includeNullMetadata": true,
-                  "legendFormat": "p90",
-                  "range": true,
-                  "refId": "C",
-                  "useBackend": false
-              },
-              {
-                  "datasource": {
-                      "type": "prometheus",
-                      "uid": "Prometheus"
-                  },
-                  "disableTextWrap": false,
-                  "editorMode": "builder",
-                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.95\"}",
-                  "fullMetaSearch": false,
-                  "hide": false,
-                  "includeNullMetadata": true,
-                  "legendFormat": "p95",
-                  "range": true,
-                  "refId": "D",
-                  "useBackend": false
-              },
-              {
-                  "datasource": {
-                      "type": "prometheus",
-                      "uid": "Prometheus"
-                  },
-                  "disableTextWrap": false,
-                  "editorMode": "builder",
-                  "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.99\"}",
-                  "fullMetaSearch": false,
-                  "hide": false,
-                  "includeNullMetadata": true,
-                  "legendFormat": "p99",
-                  "range": true,
-                  "refId": "E",
-                  "useBackend": false
-              }
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 101,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
           ],
-          "title": "Transaction Forward Latency",
-          "type": "timeseries"
-      }
-
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "10.3.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_miner_max_da_tx_size{instance=~\"$instance\"}",
+          "legendFormat": "Max DA TX Size",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Miner Max DA Transaction Size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Maximum DA block size configured on the miner",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 102,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "10.3.3",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_miner_max_da_block_size{instance=~\"$instance\"}",
+          "legendFormat": "Max DA Block Size",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Miner Max DA Block Size",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Latency histogram for forwarding a transaction to the Sequencer",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "insertNulls": false,
+            "showPoints": "auto",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "axisCenteredZero": false,
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 210,
+      "options": {
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0\"}",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "min",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.5\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "B",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.9\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "legendFormat": "p90",
+          "range": true,
+          "refId": "C",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.95\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "D",
+          "useBackend": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "reth_optimism_rpc_sequencer_sequencer_forward_latency{instance=~\"$instance\", quantile=\"0.99\"}",
+          "fullMetaSearch": false,
+          "hide": false,
+          "includeNullMetadata": true,
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "E",
+          "useBackend": false
+        }
+      ],
+      "title": "Sequencer Transaction Forward Latency",
+      "type": "timeseries"
+    }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": ["optimism", "sequencer", "transactions"],
+  "tags": ["optimism", "rpc", "sequencer", "miner", "transactions"],
   "templating": {
     "list": [
       {
@@ -262,8 +398,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "OP-Reth - Sequencer Metrics",
+  "title": "OP-Reth - RPC Metrics",
   "uid": "8438c957-55f5-44df-869d-a9a30a3c9a97",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
