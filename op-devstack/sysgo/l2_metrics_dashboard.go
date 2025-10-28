@@ -28,16 +28,18 @@ const grafanaServerPort = "3000"
 const grafanaDockerPort = "3000"
 
 type L2MetricsRegistrar interface {
-	// RegisterL2MetricsEndpoints is called by components when they are started (or earlier) to register
+	// RegisterL2MetricsTargets is called by components when they are started (or earlier) to register
 	// their metrics endpoints so that a prometheus instance may be spun up to scrape metrics.
-	RegisterL2MetricsEndpoints(serviceName stack.IDWithChain, endpoints ...PrometheusMetricsEndpoint)
+	RegisterL2MetricsTargets(serviceName stack.IDWithChain, endpoints ...PrometheusMetricsTarget)
 }
 
-type PrometheusMetricsEndpoint struct {
-	host              string
-	port              string
-	isLocal           bool
-	isRunningInDocker bool
+type PrometheusMetricsTarget string
+
+func NewPrometheusMetricsTarget(host string, port string, isRunningInDocker bool) PrometheusMetricsTarget {
+	if !isRunningInDocker {
+		host = dockerToLocalHost
+	}
+	return PrometheusMetricsTarget(fmt.Sprintf("%s:%s", host, port))
 }
 
 type L2MetricsDashboard struct {
@@ -205,18 +207,17 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			PropagateEnvVarOrDefault("GF_USERS_ALLOW_SIGN_UP", "false"),
 			PropagateEnvVarOrDefault("GF_INSTALL_PLUGINS", "grafana-piechart-panel"),
 		}
-
 		dashboard := &L2MetricsDashboard{
 			p: p,
 
 			prometheusExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			prometheusArgs:     prometheusArgs,
-			prometheusEnv:      []string{},
+			prometheusEnv:      os.Environ(),
 			prometheusEndpoint: prometheusEndpoint,
 
 			grafanaExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			grafanaArgs:     grafanaArgs,
-			grafanaEnv:      grafanaEnv,
+			grafanaEnv:      append(grafanaEnv, os.Environ()...),
 		}
 
 		p.Logger().Info(fmt.Sprintf("Starting metrics dashboard: %+v", dashboard))
@@ -248,25 +249,15 @@ type prometheusStaticConfig struct {
 	Targets []string `yaml:"targets"`
 }
 
-// endpointHostPortString resolves the host:port string, accounting for the fact that the requester
-// will be in a docker container.
-func endpointHostPortString(p PrometheusMetricsEndpoint) string {
-	host := p.host
-	if p.isLocal && !p.isRunningInDocker {
-		host = dockerToLocalHost
-	}
-	return fmt.Sprintf("%s:%s", host, p.port)
-}
-
 // Returns the path to the dynamically-generated prometheus.yml file for metrics scraping.
-func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[string, []PrometheusMetricsEndpoint]) string {
+func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[string, []PrometheusMetricsTarget]) string {
 
 	var scrapeConfigs []prometheusScrapeConfigEntry
 
-	metricsEndpoints.Range(func(name string, endpoints []PrometheusMetricsEndpoint) bool {
+	metricsEndpoints.Range(func(name string, endpoints []PrometheusMetricsTarget) bool {
 		var targets []string
 		for _, endpoint := range endpoints {
-			targets = append(targets, endpointHostPortString(endpoint))
+			targets = append(targets, string(endpoint))
 		}
 		scrapeConfigs = append(scrapeConfigs, prometheusScrapeConfigEntry{
 			Name:          name,

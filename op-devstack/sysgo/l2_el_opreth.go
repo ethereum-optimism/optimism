@@ -104,8 +104,8 @@ func (n *OpReth) Start() {
 	authRPCChan := make(chan string, 1)
 	defer close(authRPCChan)
 
-	metricsEndpointChan := make(chan PrometheusMetricsEndpoint, 1)
-	defer close(metricsEndpointChan)
+	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
+	defer close(metricsTargetChan)
 
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
@@ -125,12 +125,7 @@ func (n *OpReth) Start() {
 			// expected format: "Starting metrics endpoint at 127.0.0.1:9091"
 			hostAndPortArray := strings.Split(strings.TrimSpace(hostAndPortString), ":")
 			n.p.Require().Len(hostAndPortArray, 2, "invalid host and port string parsed from log message", "msg", msg, "hostAndPortArray", hostAndPortArray)
-			metricsEndpointChan <- PrometheusMetricsEndpoint{
-				host:              hostAndPortArray[0],
-				port:              hostAndPortArray[1],
-				isLocal:           true,
-				isRunningInDocker: false,
-			}
+			metricsTargetChan <- NewPrometheusMetricsTarget(hostAndPortArray[0], hostAndPortArray[1], false)
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
@@ -152,9 +147,9 @@ func (n *OpReth) Start() {
 	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
 
 	if areMetricsEnabled() {
-		var metricsEndpoint PrometheusMetricsEndpoint
-		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
-		n.l2MetricsRegistrar.RegisterL2MetricsEndpoints(n.id, metricsEndpoint)
+		var metricsTarget PrometheusMetricsTarget
+		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.id, metricsTarget)
 	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))

@@ -92,8 +92,8 @@ func (k *KonaNode) Start() {
 	userRPCChan := make(chan string, 1)
 	defer close(userRPCChan)
 
-	metricsEndpointChan := make(chan PrometheusMetricsEndpoint, 1)
-	defer close(metricsEndpointChan)
+	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
+	defer close(metricsTargetChan)
 
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
@@ -104,12 +104,7 @@ func (k *KonaNode) Start() {
 			parsedUrl, err := url.Parse(metricsUrl)
 			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
 			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
-			metricsEndpointChan <- PrometheusMetricsEndpoint{
-				host:              parsedUrl.Hostname(),
-				port:              parsedUrl.Port(),
-				isLocal:           true,
-				isRunningInDocker: false,
-			}
+			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
@@ -130,9 +125,9 @@ func (k *KonaNode) Start() {
 	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
 
 	if areMetricsEnabled() {
-		var metricsEndpoint PrometheusMetricsEndpoint
-		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsEndpointChan, &metricsEndpoint), "need metrics endpoint")
-		k.l2MetricsRegistrar.RegisterL2MetricsEndpoints(k.id, metricsEndpoint)
+		var metricsTarget PrometheusMetricsTarget
+		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.id, metricsTarget)
 	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
