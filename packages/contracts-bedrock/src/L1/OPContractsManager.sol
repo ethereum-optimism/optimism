@@ -2033,6 +2033,25 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 GameTypes.SUPER_CANNON, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
+
+            // If the cannon-kona game is being used, set that up too.
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                bytes memory gameArgs = LibGameArgs.encode(
+                    LibGameArgs.GameArgs({
+                        absolutePrestate: _input.opChainConfigs[0].cannonKonaPrestate.raw(),
+                        vm: address(getImplementations().mipsImpl),
+                        anchorStateRegistry: address(newAnchorStateRegistry),
+                        weth: address(newPermissionlessDelayedWETHProxy),
+                        l2ChainId: uint256(0),
+                        proposer: address(0),
+                        challenger: address(0)
+                    })
+                );
+                newDisputeGameFactory.setImplementation(
+                    GameTypes.SUPER_CANNON_KONA, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs
+                );
+                newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON_KONA, _input.gameParameters.initBond);
+            }
         }
     }
 }
