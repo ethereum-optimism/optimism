@@ -965,14 +965,14 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - go-restore-cache:
-          module: scripts/go-ffi
+          module: contracts-bedrock/scripts/go-ffi
           namespace: mod
       - run:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - go-save-cache-mod:
-          module: scripts/go-ffi
+          module: contracts-bedrock/scripts/go-ffi
       - run:
           name: Run tests
           command: |
