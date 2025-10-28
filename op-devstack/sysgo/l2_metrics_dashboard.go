@@ -27,6 +27,13 @@ const grafanaHost = "0.0.0.0"
 const grafanaServerPort = "3000"
 const grafanaDockerPort = "3000"
 
+type PrometheusMetricsEndpoint struct {
+	host              string
+	port              string
+	isLocal           bool
+	isRunningInDocker bool
+}
+
 type L2MetricsDashboard struct {
 	p devtest.P
 
