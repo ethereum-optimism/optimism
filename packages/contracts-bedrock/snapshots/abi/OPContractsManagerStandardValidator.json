@@ -347,7 +347,12 @@
           },
           {
             "internalType": "bytes32",
-            "name": "absolutePrestate",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           },
           {
@@ -398,7 +403,12 @@
           },
           {
             "internalType": "bytes32",
-            "name": "absolutePrestate",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           },
           {
