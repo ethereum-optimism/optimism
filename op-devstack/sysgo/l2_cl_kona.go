@@ -232,7 +232,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			// See: https://github.com/op-rs/kona/issues/2987
 			metricsPort, err := GetAvailableLocalPort()
 			p.Require().NoError(err, "WithKonaNode: getting metrics port")
-			
+
 			envVars = append(envVars, PropagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
 			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 		}
