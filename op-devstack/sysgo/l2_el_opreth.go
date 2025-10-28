@@ -2,6 +2,8 @@ package sysgo
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,11 +111,15 @@ func (n *OpReth) Start() {
 			case authRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
 			}
-		} else if hostAndPortString, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
+		} else if metricsUrl, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
 			// expected format: "Starting metrics endpoint at 127.0.0.1:9091"
-			hostAndPortArray := strings.Split(strings.TrimSpace(hostAndPortString), ":")
-			n.p.Require().Len(hostAndPortArray, 2, "invalid host and port string parsed from log message", "msg", msg, "hostAndPortArray", hostAndPortArray)
-			metricsTargetChan <- NewPrometheusMetricsTarget(hostAndPortArray[0], hostAndPortArray[1], false)
+			if !strings.HasPrefix(metricsUrl, "http") {
+				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+			}
+			parsedUrl, err := url.Parse(metricsUrl)
+			n.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
+			n.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
+			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {

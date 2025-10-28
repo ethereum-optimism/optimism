@@ -3,6 +3,7 @@ package sysgo
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -101,6 +102,9 @@ func (k *KonaNode) Start() {
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
 		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
 			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
+			if !strings.HasPrefix(metricsUrl, "http") {
+				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+			}
 			parsedUrl, err := url.Parse(metricsUrl)
 			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
 			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
