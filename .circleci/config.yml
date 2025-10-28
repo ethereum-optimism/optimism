@@ -965,14 +965,14 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - go-restore-cache:
-          module: contracts-bedrock/scripts/go-ffi
+          module: .
           namespace: mod
       - run:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - go-save-cache-mod:
-          module: contracts-bedrock/scripts/go-ffi
+          module: .
       - run:
           name: Run tests
           command: |
@@ -1749,7 +1749,7 @@ jobs:
       - attach_workspace:
           at: .
       - go-restore-cache:
-          module: op-acceptance-tests
+          module: .
           namespace: mod
       - run:
           name: Build flake-shake aggregator
@@ -1758,7 +1758,7 @@ jobs:
             go mod download
             go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
       - go-save-cache-mod:
-          module: op-acceptance-tests
+          module: .
       - run:
           name: Aggregate results
           command: |
