@@ -418,8 +418,8 @@ contract VerifyOPCM is Script {
             if (_isV2DisputeGamesEnabled(_opcm)) {
                 console.log("[SKIP] Dispute game blueprint not deployed (dispute game v2 feature enabled)");
                 return true; // Consider this "verified" when feature is on
-            } else if (_target.addr != address(0)) {
-                console.log("[FAIL] Dispute game blueprint was deployed (dispute game v2 feature enabled)");
+            } else if (_target.addr == address(0)) {
+                console.log("[FAIL] Dispute game blueprint not deployed (dispute game v2 feature disabled)");
                 success = false;
             }
         }
