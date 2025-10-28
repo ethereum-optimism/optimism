@@ -291,6 +291,7 @@ commands:
       # "." can be used to point to the root go.mod and go.sum
       module:
         type: string
+        default: .
       # Version can be used as a cache buster when making breaking changes to caching strategy
       version:
         type: string
@@ -307,6 +308,7 @@ commands:
     parameters:
       module:
         type: string
+        default: .
       version:
         type: string
         default: <<pipeline.parameters.go-cache-version>>
@@ -902,14 +904,12 @@ jobs:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
-      - go-restore-cache:
-          module: .
+      - go-restore-cache
       - run:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
-      - go-save-cache:
-          module: .
+      - go-save-cache
       - run:
           name: Run tests
           command: |
@@ -933,11 +933,6 @@ jobs:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
           working_directory: packages/contracts-bedrock
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
-          paths:
-            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   contracts-bedrock-heavy-fuzz-nightly:
@@ -1277,16 +1272,14 @@ jobs:
       - attach_workspace:
           at: "."
           if: ${{ uses_artifacts }}
-      - go-restore-cache:
-          module: <<parameters.package_name>>
+      - go-restore-cache
       - run:
           name: Fuzz
           no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
-      - go-save-cache:
-          module: <<parameters.package_name>>
+      - go-save-cache
       - run:
           name: Copy fuzz artifacts
           command: |
@@ -1729,17 +1722,14 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
-      - go-restore-cache:
-          module: .
-          namespace: mod
+      - go-restore-cache
       - run:
           name: Build flake-shake aggregator
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
-      - go-save-cache:
-          module: .
+      - go-save-cache
       - run:
           name: Aggregate results
           command: |
@@ -1778,16 +1768,14 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
-      - go-restore-cache:
-          module: .
+      - go-restore-cache
       - run:
           name: Build flake-shake promoter
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-promoter ./cmd/flake-shake-promoter/main.go
-      - go-save-cache:
-          module: .
+      - go-save-cache
       - run:
           name: Set GH_TOKEN
           command: |
