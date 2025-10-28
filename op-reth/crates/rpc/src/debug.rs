@@ -1,15 +1,17 @@
 //! Historical proofs RPC server implementation for `debug_` namespace.
 
 use crate::state::OpStateProviderFactory;
+use alloy_consensus::BlockHeader;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::B256;
+use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
 use reth_basic_payload_builder::PayloadConfig;
-use reth_evm::ConfigureEvm;
+use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_node_api::{BuildNextEnv, NodePrimitives, PayloadBuilderError};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
@@ -24,7 +26,9 @@ use reth_provider::{
     BlockReaderIdExt, ChainSpecProvider, HeaderProvider, NodePrimitivesProvider, ProviderError,
     ProviderResult, StateProviderFactory,
 };
+use reth_revm::{database::StateProviderDatabase, witness::ExecutionWitnessRecord, State};
 use reth_rpc_api::eth::helpers::FullEthApi;
+use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{result::internal_rpc_err, ToRpcResult};
 use reth_tasks::TaskSpawner;
 use std::{marker::PhantomData, sync::Arc};
@@ -84,6 +88,7 @@ where
 /// Overrides applied to the `debug_` namespace of the RPC API for historical proofs ExEx.
 pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs> {
     provider: Provider,
+    eth_api: Eth,
     state_provider_factory: OpStateProviderFactory<Eth, Storage>,
     evm_config: EvmConfig,
     task_spawner: Box<dyn TaskSpawner>,
@@ -107,7 +112,8 @@ where
     ) -> Self {
         Self {
             provider,
-            state_provider_factory: OpStateProviderFactory::new(eth_api, preimage_store),
+            state_provider_factory: OpStateProviderFactory::new(eth_api.clone(), preimage_store),
+            eth_api,
             evm_config,
             task_spawner,
             semaphore: Semaphore::new(3),
@@ -213,7 +219,65 @@ where
             .map_err(|err| internal_rpc_err(err.to_string()))
     }
 
-    async fn execution_witness(&self, _block: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
-        unimplemented!()
+    async fn execution_witness(&self, block_id: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
+        let _permit = self.inner.semaphore.acquire().await;
+
+        let block = self
+            .inner
+            .eth_api
+            .recovered_block(block_id.into())
+            .await?
+            .ok_or(EthApiError::HeaderNotFound(block_id.into()))?;
+
+        let this = self.inner.clone();
+        let block_number = block.header().number();
+
+        let state_provider = this
+            .state_provider_factory
+            .state_provider(Some(BlockId::Number(block_number.into())))
+            .await
+            .map_err(EthApiError::from)?;
+        let db = StateProviderDatabase::new(&state_provider);
+        let block_executor = this.eth_api.evm_config().executor(db);
+
+        let mut witness_record = ExecutionWitnessRecord::default();
+
+        let _ = block_executor
+            .execute_with_state_closure(&block, |statedb: &State<_>| {
+                witness_record.record_executed_state(statedb);
+            })
+            .map_err(EthApiError::from)?;
+
+        let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
+            witness_record;
+
+        let state =
+            state_provider.witness(Default::default(), hashed_state).map_err(EthApiError::from)?;
+        let mut exec_witness = ExecutionWitness { state, codes, keys, ..Default::default() };
+
+        let smallest = match lowest_block_number {
+            Some(smallest) => smallest,
+            None => {
+                // Return only the parent header, if there were no calls to the
+                // BLOCKHASH opcode.
+                block_number.saturating_sub(1)
+            }
+        };
+
+        let range = smallest..block_number;
+        exec_witness.headers = self
+            .inner
+            .provider
+            .headers_range(range)
+            .map_err(EthApiError::from)?
+            .into_iter()
+            .map(|header| {
+                let mut serialized_header = Vec::new();
+                header.encode(&mut serialized_header);
+                serialized_header.into()
+            })
+            .collect();
+
+        Ok(exec_witness)
     }
 }

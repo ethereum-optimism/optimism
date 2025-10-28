@@ -22,6 +22,7 @@ reth-rpc-eth-types.workspace = true
 reth-rpc-server-types.workspace = true
 reth-tasks = { workspace = true, features = ["rayon"] }
 reth-transaction-pool.workspace = true
+reth-revm.workspace = true
 reth-rpc.workspace = true
 reth-rpc-api.workspace = true
 reth-node-api.workspace = true
@@ -47,6 +48,7 @@ reth-optimism-trie.workspace = true
 alloy-eips.workspace = true
 alloy-json-rpc.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-types-debug.workspace = true
