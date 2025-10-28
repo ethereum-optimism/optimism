@@ -1,9 +1,8 @@
 //! Live trie collector for external proofs storage.
 
 use crate::{
-    api::{BlockStateDiff, OpProofsStorageError, OpProofsStore},
-    provider::OpProofsStateProviderRef,
-    OpProofsStorage,
+    provider::OpProofsStateProviderRef, BlockStateDiff, OpProofsStorage, OpProofsStorageError,
+    OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, NumHash};
 use derive_more::Constructor;

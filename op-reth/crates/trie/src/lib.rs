@@ -13,10 +13,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 pub mod api;
-pub use api::{
-    BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult,
-    OpProofsStore, OpProofsTrieCursorRO,
-};
+pub use api::{BlockStateDiff, OpProofsHashedCursorRO, OpProofsStore, OpProofsTrieCursorRO};
 
 pub mod backfill;
 pub use backfill::BackfillJob;
@@ -52,3 +49,6 @@ pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpPro
 
 pub mod cursor_factory;
 pub use cursor_factory::{OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory};
+
+pub mod error;
+pub use error::{OpProofsStorageError, OpProofsStorageResult};
