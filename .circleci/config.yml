@@ -1078,10 +1078,6 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
-          name: Build go-ffi
-          command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
-      - run:
           name: Install lcov
           command: |
             sudo apt-get update
@@ -1097,6 +1093,14 @@ jobs:
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
       - setup-dev-features:
           dev_features: <<parameters.dev_features>>
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build contract source
+          command: just build-source
+          working_directory: packages/contracts-bedrock
       - run:
           name: Run coverage tests
           command: just coverage-lcov-all <<parameters.test_flags>>
