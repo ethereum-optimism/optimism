@@ -1272,12 +1272,14 @@ jobs:
       - attach_workspace:
           at: "."
           if: ${{ uses_artifacts }}
+      - go-restore-cache
       - run:
           name: Fuzz
           no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
+      - go-save-cache
       - run:
           name: Copy fuzz artifacts
           command: |
