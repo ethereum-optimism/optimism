@@ -281,7 +281,9 @@ func getPrometheusConfigFilePath(p devtest.P, metricsEndpoints *locks.RWMap[stri
 	filePath := filepath.Join(p.TempDir(), "prometheus.yml")
 	file, err := os.Create(filePath)
 	p.Require().NoError(err, "getPrometheusConfigFilePath:error creating prometheus file", "filePath", filePath)
-	defer file.Close()
+	defer func() {
+		p.Require().NoError(file.Close())
+	}()
 
 	_, err = file.Write(b)
 	p.Require().NoError(err, "getPrometheusConfigFilePath:error writing string to prom file", "filePath", filePath, "contents", string(b))
@@ -311,7 +313,9 @@ func getGrafanaProvisioningDirPath(p devtest.P) string {
 	filePath := filepath.Join(dirPath, "prometheus.yml")
 	file, err := os.Create(filePath)
 	p.Require().NoError(err, "getGrafanaProvisioningDirPath: error creating prometheus file", "filePath", filePath)
-	defer file.Close()
+	defer func() {
+		p.Require().NoError(file.Close())
+	}()
 
 	contents := fmt.Sprintf(
 		`
