@@ -388,6 +388,18 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
+	// When Osaka activates. Relative to L1 genesis.
+	L1OsakaTimeOffset *hexutil.Uint64 `json:"l1OsakaTimeOffset,omitempty"`
+	// When BPO1 activates. Relative to L1 genesis.
+	L1BPO1TimeOffset *hexutil.Uint64 `json:"l1BPO1TimeOffset,omitempty"`
+	// When BPO2 activates. Relative to L1 genesis.
+	L1BPO2TimeOffset *hexutil.Uint64 `json:"l1BPO2TimeOffset,omitempty"`
+	// When BPO3 activates. Relative to L1 genesis.
+	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
+	// When BPO4 activates. Relative to L1 genesis.
+	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// Blob schedule config.
+	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)
@@ -404,7 +416,6 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 }
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
-
 	switch fork {
 	case rollup.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
@@ -714,6 +725,18 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+type FeeMarketConfig struct {
+	// MinBaseFee is the minimum base applied to each block.
+	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+}
+
+func (f *FeeMarketConfig) Check(log log.Logger) error {
+	// All values are valid.
+	return nil
+}
+
 // L2InitializationConfig represents all L2 configuration
 // data that can be configured before the deployment of any L1 contracts.
 type L2InitializationConfig struct {
@@ -728,6 +751,7 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
+	FeeMarketConfig
 	AltDADeployConfig
 }
 
@@ -1121,6 +1145,10 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		MinBaseFee:        d.MinBaseFee,
+		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
+		// reflect the genesis state and is not used inside derivation.
+		DAFootprintGasScalar: d.DAFootprintGasScalar,
 	}
 }
 

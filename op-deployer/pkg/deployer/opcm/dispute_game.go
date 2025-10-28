@@ -1,6 +1,8 @@
 package opcm
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -8,40 +10,28 @@ import (
 
 type DeployDisputeGameInput struct {
 	Release                  string
-	VmAddress                common.Address
 	GameKind                 string
 	GameType                 uint32
 	AbsolutePrestate         common.Hash
-	MaxGameDepth             uint64
-	SplitDepth               uint64
+	MaxGameDepth             *big.Int
+	SplitDepth               *big.Int
 	ClockExtension           uint64
 	MaxClockDuration         uint64
 	DelayedWethProxy         common.Address
 	AnchorStateRegistryProxy common.Address
-	L2ChainId                common.Hash
+	VmAddress                common.Address
+	L2ChainId                *big.Int
 	Proposer                 common.Address
 	Challenger               common.Address
-}
-
-func (input *DeployDisputeGameInput) StandardVersionsToml() string {
-	return ""
-}
-
-func (input *DeployDisputeGameInput) InputSet() bool {
-	return true
 }
 
 type DeployDisputeGameOutput struct {
 	DisputeGameImpl common.Address
 }
 
-func (output *DeployDisputeGameOutput) CheckOutput(input common.Address) error {
-	return nil
-}
+type DeployDisputeGameScript script.DeployScriptWithOutput[DeployDisputeGameInput, DeployDisputeGameOutput]
 
-func DeployDisputeGame(
-	host *script.Host,
-	input DeployDisputeGameInput,
-) (DeployDisputeGameOutput, error) {
-	return RunScriptSingle[DeployDisputeGameInput, DeployDisputeGameOutput](host, input, "DeployDisputeGame.s.sol", "DeployDisputeGame")
+// NewDeployDisputeGameScript loads and validates the DeployDisputeGame2 script contract
+func NewDeployDisputeGameScript(host *script.Host) (DeployDisputeGameScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployDisputeGameInput, DeployDisputeGameOutput](host, "DeployDisputeGame.s.sol", "DeployDisputeGame")
 }

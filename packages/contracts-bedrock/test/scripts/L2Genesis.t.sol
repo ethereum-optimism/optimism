@@ -20,7 +20,7 @@ import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
 
 /// @title L2Genesis_TestInit
 /// @notice Reusable test initialization for `L2Genesis` tests.
-contract L2Genesis_TestInit is Test {
+abstract contract L2Genesis_TestInit is Test {
     L2Genesis.Input internal input;
 
     L2Genesis internal genesis;

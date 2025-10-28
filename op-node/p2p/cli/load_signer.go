@@ -6,15 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
 // LoadSignerSetup loads a configuration for a Signer to be set up later
-func LoadSignerSetup(ctx *cli.Context, logger log.Logger) (p2p.SignerSetup, error) {
+func LoadSignerSetup(ctx cliiface.Context, logger log.Logger) (p2p.SignerSetup, error) {
 	key := ctx.String(flags.SequencerP2PKeyName)
 	signerCfg := opsigner.ReadCLIConfig(ctx)
 	if key != "" && signerCfg.Enabled() {

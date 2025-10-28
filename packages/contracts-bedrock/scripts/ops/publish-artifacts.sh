@@ -53,7 +53,7 @@ du -sh "$archive_name" | awk '{$1=$1};1' # trim leading whitespace
 echoerr "> Done."
 
 echoerr "> Uploading artifacts to GCS..."
-gcloud storage cp "$archive_name" "gs://$DEPLOY_BUCKET/$archive_name"
+gcloud --verbosity="info" storage cp "$archive_name" "gs://$DEPLOY_BUCKET/$archive_name"
 echoerr "> Done."
 
 rm "$archive_name"

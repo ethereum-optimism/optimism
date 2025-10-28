@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"math/big"
 	"math/rand"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type FakePoSEnvelope struct {
@@ -59,25 +61,38 @@ func (j *Job) Cancel(ctx context.Context) error {
 }
 
 func (j *Job) setHeadSafeAndFinalized() {
-	j.head = j.b.blockchain.CurrentBlock() // default head
+	var err error
+	j.head, err = j.b.blockchain.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		panic("chain head not found")
+	}
 	if j.parent != (common.Hash{}) {
-		j.head = j.b.blockchain.GetHeaderByHash(j.parent) // override head if parent is set
+		j.head, err = j.b.blockchain.HeaderByHash(context.Background(), j.parent) // override head if parent is set
+		if err != nil {
+			panic("chain head's parent not found")
+		}
 	}
 
-	j.finalized = j.b.blockchain.CurrentFinalBlock()
-	if j.finalized == nil { // fallback to genesis if nothing is finalized
-		j.finalized = j.b.blockchain.Genesis().Header()
+	j.finalized, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetInt64(int64(rpc.FinalizedBlockNumber)))
+	if err != nil { // fallback to genesis if nothing is finalized
+		j.finalized = j.b.genesis
 	}
-	j.safe = j.b.blockchain.CurrentSafeBlock()
-	if j.safe == nil { // fallback to finalized if nothing is safe
+	j.safe, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetInt64(int64(rpc.SafeBlockNumber)))
+	if err != nil { // fallback to finalized if nothing is safe
 		j.safe = j.finalized
 	}
 
 	if j.head.Number.Uint64() > j.b.finalizedDistance { // progress finalized block, if we can
-		j.finalized = j.b.blockchain.GetHeaderByNumber(j.head.Number.Uint64() - j.b.finalizedDistance)
+		j.finalized, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(j.head.Number.Uint64()-j.b.finalizedDistance))
+		if err != nil {
+			panic("no block found finalizedDistance behind head")
+		}
 	}
 	if j.head.Number.Uint64() > j.b.safeDistance { // progress safe block, if we can
-		j.safe = j.b.blockchain.GetHeaderByNumber(j.head.Number.Uint64() - j.b.safeDistance)
+		j.safe, err = j.b.blockchain.HeaderByNumber(context.Background(), new(big.Int).SetUint64(j.head.Number.Uint64()-j.b.safeDistance))
+		if err != nil {
+			panic("no block found safeDistance behind head")
+		}
 	}
 
 	j.parentBeaconBlockRoot = fakeBeaconBlockRoot(j.head.Time) // parent beacon block root
@@ -139,7 +154,7 @@ func (j *Job) Open(ctx context.Context) error {
 		// modify gas limit so that we get a different block
 		envelope.ExecutionPayload.GasLimit = envelope.ExecutionPayload.GasLimit + 100
 
-		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.blockchain.Config())
+		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.config)
 		if err != nil {
 			j.logger.Error("failed to convert executable data to block", "err", err)
 			return err
@@ -187,7 +202,7 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 	}
 
 	if envelope.BlobsBundle != nil {
-		slot := (envelope.ExecutionPayload.Timestamp - j.b.blockchain.Genesis().Time()) / j.b.blockTime
+		slot := (envelope.ExecutionPayload.Timestamp - j.b.genesis.Time) / j.b.blockTime
 		if j.b.beacon == nil {
 			j.logger.Error("no blobs storage available")
 			return nil, errors.New("no blobs storage available")

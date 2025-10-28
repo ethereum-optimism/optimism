@@ -8,7 +8,7 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 
 /// @title OptimismMintableERC20_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC20` tests.
-contract OptimismMintableERC20_TestInit is CommonTest {
+abstract contract OptimismMintableERC20_TestInit is CommonTest {
     event Mint(address indexed account, uint256 amount);
     event Burn(address indexed account, uint256 amount);
 }
@@ -133,10 +133,10 @@ contract OptimismMintableERC20_Bridge_Test is OptimismMintableERC20_TestInit {
     }
 }
 
-/// @title OptimismMintableERC20_Unclassified_Test
+/// @title OptimismMintableERC20_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `OptimismMintableERC20`
 ///         contract.
-contract OptimismMintableERC20_Unclassified_Test is OptimismMintableERC20_TestInit {
+contract OptimismMintableERC20_Uncategorized_Test is OptimismMintableERC20_TestInit {
     function test_legacy_succeeds() external view {
         // Getters for the remote token
         assertEq(L2Token.REMOTE_TOKEN(), address(L1Token));

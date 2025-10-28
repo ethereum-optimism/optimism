@@ -8,7 +8,7 @@ import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
 
 /// @title Faucet_TestInit
 /// @notice Reusable test initialization for `Faucet` tests.
-contract Faucet_TestInit is Test {
+abstract contract Faucet_TestInit is Test {
     event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
 
     address internal faucetContractAdmin;

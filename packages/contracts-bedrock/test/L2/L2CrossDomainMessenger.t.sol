@@ -20,7 +20,7 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
-contract L2CrossDomainMessenger_TestInit is CommonTest {
+abstract contract L2CrossDomainMessenger_TestInit is CommonTest {
     /// @notice Receiver address for testing
     address recipient = address(0xabbaacdc);
 }
@@ -115,10 +115,10 @@ contract L2CrossDomainMessenger_SendMessage_Test is L2CrossDomainMessenger_TestI
     }
 }
 
-/// @title L2CrossDomainMessenger_Unclassified_Test
+/// @title L2CrossDomainMessenger_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the
 ///         `L2CrossDomainMessenger` contract.
-contract L2CrossDomainMessenger_Unclassified_Test is L2CrossDomainMessenger_TestInit {
+contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_TestInit {
     /// @notice Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external view {
         (, uint16 version) = Encoding.decodeVersionedNonce(l2CrossDomainMessenger.messageNonce());

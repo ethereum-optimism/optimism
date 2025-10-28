@@ -52,7 +52,7 @@ contract LegacyMintable is ERC20 {
 /// @notice Reusable test initialization for `StandardBridge` tests.
 /// @dev This setup is primarily for tests focusing on internal stateless logic or default states
 ///      of the `StandardBridge` contract.
-contract StandardBridge_TestInit is CommonTest {
+abstract contract StandardBridge_TestInit is CommonTest {
     StandardBridgeTester internal bridge;
     OptimismMintableERC20 internal mintable;
     ERC20 internal erc20;

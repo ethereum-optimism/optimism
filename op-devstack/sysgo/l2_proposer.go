@@ -91,11 +91,11 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 	}
 
 	proposerCLIConfig := &ps.CLIConfig{
-		L1EthRpc:          l1EL.userRPC,
+		L1EthRpc:          l1EL.UserRPC(),
 		L2OOAddress:       "", // legacy, not used, fault-proofs support only for now.
 		PollInterval:      500 * time.Millisecond,
 		AllowNonFinalized: true,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
+		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.UserRPC()), proposerSecret),
 		RPCConfig: oprpc.CLIConfig{
 			ListenAddr: "127.0.0.1",
 		},

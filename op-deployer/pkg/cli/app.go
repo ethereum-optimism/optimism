@@ -20,6 +20,12 @@ func NewApp(versionWithMeta string) *cli.App {
 	app.Name = "op-deployer"
 	app.Usage = "Tool to configure and deploy OP Chains."
 	app.Flags = cliapp.ProtectFlags(deployer.GlobalFlags)
+	app.Before = func(context *cli.Context) error {
+		if err := deployer.CreateCacheDir(context.String(deployer.CacheDirFlagName)); err != nil {
+			return err
+		}
+		return nil
+	}
 	app.Commands = []*cli.Command{
 		{
 			Name:   "init",

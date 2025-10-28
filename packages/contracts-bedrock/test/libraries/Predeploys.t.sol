@@ -13,7 +13,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
-contract Predeploys_TestInit is CommonTest {
+abstract contract Predeploys_TestInit is CommonTest {
     //////////////////////////////////////////////////////
     /// Internal helpers
     //////////////////////////////////////////////////////
@@ -134,10 +134,10 @@ contract Predeploys_PredeployToCodeNamespace_Test is Predeploys_TestInit {
     }
 }
 
-/// @title Predeploys_Unclassified_Test
+/// @title Predeploys_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once.
-contract Predeploys_Unclassified_Test is Predeploys_TestInit {
+contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code
     ///         and the proxied accounts have the correct admin.
     function test_predeploys_succeeds() external {
@@ -152,10 +152,10 @@ contract Predeploys_Unclassified_Test is Predeploys_TestInit {
     }
 }
 
-/// @title Predeploys_Interop_Unclassified_Test
+/// @title Predeploys_Interop_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `Predeploys` contract
 ///         or are testing multiple functions at once, using interop mode.
-contract Predeploys_UnclassifiedInterop_Test is Predeploys_TestInit {
+contract Predeploys_UncategorizedInterop_Test is Predeploys_TestInit {
     /// @notice Test setup. Enabling interop to get all predeploys.
     function setUp() public virtual override {
         super.enableInterop();

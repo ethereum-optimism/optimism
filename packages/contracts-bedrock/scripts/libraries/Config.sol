@@ -246,6 +246,11 @@ library Config {
         return vm.envOr("DEV_FEATURE__CANNON_KONA", false);
     }
 
+    /// @notice Returns true if the development feature deploy_v2_dispute_games is enabled.
+    function devFeatureDeployV2DisputeGames() internal view returns (bool) {
+        return vm.envOr("DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES", false);
+    }
+
     /// @notice Returns true if the development feature custom gas token is enabled.
     function devFeatureCustomGasToken() internal view returns (bool) {
         return vm.envOr("DEV_FEATURE__CUSTOM_GAS_TOKEN", false);

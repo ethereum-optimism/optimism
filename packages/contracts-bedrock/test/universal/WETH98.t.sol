@@ -10,7 +10,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title WETH98_TestInit
 /// @notice Reusable test initialization for `WETH98` tests.
-contract WETH98_TestInit is Test {
+abstract contract WETH98_TestInit is Test {
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
     event Deposit(address indexed dst, uint256 wad);
@@ -175,10 +175,10 @@ contract WETH98_TransferFrom_Test is WETH98_TestInit {
     }
 }
 
-/// @title WETH98_Unclassified_Test
+/// @title WETH98_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `WETH98` contract or
 ///         are testing multiple functions at once.
-contract WETH98_Unclassified_Test is WETH98_TestInit {
+contract WETH98_Uncategorized_Test is WETH98_TestInit {
     function test_getName_succeeds() public view {
         assertEq(weth.name(), "Wrapped Ether");
         assertEq(weth.symbol(), "WETH");

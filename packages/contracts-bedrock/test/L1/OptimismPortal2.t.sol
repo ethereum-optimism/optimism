@@ -34,7 +34,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
+abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
 
     Types.WithdrawalTransaction _defaultTx;

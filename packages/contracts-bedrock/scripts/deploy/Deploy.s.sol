@@ -9,7 +9,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
-import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
@@ -23,6 +22,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -282,7 +282,7 @@ contract Deploy is Deployer {
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
-                upgradeController: superchainProxyAdmin.owner(),
+                l1ProxyAdminOwner: superchainProxyAdmin.owner(),
                 challenger: cfg.l2OutputOracleChallenger()
             })
         );
@@ -293,6 +293,9 @@ contract Deploy is Deployer {
         artifacts.save("OPContractsManager", address(dio.opcm));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
+        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
+        }
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -324,10 +327,9 @@ contract Deploy is Deployer {
             _impls: impls,
             _proxies: _proxies(),
             _opcm: IOPContractsManager(address(dio.opcm)),
-            _mips: IMIPS64(address(dio.mipsSingleton)),
-            _superchainProxyAdmin: superchainProxyAdmin
+            _mips: IMIPS64(address(dio.mipsSingleton))
         });
-        ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.checkSystemConfigImpls(impls);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 
@@ -359,9 +361,11 @@ contract Deploy is Deployer {
         artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-        artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+        if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
+        }
 
         // Check if the permissionless game implementation is already set
         IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));

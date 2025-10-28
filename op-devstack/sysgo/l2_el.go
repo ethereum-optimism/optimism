@@ -80,8 +80,9 @@ func WithExtL2Node(id stack.L2ELNodeID, elRPCEndpoint string) stack.Option[*Orch
 
 		// Create L2 EL node with external RPC
 		l2ELNode := &OpGeth{
-			id:      id,
-			userRPC: elRPCEndpoint,
+			id:       id,
+			userRPC:  elRPCEndpoint,
+			readOnly: true,
 		}
 		require.True(orch.l2ELs.SetIfMissing(id, l2ELNode), "must not already exist")
 	})

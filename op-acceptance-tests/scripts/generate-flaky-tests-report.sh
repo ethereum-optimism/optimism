@@ -95,6 +95,13 @@ API_RESPONSE=$(echo "$API_RESPONSE" | jq '.flaky_tests = (.flaky_tests | map(sel
 echo "$API_RESPONSE" > "$OUTPUT_DIR/flaky_tests.json"
 echo "Raw API response saved to $OUTPUT_DIR/flaky_tests.json"
 
+# Use acceptance-tests fresponse directly
+echo "Using acceptance-tests filtered response without additional branch verification..."
+FILTERED_JSON="$OUTPUT_DIR/flaky_tests.filtered.json"
+cp "$OUTPUT_DIR/flaky_tests.json" "$FILTERED_JSON"
+API_RESPONSE=$(cat "$FILTERED_JSON")
+echo "Filtered response saved to $FILTERED_JSON"
+
 # Check if the response contains flaky_tests
 if ! echo "$API_RESPONSE" | jq -e '.flaky_tests' > /dev/null 2>&1; then
   echo "Error: Invalid JSON response or missing 'flaky_tests' field"
@@ -103,20 +110,13 @@ if ! echo "$API_RESPONSE" | jq -e '.flaky_tests' > /dev/null 2>&1; then
   exit 1
 fi
 
-# Check if we have any flaky tests
-if ! echo "$API_RESPONSE" | jq -e '.flaky_tests | length > 0' > /dev/null 2>&1; then
-  echo "No flaky tests found for branch $BRANCH"
-  echo "API Response:"
-  echo "$API_RESPONSE"
-  exit 0
-fi
-
 # Print the number of flaky tests found
-NUM_TESTS=$(echo "$API_RESPONSE" | jq '.flaky_tests | length')
+NUM_TESTS=$(jq '.flaky_tests | length' "$FILTERED_JSON")
 echo "Found $NUM_TESTS flaky tests"
 
 # Generate CSV report
 echo "Generating CSV report..."
+echo '"times_flaked","test_name","classname","job_name","workflow_name","job_number","pipeline_number","job_url","first_flaked_at","last_flaked_at"' > "$OUTPUT_DIR/flaky_tests.csv"
 jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
   .times_flaked,
   (.test_name | @json),
@@ -128,15 +128,7 @@ jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
   ("https://app.circleci.com/pipelines/github/" + "'"$ORG_NAME"'" + "/" + "'"$REPO_NAME"'" + "/" + (.pipeline_number | tostring) + "/workflows/" + .workflow_id + "/jobs/" + (.job_number | tostring) | @json),
   (.workflow_created_at | @json),
   (.workflow_created_at | @json)
-] | @csv' "$OUTPUT_DIR/flaky_tests.json" > "$OUTPUT_DIR/flaky_tests.csv"
-
-# Check if CSV file was generated and has content
-if [ ! -s "$OUTPUT_DIR/flaky_tests.csv" ]; then
-  echo "Error: CSV file is empty or was not generated"
-  echo "Contents of flaky_tests.json:"
-  cat "$OUTPUT_DIR/flaky_tests.json"
-  exit 1
-fi
+] | @csv' "$FILTERED_JSON" >> "$OUTPUT_DIR/flaky_tests.csv"
 
 # Generate HTML report
 echo "Generating HTML report..."
@@ -178,7 +170,7 @@ cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
             <th>First Flaked At</th>
             <th>Last Flaked At</th>
         </tr>
-        $(jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name)</td><td>\(.classname)</td><td>\(.job_name)</td><td>\(.workflow_name)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Job</a></td><td>\(.workflow_created_at)</td><td>\(.workflow_created_at)</td></tr>"' "$OUTPUT_DIR/flaky_tests.json")
+        $(jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name)</td><td>\(.classname)</td><td>\(.job_name)</td><td>\(.workflow_name)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Job</a></td><td>\(.workflow_created_at)</td><td>\(.workflow_created_at)</td></tr>"' "$FILTERED_JSON")
     </table>
 </body>
 </html>
@@ -196,4 +188,4 @@ echo "HTML report generated"
 echo "Top 10 Flaky Tests for branch $BRANCH"
 echo "=========================================="
 jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[0:10] | .[] | "\(.times_flaked)x: \(.test_name)"' \
-  "$OUTPUT_DIR/flaky_tests.json"
+  "$FILTERED_JSON"

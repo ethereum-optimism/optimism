@@ -503,6 +503,48 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 	})
 }
 
+// validateCustomNetworkFlagsProhibitedWithNetworkFlag ensures custom network flags are not used simultaneously with the network flag.
+// It validates disallowed flag combinations for a given trace type and trace type prefix configuration.
+func validateCustomNetworkFlagsProhibitedWithNetworkFlag(t *testing.T, traceType types.TraceType, traceTypeForFlagPrefix types.TraceType, customNetworkFlag string) {
+	expectedError := fmt.Sprintf("flag network can not be used with rollup-config/%v-rollup-config, l2-genesis/%v-l2-genesis, l1-genesis/%v-l1-genesis or %v", traceTypeForFlagPrefix, traceTypeForFlagPrefix, traceTypeForFlagPrefix, customNetworkFlag)
+
+	// Test the custom l2 flag
+	t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndCustomL2Flag-%v", traceType), func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			expectedError,
+			addRequiredArgs(traceType, fmt.Sprintf("--%v=true", customNetworkFlag)))
+	})
+
+	// Now test flags with trace-specific permutations
+	customNetworkFlags := map[string]string{
+		"RollupConfig": "rollup-config",
+		"L2Genesis":    "l2-genesis",
+		"L1Genesis":    "l1-genesis",
+	}
+	for testName, flag := range customNetworkFlags {
+		for _, withTraceSpecificPrefix := range []bool{true, false} {
+			var postFix string
+			if withTraceSpecificPrefix {
+				postFix = "-withTraceSpecificPrefix"
+			}
+
+			t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAnd%v-%v%v", testName, traceType, postFix), func(t *testing.T) {
+				var prefix string
+				if withTraceSpecificPrefix {
+					prefix = fmt.Sprintf("%v-", traceTypeForFlagPrefix)
+				}
+				flagName := fmt.Sprintf("%v%v", prefix, flag)
+
+				verifyArgsInvalid(
+					t,
+					expectedError,
+					addRequiredArgs(traceType, fmt.Sprintf("--%v=somevalue.json", flagName)))
+			})
+		}
+	}
+}
+
 func TestAsteriscBaseRequiredArgs(t *testing.T) {
 	for _, traceType := range []types.TraceType{types.TraceTypeAsterisc, types.TraceTypeAsteriscKona} {
 		traceType := traceType
@@ -581,12 +623,7 @@ func TestAsteriscBaseRequiredArgs(t *testing.T) {
 				addRequiredArgsExcept(traceType, "--network", "--l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with rollup-config, l2-genesis or asterisc-kona-l2-custom",
-				addRequiredArgs(traceType, "--rollup-config=rollup.json"))
-		})
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeAsteriscKona, "asterisc-kona-l2-custom")
 
 		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
@@ -669,26 +706,7 @@ func TestCannonCustomConfigArgs(t *testing.T) {
 				addRequiredArgsExcept(traceType, "--network", "--cannon-l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with cannon-rollup-config, l2-genesis or cannon-l2-custom",
-				addRequiredArgs(traceType, "--cannon-rollup-config=rollup.json"))
-		})
-
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			args := requiredArgs(traceType)
-			delete(args, "--network")
-			delete(args, "--game-factory-address")
-			args["--network"] = network
-			args["--cannon-rollup-config"] = "rollup.json"
-			args["--cannon-l2-genesis"] = "gensis.json"
-			args["--cannon-l2-custom"] = "true"
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with cannon-rollup-config, cannon-l2-genesis or cannon-l2-custom",
-				toArgList(args))
-		})
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannon, "cannon-l2-custom")
 
 		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupAndGenesIsSpecified", func(t *testing.T) {
@@ -762,26 +780,7 @@ func TestSuperCannonCustomConfigArgs(t *testing.T) {
 				addRequiredArgsExcept(traceType, "--network", "--cannon-rollup-config=rollup.json", "--cannon-l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with cannon-rollup-config, l2-genesis or cannon-l2-custom",
-				addRequiredArgs(traceType, "--cannon-rollup-config=rollup.json"))
-		})
-
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			args := requiredArgs(traceType)
-			delete(args, "--network")
-			delete(args, "--game-factory-address")
-			args["--network"] = network
-			args["--cannon-rollup-config"] = "rollup.json"
-			args["--cannon-l2-genesis"] = "gensis.json"
-			args["--cannon-l2-custom"] = "true"
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with cannon-rollup-config, cannon-l2-genesis or cannon-l2-custom",
-				toArgList(args))
-		})
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeCannon, "cannon-l2-custom")
 
 		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {
@@ -868,26 +867,7 @@ func TestSuperAsteriscKonaCustomConfigArgs(t *testing.T) {
 				addRequiredArgsExcept(traceType, "--network", "--asterisc-kona-rollup-config=rollup.json", "--asterisc-kona-l2-genesis=gensis.json"))
 		})
 
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with asterisc-kona-rollup-config, l2-genesis or asterisc-kona-l2-custom",
-				addRequiredArgs(traceType, "--asterisc-kona-rollup-config=rollup.json"))
-		})
-
-		t.Run(fmt.Sprintf("TestMustNotSpecifyNetworkAndRollup-%v", traceType), func(t *testing.T) {
-			args := requiredArgs(traceType)
-			delete(args, "--network")
-			delete(args, "--game-factory-address")
-			args["--network"] = network
-			args["--asterisc-kona-rollup-config"] = "rollup.json"
-			args["--asterisc-kona-l2-genesis"] = "gensis.json"
-			args["--asterisc-kona-l2-custom"] = "true"
-			verifyArgsInvalid(
-				t,
-				"flag network can not be used with asterisc-kona-rollup-config, asterisc-kona-l2-genesis or asterisc-kona-l2-custom",
-				toArgList(args))
-		})
+		validateCustomNetworkFlagsProhibitedWithNetworkFlag(t, traceType, types.TraceTypeAsteriscKona, "asterisc-kona-l2-custom")
 
 		t.Run(fmt.Sprintf("TestNetwork-%v", traceType), func(t *testing.T) {
 			t.Run("NotRequiredWhenRollupGenesisAndDepsetIsSpecified", func(t *testing.T) {

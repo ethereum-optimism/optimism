@@ -154,10 +154,13 @@ The batcher includes sophisticated throttling mechanisms to manage data availabi
 --throttle-threshold=1000000
 --throttle-controller-type=quadratic
 
-# Runtime controller switching
+# Runtime controller inspection
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
   http://localhost:8545
+
+# or
+cast rpc admin_getThrottleController -r http://localhost:8545
 ```
 
 **📖 For complete documentation, configuration guides, and troubleshooting, see [Enhanced DA Throttling Mechanisms](./throttling.md)**
@@ -165,6 +168,21 @@ curl -X POST -H "Content-Type: application/json" \
 ### Max Channel Duration
 
 The batcher tries to ensure that batches are posted at a minimum frequency specified by `MAX_CHANNEL_DURATION`. To achieve this, it caches the l1 origin of the last submitted channel, and will force close a channel if the timestamp of the l1 head moves beyond the timestamp of that l1 origin plus `MAX_CHANNEL_DURATION`. When clearing its state, e.g. following the detection of a reorg, the batcher will not clear the cached l1 origin: this way, the regular posting of batches will not be disturbed by events like reorgs.
+
+### Enabling the `admin` API
+In the following sections, we make use of the batcher's admin API. This is disabled by default but can be set with `OP_BATCHER_RPC_ENABLE_ADMIN=true` or `--rpc.enable-admin=true`.
+
+### Runtime batcher flushing
+It is possible to manually trigger the batcher to post data to the DA layer without restarting it, like so:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_flushBatcher","params":[],"id":1}' \
+  http://localhost:8545
+
+# or
+cast rpc admin_flushBatcher -r http://localhost:8545
+```
+The command can either be run on the batcher host machine itself, or remotely by replacing `localhost` with the appropriate remote hostname.
 
 ## Known issues and future work
 

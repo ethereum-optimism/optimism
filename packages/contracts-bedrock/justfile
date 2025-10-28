@@ -16,8 +16,27 @@ dep-status:
 ########################################################
 
 # Core forge build command.
+
 forge-build *ARGS:
   forge build {{ARGS}}
+
+  @# Forge build compiles only the src/ graph; the scripts/ graph is compiled by `forge script`.
+  @# On the first invocation, `forge script` may compile a small set of dependencies.
+  @# To avoid paying this cost in every CI test, we pre‑warm the script cache once here.
+  @#
+  @# Notes:
+  @# - A single `forge script <any script> --skip-simulation` is sufficient to compile the script
+  @#   dependency graph into the cache. Subsequent `forge script` runs (including other scripts)
+  @#   will typically print "No files changed, compilation skipped".
+  @# - We pass `--skip "/**/test/**"` to keep tests out of the graph and suppress warnings.
+  @# - Providing a signature/args is not required for compilation; compilation happens before
+  @#   argument validation and before execution. We still use `--skip-simulation` to guarantee
+  @#   nothing runs in any case.
+  @forge script "scripts/deploy/Deploy.s.sol" \
+    --skip "/**/test/**" \
+    --sig "idonotexist()" \
+    --skip-simulation \
+    2>/dev/null || true
 
 # Developer build command (faster).
 forge-build-dev *ARGS:
@@ -62,8 +81,8 @@ test-dev *ARGS: build-go-ffi
 
 # Default block number for the forked upgrade path.
 
-export sepoliaBlockNumber := "9118951"
-export mainnetBlockNumber := "23327678"
+export sepoliaBlockNumber := "9366100"
+export mainnetBlockNumber := "23530400"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -91,7 +110,6 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_RETRIES=10
   export FORK_BACKOFF=1000
   export FORK_TEST=true
-  export USE_MT_CANNON=true
   {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
@@ -275,6 +293,13 @@ unused-imports-check-no-build:
 # Checks for unused imports in Solidity contracts.
 unused-imports-check: build unused-imports-check-no-build
 
+# Checks that the semver of contracts are valid. Does not build contracts.
+valid-semver-check-no-build:
+  go run ./scripts/checks/valid-semver-check/main.go
+
+# Checks that the semver of contracts are valid.
+valid-semver-check: build valid-semver-check-no-build
+
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh
@@ -307,6 +332,7 @@ check:
   lint-check \
   snapshots-check-no-build \
   unused-imports-check-no-build \
+  valid-semver-check-no-build \
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
