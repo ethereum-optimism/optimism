@@ -139,14 +139,21 @@ func Test_ProgramAction_JovianDAFootprint(gt *testing.T) {
 		header := blk.Header()
 		require.NotNil(t, header.BlobGasUsed, "blobGasUsed must be set on Jovian blocks")
 		blockDAFootprint := *header.BlobGasUsed
+		receipts := env.Engine.L2Chain().GetReceiptsByHash(header.Hash())
 
 		// Compute expected DA footprint from the actual included txs (skip deposits and system txs)
 		var expectedDAFootprint uint64
-		for _, tx := range blk.Transactions() {
+		for i, tx := range blk.Transactions() {
 			if tx.IsDepositTx() {
 				continue
 			}
-			expectedDAFootprint += tx.RollupCostData().EstimatedDASize().Uint64() * uint64(effectiveScalar)
+			recScalar := receipts[i].DAFootprintGasScalar
+			require.NotNil(t, recScalar, "nil receipt DA footprint gas scalar")
+			require.EqualValues(t, effectiveScalar, *recScalar, "DA footprint gas scalar mismatch in receipt")
+
+			txDAFootprint := tx.RollupCostData().EstimatedDASize().Uint64() * uint64(effectiveScalar)
+			require.Equal(t, txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
+			expectedDAFootprint += txDAFootprint
 		}
 		require.Equal(t, expectedDAFootprint, blockDAFootprint, "DA footprint mismatch with header")
 		require.Less(t, blockDAFootprint, gasLimit, "DA footprint should be below gas limit")

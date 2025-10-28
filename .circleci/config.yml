@@ -90,7 +90,7 @@ orbs:
   slack: circleci/slack@6.0.0
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.20
+  utils: ethereum-optimism/circleci-utils@1.0.22
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 

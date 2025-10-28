@@ -121,7 +121,7 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	l1BlockTime := sys.L1EL.EstimateBlockTime()
 	l1ChainConfig := sys.L1Network.Escape().ChainConfig()
 
-	eoa := sys.FunderL1.NewFundedEOA(eth.OneEther.Mul(5))
+	eoa := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), sys.L1Network.ChainID().ToBig())
 	l1ETHClient := sys.L1EL.EthClient()
 	syncEOA := loadtest.NewSyncEOA(txinclude.NewPersistent(signer, struct {
