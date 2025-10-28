@@ -83,6 +83,10 @@ parameters:
   flake-shake-workers:
     type: integer
     default: 50
+  # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
+  go-cache-version:
+    type: string
+    default: "v0.0"
 
 orbs:
   go: circleci/go@1.8.0
@@ -280,6 +284,38 @@ commands:
       - attach_workspace:
           at: "."
       - utils/install-mise
+
+  go-restore-cache:
+    parameters:
+      # The go module to cache for (e.g. go-ffi, op-node, etc.)
+      module:
+        type: string
+      # Version can be used as a cache buster when making breaking changes to caching strategy
+      version:
+        type: string
+        default: <<pipeline.parameters.go-cache-version>>
+    steps:
+      - restore_cache:
+          name: Restore mod cache for <<parameters.module>>
+          keys:
+            - go-mod-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
+            - go-mod-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
+            - go-mod-<<parameters.version>>-<<parameters.module>>-
+
+  go-save-cache:
+    parameters:
+      module:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.go-cache-version>>
+    steps:
+      - save_cache:
+          name: Restore mod & build cache for <<parameters.module>>
+          paths:
+            - ~/.cache/go-build
+            - ~/go/pkg/mod
+          key: go-mod-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
 jobs:
   # Kurtosis-based acceptance tests
@@ -865,10 +901,14 @@ jobs:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
+      - go-restore-cache:
+          module: .
       - run:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
+      - go-save-cache:
+          module: .
       - run:
           name: Run tests
           command: |
@@ -1236,12 +1276,16 @@ jobs:
       - attach_workspace:
           at: "."
           if: ${{ uses_artifacts }}
+      - go-restore-cache:
+          module: <<parameters.package_name>>
       - run:
           name: Fuzz
           no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
+      - go-save-cache:
+          module: <<parameters.package_name>>
       - run:
           name: Copy fuzz artifacts
           command: |
@@ -1684,12 +1728,17 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
+      - go-restore-cache:
+          module: .
+          namespace: mod
       - run:
           name: Build flake-shake aggregator
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
+      - go-save-cache:
+          module: .
       - run:
           name: Aggregate results
           command: |
@@ -1728,12 +1777,16 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
+      - go-restore-cache:
+          module: .
       - run:
           name: Build flake-shake promoter
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-promoter ./cmd/flake-shake-promoter/main.go
+      - go-save-cache:
+          module: .
       - run:
           name: Set GH_TOKEN
           command: |
