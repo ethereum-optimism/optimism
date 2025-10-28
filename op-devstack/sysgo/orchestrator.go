@@ -51,7 +51,7 @@ type Orchestrator struct {
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
 	// service name => prometheus endpoints to scrape
-	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsEndpoint]
+	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
 
 	syncTester *SyncTesterService
 	faucet     *FaucetService
@@ -141,7 +141,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.sysHook.PostHydrate(sys)
 }
 
-func (o *Orchestrator) RegisterL2MetricsEndpoints(id stack.IDWithChain, endpoints ...PrometheusMetricsEndpoint) {
+func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
 	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
 	if !wasSet {
 		existing, found := o.l2MetricsEndpoints.Get(id.Key())

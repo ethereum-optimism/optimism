@@ -16,7 +16,7 @@ func TestWithL2MetricsDashboard_DefaultDisabled(t *testing.T) {
 func TestWithL2MetricsDashboard_DisabledIfEndpointsRegisteredButNotExplicitlyEnabled(t *testing.T) {
 
 	o := &Orchestrator{}
-	o.RegisterL2MetricsEndpoints("test", PrometheusMetricsEndpoint{
+	o.RegisterL2MetricsTargets("test", PrometheusMetricsTarget{
 		host:              "localhost",
 		port:              "9090",
 		isLocal:           true,
