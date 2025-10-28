@@ -3,7 +3,6 @@ package sysgo
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -98,12 +97,18 @@ func (k *KonaNode) Start() {
 
 	onLogEntry := func(e logpipe.LogEntry) {
 		msg := e.LogMessage()
-		switch msg {
-		case "RPC server bound to address":
+		if msg == "RPC server bound to address" {
 			userRPCChan <- "http://" + e.FieldValue("addr").(string)
-		default:
-			if endpoint := k.tryParseMetricsFromLog(msg); endpoint != nil {
-				metricsEndpointChan <- *endpoint
+		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
+			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
+			parsedUrl, err := url.Parse(metricsUrl)
+			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
+			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
+			metricsEndpointChan <- PrometheusMetricsEndpoint{
+				host:              parsedUrl.Hostname(),
+				port:              parsedUrl.Port(),
+				isLocal:           true,
+				isRunningInDocker: false,
 			}
 		}
 	}
@@ -153,30 +158,6 @@ func (k *KonaNode) UserRPC() string {
 
 func (k *KonaNode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
 	return k.interopEndpoint, k.interopJwtSecret
-}
-
-// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
-const konaMetricsPrefix = "Serving metrics at: "
-
-// tryParseMetricsFromLog attempts to parse a running kona metrics server endpoint from
-// the provided log message.
-//
-// If the log message doesn't appear to be metrics-related, nil will be returned. See: `konaMetricsPrefix`.
-func (k *KonaNode) tryParseMetricsFromLog(msg string) *PrometheusMetricsEndpoint {
-	if !strings.HasPrefix(msg, konaMetricsPrefix) {
-		return nil
-	}
-
-	parsedUrl, err := url.Parse(strings.Split(msg, konaMetricsPrefix)[1])
-	k.p.Require().NoError(err, fmt.Sprintf("invalid kona metrics url output to logs: %s", msg))
-	port := parsedUrl.Port()
-	k.p.Require().NotEmpty(port, fmt.Sprintf("empty port url in kona metrics url; log line: %s", msg))
-	return &PrometheusMetricsEndpoint{
-		host:              parsedUrl.Host,
-		port:              port,
-		isLocal:           true,
-		isRunningInDocker: false,
-	}
 }
 
 var _ L2CLNode = (*KonaNode)(nil)
