@@ -1078,6 +1078,10 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Install lcov
           command: |
             sudo apt-get update
