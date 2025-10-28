@@ -134,7 +134,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         // address in fork tests but it's fine.
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
-            absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            absolutePrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
             proposer = address(123);
 
             vm.mockCall(
