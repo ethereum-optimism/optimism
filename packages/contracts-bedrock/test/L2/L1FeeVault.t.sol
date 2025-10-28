@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import { Types } from "src/libraries/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 /// @title L1FeeVault_Version_Test
