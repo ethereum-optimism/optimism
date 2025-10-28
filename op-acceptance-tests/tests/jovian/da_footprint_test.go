@@ -141,6 +141,7 @@ func TestDAFootprint(gt *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t devtest.T) {
+			require := t.Require()
 			if tc.setScalar != nil {
 				rec := env.setDAFootprintGasScalarViaSystemConfig(t, *tc.setScalar)
 				// Wait for change to propagate to L2
@@ -178,7 +179,7 @@ func TestDAFootprint(gt *testing.T) {
 			info := sys.L2EL.WaitForUnsafe(func(info eth.BlockInfo) (bool, error) {
 				blockGasUsed := info.GasUsed()
 				blobGasUsed := info.BlobGasUsed()
-				t.Require().NotNil(blobGasUsed, "blobGasUsed must not be nil for Jovian chains")
+				require.NotNil(blobGasUsed, "blobGasUsed must not be nil for Jovian chains")
 				blockDAFootprint = *blobGasUsed
 				if blockDAFootprint <= blockGasUsed {
 					t.Logf("Block %s has DA footprint (%d) <= gasUsed (%d), trying next...",
@@ -194,18 +195,26 @@ func TestDAFootprint(gt *testing.T) {
 			})
 
 			_, txs, err := ethClient.InfoAndTxsByHash(t.Ctx(), info.Hash())
-			t.Require().NoError(err)
+			require.NoError(err)
+			_, receipts, err := sys.L2EL.Escape().L2EthExtendedClient().FetchReceipts(t.Ctx(), info.Hash())
+			require.NoError(err)
 
 			var totalDAFootprint uint64
-			for _, tx := range txs {
+			for i, tx := range txs {
 				if tx.IsDepositTx() {
 					continue
 				}
-				totalDAFootprint += tx.RollupCostData().EstimatedDASize().Uint64() * uint64(tc.expected)
+				recScalar := receipts[i].DAFootprintGasScalar
+				require.NotNil(recScalar, "nil receipt DA footprint gas scalar")
+				require.EqualValues(tc.expected, *recScalar, "DA footprint gas scalar mismatch in receipt")
+
+				txDAFootprint := tx.RollupCostData().EstimatedDASize().Uint64() * uint64(tc.expected)
+				require.Equal(txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
+				totalDAFootprint += txDAFootprint
 			}
 			t.Logf("Block %s has header/calculated DA footprint %d/%d",
 				eth.ToBlockID(info), blockDAFootprint, totalDAFootprint)
-			t.Require().Equal(totalDAFootprint, blockDAFootprint, "Calculated DA footprint doesn't match block header DA footprint")
+			require.Equal(totalDAFootprint, blockDAFootprint, "Calculated DA footprint doesn't match block header DA footprint")
 
 			// Check base fee calculation of next block
 			// Calculate expected base fee as:
@@ -226,7 +235,7 @@ func TestDAFootprint(gt *testing.T) {
 			t.Logf("Expected base fee: %s", baseFee)
 
 			next := sys.L2EL.WaitForBlockNumber(info.NumberU64() + 1)
-			t.Require().Equal(baseFee, next.BaseFee(), "Wrong base fee")
+			require.Equal(baseFee, next.BaseFee(), "Wrong base fee")
 		})
 	}
 }
