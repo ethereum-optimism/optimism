@@ -142,7 +142,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
                 abi.encode(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl())
             );
-            DisputeGames.mockGameImplProposer(
+            DisputeGames.mockGameImplChallenger(
                 disputeGameFactory, GameTypes.PERMISSIONED_CANNON, opcm.opcmStandardValidator().challenger()
             );
             DisputeGames.mockGameImplProposer(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, proposer);
