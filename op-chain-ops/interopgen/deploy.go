@@ -275,7 +275,7 @@ func MigrateInterop(
 		chainConfigs[i] = manage.OPChainConfig{
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
 			ProxyAdmin:        superDeployment.ProxyAdmin,
-			AbsolutePrestate:  l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
 		}
 	}
 
