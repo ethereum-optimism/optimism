@@ -322,7 +322,7 @@ commands:
         default: <<pipeline.parameters.go-cache-version>>
     steps:
       - save_cache:
-          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
+          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
           paths:
             - ~/.cache/go-build
             - ~/go/pkg/mod
