@@ -171,19 +171,24 @@ contract DeployDisputeGame is Script {
 
         DeployUtils.assertValidContractAddress(address(game));
 
-        require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
+        if (!_input.useV2) {
+            require(GameType.unwrap(game.gameType()) == GameType.unwrap(_input.gameType), "DG-10");
+        }
         require(game.maxGameDepth() == _input.maxGameDepth, "DG-20");
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");
         require(game.maxClockDuration().raw() == uint64(_input.maxClockDuration), "DG-50");
-        require(game.vm() == _input.vmAddress, "DG-60");
-        require(game.weth() == _input.delayedWethProxy, "DG-70");
-        require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
-        require(game.l2ChainId() == _input.l2ChainId, "DG-90");
 
-        if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
-            require(game.proposer() == _input.proposer, "DG-100");
-            require(game.challenger() == _input.challenger, "DG-110");
+        if (!_input.useV2) {
+            require(game.vm() == _input.vmAddress, "DG-60");
+            require(game.weth() == _input.delayedWethProxy, "DG-70");
+            require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
+            require(game.l2ChainId() == _input.l2ChainId, "DG-90");
+
+            if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
+                require(game.proposer() == _input.proposer, "DG-100");
+                require(game.challenger() == _input.challenger, "DG-110");
+            }
         }
     }
 }
