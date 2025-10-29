@@ -265,19 +265,26 @@ impl OpProofsStore for MdbxProofsStorage {
             .sorted_by_key(|(hashed_address, _)| *hashed_address)
             .collect::<Vec<_>>();
 
-        // check latest stored block is the parent of incoming block
-        // todo: move this check inside the update transaction
-        let latest_hash =
-            self.get_latest_block_number().await?.map(|(_, hash)| hash).unwrap_or(B256::ZERO);
-        if latest_hash != block_ref.parent {
-            return Err(OpProofsStorageError::OutOfOrder {
-                block_number,
-                parent_block_hash: block_ref.parent,
-                latest_block_hash: latest_hash,
-            });
-        }
-
         self.env.update(|tx| {
+            // check latest stored block is the parent of incoming block
+            let latest_block_hash = if let Some(bn_hash) =
+                tx.get::<ProofWindow>(ProofWindowKey::LatestBlock)?
+            {
+                *bn_hash.hash()
+            } else if let Some(bn_hash) = tx.get::<ProofWindow>(ProofWindowKey::EarliestBlock)? {
+                *bn_hash.hash()
+            } else {
+                B256::ZERO
+            };
+
+            if latest_block_hash != block_ref.parent {
+                return Err(OpProofsStorageError::OutOfOrder {
+                    block_number,
+                    parent_block_hash: block_ref.parent,
+                    latest_block_hash,
+                });
+            }
+
             let account_trie_len = sorted_account_nodes.len();
             let storage_trie_len = sorted_storage_nodes.len();
             let hashed_account_len = sorted_accounts.size_hint().0;
