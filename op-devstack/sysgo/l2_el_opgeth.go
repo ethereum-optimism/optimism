@@ -1,12 +1,15 @@
 package sysgo
 
 import (
+	"fmt"
+	"net"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -30,6 +33,7 @@ type OpGeth struct {
 	supervisorRPC string
 	l2Geth        *geth.GethInstance
 	readOnly      bool
+	listenAddr    string
 
 	authRPC string
 	userRPC string
@@ -108,13 +112,23 @@ func (n *OpGeth) Start() {
 	}
 
 	require := n.p.Require()
+
+	host, _, err := net.SplitHostPort(n.listenAddr)
+	require.NoError(err)
+
+	nt, err := nat.Parse(fmt.Sprintf("extip:%s", host))
+	require.NoError(err)
+
 	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true
+			ethCfg.RollupNetrestrictTxPoolGossip = "127.0.0.1/32,127.0.0.2/32" // we want 127.0.0.3/32 to be restricted
 			nodeCfg.P2P = p2p.Config{
 				NoDiscovery: true,
-				ListenAddr:  "127.0.0.1:0",
+				ListenAddr:  n.listenAddr,
+				DiscAddr:    n.listenAddr,
+				NAT:         nt,
 				MaxPeers:    10,
 			}
 			return nil
@@ -173,6 +187,7 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			jwtPath:       jwtPath,
 			jwtSecret:     jwtSecret,
 			supervisorRPC: supervisorRPC,
+			listenAddr:    cfg.ListenAddr,
 		}
 		l2EL.Start()
 		p.Cleanup(func() {

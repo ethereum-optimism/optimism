@@ -57,6 +57,7 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
+
 		return slices.ContainsFunc(peers, func(p peer) bool {
 			return p.ID == targetInfo.ID
 		}), nil

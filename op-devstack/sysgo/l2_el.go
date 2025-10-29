@@ -17,6 +17,7 @@ type L2ELNode interface {
 
 type L2ELConfig struct {
 	SupervisorID *stack.SupervisorID
+	ListenAddr   string
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
@@ -25,9 +26,16 @@ func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
 	})
 }
 
+func L2ELWithListenAddr(listenAddr string) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.ListenAddr = listenAddr
+	})
+}
+
 func DefaultL2ELConfig() *L2ELConfig {
 	return &L2ELConfig{
 		SupervisorID: nil,
+		ListenAddr:   "127.0.0.1:0",
 	}
 }
 
