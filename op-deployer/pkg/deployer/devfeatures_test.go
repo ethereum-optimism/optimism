@@ -85,14 +85,8 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 }
 
 func TestToggleDevFeature(t *testing.T) {
-	t.Run("enable feature", func(t *testing.T) {
-		result := ToggleDevFeature(EMPTY_FEATURES, FEATURE_A, true)
-		require.Equal(t, FEATURE_A, result)
-	})
-	t.Run("disable feature", func(t *testing.T) {
-		result := ToggleDevFeature(FEATURES_AB, FEATURE_A, false)
-		require.Equal(t, FEATURE_B, result)
-	})
+	result := EnableDevFeature(EMPTY_FEATURES, FEATURE_A)
+	require.Equal(t, FEATURE_A, result)
 }
 
 func or(values ...[32]byte) [32]byte {

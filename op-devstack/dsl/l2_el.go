@@ -249,7 +249,7 @@ func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
 }
 
 func (el *L2ELNode) PayloadByNumber(number uint64) *eth.ExecutionPayloadEnvelope {
-	payload, err := el.inner.L2EthExtendedClient().PayloadByNumber(el.ctx, number)
+	payload, err := el.inner.L2EthClient().PayloadByNumber(el.ctx, number)
 	el.require.NoError(err, "failed to get payload")
 	return payload
 }

@@ -23,14 +23,14 @@ ARG GIT_DATE
 
 ARG TARGETOS TARGETARCH
 
-FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.5.0-alpha.1 AS cannon-multithreaded64-4
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.6.0 AS cannon-multithreaded64-5
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-verify
-COPY --from=cannon-multithreaded64-4 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-4
+COPY --from=cannon-multithreaded64-5 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-5
 
-# Check cannon-multithreaded64-4
-# verify the latest multithreaded VM behavior against multithreaded64-4
-RUN cd cannon && make diff-multithreaded64-4-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-4
+# Check cannon-multithreaded64-5
+# verify the latest multithreaded VM behavior against multithreaded64-5
+RUN cd cannon && make diff-multithreaded64-5-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
- make diff-multithreaded64-4-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-4 \
+ make diff-multithreaded64-5-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-5 \
  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE

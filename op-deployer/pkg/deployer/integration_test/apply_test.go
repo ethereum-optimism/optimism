@@ -271,8 +271,8 @@ func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
 		require.NoError(t, err)
 
 		var devFeature common.Hash
-		devFeature = deployer.ToggleDevFeature(devFeature, deployer.DeployV2DisputeGamesDevFlag, true)
-		devFeature = deployer.ToggleDevFeature(devFeature, deployer.CannonKonaDevFlag, true)
+		devFeature = deployer.EnableDevFeature(devFeature, deployer.DeployV2DisputeGamesDevFlag)
+		devFeature = deployer.EnableDevFeature(devFeature, deployer.CannonKonaDevFlag)
 
 		runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, bootstrap.ImplementationsConfig{
 			L1RPCUrl:                        forkedL1.RPCUrl(),

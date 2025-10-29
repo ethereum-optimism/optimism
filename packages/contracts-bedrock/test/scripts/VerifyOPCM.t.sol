@@ -297,6 +297,11 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             address blueprint = ref.addr;
             bytes memory blueprintCode = blueprint.code;
 
+            // Skip the V2 dispute games blueprint when feature is enabled.
+            if (blueprintCode.length == 0 && isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+                continue;
+            }
+
             // We don't care about immutable references for blueprints.
             // Pick a random position.
             uint256 randomDiffPosition = vm.randomUint(0, blueprintCode.length - 1);

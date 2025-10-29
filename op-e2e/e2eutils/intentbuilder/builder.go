@@ -106,6 +106,7 @@ type Builder interface {
 	Build() (*state.Intent, error)
 
 	WithGlobalOverride(key string, value any) Builder
+	GlobalOverride(key string) any
 }
 
 func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -221,6 +222,10 @@ func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
 	}
 	b.intent.GlobalDeployOverrides[key] = value
 	return b
+}
+
+func (b *intentBuilder) GlobalOverride(key string) any {
+	return b.intent.GlobalDeployOverrides[key]
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {

@@ -145,7 +145,10 @@ func TestDAFootprint(gt *testing.T) {
 			if tc.setScalar != nil {
 				rec := env.setDAFootprintGasScalarViaSystemConfig(t, *tc.setScalar)
 				// Wait for change to propagate to L2
-				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 20)
+				// Retrying up to 100 times is overkill, but lower values may not work on
+				// persistent networks. See the following issue for more details.
+				// https://github.com/ethereum-optimism/optimism/issues/18061
+				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 100)
 			} else {
 				sys.L2EL.WaitForBlockNumber(1) // make sure we don't assert on genesis
 			}
@@ -196,7 +199,7 @@ func TestDAFootprint(gt *testing.T) {
 
 			_, txs, err := ethClient.InfoAndTxsByHash(t.Ctx(), info.Hash())
 			require.NoError(err)
-			_, receipts, err := sys.L2EL.Escape().L2EthExtendedClient().FetchReceipts(t.Ctx(), info.Hash())
+			_, receipts, err := sys.L2EL.Escape().L2EthClient().FetchReceipts(t.Ctx(), info.Hash())
 			require.NoError(err)
 
 			var totalDAFootprint uint64

@@ -7,5 +7,5 @@ import (
 )
 
 func WithDisputeGameV2() stack.CommonOption {
-	return stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithDevFeatureBitmap(deployer.DeployV2DisputeGamesDevFlag)))
+	return stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithDevFeatureEnabled(deployer.DeployV2DisputeGamesDevFlag)))
 }
