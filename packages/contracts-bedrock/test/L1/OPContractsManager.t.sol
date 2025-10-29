@@ -1882,18 +1882,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         (, uint256 l2SequenceNumberAnchor) = anchorStateRegistry.getAnchorRoot();
         uint256 l2SequenceNumber = l2SequenceNumberAnchor + 1;
-        uint256 gameCount = _input.usePermissionlessGame ? 2 : 1;
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            gameCount += 1;
-        }
-        GameType[] memory gameTypes = new GameType[](gameCount);
-        gameTypes[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
-        if (_input.usePermissionlessGame) {
-            gameTypes[1] = GameTypes.SUPER_CANNON;
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                gameTypes[2] = GameTypes.SUPER_CANNON_KONA;
-            }
-        }
+        GameType[] memory gameTypes = _getPostMigrateExpectedGameTypes(_input);
+
         for (uint256 i = 0; i < gameTypes.length; i++) {
             LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(gameTypes[i]));
             assertEq(gameArgs.vm, opcm.implementations().mipsImpl, "gameArgs vm mismatch");
@@ -1936,6 +1926,25 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
             if (gameTypes[i].raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
                 assertEq(game.proposer(), gameArgs.proposer, "proposer mismatch");
                 assertEq(game.challenger(), gameArgs.challenger, "challenger mismatch");
+            }
+        }
+    }
+
+    function _getPostMigrateExpectedGameTypes(IOPContractsManagerInteropMigrator.MigrateInput memory _input)
+        internal
+        returns (GameType[] memory gameTypes_)
+    {
+        uint256 gameCount = _input.usePermissionlessGame ? 2 : 1;
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            gameCount += 1;
+        }
+        gameTypes_ = new GameType[](gameCount);
+
+        gameTypes_[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
+        if (_input.usePermissionlessGame) {
+            gameTypes_[1] = GameTypes.SUPER_CANNON;
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                gameTypes_[2] = GameTypes.SUPER_CANNON_KONA;
             }
         }
     }
