@@ -1032,7 +1032,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 });
             }
         } else {
-            setNewGameImplV2({
+            setNewPermissionedGameImplV2({
                 _impls: _impls,
                 _l2ChainId: _l2ChainId,
                 _disputeGame: permissionedDisputeGame,
@@ -1040,7 +1040,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 _newAnchorStateRegistryProxy: getAnchorStateRegistry(
                     dgf, permissionedDisputeGame, GameTypes.PERMISSIONED_CANNON
                 ),
-                _gameType: GameTypes.PERMISSIONED_CANNON,
                 _opChainConfig: _opChainConfig
             });
 
@@ -1196,81 +1195,58 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 
-    /// @notice Sets the latest dispute game v2 implementations
+    /// @notice Sets the latest permissioned dispute game v2 implementation
     /// @param _impls The container for the new dispute game implementations.
     /// @param _l2ChainId The L2 chain ID
     /// @param _disputeGame The current dispute game implementation in the dispute game factory
     /// @param _newDelayedWeth The new delayed WETH implementation
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
-    /// @param _gameType The type of game to deploy
     /// @param _opChainConfig The OP chain configuration
-    function setNewGameImplV2(
+    function setNewPermissionedGameImplV2(
         OPContractsManager.Implementations memory _impls,
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
         IDelayedWETH _newDelayedWeth,
         IAnchorStateRegistry _newAnchorStateRegistryProxy,
-        GameType _gameType,
         OPContractsManager.OpChainConfig memory _opChainConfig
     )
         internal
     {
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
-
+        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
+        // that already exists on the current dispute game.
         Claim absolutePrestate;
-        if (isKonaGameVariant(_gameType)) {
-            absolutePrestate = _opChainConfig.cannonKonaPrestate;
+        if (Claim.unwrap(_opChainConfig.cannonPrestate) == bytes32(0)) {
+            absolutePrestate =
+                getAbsolutePrestate(disputeGameFactory, address(_disputeGame), GameTypes.PERMISSIONED_CANNON);
         } else {
-            // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
-            // that already exists on the current dispute game.
-            if (Claim.unwrap(_opChainConfig.cannonPrestate) == bytes32(0)) {
-                absolutePrestate = getAbsolutePrestate(disputeGameFactory, address(_disputeGame), _gameType);
-            } else {
-                // We reuse the cannonPrestate for the permissioned game type
-                // This is only done conventionally. It's not important that the permissioned game uses a specific
-                // prestate
-                absolutePrestate = _opChainConfig.cannonPrestate;
-            }
-            // As a sanity check, if the cannon prestate is zero here, revert.
-            if (absolutePrestate.raw() == bytes32(0)) {
-                revert OPContractsManager.PrestateNotSet();
-            }
+            absolutePrestate = _opChainConfig.cannonPrestate;
         }
 
-        IDisputeGame newGame;
-        bytes memory gameArgs;
-        if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
-            newGame = IDisputeGame(_impls.permissionedDisputeGameV2Impl);
-            gameArgs = LibGameArgs.encode(
-                LibGameArgs.GameArgs({
-                    absolutePrestate: absolutePrestate.raw(),
-                    vm: address(_impls.mipsImpl),
-                    anchorStateRegistry: address(_newAnchorStateRegistryProxy),
-                    weth: address(_newDelayedWeth),
-                    l2ChainId: _l2ChainId,
-                    proposer: getProposer(disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType),
-                    challenger: getChallenger(
-                        disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), _gameType
-                    )
-                })
-            );
-        } else {
-            newGame = IDisputeGame(_impls.faultDisputeGameV2Impl);
-            gameArgs = LibGameArgs.encode(
-                LibGameArgs.GameArgs({
-                    absolutePrestate: absolutePrestate.raw(),
-                    vm: address(_impls.mipsImpl),
-                    anchorStateRegistry: address(_newAnchorStateRegistryProxy),
-                    weth: address(_newDelayedWeth),
-                    l2ChainId: _l2ChainId,
-                    proposer: address(0),
-                    challenger: address(0)
-                })
-            );
+        // As a sanity check, if the prestate is zero here, revert.
+        if (absolutePrestate.raw() == bytes32(0)) {
+            revert OPContractsManager.PrestateNotSet();
         }
 
-        setDGFImplementation(disputeGameFactory, _gameType, IDisputeGame(newGame), gameArgs);
+        IDisputeGame newGame = IDisputeGame(_impls.permissionedDisputeGameV2Impl);
+        bytes memory gameArgs = LibGameArgs.encode(
+            LibGameArgs.GameArgs({
+                absolutePrestate: absolutePrestate.raw(),
+                vm: address(_impls.mipsImpl),
+                anchorStateRegistry: address(_newAnchorStateRegistryProxy),
+                weth: address(_newDelayedWeth),
+                l2ChainId: _l2ChainId,
+                proposer: getProposer(
+                    disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), GameTypes.PERMISSIONED_CANNON
+                ),
+                challenger: getChallenger(
+                    disputeGameFactory, IPermissionedDisputeGame(address(_disputeGame)), GameTypes.PERMISSIONED_CANNON
+                )
+            })
+        );
+
+        setDGFImplementation(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, IDisputeGame(newGame), gameArgs);
     }
 
     function setNewPermissionlessGameImplV2(
