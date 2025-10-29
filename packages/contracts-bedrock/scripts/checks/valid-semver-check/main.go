@@ -13,7 +13,7 @@ import (
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
-		[]string{"forge-artifacts/L2StandardBridgeInterop.sol/**.json", "forge-artifacts/OptimismPortalInterop.sol/**.json", "forge-artifacts/RISCV.sol/**.json", "forge-artifacts/EAS.sol/**.json", "forge-artifacts/SchemaRegistry.sol/**.json"},
+		[]string{"forge-artifacts/L2StandardBridgeInterop.sol/**.json", "forge-artifacts/OptimismPortalInterop.sol/**.json", "forge-artifacts/RISCV.sol/**.json", "forge-artifacts/EAS.sol/**.json", "forge-artifacts/SchemaRegistry.sol/**.json", "forge-artifacts/L1BlockCGT.sol/**.json", "forge-artifacts/L2ToL1MessagePasserCGT.sol/**.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("Error: %v/n", err)
