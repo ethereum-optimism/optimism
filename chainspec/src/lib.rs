@@ -519,6 +519,9 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 mod tests {
     use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
+    use alloy_op_hardforks::{
+        BASE_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
+    };
     use alloy_primitives::b256;
     use reth_chainspec::{test_fork_ids, BaseFeeParams, BaseFeeParamsKind};
     use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
@@ -611,13 +614,20 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 0, timestamp: 1746806401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
+                    ForkId {
+                        hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]),
+                        next: BASE_MAINNET_JOVIAN_TIMESTAMP,
+                    },
                 ),
-                // // Jovian
-                // (
-                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
-                // update timestamp when Jovian is planned */     ForkId { hash:
-                // ForkHash([0xef, 0x0e, 0x58, 0x33]), next: 0 }, ),
+                // Jovian
+                (
+                    Head {
+                        number: 0,
+                        timestamp: BASE_MAINNET_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    BASE_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
             ],
         );
     }
@@ -670,13 +680,20 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
+                    ForkId {
+                        hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]),
+                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                    },
                 ),
-                // // Jovian
-                // (
-                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
-                // update timestamp when Jovian is planned */     ForkId { hash:
-                // ForkHash([0x04, 0x2a, 0x5c, 0x14]), next: 0 }, ),
+                // Jovian
+                (
+                    Head {
+                        number: 0,
+                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    OP_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
             ],
         );
     }
@@ -739,13 +756,20 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
+                    ForkId {
+                        hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]),
+                        next: OP_MAINNET_JOVIAN_TIMESTAMP,
+                    },
                 ),
                 // Jovian
-                // (
-                //     Head { number: 105235063, timestamp: u64::MAX, ..Default::default() }, /*
-                // TODO: update timestamp when Jovian is planned */     ForkId {
-                // hash: ForkHash([0x26, 0xce, 0xa1, 0x75]), next: 0 }, ),
+                (
+                    Head {
+                        number: 105235063,
+                        timestamp: OP_MAINNET_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    OP_MAINNET.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
             ],
         );
     }
@@ -798,13 +822,20 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId { hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
+                    ForkId {
+                        hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]),
+                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                    }, /* TODO: update timestamp when Jovian is planned */
                 ),
-                // // Jovian
-                // (
-                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
-                // update timestamp when Jovian is planned */     ForkId { hash:
-                // ForkHash([0xcd, 0xfd, 0x39, 0x99]), next: 0 }, ),
+                // Jovian
+                (
+                    Head {
+                        number: 0,
+                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                        ..Default::default()
+                    },
+                    BASE_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
+                ),
             ],
         );
     }
@@ -848,7 +879,7 @@ mod tests {
     #[test]
     fn latest_base_mainnet_fork_id() {
         assert_eq!(
-            ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
+            ForkId { hash: ForkHash([0xfa, 0x71, 0x70, 0xef]), next: 0 },
             BASE_MAINNET.latest_fork_id()
         )
     }
@@ -857,7 +888,7 @@ mod tests {
     fn latest_base_mainnet_fork_id_with_builder() {
         let base_mainnet = OpChainSpecBuilder::base_mainnet().build();
         assert_eq!(
-            ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
+            ForkId { hash: ForkHash([0xfa, 0x71, 0x70, 0xef]), next: 0 },
             base_mainnet.latest_fork_id()
         )
     }

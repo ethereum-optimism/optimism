@@ -48,6 +48,7 @@ op-alloy-consensus.workspace = true
 
 [dev-dependencies]
 reth-chainspec = { workspace = true, features = ["test-utils"] }
+alloy-op-hardforks.workspace = true
 
 [features]
 default = ["std"]
@@ -85,4 +86,5 @@ serde = [
     "reth-optimism-primitives/serde",
     "reth-primitives-traits/serde",
     "op-alloy-consensus/serde",
+    "alloy-op-hardforks/serde",
 ]

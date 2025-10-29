@@ -202,12 +202,15 @@ mod tests {
     use reth_optimism_primitives::OpReceipt;
     use std::sync::Arc;
 
-    const JOVIAN_TIMESTAMP: u64 = 1900000000;
+    const HOLOCENE_TIMESTAMP: u64 = 1700000000;
+    const ISTHMUS_TIMESTAMP: u64 = 1750000000;
+    const JOVIAN_TIMESTAMP: u64 = 1800000000;
     const BLOCK_TIME_SECONDS: u64 = 2;
 
     fn holocene_chainspec() -> Arc<OpChainSpec> {
         let mut hardforks = BASE_SEPOLIA_HARDFORKS.clone();
-        hardforks.insert(OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1800000000));
+        hardforks
+            .insert(OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(HOLOCENE_TIMESTAMP));
         Arc::new(OpChainSpec {
             inner: ChainSpec {
                 chain: BASE_SEPOLIA.inner.chain,
@@ -227,7 +230,7 @@ mod tests {
         chainspec
             .inner
             .hardforks
-            .insert(OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1800000000));
+            .insert(OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(ISTHMUS_TIMESTAMP));
         chainspec
     }
 
@@ -236,7 +239,7 @@ mod tests {
         chainspec
             .inner
             .hardforks
-            .insert(OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(1900000000));
+            .insert(OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(JOVIAN_TIMESTAMP));
         chainspec
     }
 
@@ -264,14 +267,14 @@ mod tests {
             base_fee_per_gas: Some(1),
             gas_used: 15763614,
             gas_limit: 144000000,
-            timestamp: 1800000003,
+            timestamp: HOLOCENE_TIMESTAMP + 3,
             extra_data: Bytes::from_static(&[0, 0, 0, 0, 0, 0, 0, 0, 0]),
             ..Default::default()
         };
         let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
             &op_chain_spec,
             &parent,
-            1800000005,
+            HOLOCENE_TIMESTAMP + 5,
         );
         assert_eq!(
             base_fee.unwrap(),
@@ -286,14 +289,14 @@ mod tests {
             gas_used: 15763614,
             gas_limit: 144000000,
             extra_data: Bytes::from_static(&[0, 0, 0, 0, 8, 0, 0, 0, 8]),
-            timestamp: 1800000003,
+            timestamp: HOLOCENE_TIMESTAMP + 3,
             ..Default::default()
         };
 
         let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
             &holocene_chainspec(),
             &parent,
-            1800000005,
+            HOLOCENE_TIMESTAMP + 5,
         );
         assert_eq!(
             base_fee.unwrap(),

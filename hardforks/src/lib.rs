@@ -18,6 +18,10 @@
 
 extern crate alloc;
 
+use alloy_op_hardforks::{
+    BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
+    OP_SEPOLIA_JOVIAN_TIMESTAMP,
+};
 // Re-export alloy-op-hardforks types.
 pub use alloy_op_hardforks::{OpHardfork, OpHardforks};
 
@@ -28,6 +32,7 @@ use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardf
 
 /// Dev hardforks
 pub static DEV_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
+    const JOVIAN_TIMESTAMP: ForkCondition = ForkCondition::Timestamp(1761840000);
     ChainHardforks::new(vec![
         (EthereumHardfork::Frontier.boxed(), ForkCondition::Block(0)),
         (EthereumHardfork::Homestead.boxed(), ForkCondition::Block(0)),
@@ -58,7 +63,7 @@ pub static DEV_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(0)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(0)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(0)),
-        // (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Jovian.boxed(), JOVIAN_TIMESTAMP),
     ])
 });
 
@@ -97,8 +102,7 @@ pub static OP_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
-        // (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(u64::MAX)), /* TODO: Update
-        // timestamp when Jovian is planned */
+        (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_MAINNET_JOVIAN_TIMESTAMP)),
     ])
 });
 /// Optimism Sepolia list of hardforks.
@@ -136,8 +140,7 @@ pub static OP_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
-        // (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(u64::MAX)), /* TODO: Update
-        // timestamp when Jovian is planned */
+        (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(OP_SEPOLIA_JOVIAN_TIMESTAMP)),
     ])
 });
 
@@ -176,8 +179,7 @@ pub static BASE_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
-        // (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(u64::MAX)), /* TODO: Update
-        // timestamp when Jovian is planned */
+        (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(BASE_SEPOLIA_JOVIAN_TIMESTAMP)),
     ])
 });
 
@@ -216,7 +218,6 @@ pub static BASE_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
         (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
         (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
-        // (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(u64::MAX)), /* TODO: Update
-        // timestamp when Jovian is planned */
+        (OpHardfork::Jovian.boxed(), ForkCondition::Timestamp(BASE_MAINNET_JOVIAN_TIMESTAMP)),
     ])
 });
