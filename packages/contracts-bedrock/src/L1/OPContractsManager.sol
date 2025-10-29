@@ -1249,6 +1249,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         setDGFImplementation(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, IDisputeGame(newGame), gameArgs);
     }
 
+    /// @notice Sets the latest permissionless dispute game v2 implementations
+    /// @param _impls The container for the new dispute game implementations.
+    /// @param _l2ChainId The L2 chain ID
+    /// @param _newAbsolutePrestate The new absolute prestate for the dispute game
+    /// @param _newDelayedWeth The new delayed WETH implementation
+    /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
+    /// @param _disputeGameFactory The dispute game factory proxy
     function setNewPermissionlessGameImplV2(
         OPContractsManager.Implementations memory _impls,
         uint256 _l2ChainId,
@@ -2160,9 +2167,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.3.0
+    /// @custom:semver 5.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.3.0";
+        return "5.2.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
