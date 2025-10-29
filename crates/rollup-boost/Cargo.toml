@@ -27,7 +27,6 @@ alloy-serde.workspace = true
 
 tokio-tungstenite.workspace = true
 metrics-derive.workspace = true
-testcontainers.workspace = true
 
 # TODO: update to latest release when it is published
 # jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
@@ -80,6 +79,7 @@ bytes = "1.2"
 reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.7" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
+testcontainers.workspace = true
 
 [build-dependencies]
 vergen = { version = "9.0.4", features = ["build", "cargo", "emit_and_set"] }
