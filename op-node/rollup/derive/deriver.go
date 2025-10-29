@@ -188,11 +188,11 @@ func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	case ProvideL1Traversal:
 		if l1t, ok := d.pipeline.traversal.(ManagedL1Traversal); ok {
 			if err := l1t.ProvideNextL1(d.ctx, x.NextL1); err != nil {
-				if err != nil && errors.Is(err, ErrReset) {
+				if errors.Is(err, ErrReset) {
 					d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-				} else if err != nil && errors.Is(err, ErrTemporary) {
+				} else if errors.Is(err, ErrTemporary) {
 					d.emitter.Emit(ctx, rollup.L1TemporaryErrorEvent{Err: err})
-				} else if err != nil && errors.Is(err, ErrCritical) {
+				} else if errors.Is(err, ErrCritical) {
 					d.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err})
 				} else {
 					d.emitter.Emit(ctx, rollup.L1TemporaryErrorEvent{Err: err})

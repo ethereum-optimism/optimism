@@ -83,6 +83,10 @@ parameters:
   flake-shake-workers:
     type: integer
     default: 50
+  # go-cache-version can be used as a cache buster when making breaking changes to caching strategy
+  go-cache-version:
+    type: string
+    default: "v0.0"
 
 orbs:
   go: circleci/go@1.8.0
@@ -280,6 +284,49 @@ commands:
       - attach_workspace:
           at: "."
       - utils/install-mise
+
+  go-restore-cache:
+    parameters:
+      # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
+      # "." can be used to point to the root go.mod and go.sum
+      module:
+        type: string
+        default: .
+      # Since many builds can run off the same go.mod/go.sum, we'll namespace the caches
+      namespace:
+        type: string
+      # Version can be used as a cache buster when making breaking changes to caching strategy
+      version:
+        type: string
+        default: <<pipeline.parameters.go-cache-version>>
+    steps:
+      - restore_cache:
+          name: Restore go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
+          keys:
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-
+            - go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-
+
+  go-save-cache:
+    parameters:
+      # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
+      # "." can be used to point to the root go.mod and go.sum
+      module:
+        type: string
+        default: .
+      # Since many builds can run off the same go.mod/go.sum, we'll namespace the caches
+      namespace:
+        type: string
+      version:
+        type: string
+        default: <<pipeline.parameters.go-cache-version>>
+    steps:
+      - save_cache:
+          name: Save go cache for <<parameters.namespace>> (<<parameters.module>>/go.mod)
+          paths:
+            - ~/.cache/go-build
+            - ~/go/pkg/mod
+          key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
 jobs:
   # Kurtosis-based acceptance tests
@@ -840,6 +887,10 @@ jobs:
         description: List of changed files to run tests on
         type: string
         default: contracts-bedrock
+      dev_features:
+        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
+        type: string
+        default: ""
     steps:
       - checkout-from-workspace
       - run:
@@ -865,10 +916,16 @@ jobs:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
+      - go-restore-cache:
+          namespace: packages/contracts-bedrock/scripts/go-ffi
       - run:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
+      - go-save-cache:
+          namespace: packages/contracts-bedrock/scripts/go-ffi
+      - setup-dev-features:
+          dev_features: <<parameters.dev_features>>
       - run:
           name: Run tests
           command: |
@@ -892,11 +949,6 @@ jobs:
           name: Lint forge test names
           command: just lint-forge-tests-check-no-build
           working_directory: packages/contracts-bedrock
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
-          paths:
-            - "~/.cache/go-build"
       - notify-failures-on-develop
 
   contracts-bedrock-heavy-fuzz-nightly:
@@ -1041,6 +1093,14 @@ jobs:
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
       - setup-dev-features:
           dev_features: <<parameters.dev_features>>
+      - run:
+          name: Build go-ffi
+          command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build contract source
+          command: just build-source
+          working_directory: packages/contracts-bedrock
       - run:
           name: Run coverage tests
           command: just coverage-lcov-all <<parameters.test_flags>>
@@ -1236,12 +1296,16 @@ jobs:
       - attach_workspace:
           at: "."
           if: ${{ uses_artifacts }}
+      - go-restore-cache:
+          namespace: fuzz-<<parameters.package_name>>
       - run:
           name: Fuzz
           no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
+      - go-save-cache:
+          namespace: fuzz-<<parameters.package_name>>
       - run:
           name: Copy fuzz artifacts
           command: |
@@ -1684,12 +1748,16 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
+      - go-restore-cache:
+          namespace: op-acceptance-tests-flake-shake-aggregator
       - run:
           name: Build flake-shake aggregator
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-aggregator ./cmd/flake-shake-aggregator/main.go
+      - go-save-cache:
+          namespace: op-acceptance-tests-flake-shake-aggregator
       - run:
           name: Aggregate results
           command: |
@@ -1728,12 +1796,16 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             just cmd-check
+      - go-restore-cache:
+          namespace: op-acceptance-tests-flake-shake-promoter
       - run:
           name: Build flake-shake promoter
           working_directory: op-acceptance-tests
           command: |
             go mod download
             go build -o ../flake-shake-promoter ./cmd/flake-shake-promoter/main.go
+      - go-save-cache:
+          namespace: op-acceptance-tests-flake-shake-promoter
       - run:
           name: Set GH_TOKEN
           command: |
@@ -1785,7 +1857,7 @@ jobs:
             jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
       - slack/notify:
-          channel: C03N11M0BBN  # "notify-ci" channel
+          channel: C03N11M0BBN # "notify-ci" channel
           event: always
           retries: 1
           retry_delay: 3
@@ -2262,7 +2334,11 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         - and:
-            - equal: [true, << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>]
+            - equal:
+                [
+                  true,
+                  << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>,
+                ]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - initialize:
@@ -2344,23 +2420,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
-          # Test everything except PreimageOracle.t.sol since it's slow.
-          name: contracts-bedrock-tests
-          test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-          check_changed_patterns: contracts-bedrock,op-node
-      - contracts-bedrock-tests:
-          # PreimageOracle test is slow, run it separately to unblock CI.
-          name: contracts-bedrock-tests-preimage-oracle
-          test_list: find test -name "PreimageOracle.t.sol"
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
@@ -2370,6 +2429,22 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.dev_features>>
+          test_list: find test -name "*.t.sol"
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: &dev_features_matrix
+                - main
+                - OPTIMISM_PORTAL_INTEROP
+                - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
+                - CUSTOM_GAS_TOKEN
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
+          check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage <<matrix.dev_features>>
@@ -2378,12 +2453,11 @@ workflows:
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: ["main", "OPTIMISM_PORTAL_INTEROP","CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES","CUSTOM_GAS_TOKEN"]
-          # need this requires to ensure that all FFI JSONs exist
-          requires:
-            - contracts-bedrock-build
+              dev_features: *dev_features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
           fork_op_chain: <<matrix.fork_op_chain>>
@@ -3070,7 +3144,14 @@ workflows:
             - cannon-prestate-quick
           matrix:
             parameters:
-              network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
+              network_preset:
+                [
+                  "op-sepolia",
+                  "base-sepolia",
+                  "unichain-sepolia",
+                  "op-mainnet",
+                  "base-mainnet",
+                ]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:

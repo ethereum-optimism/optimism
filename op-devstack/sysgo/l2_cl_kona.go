@@ -122,7 +122,7 @@ func (k *KonaNode) Stop() {
 		k.p.Logger().Warn("kona-node already stopped")
 		return
 	}
-	err := k.sub.Stop()
+	err := k.sub.Stop(true)
 	k.p.Require().NoError(err, "Must stop")
 	k.sub = nil
 }

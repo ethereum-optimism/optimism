@@ -28,6 +28,7 @@ import (
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+const devFeatureBitmapKey = "devFeatureBitmap"
 
 type DeployerOption func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder)
 
@@ -274,10 +275,15 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 	}
 }
 
-// WithDevFeatureBitmap sets the dev feature bitmap.
-func WithDevFeatureBitmap(devFlags common.Hash) DeployerOption {
+// WithDevFeatureEnabled adds a feature as enabled in the dev feature bitmap
+func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
-		builder.WithGlobalOverride("devFeatureBitmap", devFlags)
+		currentValue := builder.GlobalOverride(devFeatureBitmapKey)
+		var bitmap common.Hash
+		if currentValue != nil {
+			bitmap = currentValue.(common.Hash)
+		}
+		builder.WithGlobalOverride(devFeatureBitmapKey, deployer.EnableDevFeature(bitmap, flag))
 	}
 }
 
