@@ -144,8 +144,8 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
 	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
 	if !wasSet {
-		existing, found := o.l2MetricsEndpoints.Get(id.Key())
-		o.p.Require().True(wasSet, "l2MetricsEndpoints endpoints not set", "key", id.Key(), "endpoints", endpoints, "conflicted", found, "conflicts", existing)
+		existing, _ := o.l2MetricsEndpoints.Get(id.Key())
+		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key(), "existing", existing, "new", endpoints)
 	}
 }
 
