@@ -108,6 +108,8 @@ type ReadImplementationAddressesOutput struct {
 	PreimageOracleSingleton      common.Address
 	FaultDisputeGameV2           common.Address
 	PermissionedDisputeGameV2    common.Address
+	SuperFaultDisputeGame        common.Address
+	SuperPermissionedDisputeGame common.Address
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]
