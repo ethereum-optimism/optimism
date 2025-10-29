@@ -1,8 +1,6 @@
 pub use alloy_op_evm::{
     spec as revm_spec, spec_by_timestamp_after_bedrock as revm_spec_by_timestamp_after_bedrock,
 };
-
-use alloy_consensus::BlockHeader;
 use revm::primitives::{Address, Bytes, B256};
 
 /// Context relevant for execution of a next block w.r.t OP.
@@ -23,7 +21,7 @@ pub struct OpNextBlockEnvAttributes {
 }
 
 #[cfg(feature = "rpc")]
-impl<H: BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
+impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
     for OpNextBlockEnvAttributes
 {
     fn build_pending_env(parent: &crate::SealedHeader<H>) -> Self {

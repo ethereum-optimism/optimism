@@ -76,4 +76,4 @@ std = [
     "reth-storage-errors/std",
 ]
 portable = ["reth-revm/portable"]
-rpc = ["reth-rpc-eth-api"]
+rpc = ["reth-rpc-eth-api", "reth-optimism-primitives/serde", "reth-optimism-primitives/reth-codec"]
