@@ -135,7 +135,7 @@ func (n *ExternalL1Geth) Start() {
 func (n *ExternalL1Geth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	err := n.sub.Stop()
+	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
 }
