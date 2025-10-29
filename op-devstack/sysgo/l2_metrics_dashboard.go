@@ -163,20 +163,20 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			"grafana/grafana",
 		}
 		grafanaEnv := []string{
-			PropagateEnvVarOrDefault("GF_SECURITY_ADMIN_USER", "admin"),
-			PropagateEnvVarOrDefault("GF_SECURITY_ADMIN_PASSWORD", "admin"),
-			PropagateEnvVarOrDefault("GF_USERS_ALLOW_SIGN_UP", "false"),
-			PropagateEnvVarOrDefault("GF_INSTALL_PLUGINS", "grafana-piechart-panel"),
+			propagateEnvVarOrDefault("GF_SECURITY_ADMIN_USER", "admin"),
+			propagateEnvVarOrDefault("GF_SECURITY_ADMIN_PASSWORD", "admin"),
+			propagateEnvVarOrDefault("GF_USERS_ALLOW_SIGN_UP", "false"),
+			propagateEnvVarOrDefault("GF_INSTALL_PLUGINS", "grafana-piechart-panel"),
 		}
 		dashboard := &L2MetricsDashboard{
 			p: p,
 
-			prometheusExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
+			prometheusExecPath: getEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			prometheusArgs:     prometheusArgs,
 			prometheusEnv:      os.Environ(),
 			prometheusEndpoint: prometheusEndpoint,
 
-			grafanaExecPath: GetEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
+			grafanaExecPath: getEnvVarOrDefault(dockerExecutablePathEnvVar, "docker"),
 			grafanaArgs:     grafanaArgs,
 			grafanaEnv:      append(grafanaEnv, os.Environ()...),
 		}

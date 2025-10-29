@@ -212,27 +212,27 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-			PropagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
-			PropagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
-			PropagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-			PropagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
-			PropagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
-			PropagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
-			PropagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
+			propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+			propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
+			propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 			// p2p ports
-			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
-			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
-			PropagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
 
 		if areMetricsEnabled() {
-			// NB: Instead of GetAvailableLocalPort, we should pass "0" so the OS picks its
+			// NB: Instead of getAvailableLocalPort, we should pass "0" so the OS picks its
 			// own port, but that is not currently logged properly so we cannot parse it.
 			// See: https://github.com/op-rs/kona/issues/2987
-			metricsPort, err := GetAvailableLocalPort()
+			metricsPort, err := getAvailableLocalPort()
 			p.Require().NoError(err, "WithKonaNode: getting metrics port")
 
-			envVars = append(envVars, PropagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+			envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
 			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
 		}
 
