@@ -59,32 +59,8 @@ type L2MetricsDashboard struct {
 }
 
 func (g *L2MetricsDashboard) Start() {
-	var startWaitGroup sync.WaitGroup
-
-	startWaitGroup.Add(1)
-	go func() {
-		defer startWaitGroup.Done()
-		g.startPrometheus()
-	}()
-
-	startWaitGroup.Add(1)
-	go func() {
-		defer startWaitGroup.Done()
-		g.startGrafana()
-	}()
-
-	startedCh := make(chan struct{})
-	go func() {
-		startWaitGroup.Wait()
-		close(startedCh)
-	}()
-
-	select {
-	case <-g.p.Ctx().Done():
-		g.p.Logger().Info("context done before prometheus and grafana started")
-	case <-startedCh:
-		g.p.Logger().Info("prometheus and grafana started successfully")
-	}
+	g.startPrometheus()
+	g.startGrafana()
 }
 
 func (g *L2MetricsDashboard) Stop() {
@@ -106,18 +82,7 @@ func (g *L2MetricsDashboard) Stop() {
 		g.prometheusSubprocess = nil
 	}()
 
-	stoppedCh := make(chan struct{})
-	go func() {
-		stopWaitGroup.Wait()
-		close(stoppedCh)
-	}()
-
-	select {
-	case <-g.p.Ctx().Done():
-		g.p.Logger().Info("context done before prometheus and grafana exited")
-	case <-stoppedCh:
-		g.p.Logger().Info("prometheus and grafana stopped successfully")
-	}
+	stopWaitGroup.Wait()
 }
 
 func (g *L2MetricsDashboard) startPrometheus() {
