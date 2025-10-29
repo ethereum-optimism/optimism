@@ -71,7 +71,7 @@ func (g *L2MetricsDashboard) Stop() {
 	stopWaitGroup.Add(1)
 	go func() {
 		defer stopWaitGroup.Done()
-		err := g.grafanaSubprocess.Stop()
+		err := g.grafanaSubprocess.Stop(true)
 		g.p.Require().NoError(err, "Grafana must stop")
 		g.grafanaSubprocess = nil
 	}()
@@ -79,7 +79,7 @@ func (g *L2MetricsDashboard) Stop() {
 	stopWaitGroup.Add(1)
 	go func() {
 		defer stopWaitGroup.Done()
-		err := g.prometheusSubprocess.Stop()
+		err := g.prometheusSubprocess.Stop(true)
 		g.p.Require().NoError(err, "Prometheus must stop")
 		g.prometheusSubprocess = nil
 	}()
