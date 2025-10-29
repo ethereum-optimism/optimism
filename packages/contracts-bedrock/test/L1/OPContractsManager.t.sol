@@ -301,8 +301,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: opChainConfigs[0].proxyAdmin,
                 sysCfg: opChainConfigs[0].systemConfigProxy,
-                cannonPrestate: opChainConfigs[0].absolutePrestate.raw(),
-                cannonKonaPrestate: bytes32(0),
+                absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
                 l2ChainID: l2ChainId,
                 proposer: initialProposer
             }),

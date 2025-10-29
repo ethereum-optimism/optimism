@@ -208,17 +208,30 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     /// @param _allowFailure Whether to allow failure.
     /// @return The error message(s) from the validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
-        return opcm.validate(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: proxyAdmin,
-                sysCfg: systemConfig,
-                cannonPrestate: cannonPrestate.raw(),
-                cannonKonaPrestate: cannonKonaPrestate.raw(),
-                l2ChainID: l2ChainId,
-                proposer: proposer
-            }),
-            _allowFailure
-        );
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            return opcm.validate(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    proxyAdmin: proxyAdmin,
+                    sysCfg: systemConfig,
+                    cannonPrestate: cannonPrestate.raw(),
+                    cannonKonaPrestate: cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: proposer
+                }),
+                _allowFailure
+            );
+        } else {
+            return opcm.validate(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    proxyAdmin: proxyAdmin,
+                    sysCfg: systemConfig,
+                    absolutePrestate: cannonPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: proposer
+                }),
+                _allowFailure
+            );
+        }
     }
 
     /// @notice Runs the OPContractsManagerStandardValidator.validateWithOverrides function.
@@ -232,18 +245,32 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         view
         returns (string memory)
     {
-        return opcm.validateWithOverrides(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: proxyAdmin,
-                sysCfg: systemConfig,
-                cannonPrestate: cannonPrestate.raw(),
-                cannonKonaPrestate: cannonKonaPrestate.raw(),
-                l2ChainID: l2ChainId,
-                proposer: proposer
-            }),
-            _allowFailure,
-            _overrides
-        );
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            return opcm.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    proxyAdmin: proxyAdmin,
+                    sysCfg: systemConfig,
+                    cannonPrestate: cannonPrestate.raw(),
+                    cannonKonaPrestate: cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: proposer
+                }),
+                _allowFailure,
+                _overrides
+            );
+        } else {
+            return opcm.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    proxyAdmin: proxyAdmin,
+                    sysCfg: systemConfig,
+                    absolutePrestate: cannonPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: proposer
+                }),
+                _allowFailure,
+                _overrides
+            );
+        }
     }
 
     function _defaultValidationOverrides()

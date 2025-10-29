@@ -25,6 +25,14 @@ interface IOPContractsManagerStandardValidator {
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+        address proposer;
+    }
+
+    struct ValidationInputDev {
+        IProxyAdmin proxyAdmin;
+        ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
@@ -67,7 +75,19 @@ interface IOPContractsManagerStandardValidator {
         external
         view
         returns (string memory);
+
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
+
+    function validateWithOverrides(
+        ValidationInputDev memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+    external
+    view
+    returns (string memory);
+
+    function validate(ValidationInputDev memory _input, bool _allowFailure) external view returns (string memory);
 
     function __constructor__(
         Implementations memory _implementations,

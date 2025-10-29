@@ -2241,6 +2241,32 @@ contract OPContractsManager is ISemver {
         return opcmStandardValidator.validateWithOverrides(_input, _allowFailure, _overrides);
     }
 
+    /// @notice Validates the configuration of the L1 contracts.
+    function validate(
+        OPContractsManagerStandardValidator.ValidationInputDev memory _input,
+        bool _allowFailure
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validate(_input, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Supports overrides of certain storage values denoted in the ValidationOverrides struct.
+    function validateWithOverrides(
+        OPContractsManagerStandardValidator.ValidationInputDev memory _input,
+        bool _allowFailure,
+        OPContractsManagerStandardValidator.ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validateWithOverrides(_input, _allowFailure, _overrides);
+    }
+
     /// @notice Deploys a new OP Stack chain.
     /// @param _input The deploy input parameters for the deployment.
     /// @return The deploy output values of the deployment.

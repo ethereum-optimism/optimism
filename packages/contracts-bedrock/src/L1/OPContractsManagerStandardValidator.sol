@@ -116,6 +116,15 @@ contract OPContractsManagerStandardValidator is ISemver {
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+        address proposer;
+    }
+
+    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    struct ValidationInputDev {
+        IProxyAdmin proxyAdmin;
+        ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
@@ -818,6 +827,12 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validate(devInput, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
         );
@@ -827,6 +842,21 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validateWithOverrides(devInput, _allowFailure, _overrides);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    function validateWithOverrides(
+        ValidationInputDev memory _input,
         bool _allowFailure,
         ValidationOverrides memory _overrides
     )
@@ -899,6 +929,18 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return finalErrors;
+    }
+
+    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
+        return ValidationInputDev({
+            proxyAdmin: _input.proxyAdmin,
+            sysCfg: _input.sysCfg,
+            cannonPrestate: _input.absolutePrestate,
+            cannonKonaPrestate: bytes32(0),
+            l2ChainID: _input.l2ChainID,
+            proposer: _input.proposer
+        });
     }
 
     function assertGameArgsLength(
