@@ -152,10 +152,9 @@ func AddGameTypeCLI(cliCtx *cli.Context) error {
 
 	initialBond, err := cliutil.BigIntFlag(cliCtx, InitialBondFlag.Name)
 	if err != nil {
-		cfg.InitialBond = initialBond
-	} else {
 		return fmt.Errorf("failed to parse initial bond: %w", err)
 	}
+	cfg.InitialBond = initialBond
 
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)

@@ -492,7 +492,8 @@ func TestMutexUnlocks(t *testing.T) {
 	hostA.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
 
 	t.Run("SuccessCase", func(t *testing.T) {
-		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		stream, err := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		require.NoError(t, err)
 		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
 		_ = stream.CloseWrite()
 		var result [1]byte
@@ -507,7 +508,8 @@ func TestMutexUnlocks(t *testing.T) {
 
 	t.Run("ErrorCase", func(t *testing.T) {
 		// First request: establish peer in rate limiter
-		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		stream, err := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		require.NoError(t, err)
 		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
 		_ = stream.CloseWrite()
 		var result [1]byte
@@ -523,14 +525,26 @@ func TestMutexUnlocks(t *testing.T) {
 		srv.peerStatsLock.Unlock()
 
 		// Second request with short timeout - return error but still unlock
-		shortCtx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+		shortCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 		defer cancel()
+		stream2SentCh := make(chan bool)
 		go func() {
 			stream2, _ := hostB.NewStream(shortCtx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
-			_ = binary.Write(stream2, binary.LittleEndian, uint64(2))
-			_ = stream2.CloseWrite()
-			stream2.Close()
+			// sometimes a different error arises where stream2 is null. this causes a panic
+			// and the test can't be re-run. The channel fails the test instead, which allows
+			// the test to be re-run.
+			if stream2 == nil {
+				stream2SentCh <- false
+			} else {
+				_ = binary.Write(stream2, binary.LittleEndian, uint64(2))
+				_ = stream2.CloseWrite()
+				stream2.Close()
+				stream2SentCh <- true
+			}
 		}()
+
+		stream2Sent := <-stream2SentCh
+		require.True(t, stream2Sent)
 
 		// Wait for request to fail
 		time.Sleep(100 * time.Millisecond)

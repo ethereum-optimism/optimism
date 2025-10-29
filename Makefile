@@ -206,7 +206,17 @@ TEST_PKGS := \
 	./op-e2e/e2eutils/... \
 	./op-e2e/opgeth/... \
 	./op-e2e/interop/... \
-	./op-e2e/actions/... \
+	./op-e2e/actions/altda \
+	./op-e2e/actions/batcher \
+	./op-e2e/actions/derivation \
+	./op-e2e/actions/helpers \
+	./op-e2e/actions/interop \
+	./op-e2e/actions/proofs \
+	./op-e2e/actions/proposer \
+	./op-e2e/actions/safedb \
+	./op-e2e/actions/sequencer \
+	./op-e2e/actions/sync \
+	./op-e2e/actions/upgrades \
 	./packages/contracts-bedrock/scripts/checks/... \
 	./op-dripper/... \
 	./devnet-sdk/... \
@@ -215,7 +225,8 @@ TEST_PKGS := \
 	./op-deployer/pkg/deployer/artifacts/... \
 	./op-deployer/pkg/deployer/broadcaster/... \
 	./op-deployer/pkg/deployer/clean/... \
-	./op-deployer/pkg/deployer/integration_test/... \
+	./op-deployer/pkg/deployer/integration_test/ \
+	./op-deployer/pkg/deployer/integration_test/cli/... \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
 	./op-deployer/pkg/deployer/verify/... \
@@ -276,13 +287,32 @@ _go-tests-ci-internal:
 	@echo "Running Go tests with gotestsum..."
 	$(DEFAULT_TEST_ENV_VARS) && \
 	$(CI_ENV_VARS) && \
-	gotestsum --format=testname \
-		--junitfile=./tmp/test-results/results.xml \
-		--jsonfile=./tmp/testlogs/log.json \
-		--rerun-fails=3 \
-		--rerun-fails-max-failures=50 \
-		--packages="$(ALL_TEST_PACKAGES)" \
-		-- -parallel=$$PARALLEL -coverprofile=coverage.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci";
+	if [ -n "$$CIRCLE_NODE_TOTAL" ] && [ "$$CIRCLE_NODE_TOTAL" -gt 1 ]; then \
+		export NODE_INDEX=$${CIRCLE_NODE_INDEX:-0} && \
+		export NODE_TOTAL=$${CIRCLE_NODE_TOTAL:-1} && \
+		export PARALLEL_PACKAGES=$$(echo "$(ALL_TEST_PACKAGES)" | tr ' ' '\n' | awk -v idx=$$NODE_INDEX -v total=$$NODE_TOTAL 'NR % total == idx' | tr '\n' ' ') && \
+		if [ -n "$$PARALLEL_PACKAGES" ]; then \
+			echo "Node $$NODE_INDEX/$$NODE_TOTAL running packages: $$PARALLEL_PACKAGES"; \
+			gotestsum --format=testname \
+				--junitfile=./tmp/test-results/results-$$NODE_INDEX.xml \
+				--jsonfile=./tmp/testlogs/log-$$NODE_INDEX.json \
+				--rerun-fails=3 \
+				--rerun-fails-max-failures=50 \
+				--packages="$$PARALLEL_PACKAGES" \
+				-- -parallel=$$PARALLEL -coverprofile=coverage-$$NODE_INDEX.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
+		else \
+			echo "ERROR: Node $$NODE_INDEX/$$NODE_TOTAL has no packages to run! Perhaps parallelism is set too high? (ALL_TEST_PACKAGES has $$(echo '$(ALL_TEST_PACKAGES)' | wc -w) packages)"; \
+			exit 1; \
+		fi; \
+	else \
+		gotestsum --format=testname \
+			--junitfile=./tmp/test-results/results.xml \
+			--jsonfile=./tmp/testlogs/log.json \
+			--rerun-fails=3 \
+			--rerun-fails-max-failures=50 \
+			--packages="$(ALL_TEST_PACKAGES)" \
+			-- -parallel=$$PARALLEL -coverprofile=coverage.out $(GO_TEST_FLAGS) -timeout=$(TEST_TIMEOUT) -tags="ci"; \
+	fi
 .PHONY: _go-tests-ci-internal
 
 go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)

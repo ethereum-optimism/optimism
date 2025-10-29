@@ -111,9 +111,6 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 				"user2": common.HexToAddress("0x1234567890123456789012345678901234567891"),
 			},
 		},
-		L1Addresses: descriptors.AddressMap{
-			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
 		L1Wallets: descriptors.WalletMap{
 			"user1": &descriptors.Wallet{
 				PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",

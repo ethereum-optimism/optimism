@@ -210,6 +210,13 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	}
 }
 
+func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) {
+	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
+	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
+		s.ActL2EmptyBlock(t)
+	}
+}
+
 func (s *L2Sequencer) ActBuildL2ToCanyon(t Testing) {
 	require.NotNil(t, s.RollupCfg.CanyonTime, "cannot activate CanyonTime when it is not scheduled")
 	for s.L2Unsafe().Time < *s.RollupCfg.CanyonTime {

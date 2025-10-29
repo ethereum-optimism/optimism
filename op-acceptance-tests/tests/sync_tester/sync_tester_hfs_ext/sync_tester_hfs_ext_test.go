@@ -249,7 +249,7 @@ func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) 
 	}
 	require := t.Require()
 
-	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
+	ft := sys.L2.Escape().RollupConfig().ActivationTime(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus
 	attempts := 1000
 	if l2CLSyncMode == sync.ELSync {

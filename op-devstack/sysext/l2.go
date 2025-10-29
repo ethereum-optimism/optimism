@@ -44,7 +44,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		},
 		ID:           l2ID,
 		RollupConfig: net.RollupConfig,
-		Deployment:   newL2AddressBook(t, net.L1Addresses),
+		Deployment:   newL2AddressBook(net.Addresses),
 		Keys:         o.defineSystemKeys(t, net),
 		Superchain:   system.Superchain(stack.SuperchainID(env.Env.Name)),
 		L1:           l1,

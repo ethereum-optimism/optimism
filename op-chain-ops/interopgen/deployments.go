@@ -34,6 +34,8 @@ type Implementations struct {
 	ProtocolVersionsImpl             common.Address `json:"ProtocolVersionsImpl"`
 	FaultDisputeGameV2Impl           common.Address `json:"FaultDisputeGameV2Impl"`
 	PermissionedDisputeGameV2Impl    common.Address `json:"PermissionedDisputeGameV2Impl"`
+	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
+	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
 }
 
 type SuperchainDeployment struct {

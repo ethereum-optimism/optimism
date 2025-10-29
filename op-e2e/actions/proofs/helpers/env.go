@@ -38,9 +38,9 @@ type L2FaultProofEnv struct {
 	Bob       *helpers.CrossLayerUser
 }
 
-type deployConfigOverride func(*genesis.DeployConfig)
+type DeployConfigOverride func(*genesis.DeployConfig)
 
-func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg, deployConfigOverrides ...deployConfigOverride) *L2FaultProofEnv {
+func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg, deployConfigOverrides ...DeployConfigOverride) *L2FaultProofEnv {
 	log, logs := testlog.CaptureLogger(t, log.LevelDebug)
 
 	dp := NewDeployParams(t, tp, func(dp *e2eutils.DeployParams) {

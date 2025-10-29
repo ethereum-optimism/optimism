@@ -104,22 +104,25 @@ func deployDisputeGame(
 	lgr.Info("vm deployed", "vmAddr", vmAddr)
 
 	lgr.Info("deploying dispute game")
-	out, err := opcm.DeployDisputeGame(env.L1ScriptHost, opcm.DeployDisputeGameInput{
-		Release:                  "dev",
-		VmAddress:                vmAddr,
-		GameKind:                 "FaultDisputeGame",
-		GameType:                 game.DisputeGameType,
-		AbsolutePrestate:         game.DisputeAbsolutePrestate,
-		MaxGameDepth:             game.DisputeMaxGameDepth,
-		SplitDepth:               game.DisputeSplitDepth,
-		ClockExtension:           game.DisputeClockExtension,
-		MaxClockDuration:         game.DisputeMaxClockDuration,
-		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
-		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
-		L2ChainId:                thisIntent.ID,
-		Proposer:                 thisIntent.Roles.Proposer,
-		Challenger:               thisIntent.Roles.Challenger,
-	})
+
+	out, err := env.Scripts.DeployDisputeGame.Run(
+		opcm.DeployDisputeGameInput{
+			Release:                  "dev",
+			VmAddress:                vmAddr,
+			GameKind:                 "FaultDisputeGame",
+			GameType:                 game.DisputeGameType,
+			AbsolutePrestate:         game.DisputeAbsolutePrestate,
+			MaxGameDepth:             new(big.Int).SetUint64(game.DisputeMaxGameDepth),
+			SplitDepth:               new(big.Int).SetUint64(game.DisputeSplitDepth),
+			ClockExtension:           game.DisputeClockExtension,
+			MaxClockDuration:         game.DisputeMaxClockDuration,
+			DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+			AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
+			L2ChainId:                new(big.Int).SetBytes(thisIntent.ID[:]),
+			Proposer:                 thisIntent.Roles.Proposer,
+			Challenger:               thisIntent.Roles.Challenger,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to deploy dispute game: %w", err)
 	}

@@ -34,11 +34,21 @@ func (r *NewPayloadResult) IsValid() *NewPayloadResult {
 	return r
 }
 
+func (r *NewPayloadResult) IsInvalid() *NewPayloadResult {
+	r.IsPayloadStatus(eth.ExecutionInvalid)
+	r.T.Require().NoError(r.Err)
+	return r
+}
+
 type ForkchoiceUpdateResult struct {
-	T       devtest.T
-	Refresh func()
-	Result  *eth.ForkchoiceUpdatedResult
-	Err     error
+	T          devtest.T
+	Refresh    func()
+	Result     *eth.ForkchoiceUpdatedResult
+	ValidCnt   int // count for VALID response
+	SyncingCnt int // count for SYNCING response
+	InvalidCnt int // count for INVALID response
+	RefreshCnt int
+	Err        error
 }
 
 func (r *ForkchoiceUpdateResult) IsForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) *ForkchoiceUpdateResult {
@@ -72,11 +82,34 @@ func (r *ForkchoiceUpdateResult) WaitUntilValid(attempts int) *ForkchoiceUpdateR
 				return errors.New("forkchoice has empty result")
 			}
 			if r.Result.PayloadStatus.Status != eth.ExecutionValid {
-				r.T.Log("Wait for FCU to return valid", "status", r.Result.PayloadStatus.Status, "try_count", tryCnt)
+				r.T.Logger().Info("Wait for FCU to return valid", "status", r.Result.PayloadStatus.Status, "try_count", tryCnt)
 				return errors.New("still syncing")
 			}
 			return nil
 		})
 	r.T.Require().NoError(err)
 	return r
+}
+
+func (r *ForkchoiceUpdateResult) Retry(attempts int) *ForkchoiceUpdateResult {
+	tryCnt := 0
+	err := retry.Do0(r.T.Ctx(), attempts, &retry.FixedStrategy{Dur: 500 * time.Millisecond},
+		func() error {
+			r.Refresh()
+			tryCnt += 1
+			if r.Err != nil {
+				return fmt.Errorf("forkchoice returned error: %w", r.Err)
+			}
+			if r.Result == nil {
+				return errors.New("forkchoice has empty result")
+			}
+			r.T.Logger().Info("Retrying FCU", "status", r.Result.PayloadStatus.Status, "try_count", tryCnt)
+			return errors.New("retry")
+		})
+	r.T.Require().Error(err) // always return error for retrying
+	return r
+}
+
+func (r *ForkchoiceUpdateResult) ResultAllSyncing() {
+	r.T.Require().Equal(r.RefreshCnt, r.SyncingCnt)
 }
