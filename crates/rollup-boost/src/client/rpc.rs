@@ -1,5 +1,6 @@
 use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
+use crate::client::http::HttpClient as RollupBoostHttpClient;
 use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
 use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
@@ -10,6 +11,7 @@ use alloy_rpc_types_engine::{
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use clap::{Parser, arg};
+use eyre::bail;
 use http::{HeaderMap, Uri};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::middleware::layer::RpcLogger;
@@ -101,7 +103,7 @@ impl From<RpcClientError> for ErrorObjectOwned {
 ///
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RpcClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
     auth_client: RpcClientService,
@@ -376,8 +378,57 @@ impl EngineApiExt for RpcClient {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ClientArgs {
+    /// Auth server address
+    pub url: Uri,
+
+    /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
+    pub jwt_token: Option<JwtSecret>,
+
+    /// Path to a JWT secret to use for the authenticated engine-API RPC server.
+    pub jwt_path: Option<PathBuf>,
+
+    /// Timeout for http calls in milliseconds
+    pub timeout: u64,
+}
+
+impl ClientArgs {
+    fn get_auth_jwt(&self) -> eyre::Result<JwtSecret> {
+        if let Some(secret) = self.jwt_token {
+            Ok(secret)
+        } else if let Some(path) = self.jwt_path.as_ref() {
+            Ok(JwtSecret::from_file(path)?)
+        } else {
+            bail!("Missing Client JWT secret");
+        }
+    }
+
+    pub fn new_rpc_client(&self, payload_source: PayloadSource) -> eyre::Result<RpcClient> {
+        RpcClient::new(
+            self.url.clone(),
+            self.get_auth_jwt()?,
+            self.timeout,
+            payload_source,
+        )
+        .map_err(eyre::Report::from)
+    }
+
+    pub fn new_http_client(
+        &self,
+        payload_source: PayloadSource,
+    ) -> eyre::Result<RollupBoostHttpClient> {
+        Ok(RollupBoostHttpClient::new(
+            self.url.clone(),
+            self.get_auth_jwt()?,
+            payload_source,
+            self.timeout,
+        ))
+    }
+}
+
 /// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC client config via the CLI.
-macro_rules! define_rpc_args {
+macro_rules! define_client_args {
     ($(($name:ident, $prefix:ident)),*) => {
         $(
             paste! {
@@ -399,12 +450,24 @@ macro_rules! define_rpc_args {
                     #[arg(long, env, default_value_t = 1000)]
                     pub [<$prefix _timeout>]: u64,
                 }
+
+
+                impl From<$name> for ClientArgs {
+                    fn from(args: $name) -> Self {
+                        ClientArgs {
+                            url: args.[<$prefix _url>].clone(),
+                            jwt_token: args.[<$prefix _jwt_token>].clone(),
+                            jwt_path: args.[<$prefix _jwt_path>],
+                            timeout: args.[<$prefix _timeout>],
+                        }
+                    }
+                }
             }
         )*
     };
 }
 
-define_rpc_args!((BuilderArgs, builder), (L2ClientArgs, l2));
+define_client_args!((BuilderArgs, builder), (L2ClientArgs, l2));
 
 #[cfg(test)]
 pub mod tests {

@@ -1,8 +1,5 @@
 use crate::client::http::HttpClient;
-use crate::payload::PayloadSource;
 use crate::{Request, Response, from_buffered_request, into_buffered_request};
-use alloy_rpc_types_engine::JwtSecret;
-use http::Uri;
 use http_body_util::BodyExt as _;
 use jsonrpsee::core::BoxError;
 use jsonrpsee::server::HttpBody;
@@ -25,30 +22,15 @@ const FORWARD_REQUESTS: [&str; 6] = [
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
-    l2_auth_rpc: Uri,
-    l2_auth_secret: JwtSecret,
-    l2_timeout: u64,
-    builder_auth_rpc: Uri,
-    builder_auth_secret: JwtSecret,
-    builder_timeout: u64,
+    l2_client: HttpClient,
+    builder_client: HttpClient,
 }
 
 impl ProxyLayer {
-    pub fn new(
-        l2_auth_rpc: Uri,
-        l2_auth_secret: JwtSecret,
-        l2_timeout: u64,
-        builder_auth_rpc: Uri,
-        builder_auth_secret: JwtSecret,
-        builder_timeout: u64,
-    ) -> Self {
+    pub fn new(l2_client: HttpClient, builder_client: HttpClient) -> Self {
         ProxyLayer {
-            l2_auth_rpc,
-            l2_auth_secret,
-            l2_timeout,
-            builder_auth_rpc,
-            builder_auth_secret,
-            builder_timeout,
+            l2_client,
+            builder_client,
         }
     }
 }
@@ -57,24 +39,10 @@ impl<S> Layer<S> for ProxyLayer {
     type Service = ProxyService<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        let l2_client = HttpClient::new(
-            self.l2_auth_rpc.clone(),
-            self.l2_auth_secret,
-            PayloadSource::L2,
-            self.l2_timeout,
-        );
-
-        let builder_client = HttpClient::new(
-            self.builder_auth_rpc.clone(),
-            self.builder_auth_secret,
-            PayloadSource::Builder,
-            self.builder_timeout,
-        );
-
         ProxyService {
             inner,
-            l2_client,
-            builder_client,
+            l2_client: self.l2_client.clone(),
+            builder_client: self.builder_client.clone(),
         }
     }
 }
@@ -162,12 +130,13 @@ where
 #[cfg(test)]
 mod tests {
     use crate::probe::ProbeLayer;
+    use crate::{ClientArgs, PayloadSource};
 
     use super::*;
     use alloy_primitives::{B256, Bytes, U64, U128, hex};
     use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::erc4337::TransactionConditional;
-    use http::StatusCode;
+    use http::{StatusCode, Uri};
     use http_body_util::{BodyExt, Full};
     use hyper::service::service_fn;
     use hyper_util::client::legacy::Client;
@@ -183,17 +152,14 @@ mod tests {
         server::{ServerBuilder, ServerHandle},
     };
     use serde_json::json;
-    use std::{
-        net::{IpAddr, SocketAddr},
-        str::FromStr,
-        sync::Arc,
-    };
+    use std::{net::SocketAddr, sync::Arc};
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
 
-    const PORT: u32 = 8552;
-    const ADDR: &str = "127.0.0.1";
-    const PROXY_PORT: u32 = 8553;
+    // A JSON-RPC error is retriable if error.code ∉ (-32700, -32600]
+    fn is_retriable_code(code: i32) -> bool {
+        code < -32700 || code > -32600
+    }
 
     struct TestHarness {
         builder: MockHttpServer,
@@ -213,12 +179,22 @@ mod tests {
             let builder = MockHttpServer::serve().await?;
             let l2 = MockHttpServer::serve().await?;
             let middleware = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-                format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
-                JwtSecret::random(),
-                1,
-                format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
-                JwtSecret::random(),
-                1,
+                ClientArgs {
+                    url: format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
+                    jwt_token: Some(JwtSecret::random()),
+                    jwt_path: None,
+                    timeout: 1,
+                }
+                .new_http_client(PayloadSource::L2)
+                .unwrap(),
+                ClientArgs {
+                    url: format!("http://{}:{}", builder.addr.ip(), builder.addr.port())
+                        .parse::<Uri>()?,
+                    jwt_token: Some(JwtSecret::random()),
+                    jwt_path: None,
+                    timeout: 1,
+                }
+                .new_http_client(PayloadSource::Builder)?,
             ));
 
             let temp_listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -252,10 +228,22 @@ mod tests {
         addr: SocketAddr,
         requests: Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
         join_handle: JoinHandle<()>,
+        shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+        connections: Arc<tokio::sync::Mutex<Vec<JoinHandle<()>>>>,
     }
 
     impl Drop for MockHttpServer {
         fn drop(&mut self) {
+            // Send shutdown signal if available
+            if let Some(tx) = self.shutdown_tx.take() {
+                let _ = tx.send(());
+            }
+            // Abort active connections to simulate a crash closing open sockets
+            if let Ok(mut conns) = self.connections.try_lock() {
+                for handle in conns.drain(..) {
+                    handle.abort();
+                }
+            }
             self.join_handle.abort();
         }
     }
@@ -264,31 +252,58 @@ mod tests {
         async fn serve() -> eyre::Result<Self> {
             let listener = TcpListener::bind("127.0.0.1:0").await?;
             let addr = listener.local_addr()?;
+            Self::serve_with_listener(listener, addr).await
+        }
+
+        async fn serve_on_addr(addr: SocketAddr) -> eyre::Result<Self> {
+            let listener = TcpListener::bind(addr).await?;
+            let actual_addr = listener.local_addr()?;
+            Self::serve_with_listener(listener, actual_addr).await
+        }
+
+        async fn serve_with_listener(
+            listener: TcpListener,
+            addr: SocketAddr,
+        ) -> eyre::Result<Self> {
             let requests = Arc::new(tokio::sync::Mutex::new(vec![]));
+            let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel();
+            let connections: Arc<tokio::sync::Mutex<Vec<JoinHandle<()>>>> =
+                Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
             let requests_clone = requests.clone();
+            let connections_clone = connections.clone();
             let handle = tokio::spawn(async move {
                 loop {
-                    match listener.accept().await {
-                        Ok((stream, _)) => {
-                            let io = TokioIo::new(stream);
-                            let requests = requests_clone.clone();
-
-                            tokio::spawn(async move {
-                                if let Err(err) = hyper::server::conn::http1::Builder::new()
-                                    .serve_connection(
-                                        io,
-                                        service_fn(move |req| {
-                                            Self::handle_request(req, requests.clone())
-                                        }),
-                                    )
-                                    .await
-                                {
-                                    eprintln!("Error serving connection: {}", err);
-                                }
-                            });
+                    tokio::select! {
+                        _ = &mut shutdown_rx => {
+                            // Shutdown signal received
+                            break;
                         }
-                        Err(e) => eprintln!("Error accepting connection: {}", e),
+                        result = listener.accept() => {
+                            match result {
+                                Ok((stream, _)) => {
+                                    let io = TokioIo::new(stream);
+                                    let requests = requests_clone.clone();
+
+                                    let conn_task = tokio::spawn(async move {
+                                        if let Err(err) = hyper::server::conn::http1::Builder::new()
+                                            .serve_connection(
+                                                io,
+                                                service_fn(move |req| {
+                                                    Self::handle_request(req, requests.clone())
+                                                }),
+                                            )
+                                            .await
+                                        {
+                                            eprintln!("Error serving connection: {}", err);
+                                        }
+                                    });
+                                    // Track the connection task so we can abort on crash
+                                    connections_clone.lock().await.push(conn_task);
+                                }
+                                Err(e) => eprintln!("Error accepting connection: {}", e),
+                            }
+                        }
                     }
                 }
             });
@@ -297,6 +312,8 @@ mod tests {
                 addr,
                 requests,
                 join_handle: handle,
+                shutdown_tx: Some(shutdown_tx),
+                connections,
             })
         }
 
@@ -413,13 +430,15 @@ mod tests {
     }
 
     async fn health_check() {
-        let proxy_server = spawn_proxy_server().await;
+        // Spawn a backend for the proxy to point to, and a proxy with dynamic port
+        let (backend_server, backend_addr) = spawn_server().await;
+        let (proxy_server, proxy_addr) = spawn_proxy_server_with_l2(backend_addr).await;
         // Create a new HTTP client
         let client: Client<HttpConnector, Full<Bytes>> =
             Client::builder(TokioExecutor::new()).build_http();
 
         // Test the health check endpoint
-        let health_check_url = format!("http://{ADDR}:{PORT}/healthz");
+        let health_check_url = format!("http://{proxy_addr}/healthz");
         let health_response = client.get(health_check_url.parse::<Uri>().unwrap()).await;
         assert!(health_response.is_ok());
         let status = health_response.unwrap().status();
@@ -427,36 +446,34 @@ mod tests {
 
         proxy_server.stop().unwrap();
         proxy_server.stopped().await;
+        backend_server.stop().unwrap();
+        backend_server.stopped().await;
     }
 
     async fn send_request(method: &str) -> Result<String, ClientError> {
-        let server = spawn_server().await;
-        let proxy_server = spawn_proxy_server().await;
+        let (backend_server, backend_addr) = spawn_server().await;
+        let (proxy_server, proxy_addr) = spawn_proxy_server_with_l2(backend_addr).await;
         let proxy_client = HttpClient::builder()
-            .build(format!("http://{ADDR}:{PORT}"))
+            .build(format!("http://{}", proxy_addr))
             .unwrap();
 
         let response = proxy_client
             .request::<String, _>(method, rpc_params![])
             .await;
 
-        server.stop().unwrap();
-        server.stopped().await;
+        backend_server.stop().unwrap();
+        backend_server.stopped().await;
         proxy_server.stop().unwrap();
         proxy_server.stopped().await;
 
         response
     }
 
-    async fn spawn_server() -> ServerHandle {
-        let server = ServerBuilder::default()
-            .build(
-                format!("{ADDR}:{PROXY_PORT}")
-                    .parse::<SocketAddr>()
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
+    async fn spawn_server() -> (ServerHandle, SocketAddr) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let server = ServerBuilder::default().build(addr).await.unwrap();
 
         // Create a mock rpc module
         let mut module = RpcModule::new(());
@@ -464,23 +481,37 @@ mod tests {
             .register_method("greet_melkor", |_, _, _| "You are the dark lord")
             .unwrap();
 
-        server.start(module)
+        (server.start(module), addr)
     }
 
-    /// Spawn a new RPC server with a proxy layer.
-    async fn spawn_proxy_server() -> ServerHandle {
-        let addr = format!("{ADDR}:{PORT}");
+    /// Spawn a new RPC server with a proxy layer pointing to a provided L2 address.
+    async fn spawn_proxy_server_with_l2(l2_addr: SocketAddr) -> (ServerHandle, SocketAddr) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = listener.local_addr().unwrap();
+        drop(listener);
 
         let jwt = JwtSecret::random();
-        let l2_auth_uri = format!(
-            "http://{}",
-            SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PROXY_PORT as u16)
-        )
-        .parse::<Uri>()
-        .unwrap();
+        let l2_auth_uri = format!("http://{}", l2_addr).parse::<Uri>().unwrap();
 
         let (probe_layer, _) = ProbeLayer::new();
-        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, 1, l2_auth_uri, jwt, 1);
+        let proxy_layer = ProxyLayer::new(
+            ClientArgs {
+                url: l2_auth_uri.clone(),
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 1,
+            }
+            .new_http_client(PayloadSource::L2)
+            .unwrap(),
+            ClientArgs {
+                url: l2_auth_uri.clone(),
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 1,
+            }
+            .new_http_client(PayloadSource::Builder)
+            .unwrap(),
+        );
 
         // Create a layered server
         let server = ServerBuilder::default()
@@ -489,7 +520,7 @@ mod tests {
                     .layer(probe_layer)
                     .layer(proxy_layer),
             )
-            .build(addr.parse::<SocketAddr>().unwrap())
+            .build(proxy_addr)
             .await
             .unwrap();
 
@@ -508,7 +539,7 @@ mod tests {
             .register_method("non_existent_method", |_, _, _| "no proxy response")
             .unwrap();
 
-        server.start(module)
+        (server.start(module), proxy_addr)
     }
 
     #[tokio::test]
@@ -754,6 +785,214 @@ mod tests {
         assert_eq!(l2_requests.len(), 1);
         assert_eq!(l2_req["method"], expected_method);
         assert_eq!(l2_req["params"][0], expected_price);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_l2_server_recovery() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+        // Step 1: Reserve a port for L2 by binding and then releasing it
+        let temp_listener = TcpListener::bind("127.0.0.1:0").await?;
+        let l2_addr = temp_listener.local_addr()?;
+        drop(temp_listener);
+
+        // Wait for port to be fully released
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Step 2: Create builder and proxy WITHOUT an L2 server running yet
+        let builder = MockHttpServer::serve().await?;
+        let builder_addr = builder.addr;
+        let jwt = JwtSecret::random();
+
+        // Create proxy layer with L2 client pointing to a non-existent server
+        // Use a short timeout to fail quickly
+        let proxy_layer = ProxyLayer::new(
+            ClientArgs {
+                url: format!("http://{}:{}", l2_addr.ip(), l2_addr.port()).parse::<Uri>()?,
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 200, // Short timeout for faster failure
+            }
+            .new_http_client(PayloadSource::L2)?,
+            ClientArgs {
+                url: format!("http://{}:{}", builder_addr.ip(), builder_addr.port())
+                    .parse::<Uri>()?,
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 200,
+            }
+            .new_http_client(PayloadSource::Builder)?,
+        );
+
+        // Start proxy server
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let proxy_addr = listener.local_addr()?;
+        drop(listener);
+
+        let server = Server::builder()
+            .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))
+            .build(proxy_addr)
+            .await?;
+
+        let proxy_addr = server.local_addr()?;
+        let proxy_client: HttpClient = HttpClient::builder().build(format!(
+            "http://{}:{}",
+            proxy_addr.ip(),
+            proxy_addr.port()
+        ))?;
+
+        let server_handle = server.start(RpcModule::new(()));
+
+        // Step 3: Request should fail (connection refused) because L2 server doesn't exist
+        let mock_data = U128::from(42);
+        let result = proxy_client
+            .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+            .await;
+        assert!(
+            result.is_err(),
+            "Request should fail when L2 server is not running"
+        );
+        println!("Request failed as expected (no server): {:?}", result);
+
+        // Step 4: Start the L2 server
+        let l2 = MockHttpServer::serve_on_addr(l2_addr).await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Step 5: Request should now succeed (demonstrating auto-recovery)
+        let result = proxy_client
+            .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+            .await;
+        assert!(
+            result.is_ok(),
+            "Request should succeed after L2 server starts (auto-recovery): {:?}",
+            result
+        );
+        println!("Request succeeded after server started: {:?}", result);
+
+        // Step 6: Verify multiple subsequent requests work consistently
+        for i in 0..3 {
+            let result = proxy_client
+                .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+                .await;
+            assert!(
+                result.is_ok(),
+                "Request {} should continue to succeed: {:?}",
+                i,
+                result
+            );
+        }
+
+        // Verify the server received requests
+        {
+            let l2_requests = l2.requests.lock().await;
+            assert!(
+                l2_requests.len() >= 1,
+                "L2 server should have received requests"
+            );
+            assert_eq!(l2_requests[0]["method"], "mock_forwardedMethod");
+        }
+
+        // Cleanup
+        server_handle.stop()?;
+        drop(builder);
+        drop(l2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_success_then_failure_then_success() -> eyre::Result<()> {
+        // Dynamically bind L2 and Proxy servers
+        let l2 = MockHttpServer::serve().await?;
+        let l2_addr = l2.addr;
+
+        // Build proxy with short timeouts pointing to current L2
+        let jwt = JwtSecret::random();
+        let proxy_layer = ProxyLayer::new(
+            ClientArgs {
+                url: format!("http://{}:{}", l2_addr.ip(), l2_addr.port()).parse::<Uri>()?,
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 200,
+            }
+            .new_http_client(PayloadSource::L2)?,
+            ClientArgs {
+                url: format!("http://{}:{}", l2_addr.ip(), l2_addr.port()).parse::<Uri>()?,
+                jwt_token: Some(jwt),
+                jwt_path: None,
+                timeout: 200,
+            }
+            .new_http_client(PayloadSource::Builder)?,
+        );
+
+        // Start proxy on dynamic port
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let proxy_addr = listener.local_addr()?;
+        drop(listener);
+
+        let server = Server::builder()
+            .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))
+            .build(proxy_addr)
+            .await?;
+        let proxy_addr = server.local_addr()?;
+        let proxy_client: HttpClient = HttpClient::builder().build(format!(
+            "http://{}:{}",
+            proxy_addr.ip(),
+            proxy_addr.port()
+        ))?;
+        let server_handle = server.start(RpcModule::new(()));
+
+        let mock_data = U128::from(7);
+
+        // 1) Initial success
+        let res = proxy_client
+            .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+            .await;
+        assert!(res.is_ok(), "initial request should succeed: {:?}", res);
+
+        // 2) Stop L2 -> subsequent failure
+        drop(l2);
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        // Expect a JSON-RPC error object with code -32000 (retriable)
+        let res = proxy_client
+            .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+            .await;
+        match res {
+            Ok(v) => unreachable!("expected error when L2 down, got: {v:?}"),
+            Err(ClientError::Call(e)) => {
+                let code = e.code();
+                assert!(
+                    is_retriable_code(code),
+                    "expected retriable code (not parse/invalid), got {}",
+                    code
+                );
+            }
+            Err(_other) => {
+                // Transport or other non-Call errors are considered retriable
+                assert!(
+                    matches!(_other, ClientError::Transport(_)),
+                    "expected transport error"
+                );
+            }
+        }
+
+        // 3) Restart L2 -> subsequent success
+        let l2_restarted = MockHttpServer::serve_on_addr(l2_addr).await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let res = proxy_client
+            .request::<serde_json::Value, _>("mock_forwardedMethod", (mock_data,))
+            .await;
+        assert!(
+            res.is_ok(),
+            "request should succeed after L2 restart: {:?}",
+            res
+        );
+
+        // Cleanup
+        server_handle.stop()?;
+        drop(l2_restarted);
 
         Ok(())
     }

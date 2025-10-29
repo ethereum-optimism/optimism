@@ -1,8 +1,10 @@
 use crate::debug_api::ExecutionMode;
-use crate::{BlockSelectionPolicy, EngineApiExt};
+use crate::{
+    BlockSelectionPolicy, ClientArgs, EngineApiExt, Flashblocks, FlashblocksService,
+    RollupBoostArgs, update_execution_mode_gauge,
+};
 use crate::{
     client::rpc::RpcClient,
-    debug_api::DebugServer,
     health::HealthHandle,
     payload::{
         NewPayload, NewPayloadV3, NewPayloadV4, OpExecutionPayloadEnvelope, PayloadSource,
@@ -34,6 +36,8 @@ use op_alloy_rpc_types_engine::{
 };
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
+use std::net::{IpAddr, SocketAddr};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -52,38 +56,106 @@ pub struct BuilderPayloadResult {
 
 pub type BuilderResult = Result<BuilderPayloadResult, ErrorObject<'static>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RollupBoostServer<T: EngineApiExt> {
     pub l2_client: Arc<RpcClient>,
     pub builder_client: Arc<T>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
+    pub execution_mode: Arc<Mutex<ExecutionMode>>,
     block_selection_policy: Option<BlockSelectionPolicy>,
     external_state_root: bool,
     ignore_unhealthy_builders: bool,
-    execution_mode: Arc<Mutex<ExecutionMode>>,
     probes: Arc<Probes>,
     payload_to_fcu_request: DashMap<PayloadId, (ForkchoiceState, Option<OpPayloadAttributes>)>,
 }
 
-impl<T> RollupBoostServer<T>
-where
-    T: EngineApiExt,
-{
+impl RollupBoostServer<FlashblocksService> {
+    pub fn new_from_args(
+        rollup_boost_args: RollupBoostArgs,
+        probes: Arc<Probes>,
+    ) -> eyre::Result<Self> {
+        if !rollup_boost_args.flashblocks.flashblocks {
+            eyre::bail!(
+                "FlashblocksService requires flashblocks to be enabled, first check rollup_boost_args.flashblocks.flashblocks == true before calling this constructor"
+            );
+        }
+        let l2_client_args: ClientArgs = rollup_boost_args.l2_client.into();
+        let builder_client_args: ClientArgs = rollup_boost_args.builder.into();
+
+        let l2_client = l2_client_args.new_rpc_client(PayloadSource::L2)?;
+        let builder_client = builder_client_args.new_rpc_client(PayloadSource::Builder)?;
+
+        let flashblocks_args = rollup_boost_args.flashblocks;
+        let inbound_url = flashblocks_args.flashblocks_builder_url;
+        let outbound_addr = SocketAddr::new(
+            IpAddr::from_str(&flashblocks_args.flashblocks_host)?,
+            flashblocks_args.flashblocks_port,
+        );
+
+        let builder_client = Arc::new(Flashblocks::run(
+            builder_client.clone(),
+            inbound_url,
+            outbound_addr,
+            flashblocks_args.flashblock_builder_ws_reconnect_ms,
+        )?);
+
+        Ok(RollupBoostServer::new(
+            l2_client,
+            builder_client,
+            rollup_boost_args.execution_mode,
+            rollup_boost_args.block_selection_policy,
+            probes.clone(),
+            rollup_boost_args.external_state_root,
+            rollup_boost_args.ignore_unhealthy_builders,
+        ))
+    }
+}
+
+impl RollupBoostServer<RpcClient> {
+    pub fn new_from_args(
+        rollup_boost_args: RollupBoostArgs,
+        probes: Arc<Probes>,
+    ) -> eyre::Result<Self> {
+        if rollup_boost_args.flashblocks.flashblocks {
+            eyre::bail!(
+                "RpcClient requires flashblocks to be disabled, first check rollup_boost_args.flashblocks.flashblocks == false before calling this constructor"
+            );
+        }
+        let l2_client_args: ClientArgs = rollup_boost_args.l2_client.into();
+        let builder_client_args: ClientArgs = rollup_boost_args.builder.into();
+
+        let l2_client = l2_client_args.new_rpc_client(PayloadSource::L2)?;
+        let builder_client = builder_client_args.new_rpc_client(PayloadSource::Builder)?;
+
+        Ok(RollupBoostServer::new(
+            l2_client,
+            Arc::new(builder_client),
+            rollup_boost_args.execution_mode,
+            rollup_boost_args.block_selection_policy,
+            probes.clone(),
+            rollup_boost_args.external_state_root,
+            rollup_boost_args.ignore_unhealthy_builders,
+        ))
+    }
+}
+
+impl<T: EngineApiExt> RollupBoostServer<T> {
     pub fn new(
         l2_client: RpcClient,
         builder_client: Arc<T>,
-        initial_execution_mode: Arc<Mutex<ExecutionMode>>,
+        initial_execution_mode: ExecutionMode,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
         external_state_root: bool,
         ignore_unhealthy_builders: bool,
     ) -> Self {
+        update_execution_mode_gauge(initial_execution_mode);
         Self {
             l2_client: Arc::new(l2_client),
             builder_client,
             block_selection_policy,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
-            execution_mode: initial_execution_mode,
+            execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
             probes,
             external_state_root,
             ignore_unhealthy_builders,
@@ -107,16 +179,6 @@ where
         handle.spawn()
     }
 
-    pub async fn start_debug_server(&self, debug_addr: &str) -> eyre::Result<()> {
-        let server = DebugServer::new(self.execution_mode.clone());
-        server.run(debug_addr).await?;
-        Ok(())
-    }
-
-    pub fn execution_mode(&self) -> ExecutionMode {
-        *self.execution_mode.lock()
-    }
-
     async fn new_payload(&self, new_payload: NewPayload) -> RpcResult<PayloadStatus> {
         let execution_payload = ExecutionPayload::from(new_payload.clone());
         let block_hash = execution_payload.block_hash();
@@ -138,7 +200,7 @@ where
             .await;
 
         // async call to builder to sync the builder node
-        if !self.execution_mode().is_disabled() && !self.should_skip_unhealthy_builder() {
+        if !self.execution_mode.lock().is_disabled() && !self.should_skip_unhealthy_builder() {
             let builder = self.builder_client.clone();
             let new_payload_clone = new_payload.clone();
             tokio::spawn(async move { builder.new_payload(new_payload_clone).await });
@@ -155,7 +217,7 @@ where
 
         // If execution mode is disabled, return the l2 payload without sending
         // the request to the builder
-        if self.execution_mode().is_disabled() {
+        if self.execution_mode.lock().is_disabled() {
             return match l2_fut.await {
                 Ok(payload) => {
                     self.probes.set_health(Health::Healthy);
@@ -271,7 +333,7 @@ where
 
                 // If execution mode is set to DryRun, fallback to the l2_payload,
                 // otherwise prefer the builder payload
-                if self.execution_mode().is_dry_run() {
+                if self.execution_mode.lock().is_dry_run() {
                     (l2_payload, PayloadSource::L2)
                 } else if let Some(selection_policy) = &self.block_selection_policy {
                     selection_policy.select_block(builder_payload, l2_payload)
@@ -281,7 +343,7 @@ where
             } else {
                 // Only update the health status if the builder payload fails
                 // and execution mode is enabled
-                if self.execution_mode().is_enabled() && builder_api_failed {
+                if self.execution_mode.lock().is_enabled() && builder_api_failed {
                     self.probes.set_health(Health::PartialContent);
                 }
                 (l2_payload, PayloadSource::L2)
@@ -437,10 +499,7 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl<T> EngineApiServer for RollupBoostServer<T>
-where
-    T: EngineApiExt,
-{
+impl<T: EngineApiExt> EngineApiServer for RollupBoostServer<T> {
     #[instrument(
         skip_all,
         err,
@@ -462,7 +521,7 @@ where
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone());
 
         // If execution mode is disabled, return the l2 client response immediately
-        if self.execution_mode().is_disabled() {
+        if self.execution_mode.lock().is_disabled() {
             return Ok(l2_fut.await?);
         }
 
@@ -789,31 +848,43 @@ pub mod tests {
             let (l2_server, l2_server_addr) = spawn_server(l2_mock.clone()).await;
             let (builder_server, builder_server_addr) = spawn_server(builder_mock.clone()).await;
 
-            let l2_auth_rpc = Uri::from_str(&format!("http://{l2_server_addr}")).unwrap();
-            let l2_client =
-                RpcClient::new(l2_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::L2).unwrap();
+            // Build l2 clients
+            let l2_client_args = ClientArgs {
+                url: format!("http://{l2_server_addr}")
+                    .parse()
+                    .expect("l2 server address is valid url"),
+                jwt_token: Some(jwt_secret),
+                jwt_path: None,
+                timeout: 2000,
+            };
+            let l2_rpc_client = l2_client_args.new_rpc_client(PayloadSource::L2).unwrap();
+            let l2_http_client = l2_client_args.new_http_client(PayloadSource::L2).unwrap();
 
-            let builder_auth_rpc = Uri::from_str(&format!("http://{builder_server_addr}")).unwrap();
-            let builder_client = Arc::new(
-                RpcClient::new(
-                    builder_auth_rpc.clone(),
-                    jwt_secret,
-                    2000,
-                    PayloadSource::Builder,
-                )
-                .unwrap(),
+            // Build builder clients
+            let builder_client_args = ClientArgs {
+                url: Uri::from_str(&format!("http://{builder_server_addr}")).unwrap(),
+                jwt_token: Some(jwt_secret),
+                jwt_path: None,
+                timeout: 2000,
+            };
+            let builder_rpc_client = Arc::new(
+                builder_client_args
+                    .new_rpc_client(PayloadSource::Builder)
+                    .unwrap(),
             );
+            let builder_http_client = builder_client_args
+                .new_http_client(PayloadSource::Builder)
+                .unwrap();
 
             let (probe_layer, probes) = ProbeLayer::new();
-            let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
             // For tests, set initial health to Healthy since we don't run health checks
             probes.set_health(Health::Healthy);
 
             let rollup_boost = RollupBoostServer::new(
-                l2_client,
-                builder_client,
-                execution_mode.clone(),
+                l2_rpc_client,
+                builder_rpc_client,
+                ExecutionMode::Enabled,
                 None,
                 probes.clone(),
                 external_state_root,
@@ -822,17 +893,9 @@ pub mod tests {
 
             let module: RpcModule<()> = rollup_boost.try_into().unwrap();
 
-            let http_middleware =
-                tower::ServiceBuilder::new()
-                    .layer(probe_layer)
-                    .layer(ProxyLayer::new(
-                        l2_auth_rpc,
-                        jwt_secret,
-                        1,
-                        builder_auth_rpc,
-                        jwt_secret,
-                        1,
-                    ));
+            let http_middleware = tower::ServiceBuilder::new()
+                .layer(probe_layer)
+                .layer(ProxyLayer::new(l2_http_client, builder_http_client));
 
             let server = Server::builder()
                 .set_http_middleware(http_middleware)

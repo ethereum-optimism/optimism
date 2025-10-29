@@ -4,9 +4,9 @@ pub use launcher::*;
 
 mod primitives;
 mod service;
+pub use service::*;
 
 pub use primitives::*;
-pub use service::*;
 
 mod inbound;
 mod outbound;

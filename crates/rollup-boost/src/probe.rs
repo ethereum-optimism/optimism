@@ -62,7 +62,7 @@ pub struct ProbeLayer {
 }
 
 impl ProbeLayer {
-    pub(crate) fn new() -> (Self, Arc<Probes>) {
+    pub fn new() -> (Self, Arc<Probes>) {
         let probes = Arc::new(Probes::default());
         (
             Self {

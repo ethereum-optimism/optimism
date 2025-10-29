@@ -164,7 +164,7 @@ impl FlashblockBuilder {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FlashblocksService {
     client: RpcClient,
 

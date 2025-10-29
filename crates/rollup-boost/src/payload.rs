@@ -239,6 +239,7 @@ pub struct PayloadTrace {
     pub trace_id: Option<tracing::Id>,
 }
 
+#[derive(Debug)]
 pub struct PayloadTraceContext {
     block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
     payload_id: Cache<PayloadId, PayloadTrace>,
