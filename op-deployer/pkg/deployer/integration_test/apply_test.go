@@ -517,9 +517,19 @@ func TestProofParamOverrides(t *testing.T) {
 					uint64Caster,
 					pdgImpl,
 				},
+				{
+					"faultGameAbsolutePrestate",
+					func(t *testing.T, val any) common.Hash {
+						return val.(common.Hash)
+					},
+					pdgImpl,
+				},
 			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
+					if useV2 && tt.name == "faultGameAbsolutePrestate" {
+						t.Skip("absolute prestate is not an immutable in V2 contracts")
+					}
 					checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
 				})
 			}
