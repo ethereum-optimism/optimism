@@ -30,6 +30,7 @@ src_validation = [
     "test/vendor/Initializable.t.sol",     # Tests external vendor code
     "test/vendor/InitializableOZv5.t.sol", # Tests external vendor code
 	"test/L2/LegacyFeeSplitter.t.sol",     # Tests legacy fee splitter with updated vaults interface
+	"test/L2/FeeSplitterVaults.t.sol",     # Tests FeeSplitter with vault-specific scenarios using test helper
 ]
 
 # PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:

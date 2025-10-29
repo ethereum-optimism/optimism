@@ -243,6 +243,11 @@
   },
   {
     "inputs": [],
+    "name": "FeeSplitter_FeeDisbursementIntervalCannotBeZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FeeSplitter_FeeShareInfoEmpty",
     "type": "error"
   },
@@ -258,6 +263,11 @@
   },
   {
     "inputs": [],
+    "name": "FeeSplitter_FeeVaultWithdrawalAmountMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FeeSplitter_NoFeesCollected",
     "type": "error"
   },
@@ -268,12 +278,7 @@
   },
   {
     "inputs": [],
-    "name": "FeeSplitter_ReceiveWindowClosed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "FeeSplitter_SenderNotApprovedVault",
+    "name": "FeeSplitter_SenderNotCurrentVault",
     "type": "error"
   },
   {

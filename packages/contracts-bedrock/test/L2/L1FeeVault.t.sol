@@ -9,6 +9,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { FeeVault_Uncategorized_Test } from "test/L2/FeeVault.t.sol";
 import { Types } from "src/libraries/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 /// @title L1FeeVault_Version_Test
 /// @notice Tests the `version` function of the `L1FeeVault` contract.

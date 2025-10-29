@@ -333,7 +333,6 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     ///         prevents a re-entrancy attack where one vault tries to indirectly call withdraw() on a different vault.
     function test_feeSplitterReceive_reentrantVaultAttack_reverts() public {
         uint256 sequencerAmount = 1 ether;
-        uint256 baseAmount = 2 ether;
 
         // Setup SEQUENCER_FEE_WALLET as a malicious vault that will try to trigger BASE_FEE_VAULT withdrawal
         ReentrantMockFeeVault maliciousVault = new ReentrantMockFeeVault(
