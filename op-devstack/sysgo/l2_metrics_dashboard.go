@@ -16,6 +16,8 @@ import (
 const dockerExecutablePathEnvVar = "SYSGO_DOCKER_EXEC_PATH"
 const grafanaProvisioningDirEnvVar = "SYSGO_GRAFANA_PROVISIONING_DIR"
 const grafanaDataDirEnvVar = "SYSGO_GRAFANA_DATA_DIR"
+const grafanaDockerImageTagEnvVar = "SYSGO_GRAFANA_DOCKER_IMAGE_TAG"
+const prometheusDockerImageTagEnvVar = "SYSGO_PROMETHEUS_DOCKER_IMAGE_TAG"
 
 const dockerToLocalHost = "host.docker.internal"
 
@@ -140,6 +142,7 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 
 		p := orch.P()
 
+		prometheusImageTag := getEnvVarOrDefault(prometheusDockerImageTagEnvVar, "v3.7.2")
 		prometheusEndpoint := fmt.Sprintf("http://%s:%s", prometheusHost, prometheusServerPort)
 		promConfig := getPrometheusConfigFilePath(p, &orch.l2MetricsEndpoints)
 		// these are args to run via docker; see dashboard definition below
@@ -147,10 +150,11 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			"run",
 			"-p", fmt.Sprintf("%s:%s", prometheusServerPort, prometheusDockerPort),
 			"-v", fmt.Sprintf("%s:/etc/prometheus/prometheus.yml:ro", promConfig),
-			"prom/prometheus",
+			fmt.Sprintf("prom/prometheus:%s", prometheusImageTag),
 			"--config.file=/etc/prometheus/prometheus.yml",
 		}
 
+		grafanaImageTag := getEnvVarOrDefault(grafanaDockerImageTagEnvVar, "12.2")
 		grafanaEndpoint := fmt.Sprintf("http://%s:%s", grafanaHost, grafanaServerPort)
 		grafanaProvDir := getGrafanaProvisioningDirPath(p)
 		grafanaDataDir := getGrafanaDataDir(p)
@@ -160,7 +164,7 @@ func WithL2MetricsDashboard() stack.Option[*Orchestrator] {
 			"-p", fmt.Sprintf("%s:%s", grafanaServerPort, grafanaDockerPort),
 			"-v", fmt.Sprintf("%s:/etc/grafana/provisioning:ro", grafanaProvDir),
 			"-v", fmt.Sprintf("%s:/var/lib/grafana", grafanaDataDir),
-			"grafana/grafana",
+			fmt.Sprintf("grafana/grafana:%s", grafanaImageTag),
 		}
 		grafanaEnv := []string{
 			propagateEnvVarOrDefault("GF_SECURITY_ADMIN_USER", "admin"),

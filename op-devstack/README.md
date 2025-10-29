@@ -169,6 +169,8 @@ and returns a typed output that the test then may use.
 - `SYSGO_DOCKER_EXEC_PATH` path to docker executable (defaults to `docker` assuming it is in your `PATH`)
 - `SYSGO_GRAFANA_PROVISIONING_DIR` to provide a local grafana provisioning dir to use (otherwise a temp dir will be created and removed at the end of tests)
 - `SYSGO_GRAFANA_DATA_DIR` to provide a local grafana data dir to use (otherwise a temp dir will be created and removed at the end of tests)
+- `SYSGO_GRAFANA_DOCKER_IMAGE_TAG` indicates which grafana docker image tag should be used (default is `12.2`).
+- `SYSGO_PROMETHEUS_DOCKER_IMAGE_TAG` indicates which prometheus docker image tag should be used (default is `v3.7.2`).
 
 ### Other useful env vars:
 - `DISABLE_OP_E2E_LEGACY=true` to disable the op-e2e package from loading build-artifacts that are not used by devstack.
