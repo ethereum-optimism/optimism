@@ -50,6 +50,7 @@ contract DeployDisputeGame_Test is Test {
     )
         public
     {
+        vm.assume(_input.absolutePrestate != bytes32(0));
         vm.assume(_input.l2ChainId != 0);
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);
@@ -87,6 +88,7 @@ contract DeployDisputeGame_Test is Test {
     )
         public
     {
+        vm.assume(_input.absolutePrestate != bytes32(0));
         vm.assume(_input.l2ChainId != 0);
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);

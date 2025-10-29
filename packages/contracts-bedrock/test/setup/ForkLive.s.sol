@@ -7,6 +7,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
 import { DelegateCaller } from "test/mocks/Callers.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -14,9 +15,11 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -43,7 +46,7 @@ import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.s
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer, StdAssertions {
+contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     using stdToml for string;
     using LibString for string;
 
@@ -62,6 +65,11 @@ contract ForkLive is Deployer, StdAssertions {
     /// @return The OP chain name as a string
     function opChain() internal view returns (string memory) {
         return Config.forkOpChain();
+    }
+
+    function setUp() public override {
+        super.setUp();
+        resolveFeaturesFromEnv();
     }
 
     /// @dev This function sets up the system to test it as follows:
@@ -283,8 +291,14 @@ contract ForkLive is Deployer, StdAssertions {
             artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
         }
 
-        IAnchorStateRegistry newAnchorStateRegistry =
-            IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
+        IAnchorStateRegistry newAnchorStateRegistry;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            newAnchorStateRegistry = IAnchorStateRegistry(
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
+            );
+        } else {
+            newAnchorStateRegistry = IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
+        }
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -293,7 +307,14 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        IDelayedWETH newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
+        IDelayedWETH newDelayedWeth;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            newDelayedWeth = IDelayedWETH(
+                payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth)
+            );
+        } else {
+            newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
+        }
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

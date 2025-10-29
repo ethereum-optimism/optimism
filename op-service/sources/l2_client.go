@@ -83,7 +83,7 @@ type L2Client struct {
 	fetchWithdrawalRootFromState bool
 }
 
-var _ apis.L2EthExtendedClient = (*L2Client)(nil)
+var _ apis.L2EthClient = (*L2Client)(nil)
 
 // NewL2Client constructs a new L2Client instance. The L2Client is a thin wrapper around the EthClient with added functions
 // for fetching and caching eth.L2BlockRef values. This includes fetching an L2BlockRef by block number, label, or hash.
