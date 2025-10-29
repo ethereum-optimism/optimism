@@ -1934,10 +1934,14 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         internal
         returns (GameType[] memory gameTypes_)
     {
-        uint256 gameCount = _input.usePermissionlessGame ? 2 : 1;
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+        uint256 gameCount = 1;
+        if (_input.usePermissionlessGame) {
             gameCount += 1;
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                gameCount += 1;
+            }
         }
+
         gameTypes_ = new GameType[](gameCount);
 
         gameTypes_[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
@@ -1994,8 +1998,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         );
 
         // Extract the DisputeGameFactory now that we know it's the same on both chains.
-        IDisputeGameFactory disputeGameFactory =
-            IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
+        IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
 
         // Grab the ETHLockbox from the OptimismPortal for both chains, confirm same.
         assertEq(address(optimismPortal1.ethLockbox()), address(optimismPortal2.ethLockbox()), "ETHLockbox mismatch");
@@ -2025,40 +2028,36 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         );
 
         assertEq(
-            disputeGameFactory.initBonds(GameTypes.SUPER_CANNON),
-            input.gameParameters.initBond,
-            "Super Cannon init bond mismatch"
+            dgf.initBonds(GameTypes.SUPER_CANNON), input.gameParameters.initBond, "Super Cannon init bond mismatch"
         );
         assertEq(
-            disputeGameFactory.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
+            dgf.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
             input.gameParameters.initBond,
             "Super Permissioned Cannon init bond mismatch"
         );
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
             assertEq(
-                disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA),
+                dgf.initBonds(GameTypes.SUPER_CANNON_KONA),
                 input.gameParameters.initBond,
                 "Super CannonKona init bond mismatch"
             );
         } else {
             assertEq(
-                disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA),
-                uint256(0),
-                "Super CannonKona init bond should be zero"
+                dgf.initBonds(GameTypes.SUPER_CANNON_KONA), uint256(0), "Super CannonKona init bond should be zero"
             );
         }
 
-        // Check that the Super Cannon game has the correct parameters.
-        _validateSuperGameImplParams(input, GameTypes.SUPER_CANNON);
-
         // Check that the Super Permissioned Cannon game has the correct parameters.
-        _validateSuperGameImplParams(input, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON);
+
+        // Check that the Super Cannon game has the correct parameters.
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON);
 
         // Check CannonKona game impl.
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            _validateSuperGameImplParams(input, GameTypes.SUPER_CANNON_KONA);
+            _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON_KONA);
         } else {
-            IDisputeGame superCannonKonaImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON_KONA);
+            IDisputeGame superCannonKonaImpl = dgf.gameImpls(GameTypes.SUPER_CANNON_KONA);
             assertEq(address(superCannonKonaImpl), address(0), "Super CannonKona game type set when it should not be");
         }
 
@@ -2067,13 +2066,14 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     function _validateSuperGameImplParams(
         IOPContractsManagerInteropMigrator.MigrateInput memory _input,
+        IDisputeGameFactory _dgf,
         GameType _gameType
     )
         internal
         view
     {
-        IDisputeGame dgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
-        ISuperPermissionedDisputeGame superImpl = ISuperPermissionedDisputeGame(address(dgImpl));
+        IDisputeGame dgImpl = _dgf.gameImpls(_gameType);
+        ISuperFaultDisputeGame superImpl = ISuperFaultDisputeGame(address(dgImpl));
         assertEq(superImpl.maxGameDepth(), _input.gameParameters.maxGameDepth);
         assertEq(superImpl.splitDepth(), _input.gameParameters.splitDepth);
         assertEq(superImpl.clockExtension().raw(), _input.gameParameters.clockExtension.raw());
