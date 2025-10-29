@@ -22,7 +22,9 @@ use reth_db::{
     Database, DatabaseEnv,
 };
 use reth_primitives_traits::Account;
-use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
+use reth_trie::{
+    updates::StorageTrieUpdates, BranchNodeCompact, HashedStorage, Nibbles, StoredNibbles,
+};
 use std::path::Path;
 
 /// MDBX implementation of [`OpProofsStore`].
@@ -392,11 +394,110 @@ impl OpProofsStore for MdbxProofsStorage {
         })?
     }
 
-    async fn fetch_trie_updates(
-        &self,
-        _block_number: u64,
-    ) -> OpProofsStorageResult<BlockStateDiff> {
-        unimplemented!()
+    async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
+        self.env.view(|tx| {
+            let mut change_set_cursor = tx.cursor_read::<BlockChangeSet>()?;
+            let (_, change_set) = change_set_cursor
+                .seek_exact(block_number)?
+                .ok_or(OpProofsStorageError::NoChangeSetForBlock(block_number))?;
+
+            let mut account_trie_cursor = tx.new_cursor::<AccountTrieHistory>()?;
+            let mut storage_trie_cursor = tx.new_cursor::<StorageTrieHistory>()?;
+            let mut hashed_account_cursor = tx.new_cursor::<HashedAccountHistory>()?;
+            let mut hashed_storage_cursor = tx.new_cursor::<HashedStorageHistory>()?;
+
+            let mut block_state_diff = BlockStateDiff::default();
+            for key in change_set.account_trie_keys {
+                let entry =
+                    match account_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                        Some(v) if v.block_number == block_number => v.value.0,
+                        _ => {
+                            return Err(OpProofsStorageError::MissingAccountTrieHistory(
+                                key.0,
+                                block_number,
+                            ))
+                        }
+                    };
+
+                if let Some(value) = entry {
+                    block_state_diff.trie_updates.account_nodes.insert(key.0, value);
+                } else {
+                    block_state_diff.trie_updates.removed_nodes.insert(key.0);
+                }
+            }
+
+            for key in change_set.storage_trie_keys {
+                let entry =
+                    match storage_trie_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                        Some(v) if v.block_number == block_number => v.value.0,
+                        _ => {
+                            return Err(OpProofsStorageError::MissingStorageTrieHistory(
+                                key.hashed_address,
+                                key.path.0,
+                                block_number,
+                            ))
+                        }
+                    };
+
+                let stu = block_state_diff
+                    .trie_updates
+                    .storage_tries
+                    .entry(key.hashed_address)
+                    .or_insert_with(StorageTrieUpdates::default);
+
+                // handle is_deleted scenario
+                // Issue: https://github.com/op-rs/op-reth/issues/323
+                if let Some(value) = entry {
+                    stu.storage_nodes.insert(key.path.0, value);
+                } else {
+                    stu.removed_nodes.insert(key.path.0);
+                }
+            }
+
+            for key in change_set.hashed_account_keys {
+                let entry = match hashed_account_cursor.seek_by_key_subkey(key, block_number)? {
+                    Some(v) if v.block_number == block_number => v.value.0,
+                    _ => {
+                        return Err(OpProofsStorageError::MissingHashedAccountHistory(
+                            key,
+                            block_number,
+                        ))
+                    }
+                };
+
+                block_state_diff.post_state.accounts.insert(key, entry);
+            }
+
+            for key in change_set.hashed_storage_keys {
+                let entry =
+                    match hashed_storage_cursor.seek_by_key_subkey(key.clone(), block_number)? {
+                        Some(v) if v.block_number == block_number => v.value.0,
+                        _ => {
+                            return Err(OpProofsStorageError::MissingHashedStorageHistory {
+                                hashed_address: key.hashed_address,
+                                hashed_storage_key: key.hashed_storage_key,
+                                block_number,
+                            })
+                        }
+                    };
+
+                let hs = block_state_diff
+                    .post_state
+                    .storages
+                    .entry(key.hashed_address)
+                    .or_insert_with(HashedStorage::default);
+
+                // handle wiped storage scenario
+                // Issue: https://github.com/op-rs/op-reth/issues/323
+                if let Some(value) = entry {
+                    hs.storage.insert(key.hashed_storage_key, value.0);
+                } else {
+                    hs.storage.insert(key.hashed_storage_key, U256::ZERO);
+                }
+            }
+
+            Ok(block_state_diff)
+        })?
     }
 
     /// Prune all historical trie data prior to `new_earliest_block_number` using
@@ -1195,6 +1296,351 @@ mod tests {
             cur5.next().expect("first").is_some(),
             "Pruning index SHOULD populate the change set even for empty diffs"
         );
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_missing_changeset_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let res = store.fetch_trie_updates(99).await;
+        assert!(matches!(res, Err(OpProofsStorageError::NoChangeSetForBlock(99))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_empty_changeset() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let diff = BlockStateDiff::default();
+
+        store.store_trie_updates(block, diff).await.expect("store");
+        let got = store.fetch_trie_updates(1).await.expect("fetch");
+        assert!(got.trie_updates.account_nodes.is_empty());
+        assert!(got.trie_updates.removed_nodes.is_empty());
+        assert!(got.trie_updates.storage_tries.is_empty());
+        assert!(got.post_state.accounts.is_empty());
+        assert!(got.post_state.storages.is_empty());
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_missing_account_history_entry_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // prepare ChangeSet that references StoredNibbles for account key
+        // (insert ChangeSet into BlockChangeSet directly using tx)
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    account_trie_keys: vec![StoredNibbles::default()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingAccountTrieHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_account_history_seek_returns_later_block_treated_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // manually insert account history and ChangeSet for block 1 referencing same key
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut acc_cur = tx.cursor_write::<AccountTrieHistory>().unwrap();
+            acc_cur
+                .insert(
+                    StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x1])),
+                    &VersionedValue::new(2, MaybeDeleted(Some(BranchNodeCompact::default()))),
+                )
+                .unwrap();
+
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    account_trie_keys: vec![StoredNibbles::from(Nibbles::from_nibbles_unchecked(
+                        [0x1],
+                    ))],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
+        // MissingAccountTrieHistory
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingAccountTrieHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_missing_storage_history_entry_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // prepare ChangeSet that references StorageTrieKey for storage trie
+        // (insert ChangeSet into BlockChangeSet directly using tx)
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    storage_trie_keys: vec![StorageTrieKey::new(
+                        B256::from([0u8; 32]),
+                        StoredNibbles::default(),
+                    )],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingStorageTrieHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_storage_history_seek_returns_later_block_treated_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // manually insert storage history and ChangeSet for block 1 referencing same key
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut stor_cur = tx.cursor_write::<StorageTrieHistory>().unwrap();
+            stor_cur
+                .insert(
+                    StorageTrieKey::new(
+                        B256::from([0u8; 32]),
+                        StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x1])),
+                    ),
+                    &VersionedValue::new(2, MaybeDeleted(Some(BranchNodeCompact::default()))),
+                )
+                .unwrap();
+
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    storage_trie_keys: vec![StorageTrieKey::new(
+                        B256::from([0u8; 32]),
+                        StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x1])),
+                    )],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
+        // MissingStorageTrieHistory
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingStorageTrieHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_missing_hashed_account_entry_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // prepare ChangeSet that references hashed account address
+        // (insert ChangeSet into BlockChangeSet directly using tx)
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    hashed_account_keys: vec![B256::from([0u8; 32])],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingHashedAccountHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_hashed_account_seek_returns_later_block_treated_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // manually insert hashed account history and ChangeSet for block 1 referencing same key
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut acc_cur = tx.cursor_write::<HashedAccountHistory>().unwrap();
+            acc_cur
+                .insert(
+                    B256::from([0u8; 32]),
+                    &VersionedValue::new(2, MaybeDeleted(Some(Account::default()))),
+                )
+                .unwrap();
+
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    hashed_account_keys: vec![B256::from([0u8; 32])],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
+        // MissingHashedAccountHistory
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingHashedAccountHistory(..))));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_missing_hashed_storage_entry_returns_error() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // prepare ChangeSet that references hashed storage key
+        // (insert ChangeSet into BlockChangeSet directly using tx)
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    hashed_storage_keys: vec![HashedStorageKey::new(
+                        B256::from([0u8; 32]),
+                        B256::from([0u8; 32]),
+                    )],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingHashedStorageHistory { .. })));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_hashed_storage_seek_returns_later_block_treated_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // manually insert hashed storage history and ChangeSet for block 1 referencing same key
+        {
+            let tx = store.env.tx_mut().unwrap();
+            let mut stor_cur = tx.cursor_write::<HashedStorageHistory>().unwrap();
+            stor_cur
+                .insert(
+                    HashedStorageKey::new(B256::from([0u8; 32]), B256::from([0u8; 32])),
+                    &VersionedValue::new(2, MaybeDeleted(Some(StorageValue::new(U256::ZERO)))),
+                )
+                .unwrap();
+
+            let mut cur = tx.cursor_write::<BlockChangeSet>().unwrap();
+            cur.insert(
+                1,
+                &ChangeSet {
+                    hashed_storage_keys: vec![HashedStorageKey::new(
+                        B256::from([0u8; 32]),
+                        B256::from([0u8; 32]),
+                    )],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+
+        // fetch block 1 -> seek will find block 2 but block_number != 1 so expect
+        // MissingHashedStorageHistory
+        let res = store.fetch_trie_updates(1).await;
+        assert!(matches!(res, Err(OpProofsStorageError::MissingHashedStorageHistory { .. })));
+    }
+
+    #[tokio::test]
+    async fn fetch_trie_updates_basic() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // Build a block with mixed changes (accounts, trie nodes, hashed storages)
+        let block = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+
+        // prepare data
+        let addr1 = B256::from([0x11; 32]);
+        let addr2 = B256::from([0x22; 32]);
+        let slot1 = B256::from([0xA1; 32]);
+        let slot2 = B256::from([0xA2; 32]);
+
+        let acc1 = Account { nonce: 1, balance: U256::from(100), ..Default::default() };
+
+        let val1 = U256::from(1234u64);
+        let val2 = U256::from(5678u64);
+
+        let account_path1 = Nibbles::from_nibbles_unchecked(vec![0, 1, 2, 3]);
+        let account_path2 = Nibbles::from_nibbles_unchecked(vec![4, 5, 6, 7]);
+        let account_node1 =
+            BranchNodeCompact { root_hash: Some(B256::random()), ..Default::default() };
+        let account_node2 =
+            BranchNodeCompact { root_hash: Some(B256::random()), ..Default::default() };
+
+        let storage_path1 = Nibbles::from_nibbles_unchecked(vec![1, 2, 3, 4]);
+        let storage_node1 =
+            BranchNodeCompact { root_hash: Some(B256::random()), ..Default::default() };
+
+        // Construct BlockStateDiff
+        let mut block_state_diff = BlockStateDiff::default();
+        block_state_diff.trie_updates.account_nodes.insert(account_path1, account_node1.clone());
+        block_state_diff.trie_updates.account_nodes.insert(account_path2, account_node2.clone());
+        // storage trie for addr1
+        let mut storage_nodes1 = StorageTrieUpdates::default();
+        storage_nodes1.storage_nodes.insert(storage_path1, storage_node1.clone());
+        block_state_diff.trie_updates.storage_tries.insert(addr1, storage_nodes1);
+
+        // hashed accounts: addr1 -> Some, addr2 -> None
+        block_state_diff.post_state.accounts.insert(addr1, Some(acc1));
+        block_state_diff.post_state.accounts.insert(addr2, None);
+
+        // hashed storages
+        let mut storage1 = HashedStorage::default();
+        storage1.storage.insert(slot1, val1);
+        block_state_diff.post_state.storages.insert(addr1, storage1);
+
+        let mut storage2 = HashedStorage::default();
+        storage2.storage.insert(slot2, val2);
+        block_state_diff.post_state.storages.insert(addr2, storage2);
+
+        // store then fetch
+        store.store_trie_updates(block, block_state_diff.clone()).await.expect("store");
+        let got = store.fetch_trie_updates(1).await.expect("fetch");
+
+        // verify trie updates
+        assert_eq!(got.trie_updates.account_nodes, block_state_diff.trie_updates.account_nodes,);
+        assert_eq!(got.trie_updates.removed_nodes, block_state_diff.trie_updates.removed_nodes,);
+        assert_eq!(got.trie_updates.storage_tries, block_state_diff.trie_updates.storage_tries,);
+
+        // verify post state
+        assert_eq!(got.post_state.accounts, block_state_diff.post_state.accounts);
+        assert_eq!(got.post_state.storages, block_state_diff.post_state.storages);
     }
 
     #[tokio::test]

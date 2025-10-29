@@ -98,7 +98,7 @@ async fn test_earliest_block_operations<S: OpProofsStore>(
 
 /// Test storing and retrieving trie updates
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
-// #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[tokio::test]
 #[serial]
 async fn test_trie_updates_operations<S: OpProofsStore>(

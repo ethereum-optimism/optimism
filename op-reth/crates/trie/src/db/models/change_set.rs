@@ -8,7 +8,7 @@ use reth_trie::StoredNibbles;
 use serde::{Deserialize, Serialize};
 
 /// The keys of the entries in the history tables.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ChangeSet {
     /// Keys changed in [`AccountTrieHistory`](super::AccountTrieHistory) table.
     pub account_trie_keys: Vec<StoredNibbles>,
