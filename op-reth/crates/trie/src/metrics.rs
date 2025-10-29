@@ -486,7 +486,7 @@ where
     async fn replace_updates(
         &self,
         latest_common_block_number: u64,
-        blocks_to_add: HashMap<u64, BlockStateDiff>,
+        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
     ) -> OpProofsStorageResult<()> {
         self.storage.replace_updates(latest_common_block_number, blocks_to_add).await
     }

@@ -1534,6 +1534,9 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
         BlockWithParent::new(B256::ZERO, NumHash::new(101, B256::repeat_byte(0x98)));
     storage.store_trie_updates(block_ref_101, initial_diff_101).await?;
 
+    let block_ref_102 =
+        BlockWithParent::new(block_ref_101.block.hash, NumHash::new(102, B256::repeat_byte(0x99)));
+
     // ========== Verify initial state exists ==========
     // Verify block 50 data exists
     let mut cursor_initial = storage.account_trie_cursor(75)?;
@@ -1556,7 +1559,7 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     );
 
     // ========== Call replace_updates to replace blocks after 100 ==========
-    let mut blocks_to_add: HashMap<u64, BlockStateDiff> = HashMap::default();
+    let mut blocks_to_add: HashMap<BlockWithParent, BlockStateDiff> = HashMap::default();
 
     // New data for block 101
     let new_account_addr = B256::repeat_byte(0x40);
@@ -1587,8 +1590,10 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     new_storage.storage.insert(new_storage_slot, new_storage_value);
     new_post_state.storages.insert(new_storage_addr, new_storage);
 
-    blocks_to_add
-        .insert(101, BlockStateDiff { trie_updates: new_trie_updates, post_state: new_post_state });
+    blocks_to_add.insert(
+        block_ref_101,
+        BlockStateDiff { trie_updates: new_trie_updates, post_state: new_post_state },
+    );
 
     // New data for block 102
     let block_102_account_addr = B256::repeat_byte(0x70);
@@ -1601,8 +1606,10 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     let mut post_state_102 = HashedPostState::default();
     post_state_102.accounts.insert(block_102_account_addr, Some(block_102_account));
 
-    blocks_to_add
-        .insert(102, BlockStateDiff { trie_updates: trie_updates_102, post_state: post_state_102 });
+    blocks_to_add.insert(
+        block_ref_102,
+        BlockStateDiff { trie_updates: trie_updates_102, post_state: post_state_102 },
+    );
 
     // Execute replace_updates
     storage.replace_updates(100, blocks_to_add).await?;

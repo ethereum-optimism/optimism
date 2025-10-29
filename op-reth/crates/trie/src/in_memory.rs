@@ -596,7 +596,7 @@ impl OpProofsStore for InMemoryProofsStorage {
     async fn replace_updates(
         &self,
         latest_common_block_number: u64,
-        blocks_to_add: HashMap<u64, BlockStateDiff>,
+        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
 
@@ -608,8 +608,8 @@ impl OpProofsStore for InMemoryProofsStorage {
         inner.hashed_accounts.retain(|(block, _), _| *block <= latest_common_block_number);
         inner.hashed_storages.retain(|(block, _, _), _| *block <= latest_common_block_number);
 
-        for (block_number, block_state_diff) in blocks_to_add {
-            inner.store_trie_updates(block_number, block_state_diff);
+        for (block, block_state_diff) in blocks_to_add {
+            inner.store_trie_updates(block.block.number, block_state_diff);
         }
 
         Ok(())

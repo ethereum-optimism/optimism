@@ -177,7 +177,7 @@ pub trait OpProofsStore: Send + Sync + Debug {
     fn replace_updates(
         &self,
         latest_common_block_number: u64,
-        blocks_to_add: HashMap<u64, BlockStateDiff>,
+        blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
     /// Set the earliest block number and hash that has been stored
