@@ -84,6 +84,7 @@ metrics.workspace = true
 
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true
+alloy-op-hardforks.workspace = true
 
 [features]
 client = [

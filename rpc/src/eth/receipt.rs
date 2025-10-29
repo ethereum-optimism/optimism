@@ -6,6 +6,7 @@ use alloy_eips::eip2718::Encodable2718;
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use op_alloy_consensus::{OpReceiptEnvelope, OpTransaction};
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
+use op_revm::estimate_tx_compressed_size;
 use reth_chainspec::ChainSpecProvider;
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::RethL1BlockInfo;
@@ -287,7 +288,7 @@ impl OpReceiptBuilder {
         let timestamp = input.meta.timestamp;
         let block_number = input.meta.block_number;
         let tx_signed = *input.tx.inner();
-        let core_receipt = build_receipt(input, None, |receipt, next_log_index, meta| {
+        let mut core_receipt = build_receipt(input, None, |receipt, next_log_index, meta| {
             let map_logs = move |receipt: alloy_consensus::Receipt| {
                 let Receipt { status, cumulative_gas_used, logs } = receipt;
                 let logs = Log::collect_for_receipt(next_log_index, meta, logs);
@@ -306,10 +307,26 @@ impl OpReceiptBuilder {
                 OpReceipt::Eip7702(receipt) => {
                     OpReceiptEnvelope::Eip7702(map_logs(receipt).into_with_bloom())
                 }
+
                 OpReceipt::Deposit(receipt) => {
                     OpReceiptEnvelope::Deposit(receipt.map_inner(map_logs).into_with_bloom())
                 }
             }
+        });
+
+        // In jovian, we're using the blob gas used field to store the current da
+        // footprint's value.
+        // We're computing the jovian blob gas used before building the receipt since the inputs get
+        // consumed by the `build_receipt` function.
+        chain_spec.is_jovian_active_at_timestamp(timestamp).then(|| {
+            // Estimate the size of the transaction in bytes and multiply by the DA
+            // footprint gas scalar.
+            // Jovian specs: `https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit`
+            let da_size = estimate_tx_compressed_size(tx_signed.encoded_2718().as_slice())
+                .saturating_div(1_000_000)
+                .saturating_mul(l1_block_info.da_footprint_gas_scalar.unwrap_or_default().into());
+
+            core_receipt.blob_gas_used = Some(da_size);
         });
 
         let op_receipt_fields = OpReceiptFieldsBuilder::new(timestamp, block_number)
@@ -333,11 +350,16 @@ impl OpReceiptBuilder {
 #[cfg(test)]
 mod test {
     use super::*;
-    use alloy_consensus::{Block, BlockBody};
-    use alloy_primitives::{hex, U256};
+    use alloy_consensus::{transaction::TransactionMeta, Block, BlockBody, Eip658Value, TxEip7702};
+    use alloy_op_hardforks::{
+        OpChainHardforks, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
+    };
+    use alloy_primitives::{hex, Address, Bytes, Signature, U256};
+    use op_alloy_consensus::OpTypedTransaction;
     use op_alloy_network::eip2718::Decodable2718;
     use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
-    use reth_optimism_primitives::OpTransactionSigned;
+    use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+    use reth_primitives_traits::Recovered;
 
     /// OP Mainnet transaction at index 0 in block 124665056.
     ///
@@ -566,5 +588,145 @@ mod test {
         assert_eq!(operator_fee_scalar, None, "incorrect operator fee scalar");
         assert_eq!(operator_fee_constant, None, "incorrect operator fee constant");
         assert_eq!(da_footprint_gas_scalar, None, "incorrect da footprint gas scalar");
+    }
+
+    #[test]
+    fn da_footprint_gas_scalar_included_in_receipt_post_jovian() {
+        const DA_FOOTPRINT_GAS_SCALAR: u16 = 10;
+
+        let tx = TxEip7702 {
+            chain_id: 1u64,
+            nonce: 0,
+            max_fee_per_gas: 0x28f000fff,
+            max_priority_fee_per_gas: 0x28f000fff,
+            gas_limit: 10,
+            to: Address::default(),
+            value: U256::from(3_u64),
+            input: Bytes::from(vec![1, 2]),
+            access_list: Default::default(),
+            authorization_list: Default::default(),
+        };
+
+        let signature = Signature::new(U256::default(), U256::default(), true);
+
+        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
+            ..Default::default()
+        };
+
+        let op_hardforks = OpChainHardforks::op_mainnet();
+
+        let receipt = OpReceiptFieldsBuilder::new(OP_MAINNET_JOVIAN_TIMESTAMP, u64::MAX)
+            .l1_block_info(&op_hardforks, &tx, &mut l1_block_info)
+            .expect("should parse revm l1 info")
+            .build();
+
+        assert_eq!(receipt.l1_block_info.da_footprint_gas_scalar, Some(DA_FOOTPRINT_GAS_SCALAR));
+    }
+
+    #[test]
+    fn blob_gas_used_included_in_receipt_post_jovian() {
+        const DA_FOOTPRINT_GAS_SCALAR: u16 = 100;
+        let tx = TxEip7702 {
+            chain_id: 1u64,
+            nonce: 0,
+            max_fee_per_gas: 0x28f000fff,
+            max_priority_fee_per_gas: 0x28f000fff,
+            gas_limit: 10,
+            to: Address::default(),
+            value: U256::from(3_u64),
+            access_list: Default::default(),
+            authorization_list: Default::default(),
+            input: Bytes::from(vec![0; 1_000_000]),
+        };
+
+        let signature = Signature::new(U256::default(), U256::default(), true);
+
+        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
+            ..Default::default()
+        };
+
+        let op_hardforks = OpChainHardforks::op_mainnet();
+
+        let op_receipt = OpReceiptBuilder::new(
+            &op_hardforks,
+            ConvertReceiptInput::<OpPrimitives> {
+                tx: Recovered::new_unchecked(&tx, Address::default()),
+                receipt: OpReceipt::Eip7702(Receipt {
+                    status: Eip658Value::Eip658(true),
+                    cumulative_gas_used: 100,
+                    logs: vec![],
+                }),
+                gas_used: 100,
+                next_log_index: 0,
+                meta: TransactionMeta {
+                    timestamp: OP_MAINNET_JOVIAN_TIMESTAMP,
+                    ..Default::default()
+                },
+            },
+            &mut l1_block_info,
+        )
+        .unwrap();
+
+        let expected_blob_gas_used = estimate_tx_compressed_size(tx.encoded_2718().as_slice())
+            .saturating_div(1_000_000)
+            .saturating_mul(DA_FOOTPRINT_GAS_SCALAR.into());
+
+        assert_eq!(op_receipt.core_receipt.blob_gas_used, Some(expected_blob_gas_used));
+    }
+
+    #[test]
+    fn blob_gas_used_not_included_in_receipt_post_isthmus() {
+        const DA_FOOTPRINT_GAS_SCALAR: u16 = 100;
+        let tx = TxEip7702 {
+            chain_id: 1u64,
+            nonce: 0,
+            max_fee_per_gas: 0x28f000fff,
+            max_priority_fee_per_gas: 0x28f000fff,
+            gas_limit: 10,
+            to: Address::default(),
+            value: U256::from(3_u64),
+            access_list: Default::default(),
+            authorization_list: Default::default(),
+            input: Bytes::from(vec![0; 1_000_000]),
+        };
+
+        let signature = Signature::new(U256::default(), U256::default(), true);
+
+        let tx = OpTransactionSigned::new_unhashed(OpTypedTransaction::Eip7702(tx), signature);
+
+        let mut l1_block_info = op_revm::L1BlockInfo {
+            da_footprint_gas_scalar: Some(DA_FOOTPRINT_GAS_SCALAR),
+            ..Default::default()
+        };
+
+        let op_hardforks = OpChainHardforks::op_mainnet();
+
+        let op_receipt = OpReceiptBuilder::new(
+            &op_hardforks,
+            ConvertReceiptInput::<OpPrimitives> {
+                tx: Recovered::new_unchecked(&tx, Address::default()),
+                receipt: OpReceipt::Eip7702(Receipt {
+                    status: Eip658Value::Eip658(true),
+                    cumulative_gas_used: 100,
+                    logs: vec![],
+                }),
+                gas_used: 100,
+                next_log_index: 0,
+                meta: TransactionMeta {
+                    timestamp: OP_MAINNET_ISTHMUS_TIMESTAMP,
+                    ..Default::default()
+                },
+            },
+            &mut l1_block_info,
+        )
+        .unwrap();
+
+        assert_eq!(op_receipt.core_receipt.blob_gas_used, None);
     }
 }
