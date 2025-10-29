@@ -500,7 +500,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	for i := 0; i < 4096; i++ {
 		blob[32*i] &= 0b0011_1111
 	}
-	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob})
+	sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&blob}, false)
 	if err != nil {
 		return fmt.Errorf("failed to make sidecar: %w", err)
 	}
@@ -512,7 +512,7 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("the L1 block %s (time %d) is not ecotone yet", latestHeader.Hash(), latestHeader.Time)
 	}
 
-	blobBaseFee := eth.CalcBlobFeeDefault(latestHeader)
+	blobBaseFee := eth.CalcBlobFeeCancun(*latestHeader.ExcessBlobGas)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)

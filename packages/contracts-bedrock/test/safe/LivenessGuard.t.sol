@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { StdCheats } from "forge-std/StdCheats.sol";
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
@@ -25,7 +25,7 @@ contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
 
 /// @title LivenessGuard_TestInit
 /// @notice Reusable test initialization for `LivenessGuard` tests.
-contract LivenessGuard_TestInit is Test, SafeTestTools {
+abstract contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     event OwnerRecorded(address owner);
@@ -162,10 +162,10 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
     }
 }
 
-/// @title LivenessGuard_Unclassified_Test
+/// @title LivenessGuard_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LivenessGuard`
 ///         contract or are testing multiple functions at once.
-contract LivenessGuard_Unclassified_Test is StdCheats, StdUtils, LivenessGuard_TestInit {
+contract LivenessGuard_Uncategorized_Test is StdCheats, StdUtils, LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     /// @notice Enumerates the possible owner management operations

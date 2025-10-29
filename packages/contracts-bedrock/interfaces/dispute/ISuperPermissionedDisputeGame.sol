@@ -5,7 +5,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { GameType, Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
+import { Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 
 interface ISuperPermissionedDisputeGame is IDisputeGame {
@@ -24,19 +24,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
         uint32 subgameIndex;
         Position leftmostPosition;
         address counteredBy;
-    }
-
-    struct GameConstructorParams {
-        GameType gameType;
-        Claim absolutePrestate;
-        uint256 maxGameDepth;
-        uint256 splitDepth;
-        Duration clockExtension;
-        Duration maxClockDuration;
-        IBigStepper vm;
-        IDelayedWETH weth;
-        IAnchorStateRegistry anchorStateRegistry;
-        uint256 l2ChainId;
     }
 
     error AlreadyInitialized();
@@ -70,7 +57,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     error InvalidBondDistributionMode();
     error GameNotFinalized();
     error GameNotResolved();
-    error ReservedGameType();
     error BadAuth();
     error GamePaused();
 
@@ -130,7 +116,5 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
 
-    function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger) external;
+    function __constructor__(ISuperFaultDisputeGame.GameConstructorParams memory _params) external;
 }

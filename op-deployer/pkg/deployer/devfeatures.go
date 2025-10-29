@@ -9,17 +9,17 @@ import (
 // Development feature flag constants that mirror the solidity DevFeatures library.
 // These use a 32 byte bitmap for easy integration between op-deployer and contracts.
 var (
-	// OptimismPortalInterop enables the OptimismPortalInterop contract.
-	OptimismPortalInterop = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+	// OptimismPortalInteropDevFlag enables the OptimismPortalInterop contract.
+	OptimismPortalInteropDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
-	// CannonKona enables Kona as the default cannon prover.
-	CannonKona = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000010")
+	// CannonKonaDevFlag enables Kona as the default cannon prover.
+	CannonKonaDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000010")
 
-	// DeployV2DisputeGames enables deployment of V2 dispute game contracts.
-	DeployV2DisputeGames = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
+	// DeployV2DisputeGamesDevFlag enables deployment of V2 dispute game contracts.
+	DeployV2DisputeGamesDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// CustomGasToken enables the custom gas token.
-	CustomGasToken = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001000")
+	// CustomGasTokenDevFlag enables the custom gas token.
+	CustomGasTokenDevFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.
@@ -28,5 +28,8 @@ var (
 func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	b := new(big.Int).SetBytes(bitmap[:])
 	f := new(big.Int).SetBytes(flag[:])
-	return new(big.Int).And(b, f).BitLen() != 0
+
+	featuresIsNonZero := f.Cmp(big.NewInt(0)) != 0
+	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
+	return featuresIsNonZero && bitmapContainsFeatures
 }

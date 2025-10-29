@@ -45,7 +45,7 @@ type ImplementationsConfig struct {
 	FaultGameMaxClockDuration       uint64             `cli:"fault-game-max-clock-duration"`
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
-	UpgradeController               common.Address     `cli:"upgrade-controller"`
+	L1ProxyAdminOwner               common.Address     `cli:"l1-proxy-admin-owner"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
@@ -94,7 +94,7 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("dispute game finality delay in seconds must be specified")
 	}
 	// Check V2 fault game parameters only if V2 dispute games feature is enabled
-	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGames)
+	deployV2Games := deployer.IsDevFeatureEnabled(c.DevFeatureBitmap, deployer.DeployV2DisputeGamesDevFlag)
 	if deployV2Games {
 		if c.FaultGameMaxGameDepth == 0 {
 			return errors.New("fault game max game depth must be specified when V2 dispute games feature is enabled")
@@ -115,8 +115,8 @@ func (c *ImplementationsConfig) Check() error {
 	if c.ProtocolVersionsProxy == (common.Address{}) {
 		return errors.New("protocol versions proxy must be specified")
 	}
-	if c.UpgradeController == (common.Address{}) {
-		return errors.New("upgrade controller must be specified")
+	if c.L1ProxyAdminOwner == (common.Address{}) {
+		return errors.New("l1 proxy admin owner must be specified")
 	}
 	if c.SuperchainProxyAdmin == (common.Address{}) {
 		return errors.New("superchain proxy admin must be specified")
@@ -232,7 +232,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
-			UpgradeController:               cfg.UpgradeController,
+			L1ProxyAdminOwner:               cfg.L1ProxyAdminOwner,
 			Challenger:                      cfg.Challenger,
 		},
 	); err != nil {

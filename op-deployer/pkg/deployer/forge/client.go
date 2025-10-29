@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -27,6 +28,22 @@ type Client struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Wd     string
+}
+
+func NewStandardClient(workdir string) (*Client, error) {
+	forgeBinary, err := NewStandardBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize forge binary: %w", err)
+	}
+	if err := forgeBinary.Ensure(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ensure forge binary: %w", err)
+	}
+
+	forgeClient := NewClient(forgeBinary)
+	forgeClient.Wd = filepath.Dir(workdir)
+	fmt.Printf("Forge client working directory: %s\n", forgeClient.Wd)
+
+	return forgeClient, nil
 }
 
 func NewClient(binary Binary) *Client {

@@ -248,7 +248,6 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 		// Add contract addresses if available
 		if deployerData.State != nil && deployerData.State.Deployments != nil {
 			if deployment, ok := deployerData.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.L1Addresses = descriptors.AddressMap(deployment.L1Addresses)
 				chain.Addresses = descriptors.AddressMap(deployment.L2Addresses)
 				chain.Config = deployment.Config
 				chain.RollupConfig = deployment.RollupConfig

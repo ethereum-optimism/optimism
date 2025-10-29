@@ -40,7 +40,7 @@ type Orchestrator struct {
 	clusters       locks.RWMap[stack.ClusterID, *Cluster]
 	l1Nets         locks.RWMap[eth.ChainID, *L1Network]
 	l2Nets         locks.RWMap[eth.ChainID, *L2Network]
-	l1ELs          locks.RWMap[stack.L1ELNodeID, *L1ELNode]
+	l1ELs          locks.RWMap[stack.L1ELNodeID, L1ELNode]
 	l1CLs          locks.RWMap[stack.L1CLNodeID, *L1CLNode]
 	l2ELs          locks.RWMap[stack.L2ELNodeID, L2ELNode]
 	l2CLs          locks.RWMap[stack.L2CLNodeID, L2CLNode]
@@ -122,7 +122,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.clusters.Range(rangeHydrateFn[stack.ClusterID, *Cluster](sys))
 	o.l1Nets.Range(rangeHydrateFn[eth.ChainID, *L1Network](sys))
 	o.l2Nets.Range(rangeHydrateFn[eth.ChainID, *L2Network](sys))
-	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, *L1ELNode](sys))
+	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, L1ELNode](sys))
 	o.l1CLs.Range(rangeHydrateFn[stack.L1CLNodeID, *L1CLNode](sys))
 	o.l2ELs.Range(rangeHydrateFn[stack.L2ELNodeID, L2ELNode](sys))
 	o.l2CLs.Range(rangeHydrateFn[stack.L2CLNodeID, L2CLNode](sys))

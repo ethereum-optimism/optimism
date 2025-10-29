@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -984,11 +983,6 @@ func (s *OpConductorTestSuite) TestSupervisorConnectionDown() {
 
 // TestFlashblocksHandlerIntegration tests that the flashblocks handler is properly initialized and started
 func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
-	// Use a random available port to avoid conflicts
-	listener, err := net.Listen("tcp", "localhost:0")
-	s.NoError(err)
-	port := listener.Addr().(*net.TCPAddr).Port
-	listener.Close()
 
 	// Channels for coordination without timing dependencies
 	testCtx, testCancel := context.WithCancel(context.Background())
@@ -1070,7 +1064,8 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	// Create a copy of the config to avoid modifying the shared config object
 	testCfg := s.cfg
 	testCfg.RollupBoostWsURL = rollupBoostWsURL
-	testCfg.WebsocketServerPort = port
+	// Bind port dynamically via handler (use port 0)
+	testCfg.WebsocketServerPort = 0
 
 	// Create a new conductor with the updated config
 	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
@@ -1082,11 +1077,13 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 
 	// Start the conductor, which should initialize and start the flashblocks handler
 	s.hmon.EXPECT().Start(mock.Anything).Return(nil)
+
+	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized before starting the conductor")
 	err = conductor.Start(s.ctx)
 	s.NoError(err)
 
-	// Wait for conductor to be ready using its internal state
-	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized")
+	boundPort := conductor.flashblocksHandler.BoundPort()
+	s.NotZero(boundPort, "bound port should be non-zero")
 
 	// Wait for rollup boost server connection (event-driven, not time-based)
 	select {
@@ -1097,10 +1094,10 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	}
 
 	// Connect to the WebSocket server BEFORE messages are sent
-	wsURL := fmt.Sprintf("ws://localhost:%d/ws", testCfg.WebsocketServerPort)
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/ws", boundPort)
 
 	// Create connection context
-	connCtx, connCancel := context.WithTimeout(testCtx, 3*time.Second)
+	connCtx, connCancel := context.WithTimeout(testCtx, 10*time.Second)
 	defer connCancel()
 
 	var client *websocket.Conn
@@ -1123,7 +1120,7 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 			select {
 			case <-connCtx.Done():
 				s.Failf("Failed to connect to WebSocket server", "Last error: %v", err)
-			case <-time.After(10 * time.Millisecond):
+			case <-time.After(25 * time.Millisecond):
 				// Continue loop
 			}
 		}
@@ -1148,7 +1145,7 @@ connected:
 	receivedMessages := make([]string, 0, len(expectedMessages))
 
 	// Read messages with timeout
-	readCtx, readCancel := context.WithTimeout(testCtx, 3*time.Second)
+	readCtx, readCancel := context.WithTimeout(testCtx, 10*time.Second)
 	defer readCancel()
 
 	for len(receivedMessages) < len(expectedMessages) {

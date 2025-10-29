@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { Safe } from "safe-contracts/Safe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
@@ -11,7 +11,7 @@ import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @title LivenessModule_TestInit
 /// @notice Reusable test initialization for `LivenessModule` tests.
-contract LivenessModule_TestInit is Test, SafeTestTools {
+abstract contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     error OwnerRemovalFailed(string reason);
@@ -603,10 +603,10 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
     }
 }
 
-/// @title LivenessModule_Unclassified_Test
+/// @title LivenessModule_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LivenessModule`
 ///         contract or are testing multiple functions at once.
-contract LivenessModule_Unclassified_Test is LivenessModule_TestInit {
+contract LivenessModule_Uncategorized_Test is LivenessModule_TestInit {
     /// @notice Tests if the getters work correctly
     function test_getters_works() external view {
         assertEq(address(livenessModule.safe()), address(safeInstance.safe));

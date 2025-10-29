@@ -56,6 +56,12 @@ contract DeploySuperchain is Script {
 
     // -------- Core Deployment Methods --------
 
+    function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        Input memory input = abi.decode(_input, (Input));
+        Output memory output = run(input);
+        return abi.encode(output);
+    }
+
     function run(Input memory _input) public returns (Output memory output_) {
         // Convert the external Input to InternalInput
         InternalInput memory internalInput = toInternalInput(_input);

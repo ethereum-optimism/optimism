@@ -36,6 +36,18 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 		goType = goType.Elem()
 	}
 
+	// non-standard go types (need to catch these first)
+	switch goType {
+	case reflect.TypeOf(common.Address{}):
+		return "address", nil
+	case reflect.TypeOf(common.Hash{}):
+		return "bytes32", nil
+	case reflect.TypeOf(params.ProtocolVersion{}):
+		return "bytes32", nil
+	case reflect.TypeOf(big.NewInt(0)).Elem():
+		return "uint256", nil
+	}
+
 	// standard go types
 	switch goType.Kind() {
 	case reflect.Slice:
@@ -84,18 +96,6 @@ func GoTypeToABIType(goType reflect.Type) (string, error) {
 		return "int32", nil
 	case reflect.Int64, reflect.Int:
 		return "int64", nil
-	}
-
-	// non-standard go types
-	switch goType {
-	case reflect.TypeOf(common.Address{}):
-		return "address", nil
-	case reflect.TypeOf(common.Hash{}):
-		return "bytes32", nil
-	case reflect.TypeOf(params.ProtocolVersion{}):
-		return "bytes32", nil
-	case reflect.TypeOf(big.NewInt(0)).Elem():
-		return "uint256", nil
 	}
 
 	return "", fmt.Errorf("unable to convert go type to abi type: %s", goType)

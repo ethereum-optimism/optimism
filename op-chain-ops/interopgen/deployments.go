@@ -1,6 +1,7 @@
 package interopgen
 
 import (
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -33,6 +34,8 @@ type Implementations struct {
 	ProtocolVersionsImpl             common.Address `json:"ProtocolVersionsImpl"`
 	FaultDisputeGameV2Impl           common.Address `json:"FaultDisputeGameV2Impl"`
 	PermissionedDisputeGameV2Impl    common.Address `json:"PermissionedDisputeGameV2Impl"`
+	SuperFaultDisputeGameImpl        common.Address `json:"SuperFaultDisputeGameImpl"`
+	SuperPermissionedDisputeGameImpl common.Address `json:"SuperPermissionedDisputeGameImpl"`
 }
 
 type SuperchainDeployment struct {
@@ -64,6 +67,27 @@ type L2OpchainDeployment struct {
 	PermissionedDisputeGame            common.Address `json:"PermissionedDisputeGame"`
 	DelayedWETHPermissionedGameProxy   common.Address `json:"DelayedWETHPermissionedGameProxy"`
 	DelayedWETHPermissionlessGameProxy common.Address `json:"DelayedWETHPermissionlessGameProxy"`
+}
+
+func NewL2OPChainDeploymentFromDeployOPChainOutput(output opcm.DeployOPChainOutput) L2OpchainDeployment {
+	return L2OpchainDeployment{
+		OpChainProxyAdmin:                 output.OpChainProxyAdmin,
+		AddressManager:                    output.AddressManager,
+		L1ERC721BridgeProxy:               output.L1ERC721BridgeProxy,
+		SystemConfigProxy:                 output.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxy: output.OptimismMintableERC20FactoryProxy,
+		L1StandardBridgeProxy:             output.L1StandardBridgeProxy,
+		L1CrossDomainMessengerProxy:       output.L1CrossDomainMessengerProxy,
+		// Fault proof contracts below.
+		OptimismPortalProxy:                output.OptimismPortalProxy,
+		ETHLockboxProxy:                    output.EthLockboxProxy,
+		DisputeGameFactoryProxy:            output.DisputeGameFactoryProxy,
+		AnchorStateRegistryProxy:           output.AnchorStateRegistryProxy,
+		FaultDisputeGame:                   output.FaultDisputeGame,
+		PermissionedDisputeGame:            output.PermissionedDisputeGame,
+		DelayedWETHPermissionedGameProxy:   output.DelayedWETHPermissionedGameProxy,
+		DelayedWETHPermissionlessGameProxy: output.DelayedWETHPermissionlessGameProxy,
+	}
 }
 
 type L2Deployment struct {

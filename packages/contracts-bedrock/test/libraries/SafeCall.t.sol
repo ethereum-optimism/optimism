@@ -31,7 +31,7 @@ contract SimpleSafeCaller {
 
 /// @title SafeCall_TestInit
 /// @notice Reusable test initialization for `SafeCall` tests.
-contract SafeCall_TestInit is Test {
+abstract contract SafeCall_TestInit is Test {
     /// @notice Helper function to deduplicate code. Makes all assumptions required for these
     ///         tests.
     function assumeNot(address _addr) internal {

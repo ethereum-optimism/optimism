@@ -7,7 +7,7 @@ import "src/dispute/lib/Types.sol";
 
 /// @title LibPosition_TestInit
 /// @notice Reusable test initialization for `LibPosition` tests.
-contract LibPosition_TestInit is Test {
+abstract contract LibPosition_TestInit is Test {
     /// @dev Assumes a MAX depth of 126 for the Position type. Any greater depth can cause
     ///      overflows.
     /// @dev At the lowest level of the tree, this allows for 2 ** 126 leaves. In reality, the max
@@ -213,10 +213,10 @@ contract LibPosition_Move_Test is LibPosition_TestInit {
     }
 }
 
-/// @title LibPosition_Unclassified_Test
+/// @title LibPosition_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `LibPosition` contract
 ///         or are testing multiple functions at once.
-contract LibPosition_Unclassified_Test is LibPosition_TestInit {
+contract LibPosition_Uncategorized_Test is LibPosition_TestInit {
     /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos, and
     ///         the trace index in a tree of max depth = 4.
     function test_pos_correctness_succeeds() public pure {

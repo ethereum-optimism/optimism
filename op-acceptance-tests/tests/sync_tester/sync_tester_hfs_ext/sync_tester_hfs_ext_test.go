@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -192,7 +191,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 		}
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
-			presets.WithELSyncTarget(targetBlock),
+			presets.WithELSyncActive(),
 			presets.WithSyncTesterELInitialState(eth.FCUState{
 				Latest: blk,
 				Safe:   0,
@@ -200,11 +199,6 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 				Finalized: chainCfg.Genesis.L2.Number,
 			}),
 		)
-		// TODO(#17564): op-node has a suspected race during EL Sync.
-		// To temporarily mitigate and stabilize tests, restrict runtime
-		// parallelism to 1 (no true concurrency). This masks the race;
-		// remove once the underlying issue is fixed.
-		runtime.GOMAXPROCS(1)
 	} else {
 		opt = stack.Combine(opt,
 			presets.WithSyncTesterELInitialState(eth.FCUState{
@@ -255,14 +249,17 @@ func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) 
 	}
 	require := t.Require()
 
-	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
+	ft := sys.L2.Escape().RollupConfig().ActivationTime(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus
 	attempts := 1000
 	if l2CLSyncMode == sync.ELSync {
 		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
 		attempts = 5
 		// Signal L2CL for finishing EL Sync
-		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+		// Must send consecutive three payloads due to default EL Sync policy
+		for i := 2; i >= 0; i-- {
+			sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock-uint64(i))
+		}
 	} else {
 		l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")

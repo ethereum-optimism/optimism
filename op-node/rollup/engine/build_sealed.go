@@ -25,10 +25,10 @@ func (ev BuildSealedEvent) String() string {
 	return "build-sealed"
 }
 
-func (eq *EngineController) onBuildSealed(ctx context.Context, ev BuildSealedEvent) {
+func (e *EngineController) onBuildSealed(ctx context.Context, ev BuildSealedEvent) {
 	// If a (pending) safe block, immediately process the block
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, PayloadProcessEvent{
+		e.emitter.Emit(ctx, PayloadProcessEvent{
 			Concluding:   ev.Concluding,
 			DerivedFrom:  ev.DerivedFrom,
 			Envelope:     ev.Envelope,

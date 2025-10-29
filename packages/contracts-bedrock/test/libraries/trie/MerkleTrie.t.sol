@@ -15,7 +15,7 @@ contract MerkleTrie_Harness {
 
 /// @title MerkleTrie_TestInit
 /// @notice Reusable test initialization for `MerkleTrie` tests.
-contract MerkleTrie_TestInit is Test {
+abstract contract MerkleTrie_TestInit is Test {
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
     MerkleTrie_Harness harness;
 

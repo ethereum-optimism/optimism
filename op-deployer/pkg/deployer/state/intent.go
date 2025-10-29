@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -54,6 +55,16 @@ type L1DevGenesisParams struct {
 
 	// PragueTimeOffset configures Prague (aka Pectra) to be activated at the given time after L1 dev genesis time.
 	PragueTimeOffset *uint64 `json:"pragueTimeOffset" toml:"pragueTimeOffset"`
+
+	// OsakaTimeOffset configures Osaka (the EL changes in the Fusaka Ethereum fork) to be
+	// activated at the given time after L1 dev genesis time.
+	OsakaTimeOffset *uint64 `json:"osakaTimeOffset" toml:"osakaTimeOffset"`
+
+	// BPO1TimeOffset configures the BPO1 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO1TimeOffset *uint64 `json:"bpo1TimeOffset" toml:"bpo1TimeOffset"`
+
+	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
 
 	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
 	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.

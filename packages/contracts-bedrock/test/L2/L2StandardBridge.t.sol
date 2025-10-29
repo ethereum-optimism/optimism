@@ -24,7 +24,7 @@ import { IL2StandardBridge } from "interfaces/L2/IL2StandardBridge.sol";
 
 /// @title L2StandardBridge_TestInit
 /// @notice Reusable test initialization for `L2StandardBridge` tests.
-contract L2StandardBridge_TestInit is CommonTest {
+abstract contract L2StandardBridge_TestInit is CommonTest {
     /// @notice Sets up expected calls and emits for a successful ERC20 withdrawal.
     function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
         // Alice has 100 L2Token
@@ -400,10 +400,10 @@ contract L2StandardBridge_WithdrawTo_Test is L2StandardBridge_TestInit {
     }
 }
 
-/// @title L2StandardBridge_Unclassified_Test
+/// @title L2StandardBridge_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `L2StandardBridge`
 ///         contract.
-contract L2StandardBridge_Unclassified_Test is L2StandardBridge_TestInit {
+contract L2StandardBridge_Uncategorized_Test is L2StandardBridge_TestInit {
     /// @notice Ensures that the L2StandardBridge is always not paused. The pausability happens
     ///         on L1 and not L2.
     function test_paused_succeeds() external view {

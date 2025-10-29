@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -25,11 +28,11 @@ func randConfig() *Config {
 	rng := rand.New(rand.NewSource(1234))
 	randHash := func() (out [32]byte) {
 		rng.Read(out[:])
-		return
+		return out
 	}
 	randAddr := func() (out common.Address) { // we need generics...
 		rng.Read(out[:])
-		return
+		return out
 	}
 	return &Config{
 		Genesis: Genesis{
@@ -218,15 +221,35 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
 	})
-	t.Run("holocene & isthmus date", func(t *testing.T) {
-		config := randConfig()
-		x := uint64(1677119335)
-		config.RegolithTime = &x
-		out := config.Description(nil)
-		// Don't check human-readable part of the date, it's timezone-dependent.
-		// Don't make this test fail only in Australia :')
-		require.Contains(t, out, fmt.Sprintf("Regolith: @ %d ~ ", x))
-	})
+}
+
+// TestConfig_ActivationTime tests that all getters and setters for all scheduleable forks are
+// present and working.
+// It also covers the Is<ForkName>(ts) convenience methods.
+func TestConfig_ActivationTime(t *testing.T) {
+	for i, fork := range scheduleableForks {
+		t.Run(string(fork), func(t *testing.T) {
+			var cfg Config
+			ts := uint64((i + 1) * 1000)
+			cfg.SetActivationTime(fork, &ts)
+			gts := cfg.ActivationTime(fork)
+			require.NotNil(t, gts)
+			require.Equal(t, ts, *gts, "activation time for fork %s", fork)
+
+			// Reflectively call Is<ForkName>
+			name := string(fork)
+			methodName := "Is" + strings.ToUpper(name[:1]) + name[1:]
+			m := reflect.ValueOf(&cfg).MethodByName(methodName)
+			require.True(t, m.IsValid(), "method %s not found", methodName)
+			out := m.Call([]reflect.Value{reflect.ValueOf(ts)})
+			require.Len(t, out, 1)
+			require.True(t, out[0].Bool(), "%s(%d) should be true", methodName, ts)
+			prev := ts - 1
+			out = m.Call([]reflect.Value{reflect.ValueOf(prev)})
+			require.Len(t, out, 1)
+			require.False(t, out[0].Bool(), "%s(%d) should be false", methodName, prev)
+		})
+	}
 }
 
 // TestActivations tests the activation condition of the various upgrades.
@@ -932,4 +955,132 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 			assert.Equal(t, tt.expMissing, cfg.ProbablyMissingPectraBlobSchedule())
 		})
 	}
+}
+
+// TestConfig_IsForkActive validates the generic IsForkActive API across forks.
+func TestConfig_IsForkActive(t *testing.T) {
+	for _, fork := range scheduleableForks {
+		t.Run(string(fork), func(t *testing.T) {
+			var cfg Config
+			// nil activation time => always inactive
+			require.False(t, cfg.IsForkActive(fork, 0))
+			require.False(t, cfg.IsForkActive(fork, 123))
+
+			// activation at genesis (0) => active for all timestamps
+			zero := uint64(0)
+			cfg.SetActivationTime(fork, &zero)
+			require.True(t, cfg.IsForkActive(fork, 0))
+			require.True(t, cfg.IsForkActive(fork, 999999))
+
+			// activation at specific timestamp
+			at := uint64(100)
+			cfg.SetActivationTime(fork, &at)
+			require.False(t, cfg.IsForkActive(fork, 99))
+			require.True(t, cfg.IsForkActive(fork, 100))
+			require.True(t, cfg.IsForkActive(fork, 101))
+		})
+	}
+}
+
+// TestConfig_ActivationBlockAndForFork combines tests for IsActivationBlock and IsActivationBlockForFork.
+func TestConfig_ActivationBlockAndForFork(t *testing.T) {
+	for _, fork := range scheduleableForks {
+		t.Run(string(fork), func(t *testing.T) {
+			cfg := Config{BlockTime: 2}
+			ts := uint64(100)
+			cfg.SetActivationTime(fork, &ts)
+
+			// IsActivationBlock should detect boundary crossing irrespective of block time granularity
+			require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts))
+			require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts+10))
+			require.Equal(t, None, cfg.IsActivationBlock(ts, ts+1))
+			require.Equal(t, None, cfg.IsActivationBlock(ts+1, ts+2))
+
+			// IsActivationBlockForFork should be true for the first block(s) at/after activation,
+			// i.e. for times in [ts, ts+BlockTime-1], and false otherwise.
+			bt := cfg.BlockTime
+			require.Greater(t, bt, uint64(0))
+			require.True(t, cfg.IsActivationBlockForFork(ts, fork))
+			require.True(t, cfg.IsActivationBlockForFork(ts+(bt-1), fork))
+			require.False(t, cfg.IsActivationBlockForFork(ts-1, fork))
+			require.False(t, cfg.IsActivationBlockForFork(ts+bt, fork))
+		})
+	}
+}
+
+// TestConfig_ActivateAt validates ActivateAt behavior, including Bedrock special-case.
+func TestConfig_ActivateAt(t *testing.T) {
+	// Activate at Ecotone with a non-zero timestamp
+	t.Run("Ecotone", func(t *testing.T) {
+		var cfg Config
+		ts := uint64(100)
+		cfg.ActivateAt(Ecotone, ts)
+		require.Equal(t, Config{
+			RegolithTime: ptr.Zero64,
+			CanyonTime:   ptr.Zero64,
+			DeltaTime:    ptr.Zero64,
+			EcotoneTime:  &ts,
+		}, cfg)
+	})
+
+	t.Run("LatestFork", func(t *testing.T) {
+		var cfg Config
+		ts := uint64(100)
+		cfg.ActivateAt(LatestFork, ts)
+		for _, f := range scheduleableForks {
+			at := cfg.ActivationTime(f)
+			require.NotNil(t, at)
+			if f == LatestFork {
+				require.EqualValues(t, ts, *at)
+			} else {
+				// prior forks at genesis (0)
+				require.Zero(t, *at)
+			}
+		}
+	})
+
+	// Bedrock special case: disable all scheduleable forks
+	t.Run("Bedrock", func(t *testing.T) {
+		var cfg Config
+		cfg.ActivateAt(Bedrock, 0)
+		for _, f := range scheduleableForks {
+			require.Nil(t, cfg.ActivationTime(f))
+		}
+		require.Zero(t, cfg)
+	})
+}
+
+// TestConfig_ActivateAtGenesis validates ActivateAtGenesis behavior.
+func TestConfig_ActivateAtGenesis(t *testing.T) {
+	// Activate Ecotone at genesis
+	t.Run("Ecotone", func(t *testing.T) {
+		var cfg Config
+		cfg.ActivateAtGenesis(Ecotone)
+		require.Equal(t, Config{
+			RegolithTime: ptr.Zero64,
+			CanyonTime:   ptr.Zero64,
+			DeltaTime:    ptr.Zero64,
+			EcotoneTime:  ptr.Zero64,
+		}, cfg)
+	})
+
+	t.Run("LatestFork", func(t *testing.T) {
+		var cfg Config
+		cfg.ActivateAtGenesis(LatestFork)
+		for _, f := range scheduleableForks {
+			at := cfg.ActivationTime(f)
+			require.NotNil(t, at)
+			require.Zero(t, *at)
+		}
+	})
+
+	// Bedrock special case: disable all scheduleable forks
+	t.Run("Bedrock", func(t *testing.T) {
+		var cfg Config
+		cfg.ActivateAtGenesis(Bedrock)
+		for _, f := range scheduleableForks {
+			require.Nil(t, cfg.ActivationTime(f))
+		}
+		require.Zero(t, cfg)
+	})
 }

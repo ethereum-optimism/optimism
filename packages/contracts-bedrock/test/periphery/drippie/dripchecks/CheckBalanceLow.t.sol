@@ -6,7 +6,7 @@ import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLo
 
 /// @title CheckBalanceLow_TestInit
 /// @notice Reusable test initialization for `CheckBalanceLow` tests.
-contract CheckBalanceLow_TestInit is Test {
+abstract contract CheckBalanceLow_TestInit is Test {
     /// @notice An instance of the CheckBalanceLow contract.
     CheckBalanceLow c;
 
@@ -45,10 +45,10 @@ contract CheckBalanceLow_Check_Test is CheckBalanceLow_TestInit {
     }
 }
 
-/// @title CheckBalanceLow_Unclassified_Test
+/// @title CheckBalanceLow_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `CheckBalanceLow`
 ///         contract or are testing multiple functions at once.
-contract CheckBalanceLow_Unclassified_Test is CheckBalanceLow_TestInit {
+contract CheckBalanceLow_Uncategorized_Test is CheckBalanceLow_TestInit {
     /// @notice Test that the `name` function returns the correct value.
     function test_name_succeeds() external view {
         assertEq(c.name(), "CheckBalanceLow");

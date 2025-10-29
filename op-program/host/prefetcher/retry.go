@@ -75,16 +75,6 @@ func NewRetryingL1BlobSource(logger log.Logger, source L1BlobSource) *RetryingL1
 	}
 }
 
-func (s *RetryingL1BlobSource) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
-	return retry.Do(ctx, maxAttempts, s.strategy, func() ([]*eth.BlobSidecar, error) {
-		sidecars, err := s.source.GetBlobSidecars(ctx, ref, hashes)
-		if err != nil {
-			s.logger.Warn("Failed to retrieve blob sidecars", "ref", ref, "err", err)
-		}
-		return sidecars, err
-	})
-}
-
 func (s *RetryingL1BlobSource) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	return retry.Do(ctx, maxAttempts, s.strategy, func() ([]*eth.Blob, error) {
 		blobs, err := s.source.GetBlobs(ctx, ref, hashes)
