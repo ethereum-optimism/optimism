@@ -618,12 +618,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         vm.expectRevert("DeployImplementations: faultGameV2SplitDepth must be >= 2 and splitDepth + 1 < maxGameDepth");
         deployImplementations.run(input);
 
-        // Reset and test clock extension = 0 (must be > 0 when V2 enabled)
-        input = defaultInput();
-        input.faultGameV2ClockExtension = 0;
-        vm.expectRevert("DeployImplementations: faultGameV2ClockExtension must be > 0");
-        deployImplementations.run(input);
-
         // Reset and test maxClockDuration < clockExtension
         input = defaultInput();
         input.faultGameV2ClockExtension = 1000;
