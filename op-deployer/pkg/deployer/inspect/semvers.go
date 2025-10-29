@@ -102,8 +102,10 @@ type L2PredeploySemvers struct {
 	OptimismMintableERC721Factory string
 	BaseFeeVault                  string
 	L1FeeVault                    string
+	OperatorFeeVault              string
 	SchemaRegistry                string
 	EAS                           string
+	FeeSplitter                   string
 	CrossL2Inbox                  string
 	L2toL2CrossDomainMessenger    string
 	SuperchainETHBridge           string
@@ -153,8 +155,10 @@ func L2Semvers(cfg L2SemversConfig) (*L2PredeploySemvers, error) {
 		{predeploys.OptimismMintableERC721FactoryAddr, &ps.OptimismMintableERC721Factory, "OptimismMintableERC721Factory"},
 		{predeploys.BaseFeeVaultAddr, &ps.BaseFeeVault, "BaseFeeVault"},
 		{predeploys.L1FeeVaultAddr, &ps.L1FeeVault, "L1FeeVault"},
+		{predeploys.OperatorFeeVaultAddr, &ps.OperatorFeeVault, "OperatorFeeVault"},
 		{predeploys.SchemaRegistryAddr, &ps.SchemaRegistry, "SchemaRegistry"},
 		{predeploys.EASAddr, &ps.EAS, "EAS"},
+		{predeploys.FeeSplitterAddr, &ps.FeeSplitter, "FeeSplitter"},
 	}
 	for _, contract := range contracts {
 		semver, err := ReadSemver(host, contract.Address)

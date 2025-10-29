@@ -33,13 +33,6 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         feeVault.setWithdrawalNetwork(Types.WithdrawalNetwork.L2);
     }
 
-    /// @notice Tests that the l1 fee wallet is correct.
-    function test_constructor_succeeds() external view {
-        assertEq(feeVault.RECIPIENT(), recipient);
-        assertEq(feeVault.MIN_WITHDRAWAL_AMOUNT(), minWithdrawalAmount);
-        assertEq(uint8(feeVault.WITHDRAWAL_NETWORK()), uint8(withdrawalNetwork));
-    }
-
     /// @notice Tests that the initialize function succeeds.
     function test_initialize_succeeds() external view {
         assertEq(feeVault.recipient(), recipient);
@@ -55,6 +48,13 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         feeVault.initialize(recipient, minWithdrawalAmount, Types.WithdrawalNetwork.L1);
     }
 
+    /// @notice Tests that the immutable values match the storage getters.
+    function test_immutableMatchesStorageVariables_succeeds() external view {
+        assertEq(feeVault.RECIPIENT(), feeVault.recipient());
+        assertEq(feeVault.MIN_WITHDRAWAL_AMOUNT(), feeVault.minWithdrawalAmount());
+        assertEq(uint8(feeVault.WITHDRAWAL_NETWORK()), uint8(feeVault.withdrawalNetwork()));
+    }
+
     /// @notice Tests that the fee feeVault is able to receive ETH.
     function test_receive_succeeds() external {
         uint256 balance = address(feeVault).balance;
@@ -68,7 +68,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
 
     /// @notice Tests that `withdraw` reverts if the balance is less than the minimum withdrawal
     ///         amount.
-    function test_withdraw_notEnough_reverts(uint256 _minWithdrawalAmount) external {
+    function testFuzz_withdraw_notEnough_reverts(uint256 _minWithdrawalAmount) external {
         // Set the minimum withdrawal amount
         _minWithdrawalAmount = bound(_minWithdrawalAmount, 1, type(uint256).max);
         vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());

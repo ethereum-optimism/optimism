@@ -39,6 +39,7 @@ abstract contract FeeVault is Initializable {
     /// @notice Reserve extra slots in the storage layout for future upgrades, 50 in total.
     uint256[46] private __gap;
 
+    /// @custom:legacy
     /// @notice Emitted each time a withdrawal occurs. This event will be deprecated
     ///         in favor of the Withdrawal event containing the WithdrawalNetwork parameter.
     /// @param value Amount that was withdrawn (in wei).
@@ -152,42 +153,44 @@ abstract contract FeeVault is Initializable {
         value_ = address(this).balance;
         totalProcessed += value_;
 
-        emit Withdrawal(value_, recipient, msg.sender);
-        emit Withdrawal(value_, recipient, msg.sender, withdrawalNetwork);
+        address recipientAddr = recipient;
+
+        emit Withdrawal(value_, recipientAddr, msg.sender);
+        emit Withdrawal(value_, recipientAddr, msg.sender, withdrawalNetwork);
 
         if (withdrawalNetwork == Types.WithdrawalNetwork.L2) {
-            bool success = SafeCall.send(recipient, value_);
+            bool success = SafeCall.send(recipientAddr, value_);
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {
             IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value_ }({
-                _target: recipient,
+                _target: recipientAddr,
                 _gasLimit: _WITHDRAWAL_MIN_GAS,
                 _data: hex""
             });
         }
     }
 
+    /// @custom:legacy
     /// @notice Minimum balance before a withdrawal can be triggered.
     ///         Use the `minWithdrawalAmount()` getter as this is deprecated
     ///         and is subject to be removed in the future.
-    /// @custom:legacy
     function MIN_WITHDRAWAL_AMOUNT() public view returns (uint256) {
         return minWithdrawalAmount;
     }
 
+    /// @custom:legacy
     /// @notice Account that will receive the fees. Can be located on L1 or L2.
     ///         Use the `recipient()` getter as this is deprecated
     ///         and is subject to be removed in the future.
-    /// @custom:legacy
     /// @return The recipient address.
     function RECIPIENT() public view returns (address) {
         return recipient;
     }
 
+    /// @custom:legacy
     /// @notice Network which the recipient will receive fees on.
     ///         Use the `withdrawalNetwork()` getter as this is deprecated
     ///         and is subject to be removed in the future.
-    /// @custom:legacy
     function WITHDRAWAL_NETWORK() public view returns (Types.WithdrawalNetwork) {
         return withdrawalNetwork;
     }

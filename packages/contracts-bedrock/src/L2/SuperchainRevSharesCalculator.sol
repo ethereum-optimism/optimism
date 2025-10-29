@@ -12,7 +12,7 @@ import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 /// @title SuperchainRevSharesCalculator
 /// @notice Calculator for Superchain revenue share. It pays the greater amount between 2.5% of
 ///         gross revenue or 15% of net revenue (gross minus L1 fees) to the configured share recipient.
-///         The second configured recipient receives the full remainder via FeeSplitter's remainder send.
+///         The second configured recipient receives the remaining revenue.
 contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     /// @notice Emitted when the share recipient is updated.
     /// @param oldShareRecipient The old share recipient address.
@@ -30,6 +30,7 @@ contract SuperchainRevSharesCalculator is ISemver, ISharesCalculator {
     /// @notice Thrown when the gross share is zero.
     error SharesCalculator_ZeroGrossShare();
 
+    /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 

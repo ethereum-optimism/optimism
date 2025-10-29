@@ -33,7 +33,6 @@ type l2GenesisOverrides struct {
 	OperatorFeeVaultWithdrawalNetwork        genesis.WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
-	UseRevenueShare                          bool                      `json:"useRevenueShare"`
 }
 
 func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
@@ -176,6 +175,5 @@ func defaultOverrides() l2GenesisOverrides {
 		OperatorFeeVaultWithdrawalNetwork:        "local",
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
-		UseRevenueShare:                          true,
 	}
 }

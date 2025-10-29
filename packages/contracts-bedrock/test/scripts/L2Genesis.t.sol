@@ -10,6 +10,7 @@ import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevShar
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
+import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -69,18 +70,35 @@ abstract contract L2Genesis_TestInit is Test {
         IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
         IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
         ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+        IOperatorFeeVault operatorFeeVault = IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
 
+        assertEq(baseFeeVault.RECIPIENT(), input.baseFeeVaultRecipient);
         assertEq(baseFeeVault.recipient(), input.baseFeeVaultRecipient);
         assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.baseFeeVaultMinimumWithdrawalAmount);
+        assertEq(baseFeeVault.minWithdrawalAmount(), input.baseFeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(input.baseFeeVaultWithdrawalNetwork));
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(input.baseFeeVaultWithdrawalNetwork));
 
+        assertEq(l1FeeVault.RECIPIENT(), input.l1FeeVaultRecipient);
         assertEq(l1FeeVault.recipient(), input.l1FeeVaultRecipient);
         assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), input.l1FeeVaultMinimumWithdrawalAmount);
+        assertEq(l1FeeVault.minWithdrawalAmount(), input.l1FeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(input.l1FeeVaultWithdrawalNetwork));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(input.l1FeeVaultWithdrawalNetwork));
 
+        assertEq(sequencerFeeVault.RECIPIENT(), input.sequencerFeeVaultRecipient);
         assertEq(sequencerFeeVault.recipient(), input.sequencerFeeVaultRecipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.sequencerFeeVaultMinimumWithdrawalAmount);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), input.sequencerFeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(input.sequencerFeeVaultWithdrawalNetwork));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(input.sequencerFeeVaultWithdrawalNetwork));
+
+        assertEq(operatorFeeVault.RECIPIENT(), input.operatorFeeVaultRecipient);
+        assertEq(operatorFeeVault.recipient(), input.operatorFeeVaultRecipient);
+        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.operatorFeeVaultMinimumWithdrawalAmount);
+        assertEq(operatorFeeVault.minWithdrawalAmount(), input.operatorFeeVaultMinimumWithdrawalAmount);
+        assertEq(uint8(operatorFeeVault.WITHDRAWAL_NETWORK()), uint8(input.operatorFeeVaultWithdrawalNetwork));
+        assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(input.operatorFeeVaultWithdrawalNetwork));
     }
 
     function testVaultsWithRevenueShare() internal view {
@@ -90,20 +108,32 @@ abstract contract L2Genesis_TestInit is Test {
         IFeeVault operatorFeeVault = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
 
         assertEq(baseFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.baseFeeVaultMinimumWithdrawalAmount);
+        assertEq(baseFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
+        assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(baseFeeVault.minWithdrawalAmount(), 0);
         assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
 
+        assertEq(l1FeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
         assertEq(l1FeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), input.l1FeeVaultMinimumWithdrawalAmount);
+        assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(l1FeeVault.minWithdrawalAmount(), 0);
         assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
 
+        assertEq(sequencerFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
         assertEq(sequencerFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.sequencerFeeVaultMinimumWithdrawalAmount);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), 0);
         assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
 
+        assertEq(operatorFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
         assertEq(operatorFeeVault.recipient(), Predeploys.FEE_SPLITTER);
-        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.operatorFeeVaultMinimumWithdrawalAmount);
+        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(operatorFeeVault.minWithdrawalAmount(), 0);
         assertEq(uint8(operatorFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
     }
 
     function testGovernance() internal view {

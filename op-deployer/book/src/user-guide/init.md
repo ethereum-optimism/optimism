@@ -44,6 +44,7 @@ l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
   baseFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   l1FeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   sequencerFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  operatorFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   eip1559DenominatorCanyon = 250
   eip1559Denominator = 50
   eip1559Elasticity = 6
@@ -65,6 +66,7 @@ In production environments, you should use a more secure setup with cold-wallet 
 * `baseFeeVaultRecipient`
 * `l1FeeVaultRecipient`
 * `sequencerFeeVaultRecipient`
+* `operatorFeeVaultRecipient`
 * `l1ProxyAdminOwner`
 * `l2ProxyAdminOwner`
 * `systemConfigOwner`

@@ -6,7 +6,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Mocks
 import { MockFeeVault } from "test/mocks/MockFeeVault.sol";
+import { MaliciousMockFeeVault } from "test/mocks/MaliciousMockFeeVault.sol";
 import { RevertingRecipient } from "test/mocks/RevertingRecipient.sol";
+import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -22,7 +24,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 /// @notice Reusable test initialization for `FeeSplitter` tests.
 contract FeeSplitter_TestInit is CommonTest {
     // Events
-    event FeesReceived(address indexed sender, uint256 amount);
+    event FeesReceived(address indexed sender, uint256 amount, uint256 newBalance);
     event FeeDisbursementIntervalUpdated(uint128 oldFeeDisbursementInterval, uint128 newFeeDisbursementInterval);
     event FeesDisbursed(ISharesCalculator.ShareInfo[] shareInfo, uint256 grossRevenue);
     event SharesCalculatorUpdated(address oldSharesCalculator, address newSharesCalculator);
@@ -33,6 +35,9 @@ contract FeeSplitter_TestInit is CommonTest {
     address internal _defaultRevenueRemainderRecipient = makeAddr("RemainderRecipient");
     uint128 internal _defaultFeeDisbursementInterval = 1 days;
     address internal _defaultSharesCalculator = makeAddr("SharesCalculator");
+    address[4] internal _feeVaults;
+    bytes32 internal constant _FEE_SPLITTER_DISBURSING_ADDRESS_SLOT =
+        0x21346dddac42cc163a6523eefc19df981df7352c870dc3b0b17a6a92fc6fe813;
 
     /// @notice Test setup.
     function setUp() public virtual override {
@@ -42,6 +47,12 @@ contract FeeSplitter_TestInit is CommonTest {
 
         // Get the owner from ProxyAdmin
         _owner = IProxyAdmin(Predeploys.PROXY_ADMIN).owner();
+
+        // Initialize fee vaults array
+        _feeVaults[0] = Predeploys.SEQUENCER_FEE_WALLET;
+        _feeVaults[1] = Predeploys.BASE_FEE_VAULT;
+        _feeVaults[2] = Predeploys.L1_FEE_VAULT;
+        _feeVaults[3] = Predeploys.OPERATOR_FEE_VAULT;
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
@@ -111,6 +122,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 
         assertEq(address(IFeeSplitter(payable(impl)).sharesCalculator()), address(_defaultSharesCalculator));
         assertEq(IFeeSplitter(payable(impl)).feeDisbursementInterval(), 1 days);
+        assertEq(IFeeSplitter(payable(impl)).lastDisbursementTime(), block.timestamp);
     }
 
     /// @notice Test that the implementation contract disables initializers in the constructor
@@ -139,12 +151,16 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 /// @title FeeSplitter_Receive_Test
 /// @notice Tests the receive function of the `FeeSplitter` contract.
 contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
-    /// @notice Test that receive function reverts when not during disbursement
-    function test_feeSplitterReceive_whenReceiveWindowIsClosed_reverts(address _caller, uint256 _amount) public {
+    /// @notice Test that receive function reverts when sender is not an approved vault
+    function testFuzz_feeSplitterReceive_whenNotApprovedVault_reverts(address _caller, uint256 _amount) public {
+        vm.assume(_caller != Predeploys.SEQUENCER_FEE_WALLET);
+        vm.assume(_caller != Predeploys.BASE_FEE_VAULT);
+        vm.assume(_caller != Predeploys.OPERATOR_FEE_VAULT);
+        vm.assume(_caller != Predeploys.L1_FEE_VAULT);
         vm.deal(_caller, _amount);
 
         vm.prank(_caller);
-        vm.expectRevert(IFeeSplitter.FeeSplitter_ReceiveWindowClosed.selector);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
         payable(address(feeSplitter)).call{ value: _amount }("");
     }
 
@@ -160,12 +176,12 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         vm.startPrank(_caller);
 
         // Now we test the actual sender validation
-        vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotApprovedVault.selector);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
         payable(address(feeSplitter)).call{ value: _amount }("");
     }
 
     /// @notice Test receive function works during disbursement from SequencerFeeVault
-    function test_feeSplitterReceive_sequencerFeeVault_succeeds(uint256 _amount) public {
+    function testFuzz_feeSplitterReceive_sequencerFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -189,6 +205,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         // Fast forward time to allow disbursement
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit FeesReceived(Predeploys.SEQUENCER_FEE_WALLET, _amount, _amount);
+
         // Call disburseFees - this will trigger the receive function during withdrawal
         feeSplitter.disburseFees();
 
@@ -199,7 +218,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from BaseFeeVault
-    function test_feeSplitterReceive_baseFeeVault_succeeds(uint256 _amount) public {
+    function testFuzz_feeSplitterReceive_baseFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -223,6 +242,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         // Fast forward time to allow disbursement
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit FeesReceived(Predeploys.BASE_FEE_VAULT, _amount, _amount);
+
         // Call disburseFees - this will trigger the receive function during withdrawal
         feeSplitter.disburseFees();
 
@@ -233,7 +255,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from L1FeeVault
-    function test_feeSplitterReceive_l1FeeVault_succeeds(uint256 _amount) public {
+    function testFuzz_feeSplitterReceive_l1FeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -257,6 +279,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         // Fast forward time to allow disbursement
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit FeesReceived(Predeploys.L1_FEE_VAULT, _amount, _amount);
+
         // Call disburseFees - this will trigger the receive function during withdrawal
         feeSplitter.disburseFees();
 
@@ -267,7 +292,7 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Test receive function works during disbursement from OperatorFeeVault
-    function test_feeSplitterReceive_operatorFeeVault_succeeds(uint256 _amount) public {
+    function testFuzz_feeSplitterReceive_operatorFeeVault_succeeds(uint256 _amount) public {
         _amount = bound(_amount, 1, type(uint256).max);
 
         // Setup mocks - only sequencer vault has balance
@@ -291,6 +316,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         // Fast forward time to allow disbursement
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit FeesReceived(Predeploys.OPERATOR_FEE_VAULT, _amount, _amount);
+
         // Call disburseFees - this will trigger the receive function during withdrawal
         feeSplitter.disburseFees();
 
@@ -298,6 +326,34 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
         assertEq(address(_defaultRevenueShareRecipient).balance, _amount);
         assertEq(address(feeSplitter).balance, 0);
         assertEq(feeSplitter.lastDisbursementTime(), block.timestamp);
+    }
+
+    /// @notice Test that a malicious vault cannot trigger withdrawals from other vaults during its own withdrawal.
+    ///         This test demonstrates that the stricter receive() validation (checking the specific vault address)
+    ///         prevents a re-entrancy attack where one vault tries to indirectly call withdraw() on a different vault.
+    function test_feeSplitterReceive_reentrantVaultAttack_reverts() public {
+        uint256 sequencerAmount = 1 ether;
+        uint256 baseAmount = 2 ether;
+
+        // Setup SEQUENCER_FEE_WALLET as a malicious vault that will try to trigger BASE_FEE_VAULT withdrawal
+        ReentrantMockFeeVault maliciousVault = new ReentrantMockFeeVault(
+            payable(address(feeSplitter)), sequencerAmount, payable(Predeploys.BASE_FEE_VAULT)
+        );
+
+        vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(maliciousVault).code);
+        vm.deal(Predeploys.SEQUENCER_FEE_WALLET, sequencerAmount);
+
+        // Fast forward time
+        vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
+
+        // Expect the disbursement to revert with the MockFeeVault error message.
+        // The flow is:
+        // 1. FeeSplitter:disburseFees() is called
+        // 2. Splitter triggers withdrawal from SEQUENCER_FEE_WALLET (etched with malicious code)
+        // 3. SEQUENCER_FEE_WALLET sends ETH to FeeSplitter and triggers withdrawal from BASE_FEE_VAULT
+        // 4. BASE_FEE_VAULT's withdraw() reverts with the FeeVault's error message
+        vm.expectRevert("FeeVault: failed to send ETH to L2 fee recipient");
+        feeSplitter.disburseFees();
     }
 }
 
@@ -350,6 +406,34 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
 
         vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
         vm.expectRevert(IFeeSplitter.FeeSplitter_FeeVaultMustWithdrawToFeeSplitter.selector);
+        feeSplitter.disburseFees();
+    }
+
+    /// @notice Test disburseFees reverts when fee vault withdrawal amount does not match the expected amount
+    function testFuzz_feeSplitterDisburseFees_whenFeeVaultWithdrawalAmountMismatch_reverts(
+        uint256 _actualTransferAmount,
+        uint256 _claimedWithdrawalAmount
+    )
+        public
+    {
+        vm.assume(_actualTransferAmount != _claimedWithdrawalAmount);
+
+        // Create a malicious mock vault that lies about withdrawal amount
+        MaliciousMockFeeVault maliciousVault =
+            new MaliciousMockFeeVault(payable(address(feeSplitter)), _actualTransferAmount, _claimedWithdrawalAmount);
+        vm.deal(address(maliciousVault), _actualTransferAmount);
+
+        // Replace SEQUENCER_FEE_WALLET with the malicious vault
+        vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(maliciousVault).code);
+        vm.deal(Predeploys.SEQUENCER_FEE_WALLET, _actualTransferAmount);
+
+        // Setup other vaults normally with zero balance
+        _mockFeeVaultForSuccessfulWithdrawal(Predeploys.BASE_FEE_VAULT, 0);
+        _mockFeeVaultForSuccessfulWithdrawal(Predeploys.L1_FEE_VAULT, 0);
+        _mockFeeVaultForSuccessfulWithdrawal(Predeploys.OPERATOR_FEE_VAULT, 0);
+
+        vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_FeeVaultWithdrawalAmountMismatch.selector);
         feeSplitter.disburseFees();
     }
 
@@ -476,7 +560,12 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
     }
 
     /// @notice Fuzz test that a vault with balance below minimum causes entire disbursement to revert
-    function test_disburseFees_vaultBelowMinimum_reverts(uint256 _minWithdrawalAmount, uint256 _vaultIndex) public {
+    function testFuzz_disburseFees_vaultBelowMinimum_reverts(
+        uint256 _minWithdrawalAmount,
+        uint256 _vaultIndex
+    )
+        public
+    {
         // If uint256, the test will revert due to ETH transfer overflow
         _minWithdrawalAmount = bound(_minWithdrawalAmount, 1, type(uint128).max);
         _vaultIndex = bound(_vaultIndex, 0, 3); // 0-3 for the 4 vaults
@@ -519,6 +608,59 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         vm.deal(address(mockVault), _balance);
         vm.etch(_vault, address(mockVault).code);
         vm.deal(_vault, _balance);
+    }
+
+    /// @notice Test that vaults cannot send ETH after disburseFees completes (transient storage cleanup check)
+    /// @param _vaultIndex The index of the vault to test (0-3).
+    function testFuzz_feeSplitterDisburseFees_vaultsCannotSendAfterDisbursement_reverts(uint256 _vaultIndex) public {
+        _vaultIndex = bound(_vaultIndex, 0, 3);
+
+        uint256 _sequencerAmount = 2 ether;
+        uint256 _baseAmount = 3 ether;
+        uint256 _l1Amount = 1 ether;
+        uint256 _operatorAmount = 4 ether;
+
+        _setupStandardFeeVaultMocks(_sequencerAmount, _baseAmount, _l1Amount, _operatorAmount);
+
+        // Calculate expected gross revenue
+        uint256 expectedGrossRevenue = _sequencerAmount + _baseAmount + _l1Amount + _operatorAmount;
+
+        // Setup mock shares calculator to return 50/50 split
+        uint256 halfGrossRevenue = expectedGrossRevenue / 2;
+        ISharesCalculator.ShareInfo[] memory expectedShareInfo = new ISharesCalculator.ShareInfo[](2);
+        expectedShareInfo[0] = ISharesCalculator.ShareInfo(payable(_defaultRevenueShareRecipient), halfGrossRevenue);
+        expectedShareInfo[1] = ISharesCalculator.ShareInfo(
+            payable(_defaultRevenueRemainderRecipient), expectedGrossRevenue - halfGrossRevenue
+        );
+
+        // Get the actual shares calculator from the FeeSplitter
+        address actualSharesCalculator = address(feeSplitter.sharesCalculator());
+        vm.mockCall(
+            actualSharesCalculator,
+            abi.encodeCall(
+                ISharesCalculator.getRecipientsAndAmounts, (_sequencerAmount, _baseAmount, _operatorAmount, _l1Amount)
+            ),
+            abi.encode(expectedShareInfo)
+        );
+
+        // Fast forward time to allow disbursement
+        vm.warp(block.timestamp + feeSplitter.feeDisbursementInterval() + 1);
+
+        // Call disburseFees
+        feeSplitter.disburseFees();
+
+        // Verify disbursement was successful
+        assertEq(feeSplitter.lastDisbursementTime(), block.timestamp);
+
+        // Now try to send ETH from one of the vaults after disbursement
+        address _vault = _feeVaults[_vaultIndex];
+        uint256 _attemptAmount = 1 ether;
+        vm.deal(_vault, _attemptAmount);
+
+        // Attempt to send ETH from the vault - should revert because transient storage was cleared
+        vm.prank(_vault);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
+        payable(address(feeSplitter)).call{ value: _attemptAmount }("");
     }
 }
 
@@ -565,6 +707,13 @@ contract FeeSplitter_SetFeeDisbursementInterval_Test is FeeSplitter_TestInit {
         vm.prank(_caller);
         vm.expectRevert(IFeeSplitter.FeeSplitter_OnlyProxyAdminOwner.selector);
         feeSplitter.setFeeDisbursementInterval(48 hours);
+    }
+
+    /// @notice Test setFeeDisbursementInterval reverts when interval is zero
+    function test_feeSplitterSetFeeDisbursementInterval_whenIntervalZero_reverts() public {
+        vm.prank(_owner);
+        vm.expectRevert(IFeeSplitter.FeeSplitter_FeeDisbursementIntervalCannotBeZero.selector);
+        feeSplitter.setFeeDisbursementInterval(0);
     }
 
     /// @notice Test setFeeDisbursementInterval reverts when interval is too long

@@ -597,6 +597,12 @@ func TestInvalidL2Genesis(t *testing.T) {
 			},
 		},
 		{
+			name: "operator fee vault recipient not set",
+			overrides: map[string]any{
+				"operatorFeeVaultRecipient": nil,
+			},
+		},
+		{
 			name: "l1 chain ID not set",
 			overrides: map[string]any{
 				"l1ChainID": nil,

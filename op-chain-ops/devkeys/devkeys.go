@@ -160,6 +160,8 @@ const (
 	SystemConfigOwner ChainOperatorRole = 10
 	// OperatorFeeVaultRecipientRole is the key that receives from the OperatorFeeVault predeploy
 	OperatorFeeVaultRecipientRole ChainOperatorRole = 11
+	// ChainFeesRecipientRole is the key that receives the chain's share from the FeeSplitter
+	ChainFeesRecipientRole ChainOperatorRole = 12
 )
 
 func (role ChainOperatorRole) String() string {
@@ -188,6 +190,8 @@ func (role ChainOperatorRole) String() string {
 		return "operator-fee-vault-recipient"
 	case SystemConfigOwner:
 		return "system-config-owner"
+	case ChainFeesRecipientRole:
+		return "chain-fees-recipient"
 	default:
 		return fmt.Sprintf("unknown-operator-%d", uint64(role))
 	}

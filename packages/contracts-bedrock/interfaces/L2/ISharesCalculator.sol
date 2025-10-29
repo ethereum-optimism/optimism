@@ -16,16 +16,16 @@ interface ISharesCalculator {
     /// @notice Returns the recipients and amounts for fee distribution.
     /// @dev Any implementation MUST return ShareInfo where the sum of all amounts equals
     /// the total revenue (sum of all vault balances) as it will revert otherwise
-    /// @param _sequencerFeeVaultBalance Balance of the sequencer fee vault.
-    /// @param _baseFeeVaultBalance Balance of the base fee vault.
-    /// @param _operatorFeeVaultBalance Balance of the operator fee vault.
-    /// @param _l1FeeVaultBalance Balance of the L1 fee vault.
+    /// @param _sequencerFeeRevenue Balance of the sequencer fee vault.
+    /// @param _baseFeeRevenue Balance of the base fee vault.
+    /// @param _operatorFeeRevenue Balance of the operator fee vault.
+    /// @param _l1FeeRevenue Balance of the L1 fee vault.
     /// @return shareInfo Array of ShareInfo structs containing recipients and amounts.
     function getRecipientsAndAmounts(
-        uint256 _sequencerFeeVaultBalance,
-        uint256 _baseFeeVaultBalance,
-        uint256 _operatorFeeVaultBalance,
-        uint256 _l1FeeVaultBalance
+        uint256 _sequencerFeeRevenue,
+        uint256 _baseFeeRevenue,
+        uint256 _operatorFeeRevenue,
+        uint256 _l1FeeRevenue
     )
         external
         view

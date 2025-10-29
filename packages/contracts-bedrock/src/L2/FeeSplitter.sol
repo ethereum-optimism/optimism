@@ -18,11 +18,14 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000002B
 /// @title FeeSplitter
-/// @notice Withdraws funds from system FeeVault contracts, sends Optimism their revenue share, and
-///         sends the remaining funds to the fee router.
+/// @notice Withdraws funds from system FeeVault contracts and distributes them according to the
+///         configured SharesCalculator.
 contract FeeSplitter is ISemver, Initializable {
     /// @notice Thrown when the fee disbursement interval exceeds the maximum allowed.
     error FeeSplitter_ExceedsMaxFeeDisbursementTime();
+
+    /// @notice Thrown when the fee disbursement interval is set to zero.
+    error FeeSplitter_FeeDisbursementIntervalCannotBeZero();
 
     /// @notice Thrown when the share calculator address is zero.
     error FeeSplitter_SharesCalculatorCannotBeZero();
@@ -42,6 +45,9 @@ contract FeeSplitter is ISemver, Initializable {
     /// @notice Thrown when the FeeVault does not withdraw to FeeSplitter contract.
     error FeeSplitter_FeeVaultMustWithdrawToFeeSplitter();
 
+    /// @notice Thrown when the FeeVault withdrawal amount does not match the expected amount.
+    error FeeSplitter_FeeVaultWithdrawalAmountMismatch();
+
     /// @notice Thrown when the caller is not the ProxyAdmin owner.
     error FeeSplitter_OnlyProxyAdminOwner();
 
@@ -51,17 +57,15 @@ contract FeeSplitter is ISemver, Initializable {
     /// @notice Thrown when the sharesCalculator returns malformed output.
     error FeeSplitter_SharesCalculatorMalformedOutput();
 
-    /// @notice Thrown when receiving ETH is attempted outside of a disbursement window.
-    error FeeSplitter_ReceiveWindowClosed();
+    /// @notice Thrown when the sender is not the currently disbursing vault.
+    error FeeSplitter_SenderNotCurrentVault();
 
-    /// @notice Thrown when a sender other than an approved FeeVault attempts to send ETH.
-    error FeeSplitter_SenderNotApprovedVault();
+    /// @notice Transient storage slot key for the address of the vault currently allowed to disburse.
+    ///         Equal to bytes32(uint256(keccak256("feesplitter.disbursingAddress")) - 1)
+    bytes32 internal constant _FEE_SPLITTER_DISBURSING_ADDRESS_SLOT =
+        0x21346dddac42cc163a6523eefc19df981df7352c870dc3b0b17a6a92fc6fe813;
 
-    /// @notice Transient storage slot key for disbursement-in-progress flag.
-    ///         Equal to bytes32(uint256(keccak256("feesplitter.isDisbursing")) - 1)
-    bytes32 internal constant _FEE_SPLITTER_IS_DISBURSING_SLOT =
-        0xe3007e9730850b5618eacb0537bef0cf0f1600267ae8549e472449d77b731e45;
-
+    /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
@@ -80,7 +84,8 @@ contract FeeSplitter is ISemver, Initializable {
     /// @notice Emitted when fees are received from FeeVaults.
     /// @param sender The FeeVault that sent the fees.
     /// @param amount The amount of fees received.
-    event FeesReceived(address indexed sender, uint256 amount);
+    /// @param newBalance The new balance after receiving fees.
+    event FeesReceived(address indexed sender, uint256 amount, uint256 newBalance);
 
     /// @notice Emitted when the fee disbursement interval is updated.
     /// @param oldFeeDisbursementInterval The previous fee disbursement interval.
@@ -108,18 +113,20 @@ contract FeeSplitter is ISemver, Initializable {
         sharesCalculator = _sharesCalculator;
         // As default, the fee disbursement interval is 1 day
         feeDisbursementInterval = 1 days;
+
+        // Set the last disbursement time to the current block timestamp
+        lastDisbursementTime = uint128(block.timestamp);
     }
 
     /// @dev Receives ETH fees withdrawn from L2 FeeVaults.
     receive() external payable virtual {
-        if (!_isTransientDisbursing()) revert FeeSplitter_ReceiveWindowClosed();
-        if (
-            msg.sender != Predeploys.SEQUENCER_FEE_WALLET && msg.sender != Predeploys.BASE_FEE_VAULT
-                && msg.sender != Predeploys.L1_FEE_VAULT && msg.sender != Predeploys.OPERATOR_FEE_VAULT
-        ) {
-            revert FeeSplitter_SenderNotApprovedVault();
+        // Sender must be the currently disbursing vault
+        if (msg.sender != _getTransientDisbursingAddress()) {
+            revert FeeSplitter_SenderNotCurrentVault();
         }
-        emit FeesReceived({ sender: msg.sender, amount: msg.value });
+
+        uint256 newBalance = address(this).balance;
+        emit FeesReceived(msg.sender, msg.value, newBalance);
     }
 
     /// @notice Withdraws funds from FeeVaults and disburses them to the recipients.
@@ -132,49 +139,50 @@ contract FeeSplitter is ISemver, Initializable {
         lastDisbursementTime = uint128(block.timestamp);
 
         // Pull fees into the contract
-        _setTransientDisbursing(true);
-        uint256 _sequencerFees = _feeVaultWithdrawal(payable(Predeploys.SEQUENCER_FEE_WALLET));
-        uint256 _baseFees = _feeVaultWithdrawal(payable(Predeploys.BASE_FEE_VAULT));
-        uint256 _l1Fees = _feeVaultWithdrawal(payable(Predeploys.L1_FEE_VAULT));
-        uint256 _operatorFees = _feeVaultWithdrawal(payable(Predeploys.OPERATOR_FEE_VAULT));
-        _setTransientDisbursing(false);
+        uint256 sequencerFees = _feeVaultWithdrawal(payable(Predeploys.SEQUENCER_FEE_WALLET));
+        uint256 baseFees = _feeVaultWithdrawal(payable(Predeploys.BASE_FEE_VAULT));
+        uint256 l1Fees = _feeVaultWithdrawal(payable(Predeploys.L1_FEE_VAULT));
+        uint256 operatorFees = _feeVaultWithdrawal(payable(Predeploys.OPERATOR_FEE_VAULT));
+        // Clear the transient disbursing address
+        _setTransientDisbursingAddress(address(0));
 
-        uint256 _grossRevenue = _sequencerFees + _baseFees + _operatorFees + _l1Fees;
+        uint256 grossRevenue = sequencerFees + baseFees + operatorFees + l1Fees;
 
         // Revert if no fees were collected
-        if (_grossRevenue == 0) {
+        if (grossRevenue == 0) {
             revert FeeSplitter_NoFeesCollected();
         }
 
         // Call to the sharesCalculator to determine the fee share recipients, amounts, withdrawal networks, and data
         // DoS risk if array size is too large.
-        (ISharesCalculator.ShareInfo[] memory _shareInfo) =
-            sharesCalculator.getRecipientsAndAmounts(_sequencerFees, _baseFees, _operatorFees, _l1Fees);
+        (ISharesCalculator.ShareInfo[] memory shareInfo) =
+            sharesCalculator.getRecipientsAndAmounts(sequencerFees, baseFees, operatorFees, l1Fees);
+
+        uint256 shareInfoLength = shareInfo.length;
 
         // Ensure the share calculator returned valid data
-        if (_shareInfo.length == 0) revert FeeSplitter_FeeShareInfoEmpty();
+        if (shareInfoLength == 0) revert FeeSplitter_FeeShareInfoEmpty();
 
         // Loop through the recipients and their corresponding fee shares
-        uint256 _totalFeesDisbursed;
-        for (uint256 i; i < _shareInfo.length; i++) {
-            address payable _recipient = _shareInfo[i].recipient;
-            uint256 _feeShareAmount = _shareInfo[i].amount;
+        uint256 totalFeesDisbursed;
+        for (uint256 i; i < shareInfoLength; i++) {
+            uint256 feesAmount = shareInfo[i].amount;
 
             // Ensure the fee share is greater than zero
-            if (_feeShareAmount == 0) continue;
+            if (feesAmount == 0) continue;
 
-            bool success = SafeCall.send(address(_recipient), _feeShareAmount);
+            bool success = SafeCall.send(shareInfo[i].recipient, feesAmount);
             if (!success) {
                 revert FeeSplitter_FailedToSendToRevenueShareRecipient();
             }
-            _totalFeesDisbursed += _feeShareAmount;
+            totalFeesDisbursed += feesAmount;
         }
 
         // Ensure the total fees disbursed is equal to the gross revenue
         /// NOTE: Contract can hold some balance after disbursement if tokens are force sent (using SELFDESTRUCT).
-        if (_totalFeesDisbursed != _grossRevenue) revert FeeSplitter_SharesCalculatorMalformedOutput();
+        if (totalFeesDisbursed != grossRevenue) revert FeeSplitter_SharesCalculatorMalformedOutput();
 
-        emit FeesDisbursed({ shareInfo: _shareInfo, grossRevenue: _grossRevenue });
+        emit FeesDisbursed({ shareInfo: shareInfo, grossRevenue: grossRevenue });
     }
 
     /// @notice Updates the fee disbursement interval. Only callable by the ProxyAdmin owner.
@@ -182,6 +190,9 @@ contract FeeSplitter is ISemver, Initializable {
     function setFeeDisbursementInterval(uint128 _newFeeDisbursementInterval) external {
         if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) {
             revert FeeSplitter_OnlyProxyAdminOwner();
+        }
+        if (_newFeeDisbursementInterval == 0) {
+            revert FeeSplitter_FeeDisbursementIntervalCannotBeZero();
         }
         if (_newFeeDisbursementInterval > MAX_DISBURSEMENT_INTERVAL) {
             revert FeeSplitter_ExceedsMaxFeeDisbursementTime();
@@ -215,22 +226,30 @@ contract FeeSplitter is ISemver, Initializable {
         if (IFeeVault(_feeVault).recipient() != address(this)) {
             revert FeeSplitter_FeeVaultMustWithdrawToFeeSplitter();
         }
-        value_ = IFeeVault(_feeVault).withdraw();
-    }
 
-    /// @notice Sets the transient disbursing flag.
-    /// @param _enabled True to enable, false to disable.
-    function _setTransientDisbursing(bool _enabled) internal {
-        assembly {
-            tstore(_FEE_SPLITTER_IS_DISBURSING_SLOT, _enabled)
+        uint256 balanceBefore = address(this).balance;
+        _setTransientDisbursingAddress(address(_feeVault));
+        value_ = IFeeVault(_feeVault).withdraw();
+        uint256 balanceAfter = address(this).balance;
+
+        if (balanceAfter - balanceBefore != value_) {
+            revert FeeSplitter_FeeVaultWithdrawalAmountMismatch();
         }
     }
 
-    /// @notice Reads the transient disbursing flag.
-    /// @return isDisbursing_ True if disbursement is in progress.
-    function _isTransientDisbursing() internal view returns (bool isDisbursing_) {
+    /// @notice Sets the transient disbursing address.
+    /// @param _allowedCaller The address of the vault allowed to call receive().
+    function _setTransientDisbursingAddress(address _allowedCaller) internal {
         assembly {
-            isDisbursing_ := tload(_FEE_SPLITTER_IS_DISBURSING_SLOT)
+            tstore(_FEE_SPLITTER_DISBURSING_ADDRESS_SLOT, _allowedCaller)
+        }
+    }
+
+    /// @notice Reads the transient disbursing address.
+    /// @return allowedCaller_ The address of the vault currently allowed to call receive().
+    function _getTransientDisbursingAddress() internal view returns (address allowedCaller_) {
+        assembly {
+            allowedCaller_ := tload(_FEE_SPLITTER_DISBURSING_ADDRESS_SLOT)
         }
     }
 }
