@@ -1821,6 +1821,14 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             if (_input.opChainConfigs[i].cannonPrestate.raw() != _input.opChainConfigs[0].cannonPrestate.raw()) {
                 revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
             }
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                if (
+                    _input.opChainConfigs[i].cannonKonaPrestate.raw()
+                        != _input.opChainConfigs[0].cannonKonaPrestate.raw()
+                ) {
+                    revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+                }
+            }
         }
 
         // Grab an array of portals from the configs.
