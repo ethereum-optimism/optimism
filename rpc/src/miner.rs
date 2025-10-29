@@ -35,6 +35,10 @@ impl MinerApiExtServer for OpMinerExtApi {
 
         Ok(true)
     }
+
+    async fn set_gas_limit(&self, _max_block_gas: U64) -> RpcResult<bool> {
+        Ok(true)
+    }
 }
 
 /// Optimism miner metrics

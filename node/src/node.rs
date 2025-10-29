@@ -559,7 +559,7 @@ where
                 modules.merge_if_module_configured(RethRpcModule::Debug, debug_ext.into_rpc())?;
 
                 // extend the miner namespace if configured in the regular http server
-                modules.merge_if_module_configured(
+                modules.add_or_replace_if_module_configured(
                     RethRpcModule::Miner,
                     miner_ext.clone().into_rpc(),
                 )?;
