@@ -102,9 +102,8 @@ func (g *L2MetricsDashboard) startPrometheus() {
 
 	g.prometheusSubprocess = NewSubProcess(g.p, stdOutLogs, stdErrLogs)
 
-	if err := g.prometheusSubprocess.Start(g.prometheusExecPath, g.prometheusArgs, g.prometheusEnv); err != nil {
-		g.p.Require().NoError(err, "prometheus must start")
-	}
+	err := g.prometheusSubprocess.Start(g.prometheusExecPath, g.prometheusArgs, g.prometheusEnv)
+	g.p.Require().NoError(err, "prometheus must start")
 
 	g.p.Logger().Info("Prometheus started", "endpoint", g.prometheusEndpoint)
 }
@@ -126,9 +125,8 @@ func (g *L2MetricsDashboard) startGrafana() {
 
 	g.grafanaSubprocess = NewSubProcess(g.p, stdOutLogs, stdErrLogs)
 
-	if err := g.grafanaSubprocess.Start(g.grafanaExecPath, g.grafanaArgs, g.grafanaEnv); err != nil {
-		g.p.Require().NoError(err, "Grafana must start")
-	}
+	err := g.grafanaSubprocess.Start(g.grafanaExecPath, g.grafanaArgs, g.grafanaEnv)
+	g.p.Require().NoError(err, "Grafana must start")
 
 	g.p.Logger().Info("Grafana started")
 }
