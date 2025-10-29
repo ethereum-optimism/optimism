@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-// GetEnvVarOrDefault returns the value of the provided env var or the provided default value if unset.
-func GetEnvVarOrDefault(envVarName string, defaultValue string) string {
+// getEnvVarOrDefault returns the value of the provided env var or the provided default value if unset.
+func getEnvVarOrDefault(envVarName string, defaultValue string) string {
 	val, found := os.LookupEnv(envVarName)
 	if !found {
 		val = defaultValue
@@ -17,11 +17,11 @@ func GetEnvVarOrDefault(envVarName string, defaultValue string) string {
 	return val
 }
 
-// PropagateEnvVarOrDefault returns a string in the format "ENV_VAR_NAME=VALUE", with the ENV_VAR_NAME being
+// propagateEnvVarOrDefault returns a string in the format "ENV_VAR_NAME=VALUE", with the ENV_VAR_NAME being
 // the provided env var name and the value being the value of that env var, or the provided default
 // value if that env var is unset.
-func PropagateEnvVarOrDefault(envVarName string, defaultValue string) string {
-	if val := GetEnvVarOrDefault(envVarName, defaultValue); val == "" {
+func propagateEnvVarOrDefault(envVarName string, defaultValue string) string {
+	if val := getEnvVarOrDefault(envVarName, defaultValue); val == "" {
 		return ""
 	} else {
 		return fmt.Sprintf("%s=%s", envVarName, val)
@@ -32,9 +32,9 @@ func PropagateEnvVarOrDefault(envVarName string, defaultValue string) string {
 var availableLocalPortStart = 20_000
 var availableLocalPortMutex sync.Mutex
 
-// GetAvailableLocalPort searches for and returns a currently unused local port.
+// getAvailableLocalPort searches for and returns a currently unused local port.
 // Note: this function is threadsafe.
-func GetAvailableLocalPort() (string, error) {
+func getAvailableLocalPort() (string, error) {
 	availableLocalPortMutex.Lock()
 	defer availableLocalPortMutex.Unlock()
 

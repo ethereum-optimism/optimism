@@ -43,7 +43,7 @@ func TestGetEnvVarOrDefault(t *testing.T) {
 				require.NoErrorf(t, err, "Error setting env var %s", err)
 			}
 
-			require.Equal(t, GetEnvVarOrDefault(varName, test.defaultValue), test.expected)
+			require.Equal(t, getEnvVarOrDefault(varName, test.defaultValue), test.expected)
 		})
 	}
 
@@ -75,7 +75,7 @@ func TestPropagateEnvVarOrDefault(t *testing.T) {
 				require.NoErrorf(t, err, "Error setting env var %s", err)
 			}
 
-			res := PropagateEnvVarOrDefault(varName, test.defaultValue)
+			res := propagateEnvVarOrDefault(varName, test.defaultValue)
 			if (test.osValue != nil && *test.osValue == "") || (test.osValue == nil && test.defaultValue == "") {
 				require.Equal(t, res, "")
 			} else {
