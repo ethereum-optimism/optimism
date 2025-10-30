@@ -294,24 +294,48 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // checks. Easier to just expect the error in this case.
         // We add the prefix of OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER because we use validationOverrides.
         if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+            if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
+                vm.expectRevert(
+                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40,CKDG-10"
+                );
+            } else {
+                vm.expectRevert(
+                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
+                );
+            }
+        } else if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
             vm.expectRevert(
-                "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
+                "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10"
             );
         }
 
         // Run the StandardValidator checks.
-        validator.validateWithOverrides(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: opChainConfigs[0].proxyAdmin,
-                sysCfg: opChainConfigs[0].systemConfigProxy,
-                absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
-                l2ChainID: l2ChainId,
-                proposer: initialProposer
-            }),
-            false,
-            validationOverrides
-        );
-
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    proxyAdmin: opChainConfigs[0].proxyAdmin,
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: initialProposer
+                }),
+                false,
+                validationOverrides
+            );
+        } else {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    proxyAdmin: opChainConfigs[0].proxyAdmin,
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: initialProposer
+                }),
+                false,
+                validationOverrides
+            );
+        }
         _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
