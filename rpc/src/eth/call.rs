@@ -35,4 +35,9 @@ where
     fn max_simulate_blocks(&self) -> u64 {
         self.inner.eth_api.max_simulate_blocks()
     }
+
+    #[inline]
+    fn evm_memory_limit(&self) -> u64 {
+        self.inner.eth_api.evm_memory_limit()
+    }
 }
