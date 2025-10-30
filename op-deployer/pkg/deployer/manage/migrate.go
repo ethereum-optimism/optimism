@@ -54,7 +54,6 @@ func (u *InteropMigrationInput) OpChainConfigs() ([]byte, error) {
 
 type OPChainConfig struct {
 	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	ProxyAdmin        common.Address `json:"proxyAdmin"`
 	AbsolutePrestate  common.Hash    `json:"absolutePrestate"`
 }
 
@@ -66,7 +65,7 @@ func (output *InteropMigrationOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,address proxyAdmin,bytes32 absolutePrestate)[])", "")
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,bytes32 absolutePrestate)[])", "")
 
 type InteropMigration struct {
 	Run func(input common.Address)
@@ -112,7 +111,6 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		EncodedChainConfigs: []OPChainConfig{
 			{
 				SystemConfigProxy: common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
-				ProxyAdmin:        common.HexToAddress(cliCtx.String(OPChainProxyAdminFlag.Name)),
 				AbsolutePrestate:  common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
 			},
 		},

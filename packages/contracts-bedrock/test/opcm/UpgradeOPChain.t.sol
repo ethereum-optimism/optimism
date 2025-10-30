@@ -5,7 +5,6 @@ import { Test } from "forge-std/Test.sol";
 import { Claim } from "src/dispute/lib/Types.sol";
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { UpgradeOPChain, UpgradeOPChainInput } from "scripts/deploy/UpgradeOPChain.s.sol";
@@ -54,7 +53,6 @@ contract UpgradeOPChainInput_Test is Test {
 
         configs[0] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
-            proxyAdmin: IProxyAdmin(proxyAdmin1),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
@@ -66,7 +64,6 @@ contract UpgradeOPChainInput_Test is Test {
 
         configs[1] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
-            proxyAdmin: IProxyAdmin(proxyAdmin2),
             absolutePrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
@@ -110,7 +107,6 @@ contract UpgradeOPChainInput_Test is Test {
 
         configs[0] = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
-            proxyAdmin: IProxyAdmin(mockProxyAdmin),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
@@ -120,13 +116,11 @@ contract UpgradeOPChainInput_Test is Test {
 }
 
 contract MockOPCM {
-    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event UpgradeCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) public {
         emit UpgradeCalled(
-            address(_opChainConfigs[0].systemConfigProxy),
-            address(_opChainConfigs[0].proxyAdmin),
-            Claim.unwrap(_opChainConfigs[0].absolutePrestate)
+            address(_opChainConfigs[0].systemConfigProxy), Claim.unwrap(_opChainConfigs[0].absolutePrestate)
         );
     }
 }
@@ -138,7 +132,7 @@ contract UpgradeOPChain_Test is Test {
     UpgradeOPChain upgradeOPChain;
     address prank;
 
-    event UpgradeCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event UpgradeCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
 
     function setUp() public virtual {
         mockOPCM = new MockOPCM();
@@ -146,7 +140,6 @@ contract UpgradeOPChain_Test is Test {
         uoci.set(uoci.opcm.selector, address(mockOPCM));
         config = OPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
-            proxyAdmin: IProxyAdmin(makeAddr("proxyAdmin")),
             absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
         });
         OPContractsManager.OpChainConfig[] memory configs = new OPContractsManager.OpChainConfig[](1);
@@ -160,9 +153,7 @@ contract UpgradeOPChain_Test is Test {
     function test_upgrade_succeeds() public {
         // UpgradeCalled should be emitted by the prank since it's a delegate call.
         vm.expectEmit(address(prank));
-        emit UpgradeCalled(
-            address(config.systemConfigProxy), address(config.proxyAdmin), Claim.unwrap(config.absolutePrestate)
-        );
+        emit UpgradeCalled(address(config.systemConfigProxy), Claim.unwrap(config.absolutePrestate));
         upgradeOPChain.run(uoci);
     }
 }

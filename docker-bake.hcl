@@ -7,7 +7,7 @@ variable "REPOSITORY" {
 }
 
 variable "KONA_VERSION" {
-  default = "1.0.1"
+  default = "1.2.0"
 }
 
 variable "ASTERISC_VERSION" {
