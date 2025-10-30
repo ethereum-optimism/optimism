@@ -55,11 +55,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "contract IDelayedWETH",
             "name": "delayedWETH",
             "type": "address"
@@ -625,11 +620,6 @@
                 "type": "address"
               },
               {
-                "internalType": "contract IProxyAdmin",
-                "name": "proxyAdmin",
-                "type": "address"
-              },
-              {
                 "internalType": "Claim",
                 "name": "absolutePrestate",
                 "type": "bytes32"
@@ -781,11 +771,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "Claim",
             "name": "absolutePrestate",
             "type": "bytes32"
@@ -818,11 +803,6 @@
     "inputs": [
       {
         "components": [
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
           {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",
@@ -869,11 +849,6 @@
     "inputs": [
       {
         "components": [
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
           {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",
@@ -925,11 +900,6 @@
     "inputs": [
       {
         "components": [
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
           {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",
@@ -993,11 +963,6 @@
     "inputs": [
       {
         "components": [
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
           {
             "internalType": "contract ISystemConfig",
             "name": "sysCfg",

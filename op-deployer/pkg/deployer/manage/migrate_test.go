@@ -64,7 +64,6 @@ func TestInteropMigration(t *testing.T) {
 		EncodedChainConfigs: []OPChainConfig{
 			{
 				SystemConfigProxy: common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-				ProxyAdmin:        common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
 				AbsolutePrestate:  common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000abc"),
 			},
 		},
