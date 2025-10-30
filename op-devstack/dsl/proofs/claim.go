@@ -1,12 +1,14 @@
 package proofs
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"slices"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
@@ -83,6 +85,19 @@ func (c *Claim) WaitForCounterClaim(ignoreClaims ...*Claim) *Claim {
 		return uint64(claim.ParentContractIndex) == c.Index && !containsClaim(claimIdx, ignoreClaims)
 	})
 	return newClaim(c.t, c.require, counterIdx, counterClaim, c.game)
+}
+
+// WaitForCountered waits until the claim is countered either by a child claim or by a step call.
+func (c *Claim) WaitForCountered() {
+	timedCtx, cancel := context.WithTimeout(c.t.Ctx(), defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		claim := c.game.claimAtIndex(c.Index)
+		return claim.CounteredBy != common.Address{}, nil
+	})
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		c.require.NoErrorf(err, "Claim %v was not countered\n%v", c.Index, c.game.GameData())
+	}
 }
 
 func (c *Claim) VerifyNoCounterClaim() {

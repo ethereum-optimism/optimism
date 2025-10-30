@@ -163,7 +163,6 @@ func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, 
 		}
 		return false, nil
 	})
-	g.require.NoError(err, errorMsg)
 	if err != nil { // Avoid waiting time capturing game data when there's no error
 		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData())
 	}

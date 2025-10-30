@@ -25,4 +25,5 @@ func TestExecuteStep(gt *testing.T) {
 	claim = claim.WaitForCounterClaim()             // Wait for the honest challenger to counter
 	claim = game.DisputeToStep(l1User, claim, 1000) // Skip down to max depth
 	game.LogGameData()
+	claim.WaitForCountered()
 }
