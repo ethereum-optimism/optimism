@@ -288,7 +288,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			Tracer:                      nil,
 			Sync: nodeSync.Config{
 				SyncMode:                       syncMode,
-				SyncModeReqResp:                cfg.UseReqRespSync, // by default, it is false
+				SyncModeReqResp:                cfg.UseReqRespSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
 			},
