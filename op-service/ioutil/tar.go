@@ -29,16 +29,19 @@ func Untar(outDir string, tr *tar.Reader) error {
 			if err := os.MkdirAll(dst, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
+			if err := os.Chtimes(dst, hdr.AccessTime, hdr.ModTime); err != nil {
+				return fmt.Errorf("failed to set directory times: %w", err)
+			}
 			continue
 		}
 
-		if err := untarFile(dst, tr); err != nil {
+		if err := untarFile(dst, tr, hdr); err != nil {
 			return fmt.Errorf("failed to untar file: %w", err)
 		}
 	}
 }
 
-func untarFile(dst string, tr *tar.Reader) error {
+func untarFile(dst string, tr *tar.Reader, hdr *tar.Header) error {
 	f, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -51,6 +54,9 @@ func untarFile(dst string, tr *tar.Reader) error {
 	}
 	if err := buf.Flush(); err != nil {
 		return fmt.Errorf("failed to flush buffer: %w", err)
+	}
+	if err := os.Chtimes(dst, hdr.AccessTime, hdr.ModTime); err != nil {
+		return fmt.Errorf("failed to set file times: %w", err)
 	}
 	return nil
 }

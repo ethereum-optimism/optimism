@@ -32,11 +32,7 @@ type OutputRootFetcher interface {
 }
 
 type L2EthClient interface {
-	EthClient
 	L2EthBlockRef
-}
-
-type L2EthExtendedClient interface {
 	EthExtendedClient
 	SystemConfigFetcher
 	OutputRootFetcher

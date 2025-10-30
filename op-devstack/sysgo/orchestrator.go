@@ -50,6 +50,9 @@ type Orchestrator struct {
 	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
 	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
+	// service name => prometheus endpoints to scrape
+	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
+
 	syncTester *SyncTesterService
 	faucet     *FaucetService
 
@@ -136,6 +139,14 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	}
 	o.faucet.hydrate(sys)
 	o.sysHook.PostHydrate(sys)
+}
+
+func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
+	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
+	if !wasSet {
+		existing, _ := o.l2MetricsEndpoints.Get(id.Key())
+		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key(), "existing", existing, "new", endpoints)
+	}
 }
 
 type hydrator interface {

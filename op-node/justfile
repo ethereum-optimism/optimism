@@ -46,4 +46,4 @@ fuzz:
 		"FuzzParseL1InfoDepositTxDataBadLength" \
 		"FuzzRejectCreateBlockBadTimestamp" \
 		"FuzzDecodeDepositTxDataToL1Info" \
-	| parallel -j {{PARALLEL_JOBS}} {{just_executable()}} node_fuzz_task {}
+	| parallel --tag -j {{PARALLEL_JOBS}} {{just_executable()}} node_fuzz_task {}

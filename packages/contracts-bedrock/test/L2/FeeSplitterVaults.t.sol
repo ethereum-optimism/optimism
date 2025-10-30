@@ -1,32 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// Contracts
-import { FeeSplitter } from "src/L2/FeeSplitter.sol";
-
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Testing
 import { Test } from "forge-std/Test.sol";
+import { FeeSplitterForTest } from "test/mocks/FeeSplitterForTest.sol";
 
 // Interfaces
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
-
-/// @title FeeSplitterForTest
-/// @notice Test contract for the FeeSplitter contract.
-/// @dev Makes the setTransientDisbursingAddress function public for testing purposes.
-contract FeeSplitterForTest is FeeSplitter {
-    function setTransientDisbursingAddress(address _allowedCaller) external {
-        _setTransientDisbursingAddress(_allowedCaller);
-    }
-}
 
 /// @title FeeSplitterVaults_Test
 /// @notice Test contract for the FeeSplitter contract with vaults.
 /// @dev This test is done in a different file given we need the 0.8.25 compiler version to import the FeeSplitter
 /// implementation and modify it.
-contract FeeSplitterVaults_Test is Test {
+contract FeeSplitterVaults_Receive_Test is Test {
     FeeSplitterForTest feeSplitter;
     address[4] internal _feeVaults;
 

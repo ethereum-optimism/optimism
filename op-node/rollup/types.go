@@ -432,7 +432,7 @@ func (c *Config) L1Signer() types.Signer {
 }
 
 func (c *Config) IsForkActive(fork ForkName, timestamp uint64) bool {
-	activationTime := c.ActivationTimeFor(fork)
+	activationTime := c.ActivationTime(fork)
 	return activationTime != nil && timestamp >= *activationTime
 }
 
@@ -558,7 +558,8 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
-func (c *Config) ActivationTimeFor(fork ForkName) *uint64 {
+func (c *Config) ActivationTime(fork ForkName) *uint64 {
+	// NEW FORKS MUST BE ADDED HERE
 	switch fork {
 	case Interop:
 		return c.InteropTime
@@ -585,81 +586,78 @@ func (c *Config) ActivationTimeFor(fork ForkName) *uint64 {
 	}
 }
 
+func (c *Config) SetActivationTime(fork ForkName, timestamp *uint64) {
+	// NEW FORKS MUST BE ADDED HERE
+	switch fork {
+	case Interop:
+		c.InteropTime = timestamp
+	case Jovian:
+		c.JovianTime = timestamp
+	case Isthmus:
+		c.IsthmusTime = timestamp
+	case Holocene:
+		c.HoloceneTime = timestamp
+	case Granite:
+		c.GraniteTime = timestamp
+	case Fjord:
+		c.FjordTime = timestamp
+	case Ecotone:
+		c.EcotoneTime = timestamp
+	case Delta:
+		c.DeltaTime = timestamp
+	case Canyon:
+		c.CanyonTime = timestamp
+	case Regolith:
+		c.RegolithTime = timestamp
+	default:
+		panic(fmt.Sprintf("unknown fork: %v", fork))
+	}
+}
+
 // IsActivationBlock returns the fork which activates at the block with time newTime if the previous
-// block's time is oldTime. It return an empty ForkName if no fork activation takes place between
+// block's time is oldTime. It returns an empty ForkName if no fork activation takes place between
 // those timestamps. It can be used for both, L1 and L2 blocks.
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
-	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
-		return Interop
-	}
-	if c.IsJovian(newTime) && !c.IsJovian(oldTime) {
-		return Jovian
-	}
-	if c.IsIsthmus(newTime) && !c.IsIsthmus(oldTime) {
-		return Isthmus
-	}
-	if c.IsHolocene(newTime) && !c.IsHolocene(oldTime) {
-		return Holocene
-	}
-	if c.IsGranite(newTime) && !c.IsGranite(oldTime) {
-		return Granite
-	}
-	if c.IsFjord(newTime) && !c.IsFjord(oldTime) {
-		return Fjord
-	}
-	if c.IsEcotone(newTime) && !c.IsEcotone(oldTime) {
-		return Ecotone
-	}
-	if c.IsDelta(newTime) && !c.IsDelta(oldTime) {
-		return Delta
-	}
-	if c.IsCanyon(newTime) && !c.IsCanyon(oldTime) {
-		return Canyon
+	for _, fork := range scheduleableForks {
+		if c.IsForkActive(fork, newTime) && !c.IsForkActive(fork, oldTime) {
+			return fork
+		}
 	}
 	return None
 }
 
-func (c *Config) IsActivationBlockForFork(l2BlockTime uint64, forkName ForkName) bool {
-	return c.IsActivationBlock(l2BlockTime-c.BlockTime, l2BlockTime) == forkName
+func (c *Config) IsActivationBlockForFork(l2BlockTime uint64, fork ForkName) bool {
+	return l2BlockTime >= c.BlockTime &&
+		!c.IsForkActive(fork, l2BlockTime-c.BlockTime) &&
+		c.IsForkActive(fork, l2BlockTime)
 }
 
+// ActivateAtGenesis updates the config to activate the given fork and all previous forks at genesis
+// and all later forks are disabled.
 func (c *Config) ActivateAtGenesis(hardfork ForkName) {
-	// IMPORTANT! ordered from newest to oldest
-	switch hardfork {
-	case Interop:
-		c.InteropTime = new(uint64)
-		fallthrough
-	case Jovian:
-		c.JovianTime = new(uint64)
-		fallthrough
-	case Isthmus:
-		c.IsthmusTime = new(uint64)
-		fallthrough
-	case Holocene:
-		c.HoloceneTime = new(uint64)
-		fallthrough
-	case Granite:
-		c.GraniteTime = new(uint64)
-		fallthrough
-	case Fjord:
-		c.FjordTime = new(uint64)
-		fallthrough
-	case Ecotone:
-		c.EcotoneTime = new(uint64)
-		fallthrough
-	case Delta:
-		c.DeltaTime = new(uint64)
-		fallthrough
-	case Canyon:
-		c.CanyonTime = new(uint64)
-		fallthrough
-	case Regolith:
-		c.RegolithTime = new(uint64)
-		fallthrough
-	case Bedrock:
-		// default
-	case None:
-		break
+	c.ActivateAt(hardfork, 0)
+}
+
+var scheduleableForks = ForksFrom(Regolith)
+
+// ActivateAt updates the config to activate the given fork at the given timestamp, all previous
+// forks at genesis, and all later forks are disabled.
+func (c *Config) ActivateAt(fork ForkName, timestamp uint64) {
+	if !IsValidFork(fork) {
+		panic(fmt.Sprintf("invalid fork: %s", fork))
+	}
+	ts := new(uint64)
+	// Special case: if only activating Bedrock, all scheduleable forks are disabled.
+	if fork == Bedrock {
+		ts = nil
+	}
+	for i, f := range scheduleableForks {
+		if f == fork {
+			c.SetActivationTime(fork, &timestamp)
+			ts = nil
+		} else {
+			c.SetActivationTime(scheduleableForks[i], ts)
+		}
 	}
 }
 

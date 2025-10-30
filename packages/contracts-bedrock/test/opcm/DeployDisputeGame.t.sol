@@ -11,13 +11,14 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 // Libraries
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { DeployDisputeGame2 } from "scripts/deploy/DeployDisputeGame2.s.sol";
+import { DeployDisputeGame } from "scripts/deploy/DeployDisputeGame.s.sol";
 
-contract DeployDisputeGame2_Test is Test {
-    DeployDisputeGame2 deployDisputeGame;
+contract DeployDisputeGame_Test is Test {
+    DeployDisputeGame deployDisputeGame;
 
     PreimageOracle preimageOracle;
 
@@ -30,7 +31,7 @@ contract DeployDisputeGame2_Test is Test {
     address defaultChallenger = makeAddr("Challenger");
 
     function setUp() public {
-        deployDisputeGame = new DeployDisputeGame2();
+        deployDisputeGame = new DeployDisputeGame();
         preimageOracle = new PreimageOracle(0, 0);
         bigStepper = new DeployDisputeGameBigStepper(preimageOracle);
 
@@ -40,22 +41,24 @@ contract DeployDisputeGame2_Test is Test {
     }
 
     function testFuzz_run_withFaultDisputeGame_succeeds(
-        DeployDisputeGame2.Input memory _input,
+        DeployDisputeGame.Input memory _input,
         uint32 _gameType,
-        uint32 _clockExtension,
+        uint64 _clockExtension,
         uint64 _maxClockDuration,
         uint8 _splitDepth,
         uint8 _maxGameDepth
     )
         public
     {
+        vm.assume(_input.absolutePrestate != bytes32(0));
         vm.assume(_input.l2ChainId != 0);
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);
         vm.assume(!LibString.eq(_input.release, ""));
-        vm.assume(!LibString.eq(_input.standardVersionsToml, ""));
         vm.assume(address(_input.anchorStateRegistryProxy) != address(0));
         vm.assume(address(_input.delayedWethProxy) != address(0));
+        vm.assume(_input.challenger != address(0));
+        vm.assume(_input.proposer != address(0));
 
         // These come from the constructor or FaultDisputeGame
         vm.assume(_gameType != type(uint32).max);
@@ -64,36 +67,32 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
 
         _input.gameKind = "FaultDisputeGame";
-        _input.gameType = _gameType;
-        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
+        _input.gameType = GameType.wrap(_gameType);
+        _input.clockExtension = uint64(bound(_clockExtension, 1, _maxClockDuration / 2));
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
-        _input.vm = bigStepper;
-
-        // For FaultDisputeGame, these must be empty
-        _input.challenger = address(0);
-        _input.proposer = address(0);
+        _input.vmAddress = bigStepper;
 
         // Run the deployment script.
         deployDisputeGame.run(_input);
     }
 
     function testFuzz_run_withPermissionedDisputeGame_succeeds(
-        DeployDisputeGame2.Input memory _input,
+        DeployDisputeGame.Input memory _input,
         uint32 _gameType,
-        uint32 _clockExtension,
+        uint64 _clockExtension,
         uint64 _maxClockDuration,
         uint8 _splitDepth,
         uint8 _maxGameDepth
     )
         public
     {
+        vm.assume(_input.absolutePrestate != bytes32(0));
         vm.assume(_input.l2ChainId != 0);
         vm.assume(_gameType != 0);
         vm.assume(_clockExtension != 0);
         vm.assume(!LibString.eq(_input.release, ""));
-        vm.assume(!LibString.eq(_input.standardVersionsToml, ""));
         vm.assume(address(_input.anchorStateRegistryProxy) != address(0));
         vm.assume(address(_input.delayedWethProxy) != address(0));
         vm.assume(_input.challenger != address(0));
@@ -106,45 +105,30 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
 
         _input.gameKind = "PermissionedDisputeGame";
-        _input.gameType = _gameType;
-        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
+        _input.gameType = GameType.wrap(_gameType);
+        _input.clockExtension = uint64(bound(_clockExtension, 1, _maxClockDuration / 2));
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
         _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
-        _input.vm = bigStepper;
+        _input.vmAddress = bigStepper;
 
         // Run the deployment script.
         deployDisputeGame.run(_input);
     }
 
     function test_run_nullInputsWithFaultDisputeGame_reverts() public {
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
+        // Test case: release not set
         input = defaultFaultDisputeGameInput();
         input.release = "";
         vm.expectRevert("DeployDisputeGame: release not set");
         deployDisputeGame.run(input);
 
-        input = defaultFaultDisputeGameInput();
-        input.standardVersionsToml = "";
-        vm.expectRevert("DeployDisputeGame: standardVersionsToml not set");
-        deployDisputeGame.run(input);
-
+        // Test case: l2ChainId not set
         input = defaultFaultDisputeGameInput();
         input.l2ChainId = 0;
         vm.expectRevert("DeployDisputeGame: l2ChainId not set");
-        deployDisputeGame.run(input);
-
-        // Test case: clockExtension not set
-        input = defaultFaultDisputeGameInput();
-        input.clockExtension = 0;
-        vm.expectRevert("DeployDisputeGame: clockExtension not set");
-        deployDisputeGame.run(input);
-
-        // Test case: maxClockDuration not set
-        input = defaultFaultDisputeGameInput();
-        input.maxClockDuration = 0;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration not set");
         deployDisputeGame.run(input);
 
         // Test case: maxGameDepth not set
@@ -153,35 +137,21 @@ contract DeployDisputeGame2_Test is Test {
         vm.expectRevert("DeployDisputeGame: maxGameDepth not set");
         deployDisputeGame.run(input);
 
+        // Test case: delayedWethProxy not set
         input = defaultFaultDisputeGameInput();
         input.delayedWethProxy = IDelayedWETH(payable(address(0)));
         vm.expectRevert("DeployDisputeGame: delayedWethProxy not set");
         deployDisputeGame.run(input);
 
+        // Test case: anchorStateRegistryProxy not set
         input = defaultFaultDisputeGameInput();
         input.anchorStateRegistryProxy = IAnchorStateRegistry(payable(address(0)));
         vm.expectRevert("DeployDisputeGame: anchorStateRegistryProxy not set");
         deployDisputeGame.run(input);
     }
 
-    function test_run_proposerWithFaultDisputeGame_reverts(address _proposerOrChallenger) public {
-        vm.assume(_proposerOrChallenger != address(0));
-
-        DeployDisputeGame2.Input memory input;
-
-        input = defaultFaultDisputeGameInput();
-        input.proposer = _proposerOrChallenger;
-        vm.expectRevert("DeployDisputeGame: proposer must be empty");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.challenger = _proposerOrChallenger;
-        vm.expectRevert("DeployDisputeGame: challenger must be empty");
-        deployDisputeGame.run(input);
-    }
-
     function test_run_nullInputsWithPermissionedDisputeGame_reverts() public {
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.proposer = address(0);
@@ -198,7 +168,7 @@ contract DeployDisputeGame2_Test is Test {
         vm.assume(!LibString.eq(_gameKind, "PermissionedDisputeGame"));
         vm.assume(!LibString.eq(_gameKind, "FaultDisputeGame"));
 
-        DeployDisputeGame2.Input memory input;
+        DeployDisputeGame.Input memory input;
 
         input = defaultPermissionedDisputeGameInput();
         input.gameKind = _gameKind;
@@ -206,60 +176,11 @@ contract DeployDisputeGame2_Test is Test {
         deployDisputeGame.run(input);
     }
 
-    function test_run_withClockExtensionTooLarge_reverts(uint256 _clockExtension) public {
-        vm.assume(_clockExtension > type(uint64).max);
-
-        DeployDisputeGame2.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.clockExtension = _clockExtension;
-        vm.expectRevert("DeployDisputeGame: clockExtension must fit inside uint64");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.clockExtension = _clockExtension;
-        vm.expectRevert("DeployDisputeGame: clockExtension must fit inside uint64");
-        deployDisputeGame.run(input);
-    }
-
-    function test_run_withGameTypeTooLarge_reverts(uint256 _gameType) public {
-        vm.assume(_gameType > type(uint32).max);
-
-        DeployDisputeGame2.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.gameType = _gameType;
-        vm.expectRevert("DeployDisputeGame: gameType must fit inside uint32");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.gameType = _gameType;
-        vm.expectRevert("DeployDisputeGame: gameType must fit inside uint32");
-        deployDisputeGame.run(input);
-    }
-
-    function test_run_withMaxClockDurationTooLarge_reverts(uint256 _maxClockDuration) public {
-        vm.assume(_maxClockDuration > type(uint64).max);
-
-        DeployDisputeGame2.Input memory input;
-
-        input = defaultPermissionedDisputeGameInput();
-        input.maxClockDuration = _maxClockDuration;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration must fit inside uint64");
-        deployDisputeGame.run(input);
-
-        input = defaultFaultDisputeGameInput();
-        input.maxClockDuration = _maxClockDuration;
-        vm.expectRevert("DeployDisputeGame: maxClockDuration must fit inside uint64");
-        deployDisputeGame.run(input);
-    }
-
-    function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
-        input_ = DeployDisputeGame2.Input({
+    function defaultFaultDisputeGameInput() private view returns (DeployDisputeGame.Input memory input_) {
+        input_ = DeployDisputeGame.Input({
             release: "op-contracts",
-            standardVersionsToml: "op-versions.toml",
             gameKind: "FaultDisputeGame",
-            gameType: 1,
+            gameType: GameType.wrap(1),
             absolutePrestate: bytes32(uint256(1)),
             maxGameDepth: 10,
             splitDepth: 2,
@@ -268,18 +189,17 @@ contract DeployDisputeGame2_Test is Test {
             l2ChainId: 1,
             delayedWethProxy: defaultDelayedWethProxy,
             anchorStateRegistryProxy: defaultAnchorStateRegistryProxy,
-            vm: bigStepper,
-            proposer: address(0),
-            challenger: address(0)
+            vmAddress: bigStepper,
+            proposer: defaultProposer,
+            challenger: defaultChallenger
         });
     }
 
-    function defaultPermissionedDisputeGameInput() private view returns (DeployDisputeGame2.Input memory input_) {
-        input_ = DeployDisputeGame2.Input({
+    function defaultPermissionedDisputeGameInput() private view returns (DeployDisputeGame.Input memory input_) {
+        input_ = DeployDisputeGame.Input({
             release: "op-contracts",
-            standardVersionsToml: "op-versions.toml",
             gameKind: "PermissionedDisputeGame",
-            gameType: 1,
+            gameType: GameType.wrap(1),
             absolutePrestate: bytes32(uint256(1)),
             maxGameDepth: 10,
             splitDepth: 2,
@@ -288,7 +208,7 @@ contract DeployDisputeGame2_Test is Test {
             l2ChainId: 1,
             delayedWethProxy: defaultDelayedWethProxy,
             anchorStateRegistryProxy: defaultAnchorStateRegistryProxy,
-            vm: bigStepper,
+            vmAddress: bigStepper,
             proposer: defaultProposer,
             challenger: defaultChallenger
         });

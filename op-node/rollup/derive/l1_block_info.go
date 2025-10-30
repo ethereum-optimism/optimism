@@ -45,7 +45,8 @@ var (
 )
 
 const (
-	RegolithSystemTxGas = 1_000_000
+	RegolithSystemTxGas         = 1_000_000
+	DAFootprintGasScalarDefault = 400
 )
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
@@ -71,6 +72,17 @@ type L1BlockInfo struct {
 	OperatorFeeConstant uint64 // added by Isthmus upgrade
 
 	DAFootprintGasScalar uint16 // added by Jovian upgrade
+}
+
+// SetDAFootprintGasScalarOrDefault sets the DAFootprintGasScalar field, defaulting to
+// DAFootprintGasScalarDefault if 0 is provided. This helps in translating the gas scalar value from
+// the L1 SystemConfig representation to the L1BlockInfo representation.
+func (info *L1BlockInfo) SetDAFootprintGasScalarOrDefault(daFootprintGasScalar uint16) {
+	if daFootprintGasScalar == 0 {
+		info.DAFootprintGasScalar = DAFootprintGasScalarDefault
+	} else {
+		info.DAFootprintGasScalar = daFootprintGasScalar
+	}
 }
 
 // Bedrock Binary Format
@@ -519,7 +531,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, l1ChainConfig *params.ChainConfig, 
 		l1BlockInfo.OperatorFeeConstant = operatorFee.Constant
 	}
 	if isJovianActivated {
-		l1BlockInfo.DAFootprintGasScalar = sysCfg.DAFootprintGasScalar
+		// Use setter to make sure 0 is translated to default value.
+		l1BlockInfo.SetDAFootprintGasScalarOrDefault(sysCfg.DAFootprintGasScalar)
 	}
 
 	// 2. Now marshal actual data

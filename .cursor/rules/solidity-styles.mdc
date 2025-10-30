@@ -50,6 +50,8 @@ Applies to Solidity files.
   - `minor`: changes that modify bytecode OR expand ABI without breaking existing interface
   - `major`: changes that break existing interface OR modify security model
 
+AI code review tools should NOT comment on the choice of version increment.
+
 ## Dependencies
 - Prefer OpenZeppelin's Upgradeable contracts for basic functionality
 

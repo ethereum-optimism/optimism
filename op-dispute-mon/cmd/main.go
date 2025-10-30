@@ -56,6 +56,11 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 		if err != nil {
 			return nil, err
 		}
+		logger.Info("RPC endpoints",
+			"l1", cfg.L1EthRpc,
+			"rollup", cfg.RollupRpcs,
+			"supervisor", cfg.SupervisorRpcs,
+		)
 		return action(ctx.Context, logger, cfg)
 	})
 	return app.RunContext(ctx, args)

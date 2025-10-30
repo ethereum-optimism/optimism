@@ -7,6 +7,9 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 /// @title LivenessModule2
 /// @notice This module allows challenge-based ownership transfer to a fallback owner
 ///         when the Safe becomes unresponsive. The fallback owner can initiate a challenge,
@@ -15,6 +18,39 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 /// @dev This is a singleton contract. To use it:
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling configure() with params
+///
+///     This guard is compatible only with Safe version 1.4.1.
+///
+///      Follows a state machine diagram for the lifecycle of this contract:
+///      +----------------------+
+///      | Start (no challenge) |<---------------------------+
+///      +----------------------+                            |
+///       |                                                  | respond() by Safe
+///       |  challenge() by fallbackOwner                    | OR
+///       |                                                  | configureLivenessModule() by Safe
+///       v                                                  | OR
+///      +--------------------------------------+            | clearLivenessModule() by Safe
+///      | Challenge Started                    |            |
+///      | challengeStartTime = block.timestamp |------------+
+///      +--------------------------------------+            |
+///       |                                                  |
+///       |  block.timestamp >= challengeStartTime +         |
+///       |                     livenessResponsePeriod       |
+///       v                                                  |
+///      +-----+-----------------------------------------+   |
+///      | Ready to transfer ownership to fallback owner |---+
+///      +-----+-----------------------------------------+
+///       |
+///       |  changeOwnershipToFallback() by fallbackOwner
+///       |
+///       v
+///      +------------------------------+
+///      | Ownership Transferred        |
+///      | - fallback owner sole owner  |
+///      | - guard cleared              |
+///      | - challenge cleared          |
+///      +------------------------------+
+///
 abstract contract LivenessModule2 {
     /// @notice Configuration for a Safe's liveness module.
     /// @custom:field livenessResponsePeriod The duration in seconds that Safe owners have to
@@ -40,6 +76,9 @@ abstract contract LivenessModule2 {
 
     /// @notice Error for when Safe is not configured for this module.
     error LivenessModule2_ModuleNotConfigured();
+
+    /// @notice Error for when the contract is not 1.4.1.
+    error LivenessModule2_InvalidVersion();
 
     /// @notice Error for when a challenge already exists.
     error LivenessModule2_ChallengeAlreadyExists();
@@ -139,6 +178,12 @@ abstract contract LivenessModule2 {
             revert LivenessModule2_InvalidFallbackOwner();
         }
 
+        // Check that the safe contract version is 1.4.1. There have been breaking changes at every
+        // minor version, and we can only support one version.
+        if (!SemverComp.eq(callingSafe.VERSION(), "1.4.1")) {
+            revert LivenessModule2_InvalidVersion();
+        }
+
         // Check that this module is enabled on the calling Safe.
         _assertModuleEnabled(callingSafe);
 
@@ -169,8 +214,8 @@ abstract contract LivenessModule2 {
     ///      1. Safe disables the module via ModuleManager.disableModule().
     ///      2. Safe calls this clearLivenessModule() function to remove stored configuration.
     ///      3. If Safe later re-enables the module, it must call configureLivenessModule() again.
-    ///      Never calling clearLivenessModule() after disabling keeps configuration data persistent
-    ///      for potential future re-enabling.
+    ///      Never calling clearLivenessModule() after disabling keeps configuration data
+    ///      persistent for potential future re-enabling.
     function clearLivenessModule() external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -183,6 +228,7 @@ abstract contract LivenessModule2 {
 
         // Erase the configuration data for this safe
         delete _livenessSafeConfiguration[callingSafe];
+
         // Also clear any active challenge
         _cancelChallenge(callingSafe);
         emit ModuleCleared(address(callingSafe));
@@ -301,8 +347,8 @@ abstract contract LivenessModule2 {
 
         // Disable the guard
         // Note that this will remove whichever guard is currently set on the Safe,
-        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the guard
-        // itself was the cause of the liveness failure which resulted in the transfer of ownership to
+        // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
+        // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
         _safe.execTransactionFromModule({
             to: address(_safe),
@@ -310,6 +356,7 @@ abstract contract LivenessModule2 {
             operation: Enum.Operation.Call,
             data: abi.encodeCall(GuardManager.setGuard, (address(0)))
         });
+
         emit ChallengeSucceeded(address(_safe), _livenessSafeConfiguration[_safe].fallbackOwner);
     }
 
@@ -317,8 +364,9 @@ abstract contract LivenessModule2 {
     //                   Internal View Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the guard's
-    ///         configuration is valid in the context of other extensions that are enabled on the Safe.
+    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    ///         guard's configuration is valid in the context of other extensions that are enabled
+    ///         on the Safe.
     function _checkCombinedConfig(Safe _safe) internal view virtual;
 
     /// @notice Asserts that the module is configured for the given Safe.

@@ -23,20 +23,18 @@ import (
 var networks = []string{"mainnet", "sepolia"}
 
 func TestImplementations(t *testing.T) {
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
 	for _, network := range networks {
 		t.Run(network, func(t *testing.T) {
 			envVar := strings.ToUpper(network) + "_RPC_URL"
 			rpcURL := os.Getenv(envVar)
 			require.NotEmpty(t, rpcURL, "must specify RPC url via %s env var", envVar)
-			testImplementations(t, rpcURL, testCacheDir)
+			testImplementations(t, rpcURL)
 		})
 	}
 }
 
-func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
-	t.Parallel()
+func testImplementations(t *testing.T, forkRPCURL string) {
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
 	if forkRPCURL == "" {
 		t.Skip("forkRPCURL not set")
@@ -85,14 +83,18 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			SuperchainProxyAdmin:            proxyAdminOwner,
 			L1ProxyAdminOwner:               proxyAdminOwner,
 			Challenger:                      common.Address{'C'},
-			CacheDir:                        cacheDir,
+			CacheDir:                        testCacheDir,
 		})
 		require.NoError(t, err)
 		return out
 	}
 
 	// Assert that addresses stay the same between runs
+	t.Log("Deploying first implementation contracts bundle")
 	deployment1 := deploy()
+	require.NotEqual(t, common.Address{}, deployment1.Opcm, "Opcm address should be set")
+	t.Log("Deploying second implementation contracts bundle")
 	deployment2 := deploy()
+	require.NotEqual(t, common.Address{}, deployment2.Opcm, "Opcm address should be set")
 	require.Equal(t, deployment1, deployment2)
 }

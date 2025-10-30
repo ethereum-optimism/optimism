@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,16 +37,18 @@ type FakeBeacon struct {
 	beaconSrv         *http.Server
 	beaconAPIListener net.Listener
 
+	fuluTime    *uint64
 	genesisTime uint64
 	blockTime   uint64
 }
 
-func NewBeacon(log log.Logger, blobStore *blobstore.Store, genesisTime uint64, blockTime uint64) *FakeBeacon {
+func NewBeacon(log log.Logger, blobStore *blobstore.Store, genesisTime uint64, blockTime uint64, fuluTime *uint64) *FakeBeacon {
 	return &FakeBeacon{
 		log:         log,
 		blobStore:   blobStore,
 		genesisTime: genesisTime,
 		blockTime:   blockTime,
+		fuluTime:    fuluTime,
 	}
 }
 
@@ -117,10 +121,20 @@ func (f *FakeBeacon) Start(addr string) error {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+
+			var proof eth.Bytes48
+			if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
+				proof = eth.Bytes48(bundle.Proofs[ix])
+			} else {
+				// From Fulu onwards, a blob proof is not provided.
+				// Derivation should not rely on a valid proof here.
+				proof = eth.Bytes48(kzg4844.Proof(hexutil.MustDecode("0xc00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))
+			}
+
 			sidecars[i] = &eth.APIBlobSidecar{
 				Index:         eth.Uint64String(ix),
 				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
-				KZGProof:      eth.Bytes48(bundle.Proofs[ix]),
+				KZGProof:      proof,
 				SignedBlockHeader: eth.SignedBeaconBlockHeader{
 					Message: eth.BeaconBlockHeader{
 						StateRoot: mockBeaconBlockRoot,
@@ -132,6 +146,49 @@ func (f *FakeBeacon) Start(addr string) error {
 			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
 		}
 		if err := json.NewEncoder(w).Encode(&eth.APIGetBlobSidecarsResponse{Data: sidecars}); err != nil {
+			f.log.Error("blobs handler err", "err", err)
+		}
+	})
+	mux.HandleFunc("/eth/v1/beacon/blobs/", func(w http.ResponseWriter, r *http.Request) {
+		if f.fuluTime == nil || time.Now().Before(time.Unix(int64(*f.fuluTime), 0)) {
+			f.log.Warn("post-Fulu blobs endpoint queried before Fulu hardfork")
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blobs/")
+		slot, err := strconv.ParseUint(blockID, 10, 64)
+		if err != nil {
+			f.log.Error("could not parse block id from request", "url", r.URL.Path, "err", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		bundle, err := f.LoadBlobsBundle(slot)
+		if err != nil {
+			f.log.Error("failed to load blobs bundle", "slot", slot, "err", err)
+			if errors.Is(err, ethereum.NotFound) {
+				w.WriteHeader(http.StatusNotFound)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+
+		query := r.URL.Query()
+		versionedHashes := make([]common.Hash, 0, len(bundle.Blobs))
+		for _, raw := range query["versioned_hashes"] {
+			versionedHashes = append(versionedHashes, common.HexToHash(raw))
+		}
+		blobs := make([]*eth.Blob, 0)
+		for i := range bundle.Blobs {
+			blob := eth.Blob(bundle.Blobs[i])
+			versionedHash := eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i]))
+			if len(versionedHashes) > 0 && !slices.Contains(versionedHashes, versionedHash) {
+				continue
+			}
+			blobs = append(blobs, &blob)
+		}
+
+		if err := json.NewEncoder(w).Encode(&eth.APIBeaconBlobsResponse{Data: blobs}); err != nil {
 			f.log.Error("blobs handler err", "err", err)
 		}
 	})

@@ -74,6 +74,7 @@ func DefaultSingleChainMultiNodeSystemWithoutP2P(dest *DefaultSingleChainMultiNo
 
 	opt.Add(WithL2ELNode(ids.L2ELB))
 	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB))
+	opt.Add(WithL2MetricsDashboard())
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
