@@ -58,7 +58,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		IsSequencer:       false,
 		IndexingMode:      false,
 		EnableReqRespSync: true,
-		UseReqRespSync:    false,
+		UseReqRespSync:    true,
 		NoDiscovery:       false,
 	}
 }
