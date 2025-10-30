@@ -2,17 +2,52 @@ package embedded
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	v200 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/lmittmann/w3"
 )
 
-type Upgrader struct {
+type UpgradeOPChainInput struct {
+	Prank               common.Address  `json:"prank"`
+	Opcm                common.Address  `json:"opcm"`
+	EncodedChainConfigs []OPChainConfig `evm:"-" json:"chainConfigs"`
 }
 
+type OPChainConfig struct {
+	SystemConfigProxy common.Address `json:"systemConfigProxy"`
+	AbsolutePrestate  common.Hash    `json:"absolutePrestate"`
+}
+
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,bytes32 absolutePrestate)[])", "")
+
+func (u *UpgradeOPChainInput) OpChainConfigs() ([]byte, error) {
+	data, err := opChainConfigEncoder.EncodeArgs(u.EncodedChainConfigs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode chain configs: %w", err)
+	}
+	return data[4:], nil
+}
+
+type UpgradeOPChain struct {
+	Run func(input common.Address)
+}
+
+func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
+	return opcm.RunScriptVoid[UpgradeOPChainInput](host, input, "UpgradeOPChain.s.sol", "UpgradeOPChain")
+}
+
+type Upgrader struct{}
+
 func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
-	return v200.DefaultUpgrader.Upgrade(host, input)
+	var upgradeInput UpgradeOPChainInput
+	if err := json.Unmarshal(input, &upgradeInput); err != nil {
+		return fmt.Errorf("failed to unmarshal input: %w", err)
+	}
+	return Upgrade(host, upgradeInput)
 }
 
 func (u *Upgrader) ArtifactsURL() string {

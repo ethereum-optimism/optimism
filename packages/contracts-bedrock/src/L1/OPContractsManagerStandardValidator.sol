@@ -40,8 +40,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.2.0
+    string public constant version = "2.2.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -114,7 +114,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Struct containing the input parameters for the validation process.
     struct ValidationInput {
-        IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
@@ -123,7 +122,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
     struct ValidationInputDev {
-        IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
@@ -297,8 +295,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
-        _errors = internalRequire(getProxyAdmin(address(_sysCfg)) == _admin, "SYSCON-130", _errors);
-        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-140", _errors);
+        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
         return _errors;
     }
 
@@ -866,23 +863,19 @@ contract OPContractsManagerStandardValidator is ISemver {
     {
         string memory _errors = "";
 
+        IProxyAdmin _proxyAdmin = _input.sysCfg.proxyAdmin();
+
         _errors = assertValidSuperchainConfig(_errors);
-        _errors = assertValidProxyAdmin(_errors, _input.proxyAdmin, _overrides);
-        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin, _overrides);
+        _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
         _errors = assertValidPermissionedDisputeGame(
-            _errors,
-            _input.sysCfg,
-            _input.cannonPrestate,
-            _input.l2ChainID,
-            _input.proxyAdmin,
-            _input.proposer,
-            _overrides
+            _errors, _input.sysCfg, _input.cannonPrestate, _input.l2ChainID, _proxyAdmin, _input.proposer, _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
             _errors,
@@ -890,7 +883,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             GameTypes.CANNON,
             _input.cannonPrestate,
             _input.l2ChainID,
-            _input.proxyAdmin,
+            _proxyAdmin,
             _overrides,
             "PLDG"
         );
@@ -901,13 +894,13 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _input.proxyAdmin,
+                _proxyAdmin,
                 _overrides,
                 "CKDG"
             );
         }
 
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;
@@ -934,7 +927,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Transforms current ValidationInput structs into the dev feature format.
     function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
         return ValidationInputDev({
-            proxyAdmin: _input.proxyAdmin,
             sysCfg: _input.sysCfg,
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
