@@ -62,8 +62,7 @@ contract DeployProxy is Script {
         vm.broadcast(msg.sender);
         IProxy proxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (owner)))
+                _name: "Proxy", _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (owner)))
             })
         );
 

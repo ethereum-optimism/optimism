@@ -246,14 +246,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -270,14 +268,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -294,14 +290,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -326,14 +320,12 @@ contract SuperFaultDisputeGame_Constructor_Test is SuperFaultDisputeGame_TestIni
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
+                    (ISuperFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
                             maxClockDuration: Duration.wrap(_maxClockDuration)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -363,13 +355,11 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
 
         assertEq(address(gameProxy).balance, 0);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: _value }(
                         GAME_TYPE, arbitaryRootClaim, abi.encode(validl2SequenceNumber)
                     )
-                )
-            )
+                ))
         );
         assertEq(address(gameProxy).balance, 0);
         assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
@@ -453,9 +443,9 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32)))
+                ))
         );
     }
 
@@ -484,11 +474,9 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
         // Expect the initialize call to revert with InvalidChallengePeriod
         vm.expectRevert(InvalidChallengePeriod.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), abi.encode(anchorSeqNo + 1))
-                )
-            )
+                ))
         );
     }
 
@@ -502,9 +490,9 @@ contract SuperFaultDisputeGame_Initialize_Test is SuperFaultDisputeGame_TestInit
 
         vm.expectRevert(ISuperFaultDisputeGame.NoChainIdNeeded.selector);
         gameProxy = ISuperFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32)))
+                ))
         );
     }
 }

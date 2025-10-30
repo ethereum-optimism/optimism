@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.19;
+pragma solidity 0.8.30;
 
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISchemaResolver } from "src/vendor/eas/resolver/ISchemaResolver.sol";
@@ -24,7 +24,14 @@ contract SchemaRegistry is ISchemaRegistry, ISemver {
     string public constant version = "1.3.1-beta.2";
 
     /// @inheritdoc ISchemaRegistry
-    function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32) {
+    function register(
+        string calldata schema,
+        ISchemaResolver resolver,
+        bool revocable
+    )
+        external
+        returns (bytes32)
+    {
         SchemaRecord memory schemaRecord =
             SchemaRecord({ uid: EMPTY_UID, schema: schema, resolver: resolver, revocable: revocable });
 

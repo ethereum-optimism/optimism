@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -272,9 +272,9 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         _faultGameV2ClockExtension = bound(_faultGameV2ClockExtension, 1, 7 days);
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
-        bool usesV2GameParameters = DevFeatures.isDevFeatureEnabled(
-            _devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES
-        ) || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        bool usesV2GameParameters =
+            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.DEPLOY_V2_DISPUTE_GAMES)
+                || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP);
         // When V2 is not enabled, set V2 params to 0 to match script expectations
         // Otherwise ensure they remain within bounds already set
         if (!usesV2GameParameters) {
@@ -566,14 +566,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         input = defaultInput();
         input.faultGameV2MaxGameDepth = 50;
         input.faultGameV2SplitDepth = 50; // splitDepth + 1 must be < maxGameDepth
-        // Should not revert
+            // Should not revert
         deployImplementations.run(input);
 
         // Reset and test maxClockDuration < clockExtension
         input = defaultInput();
         input.faultGameV2ClockExtension = 1000;
         input.faultGameV2MaxClockDuration = 500; // < clockExtension
-        // Should not revert
+            // Should not revert
         deployImplementations.run(input);
     }
 

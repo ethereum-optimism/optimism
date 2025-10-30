@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.30;
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";

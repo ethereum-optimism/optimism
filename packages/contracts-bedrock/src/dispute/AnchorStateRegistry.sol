@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -159,7 +159,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     ///         be removed in a future release. Use getAnchorRoot() instead. Anchor roots are no
     ///         longer stored per game type, so this function will return the same root for all
     ///         game types.
-    function anchors(GameType /* unused */ ) external view returns (Hash, uint256) {
+    function anchors(
+        GameType /* unused */
+    )
+        external
+        view
+        returns (Hash, uint256)
+    {
         return getAnchorRoot();
     }
 

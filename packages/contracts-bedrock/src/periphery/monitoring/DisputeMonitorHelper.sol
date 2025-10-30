@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
@@ -26,7 +26,14 @@ contract DisputeMonitorHelper {
     /// @param _factory The factory of the dispute games.
     /// @param _game The game to check.
     /// @return isValid_ True if the game was created by the factory, false otherwise.
-    function isGameRegistered(IDisputeGameFactory _factory, IDisputeGame _game) public view returns (bool isValid_) {
+    function isGameRegistered(
+        IDisputeGameFactory _factory,
+        IDisputeGame _game
+    )
+        public
+        view
+        returns (bool isValid_)
+    {
         // Grab the game and game data.
         (GameType gameType, Claim rootClaim, bytes memory extraData) = _game.gameData();
 

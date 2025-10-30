@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -193,9 +193,10 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
             // │ [88 + n, 88 + n + m) │ Implementation args (opaque)        │
             // └──────────────────────┴─────────────────────────────────────┘
             proxy_ = IDisputeGame(
-                address(impl).clone(
-                    abi.encodePacked(msg.sender, _rootClaim, parentHash, _gameType, _extraData, gameArgs[_gameType])
-                )
+                address(impl)
+                    .clone(
+                        abi.encodePacked(msg.sender, _rootClaim, parentHash, _gameType, _extraData, gameArgs[_gameType])
+                    )
             );
         }
         proxy_.initialize{ value: msg.value }();
@@ -274,11 +275,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
                 bytes memory extraData = IDisputeGame(proxy).extraData();
                 Claim rootClaim = IDisputeGame(proxy).rootClaim();
                 games_[games_.length - 1] = GameSearchResult({
-                    index: i,
-                    metadata: id,
-                    timestamp: timestamp,
-                    rootClaim: rootClaim,
-                    extraData: extraData
+                    index: i, metadata: id, timestamp: timestamp, rootClaim: rootClaim, extraData: extraData
                 });
                 if (games_.length >= _n) break;
             }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { Test } from "forge-std/Test.sol";
@@ -45,9 +45,7 @@ contract MeterUser is ResourceMetering {
 
     function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
         params = ResourceMetering.ResourceParams({
-            prevBaseFee: _prevBaseFee,
-            prevBoughtGas: _prevBoughtGas,
-            prevBlockNum: _prevBlockNum
+            prevBaseFee: _prevBaseFee, prevBoughtGas: _prevBoughtGas, prevBlockNum: _prevBlockNum
         });
     }
 
@@ -65,9 +63,7 @@ contract CustomMeterUser is ResourceMetering {
 
     constructor(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) {
         params = ResourceMetering.ResourceParams({
-            prevBaseFee: _prevBaseFee,
-            prevBoughtGas: _prevBoughtGas,
-            prevBlockNum: _prevBlockNum
+            prevBaseFee: _prevBaseFee, prevBoughtGas: _prevBoughtGas, prevBlockNum: _prevBlockNum
         });
     }
 

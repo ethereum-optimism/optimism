@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -26,12 +26,7 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
-                nonce: nonce,
-                sender: _sender,
-                target: _target,
-                value: _value,
-                gasLimit: _gasLimit,
-                data: _data
+                nonce: nonce, sender: _sender, target: _target, value: _value, gasLimit: _gasLimit, data: _data
             })
         );
 
@@ -100,7 +95,9 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
         vm.expectEmit(address(l2ToL1MessagePasser));
         emit MessagePassed(nonce, alice, _target, _value, _gasLimit, _data, withdrawalHash);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
+            _target: _target, _gasLimit: _gasLimit, _data: _data
+        });
 
         // the sent messages mapping is filled
         assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);
@@ -113,10 +110,19 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
 /// @notice Tests the `burn` function of the `L2ToL1MessagePasser` contract.
 contract L2ToL1MessagePasser_Burn_Test is CommonTest {
     /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
-    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
+    function testFuzz_burn_succeeds(
+        uint256 _value,
+        address _target,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
         vm.deal(address(this), _value);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
+            _target: _target, _gasLimit: _gasLimit, _data: _data
+        });
 
         assertEq(address(l2ToL1MessagePasser).balance, _value);
         emit WithdrawerBalanceBurnt(_value);

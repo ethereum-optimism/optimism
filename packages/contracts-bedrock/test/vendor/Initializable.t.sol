@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -357,7 +357,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxImpl",
                 target: EIP1967Helper.getImplementation(address(ethLockbox)),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
 
@@ -366,7 +368,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxProxy",
                 target: address(ethLockbox),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
     }

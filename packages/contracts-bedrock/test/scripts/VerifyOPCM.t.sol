@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
@@ -401,7 +401,12 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
     /// @param _propRefs Array of property references to search through.
     /// @param _mockAddress The address to mock the contractsContainer call to return.
-    function _mockFirstOpcmComponent(VerifyOPCM.OpcmContractRef[] memory _propRefs, address _mockAddress) internal {
+    function _mockFirstOpcmComponent(
+        VerifyOPCM.OpcmContractRef[] memory _propRefs,
+        address _mockAddress
+    )
+        internal
+    {
         for (uint256 i = 0; i < _propRefs.length; i++) {
             string memory field = _propRefs[i].field;
             // Check if this is an OPCM component that has contractsContainer()

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.30;
 
 /// @notice Features is a library that stores feature name constants. Can be used alongside the
 ///         feature flagging functionality in the SystemConfig contract to selectively enable or

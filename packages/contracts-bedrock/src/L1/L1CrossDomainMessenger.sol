@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
@@ -50,7 +50,13 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @notice Initializes the contract.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
+    function initialize(
+        ISystemConfig _systemConfig,
+        IOptimismPortal _portal
+    )
+        external
+        reinitializer(initVersion())
+    {
         // Initialization transactions must come from the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
@@ -82,11 +88,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @inheritdoc CrossDomainMessenger
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         portal.depositTransaction{ value: _value }({
-            _to: _to,
-            _value: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
+            _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: false, _data: _data
         });
     }
 

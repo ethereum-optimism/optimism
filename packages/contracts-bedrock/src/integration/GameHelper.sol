@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.30;
 
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.sol";

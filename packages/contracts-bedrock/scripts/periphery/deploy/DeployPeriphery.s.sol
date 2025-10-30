@@ -111,9 +111,7 @@ contract DeployPeriphery is Script {
     /// @notice Deploy the Faucet contract.
     function deployFaucet() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "Faucet",
-            _creationCode: type(Faucet).creationCode,
-            _constructorParams: abi.encode(cfg.faucetAdmin())
+            _name: "Faucet", _creationCode: type(Faucet).creationCode, _constructorParams: abi.encode(cfg.faucetAdmin())
         });
 
         Faucet faucet = Faucet(payable(addr_));
@@ -175,27 +173,21 @@ contract DeployPeriphery is Script {
     /// @notice Deploy CheckTrue contract.
     function deployCheckTrue() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckTrue",
-            _creationCode: type(CheckTrue).creationCode,
-            _constructorParams: hex""
+            _name: "CheckTrue", _creationCode: type(CheckTrue).creationCode, _constructorParams: hex""
         });
     }
 
     /// @notice Deploy CheckBalanceLow contract.
     function deployCheckBalanceLow() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckBalanceLow",
-            _creationCode: type(CheckBalanceLow).creationCode,
-            _constructorParams: hex""
+            _name: "CheckBalanceLow", _creationCode: type(CheckBalanceLow).creationCode, _constructorParams: hex""
         });
     }
 
     /// @notice Deploy CheckSecrets contract.
     function deployCheckSecrets() public broadcast returns (address addr_) {
         addr_ = _deployCreate2({
-            _name: "CheckSecrets",
-            _creationCode: type(CheckSecrets).creationCode,
-            _constructorParams: hex""
+            _name: "CheckSecrets", _creationCode: type(CheckSecrets).creationCode, _constructorParams: hex""
         });
     }
 
@@ -292,7 +284,13 @@ contract DeployPeriphery is Script {
     /// @param _faucet The faucet contract.
     /// @param _name The name of the auth module.
     /// @param _config The configuration of the auth module.
-    function _installAuthModule(Faucet _faucet, string memory _name, Faucet.ModuleConfig memory _config) internal {
+    function _installAuthModule(
+        Faucet _faucet,
+        string memory _name,
+        Faucet.ModuleConfig memory _config
+    )
+        internal
+    {
         AdminFaucetAuthModule module = AdminFaucetAuthModule(artifacts.mustGetAddress(_name));
         if (_faucet.isModuleEnabled(module)) {
             console.log("%s already installed.", _name);

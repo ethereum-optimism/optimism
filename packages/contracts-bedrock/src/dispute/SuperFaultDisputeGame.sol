@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -515,8 +515,8 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
-        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
-        //            claims at the same position may dispute the same challengeIndex. However, they must have different
+        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex.
+        // Multiple claims at the same position may dispute the same challengeIndex. However, they must have different
         //            values.
         Hash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();

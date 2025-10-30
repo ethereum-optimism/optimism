@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
@@ -236,7 +236,7 @@ contract PreimageOracle is ISemver {
             // this will be zero-padded at the end, since memory at end is clean.
             part := mload(add(sub(ptr, 0x08), _partOffset))
             let h := keccak256(ptr, size) // compute preimage keccak256 hash
-            // mask out prefix byte, replace with type 2 byte
+                // mask out prefix byte, replace with type 2 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x02))
         }
         preimagePartOk[key][_partOffset] = true;
@@ -288,7 +288,7 @@ contract PreimageOracle is ISemver {
             // Check if the staticcall succeeded
             if iszero(success) { revert(0, 0) }
             let h := mload(0) // get return data
-            // mask out prefix byte, replace with type 4 byte
+                // mask out prefix byte, replace with type 4 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 4))
         }
         preimagePartOk[key][_partOffset] = true;
@@ -345,15 +345,14 @@ contract PreimageOracle is ISemver {
 
             // Verify the KZG proof by calling the point evaluation precompile. If the proof is invalid, the precompile
             // will revert.
-            success :=
-                staticcall(
-                    gas(), // forward all gas
-                    0x0A, // point evaluation precompile address
-                    ptr, // input ptr
-                    0xC0, // input size = 192 bytes
-                    0x00, // output ptr
-                    0x00 // output size
-                )
+            success := staticcall(
+                gas(), // forward all gas
+                0x0A, // point evaluation precompile address
+                ptr, // input ptr
+                0xC0, // input size = 192 bytes
+                0x00, // output ptr
+                0x00 // output size
+            )
             if iszero(success) {
                 // Store the "InvalidProof()" error selector.
                 mstore(0x00, 0x09bde339)
@@ -437,15 +436,14 @@ contract PreimageOracle is ISemver {
 
             // Call the precompile to get the result.
             // SAFETY: Given the above gas check, the staticall cannot fail due to insufficient gas.
-            res :=
-                staticcall(
-                    gas(), // forward all gas
-                    _precompile,
-                    add(28, ptr), // input ptr
-                    _input.length,
-                    0x0, // Unused as we don't copy anything
-                    0x00 // don't copy anything
-                )
+            res := staticcall(
+                gas(), // forward all gas
+                _precompile,
+                add(28, ptr), // input ptr
+                _input.length,
+                0x0, // Unused as we don't copy anything
+                0x00 // don't copy anything
+            )
 
             size := add(1, returndatasize())
             // revert if part offset >= size+8 (i.e. parts must be within bounds)
@@ -627,9 +625,8 @@ contract PreimageOracle is ISemver {
         if (blocksProcessed > MAX_LEAF_COUNT) revert TreeSizeOverflow();
 
         // Update the proposal metadata to include the number of blocks processed and total bytes processed.
-        metaData = metaData.setBlocksProcessed(uint32(blocksProcessed)).setBytesProcessed(
-            uint32(_input.length + metaData.bytesProcessed())
-        );
+        metaData = metaData.setBlocksProcessed(uint32(blocksProcessed))
+            .setBytesProcessed(uint32(_input.length + metaData.bytesProcessed()));
         // If the proposal is being finalized, set the timestamp to the current block timestamp. This begins the
         // challenge period, which must be waited out before the proposal can be finalized.
         if (_finalize) {
@@ -670,12 +667,8 @@ contract PreimageOracle is ISemver {
     {
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
-        if (
-            !(
-                _verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
-                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState))
-            )
-        ) revert InvalidProof();
+        if (!(_verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
+                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState)))) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _preState.stateCommitment) revert InvalidPreimage();
@@ -753,12 +746,8 @@ contract PreimageOracle is ISemver {
 
         // Verify that both leaves are present in the merkle tree.
         bytes32 root = getTreeRootLPP(_claimant, _uuid);
-        if (
-            !(
-                _verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
-                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState))
-            )
-        ) revert InvalidProof();
+        if (!(_verify(_preStateProof, root, _preState.index, _hashLeaf(_preState))
+                    && _verify(_postStateProof, root, _postState.index, _hashLeaf(_postState)))) revert InvalidProof();
 
         // Verify that the prestate passed matches the intermediate state claimed in the leaf.
         if (keccak256(abi.encode(_stateMatrix)) != _preState.stateCommitment) revert InvalidPreimage();

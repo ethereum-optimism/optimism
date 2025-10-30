@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -53,7 +53,14 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @param _owner             Initial owner of the contract.
     /// @param _required          Required protocol version to operate on this chain.
     /// @param _recommended       Recommended protocol version to operate on thi chain.
-    function initialize(address _owner, ProtocolVersion _required, ProtocolVersion _recommended) external initializer {
+    function initialize(
+        address _owner,
+        ProtocolVersion _required,
+        ProtocolVersion _recommended
+    )
+        external
+        initializer
+    {
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);

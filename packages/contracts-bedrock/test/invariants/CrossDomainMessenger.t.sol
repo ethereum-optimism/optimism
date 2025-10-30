@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
@@ -79,7 +79,8 @@ contract RelayActor is StdUtils {
         }
         try xdm.relayMessage{ gas: gas, value: _value }(
             Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
-        ) { } catch {
+        ) { }
+        catch {
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.

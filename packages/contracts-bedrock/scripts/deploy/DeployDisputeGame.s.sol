@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Forge
 import { Script } from "forge-std/Script.sol";
@@ -86,7 +86,9 @@ contract DeployDisputeGame is Script {
                 DeployUtils.createDeterministic({
                     _name: "PermissionedDisputeGame",
                     _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(IPermissionedDisputeGame.__constructor__, (args, _input.proposer, _input.challenger))
+                        abi.encodeCall(
+                            IPermissionedDisputeGame.__constructor__, (args, _input.proposer, _input.challenger)
+                        )
                     ),
                     _salt: DeployUtils.DEFAULT_SALT
                 })

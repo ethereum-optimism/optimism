@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { FaultDisputeGameV2 } from "src/dispute/v2/FaultDisputeGameV2.sol";

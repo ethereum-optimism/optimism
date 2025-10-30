@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
@@ -35,7 +35,9 @@ contract InitializerOZv5_Test is Test {
                 target: address(
                     DeployUtils.create1({
                         _name: "OptimismSuperchainERC20",
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismSuperchainERC20.__constructor__, ()))
+                        _args: DeployUtils.encodeConstructor(
+                            abi.encodeCall(IOptimismSuperchainERC20.__constructor__, ())
+                        )
                     })
                 ),
                 initCalldata: abi.encodeCall(IOptimismSuperchainERC20.initialize, (address(0), "", "", 18))

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.30;
 
 /// @notice Library of constants representing development features. We use a 32 byte bitmap because
 ///         it's easier to integrate with op-deployer. Note that users should typically set a

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 
@@ -183,9 +183,7 @@ contract DeployImplementations is Script {
         opcm_ = IOPContractsManager(
             // nosemgrep: sol-safety-deployutils-args
             DeployUtils.createDeterministic({
-                _name: "OPContractsManager",
-                _args: encodeOPCMConstructor(_input, _output),
-                _salt: _salt
+                _name: "OPContractsManager", _args: encodeOPCMConstructor(_input, _output), _salt: _salt
             })
         );
 
@@ -421,7 +419,9 @@ contract DeployImplementations is Script {
         IDelayedWETH impl = IDelayedWETH(
             DeployUtils.createDeterministic({
                 _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IDelayedWETH.__constructor__, (withdrawalDelaySeconds))
+                ),
                 _salt: _salt
             })
         );
@@ -459,7 +459,9 @@ contract DeployImplementations is Script {
         IMIPS64 singleton = IMIPS64(
             DeployUtils.createDeterministic({
                 _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))
+                ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
@@ -522,7 +524,9 @@ contract DeployImplementations is Script {
         IPermissionedDisputeGameV2 impl = IPermissionedDisputeGameV2(
             DeployUtils.createDeterministic({
                 _name: "PermissionedDisputeGameV2",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params))),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IPermissionedDisputeGameV2.__constructor__, (params))
+                ),
                 _salt: _salt
             })
         );
@@ -814,10 +818,7 @@ contract DeployImplementations is Script {
         ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         ChainAssertions.checkDisputeGameFactory(_output.disputeGameFactoryImpl, address(0), address(0), false);
         DeployUtils.assertInitialized({
-            _contractAddress: address(_output.anchorStateRegistryImpl),
-            _isProxy: false,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_output.anchorStateRegistryImpl), _isProxy: false, _slot: 0, _offset: 0
         });
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1ERC721BridgeImpl(_output.l1ERC721BridgeImpl);

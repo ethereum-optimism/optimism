@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
@@ -43,8 +43,7 @@ abstract contract Proxy_TestInit is Test {
         // Deploy a proxy and simple storage contract as the implementation
         proxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
+                _name: "Proxy", _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
             })
         );
         simpleStorage = new Proxy_SimpleStorage_Harness();

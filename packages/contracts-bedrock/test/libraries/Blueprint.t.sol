@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
@@ -169,7 +169,13 @@ contract Blueprint_DeployFrom_Test is Blueprint_TestInit {
 
     /// @dev Here we deploy a simple mock contract to test that constructor args are appended
     ///      properly.
-    function testFuzz_deployFrom_withConstructorArgs_succeeds(uint256 _x, bytes memory _y, bytes32 _salt) public {
+    function testFuzz_deployFrom_withConstructorArgs_succeeds(
+        uint256 _x,
+        bytes memory _y,
+        bytes32 _salt
+    )
+        public
+    {
         bytes memory blueprintInitcode = blueprint.blueprintDeployerBytecode(type(ConstructorArgMock).creationCode);
 
         // Deploy the blueprint.

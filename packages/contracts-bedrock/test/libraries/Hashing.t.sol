@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -174,8 +174,7 @@ contract Hashing_hashSuperRootProof_Test is CommonTest {
         if (_proof.outputRoots.length == 0) {
             _proof.outputRoots = new Types.OutputRootWithChainId[](1);
             _proof.outputRoots[0] = Types.OutputRootWithChainId({
-                chainId: vm.randomUint(0, type(uint64).max),
-                root: bytes32(vm.randomUint())
+                chainId: vm.randomUint(0, type(uint64).max), root: bytes32(vm.randomUint())
             });
         }
 

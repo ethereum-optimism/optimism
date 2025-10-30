@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
@@ -17,7 +17,8 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     bytes32 internal constant FEATURES_AB_INVERTED = ~FEATURES_AB;
     bytes32 internal constant EMPTY_FEATURES =
         bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
-    bytes32 internal constant ALL_FEATURES = bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
+    bytes32 internal constant ALL_FEATURES =
+        bytes32(0x1111111111111111111111111111111111111111111111111111111111111111);
 
     function test_isDevFeatureEnabled_checkSingleFeatureExactMatch_works() public pure {
         assertTrue(DevFeatures.isDevFeatureEnabled(FEATURE_A, FEATURE_A));

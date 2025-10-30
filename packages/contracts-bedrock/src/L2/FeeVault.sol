@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { SafeCall } from "src/libraries/SafeCall.sol";
@@ -101,9 +101,7 @@ abstract contract FeeVault {
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {
             IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value }({
-                _target: RECIPIENT,
-                _gasLimit: WITHDRAWAL_MIN_GAS,
-                _data: hex""
+                _target: RECIPIENT, _gasLimit: WITHDRAWAL_MIN_GAS, _data: hex""
             });
         }
     }

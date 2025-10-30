@@ -109,18 +109,10 @@ contract EventLogger_ValidateMessage_Test is EventLogger_TestInit {
         external
     {
         IfaceIdentifier memory idIface = IfaceIdentifier({
-            origin: _origin,
-            blockNumber: _blockNumber,
-            logIndex: _logIndex,
-            timestamp: _timestamp,
-            chainId: _chainId
+            origin: _origin, blockNumber: _blockNumber, logIndex: _logIndex, timestamp: _timestamp, chainId: _chainId
         });
         ImplIdentifier memory idImpl = ImplIdentifier({
-            origin: _origin,
-            blockNumber: _blockNumber,
-            logIndex: _logIndex,
-            timestamp: _timestamp,
-            chainId: _chainId
+            origin: _origin, blockNumber: _blockNumber, logIndex: _logIndex, timestamp: _timestamp, chainId: _chainId
         });
 
         address emitter = Predeploys.CROSS_L2_INBOX;

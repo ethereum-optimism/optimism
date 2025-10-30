@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -64,11 +64,7 @@ abstract contract StandardBridge_TestInit is CommonTest {
         bridge = new StandardBridgeTester();
 
         mintable = new OptimismMintableERC20({
-            _bridge: address(0),
-            _remoteToken: address(0),
-            _name: "Stonks",
-            _symbol: "STONK",
-            _decimals: 18
+            _bridge: address(0), _remoteToken: address(0), _name: "Stonks", _symbol: "STONK", _decimals: 18
         });
 
         erc20 = new ERC20("Altcoin", "ALT");

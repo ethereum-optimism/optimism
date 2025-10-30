@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";

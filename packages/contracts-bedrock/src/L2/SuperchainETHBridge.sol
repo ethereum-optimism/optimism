@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
@@ -48,11 +48,12 @@ contract SuperchainETHBridge is ISemver {
         // NOTE: 'burn' will soon change to 'deposit'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: msg.value }();
 
-        msgHash_ = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
-            _destination: _chainId,
-            _target: address(this),
-            _message: abi.encodeCall(this.relayETH, (msg.sender, _to, msg.value))
-        });
+        msgHash_ = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            .sendMessage({
+                _destination: _chainId,
+                _target: address(this),
+                _message: abi.encodeCall(this.relayETH, (msg.sender, _to, msg.value))
+            });
 
         emit SendETH(msg.sender, _to, msg.value, _chainId);
     }

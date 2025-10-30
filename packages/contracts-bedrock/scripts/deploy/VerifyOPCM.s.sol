@@ -573,8 +573,9 @@ contract VerifyOPCM is Script {
     /// @param _contractName The name to check.
     /// @return True if this is a V2 dispute game.
     function _isV2DisputeGameImplementation(string memory _contractName) internal pure returns (bool) {
-        return LibString.eq(_contractName, "FaultDisputeGameV2")
-            || LibString.eq(_contractName, "PermissionedDisputeGameV2");
+        return
+            LibString.eq(_contractName, "FaultDisputeGameV2")
+                || LibString.eq(_contractName, "PermissionedDisputeGameV2");
     }
 
     /// @notice Checks if a contract is a Super dispute game implementation.
@@ -672,9 +673,7 @@ contract VerifyOPCM is Script {
 
         // Put together the artifact info struct.
         return ArtifactInfo({
-            bytecode: bytecode,
-            deployedBytecode: deployedBytecode,
-            immutableRefs: _parseImmutableRefs(artifactJson)
+            bytecode: bytecode, deployedBytecode: deployedBytecode, immutableRefs: _parseImmutableRefs(artifactJson)
         });
     }
 

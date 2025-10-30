@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -135,7 +135,14 @@ contract Encoding_EncodeSuperRootProof_Test is Encoding_TestInit {
     /// @param _timestamp The timestamp of the super root proof
     /// @param _length The number of output roots in the super root proof
     /// @param _seed The seed used to generate the output roots
-    function testFuzz_encodeSuperRootProof_succeeds(uint64 _timestamp, uint256 _length, uint256 _seed) external pure {
+    function testFuzz_encodeSuperRootProof_succeeds(
+        uint64 _timestamp,
+        uint256 _length,
+        uint256 _seed
+    )
+        external
+        pure
+    {
         // Ensure at least 1 element and cap at a reasonable maximum to avoid gas issues
         _length = uint256(bound(_length, 1, 50));
 
@@ -235,7 +242,13 @@ contract Encoding_EncodeSuperRootProof_Test is Encoding_TestInit {
     /// @param _timestamp The timestamp of the super root proof
     /// @param _length The number of output roots in the super root proof
     /// @param _seed The seed used to generate the output roots
-    function testDiff_encodeSuperRootProof_succeeds(uint64 _timestamp, uint256 _length, uint256 _seed) external {
+    function testDiff_encodeSuperRootProof_succeeds(
+        uint64 _timestamp,
+        uint256 _length,
+        uint256 _seed
+    )
+        external
+    {
         // Ensure at least 1 element and cap at a reasonable maximum to avoid gas issues
         _length = uint256(bound(_length, 1, 50));
 

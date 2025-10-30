@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { Test } from "forge-std/Test.sol";
@@ -50,7 +50,9 @@ abstract contract ProxyAdmin_TestInit is Test {
         chugsplash = IL1ChugSplashProxy(
             DeployUtils.create1({
                 _name: "L1ChugSplashProxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(admin))))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(admin)))
+                )
             })
         );
 

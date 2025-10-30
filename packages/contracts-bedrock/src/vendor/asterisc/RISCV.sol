@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity 0.8.30;
 
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -23,7 +23,14 @@ contract RISCV is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata _proof, bytes32 _localContext) public returns (bytes32) {
+    function step(
+        bytes calldata _stateData,
+        bytes calldata _proof,
+        bytes32 _localContext
+    )
+        public
+        returns (bytes32)
+    {
         assembly {
             function revertWithCode(code) {
                 mstore(0, code)
@@ -505,28 +512,26 @@ contract RISCV is IBigStepper {
             }
 
             function parseImmTypeS(instr) -> out {
-                out :=
-                    signExtend64(
-                        or64(shl64(toU64(5), shr64(toU64(25), instr)), and64(shr64(toU64(7), instr), toU64(0x1F))),
-                        toU64(11)
-                    )
+                out := signExtend64(
+                    or64(shl64(toU64(5), shr64(toU64(25), instr)), and64(shr64(toU64(7), instr), toU64(0x1F))),
+                    toU64(11)
+                )
             }
 
             function parseImmTypeB(instr) -> out {
-                out :=
-                    signExtend64(
+                out := signExtend64(
+                    or64(
                         or64(
-                            or64(
-                                shl64(toU64(1), and64(shr64(toU64(8), instr), toU64(0xF))),
-                                shl64(toU64(5), and64(shr64(toU64(25), instr), toU64(0x3F)))
-                            ),
-                            or64(
-                                shl64(toU64(11), and64(shr64(toU64(7), instr), toU64(1))),
-                                shl64(toU64(12), shr64(toU64(31), instr))
-                            )
+                            shl64(toU64(1), and64(shr64(toU64(8), instr), toU64(0xF))),
+                            shl64(toU64(5), and64(shr64(toU64(25), instr), toU64(0x3F)))
                         ),
-                        toU64(12)
-                    )
+                        or64(
+                            shl64(toU64(11), and64(shr64(toU64(7), instr), toU64(1))),
+                            shl64(toU64(12), shr64(toU64(31), instr))
+                        )
+                    ),
+                    toU64(12)
+                )
             }
 
             function parseImmTypeU(instr) -> out {
@@ -534,20 +539,19 @@ contract RISCV is IBigStepper {
             }
 
             function parseImmTypeJ(instr) -> out {
-                out :=
-                    signExtend64(
+                out := signExtend64(
+                    or64(
                         or64(
-                            or64(
-                                and64(shr64(toU64(21), instr), shortToU64(0x3FF)), // 10 bits for index 0:9
-                                shl64(toU64(10), and64(shr64(toU64(20), instr), toU64(1))) // 1 bit for index 10
-                            ),
-                            or64(
-                                shl64(toU64(11), and64(shr64(toU64(12), instr), toU64(0xFF))), // 8 bits for index 11:18
-                                shl64(toU64(19), shr64(toU64(31), instr)) // 1 bit for index 19
-                            )
+                            and64(shr64(toU64(21), instr), shortToU64(0x3FF)), // 10 bits for index 0:9
+                            shl64(toU64(10), and64(shr64(toU64(20), instr), toU64(1))) // 1 bit for index 10
                         ),
-                        toU64(19)
-                    )
+                        or64(
+                            shl64(toU64(11), and64(shr64(toU64(12), instr), toU64(0xFF))), // 8 bits for index 11:18
+                            shl64(toU64(19), shr64(toU64(31), instr)) // 1 bit for index 19
+                        )
+                    ),
+                    toU64(19)
+                )
             }
 
             function parseOpcode(instr) -> out {
@@ -641,7 +645,7 @@ contract RISCV is IBigStepper {
             // load unaligned, optionally signed, little-endian, integer of 1 ... 8 bytes from memory
             function loadMem(addr, size, signed, proofIndexL, proofIndexR) -> out {
                 if gt(size, 8) { revertWithCode(0xbad512e0) } // cannot load more than 8 bytes
-                // load/verify left part
+                    // load/verify left part
                 let leftAddr := and64(addr, not64(toU64(31)))
                 let left := b32asBEWord(getMemoryB32(leftAddr, proofIndexL))
                 let alignment := sub64(addr, leftAddr)
@@ -654,7 +658,7 @@ contract RISCV is IBigStepper {
                     // if unaligned, use second proof for the right part
                     if eq(proofIndexR, 0xff) { revertWithCode(0xbad22220) } // unexpected need for right-side proof in
                         // loadMem
-                    // load/verify right part
+                        // load/verify right part
                     right := b32asBEWord(getMemoryB32(rightAddr, proofIndexR))
                     // left content is aligned to right of 32 bytes
                     leftShamt := toU64(0)
@@ -746,7 +750,7 @@ contract RISCV is IBigStepper {
                 if eq64(leftAddr, rightAddr) { leave }
                 if eq(proofIndexR, 0xff) { revertWithCode(0xbad22221) } // unexpected need for right-side proof in
                     // storeMem
-                // load the right base (with updated mem root)
+                    // load the right base (with updated mem root)
                 let right := b32asBEWord(getMemoryB32(rightAddr, proofIndexR))
                 // apply the right patch
                 right := or(and(right, not(rightMask)), rightPatch)
@@ -924,7 +928,7 @@ contract RISCV is IBigStepper {
                             setHeap(add64(prevHeap, length)) // increment heap with length
                         }
                         default {
-                            // allow hinted memory address (leave it in A0 as return argument)
+                        // allow hinted memory address (leave it in A0 as return argument)
                         }
                     }
 
@@ -1093,7 +1097,7 @@ contract RISCV is IBigStepper {
                 case 113 {
                     // clock_gettime
                     let addr := getRegister(toU64(11)) // addr of timespec struct
-                    // write 1337s + 42ns as time
+                        // write 1337s + 42ns as time
                     let value := or(shortToU256(1337), shl(shortToU256(64), toU256(42)))
                     storeMemUnaligned(addr, toU64(16), value, 1, 2)
                     setRegister(toU64(10), toU64(0))
@@ -1114,7 +1118,11 @@ contract RISCV is IBigStepper {
                         // first 8 bytes: soft limit. 1024 file handles max open
                         // second 8 bytes: hard limit
                         storeMemUnaligned(
-                            addr, toU64(16), or(shortToU256(1024), shl(toU256(64), shortToU256(1024))), 1, 2
+                            addr,
+                            toU64(16),
+                            or(shortToU256(1024), shl(toU256(64), shortToU256(1024))),
+                            1,
+                            2
                         )
                         setRegister(toU64(10), toU64(0))
                         setRegister(toU64(11), toU64(0))
@@ -1342,8 +1350,9 @@ contract RISCV is IBigStepper {
                     }
                     case 1 {
                         // 001 = MULH: upper bits of signed x signed
-                        rdValue :=
-                            u256ToU64(shr(toU256(64), mul(signExtend64To256(rs1Value), signExtend64To256(rs2Value))))
+                        rdValue := u256ToU64(
+                            shr(toU256(64), mul(signExtend64To256(rs1Value), signExtend64To256(rs2Value)))
+                        )
                     }
                     case 2 {
                         // 010 = MULHSU: upper bits of signed x unsigned

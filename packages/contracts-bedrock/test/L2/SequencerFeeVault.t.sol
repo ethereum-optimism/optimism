@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -79,7 +79,8 @@ contract SequencerFeeVault_Withdraw_Test is SequencerFeeVault_TestInit {
                         )
                     )
                 })
-            ).code
+            )
+            .code
         );
 
         recipient = deploy.cfg().sequencerFeeVaultRecipient();

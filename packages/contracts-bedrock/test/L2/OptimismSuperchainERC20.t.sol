@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.0;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
@@ -322,7 +322,14 @@ contract OptimismSuperchainERC20_Uncategorized_Test is OptimismSuperchainERC20_T
     ///                       since the behaviour should be the same regardless of the caller.
     /// @param _owner The funds owner.
     /// @param _guy The address of the spender - It cannot be Permit2.
-    function testFuzz_allowance_succeeds(address _randomCaller, address _owner, address _guy, uint256 _amount) public {
+    function testFuzz_allowance_succeeds(
+        address _randomCaller,
+        address _owner,
+        address _guy,
+        uint256 _amount
+    )
+        public
+    {
         // Assume
         vm.assume(_guy != Preinstalls.Permit2);
 

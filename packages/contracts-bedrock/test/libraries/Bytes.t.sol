@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
@@ -8,7 +8,15 @@ import { Test } from "forge-std/Test.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 
 contract Bytes_Harness {
-    function exposed_slice(bytes memory _input, uint256 _start, uint256 _length) public pure returns (bytes memory) {
+    function exposed_slice(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         return Bytes.slice(_input, _start, _length);
     }
 }
@@ -25,14 +33,13 @@ abstract contract Bytes_TestInit is Test {
     function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
         bool _eq;
         assembly {
-            _eq :=
-                and(
-                    // Check if the contents of the two bytes arrays are equal in memory.
-                    eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
-                    // Check if the length of the two bytes arrays are equal in memory.
-                    // This is redundant given the above check, but included for completeness.
-                    eq(mload(_a), mload(_b))
-                )
+            _eq := and(
+                // Check if the contents of the two bytes arrays are equal in memory.
+                eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
+                // Check if the length of the two bytes arrays are equal in memory.
+                // This is redundant given the above check, but included for completeness.
+                eq(mload(_a), mload(_b))
+            )
         }
         return _eq;
     }
@@ -182,7 +189,13 @@ contract Bytes_Slice_Test is Bytes_TestInit {
 
     /// @notice Tests that, when given a length `n` that is greater than `type(uint256).max - 31`,
     ///         the `slice` function reverts.
-    function testFuzz_slice_lengthOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
+    function testFuzz_slice_lengthOverflows_reverts(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    )
+        public
+    {
         // Ensure that the `_length` will overflow if a number >= 31 is added to it.
         _length = uint256(bound(_length, type(uint256).max - 30, type(uint256).max));
 
@@ -193,7 +206,13 @@ contract Bytes_Slice_Test is Bytes_TestInit {
     /// @notice Tests that, when given a start index `n` that is greater than
     ///         `type(uint256).max - n`, the `slice` function reverts.
     ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
-    function testFuzz_slice_rangeOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
+    function testFuzz_slice_rangeOverflows_reverts(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    )
+        public
+    {
         // Ensure that `_length` is a realistic length of a slice. This is to make sure we revert
         // on the correct require statement.
         _length = bound(_length, 0, _input.length == 0 ? 0 : _input.length - 1);

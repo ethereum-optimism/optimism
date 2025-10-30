@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.30;
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -59,7 +59,8 @@ abstract contract ProxyAdminOwnedBase {
         if (
             Storage.getBytes32(keccak256(abi.encode(address(this), uint256(0))))
                 != bytes32(
-                    uint256(bytes32("OVM_L1CrossDomainMessenger")) | uint256(bytes("OVM_L1CrossDomainMessenger").length * 2)
+                    uint256(bytes32("OVM_L1CrossDomainMessenger"))
+                        | uint256(bytes("OVM_L1CrossDomainMessenger").length * 2)
                 )
         ) {
             revert ProxyAdminOwnedBase_NotResolvedDelegateProxy();

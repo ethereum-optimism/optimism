@@ -158,7 +158,13 @@ contract LibPosition_TraceAncestor_Test is LibPosition_TestInit {
 contract LibPosition_TraceAncestorBounded_Test is LibPosition_TestInit {
     /// @notice Tests that the `traceAncestorBounded` function correctly computes the position of
     ///         the highest ancestor (below `SPLIT_DEPTH`) that commits to the same trace index.
-    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
+    function testFuzz_traceAncestorBounded_correctness_succeeds(
+        uint8 _depth,
+        uint128 _indexAtDepth
+    )
+        public
+        pure
+    {
         _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 

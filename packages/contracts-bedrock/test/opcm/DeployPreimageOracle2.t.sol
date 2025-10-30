@@ -44,8 +44,7 @@ contract DeployPreimageOracle2_Test is Test {
 
     function defaultInput() internal view returns (DeployPreimageOracle2.Input memory input_) {
         input_ = DeployPreimageOracle2.Input({
-            minProposalSize: defaultMinProposalSize,
-            challengePeriod: defaultChallengePeriod
+            minProposalSize: defaultMinProposalSize, challengePeriod: defaultChallengePeriod
         });
     }
 }

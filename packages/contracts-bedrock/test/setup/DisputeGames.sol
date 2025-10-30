@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { FeatureFlags } from "./FeatureFlags.sol";
@@ -163,7 +163,13 @@ contract DisputeGames is FeatureFlags {
         }
     }
 
-    function mockGameImplChallenger(IDisputeGameFactory _dgf, GameType _gameType, address _challenger) internal {
+    function mockGameImplChallenger(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        address _challenger
+    )
+        internal
+    {
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             bytes memory value = abi.encodePacked(_challenger);
             _mockGameArg(_dgf, _gameType, GameArg.CHALLENGER, value);

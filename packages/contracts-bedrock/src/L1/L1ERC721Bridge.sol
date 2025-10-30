@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
@@ -59,7 +59,9 @@ contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBas
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;
-        __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE)) });
+        __ERC721Bridge_init({
+            _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE))
+        });
     }
 
     /// @inheritdoc ERC721Bridge

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
@@ -114,8 +114,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         // Now perform initialization logic.
         systemConfig = _systemConfig;
         __StandardBridge_init({
-            _messenger: _messenger,
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+            _messenger: _messenger, _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
         });
     }
 
@@ -258,7 +257,14 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @param _to          Address of the recipient on L2.
     /// @param _minGasLimit Minimum gas limit for the deposit message on L2.
     /// @param _extraData   Optional data to forward to L2.
-    function _initiateETHDeposit(address _from, address _to, uint32 _minGasLimit, bytes memory _extraData) internal {
+    function _initiateETHDeposit(
+        address _from,
+        address _to,
+        uint32 _minGasLimit,
+        bytes memory _extraData
+    )
+        internal
+    {
         _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
     }
 

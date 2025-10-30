@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
@@ -390,7 +390,12 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
     ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+    function migrateToSuperRoots(
+        IETHLockbox _newLockbox,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    )
+        external
+    {
         // Migration can only be triggered when the system is not paused because the migration can
         // potentially unpause the system as a result of the modified ETHLockbox address.
         _assertNotPaused();
@@ -586,11 +591,11 @@ contract OptimismPortalInterop is Initializable, ResourceMetering, Reinitializab
         // be relayed on L1.
         if (
             SecureMerkleTrie.verifyInclusionProof({
-                _key: abi.encode(storageKey),
-                _value: hex"01",
-                _proof: _withdrawalProof,
-                _root: _outputRootProof.messagePasserStorageRoot
-            }) == false
+                    _key: abi.encode(storageKey),
+                    _value: hex"01",
+                    _proof: _withdrawalProof,
+                    _root: _outputRootProof.messagePasserStorageRoot
+                }) == false
         ) {
             revert OptimismPortal_InvalidMerkleProof();
         }

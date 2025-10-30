@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { Test } from "forge-std/Test.sol";
@@ -23,8 +23,7 @@ abstract contract WETH98_TestInit is Test {
     function setUp() public {
         weth = IWETH98(
             DeployUtils.create1({
-                _name: "WETH98",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IWETH98.__constructor__, ()))
+                _name: "WETH98", _args: DeployUtils.encodeConstructor(abi.encodeCall(IWETH98.__constructor__, ()))
             })
         );
         alice = makeAddr("alice");

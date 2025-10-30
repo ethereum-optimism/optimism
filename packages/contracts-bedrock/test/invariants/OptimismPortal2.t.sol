@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { StdUtils } from "forge-std/Test.sol";
@@ -75,8 +75,9 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
         );
 
         try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
-            // Do nothing; Call succeeded
-        } catch {
+        // Do nothing; Call succeeded
+        }
+        catch {
             failedToComplete = true;
         }
     }
@@ -99,12 +100,7 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         super.setUp();
 
         _defaultTx = Types.WithdrawalTransaction({
-            nonce: 0,
-            sender: alice,
-            target: bob,
-            value: 100,
-            gasLimit: 100_000,
-            data: hex""
+            nonce: 0, sender: alice, target: bob, value: 100, gasLimit: 100_000, data: hex""
         });
         // Get withdrawal proof data we can use for testing.
         (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) =
@@ -126,13 +122,13 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         // Create a dispute game with the output root we've proposed.
         _proposedBlockNumber = 0xFF;
         IFaultDisputeGame game = IFaultDisputeGame(
-            payable(
-                address(
-                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType()) }(
+            payable(address(
+                    disputeGameFactory.create{
+                        value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType())
+                    }(
                         optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
                     )
-                )
-            )
+                ))
         );
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 

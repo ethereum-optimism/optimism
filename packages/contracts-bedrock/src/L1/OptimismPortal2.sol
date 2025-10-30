@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
@@ -397,11 +397,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be relayed on L1.
         if (
             SecureMerkleTrie.verifyInclusionProof({
-                _key: abi.encode(storageKey),
-                _value: hex"01",
-                _proof: _withdrawalProof,
-                _root: _outputRootProof.messagePasserStorageRoot
-            }) == false
+                    _key: abi.encode(storageKey),
+                    _value: hex"01",
+                    _proof: _withdrawalProof,
+                    _root: _outputRootProof.messagePasserStorageRoot
+                }) == false
         ) {
             revert OptimismPortal_InvalidMerkleProof();
         }

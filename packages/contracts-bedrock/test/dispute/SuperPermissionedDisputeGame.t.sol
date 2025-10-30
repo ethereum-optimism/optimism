@@ -331,9 +331,9 @@ contract SuperPermissionedDisputeGame_Initialize_Test is SuperPermissionedDisput
         vm.prank(PROPOSER, PROPOSER);
         vm.expectRevert(ISuperFaultDisputeGame.BadExtraData.selector);
         gameProxy = ISuperPermissionedDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber))
+                ))
         );
     }
 }

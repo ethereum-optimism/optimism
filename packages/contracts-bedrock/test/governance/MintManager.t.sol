@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -33,7 +33,9 @@ abstract contract MintManager_TestInit is CommonTest {
         manager = IMintManager(
             DeployUtils.create1({
                 _name: "MintManager",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMintManager.__constructor__, (owner, address(gov))))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMintManager.__constructor__, (owner, address(gov)))
+                )
             })
         );
 

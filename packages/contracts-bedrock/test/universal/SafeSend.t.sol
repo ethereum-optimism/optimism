@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { SafeSend } from "src/universal/SafeSend.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";

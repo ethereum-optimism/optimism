@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.30;
 
 // Safe
 import { Safe } from "safe-contracts/Safe.sol";
@@ -164,9 +164,7 @@ contract LivenessModule is ISemver {
 
             // We now attempt remove the owner from the safe.
             _removeOwner({
-                _prevOwner: _previousOwners[i],
-                _ownerToRemove: _ownersToRemove[i],
-                _newOwnersCount: ownersCount
+                _prevOwner: _previousOwners[i], _ownerToRemove: _ownersToRemove[i], _newOwnersCount: ownersCount
             });
 
             // when all owners are removed and the sole owner is the fallback owner, the

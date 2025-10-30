@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.30;
 
 /// @title  SafeSend
 /// @notice Sends ETH to a recipient account without triggering any code.

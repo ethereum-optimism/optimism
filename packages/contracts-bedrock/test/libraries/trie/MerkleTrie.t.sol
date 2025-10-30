@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
@@ -8,7 +8,15 @@ import { FFIInterface } from "test/setup/FFIInterface.sol";
 import "src/libraries/rlp/RLPErrors.sol";
 
 contract MerkleTrie_Harness {
-    function exposed_get(bytes memory _key, bytes[] memory _proof, bytes32 _root) public pure returns (bytes memory) {
+    function exposed_get(
+        bytes memory _key,
+        bytes[] memory _proof,
+        bytes32 _root
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         return MerkleTrie.get(_key, _proof, _root);
     }
 }
