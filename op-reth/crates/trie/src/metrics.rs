@@ -476,10 +476,10 @@ where
     #[inline]
     async fn prune_earliest_state(
         &self,
-        new_earliest_block_number: u64,
+        new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<()> {
-        self.storage.prune_earliest_state(new_earliest_block_number, diff).await
+        self.storage.prune_earliest_state(new_earliest_block_ref, diff).await
     }
 
     #[inline]

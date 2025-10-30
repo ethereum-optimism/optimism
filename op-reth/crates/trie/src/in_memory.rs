@@ -528,7 +528,7 @@ impl OpProofsStore for InMemoryProofsStorage {
 
     async fn prune_earliest_state(
         &self,
-        new_earliest_block_number: u64,
+        new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<()> {
         let mut inner = self.inner.write().await;
@@ -570,6 +570,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         }
 
         // Update earliest block number if we have one
+        let new_earliest_block_number = new_earliest_block_ref.block.number;
         if let Some((_, hash)) = inner.earliest_block {
             inner.earliest_block = Some((new_earliest_block_number, hash));
         }

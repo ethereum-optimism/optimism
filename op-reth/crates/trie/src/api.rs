@@ -169,7 +169,7 @@ pub trait OpProofsStore: Send + Sync + Debug {
     /// earliest block number.
     fn prune_earliest_state(
         &self,
-        new_earliest_block_number: u64,
+        new_earliest_block_ref: BlockWithParent,
         diff: BlockStateDiff,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
