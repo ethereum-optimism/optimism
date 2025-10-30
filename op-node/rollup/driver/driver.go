@@ -222,12 +222,6 @@ func (s *Driver) Start() error {
 		}
 	}
 
-	// When safe-source=l2 is enabled, trigger an engine reset to sync forkchoice state from remote L2
-	if s.SyncDeriver.SyncCfg.SafeSource == sync.SafeSourceL2 {
-		s.log.Info("Safe-source L2 mode enabled, triggering engine reset to sync from remote L2")
-		s.emitter.Emit(s.driverCtx, engine.ResetEngineRequestEvent{})
-	}
-
 	s.wg.Add(1)
 	go s.eventLoop()
 
