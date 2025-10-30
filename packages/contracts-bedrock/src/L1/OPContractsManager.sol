@@ -2044,7 +2044,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // If the cannon-kona game is being used, set that up too.
             if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                bytes memory gameArgs = LibGameArgs.encode(
+                gameArgs = LibGameArgs.encode(
                     LibGameArgs.GameArgs({
                         absolutePrestate: _input.opChainConfigs[0].cannonKonaPrestate.raw(),
                         vm: address(getImplementations().mipsImpl),
