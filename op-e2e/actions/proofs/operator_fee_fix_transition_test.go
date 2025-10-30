@@ -8,11 +8,11 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -26,8 +26,9 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 
 	run := func(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
+
 		deployConfigOverrides := func(dp *genesis.DeployConfig) {
-			dp.L2GenesisJovianTimeOffset = ptr(hexutil.Uint64(15))
+			dp.ActivateForkAtOffset(rollup.Jovian, 15)
 		}
 
 		testOperatorFeeScalar := uint32(345e6)
@@ -96,8 +97,6 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		}
 
 		updateOperatorFeeScalars := func() {
-			// Update the operator fee parameters
-
 			_, err = sysCfgContract.SetOperatorFeeScalars(sysCfgOwner, testOperatorFeeScalar, testOperatorFeeConstant)
 			require.NoError(t, err)
 			env.Miner.ActL1StartBlock(12)(t)
@@ -123,7 +122,7 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 
 		// Cache balances
 		aliceInitialBalance, _, _, _, operatorFeeVaultInitialBalance := getCurrentBalances(unsafeL2Head.Number)
-		require.Equal(t, operatorFeeVaultInitialBalance.Sign(), 0)
+		require.Zero(t, operatorFeeVaultInitialBalance.Sign())
 
 		// Build an L2 block with a single L2 tx consuming precisely 21,000 gas
 		unsafeL2Head, receipt := buildL2BlockWithSingleTx()
@@ -141,7 +140,7 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		require.True(t, aliceFinalBalance.Cmp(aliceInitialBalance) < 0, "Alice's balance should decrease")
 
 		// Now wind forward to jovian
-		unsafeL2Head = env.Sequencer.ActBuildL2ToJovian(t)
+		unsafeL2Head = env.Sequencer.ActBuildL2ToFork(t, rollup.Jovian)
 
 		// reset accounting
 		aliceInitialBalance, _, _, _, operatorFeeVaultInitialBalance = getCurrentBalances(unsafeL2Head.Number)

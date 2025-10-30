@@ -212,11 +212,12 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	}
 }
 
-func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) {
+func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) eth.L2BlockRef {
 	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
 	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
 		s.ActL2EmptyBlock(t)
 	}
+	return s.L2Unsafe()
 }
 
 func (s *L2Sequencer) ActBuildL2ToCanyon(t Testing) {
@@ -261,13 +262,8 @@ func (s *L2Sequencer) ActBuildL2ToIsthmus(t Testing) {
 	}
 }
 
-func (s *L2Sequencer) ActBuildL2ToJovian(t Testing) eth.L2BlockRef {
-	require.NotNil(t, s.RollupCfg.JovianTime, "cannot activate JovianTime when it is not scheduled")
-	for s.L2Unsafe().Time < *s.RollupCfg.JovianTime {
-		s.ActL2EmptyBlock(t)
-	}
-	return s.L2Unsafe()
-}
+// Instead of replicating the above helpers for later forks, e.g. ActBuildL2ToJovian
+// we can use ActBuildL2ToTime with (e.g.) the JovianTime.
 
 func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
 	require.NotNil(t, s.RollupCfg.InteropTime, "cannot activate InteropTime when it is not scheduled")
