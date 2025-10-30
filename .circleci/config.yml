@@ -349,7 +349,7 @@ jobs:
       use_circleci_runner:
         description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
         type: boolean
-        default: false
+        default: true
     machine:
       image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
       docker_layer_caching: <<parameters.use_circleci_runner>>

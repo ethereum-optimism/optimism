@@ -40,8 +40,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -117,6 +117,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
+        uint256 l2ChainID;
+        address proposer;
+    }
+
+    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    struct ValidationInputDev {
+        IProxyAdmin proxyAdmin;
+        ISystemConfig sysCfg;
+        bytes32 cannonPrestate;
+        bytes32 cannonKonaPrestate;
         uint256 l2ChainID;
         address proposer;
     }
@@ -550,22 +560,21 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidPermissionlessDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
+        GameType _gameType,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
         IProxyAdmin _admin,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        string memory _errorPrefix
     )
         internal
         view
         returns (string memory)
     {
-        GameType gameType = GameTypes.CANNON;
-        string memory errorPrefix = "PLDG";
-
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
-        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, gameType, _sysCfg, errorPrefix);
+        (gameImpl, _errors, failedToGetImpl) = getGameImplementation(_errors, _gameType, _sysCfg, _errorPrefix);
         if (failedToGetImpl) {
             // Return early on failure to avoid trying to validate an invalid dispute game
             return _errors;
@@ -579,9 +588,9 @@ contract OPContractsManagerStandardValidator is ISemver {
                 absolutePrestate: _absolutePrestate,
                 l2ChainID: _l2ChainID,
                 admin: _admin,
-                gameType: gameType,
+                gameType: _gameType,
                 overrides: _overrides,
-                errorPrefix: errorPrefix
+                errorPrefix: _errorPrefix
             })
         );
 
@@ -818,6 +827,12 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validate(devInput, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
         );
@@ -827,6 +842,21 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        ValidationInputDev memory devInput = _toValidationInputDev(_input);
+        return validateWithOverrides(devInput, _allowFailure, _overrides);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    function validateWithOverrides(
+        ValidationInputDev memory _input,
         bool _allowFailure,
         ValidationOverrides memory _overrides
     )
@@ -848,15 +878,35 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidPermissionedDisputeGame(
             _errors,
             _input.sysCfg,
-            _input.absolutePrestate,
+            _input.cannonPrestate,
             _input.l2ChainID,
             _input.proxyAdmin,
             _input.proposer,
             _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
+            _errors,
+            _input.sysCfg,
+            GameTypes.CANNON,
+            _input.cannonPrestate,
+            _input.l2ChainID,
+            _input.proxyAdmin,
+            _overrides,
+            "PLDG"
         );
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.CANNON_KONA)) {
+            _errors = assertValidPermissionlessDisputeGame(
+                _errors,
+                _input.sysCfg,
+                GameTypes.CANNON_KONA,
+                _input.cannonKonaPrestate,
+                _input.l2ChainID,
+                _input.proxyAdmin,
+                _overrides,
+                "CKDG"
+            );
+        }
+
         _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
@@ -879,6 +929,18 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
 
         return finalErrors;
+    }
+
+    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
+        return ValidationInputDev({
+            proxyAdmin: _input.proxyAdmin,
+            sysCfg: _input.sysCfg,
+            cannonPrestate: _input.absolutePrestate,
+            cannonKonaPrestate: bytes32(0),
+            l2ChainID: _input.l2ChainID,
+            proposer: _input.proposer
+        });
     }
 
     function assertGameArgsLength(
