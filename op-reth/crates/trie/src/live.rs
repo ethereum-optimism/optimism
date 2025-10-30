@@ -1,8 +1,8 @@
 //! Live trie collector for external proofs storage.
 
 use crate::{
-    provider::OpProofsStateProviderRef, BlockStateDiff, OpProofsStorage, OpProofsStorageError,
-    OpProofsStore,
+    api::OperationDurations, provider::OpProofsStateProviderRef, BlockStateDiff, OpProofsStorage,
+    OpProofsStorageError, OpProofsStore,
 };
 use alloy_eips::{eip1898::BlockWithParent, NumHash};
 use derive_more::Constructor;
@@ -39,6 +39,8 @@ where
         &self,
         block: &RecoveredBlock<BlockTy<Evm::Primitives>>,
     ) -> eyre::Result<()> {
+        let mut operation_durations = OperationDurations::default();
+
         let start = Instant::now();
         // ensure that we have the state of the parent block
         let (Some((earliest, _)), Some((latest, _))) = (
@@ -47,8 +49,6 @@ where
         ) else {
             return Err(OpProofsStorageError::NoBlocksFound.into());
         };
-
-        let fetch_block_duration = start.elapsed();
 
         let parent_block_number = block.number() - 1;
         if parent_block_number < earliest {
@@ -75,21 +75,20 @@ where
             parent_block_number,
         );
 
-        let init_provider_duration = start.elapsed() - fetch_block_duration;
-
         let db = StateProviderDatabase::new(&state_provider);
         let block_executor = self.evm_config.batch_executor(db);
 
         let execution_result =
             block_executor.execute(&(*block).clone()).map_err(|err| eyre::eyre!(err))?;
 
-        let execute_block_duration = start.elapsed() - init_provider_duration;
+        operation_durations.execution_duration_seconds = start.elapsed();
 
         let hashed_state = state_provider.hashed_post_state(&execution_result.state);
         let (state_root, trie_updates) =
             state_provider.state_root_with_updates(hashed_state.clone())?;
 
-        let calculate_state_root_duration = start.elapsed() - execute_block_duration;
+        operation_durations.state_root_duration_seconds =
+            start.elapsed() - operation_durations.execution_duration_seconds;
 
         if state_root != block.state_root() {
             return Err(OpProofsStorageError::StateRootMismatch {
@@ -100,24 +99,28 @@ where
             .into());
         }
 
-        self.storage
+        let update_result = self
+            .storage
             .store_trie_updates(
                 block_ref,
                 BlockStateDiff { trie_updates, post_state: hashed_state },
             )
             .await?;
 
-        let write_trie_updates_duration = start.elapsed() - calculate_state_root_duration;
-        let execute_and_store_total_duration = start.elapsed();
+        operation_durations.total_duration_seconds = start.elapsed();
+        operation_durations.write_duration_seconds = operation_durations.total_duration_seconds -
+            operation_durations.state_root_duration_seconds;
+
+        #[cfg(feature = "metrics")]
+        {
+            let block_metrics = self.storage.metrics().block_metrics();
+            block_metrics.record_operation_durations(&operation_durations);
+            block_metrics.increment_write_counts(&update_result);
+        }
 
         info!(
             block_number = block.number(),
-            ?execute_and_store_total_duration,
-            ?fetch_block_duration,
-            ?init_provider_duration,
-            ?execute_block_duration,
-            ?calculate_state_root_duration,
-            ?write_trie_updates_duration,
+            ?operation_durations,
             "Trie updates stored successfully",
         );
 

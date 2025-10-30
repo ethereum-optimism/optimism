@@ -1,6 +1,7 @@
 //! Storage wrapper that records metrics for all operations.
 
 use crate::{
+    api::{OperationDurations, WriteCounts},
     cursor, BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageResult, OpProofsStore,
     OpProofsTrieCursorRO,
 };
@@ -216,6 +217,26 @@ pub struct BlockMetrics {
     pub hashed_accounts_written_total: Counter,
     /// Number of hashed storages written
     pub hashed_storages_written_total: Counter,
+}
+
+impl BlockMetrics {
+    /// Record operation durations for the processing of a block.
+    pub fn record_operation_durations(&self, durations: &OperationDurations) {
+        self.total_duration_seconds.record(durations.total_duration_seconds);
+        self.execution_duration_seconds.record(durations.execution_duration_seconds);
+        self.state_root_duration_seconds.record(durations.state_root_duration_seconds);
+        self.write_duration_seconds.record(durations.write_duration_seconds);
+    }
+
+    /// Increment write counts of historical trie updates for a single block.
+    pub fn increment_write_counts(&self, counts: &WriteCounts) {
+        self.account_trie_updates_written_total
+            .increment(counts.account_trie_updates_written_total);
+        self.storage_trie_updates_written_total
+            .increment(counts.storage_trie_updates_written_total);
+        self.hashed_accounts_written_total.increment(counts.hashed_accounts_written_total);
+        self.hashed_storages_written_total.increment(counts.hashed_storages_written_total);
+    }
 }
 
 /// Wrapper for [`OpProofsTrieCursorRO`] that records metrics.
@@ -459,16 +480,17 @@ where
         Ok(OpProofsHashedCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
-    // no metrics for these
+    // metrics are handled by the live trie collector
     #[inline]
     async fn store_trie_updates(
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<WriteCounts> {
         self.storage.store_trie_updates(block_ref, block_state_diff).await
     }
 
+    // no metrics for these
     #[inline]
     async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
         self.storage.fetch_trie_updates(block_number).await

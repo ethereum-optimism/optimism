@@ -6,7 +6,7 @@ use alloy_primitives::{map::HashMap, B256, U256};
 use auto_impl::auto_impl;
 use reth_primitives_traits::Account;
 use reth_trie::{updates::TrieUpdates, BranchNodeCompact, HashedPostState, Nibbles};
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
 /// Seeks and iterates over trie nodes in the database by path (lexicographical order)
 pub trait OpProofsTrieCursorRO: Send + Sync {
@@ -55,6 +55,32 @@ pub struct BlockStateDiff {
     pub trie_updates: TrieUpdates,
     /// Post state for leaf nodes (accounts and storage)
     pub post_state: HashedPostState,
+}
+
+/// Counts of trie updates written to storage.
+#[derive(Debug, Clone, Default)]
+pub struct WriteCounts {
+    /// Number of account trie updates written
+    pub account_trie_updates_written_total: u64,
+    /// Number of storage trie updates written
+    pub storage_trie_updates_written_total: u64,
+    /// Number of hashed accounts written
+    pub hashed_accounts_written_total: u64,
+    /// Number of hashed storages written
+    pub hashed_storages_written_total: u64,
+}
+
+/// Duration metrics for block processing.
+#[derive(Debug, Default, Clone)]
+pub struct OperationDurations {
+    /// Total time to process a block (end-to-end) in seconds
+    pub total_duration_seconds: Duration,
+    /// Time spent executing the block (EVM) in seconds
+    pub execution_duration_seconds: Duration,
+    /// Time spent calculating state root in seconds
+    pub state_root_duration_seconds: Duration,
+    /// Time spent writing trie updates to storage in seconds
+    pub write_duration_seconds: Duration,
 }
 
 /// Trait for reading trie nodes from the database.
@@ -157,7 +183,7 @@ pub trait OpProofsStore: Send + Sync + Debug {
         &self,
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
-    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+    ) -> impl Future<Output = OpProofsStorageResult<WriteCounts>> + Send;
 
     /// Fetch all updates for a given block number.
     fn fetch_trie_updates(
