@@ -719,6 +719,9 @@ contract DeployImplementations is Script {
                 _input.faultGameV2MaxClockDuration >= _input.faultGameV2ClockExtension,
                 "DeployImplementations: maxClockDuration must be >= clockExtension"
             );
+            require(
+                _input.faultGameV2ClockExtension > 0, "DeployImplementations: faultGameV2ClockExtension must be > 0"
+            );
         }
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
