@@ -2,9 +2,11 @@ package proofs
 
 import (
 	"fmt"
+	"math/big"
 	"slices"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
@@ -43,12 +45,35 @@ func (c *Claim) Value() common.Hash {
 	return c.claim.Value
 }
 
+func (c *Claim) Bond() *big.Int {
+	return c.claim.Bond
+}
+
+func (c *Claim) Position() types.Position {
+	return c.claim.Position
+}
+
 func (c *Claim) Claimant() common.Address {
 	return c.claim.Claimant
 }
 
-func (c *Claim) Depth() uint64 {
-	return uint64(c.claim.Depth())
+func (c *Claim) Depth() types.Depth {
+	return c.claim.Depth()
+}
+
+func (c *Claim) AsChallengerClaim() types.Claim {
+	return types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    c.claim.Value,
+			Bond:     c.claim.Bond,
+			Position: c.claim.Position,
+		},
+		CounteredBy:         c.claim.CounteredBy,
+		Claimant:            c.claim.Claimant,
+		Clock:               c.claim.Clock,
+		ContractIndex:       int(c.Index),
+		ParentContractIndex: int(c.claim.ParentContractIndex),
+	}
 }
 
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
