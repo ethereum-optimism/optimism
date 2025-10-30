@@ -30,3 +30,11 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	bitmapContainsFeatures := new(big.Int).And(b, f).Cmp(f) == 0
 	return featuresIsNonZero && bitmapContainsFeatures
 }
+
+func EnableDevFeature(bitmap, flag common.Hash) common.Hash {
+	var result common.Hash
+	for i := 0; i < 32; i++ {
+		result[i] = bitmap[i] | flag[i]
+	}
+	return result
+}

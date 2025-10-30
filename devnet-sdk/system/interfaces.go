@@ -40,8 +40,7 @@ type Chain interface {
 type L2Chain interface {
 	Chain
 
-	// The wallets and addresses below are for use on the L1 chain that this L2Chain instance settles to.
-	L1Addresses() AddressMap
+	// The wallets below are for use on the L1 chain that this L2Chain instance settles to.
 	L1Wallets() WalletMap
 }
 

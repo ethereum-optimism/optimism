@@ -201,7 +201,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	blockTimeL1 := uint64(6)
 	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
-		blobstore.New(), genesisTimestampL1, blockTimeL1)
+		blobstore.New(), genesisTimestampL1, blockTimeL1, s.worldOutput.L1.Genesis.Config.OsakaTime)
 	s.t.Cleanup(func() {
 		_ = bcn.Close()
 	})

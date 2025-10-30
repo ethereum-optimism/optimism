@@ -233,7 +233,7 @@ func TestFastCanonBlockHeaderOracle_SetCanonical(t *testing.T) {
 		logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 		miner, backend := test.NewMiner(t, logger, 0)
 		stateOracle := &test.KvStateOracle{T: t, Source: backend.TrieDB().Disk()}
-		numBlocks := uint64(16384) // params.HistoryServeWindow * 2
+		numBlocks := uint64(16384) // params.HistoryServeWindow * 2 + 2
 		for i := uint64(0); i < numBlocks; i++ {
 			miner.Mine(t, nil)
 		}
