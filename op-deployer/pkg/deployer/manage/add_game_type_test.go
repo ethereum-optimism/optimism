@@ -19,6 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -26,7 +27,7 @@ import (
 func TestAddGameType(t *testing.T) {
 	// Since the opcm version is not yet on sepolia, we create a fork of sepolia then deploy the opcm via deploy implementations.
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	forkedL1, stopL1, err := devnet.NewForkedSepoliaFromBlock(lgr, 9366100)
+	forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
 	pkHex, _, _ := shared.DefaultPrivkey(t)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -68,14 +69,19 @@ func TestAddGameType(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	chain, err := superchain.GetChain(11155420)
+	require.NoError(t, err)
+	chainConfig, err := chain.Config()
+	require.NoError(t, err)
+
 	cfg := AddGameTypeConfig{
 		L1RPCUrl:         forkedL1.RPCUrl(),
 		Logger:           testlog.Logger(t, slog.LevelInfo),
 		ArtifactsLocator: afacts,
 		SaltMixer:        "foo",
 		// The values below were pulled from the Superchain Registry for OP Sepolia.
-		SystemConfigProxy:       common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-		DelayedWETHProxy:        common.HexToAddress("1Bf7Ea64F9339CE5468c2947151c18E2a1229B76"),
+		SystemConfigProxy:       *chainConfig.Addresses.SystemConfigProxy,
+		DelayedWETHProxy:        common.Address{}, // Let the OPCM create a new one.
 		DisputeGameType:         0,
 		DisputeAbsolutePrestate: common.HexToHash("0x1234"),
 		DisputeMaxGameDepth:     big.NewInt(73),
@@ -98,6 +104,7 @@ func TestAddGameType(t *testing.T) {
 
 	require.Equal(t, 1, len(broadcasts))
 	// Selector for addGameType
+	// Gotten from `cast sig "addGameType((string,address,address,uint32,bytes32,uint256,uint256,uint64,uint64,uint256,address,bool)[])"`
 	require.EqualValues(t, []byte{0x60, 0x4a, 0xa6, 0x28}, broadcasts[0].Data[0:4])
 
 	require.NotEqual(t, common.Address{}, output.DelayedWETHProxy)
