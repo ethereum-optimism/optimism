@@ -11,7 +11,6 @@ build_info_path = 'artifacts/build-info'
 
 optimizer = true
 optimizer_runs = 999999
-use_literal_content = true
 
 # IMPORTANT:
 # When adding any new compiler profiles or compilation restrictions, you must

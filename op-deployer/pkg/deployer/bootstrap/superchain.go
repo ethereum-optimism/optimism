@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -139,7 +140,31 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	if err := jsonutil.WriteJSON(dso, ioutil.ToStdOutOrFileOrNoop(outfile, 0o755)); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	return nil
+
+	if !cliCtx.Bool(deployer.AutoVerifyFlag.Name) {
+		return nil
+	}
+
+	if outfile == "" {
+		return nil
+	}
+
+	chainID, err := deployer.ChainIDFromRPC(ctx, l1RPCUrl)
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	return verify.AutoVerify(
+		ctx,
+		l,
+		l1RPCUrl,
+		chainID.Uint64(),
+		outfile,
+		cfg.ArtifactsLocator,
+		cliCtx.String(deployer.VerifierTypeFlagName),
+		cliCtx.String(deployer.VerifierUrlFlagName),
+		cliCtx.String(deployer.VerifierAPIKeyFlagName),
+	)
 }
 
 func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchainOutput, error) {

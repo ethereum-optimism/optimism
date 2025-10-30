@@ -1,10 +1,13 @@
 package deployer
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"math/big"
 	"os"
-	"path"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type DeploymentTarget string
@@ -40,17 +43,7 @@ func cwd() string {
 }
 
 func DefaultCacheDir() string {
-	var cacheDir string
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		cacheDir = ".op-deployer/cache"
-		log.Printf("error getting user home directory: %v, using fallback directory: %s\n", err, cacheDir)
-	} else {
-		cacheDir = path.Join(homeDir, ".op-deployer/cache")
-	}
-
-	return cacheDir
+	return flags.DefaultCacheDir()
 }
 
 func CreateCacheDir(cacheDir string) error {
@@ -58,4 +51,19 @@ func CreateCacheDir(cacheDir string) error {
 		return fmt.Errorf("failed to create cache directory %s: %w", cacheDir, err)
 	}
 	return nil
+}
+
+func ChainIDFromRPC(ctx context.Context, rpcURL string) (*big.Int, error) {
+	client, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
+	}
+	defer client.Close()
+
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	return chainID, nil
 }

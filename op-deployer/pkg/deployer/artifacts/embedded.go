@@ -35,7 +35,6 @@ func ExtractEmbedded(destDir string) (foundry.StatDirFs, error) {
 	defer zr.Close()
 	reader := io.NopCloser(zr)
 
-	// Untar into a unique subdirectory to avoid collisions with pre-existing paths
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to ensure destination dir: %w", err)
 	}

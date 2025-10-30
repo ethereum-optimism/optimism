@@ -89,6 +89,16 @@ func (c *Client) RunScript(ctx context.Context, script string, sig string, args 
 	return buf.String(), nil
 }
 
+func (c *Client) VerifyContract(ctx context.Context, opts ...string) (string, error) {
+	buf := new(bytes.Buffer)
+	cliOpts := []string{"verify-contract"}
+	cliOpts = append(cliOpts, opts...)
+	if err := c.execCmd(ctx, buf, buf, cliOpts...); err != nil {
+		return buf.String(), fmt.Errorf("failed to verify contract: %w", err)
+	}
+	return buf.String(), nil
+}
+
 func (c *Client) execCmd(ctx context.Context, stdout io.Writer, stderr io.Writer, args ...string) error {
 	if err := c.Binary.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to ensure binary: %w", err)
