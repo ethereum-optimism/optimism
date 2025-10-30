@@ -385,36 +385,3 @@ interface IOPContractsManager {
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
 }
-
-interface IOPContractsManagerPre4_1_0 {
-    struct AddGameInput {
-        string saltMixer;
-        ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
-        IDelayedWETH delayedWETH;
-        GameType disputeGameType;
-        Claim disputeAbsolutePrestate;
-        uint256 disputeMaxGameDepth;
-        uint256 disputeSplitDepth;
-        Duration disputeClockExtension;
-        Duration disputeMaxClockDuration;
-        uint256 initialBond;
-        IBigStepper vm;
-        bool permissioned;
-    }
-
-    struct AddGameOutput {
-        IDelayedWETH delayedWETH;
-        IFaultDisputeGame faultDisputeGame;
-    }
-
-    struct OpChainConfig {
-        ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
-    }
-
-    function addGameType(AddGameInput[] memory _gameConfigs) external returns (AddGameOutput[] memory);
-
-    function upgrade(OpChainConfig[] memory _opChainConfigs) external;
-}
