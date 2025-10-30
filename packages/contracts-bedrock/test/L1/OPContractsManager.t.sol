@@ -304,9 +304,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
                 );
             }
         } else if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
-            vm.expectRevert(
-                "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10"
-            );
+            vm.expectRevert("OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10");
         }
 
         // Run the StandardValidator checks.
