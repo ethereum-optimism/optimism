@@ -3,6 +3,8 @@ package sysgo
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,6 +44,8 @@ type KonaNode struct {
 	p devtest.P
 
 	sub *SubProcess
+
+	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 func (k *KonaNode) hydrate(system stack.ExtensibleSystem) {
@@ -84,13 +88,27 @@ func (k *KonaNode) Start() {
 	// Create the sub-process.
 	// We pipe sub-process logs to the test-logger.
 	// And inspect them along the way, to get the RPC server address.
-	logOut := logpipe.ToLogger(k.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(k.p.Logger().New("src", "stderr"))
-	userRPC := make(chan string, 1)
+	logOut := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stdout"))
+	logErr := logpipe.ToLogger(k.p.Logger().New("component", "kona-node", "src", "stderr"))
+	userRPCChan := make(chan string, 1)
+	defer close(userRPCChan)
+
+	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
+	defer close(metricsTargetChan)
+
 	onLogEntry := func(e logpipe.LogEntry) {
-		switch e.LogMessage() {
-		case "RPC server bound to address":
-			userRPC <- "http://" + e.FieldValue("addr").(string)
+		msg := e.LogMessage()
+		if msg == "RPC server bound to address" {
+			userRPCChan <- "http://" + e.FieldValue("addr").(string)
+		} else if metricsUrl, found := strings.CutPrefix(msg, "Serving metrics at: "); found {
+			// Matching messages like "Serving metrics at: http://0.0.0.0:9091"
+			if !strings.HasPrefix(metricsUrl, "http") {
+				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+			}
+			parsedUrl, err := url.Parse(metricsUrl)
+			k.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
+			k.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
+			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
@@ -108,7 +126,13 @@ func (k *KonaNode) Start() {
 	k.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr string
-	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPC, &userRPCAddr), "need user RPC")
+	k.p.Require().NoError(tasks.Await(k.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+
+	if areMetricsEnabled() {
+		var metricsTarget PrometheusMetricsTarget
+		k.p.Require().NoError(tasks.Await(k.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		k.l2MetricsRegistrar.RegisterL2MetricsTargets(k.id, metricsTarget)
+	}
 
 	k.userProxy.SetUpstream(ProxyAddr(k.p.Require(), userRPCAddr))
 }
@@ -187,19 +211,31 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			"KONA_NODE_L2_ENGINE_AUTH=" + l2EL.JWTPath(),
 			"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 			"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
-			"KONA_NODE_P2P_NO_DISCOVERY=true",
 			"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
-			"KONA_NODE_RPC_ADDR=127.0.0.1",
-			"KONA_NODE_RPC_PORT=0",
-			"KONA_NODE_RPC_WS_ENABLED=true",
-			"KONA_METRICS_ENABLED=false",
-			"KONA_LOG_LEVEL=3", // info level
-			"KONA_LOG_STDOUT_FORMAT=json",
+			propagateEnvVarOrDefault("KONA_NODE_P2P_NO_DISCOVERY", "true"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_RPC_WS_ENABLED", "true"),
+			propagateEnvVarOrDefault("KONA_METRICS_ADDR", ""),
+			propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"), // default to info level
+			propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 			// p2p ports
-			"KONA_NODE_P2P_LISTEN_IP=127.0.0.1",
-			"KONA_NODE_P2P_LISTEN_TCP_PORT=0",
-			"KONA_NODE_P2P_LISTEN_UDP_PORT=0",
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_TCP_PORT", "0"),
+			propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_UDP_PORT", "0"),
 		}
+
+		if areMetricsEnabled() {
+			// NB: Instead of getAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but that is not currently logged properly so we cannot parse it.
+			// See: https://github.com/op-rs/kona/issues/2987
+			metricsPort, err := getAvailableLocalPort()
+			p.Require().NoError(err, "WithKonaNode: getting metrics port")
+
+			envVars = append(envVars, propagateEnvVarOrDefault("KONA_METRICS_PORT", metricsPort))
+			envVars = append(envVars, "KONA_METRICS_ENABLED=true")
+		}
+
 		if cfg.IsSequencer {
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 			require.NoError(err, "need p2p key for sequencer")
@@ -224,15 +260,16 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		p.Require().NotErrorIs(err, os.ErrNotExist, "executable must exist")
 
 		k := &KonaNode{
-			id:               l2CLID,
-			userRPC:          "", // retrieved from logs
-			interopEndpoint:  "", // retrieved from logs
-			interopJwtSecret: eth.Bytes32{},
-			el:               l2ELID,
-			execPath:         execPath,
-			args:             []string{"node"},
-			env:              envVars,
-			p:                p,
+			id:                 l2CLID,
+			userRPC:            "", // retrieved from logs
+			interopEndpoint:    "", // retrieved from logs
+			interopJwtSecret:   eth.Bytes32{},
+			el:                 l2ELID,
+			execPath:           execPath,
+			args:               []string{"node"},
+			env:                envVars,
+			p:                  p,
+			l2MetricsRegistrar: orch,
 		}
 		p.Logger().Info("Starting kona-node")
 		k.Start()

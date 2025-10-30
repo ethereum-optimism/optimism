@@ -2,8 +2,11 @@ package sysgo
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -39,6 +42,8 @@ type OpReth struct {
 	p devtest.P
 
 	sub *SubProcess
+
+	l2MetricsRegistrar L2MetricsRegistrar
 }
 
 var _ L2ELNode = (*OpReth)(nil)
@@ -95,22 +100,38 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLogger(n.p.Logger().New("src", "stdout"))
-	logErr := logpipe.ToLogger(n.p.Logger().New("src", "stderr"))
-	userRPC := make(chan string, 1)
-	authRPC := make(chan string, 1)
+	logOut := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stdout"))
+	logErr := logpipe.ToLogger(n.p.Logger().New("component", "op-reth", "src", "stderr"))
+
+	authRPCChan := make(chan string, 1)
+	defer close(authRPCChan)
+
+	metricsTargetChan := make(chan PrometheusMetricsTarget, 1)
+	defer close(metricsTargetChan)
+
+	userRPCChan := make(chan string, 1)
+	defer close(userRPCChan)
 	onLogEntry := func(e logpipe.LogEntry) {
-		switch e.LogMessage() {
-		case "RPC WS server started":
+		msg := e.LogMessage()
+		if msg == "RPC WS server started" {
 			select {
-			case userRPC <- "ws://" + e.FieldValue("url").(string):
+			case userRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
 			}
-		case "RPC auth server started":
+		} else if msg == "RPC auth server started" {
 			select {
-			case authRPC <- "ws://" + e.FieldValue("url").(string):
+			case authRPCChan <- "ws://" + e.FieldValue("url").(string):
 			default:
 			}
+		} else if metricsUrl, found := strings.CutPrefix(msg, "Starting metrics endpoint at "); found {
+			// expected format: "Starting metrics endpoint at 127.0.0.1:9091"
+			if !strings.HasPrefix(metricsUrl, "http") {
+				metricsUrl = fmt.Sprintf("http://%s", metricsUrl)
+			}
+			parsedUrl, err := url.Parse(metricsUrl)
+			n.p.Require().NoError(err, "invalid metrics url output to logs", "log", msg)
+			n.p.Require().NotEmpty(parsedUrl.Port(), "empty port in logged metrics url", "log", msg)
+			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
 	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
@@ -128,8 +149,14 @@ func (n *OpReth) Start() {
 	n.p.Require().NoError(err, "Must start")
 
 	var userRPCAddr, authRPCAddr string
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPC, &userRPCAddr), "need user RPC")
-	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPC, &authRPCAddr), "need auth RPC")
+	n.p.Require().NoError(tasks.Await(n.p.Ctx(), userRPCChan, &userRPCAddr), "need user RPC")
+	n.p.Require().NoError(tasks.Await(n.p.Ctx(), authRPCChan, &authRPCAddr), "need auth RPC")
+
+	if areMetricsEnabled() {
+		var metricsTarget PrometheusMetricsTarget
+		n.p.Require().NoError(tasks.Await(n.p.Ctx(), metricsTargetChan, &metricsTarget), "need metrics endpoint")
+		n.l2MetricsRegistrar.RegisterL2MetricsTargets(n.id, metricsTarget)
+	}
 
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), userRPCAddr))
 	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), authRPCAddr))
@@ -207,53 +234,62 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		// so we use the CLI flags instead.
 		args := []string{
 			"node",
-			"--chain=" + chainConfigPath,
-			"--with-unused-ports",
-			"--datadir=" + dataDirPath,
-			"--log.file.directory=" + logDirPath,
-			"--disable-nat",
-			"--disable-dns-discovery",
-			"--disable-discv4-discovery",
-			"--p2p-secret-key=" + tempP2PPath,
-			"--nat=none",
 			"--addr=127.0.0.1",
-			"--port=0",
+			"--authrpc.addr=127.0.0.1",
+			"--authrpc.jwtsecret=" + jwtPath,
+			"--authrpc.port=0",
+			"--builder.deadline=2",
+			"--builder.interval=100ms",
+			"--chain=" + chainConfigPath,
+			"--color=never",
+			"--datadir=" + dataDirPath,
+			"--disable-discovery",
 			"--http",
+			"--http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
 			"--http.addr=127.0.0.1",
 			"--http.port=0",
-			"--http.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
-			"--ws",
-			"--ws.addr=127.0.0.1",
-			"--ws.port=0",
-			"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
 			"--ipcdisable",
-			"--authrpc.addr=127.0.0.1",
-			"--authrpc.port=0",
+			"--log.file.directory=" + logDirPath,
+			"--log.stdout.format=json",
+			"--nat=none",
+			"--p2p-secret-key=" + tempP2PPath,
+			"--port=0",
 			"--rpc.eth-proof-window=30",
-			"--authrpc.jwtsecret=" + jwtPath,
 			"--txpool.minimum-priority-fee=1",
 			"--txpool.nolocals",
-			"--builder.interval=100ms",
-			"--builder.deadline=2",
-			"--log.stdout.format=json",
-			"--color=never",
+			"--with-unused-ports",
+			"--ws",
+			"--ws.api=admin,debug,eth,net,trace,txpool,web3,rpc,reth,miner",
+			"--ws.addr=127.0.0.1",
+			"--ws.port=0",
 			"-vvvv",
 		}
+
+		if areMetricsEnabled() {
+			// NB: Instead of getAvailableLocalPort, we should pass "0" so the OS picks its
+			// own port, but that is not currently logged properly so we cannot parse it.
+			// See: https://github.com/op-rs/op-reth/issues/333
+			metricsPort, err := getAvailableLocalPort()
+			p.Require().NoError(err, "WithOpReth: getting metrics port")
+			args = append(args, "--metrics="+metricsPort)
+		}
+
 		if supervisorRPC != "" {
 			args = append(args, "--rollup.supervisor-http="+supervisorRPC)
 		}
 
 		l2EL := &OpReth{
-			id:        id,
-			l2Net:     l2Net,
-			jwtPath:   jwtPath,
-			jwtSecret: jwtSecret,
-			authRPC:   "",
-			userRPC:   "",
-			execPath:  execPath,
-			args:      args,
-			env:       []string{},
-			p:         p,
+			id:                 id,
+			l2Net:              l2Net,
+			jwtPath:            jwtPath,
+			jwtSecret:          jwtSecret,
+			authRPC:            "",
+			userRPC:            "",
+			execPath:           execPath,
+			args:               args,
+			env:                []string{},
+			p:                  orch.p,
+			l2MetricsRegistrar: orch,
 		}
 
 		p.Logger().Info("Starting op-reth")
