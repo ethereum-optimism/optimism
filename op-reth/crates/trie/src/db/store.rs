@@ -41,16 +41,26 @@ impl MdbxProofsStorage {
         Ok(Self { env })
     }
 
-    async fn get_block_number_hash(
+    fn inner_get_latest_block_number_hash(
         &self,
+        tx: &impl DbTx,
+    ) -> OpProofsStorageResult<Option<(u64, B256)>> {
+        let block = self.inner_get_block_number_hash(tx, ProofWindowKey::LatestBlock)?;
+        if block.is_some() {
+            return Ok(block);
+        }
+
+        self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock)
+    }
+
+    fn inner_get_block_number_hash(
+        &self,
+        tx: &impl DbTx,
         key: ProofWindowKey,
     ) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let result = self.env.view(|tx| {
-            let mut cursor = tx.cursor_read::<ProofWindow>().ok()?;
-            let value = cursor.seek_exact(key).ok()?;
-            value.map(|(_, val)| (val.number(), *val.hash()))
-        });
-        Ok(result?)
+        let mut cursor = tx.cursor_read::<ProofWindow>()?;
+        let value = cursor.seek_exact(key)?;
+        Ok(value.map(|(_, val)| (val.number(), *val.hash())))
     }
 
     async fn set_earliest_block_number_hash(
@@ -106,14 +116,10 @@ impl MdbxProofsStorage {
             .collect::<Vec<_>>();
 
         // check latest stored block is the parent of incoming block
-        let latest_block_hash =
-            if let Some(bn_hash) = tx.get::<ProofWindow>(ProofWindowKey::LatestBlock)? {
-                *bn_hash.hash()
-            } else if let Some(bn_hash) = tx.get::<ProofWindow>(ProofWindowKey::EarliestBlock)? {
-                *bn_hash.hash()
-            } else {
-                B256::ZERO
-            };
+        let latest_block_hash = match self.inner_get_latest_block_number_hash(tx)? {
+            Some((_num, hash)) => hash,
+            None => B256::ZERO,
+        };
 
         if latest_block_hash != block_ref.parent {
             return Err(OpProofsStorageError::OutOfOrder {
@@ -340,16 +346,11 @@ impl OpProofsStore for MdbxProofsStorage {
     }
 
     async fn get_earliest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        self.get_block_number_hash(ProofWindowKey::EarliestBlock).await
+        self.env.view(|tx| self.inner_get_block_number_hash(tx, ProofWindowKey::EarliestBlock))?
     }
 
     async fn get_latest_block_number(&self) -> OpProofsStorageResult<Option<(u64, B256)>> {
-        let latest_block = self.get_block_number_hash(ProofWindowKey::LatestBlock).await?;
-        if latest_block.is_some() {
-            return Ok(latest_block);
-        }
-
-        self.get_block_number_hash(ProofWindowKey::EarliestBlock).await
+        self.env.view(|tx| self.inner_get_latest_block_number_hash(tx))?
     }
 
     fn storage_trie_cursor<'tx>(
