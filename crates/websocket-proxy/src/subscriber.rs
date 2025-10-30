@@ -63,7 +63,7 @@ impl Default for SubscriberOptions {
 
 pub struct WebsocketSubscriber<F>
 where
-    F: Fn(String) + Send + Sync + 'static,
+    F: Fn(Vec<u8>) + Send + Sync + 'static,
 {
     uri: Uri,
     handler: F,
@@ -74,7 +74,7 @@ where
 
 impl<F> WebsocketSubscriber<F>
 where
-    F: Fn(String) + Send + Sync + 'static,
+    F: Fn(Vec<u8>) + Send + Sync + 'static,
 {
     pub fn new(uri: Uri, handler: F, metrics: Arc<Metrics>, options: SubscriberOptions) -> Self {
         let backoff = ExponentialBackoff {
@@ -255,14 +255,17 @@ where
                 );
                 self.metrics
                     .message_received_from_upstream(self.uri.to_string().as_str());
-                (self.handler)(text.to_string());
+                (self.handler)(text.as_bytes().to_vec());
             }
             Message::Binary(data) => {
-                warn!(
-                    message = "received binary message, unsupported",
+                trace!(
+                    message = "received binary message",
                     uri = self.uri.to_string(),
-                    size = data.len()
+                    payload = ?data.as_ref()
                 );
+                self.metrics
+                    .message_received_from_upstream(self.uri.to_string().as_str());
+                (self.handler)(data.as_ref().to_vec());
             }
             Message::Pong(_) => {
                 trace!(
@@ -300,7 +303,7 @@ mod tests {
 
     struct MockServer {
         addr: SocketAddr,
-        message_sender: broadcast::Sender<String>,
+        message_sender: broadcast::Sender<Vec<u8>>,
         shutdown: CancellationToken,
     }
 
@@ -308,7 +311,7 @@ mod tests {
         async fn new() -> Self {
             let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let addr = listener.local_addr().unwrap();
-            let (tx, _) = broadcast::channel::<String>(100);
+            let (tx, _) = broadcast::channel::<Vec<u8>>(100);
             let shutdown = CancellationToken::new();
             let shutdown_clone = shutdown.clone();
             let tx_clone = tx.clone();
@@ -347,7 +350,7 @@ mod tests {
 
         async fn handle_connection(
             stream: TcpStream,
-            tx: broadcast::Sender<String>,
+            tx: broadcast::Sender<Vec<u8>>,
             shutdown: CancellationToken,
         ) {
             let ws_stream = match accept_async(stream).await {
@@ -369,8 +372,8 @@ mod tests {
                     }
                     msg = rx.recv() => {
                         match msg {
-                            Ok(text) => {
-                                if let Err(e) = ws_sender.send(Message::Text(text.into())).await {
+                            Ok(data) => {
+                                if let Err(e) = ws_sender.send(data.into()).await {
                                     eprintln!("Error sending message: {}", e);
                                     break;
                                 }
@@ -386,9 +389,9 @@ mod tests {
 
         async fn send_message(
             &self,
-            msg: &str,
-        ) -> Result<usize, broadcast::error::SendError<String>> {
-            self.message_sender.send(msg.to_string())
+            msg: &[u8],
+        ) -> Result<usize, broadcast::error::SendError<Vec<u8>>> {
+            self.message_sender.send(msg.to_vec())
         }
 
         async fn shutdown(self) {
@@ -440,7 +443,7 @@ mod tests {
             }
         });
 
-        let listener_fn = move |_data: String| {
+        let listener_fn = move |_data: Vec<u8>| {
             // Handler for received messages - not needed for this test
         };
 
@@ -482,7 +485,7 @@ mod tests {
         let received_messages = Arc::new(Mutex::new(Vec::new()));
         let received_clone = received_messages.clone();
 
-        let listener = move |data: String| {
+        let listener = move |data: Vec<u8>| {
             if let Ok(mut messages) = received_clone.lock() {
                 messages.push(data);
             }
@@ -526,13 +529,21 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
 
-        let _ = server1.send_message("Message from server 1").await;
-        let _ = server2.send_message("Message from server 2").await;
+        let _ = server1
+            .send_message("Message from server 1".as_bytes())
+            .await;
+        let _ = server2
+            .send_message("Message from server 2".as_bytes())
+            .await;
 
         sleep(Duration::from_millis(500)).await;
 
-        let _ = server1.send_message("Another message from server 1").await;
-        let _ = server2.send_message("Another message from server 2").await;
+        let _ = server1
+            .send_message("Another message from server 1".as_bytes())
+            .await;
+        let _ = server2
+            .send_message("Another message from server 2".as_bytes())
+            .await;
 
         // Wait for messages to be processed
         sleep(Duration::from_millis(500)).await;
@@ -552,10 +563,10 @@ mod tests {
 
         assert_eq!(messages.len(), 4);
 
-        assert!(messages.contains(&"Message from server 1".to_string()));
-        assert!(messages.contains(&"Message from server 2".to_string()));
-        assert!(messages.contains(&"Another message from server 1".to_string()));
-        assert!(messages.contains(&"Another message from server 2".to_string()));
+        assert!(messages.contains(&"Message from server 1".as_bytes().to_vec()));
+        assert!(messages.contains(&"Message from server 2".as_bytes().to_vec()));
+        assert!(messages.contains(&"Another message from server 1".as_bytes().to_vec()));
+        assert!(messages.contains(&"Another message from server 2".as_bytes().to_vec()));
 
         assert!(!messages.is_empty());
     }
