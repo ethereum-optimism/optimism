@@ -16,6 +16,7 @@ interface IL1BlockCGT {
     function blobBaseFee() external view returns (uint256);
     function operatorFeeConstant() external view returns (uint64);
     function operatorFeeScalar() external view returns (uint32);
+    function daFootprintGasScalar() external view returns (uint16);
     function version() external pure returns (string memory);
     function isCustomGasToken() external view returns (bool isCustom_);
     function gasPayingTokenName() external view returns (string memory name_);
@@ -33,6 +34,7 @@ interface IL1BlockCGT {
         external;
     function setL1BlockValuesEcotone() external;
     function setL1BlockValuesIsthmus() external;
+    function setL1BlockValuesJovian() external;
     function setCustomGasToken() external;
     function gasPayingToken() external view returns (address, uint8);
 
