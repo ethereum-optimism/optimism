@@ -2139,9 +2139,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.2.0
+    /// @custom:semver 5.3.0
     function version() public pure virtual returns (string memory) {
-        return "5.2.0";
+        return "5.3.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -2252,6 +2252,32 @@ contract OPContractsManager is ISemver {
     /// @notice Supports overrides of certain storage values denoted in the ValidationOverrides struct.
     function validateWithOverrides(
         OPContractsManagerStandardValidator.ValidationInput memory _input,
+        bool _allowFailure,
+        OPContractsManagerStandardValidator.ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validateWithOverrides(_input, _allowFailure, _overrides);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    function validate(
+        OPContractsManagerStandardValidator.ValidationInputDev memory _input,
+        bool _allowFailure
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validate(_input, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Supports overrides of certain storage values denoted in the ValidationOverrides struct.
+    function validateWithOverrides(
+        OPContractsManagerStandardValidator.ValidationInputDev memory _input,
         bool _allowFailure,
         OPContractsManagerStandardValidator.ValidationOverrides memory _overrides
     )
