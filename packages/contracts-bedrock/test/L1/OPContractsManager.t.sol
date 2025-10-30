@@ -1587,7 +1587,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
                 LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
             assertEq(cannonKonaArgs.weth, cannonArgs.weth);
             assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
-            assertEq(cannonKonaArgs.absolutePrestate, keccak256("cannonKonaPrestate"));
+            assertEq(cannonKonaArgs.absolutePrestate, cannonKonaPrestate.raw());
         } else {
             assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
             assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);

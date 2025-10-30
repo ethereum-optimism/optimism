@@ -84,7 +84,7 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 }
 
-func TestToggleDevFeature(t *testing.T) {
+func TestEnableDevFeature(t *testing.T) {
 	result := EnableDevFeature(EMPTY_FEATURES, FEATURE_A)
 	require.Equal(t, FEATURE_A, result)
 }
