@@ -12,7 +12,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 /// @notice Tests the `constructor` of the `OperatorFeeVault` contract.
 contract OperatorFeeVault_Constructor_Test is CommonTest {
     /// @notice Tests that the constructor sets the correct values.
-    function test_constructor_operatorFeeVault_succeeds() external view {
+    function test_constructor_succeeds() external view {
         assertEq(operatorFeeVault.RECIPIENT(), Predeploys.BASE_FEE_VAULT);
         assertEq(operatorFeeVault.recipient(), Predeploys.BASE_FEE_VAULT);
         assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
