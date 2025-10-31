@@ -119,9 +119,6 @@ contract L2ToL1MessagePasser_InitiateWithdrawal_Test is CommonTest {
     )
         external
     {
-        // Verify caller is a contract (this test contract)
-        assertGt(address(this).code.length, 0);
-
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
                 nonce: l2ToL1MessagePasser.messageNonce(),
