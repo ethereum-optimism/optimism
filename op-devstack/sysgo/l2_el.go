@@ -16,8 +16,9 @@ type L2ELNode interface {
 }
 
 type L2ELConfig struct {
-	SupervisorID *stack.SupervisorID
-	ListenAddr   string
+	SupervisorID            *stack.SupervisorID
+	ListenAddr              string
+	NetrestrictTxPoolGossip string
 }
 
 func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
@@ -32,10 +33,17 @@ func L2ELWithListenAddr(listenAddr string) L2ELOption {
 	})
 }
 
+func L2ELWithNetrestrictTxPoolGossip(netrestrictTxPoolGossip string) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.NetrestrictTxPoolGossip = netrestrictTxPoolGossip
+	})
+}
+
 func DefaultL2ELConfig() *L2ELConfig {
 	return &L2ELConfig{
-		SupervisorID: nil,
-		ListenAddr:   "127.0.0.1:0",
+		SupervisorID:            nil,
+		ListenAddr:              "127.0.0.1:0",
+		NetrestrictTxPoolGossip: "127.0.0.1/32,127.0.0.2/32",
 	}
 }
 

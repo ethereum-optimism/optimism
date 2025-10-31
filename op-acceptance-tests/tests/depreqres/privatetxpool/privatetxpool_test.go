@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,10 +37,10 @@ func TestRestrictedTxPool(gt *testing.T) {
 		sys.L2CLC.AdvancedFn(types.LocalUnsafe, delta, 30),
 	)
 
-	txs := 7
+	txs := 10
 	users := sys.FunderL2.NewFundedEOAs(txs, eth.OneHundredthEther)
 
-	for i := 0; i < txs; i++ {
+	for i := 0; i < txs-1; i++ {
 		tx := txplan.NewPlannedTx(
 			users[i].Plan(),
 			txplan.WithTo(&common.Address{}),
@@ -48,6 +49,21 @@ func TestRestrictedTxPool(gt *testing.T) {
 		_, err := tx.Submitted.Eval(t.Ctx())
 		require.NoError(err)
 	}
+
+	restrictedEL := sys.L2ELC.Escape().EthClient()
+
+	tx_restricted := txplan.NewPlannedTx(
+		txplan.WithChainID(restrictedEL),
+		users[txs-1].Key().Plan(),
+		txplan.WithAgainstLatestBlock(restrictedEL),
+		txplan.WithEstimator(restrictedEL, true),
+		txplan.WithRetrySubmission(restrictedEL, 5, retry.Exponential()),
+		txplan.WithBlockInclusionInfo(restrictedEL),
+		txplan.WithTo(&common.Address{}),
+		txplan.WithValue(eth.ETH(eth.OneGWei)),
+	)
+	_, err := tx_restricted.Submitted.Eval(t.Ctx())
+	require.NoError(err)
 
 	tpmInternal := &TxPoolManager{
 		rpcClient: sys.L2ELB.Escape().EthClient().RPC(),
@@ -63,8 +79,8 @@ func TestRestrictedTxPool(gt *testing.T) {
 	require.NoError(err)
 
 	l.Info("Pending transactions", "count_internal", len(pendingTxsInternal), "count_restricted", len(pendingTxsRestricted))
-	require.Equal(len(pendingTxsInternal), txs)
-	require.Equal(len(pendingTxsRestricted), 0)
+	require.Equal(len(pendingTxsInternal), txs-1)
+	require.Equal(len(pendingTxsRestricted), 1)
 
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalUnsafe, delta, 30),
@@ -85,7 +101,7 @@ func TestRestrictedTxPool(gt *testing.T) {
 
 	l.Info("Remaining pending transactions", "count_internal", len(pendingTxsInternal), "count_restricted", len(pendingTxsRestricted))
 	require.Equal(len(pendingTxsInternal), 0)
-	require.Equal(len(pendingTxsRestricted), 0)
+	require.Equal(len(pendingTxsRestricted), 1)
 }
 
 // TxPoolManager handles TxPool operations for L2EL

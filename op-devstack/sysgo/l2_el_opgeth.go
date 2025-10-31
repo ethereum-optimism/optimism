@@ -35,6 +35,8 @@ type OpGeth struct {
 	readOnly      bool
 	listenAddr    string
 
+	netrestrictTxPoolGossip string
+
 	authRPC string
 	userRPC string
 
@@ -123,7 +125,7 @@ func (n *OpGeth) Start() {
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
 			ethCfg.InteropMempoolFiltering = true
-			ethCfg.RollupNetrestrictTxPoolGossip = "127.0.0.1/32,127.0.0.2/32" // we want 127.0.0.3/32 to be restricted
+			ethCfg.RollupTxPoolNetrestrict = n.netrestrictTxPoolGossip
 			nodeCfg.P2P = p2p.Config{
 				NoDiscovery: true,
 				ListenAddr:  n.listenAddr,
@@ -180,14 +182,15 @@ func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		logger := p.Logger()
 
 		l2EL := &OpGeth{
-			id:            id,
-			p:             orch.P(),
-			logger:        logger,
-			l2Net:         l2Net,
-			jwtPath:       jwtPath,
-			jwtSecret:     jwtSecret,
-			supervisorRPC: supervisorRPC,
-			listenAddr:    cfg.ListenAddr,
+			id:                      id,
+			p:                       orch.P(),
+			logger:                  logger,
+			l2Net:                   l2Net,
+			jwtPath:                 jwtPath,
+			jwtSecret:               jwtSecret,
+			supervisorRPC:           supervisorRPC,
+			listenAddr:              cfg.ListenAddr,
+			netrestrictTxPoolGossip: cfg.NetrestrictTxPoolGossip,
 		}
 		l2EL.Start()
 		p.Cleanup(func() {

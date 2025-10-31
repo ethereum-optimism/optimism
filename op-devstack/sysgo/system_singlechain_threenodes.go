@@ -36,7 +36,7 @@ func DefaultSingleChainThreeNodesSystem(dest *DefaultSingleChainThreeNodesSystem
 	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB))
 
 	// Add third node (C)
-	opt.Add(WithL2ELNode(ids.L2ELC, L2ELWithListenAddr("127.0.0.3:0")))
+	opt.Add(WithL2ELNode(ids.L2ELC, L2ELWithListenAddr("127.0.0.3:0"), L2ELWithNetrestrictTxPoolGossip("")))
 	opt.Add(WithL2CLNode(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC))
 
 	// P2P connect L2CL nodes - connect all nodes to each other
