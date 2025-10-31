@@ -88,16 +88,16 @@ abstract contract TimelockGuard is BaseGuard {
     }
 
     /// @notice Scheduled transaction
+    /// @custom:field txHash The hash of the transaction.
     /// @custom:field executionTime The timestamp when execution becomes valid.
     /// @custom:field state The state of the transaction.
     /// @custom:field params The parameters of the transaction.
-    /// @custom:field txHash The hash of the transaction.
     /// @custom:field nonce The nonce of the transaction.
     struct ScheduledTransaction {
+        bytes32 txHash;
         uint256 executionTime;
         TransactionState state;
         ExecTransactionParams params;
-        bytes32 txHash;
         uint256 nonce;
     }
 
@@ -569,10 +569,10 @@ abstract contract TimelockGuard is BaseGuard {
 
         // Schedule the transaction and add it to the pending transactions set
         _currentSafeState(_safe).scheduledTransactions[txHash] = ScheduledTransaction({
+            txHash: txHash,
             executionTime: executionTime,
             state: TransactionState.Pending,
             params: _params,
-            txHash: txHash,
             nonce: _nonce
         });
         _currentSafeState(_safe).pendingTxHashes.add(txHash);
