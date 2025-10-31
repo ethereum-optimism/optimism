@@ -508,6 +508,8 @@ contract TimelockGuard_ScheduledTransaction_Test is TimelockGuard_TestInit {
         assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
         assert(scheduledTransaction.state == TimelockGuard.TransactionState.Pending);
         assertEq(keccak256(abi.encode(scheduledTransaction.params)), keccak256(abi.encode(dummyTx.params)));
+        assertEq(scheduledTransaction.txHash, dummyTx.hash);
+        assertEq(scheduledTransaction.nonce, dummyTx.nonce);
     }
 }
 
@@ -529,6 +531,9 @@ contract TimelockGuard_PendingTransactions_Test is TimelockGuard_TestInit {
         // ensure the hash of the transaction params are the same
         assertEq(pendingTransactions[0].params.to, dummyTx.params.to);
         assertEq(keccak256(abi.encode(pendingTransactions[0].params)), keccak256(abi.encode(dummyTx.params)));
+        // verify that txHash and nonce are correctly populated
+        assertEq(pendingTransactions[0].txHash, dummyTx.hash);
+        assertEq(pendingTransactions[0].nonce, dummyTx.nonce);
     }
 
     function test_pendingTransactions_removeTransactionAfterCancellation_succeeds() external {

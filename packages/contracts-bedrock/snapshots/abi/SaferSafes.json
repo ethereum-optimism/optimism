@@ -366,6 +366,16 @@
             "internalType": "struct TimelockGuard.ExecTransactionParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "txHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
           }
         ],
         "internalType": "struct TimelockGuard.ScheduledTransaction[]",
@@ -536,6 +546,16 @@
             "internalType": "struct TimelockGuard.ExecTransactionParams",
             "name": "params",
             "type": "tuple"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "txHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
           }
         ],
         "internalType": "struct TimelockGuard.ScheduledTransaction",

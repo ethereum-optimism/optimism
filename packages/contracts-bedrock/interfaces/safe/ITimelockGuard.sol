@@ -16,6 +16,8 @@ interface ITimelockGuard {
         uint256 executionTime;
         TransactionState state;
         ExecTransactionParams params;
+        bytes32 txHash;
+        uint256 nonce;
     }
 
     struct ExecTransactionParams {
