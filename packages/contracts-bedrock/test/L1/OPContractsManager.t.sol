@@ -1994,10 +1994,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         }
 
         // Check game configuration
-        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON);
-        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON);
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON, "SUPER_CANNON");
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON_KONA);
+            _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
         } else {
             _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
         }
@@ -2029,7 +2029,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(dgf.initBonds(GameTypes.SUPER_CANNON_KONA), 0, "Super CannonKona init bond mismatch");
 
         // Check game configuration
-        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
         _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON, "SUPER_CANNON");
         _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
 
@@ -2106,17 +2106,32 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     function _validateSuperGameImplParams(
         IOPContractsManagerInteropMigrator.MigrateInput memory _input,
         IDisputeGameFactory _dgf,
-        GameType _gameType
+        GameType _gameType,
+        string memory _label
     )
         internal
         view
     {
         IDisputeGame dgImpl = _dgf.gameImpls(_gameType);
         ISuperFaultDisputeGame superImpl = ISuperFaultDisputeGame(address(dgImpl));
-        assertEq(superImpl.maxGameDepth(), _input.gameParameters.maxGameDepth);
-        assertEq(superImpl.splitDepth(), _input.gameParameters.splitDepth);
-        assertEq(superImpl.clockExtension().raw(), _input.gameParameters.clockExtension.raw());
-        assertEq(superImpl.maxClockDuration().raw(), _input.gameParameters.maxClockDuration.raw());
+        assertEq(
+            superImpl.maxGameDepth(),
+            _input.gameParameters.maxGameDepth,
+            string.concat("MaxGameDepth mismatch: ", _label)
+        );
+        assertEq(
+            superImpl.splitDepth(), _input.gameParameters.splitDepth, string.concat("SplitDepth mismatch: ", _label)
+        );
+        assertEq(
+            superImpl.clockExtension().raw(),
+            _input.gameParameters.clockExtension.raw(),
+            string.concat("ClockExtension mismatch: ", _label)
+        );
+        assertEq(
+            superImpl.maxClockDuration().raw(),
+            _input.gameParameters.maxClockDuration.raw(),
+            string.concat("MaxClockDuration mismatch: ", _label)
+        );
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are
