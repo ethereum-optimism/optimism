@@ -221,8 +221,8 @@ interface IOPContractsManager {
     /// @notice The input required to identify a chain for upgrading.
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     /// @notice The input required to identify a chain for updating prestates
@@ -235,7 +235,6 @@ interface IOPContractsManager {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -332,6 +331,23 @@ interface IOPContractsManager {
         external
         view
         returns (string memory);
+
+    function validateWithOverrides(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
+        bool _allowFailure,
+        IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
+    )
+    external
+    view
+    returns (string memory);
+
+    function validate(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
+        bool _allowFailure
+    )
+    external
+    view
+    returns (string memory);
 
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 

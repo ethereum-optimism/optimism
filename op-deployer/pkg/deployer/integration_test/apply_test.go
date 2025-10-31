@@ -37,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/v2_0_0"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
@@ -157,93 +156,67 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 //  3. call opcm.upgradeSuperchainConfig on the opcm deployed in [2] (prerequisite for opcm.upgrade)
 //  4. call opcm.upgrade on the opcm deployed in [2]
 func TestEndToEndBootstrapApplyWithUpgrade(t *testing.T) {
-	t.Run("main upgrade", func(t *testing.T) {
-		lgr := testlog.Logger(t, slog.LevelDebug)
+	op_e2e.InitParallel(t)
 
-		forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-		require.NoError(t, err)
-		pkHex, _, _ := shared.DefaultPrivkey(t)
-		t.Cleanup(func() {
-			require.NoError(t, stopL1())
+	tests := []struct {
+		name       string
+		devFeature common.Hash
+	}{
+		{"default", common.Hash{}},
+		{"deploy-v2-disputegames", deployer.DeployV2DisputeGamesDevFlag},
+		{"cannon-kona", deployer.EnableDevFeature(deployer.DeployV2DisputeGamesDevFlag, deployer.CannonKonaDevFlag)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op_e2e.InitParallel(t)
+			lgr := testlog.Logger(t, slog.LevelDebug)
+
+			forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
+			require.NoError(t, err)
+			pkHex, _, _ := shared.DefaultPrivkey(t)
+			t.Cleanup(func() {
+				require.NoError(t, stopL1())
+			})
+			loc, afactsFS := testutil.LocalArtifacts(t)
+			testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+			superchain, err := standard.SuperchainFor(11155111)
+			require.NoError(t, err)
+
+			superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
+			require.NoError(t, err)
+
+			superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
+			require.NoError(t, err)
+
+			cfg := bootstrap.ImplementationsConfig{
+				L1RPCUrl:                        forkedL1.RPCUrl(),
+				PrivateKey:                      pkHex,
+				ArtifactsLocator:                loc,
+				MIPSVersion:                     int(standard.MIPSVersion),
+				WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+				MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+				ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+				ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+				DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+				DevFeatureBitmap:                tt.devFeature,
+				SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
+				ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+				L1ProxyAdminOwner:               superchainProxyAdminOwner,
+				SuperchainProxyAdmin:            superchainProxyAdmin,
+				CacheDir:                        testCacheDir,
+				Logger:                          lgr,
+				Challenger:                      common.Address{'C'},
+			}
+			if deployer.IsDevFeatureEnabled(tt.devFeature, deployer.DeployV2DisputeGamesDevFlag) {
+				cfg.FaultGameMaxGameDepth = standard.DisputeMaxGameDepth
+				cfg.FaultGameSplitDepth = standard.DisputeSplitDepth
+				cfg.FaultGameClockExtension = standard.DisputeClockExtension
+				cfg.FaultGameMaxClockDuration = standard.DisputeMaxClockDuration
+			}
+			runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, cfg)
 		})
-		loc, afactsFS := testutil.LocalArtifacts(t)
-		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-		superchain, err := standard.SuperchainFor(11155111)
-		require.NoError(t, err)
-
-		superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
-		require.NoError(t, err)
-
-		superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
-		require.NoError(t, err)
-
-		runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, bootstrap.ImplementationsConfig{
-			L1RPCUrl:                        forkedL1.RPCUrl(),
-			PrivateKey:                      pkHex,
-			ArtifactsLocator:                loc,
-			MIPSVersion:                     int(standard.MIPSVersion),
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DevFeatureBitmap:                common.Hash{},
-			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
-			L1ProxyAdminOwner:               superchainProxyAdminOwner,
-			SuperchainProxyAdmin:            superchainProxyAdmin,
-			CacheDir:                        testCacheDir,
-			Logger:                          lgr,
-			Challenger:                      common.Address{'C'},
-		})
-	})
-
-	t.Run("upgrade with DeployV2DisputeGamesDevFlag", func(t *testing.T) {
-		lgr := testlog.Logger(t, slog.LevelDebug)
-
-		forkedL1, stopL1, err := devnet.NewForkedSepolia(lgr)
-		require.NoError(t, err)
-		pkHex, _, _ := shared.DefaultPrivkey(t)
-		t.Cleanup(func() {
-			require.NoError(t, stopL1())
-		})
-		loc, afactsFS := testutil.LocalArtifacts(t)
-		testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-		superchain, err := standard.SuperchainFor(11155111)
-		require.NoError(t, err)
-
-		superchainProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(11155111)
-		require.NoError(t, err)
-
-		superchainProxyAdminOwner, err := standard.L1ProxyAdminOwner(11155111)
-		require.NoError(t, err)
-
-		runEndToEndBootstrapAndApplyUpgradeTest(t, afactsFS, bootstrap.ImplementationsConfig{
-			L1RPCUrl:                        forkedL1.RPCUrl(),
-			PrivateKey:                      pkHex,
-			ArtifactsLocator:                loc,
-			MIPSVersion:                     int(standard.MIPSVersion),
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DevFeatureBitmap:                deployer.DeployV2DisputeGamesDevFlag,
-			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
-			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
-			L1ProxyAdminOwner:               superchainProxyAdminOwner,
-			SuperchainProxyAdmin:            superchainProxyAdmin,
-			CacheDir:                        testCacheDir,
-			Logger:                          lgr,
-			Challenger:                      common.Address{'C'},
-			FaultGameMaxGameDepth:           standard.DisputeMaxGameDepth,
-			FaultGameSplitDepth:             standard.DisputeSplitDepth,
-			FaultGameClockExtension:         standard.DisputeClockExtension,
-			FaultGameMaxClockDuration:       standard.DisputeMaxClockDuration,
-		})
-	})
+	}
 }
 
 func TestEndToEndApply(t *testing.T) {
@@ -756,15 +729,19 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		})
 
 		// Then run the OPCM upgrade
+		var cannonKonaPrestate common.Hash
+		if deployer.IsDevFeatureEnabled(implementationsConfig.DevFeatureBitmap, deployer.CannonKonaDevFlag) {
+			cannonKonaPrestate = common.Hash{'K', 'O', 'N', 'A'}
+		}
 		t.Run("upgrade opcm", func(t *testing.T) {
-			upgradeConfig := v2_0_0.UpgradeOPChainInput{
+			upgradeConfig := embedded.UpgradeOPChainInput{
 				Prank: superchainProxyAdminOwner,
 				Opcm:  impls.Opcm,
-				EncodedChainConfigs: []v2_0_0.OPChainConfig{
+				EncodedChainConfigs: []embedded.OPChainConfig{
 					{
-						SystemConfigProxy: common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-						ProxyAdmin:        implementationsConfig.SuperchainProxyAdmin,
-						AbsolutePrestate:  common.Hash{'A', 'P'},
+						SystemConfigProxy:  common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
+						CannonKonaPrestate: cannonKonaPrestate,
 					},
 				},
 			}

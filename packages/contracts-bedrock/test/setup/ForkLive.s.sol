@@ -205,13 +205,11 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     /// @param _delegateCaller The address of the upgrader to use for the upgrade.
     function _doUpgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-        IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
-
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
-            proxyAdmin: proxyAdmin,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            cannonPrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+            cannonKonaPrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
         });
 
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
