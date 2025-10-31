@@ -1941,16 +1941,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             existingLockbox.migrateLiquidity(newEthLockbox);
 
             // Before migrating the portal, clear out any implementations that might exist in the
-            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
+            // old DisputeGameFactory proxy. We clear out all potential game types to be safe.
             IDisputeGameFactory oldDisputeGameFactory =
                 IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_PERMISSIONED_CANNON);
             if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                oldDisputeGameFactory.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)));
-                oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)));
+                clearGameImplementation(oldDisputeGameFactory, GameTypes.CANNON_KONA);
+                clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_CANNON_KONA);
             }
 
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
@@ -2061,6 +2061,14 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 );
                 newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON_KONA, _input.gameParameters.initBond);
             }
+        }
+    }
+
+    function clearGameImplementation(IDisputeGameFactory _dgf, GameType _gameType) internal {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            _dgf.setImplementation(_gameType, IDisputeGame(address(0)), hex"");
+        } else {
+            _dgf.setImplementation(_gameType, IDisputeGame(address(0)));
         }
     }
 }
