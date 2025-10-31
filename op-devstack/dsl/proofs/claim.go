@@ -63,7 +63,7 @@ func (c *Claim) Depth() types.Depth {
 	return c.claim.Depth()
 }
 
-func (c *Claim) AsChallengerClaim() types.Claim {
+func (c *Claim) asChallengerClaim() types.Claim {
 	return types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    c.claim.Value,

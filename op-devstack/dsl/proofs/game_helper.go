@@ -242,7 +242,7 @@ func (gs *GameHelper) disputeTo(eoa *dsl.EOA, game *FaultDisputeGame, startClaim
 		if !shouldMoveLeftFrom(nextPos) || !gameState.AgreeWithClaimLevel(claims[len(claims)-1], agreeWithRoot) {
 			// Either we needed the honest actor to move right (defend) after this move or we are the honest actor
 			// so make sure we use an honest claim value.
-			value, err := honestTrace.Get(gs.t.Ctx(), gameState, startClaim.AsChallengerClaim(), nextPos)
+			value, err := honestTrace.Get(gs.t.Ctx(), gameState, startClaim.asChallengerClaim(), nextPos)
 			gs.require.NoError(err, "Failed to get trace value at position %v", nextPos)
 			claimValue = value
 		} else if nextPos.Depth() == splitDepth+1 {
@@ -276,7 +276,7 @@ func allChallengerClaims(game *FaultDisputeGame) []challengerTypes.Claim {
 	claims := game.allClaims()
 	challengerClaims := make([]challengerTypes.Claim, len(claims))
 	for i, claim := range claims {
-		challengerClaims[i] = game.newClaim(uint64(i), claim).AsChallengerClaim()
+		challengerClaims[i] = game.newClaim(uint64(i), claim).asChallengerClaim()
 	}
 	return challengerClaims
 }
