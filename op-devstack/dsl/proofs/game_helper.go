@@ -165,26 +165,41 @@ func (gs *GameHelper) CreateGameWithClaims(
 	return receipt.ContractAddress
 }
 
-func (gs *GameHelper) DisputeToL2SequenceNumber(eoa *dsl.EOA, game *FaultDisputeGame, startClaim *Claim, l2SequenceNumber uint64) *Claim {
+func (gs *GameHelper) DisputeL2SequenceNumber(eoa *dsl.EOA, game *FaultDisputeGame, startClaim *Claim, l2SequenceNumber uint64) *Claim {
 	splitDepth := game.SplitDepth()
 	startingSeqNumber := game.StartingL2SequenceNumber()
 	gs.require.Greater(l2SequenceNumber, startingSeqNumber, "Cannot dispute things at or prior to the starting block")
+	seqNumAtPosition := func(pos challengerTypes.Position) uint64 {
+		return pos.TraceIndex(splitDepth).Uint64() + startingSeqNumber + 1
+	}
 	shouldMoveLeftFrom := func(pos challengerTypes.Position) bool {
 		// Move left when equal to the sequence number so that we disagree with it
-		return pos.TraceIndex(splitDepth).Uint64()+startingSeqNumber+1 >= l2SequenceNumber
+		return seqNumAtPosition(pos) >= l2SequenceNumber
 	}
-	finalClaim := gs.disputeTo(eoa, game, startClaim, splitDepth, shouldMoveLeftFrom)
+	finalClaim, gameState := gs.disputeTo(eoa, game, startClaim, splitDepth, shouldMoveLeftFrom)
 
 	// Check that we landed in the right place
 	// We can only land on every second sequence number, starting from startingSeqNumber+1
 	// And we want to land on the sequence number that's either equal to or one before l2SequenceNumber
 	// If it's equal to we would attack, if it's the one before we would defend to ensure the bottom
 	// half of the game is executing l2SequenceNumber.
-	traceIndex := finalClaim.Position().TraceIndex(splitDepth)
+	finalPosition := seqNumAtPosition(finalClaim.Position())
 	if l2SequenceNumber%2 == startingSeqNumber%2 {
-		gs.require.Equal(l2SequenceNumber-1, traceIndex.Uint64()+startingSeqNumber+1)
+		gs.require.Equal(l2SequenceNumber-1, finalPosition)
+		// When defending the required status code depends on whether we provided the next trace or not.
+		disputedClaim, found := gameState.AncestorWithTraceIndex(finalClaim.asChallengerClaim(), finalClaim.Position().MoveRight().TraceIndex(game.MaxDepth()))
+		gs.require.True(found, "Did not find ancestor at target trace index")
+		statusCode := byte(0x00)
+		if disputedClaim.Position.Depth()%2 == splitDepth%2 {
+			statusCode = byte(0x01)
+		}
+		gs.t.Logf("Defend at split depth with status code %v", statusCode)
+		finalClaim = finalClaim.Defend(eoa, common.Hash{statusCode, 0xba, 0xd0})
 	} else {
-		gs.require.Equal(l2SequenceNumber, traceIndex.Uint64()+startingSeqNumber+1)
+		gs.t.Log("Attack at split depth")
+		gs.require.Equal(l2SequenceNumber, finalPosition)
+		// When attacking, the final block must be invalid so always use 0x01 as status code
+		finalClaim = finalClaim.Attack(eoa, common.Hash{0x01, 0xba, 0xd0})
 	}
 	return finalClaim
 }
@@ -204,7 +219,7 @@ func (gs *GameHelper) DisputeToStep(eoa *dsl.EOA, game *FaultDisputeGame, startC
 		// Move left when equal to the trace index so that we disagree with it
 		return traceIndexAtPosition(pos) >= traceIndex
 	}
-	finalClaim := gs.disputeTo(eoa, game, startClaim, maxDepth, shouldMoveLeftFrom)
+	finalClaim, _ := gs.disputeTo(eoa, game, startClaim, maxDepth, shouldMoveLeftFrom)
 	// Check that we landed in the right place
 	// We can only land on every second sequence number, starting from startingSeqNumber+1
 	// And we want to land on the sequence number that's either equal to or one before l2SequenceNumber
@@ -219,9 +234,8 @@ func (gs *GameHelper) DisputeToStep(eoa *dsl.EOA, game *FaultDisputeGame, startC
 	return finalClaim
 }
 
-func (gs *GameHelper) disputeTo(eoa *dsl.EOA, game *FaultDisputeGame, startClaim *Claim, targetDepth challengerTypes.Depth, shouldMoveLeftFrom func(pos challengerTypes.Position) bool) *Claim {
+func (gs *GameHelper) disputeTo(eoa *dsl.EOA, game *FaultDisputeGame, startClaim *Claim, targetDepth challengerTypes.Depth, shouldMoveLeftFrom func(pos challengerTypes.Position) bool) (*Claim, challengerTypes.Game) {
 	honestTrace := gs.honestTraceProvider(game)
-	splitDepth := game.SplitDepth()
 	maxDepth := game.MaxDepth()
 	parentIdx := int64(startClaim.Index)
 	moves := make([]GameHelperMove, 0, targetDepth)
@@ -245,10 +259,6 @@ func (gs *GameHelper) disputeTo(eoa *dsl.EOA, game *FaultDisputeGame, startClaim
 			value, err := honestTrace.Get(gs.t.Ctx(), gameState, startClaim.asChallengerClaim(), nextPos)
 			gs.require.NoError(err, "Failed to get trace value at position %v", nextPos)
 			claimValue = value
-		} else if nextPos.Depth() == splitDepth+1 {
-			// Invalid claims countering the split depth must still start with the expected status code
-			// Note: this is not a complete implementation, if we are defending our own claim we need to use 0x0
-			claimValue[0] = 0x01
 		}
 		nextMove := Move(parentIdx, claimValue, shouldAttack)
 
@@ -269,7 +279,7 @@ func (gs *GameHelper) disputeTo(eoa *dsl.EOA, game *FaultDisputeGame, startClaim
 		parentIdx++
 	}
 	addedClaims := gs.PerformMoves(eoa, game, moves)
-	return addedClaims[len(addedClaims)-1]
+	return addedClaims[len(addedClaims)-1], gameState
 }
 
 func allChallengerClaims(game *FaultDisputeGame) []challengerTypes.Claim {

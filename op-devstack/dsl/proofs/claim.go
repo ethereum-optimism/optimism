@@ -111,6 +111,11 @@ func (c *Claim) Attack(eoa *dsl.EOA, newClaim common.Hash) *Claim {
 	return c.WaitForCounterClaim()
 }
 
+func (c *Claim) Defend(eoa *dsl.EOA, newClaim common.Hash) *Claim {
+	c.game.Defend(eoa, c.Index, newClaim)
+	return c.WaitForCounterClaim()
+}
+
 func containsClaim(claimIdx uint64, haystack []*Claim) bool {
 	return slices.ContainsFunc(haystack, func(candidate *Claim) bool {
 		return candidate.Index == claimIdx

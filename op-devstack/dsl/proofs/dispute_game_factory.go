@@ -70,10 +70,12 @@ func NewDisputeGameFactory(
 }
 
 type GameCfg struct {
-	allowFuture  bool
-	allowUnsafe  bool
-	rootClaimSet bool
-	rootClaim    common.Hash
+	allowFuture         bool
+	allowUnsafe         bool
+	l2SequenceNumber    uint64
+	l2SequenceNumberSet bool
+	rootClaimSet        bool
+	rootClaim           common.Hash
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -100,6 +102,13 @@ func WithRootClaim(claim common.Hash) GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.rootClaim = claim
 		c.rootClaimSet = true
+	})
+}
+
+func WithL2SequenceNumber(seqNum uint64) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.l2SequenceNumber = seqNum
+		c.l2SequenceNumberSet = true
 	})
 }
 
@@ -158,13 +167,16 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
-	proposalTimestamp := f.supervisor.FetchSyncStatus().SafeTimestamp
 
-	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, challengerTypes.SuperCannonGameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, challengerTypes.SuperCannonGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
+	timestamp := cfg.l2SequenceNumber
+	if !cfg.l2SequenceNumberSet {
+		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
+	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {
@@ -228,7 +240,10 @@ func (f *DisputeGameFactory) startOutputRootGameOfType(
 	honestTraceProvider func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
 	opts ...GameOpt) *FaultDisputeGame {
 	cfg := NewGameCfg(opts...)
-	blockNum := f.l2CL.SafeL2BlockRef().Number
+	blockNum := cfg.l2SequenceNumber
+	if !cfg.l2SequenceNumberSet {
+		blockNum = f.l2CL.SafeL2BlockRef().Number
+	}
 	extraData := f.createOutputGameExtraData(blockNum, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {

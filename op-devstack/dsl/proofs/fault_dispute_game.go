@@ -98,12 +98,24 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
+func (g *FaultDisputeGame) Defend(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {
+	claim := g.claimAtIndex(claimIdx)
+	g.t.Logf("Defending claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
+
+	requiredBond := g.requiredBond(claim.Position.Defend())
+
+	defendCall := g.game.Defend(claim.Value, new(big.Int).SetUint64(claimIdx), newClaim)
+
+	receipt := contract.Write(eoa, defendCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
+}
+
 func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) []*Claim {
 	return g.helperProvider(eoa).PerformMoves(eoa, g, moves)
 }
 
-func (g *FaultDisputeGame) DisputeToL2SequenceNumber(eoa *dsl.EOA, startClaim *Claim, l2SequenceNumber uint64) *Claim {
-	return g.helperProvider(eoa).DisputeToL2SequenceNumber(eoa, g, startClaim, l2SequenceNumber)
+func (g *FaultDisputeGame) DisputeL2SequenceNumber(eoa *dsl.EOA, startClaim *Claim, l2SequenceNumber uint64) *Claim {
+	return g.helperProvider(eoa).DisputeL2SequenceNumber(eoa, g, startClaim, l2SequenceNumber)
 }
 
 func (g *FaultDisputeGame) DisputeToStep(eoa *dsl.EOA, startClaim *Claim, traceIndex uint64) *Claim {
