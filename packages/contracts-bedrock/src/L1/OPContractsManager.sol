@@ -2043,10 +2043,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
 
             // If the cannon-kona game is being used, set that up too.
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            bytes32 cannonKonaPrestate = _input.opChainConfigs[0].cannonKonaPrestate.raw();
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
                 gameArgs = LibGameArgs.encode(
                     LibGameArgs.GameArgs({
-                        absolutePrestate: _input.opChainConfigs[0].cannonKonaPrestate.raw(),
+                        absolutePrestate: cannonKonaPrestate,
                         vm: address(getImplementations().mipsImpl),
                         anchorStateRegistry: address(newAnchorStateRegistry),
                         weth: address(newPermissionlessDelayedWETHProxy),
