@@ -1954,7 +1954,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         }
 
         gameTypes_ = new GameType[](gameCount);
-
         gameTypes_[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
         if (_input.usePermissionlessGame) {
             gameTypes_[1] = GameTypes.SUPER_CANNON;
@@ -2010,8 +2009,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     ///         permissionless game.
     function test_migrate_permissionlessWithEmptyCannonPrestate_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
-
-        // Set the prestates to be different.
         input.opChainConfigs[0].cannonPrestate = emptyPrestate;
         input.opChainConfigs[1].cannonPrestate = emptyPrestate;
 
@@ -2078,6 +2075,18 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
 
         _runPostMigrateSmokeTests(input);
+    }
+
+    /// @notice Tests that the migration function succeeds when requesting to use the
+    ///         permissionless game.
+    function test_migrate_permissionedWithEmptyCannonPrestate_succeeds() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+        input.usePermissionlessGame = false;
+        input.opChainConfigs[0].cannonPrestate = emptyPrestate;
+        input.opChainConfigs[1].cannonPrestate = emptyPrestate;
+
+        // Execute the migration.
+        _doMigration(input, IOPContractsManager.PrestateNotSet.selector);
     }
 
     function _runMigrationAndStandardChecks(IOPContractsManagerInteropMigrator.MigrateInput memory input)
