@@ -375,6 +375,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             if (expectCannonKonaGameSet && gt.raw() == GameTypes.CANNON_KONA.raw()) {
                 expectedAbsolutePrestate = _opChainConfig.cannonKonaPrestate.raw();
             }
+            assertEq(bondAmount, disputeGameFactory.initBonds(gt));
 
             vm.prank(_proposer, _proposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
@@ -408,6 +409,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         if (!expectCannonKonaGameSet) {
             assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
             assertEq(0, disputeGameFactory.initBonds(GameTypes.CANNON_KONA));
+            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
         }
     }
 
