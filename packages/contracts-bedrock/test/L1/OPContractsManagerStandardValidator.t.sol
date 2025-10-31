@@ -145,18 +145,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
                 abi.encode(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl())
             );
-
-            if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-                vm.mockCall(
-                    address(pdgImpl),
-                    abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
-                    abi.encode(opcm.opcmStandardValidator().challenger())
-                );
-                vm.mockCall(
-                    address(pdgImpl), abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(proposer)
-                );
-            }
-
+            DisputeGames.mockGameImplChallenger(
+                disputeGameFactory, GameTypes.PERMISSIONED_CANNON, opcm.opcmStandardValidator().challenger()
+            );
+            DisputeGames.mockGameImplProposer(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, proposer);
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.owner, ()),
@@ -211,7 +203,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
             return opcm.validate(
                 IOPContractsManagerStandardValidator.ValidationInputDev({
-                    proxyAdmin: proxyAdmin,
                     sysCfg: systemConfig,
                     cannonPrestate: cannonPrestate.raw(),
                     cannonKonaPrestate: cannonKonaPrestate.raw(),
@@ -223,7 +214,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         } else {
             return opcm.validate(
                 IOPContractsManagerStandardValidator.ValidationInput({
-                    proxyAdmin: proxyAdmin,
                     sysCfg: systemConfig,
                     absolutePrestate: cannonPrestate.raw(),
                     l2ChainID: l2ChainId,
@@ -248,7 +238,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
             return opcm.validateWithOverrides(
                 IOPContractsManagerStandardValidator.ValidationInputDev({
-                    proxyAdmin: proxyAdmin,
                     sysCfg: systemConfig,
                     cannonPrestate: cannonPrestate.raw(),
                     cannonKonaPrestate: cannonKonaPrestate.raw(),
@@ -261,7 +250,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         } else {
             return opcm.validateWithOverrides(
                 IOPContractsManagerStandardValidator.ValidationInput({
-                    proxyAdmin: proxyAdmin,
                     sysCfg: systemConfig,
                     absolutePrestate: cannonPrestate.raw(),
                     l2ChainID: l2ChainId,
@@ -325,7 +313,6 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: systemConfig,
-            proxyAdmin: proxyAdmin,
             delayedWETH: delayedWeth,
             disputeGameType: _gameType,
             disputeAbsolutePrestate: _prestate,
@@ -597,21 +584,12 @@ contract OPContractsManagerStandardValidator_SystemConfig_Test is OPContractsMan
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         SystemConfig proxyAdmin is invalid.
-    function test_validate_systemConfigInvalidProxyAdmin_succeeds() public {
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
-        );
-        assertEq("SYSCON-130", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
     ///         SystemConfig superchainConfig is invalid.
     function test_validate_systemConfigInvalidSuperchainConfig_succeeds() public {
         vm.mockCall(
             address(systemConfig), abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(address(0xbad))
         );
-        assertEq("SYSCON-140", _validate(true));
+        assertEq("SYSCON-130", _validate(true));
     }
 }
 

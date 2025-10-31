@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 interface IOPContractsManagerStandardValidator {
     struct Implementations {
@@ -23,7 +22,6 @@ interface IOPContractsManagerStandardValidator {
     }
 
     struct ValidationInput {
-        IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 absolutePrestate;
         uint256 l2ChainID;
@@ -31,7 +29,6 @@ interface IOPContractsManagerStandardValidator {
     }
 
     struct ValidationInputDev {
-        IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
@@ -83,9 +80,9 @@ interface IOPContractsManagerStandardValidator {
         bool _allowFailure,
         ValidationOverrides memory _overrides
     )
-    external
-    view
-    returns (string memory);
+        external
+        view
+        returns (string memory);
 
     function validate(ValidationInputDev memory _input, bool _allowFailure) external view returns (string memory);
 

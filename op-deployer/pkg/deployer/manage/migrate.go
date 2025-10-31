@@ -54,7 +54,6 @@ func (u *InteropMigrationInput) OpChainConfigs() ([]byte, error) {
 
 type OPChainConfig struct {
 	SystemConfigProxy  common.Address `json:"systemConfigProxy"`
-	ProxyAdmin         common.Address `json:"proxyAdmin"`
 	CannonPrestate     common.Hash    `json:"cannonPrestate"`
 	CannonKonaPrestate common.Hash    `json:"cannonKonaPrestate"`
 }
@@ -67,7 +66,7 @@ func (output *InteropMigrationOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,address proxyAdmin,bytes32 cannonPrestate, bytes32 cannonKonaPrestate)[])", "")
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy, bytes32 cannonPrestate, bytes32 cannonKonaPrestate)[])", "")
 
 type InteropMigration struct {
 	Run func(input common.Address)
@@ -113,7 +112,6 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		EncodedChainConfigs: []OPChainConfig{
 			{
 				SystemConfigProxy: common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
-				ProxyAdmin:        common.HexToAddress(cliCtx.String(OPChainProxyAdminFlag.Name)),
 				CannonPrestate:    common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
 			},
 		},

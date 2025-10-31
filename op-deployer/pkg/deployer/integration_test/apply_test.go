@@ -740,7 +740,6 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 				EncodedChainConfigs: []embedded.OPChainConfig{
 					{
 						SystemConfigProxy:  common.HexToAddress("034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-						ProxyAdmin:         implementationsConfig.SuperchainProxyAdmin,
 						CannonPrestate:     common.Hash{'C', 'A', 'N', 'N', 'O', 'N'},
 						CannonKonaPrestate: cannonKonaPrestate,
 					},
