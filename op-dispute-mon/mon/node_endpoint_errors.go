@@ -36,12 +36,3 @@ func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.Enric
 	errorCount := len(uniqueEndpointErrors)
 	m.metrics.RecordNodeEndpointErrors(errorCount)
 }
-
-// getEndpointList converts the map keys to a slice for logging
-func getEndpointList(endpointErrors map[string]bool) []string {
-	endpoints := make([]string, 0, len(endpointErrors))
-	for endpointID := range endpointErrors {
-		endpoints = append(endpoints, endpointID)
-	}
-	return endpoints
-}

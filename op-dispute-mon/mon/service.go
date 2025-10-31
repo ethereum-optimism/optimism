@@ -38,9 +38,9 @@ type Service struct {
 
 	cl clock.Clock
 
-	game                *extract.GameCallerCreator
-	rollupClients       []*sources.RollupClient
-	supervisorClients   []*sources.SupervisorClient
+	game              *extract.GameCallerCreator
+	rollupClients     []*sources.RollupClient
+	supervisorClients []*sources.SupervisorClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
