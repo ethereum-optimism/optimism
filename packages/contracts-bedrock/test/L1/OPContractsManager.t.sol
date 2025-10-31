@@ -2005,9 +2005,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _runPostMigrateSmokeTests(input);
     }
 
-    /// @notice Tests that the migration function succeeds when requesting to use the
-    ///         permissionless game.
-    function test_migrate_permissionlessWithEmptyCannonPrestate_succeeds() public {
+    /// @notice Tests that permissionless migration reverts when cannon prestates are empty.
+    function test_migrate_permissionlessWithEmptyCannonPrestate_reverts() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
         input.opChainConfigs[0].cannonPrestate = emptyPrestate;
         input.opChainConfigs[1].cannonPrestate = emptyPrestate;
@@ -2016,8 +2015,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _doMigration(input, IOPContractsManager.PrestateNotSet.selector);
     }
 
-    /// @notice Tests that the migration function succeeds when requesting to use the
-    ///         permissionless game.
+    /// @notice Tests that the permissionless migration succeeds when cannonKona prestates are empty.
     function test_migrate_permissionlessWithEmptyCannonKonaPrestate_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
         input.opChainConfigs[0].cannonKonaPrestate = emptyPrestate;
@@ -2077,9 +2075,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         _runPostMigrateSmokeTests(input);
     }
 
-    /// @notice Tests that the migration function succeeds when requesting to use the
-    ///         permissionless game.
-    function test_migrate_permissionedWithEmptyCannonPrestate_succeeds() public {
+    /// @notice Tests that permissioned migration reverts when cannon prestates are empty.
+    function test_migrate_permissionedWithEmptyCannonPrestate_reverts() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
         input.usePermissionlessGame = false;
         input.opChainConfigs[0].cannonPrestate = emptyPrestate;
