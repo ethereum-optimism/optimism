@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -22,7 +22,7 @@ func TestPostInbox(gt *testing.T) {
 		require := t.Require()
 		el := net.Escape().L2ELNode(match.FirstL2EL)
 
-		activationBlock := net.AwaitActivation(t, rollup.Interop)
+		activationBlock := net.AwaitActivation(t, forks.Interop)
 		require.NotZero(activationBlock, "must not activate interop at genesis")
 
 		pre := activationBlock.Number - 1

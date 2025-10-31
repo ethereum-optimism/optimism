@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -114,8 +114,8 @@ func TestBuilder(t *testing.T) {
 
 	// Test L2HardforkConfigurator methods
 	isthmusOffset := uint64(8000)
-	l2Config.WithForkAtGenesis(rollup.Holocene)
-	l2Config.WithForkAtOffset(rollup.Isthmus, &isthmusOffset)
+	l2Config.WithForkAtGenesis(forks.Holocene)
+	l2Config.WithForkAtOffset(forks.Isthmus, &isthmusOffset)
 
 	// Build the intent
 	intent, err := builder.Build()

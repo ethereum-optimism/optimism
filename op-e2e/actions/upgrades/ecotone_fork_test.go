@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -50,7 +50,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// Activate all forks at genesis, and schedule Ecotone the block after
-	dp.DeployConfig.ActivateForkAtOffset(rollup.Ecotone, uint64(ecotoneOffset))
+	dp.DeployConfig.ActivateForkAtOffset(forks.Ecotone, uint64(ecotoneOffset))
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)

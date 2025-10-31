@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -142,7 +142,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	of.require.NoError(err)
 
 	// Infer active fork from block info
-	isJovian := of.l2Network.IsForkActive(rollup.Jovian, info.Time())
+	isJovian := of.l2Network.IsForkActive(forks.Jovian, info.Time())
 
 	// Verify GPO upgraded when jovian is active
 	// We have nothing to assert when jovian is inactive because an isthmus L2 can

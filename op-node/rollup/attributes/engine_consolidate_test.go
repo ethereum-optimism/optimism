@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -232,126 +233,126 @@ func TestAttributesMatch(t *testing.T) {
 	}{
 		{
 			args:      bedrockArgs(),
-			rollupCfg: cfg(rollup.Bedrock),
+			rollupCfg: cfg(forks.Bedrock),
 			desc:      "validBedrockArgs",
 		},
 		{
 			args:      bedrockArgs(),
-			rollupCfg: cfg(rollup.Canyon),
+			rollupCfg: cfg(forks.Canyon),
 			err:       ErrCanyonMustHaveWithdrawals.Error() + ": block",
 			desc:      "bedrockArgsPostCanyon",
 		},
 		{
 			args:      canyonArgs(),
-			rollupCfg: cfg(rollup.Canyon),
+			rollupCfg: cfg(forks.Canyon),
 			desc:      "validCanyonArgs",
 		},
 		{
 			args:      ecotoneArgs(),
-			rollupCfg: cfg(rollup.Ecotone),
+			rollupCfg: cfg(forks.Ecotone),
 			desc:      "validEcotoneArgs",
 		},
 		{
 			args:      holoceneArgs(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			desc:      "validholoceneArgs",
 		},
 		{
 			args:      jovianArgs(),
-			rollupCfg: cfg(rollup.Jovian),
+			rollupCfg: cfg(forks.Jovian),
 			desc:      "validJovianArgs",
 		},
 		{
 			args:      mismatchedParentHashArgs(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "parent hash field does not match",
 			desc:      "mismatchedParentHashArgs",
 		},
 		{
 			args:      createMismatchedTimestamp(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "timestamp field does not match",
 			desc:      "createMismatchedTimestamp",
 		},
 		{
 			args:      createMismatchedPrevRandao(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "random field does not match",
 			desc:      "createMismatchedPrevRandao",
 		},
 		{
 			args:      createMismatchedTransactions(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "transaction count does not match",
 			desc:      "createMismatchedTransactions",
 		},
 		{
 			args:      ecotoneNoParentBeaconBlockRoot(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "expected non-nil parent beacon block root",
 			desc:      "ecotoneNoParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneUnexpectedParentBeaconBlockRoot(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "expected nil parent beacon block root but got non-nil",
 			desc:      "ecotoneUnexpectedParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneMismatchParentBeaconBlockRoot(),
-			rollupCfg: cfg(rollup.Ecotone),
+			rollupCfg: cfg(forks.Ecotone),
 			err:       "parent beacon block root does not match",
 			desc:      "ecotoneMismatchParentBeaconBlockRoot",
 		},
 		{
 			args:      ecotoneMismatchParentBeaconBlockRootPtr(),
-			rollupCfg: cfg(rollup.Ecotone),
+			rollupCfg: cfg(forks.Ecotone),
 			desc:      "ecotoneMismatchParentBeaconBlockRootPtr",
 		},
 		{
 			args:      ecotoneNilParentBeaconBlockRoots(),
-			rollupCfg: cfg(rollup.Ecotone),
+			rollupCfg: cfg(forks.Ecotone),
 			desc:      "ecotoneNilParentBeaconBlockRoots",
 		},
 		{
 			args:      createMismatchedGasLimit(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "gas limit does not match",
 			desc:      "createMismatchedGasLimit",
 		},
 		{
 			args:      createNilGasLimit(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "expected gaslimit in attributes to not be nil",
 			desc:      "createNilGasLimit",
 		},
 		{
 			args:      createMismatchedFeeRecipient(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "fee recipient data does not match",
 			desc:      "createMismatchedFeeRecipient",
 		},
 		{
 			args:      createMismatchedEIP1559Params(),
-			rollupCfg: cfg(rollup.Holocene),
+			rollupCfg: cfg(forks.Holocene),
 			err:       "eip1559 parameters do not match",
 			desc:      "createMismatchedEIP1559Params",
 		},
 		{
 			args:      jovianArgsMinBaseFeeMissingFromAttributes(),
-			rollupCfg: cfg(rollup.Jovian),
+			rollupCfg: cfg(forks.Jovian),
 			err:       "minBaseFee does not match",
 			desc:      "missingMinBaseFee",
 		},
 		{
 			args:      jovianArgsMinBaseFeeMissingFromBlock(),
-			rollupCfg: cfg(rollup.Jovian),
+			rollupCfg: cfg(forks.Jovian),
 			err:       "invalid block extraData: MinBaseFee extraData should be 17 bytes, got 9",
 			desc:      "missingMinBaseFee",
 		},
 		{
 			args:      jovianArgsInconsistentMinBaseFee(),
-			rollupCfg: cfg(rollup.Jovian),
+			rollupCfg: cfg(forks.Jovian),
 			err:       "minBaseFee does not match",
 			desc:      "inconsistentMinBaseFee",
 		},

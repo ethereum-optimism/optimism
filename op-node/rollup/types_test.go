@@ -12,16 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func randConfig() *Config {
@@ -828,34 +829,34 @@ func TestGetPayloadVersion(t *testing.T) {
 
 func TestConfig_IsActivationBlock(t *testing.T) {
 	// Map of fork names to their config field setters
-	forks := []struct {
-		name    ForkName
+	tests := []struct {
+		name    forks.Name
 		setTime func(cfg *Config, ts uint64)
 	}{
-		{Canyon, func(cfg *Config, ts uint64) { cfg.CanyonTime = &ts }},
-		{Delta, func(cfg *Config, ts uint64) { cfg.DeltaTime = &ts }},
-		{Ecotone, func(cfg *Config, ts uint64) { cfg.EcotoneTime = &ts }},
-		{Fjord, func(cfg *Config, ts uint64) { cfg.FjordTime = &ts }},
-		{Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
-		{Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
-		{Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
-		{Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
+		{forks.Canyon, func(cfg *Config, ts uint64) { cfg.CanyonTime = &ts }},
+		{forks.Delta, func(cfg *Config, ts uint64) { cfg.DeltaTime = &ts }},
+		{forks.Ecotone, func(cfg *Config, ts uint64) { cfg.EcotoneTime = &ts }},
+		{forks.Fjord, func(cfg *Config, ts uint64) { cfg.FjordTime = &ts }},
+		{forks.Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
+		{forks.Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
+		{forks.Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
+		{forks.Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
 	}
 
-	for _, fork := range forks {
+	for _, tc := range tests {
 		ts := uint64(100)
 		cfg := &Config{}
-		fork.setTime(cfg, ts)
+		tc.setTime(cfg, ts)
 
-		t.Run(string(fork.name), func(t *testing.T) {
+		t.Run(string(tc.name), func(t *testing.T) {
 			// Crossing the fork boundary should return the fork name
-			require.Equal(t, fork.name, cfg.IsActivationBlock(ts-1, ts))
-			require.Equal(t, fork.name, cfg.IsActivationBlock(ts-1, ts+10))
+			require.Equal(t, tc.name, cfg.IsActivationBlock(ts-1, ts))
+			require.Equal(t, tc.name, cfg.IsActivationBlock(ts-1, ts+10))
 			// Not crossing the fork boundary should return None
-			require.Equal(t, None, cfg.IsActivationBlock(ts, ts+1))
-			require.Equal(t, None, cfg.IsActivationBlock(ts+1, ts+2))
+			require.Equal(t, forks.None, cfg.IsActivationBlock(ts, ts+1))
+			require.Equal(t, forks.None, cfg.IsActivationBlock(ts+1, ts+2))
 			// Before the fork
-			require.Equal(t, None, cfg.IsActivationBlock(ts-10, ts-1))
+			require.Equal(t, forks.None, cfg.IsActivationBlock(ts-10, ts-1))
 		})
 	}
 }
@@ -993,8 +994,8 @@ func TestConfig_ActivationBlockAndForFork(t *testing.T) {
 			// IsActivationBlock should detect boundary crossing irrespective of block time granularity
 			require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts))
 			require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts+10))
-			require.Equal(t, None, cfg.IsActivationBlock(ts, ts+1))
-			require.Equal(t, None, cfg.IsActivationBlock(ts+1, ts+2))
+			require.Equal(t, forks.None, cfg.IsActivationBlock(ts, ts+1))
+			require.Equal(t, forks.None, cfg.IsActivationBlock(ts+1, ts+2))
 
 			// IsActivationBlockForFork should be true for the first block(s) at/after activation,
 			// i.e. for times in [ts, ts+BlockTime-1], and false otherwise.
@@ -1014,7 +1015,7 @@ func TestConfig_ActivateAt(t *testing.T) {
 	t.Run("Ecotone", func(t *testing.T) {
 		var cfg Config
 		ts := uint64(100)
-		cfg.ActivateAt(Ecotone, ts)
+		cfg.ActivateAt(forks.Ecotone, ts)
 		require.Equal(t, Config{
 			RegolithTime: ptr.Zero64,
 			CanyonTime:   ptr.Zero64,
@@ -1026,11 +1027,11 @@ func TestConfig_ActivateAt(t *testing.T) {
 	t.Run("LatestFork", func(t *testing.T) {
 		var cfg Config
 		ts := uint64(100)
-		cfg.ActivateAt(LatestFork, ts)
+		cfg.ActivateAt(forks.Latest, ts)
 		for _, f := range scheduleableForks {
 			at := cfg.ActivationTime(f)
 			require.NotNil(t, at)
-			if f == LatestFork {
+			if f == forks.Latest {
 				require.EqualValues(t, ts, *at)
 			} else {
 				// prior forks at genesis (0)
@@ -1042,7 +1043,7 @@ func TestConfig_ActivateAt(t *testing.T) {
 	// Bedrock special case: disable all scheduleable forks
 	t.Run("Bedrock", func(t *testing.T) {
 		var cfg Config
-		cfg.ActivateAt(Bedrock, 0)
+		cfg.ActivateAt(forks.Bedrock, 0)
 		for _, f := range scheduleableForks {
 			require.Nil(t, cfg.ActivationTime(f))
 		}
@@ -1055,7 +1056,7 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 	// Activate Ecotone at genesis
 	t.Run("Ecotone", func(t *testing.T) {
 		var cfg Config
-		cfg.ActivateAtGenesis(Ecotone)
+		cfg.ActivateAtGenesis(forks.Ecotone)
 		require.Equal(t, Config{
 			RegolithTime: ptr.Zero64,
 			CanyonTime:   ptr.Zero64,
@@ -1066,7 +1067,7 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 
 	t.Run("LatestFork", func(t *testing.T) {
 		var cfg Config
-		cfg.ActivateAtGenesis(LatestFork)
+		cfg.ActivateAtGenesis(forks.Latest)
 		for _, f := range scheduleableForks {
 			at := cfg.ActivationTime(f)
 			require.NotNil(t, at)
@@ -1077,7 +1078,7 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 	// Bedrock special case: disable all scheduleable forks
 	t.Run("Bedrock", func(t *testing.T) {
 		var cfg Config
-		cfg.ActivateAtGenesis(Bedrock)
+		cfg.ActivateAtGenesis(forks.Bedrock)
 		for _, f := range scheduleableForks {
 			require.Nil(t, cfg.ActivationTime(f))
 		}
