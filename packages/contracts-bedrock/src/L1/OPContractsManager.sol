@@ -1077,6 +1077,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _gameType: GameTypes.CANNON_KONA,
                         _disputeGameFactory: disputeGameFactory
                     });
+                    uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+                    disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
                 }
             }
         }
@@ -2165,9 +2167,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.4.0
+    /// @custom:semver 5.5.0
     function version() public pure virtual returns (string memory) {
-        return "5.4.0";
+        return "5.5.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
