@@ -16,6 +16,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
+	"github.com/ethereum/go-ethereum/common"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -613,4 +614,49 @@ func TestChainContainer_VirtualNodeIntegration(t *testing.T) {
 			return setHandlerCalled && calledChainID == "420"
 		}, 1*time.Second, 10*time.Millisecond)
 	})
+}
+
+// --- Output root coverage ---
+
+type mockEngineController struct {
+	ref        eth.L2BlockRef
+	refErr     error
+	out        *eth.OutputV0
+	outErr     error
+	blockCalls int
+	outCalls   int
+}
+
+func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	m.blockCalls++
+	return m.ref, m.refErr
+}
+func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
+	m.outCalls++
+	return m.out, m.outErr
+}
+func (m *mockEngineController) Close() error { return nil }
+
+func TestOutputRootAtTimestamp_ComputesFromEngine(t *testing.T) {
+	t.Parallel()
+	chainID := eth.ChainIDFromUInt64(420)
+	vncfg := createTestVNConfig()
+	log := createTestLogger()
+	cfg := createTestCLIConfig()
+	initOverload := &rollupNode.InitializationOverrides{}
+
+	container := NewChainContainer(chainID, vncfg, log, cfg, initOverload, nil, nil, nil)
+	impl := container.(*simpleChainContainer)
+
+	mockEng := &mockEngineController{
+		ref: eth.L2BlockRef{Number: 100, Time: 123},
+		out: &eth.OutputV0{StateRoot: eth.Bytes32{0x01}, MessagePasserStorageRoot: eth.Bytes32{0x02}, BlockHash: func() common.Hash { var h common.Hash; h[0] = 0x03; return h }()},
+	}
+	impl.engine = mockEng
+
+	got, err := impl.OutputRootAtTimestamp(context.Background(), 123)
+	require.NoError(t, err)
+	require.Equal(t, eth.OutputRoot(mockEng.out), got)
+	require.Equal(t, 1, mockEng.blockCalls)
+	require.Equal(t, 1, mockEng.outCalls)
 }

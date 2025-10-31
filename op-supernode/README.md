@@ -63,6 +63,35 @@ export OP_SUPERNODE_L1_BEACON=$L1_BEACON
 - Required: `--chains`, `--l1`
 - Optional: `--l1.beacon`, `--data-dir` (default `./datadir`), standard op-service flags (logging, metrics, pprof, RPC)
 
+## RPC: superroot.AtTimestamp
+
+Returns a cross-chain commitment ("superroot") over the canonical L2 output roots for all managed chains at a given timestamp.
+
+- Method: `superroot_atTimestamp`
+- Params:
+  - `timestamp` (hex-encoded uint64) — Unix timestamp (seconds)
+- Result object:
+  - `crossSafeDerivedFrom` (object) — BlockID of the L1 point the response is derived from (zero until cross-safe is wired)
+  - `timestamp` (hex uint64) — The anchor timestamp committed in the superroot
+  - `superRoot` (0x-hash) — Keccak256 hash of the versioned payload
+  - `version` (0x01 for V1) — Encoding version byte
+  - `chains` (array): per-chain entries
+    - `chainID` (uint256) — Chain identifier
+    - `canonical` (0x-hash) — Output root at/before `timestamp`
+    - `pending` (bytes) — Output preimage for the latest block if different from canonical (nil in current implementation)
+
+### Encoding (V1)
+
+Superroot V1 payload (before hashing):
+- 1 byte: version (0x01)
+- 8 bytes: big-endian `timestamp`
+- Repeated for each chain (sorted by `chainID` in the hashing constructor):
+  - 32 bytes: `chainID` (Bytes32)
+  - 32 bytes: `outputRoot` (Bytes32)
+
+Hash: `keccak256(marshal(payload))`
+
+
 Per-chain flags are prefixed:
 - `-vn.all.<flag>` applies to all chains
 - `-vn.<chainID>.<flag>` applies to one chain

@@ -7,8 +7,73 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+type mockL2Provider struct {
+	refByNum     eth.L2BlockRef
+	refErr       error
+	payload      *eth.ExecutionPayloadEnvelope
+	payloadErr   error
+	output       *eth.OutputV0
+	outputErr    error
+	payloadCalls int
+	outputCalls  int
+}
+
+func (m *mockL2Provider) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
+
+func (m *mockL2Provider) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return m.refByNum, m.refErr
+}
+
+func (m *mockL2Provider) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error) {
+	m.outputCalls++
+	return m.output, m.outputErr
+}
+
+func (m *mockL2Provider) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	m.payloadCalls++
+	return m.payload, m.payloadErr
+}
+
+func TestOutputV0AtBlockNumber_UsesPayloadWhenAvailable(t *testing.T) {
+	t.Parallel()
+	l2 := &mockL2Provider{
+		refByNum: eth.L2BlockRef{Number: 100, Time: 123},
+		payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+			StateRoot:       eth.Bytes32{0xaa},
+			WithdrawalsRoot: func() *common.Hash { h := common.Hash{}; h[0] = 0xbb; return &h }(),
+			BlockHash:       func() common.Hash { h := common.Hash{}; h[0] = 0xcc; return h }(),
+		}},
+	}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	out, err := ec.OutputV0AtBlockNumber(context.Background(), 100)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, 1, l2.payloadCalls)
+	require.Equal(t, 0, l2.outputCalls) // no fallback
+}
+
+func TestOutputV0AtBlockNumber_FallsBackWithoutWithdrawalsRoot(t *testing.T) {
+	t.Parallel()
+	l2 := &mockL2Provider{
+		refByNum: eth.L2BlockRef{Number: 100, Time: 123},
+		// payload without withdrawals root forces fallback
+		payload: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}},
+		output:  &eth.OutputV0{StateRoot: eth.Bytes32{0x01}, MessagePasserStorageRoot: eth.Bytes32{0x02}, BlockHash: func() common.Hash { var h common.Hash; h[0] = 0x03; return h }()},
+	}
+	ec := &simpleEngineController{l2: l2, rollup: &rollup.Config{}, log: gethlog.New()}
+	out, err := ec.OutputV0AtBlockNumber(context.Background(), 100)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+	require.Equal(t, 1, l2.payloadCalls)
+	require.Equal(t, 1, l2.outputCalls)
+}
 
 type mockL2 struct {
 	lastNum uint64
@@ -21,6 +86,12 @@ func (m *mockL2) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (e
 func (m *mockL2) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	m.lastNum = num
 	return m.ref, nil
+}
+func (m *mockL2) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error) {
+	return nil, nil
+}
+func (m *mockL2) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
 }
 
 func TestEngineController_TargetBlockNumber(t *testing.T) {

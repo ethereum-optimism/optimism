@@ -3,7 +3,7 @@ package superroot
 import (
 	"context"
 	"fmt"
-	"strings"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
@@ -35,29 +35,49 @@ func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 // superrootAPI hosts JSON-RPC methods for the Superroot activity.
 type superrootAPI struct{ s *Superroot }
 
-// AtTimestamp returns a map[chainID]bool indicating if the given timestamp is safe per chain.
-func (api *superrootAPI) AtTimestamp(ctx context.Context, ts hexutil.Uint64) (string, error) {
-	var b strings.Builder
-	b.WriteString("I dont know how to build a superroot yet but here's the data I know I need: \n")
-
+// AtTimestamp computes the super-root at the given timestamp.
+func (api *superrootAPI) AtTimestamp(ctx context.Context, ts hexutil.Uint64) (eth.SuperRootResponse, error) {
+	// Ensure all safe data is available for the given timestamp
+	// Not the same as confirming the data is verified by all Verification Activities
 	for chainID, chain := range api.s.chains {
-		ok, err := chain.FullyValidAt(ctx, uint64(ts))
+		ok, err := chain.SafeAtTimestamp(ctx, uint64(ts))
 		if err != nil {
-			return "", err
+			return eth.SuperRootResponse{}, err
 		}
 		if !ok {
-			return "", fmt.Errorf("chain %s not fully valid at timestamp %d", chainID.String(), uint64(ts))
+			return eth.SuperRootResponse{}, fmt.Errorf("chain %s not safe at timestamp %d", chainID.String(), uint64(ts))
 		}
-		fmt.Fprintf(&b, "Chain %s: Fully valid at timestamp %d\n", chainID.String(), uint64(ts))
 	}
 
+	// Gather per-chain output roots
+	chains := make([]eth.ChainRootInfo, 0, len(api.s.chains))
+	outs := make([]eth.ChainIDAndOutput, 0, len(api.s.chains))
 	for chainID, chain := range api.s.chains {
-		ref, err := chain.BlockAtTimestamp(ctx, uint64(ts))
+		out, err := chain.OutputRootAtTimestamp(ctx, uint64(ts))
 		if err != nil {
-			return "", err
+			return eth.SuperRootResponse{}, err
 		}
-		fmt.Fprintf(&b, "Chain %s: BlockAtTimestamp => number=%d hash=%s time=%d\n", chainID.String(), ref.Number, ref.Hash, ref.Time)
+		chains = append(chains, eth.ChainRootInfo{
+			ChainID:   chainID,
+			Canonical: out,
+			Pending:   nil,
+		})
+		outs = append(outs, eth.ChainIDAndOutput{ChainID: chainID, Output: out})
 	}
 
-	return b.String(), nil
+	// Sort chains for deterministic RPC response ordering
+	slices.SortFunc(chains, func(a, b eth.ChainRootInfo) int { return a.ChainID.Cmp(b.ChainID) })
+
+	// Build SuperV1 and compute root (constructor sorts outs internally)
+	super := eth.NewSuperV1(uint64(ts), outs...)
+	superRoot := eth.SuperRoot(super)
+
+	// Assemble response
+	resp := eth.SuperRootResponse{
+		Timestamp: uint64(ts),
+		SuperRoot: superRoot,
+		Version:   eth.SuperRootVersionV1,
+		Chains:    chains,
+	}
+	return resp, nil
 }

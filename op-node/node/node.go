@@ -823,6 +823,15 @@ func (n *OpNode) SafeL2Timestamp() (uint64, bool) {
 	return st.SafeL2.Time, true
 }
 
+// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number,
+// as maintained by the SafeDB. Returns safedb.ErrNotEnabled if the SafeDB is disabled.
+func (n *OpNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block eth.BlockID, safeHead eth.BlockID, err error) {
+	if n.safeDB == nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("safedb not initialized")
+	}
+	return n.safeDB.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
 // Stop stops the node and closes all resources.
 // If the provided ctx is expired, the node will accelerate the stop where possible, but still fully close.
 func (n *OpNode) Stop(ctx context.Context) error {

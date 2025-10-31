@@ -196,6 +196,7 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 
 	blockHash := block.Hash()
 	var messagePasserStorageRoot eth.Bytes32
+	s.log.Debug("outputV0", "blockTime", block.Time(), "isIsthmus", s.rollupCfg.IsIsthmus(block.Time()), "fetchWithdrawalRootFromState", s.fetchWithdrawalRootFromState)
 	if s.rollupCfg.IsIsthmus(block.Time()) && !s.fetchWithdrawalRootFromState {
 		s.log.Debug("Retrieving withdrawal root from block header")
 		// If Isthmus hard fork has activated, we can get the withdrawal root directly from the header

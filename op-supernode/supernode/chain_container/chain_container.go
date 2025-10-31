@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"sync/atomic"
@@ -27,11 +28,14 @@ type ChainContainer interface {
 	Stop(ctx context.Context) error
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
-	// FullyValidAt reports whether the L2 block corresponding to the given
-	// Unix timestamp (seconds) is already part of the safe chain.
-	FullyValidAt(ctx context.Context, ts uint64) (bool, error)
-	// BlockAtTimestamp returns the highest L2 block with timestamp <= ts
+
+	SafeAtTimestamp(ctx context.Context, ts uint64) (bool, error)
+	VerifiedAtTimestamp(ctx context.Context, ts uint64) (bool, error)
 	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	OutputRootAtTimestamp(ctx context.Context, ts uint64) (eth.Bytes32, error)
+	// SafeHeadAtL1 returns the most recent (<= l1BlockNum) recorded mapping of L1 block -> L2 safe head.
+	// Backed by the op-node SafeDB.
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -85,7 +89,9 @@ func NewChainContainer(
 	if vncfg.L2 != nil {
 		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, log, vncfg); err != nil {
+		// Provide contextual logger to engine controller
+		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
+		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, vncfg); err != nil {
 			log.Error("failed to setup engine controller", "err", err)
 		} else {
 			c.engine = eng
@@ -202,8 +208,8 @@ func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	return nil
 }
 
-// FullyValidAt checks if the block at the given timestamp is safe according to the virtual node.
-func (c *simpleChainContainer) FullyValidAt(ctx context.Context, ts uint64) (bool, error) {
+// SafeAtTimestamp checks if the block at the given timestamp is safe according to the virtual node.
+func (c *simpleChainContainer) SafeAtTimestamp(ctx context.Context, ts uint64) (bool, error) {
 	if c.vn == nil {
 		return false, nil
 	}
@@ -214,10 +220,44 @@ func (c *simpleChainContainer) FullyValidAt(ctx context.Context, ts uint64) (boo
 	return safeTs >= ts, nil
 }
 
+// VerifiedAtTimestamp checks if the block at the given timestamp is safe according to the virtual node.
+// And also has been verified by all Verification Activities of the Supernode.
+func (c *simpleChainContainer) VerifiedAtTimestamp(ctx context.Context, ts uint64) (bool, error) {
+	// there are currently no verification activities, so we just check if the block is safe
+	return c.SafeAtTimestamp(ctx, ts)
+}
+
 // BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client.
 func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	if c.engine == nil {
 		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
 	}
 	return c.engine.BlockAtTimestamp(ctx, ts)
+}
+
+// OutputRootAtTimestamp computes the output root for the L2 block at or before the given timestamp.
+func (c *simpleChainContainer) OutputRootAtTimestamp(ctx context.Context, ts uint64) (eth.Bytes32, error) {
+	if c.engine == nil {
+		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
+	}
+	ref, err := c.engine.BlockAtTimestamp(ctx, ts)
+	if err != nil {
+		return eth.Bytes32{}, err
+	}
+	out, err := c.engine.OutputV0AtBlockNumber(ctx, ref.Number)
+	if err != nil {
+		return eth.Bytes32{}, err
+	}
+	return eth.OutputRoot(out), nil
+}
+
+// Interface conformance assertions
+var _ ChainContainer = (*simpleChainContainer)(nil)
+
+// SafeHeadAtL1 queries the embedded op-node RPC handler for the SafeDB mapping at/preceding the given L1 block number.
+func (c *simpleChainContainer) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	if c.vn == nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("virtual node not initialized")
+	}
+	return c.vn.SafeHeadAtL1(ctx, l1BlockNum)
 }

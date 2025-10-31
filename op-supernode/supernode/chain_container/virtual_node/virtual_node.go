@@ -8,6 +8,7 @@ import (
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,8 @@ type VirtualNode interface {
 	Stop(ctx context.Context) error
 	// SafeTimestamp returns the latest known cross-safe L2 timestamp.
 	SafeTimestamp(ctx context.Context) (uint64, error)
+	// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number.
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
 }
 
 type innerNode interface {
@@ -40,6 +43,8 @@ type innerNode interface {
 	Stop(ctx context.Context) error
 	// SafeL2Timestamp returns the latest known cross-safe L2 timestamp, if available.
 	SafeL2Timestamp() (uint64, bool)
+	// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number.
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
 }
 
 type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
@@ -192,4 +197,15 @@ func (v *simpleVirtualNode) SafeTimestamp(ctx context.Context) (uint64, error) {
 		return 0, nil
 	}
 	return safeTs, nil
+}
+
+// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number.
+func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	return inner.SafeHeadAtL1(ctx, l1BlockNum)
 }
