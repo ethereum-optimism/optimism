@@ -1935,9 +1935,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         returns (GameType[] memory gameTypes_)
     {
         uint256 gameCount = 1;
+        bytes32 cannonKonaPrestate = _input.opChainConfigs[0].cannonKonaPrestate.raw();
         if (_input.usePermissionlessGame) {
             gameCount += 1;
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
                 gameCount += 1;
             }
         }
@@ -1947,7 +1948,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         gameTypes_[0] = GameTypes.SUPER_PERMISSIONED_CANNON;
         if (_input.usePermissionlessGame) {
             gameTypes_[1] = GameTypes.SUPER_CANNON;
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
                 gameTypes_[2] = GameTypes.SUPER_CANNON_KONA;
             }
         }
