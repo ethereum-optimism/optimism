@@ -293,7 +293,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // checks. Easier to just expect the error in this case.
         // We add the prefix of OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER because we use validationOverrides.
         if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
-            if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
+            if (
+                opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+            ) {
                 vm.expectRevert(
                     "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40,CKDG-10"
                 );
@@ -302,7 +304,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
                     "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
                 );
             }
-        } else if (opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0)) {
+        } else if (
+            opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+        ) {
             vm.expectRevert("OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10");
         }
 
