@@ -1789,6 +1789,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim cannonPrestate2 = Claim.wrap(bytes32(hex"DEAD"));
     Claim cannonKonaPrestate1 = Claim.wrap(bytes32(hex"ABBACADABA"));
     Claim cannonKonaPrestate2 = Claim.wrap(bytes32(hex"DEADBEEF"));
+    Claim emptyClaim = Claim.wrap(bytes32(0));
 
     /// @notice Function requires interop portal.
     function setUp() public override {
@@ -2001,6 +2002,36 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         } else {
             _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
         }
+
+        _runPostMigrateSmokeTests(input);
+    }
+
+    /// @notice Tests that the migration function succeeds when requesting to use the
+    ///         permissionless game.
+    function test_migrate_permissionlessWithEmptyCannonKonaPrestate_succeeds() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+        input.opChainConfigs[0].cannonKonaPrestate = emptyClaim;
+        input.opChainConfigs[1].cannonKonaPrestate = emptyClaim;
+        (IAnchorStateRegistry asr, IDisputeGameFactory dgf) = _runMigrationAndStandardChecks(input);
+
+        // Check the respected game type
+        assertEq(asr.respectedGameType().raw(), GameTypes.SUPER_CANNON.raw(), "Super Cannon game type mismatch");
+
+        // Check initial bonds
+        assertEq(
+            dgf.initBonds(GameTypes.SUPER_CANNON), input.gameParameters.initBond, "Super Cannon init bond mismatch"
+        );
+        assertEq(
+            dgf.initBonds(GameTypes.SUPER_PERMISSIONED_CANNON),
+            input.gameParameters.initBond,
+            "Super Permissioned Cannon init bond mismatch"
+        );
+        assertEq(dgf.initBonds(GameTypes.SUPER_CANNON_KONA), uint256(0), "Super CannonKona init bond should be zero");
+
+        // Check game configuration
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_PERMISSIONED_CANNON, "SUPER_PERMISSIONED_CANNON");
+        _validateSuperGameImplParams(input, dgf, GameTypes.SUPER_CANNON, "SUPER_CANNON");
+        _assertGameIsEmpty(dgf, GameTypes.SUPER_CANNON_KONA, "SUPER_CANNON_KONA");
 
         _runPostMigrateSmokeTests(input);
     }
