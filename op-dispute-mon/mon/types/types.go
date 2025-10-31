@@ -69,6 +69,9 @@ type EnrichedGameData struct {
 	// RollupEndpointNotFoundCount tracks the number of endpoints that returned "not found" for this game.
 	RollupEndpointNotFoundCount int
 
+	// RollupEndpointOutOfSyncCount tracks the number of endpoints that were out of sync for this game.
+	RollupEndpointOutOfSyncCount int
+
 	// RollupEndpointTotalCount tracks the total number of rollup endpoints attempted for this game.
 	RollupEndpointTotalCount int
 

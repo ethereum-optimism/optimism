@@ -58,6 +58,8 @@ func (*NoopMetricsImpl) RecordNodeEndpointErrors(_ int) {}
 
 func (*NoopMetricsImpl) RecordNodeEndpointErrorCount(_ int) {}
 
+func (*NoopMetricsImpl) RecordNodeEndpointOutOfSyncCount(_ int) {}
+
 func (*NoopMetricsImpl) RecordMixedAvailabilityGames(_ int) {}
 
 func (*NoopMetricsImpl) RecordMixedSafetyGames(_ int) {}

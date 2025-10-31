@@ -183,6 +183,8 @@ type Metricer interface {
 
 	RecordNodeEndpointErrorCount(count int)
 
+	RecordNodeEndpointOutOfSyncCount(count int)
+
 	RecordMixedAvailabilityGames(count int)
 
 	RecordMixedSafetyGames(count int)
@@ -239,13 +241,14 @@ type Metrics struct {
 	failedGames                prometheus.Gauge
 	l2Challenges               prometheus.GaugeVec
 
-	requiredCollateral       prometheus.GaugeVec
-	availableCollateral      prometheus.GaugeVec
-	nodeEndpointErrors       prometheus.Gauge
-	nodeEndpointErrorCount   prometheus.Gauge
-	mixedAvailabilityGames   prometheus.Gauge
-	mixedSafetyGames         prometheus.Gauge
-	differentOutputRootGames prometheus.Gauge
+	requiredCollateral         prometheus.GaugeVec
+	availableCollateral        prometheus.GaugeVec
+	nodeEndpointErrors         prometheus.Gauge
+	nodeEndpointErrorCount     prometheus.Gauge
+	nodeEndpointOutOfSyncCount prometheus.Gauge
+	mixedAvailabilityGames     prometheus.Gauge
+	mixedSafetyGames           prometheus.Gauge
+	differentOutputRootGames   prometheus.Gauge
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -423,6 +426,11 @@ func NewMetrics() *Metrics {
 			Name:      "node_endpoint_error_count",
 			Help:      "Total number of individual endpoint error occurrences (other than \"not found\") across all rollup node endpoints in the last update cycle",
 		}),
+		nodeEndpointOutOfSyncCount: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "node_endpoint_out_of_sync_count",
+			Help:      "Total number of out-of-sync responses (where node's CurrentL1 <= game's L1HeadNum) across all rollup node endpoints in the last update cycle",
+		}),
 		mixedAvailabilityGames: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "mixed_availability_games",
@@ -581,6 +589,10 @@ func (m *Metrics) RecordNodeEndpointErrors(count int) {
 
 func (m *Metrics) RecordNodeEndpointErrorCount(count int) {
 	m.nodeEndpointErrorCount.Set(float64(count))
+}
+
+func (m *Metrics) RecordNodeEndpointOutOfSyncCount(count int) {
+	m.nodeEndpointOutOfSyncCount.Set(float64(count))
 }
 
 func (m *Metrics) RecordMixedAvailabilityGames(count int) {

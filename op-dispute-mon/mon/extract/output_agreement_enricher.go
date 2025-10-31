@@ -137,6 +137,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			continue
 		}
 		if result.gameL1HeadUnprocessed {
+			game.RollupEndpointOutOfSyncCount++
 			continue
 		}
 

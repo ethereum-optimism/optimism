@@ -238,6 +238,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	updateTimeMonitor := NewUpdateTimeMonitor(s.cl, s.metrics)
 	nodeEndpointErrorsMonitor := NewNodeEndpointErrorsMonitor(s.logger, s.metrics)
 	nodeEndpointErrorCountMonitor := NewNodeEndpointErrorCountMonitor(s.logger, s.metrics)
+	nodeEndpointOutOfSyncMonitor := NewNodeEndpointOutOfSyncMonitor(s.logger, s.metrics)
 	mixedAvailabilityMonitor := NewMixedAvailability(s.logger, s.metrics)
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentOutputRootMonitor := NewDifferentOutputRootMonitor(s.logger, s.metrics)
@@ -252,6 +253,7 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 		updateTimeMonitor.CheckUpdateTimes,
 		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
 		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
 		mixedAvailabilityMonitor.CheckMixedAvailability,
 		mixedSafetyMonitor.CheckMixedSafety,
 		differentOutputRootMonitor.CheckDifferentOutputRoots)
