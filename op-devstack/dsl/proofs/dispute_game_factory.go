@@ -40,6 +40,8 @@ type DisputeGameFactory struct {
 	supervisor    *dsl.Supervisor
 	gameHelper    *GameHelper
 	challengerCfg *challengerConfig.Config
+
+	honestTraces map[common.Address]challengerTypes.TraceAccessor
 }
 
 func NewDisputeGameFactory(
@@ -66,6 +68,8 @@ func NewDisputeGameFactory(
 		supervisor:    supervisor,
 		ethClient:     ethClient,
 		challengerCfg: challengerCfg,
+
+		honestTraces: make(map[common.Address]challengerTypes.TraceAccessor),
 	}
 }
 
@@ -204,6 +208,9 @@ func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *Fau
 }
 
 func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challengerTypes.TraceAccessor {
+	if existing, ok := f.honestTraces[game.Address]; ok {
+		return existing
+	}
 	f.require.Equal(challengerTypes.CannonGameType, game.GameType(), "Honest trace only supported for cannon game types")
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
 	logger := f.t.Logger().New("role", "honestTrace")
@@ -231,6 +238,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 		game.L2SequenceNumber(),
 	)
 	f.require.NoError(err, "Failed to create cannon trace accessor")
+	f.honestTraces[game.Address] = accessor
 	return accessor
 }
 
