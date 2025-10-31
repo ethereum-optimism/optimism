@@ -1789,7 +1789,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim cannonPrestate2 = Claim.wrap(bytes32(hex"DEAD"));
     Claim cannonKonaPrestate1 = Claim.wrap(bytes32(hex"ABBACADABA"));
     Claim cannonKonaPrestate2 = Claim.wrap(bytes32(hex"DEADBEEF"));
-    Claim emptyClaim = Claim.wrap(bytes32(0));
+    Claim emptyPrestate = Claim.wrap(bytes32(0));
 
     /// @notice Function requires interop portal.
     function setUp() public override {
@@ -2008,10 +2008,23 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     /// @notice Tests that the migration function succeeds when requesting to use the
     ///         permissionless game.
+    function test_migrate_permissionlessWithEmptyCannonPrestate_succeeds() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Set the prestates to be different.
+        input.opChainConfigs[0].cannonPrestate = emptyPrestate;
+        input.opChainConfigs[1].cannonPrestate = emptyPrestate;
+
+        // Execute the migration.
+        _doMigration(input, IOPContractsManager.PrestateNotSet.selector);
+    }
+
+    /// @notice Tests that the migration function succeeds when requesting to use the
+    ///         permissionless game.
     function test_migrate_permissionlessWithEmptyCannonKonaPrestate_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
-        input.opChainConfigs[0].cannonKonaPrestate = emptyClaim;
-        input.opChainConfigs[1].cannonKonaPrestate = emptyClaim;
+        input.opChainConfigs[0].cannonKonaPrestate = emptyPrestate;
+        input.opChainConfigs[1].cannonKonaPrestate = emptyPrestate;
         (IAnchorStateRegistry asr, IDisputeGameFactory dgf) = _runMigrationAndStandardChecks(input);
 
         // Check the respected game type
@@ -2195,7 +2208,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Set the prestates to be different.
         input.opChainConfigs[0].cannonPrestate = cannonPrestate1;
-        input.opChainConfigs[0].cannonPrestate = cannonPrestate2;
+        input.opChainConfigs[1].cannonPrestate = cannonPrestate2;
 
         // Execute the migration.
         _doMigration(
@@ -2210,7 +2223,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Set the prestates to be different.
         input.opChainConfigs[0].cannonKonaPrestate = cannonKonaPrestate1;
-        input.opChainConfigs[0].cannonKonaPrestate = cannonKonaPrestate2;
+        input.opChainConfigs[1].cannonKonaPrestate = cannonKonaPrestate2;
 
         // Execute the migration.
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {

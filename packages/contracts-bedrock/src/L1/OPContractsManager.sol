@@ -1811,7 +1811,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         // Get the proxyAdmin from the first system config.
         IProxyAdmin proxyAdmin = _input.opChainConfigs[0].systemConfigProxy.proxyAdmin();
 
-        // Check that all of the configs have the same proxy admin owner and prestate.
+        // Check that all of the configs have the same proxy admin owner and prestates.
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
             // Different chains might actually have different ProxyAdmin contracts, but it's fine
             // as long as the owner of all of those contracts is the same.
@@ -1829,6 +1829,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
                 }
             }
+        }
+
+        // Check that cannon prestate is non-empty
+        if (_input.opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+            revert OPContractsManager.PrestateNotSet();
         }
 
         // Grab an array of portals from the configs.
