@@ -392,7 +392,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 		t.Run("NotFoundErrorsNotRecorded", func(t *testing.T) {
 			validator, client, _ := setupOutputValidatorTest(t)
-			client.outputErr = errors.New("not found")
+			client.outputErr = mockNotFoundRPCError()
 			game := &types.EnrichedGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
@@ -453,8 +453,8 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 		t.Run("NotFoundErrorsNotCounted", func(t *testing.T) {
 			validator, clients, _ := setupMultiNodeTest(t, 3)
-			clients[0].outputErr = errors.New("not found")
-			clients[1].outputErr = errors.New("not found")
+			clients[0].outputErr = mockNotFoundRPCError()
+			clients[1].outputErr = mockNotFoundRPCError()
 			// clients[2] will succeed
 
 			game := &types.EnrichedGameData{
@@ -474,7 +474,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 		t.Run("MixedErrorTypes", func(t *testing.T) {
 			validator, clients, _ := setupMultiNodeTest(t, 4)
-			clients[0].outputErr = errors.New("not found")        // Should not be counted
+			clients[0].outputErr = mockNotFoundRPCError()         // Should not be counted
 			clients[1].outputErr = errors.New("connection error") // Should be counted
 			clients[2].outputErr = errors.New("server error")     // Should be counted
 			// clients[3] will succeed
@@ -770,7 +770,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		// Set up mixed availability: some found, some not found
 		clients[0].outputRoot = mockRootClaim
 		clients[1].outputRoot = mockRootClaim
-		clients[2].outputErr = errors.New("not found") // This client returns "not found"
+		clients[2].outputErr = mockNotFoundRPCError() // This client returns "not found"
 
 		game := &types.EnrichedGameData{
 			GameMetadata: challengerTypes.GameMetadata{
