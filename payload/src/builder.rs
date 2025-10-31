@@ -1,9 +1,7 @@
 //! Optimism payload builder implementation.
 use crate::{
-    config::{OpBuilderConfig, OpDAConfig},
-    error::OpPayloadBuilderError,
-    payload::OpBuiltPayload,
-    OpAttributes, OpPayloadBuilderAttributes, OpPayloadPrimitives,
+    config::OpBuilderConfig, error::OpPayloadBuilderError, payload::OpBuiltPayload, OpAttributes,
+    OpPayloadBuilderAttributes, OpPayloadPrimitives,
 };
 use alloy_consensus::{BlockHeader, Transaction, Typed2718};
 use alloy_evm::Evm as AlloyEvm;
@@ -187,7 +185,7 @@ where
 
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
-            da_config: self.config.da_config.clone(),
+            builder_config: self.config.clone(),
             chain_spec: self.client.chain_spec(),
             config,
             cancel,
@@ -223,7 +221,7 @@ where
         let config = PayloadConfig { parent_header: Arc::new(parent), attributes };
         let ctx = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
-            da_config: self.config.da_config.clone(),
+            builder_config: self.config.clone(),
             chain_spec: self.client.chain_spec(),
             config,
             cancel: Default::default(),
@@ -550,8 +548,8 @@ pub struct OpPayloadBuilderCtx<
 > {
     /// The type that knows how to perform system calls and configure the evm.
     pub evm_config: Evm,
-    /// The DA config for the payload builder
-    pub da_config: OpDAConfig,
+    /// Additional config for the builder/sequencer, e.g. DA and gas limit
+    pub builder_config: OpBuilderConfig,
     /// The chainspec
     pub chain_spec: Arc<ChainSpec>,
     /// How to build the payload.
@@ -684,9 +682,14 @@ where
         Builder: BlockBuilder<Primitives = Evm::Primitives>,
         <<Builder::Executor as BlockExecutor>::Evm as AlloyEvm>::DB: Database,
     {
-        let block_gas_limit = builder.evm_mut().block().gas_limit();
-        let block_da_limit = self.da_config.max_da_block_size();
-        let tx_da_limit = self.da_config.max_da_tx_size();
+        let mut block_gas_limit = builder.evm_mut().block().gas_limit();
+        if let Some(gas_limit_config) = self.builder_config.gas_limit_config.gas_limit() {
+            // If a gas limit is configured, use that limit as target if it's smaller, otherwise use
+            // the block's actual gas limit.
+            block_gas_limit = gas_limit_config.min(block_gas_limit);
+        };
+        let block_da_limit = self.builder_config.da_config.max_da_block_size();
+        let tx_da_limit = self.builder_config.da_config.max_da_tx_size();
         let base_fee = builder.evm_mut().block().basefee();
 
         while let Some(tx) = best_txs.next(()) {

@@ -4,7 +4,7 @@ use alloy_primitives::U64;
 use jsonrpsee_core::{async_trait, RpcResult};
 pub use op_alloy_rpc_jsonrpsee::traits::MinerApiExtServer;
 use reth_metrics::{metrics::Gauge, Metrics};
-use reth_optimism_payload_builder::config::OpDAConfig;
+use reth_optimism_payload_builder::config::{OpDAConfig, OpGasLimitConfig};
 use tracing::debug;
 
 /// Miner API extension for OP, exposes settings for the data availability configuration via the
@@ -12,14 +12,15 @@ use tracing::debug;
 #[derive(Debug, Clone)]
 pub struct OpMinerExtApi {
     da_config: OpDAConfig,
+    gas_limit_config: OpGasLimitConfig,
     metrics: OpMinerMetrics,
 }
 
 impl OpMinerExtApi {
     /// Instantiate the miner API extension with the given, sharable data availability
     /// configuration.
-    pub fn new(da_config: OpDAConfig) -> Self {
-        Self { da_config, metrics: OpMinerMetrics::default() }
+    pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
+        Self { da_config, gas_limit_config, metrics: OpMinerMetrics::default() }
     }
 }
 
@@ -36,7 +37,10 @@ impl MinerApiExtServer for OpMinerExtApi {
         Ok(true)
     }
 
-    async fn set_gas_limit(&self, _max_block_gas: U64) -> RpcResult<bool> {
+    async fn set_gas_limit(&self, gas_limit: U64) -> RpcResult<bool> {
+        debug!(target: "rpc", "Setting gas limit: {}", gas_limit);
+        self.gas_limit_config.set_gas_limit(gas_limit.to());
+        self.metrics.set_gas_limit(gas_limit.to());
         Ok(true)
     }
 }
@@ -49,6 +53,8 @@ pub struct OpMinerMetrics {
     max_da_tx_size: Gauge,
     /// Max DA block size set on the miner
     max_da_block_size: Gauge,
+    /// Gas limit set on the miner
+    gas_limit: Gauge,
 }
 
 impl OpMinerMetrics {
@@ -62,5 +68,11 @@ impl OpMinerMetrics {
     #[inline]
     pub fn set_max_da_block_size(&self, size: u64) {
         self.max_da_block_size.set(size as f64);
+    }
+
+    /// Sets the gas limit gauge value
+    #[inline]
+    pub fn set_gas_limit(&self, gas_limit: u64) {
+        self.gas_limit.set(gas_limit as f64);
     }
 }

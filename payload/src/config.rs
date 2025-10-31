@@ -7,12 +7,14 @@ use std::sync::{atomic::AtomicU64, Arc};
 pub struct OpBuilderConfig {
     /// Data availability configuration for the OP builder.
     pub da_config: OpDAConfig,
+    /// Gas limit configuration for the OP builder.
+    pub gas_limit_config: OpGasLimitConfig,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
-    pub const fn new(da_config: OpDAConfig) -> Self {
-        Self { da_config }
+    pub const fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
+        Self { da_config, gas_limit_config }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
@@ -100,6 +102,40 @@ struct OpDAConfigInner {
     max_da_block_size: AtomicU64,
 }
 
+/// Contains the Gas Limit configuration for the OP builder.
+///
+/// This type is shareable and can be used to update the Gas Limit configuration for the OP payload
+/// builder.
+#[derive(Debug, Clone, Default)]
+pub struct OpGasLimitConfig {
+    /// Gas limit for a transaction
+    ///
+    /// 0 means use the default gas limit.
+    gas_limit: Arc<AtomicU64>,
+}
+
+impl OpGasLimitConfig {
+    /// Creates a new Gas Limit configuration with the given maximum gas limit.
+    pub fn new(max_gas_limit: u64) -> Self {
+        let this = Self::default();
+        this.set_gas_limit(max_gas_limit);
+        this
+    }
+    /// Returns the gas limit for a transaction, if any.
+    pub fn gas_limit(&self) -> Option<u64> {
+        let val = self.gas_limit.load(std::sync::atomic::Ordering::Relaxed);
+        if val == 0 {
+            None
+        } else {
+            Some(val)
+        }
+    }
+    /// Sets the gas limit for a transaction. 0 means use the default gas limit.
+    pub fn set_gas_limit(&self, gas_limit: u64) {
+        self.gas_limit.store(gas_limit, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,5 +157,15 @@ mod tests {
     fn test_da_constrained() {
         let config = OpBuilderConfig::default();
         assert!(config.constrained_da_config().is_none());
+    }
+
+    #[test]
+    fn test_gas_limit() {
+        let gas_limit = OpGasLimitConfig::default();
+        assert_eq!(gas_limit.gas_limit(), None);
+        gas_limit.set_gas_limit(50000);
+        assert_eq!(gas_limit.gas_limit(), Some(50000));
+        gas_limit.set_gas_limit(0);
+        assert_eq!(gas_limit.gas_limit(), None);
     }
 }
