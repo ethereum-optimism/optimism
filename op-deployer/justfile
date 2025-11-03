@@ -6,7 +6,7 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  just ../packages/contracts-bedrock/forge-build
+  just ../packages/contracts-bedrock/build-no-tests
 
 copy-contract-artifacts:
     #!/bin/bash
