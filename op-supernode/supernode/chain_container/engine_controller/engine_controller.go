@@ -17,6 +17,8 @@ import (
 type EngineController interface {
 	// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp.
 	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	// L2BlockRefByNumber returns the L2 block ref for the given block number.
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// Close releases any underlying RPC resources.
@@ -76,6 +78,13 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 	}
 	if e.log != nil {
 		e.log.Debug("engine_controller: computed target block number from timestamp", "timestamp", ts, "blockNumber", num)
+	}
+	return e.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (e *simpleEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	if e.l2 == nil {
+		return eth.L2BlockRef{}, ErrNoEngineClient
 	}
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }

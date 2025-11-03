@@ -35,6 +35,11 @@ type mockVirtualNode struct {
 	// safe timestamp mock behavior
 	safeTs  uint64
 	safeErr error
+
+	// safe head mapping mock behavior
+	safeHeadL1  eth.BlockID
+	safeHeadL2  eth.BlockID
+	safeHeadErr error
 }
 
 func newMockVirtualNode() *mockVirtualNode {
@@ -80,6 +85,16 @@ func (m *mockVirtualNode) Stop(ctx context.Context) error {
 // SafeTimestamp implements virtual_node.VirtualNode SafeTimestamp
 func (m *mockVirtualNode) SafeTimestamp(ctx context.Context) (uint64, error) {
 	return m.safeTs, m.safeErr
+}
+
+// SafeHeadAtL1 implements virtual_node.VirtualNode SafeHeadAtL1
+func (m *mockVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadL2, m.safeHeadErr
+}
+
+// LastL1 implements virtual_node.VirtualNode LastL1
+func (m *mockVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
+	return m.safeHeadL1, m.safeHeadErr
 }
 
 // Test helpers
@@ -631,13 +646,17 @@ func (m *mockEngineController) BlockAtTimestamp(ctx context.Context, ts uint64) 
 	m.blockCalls++
 	return m.ref, m.refErr
 }
+func (m *mockEngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	m.blockCalls++
+	return m.ref, m.refErr
+}
 func (m *mockEngineController) OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error) {
 	m.outCalls++
 	return m.out, m.outErr
 }
 func (m *mockEngineController) Close() error { return nil }
 
-func TestOutputRootAtTimestamp_ComputesFromEngine(t *testing.T) {
+func TestOutputRootAtL1_ComputesFromEngine(t *testing.T) {
 	t.Parallel()
 	chainID := eth.ChainIDFromUInt64(420)
 	vncfg := createTestVNConfig()
@@ -654,7 +673,13 @@ func TestOutputRootAtTimestamp_ComputesFromEngine(t *testing.T) {
 	}
 	impl.engine = mockEng
 
-	got, err := impl.OutputRootAtTimestamp(context.Background(), 123)
+	// Provide a mock VN with a SafeDB mapping to L2 block number 100
+	mockVN := newMockVirtualNode()
+	mockVN.safeHeadL1 = eth.BlockID{Number: 999}
+	mockVN.safeHeadL2 = eth.BlockID{Number: 100}
+	impl.vn = mockVN
+
+	got, err := impl.OutputRootAtL1(context.Background(), 999)
 	require.NoError(t, err)
 	require.Equal(t, eth.OutputRoot(mockEng.out), got)
 	require.Equal(t, 1, mockEng.blockCalls)

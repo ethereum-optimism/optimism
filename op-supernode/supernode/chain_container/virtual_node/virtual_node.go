@@ -3,6 +3,7 @@ package virtual_node
 import (
 	"context"
 	"errors"
+	"math"
 	"sync"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
@@ -36,6 +37,8 @@ type VirtualNode interface {
 	SafeTimestamp(ctx context.Context) (uint64, error)
 	// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number.
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
+	// LastL1 returns the latest recorded L1 block in the SafeDB mapping.
+	LastL1(ctx context.Context) (eth.BlockID, error)
 }
 
 type innerNode interface {
@@ -208,4 +211,19 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
 	return inner.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
+// LastL1 returns the latest recorded L1 block in the SafeDB mapping.
+func (v *simpleVirtualNode) LastL1(ctx context.Context) (eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	l1, _, err := inner.SafeHeadAtL1(ctx, math.MaxUint64-1)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return l1, nil
 }

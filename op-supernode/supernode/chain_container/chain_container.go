@@ -2,7 +2,9 @@ package chain_container
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"path/filepath"
 	"sync/atomic"
@@ -10,6 +12,7 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -32,10 +35,12 @@ type ChainContainer interface {
 	SafeAtTimestamp(ctx context.Context, ts uint64) (bool, error)
 	VerifiedAtTimestamp(ctx context.Context, ts uint64) (bool, error)
 	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
-	OutputRootAtTimestamp(ctx context.Context, ts uint64) (eth.Bytes32, error)
-	// SafeHeadAtL1 returns the most recent (<= l1BlockNum) recorded mapping of L1 block -> L2 safe head.
-	// Backed by the op-node SafeDB.
+	OutputRootAtL1(ctx context.Context, l1BlockNum uint64) (eth.Bytes32, error)
 	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	CurrentL1(ctx context.Context) (eth.BlockRef, error)
+	LastL1(ctx context.Context) (eth.BlockRef, error)
+	VerifiedToTimestamp() (uint64, error)
+	VerifiedToTimestampWithL1(ctx context.Context, l1BlockNum uint64) (uint64, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -236,17 +241,36 @@ func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64) 
 }
 
 // OutputRootAtTimestamp computes the output root for the L2 block at or before the given timestamp.
-func (c *simpleChainContainer) OutputRootAtTimestamp(ctx context.Context, ts uint64) (eth.Bytes32, error) {
+func (c *simpleChainContainer) OutputRootAtL1(ctx context.Context, l1BlockNum uint64) (eth.Bytes32, error) {
 	if c.engine == nil {
 		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
 	}
-	ref, err := c.engine.BlockAtTimestamp(ctx, ts)
+	// Use SafeDB mapping to find the L2 safe head corresponding to (or before) the given L1 block number
+	if c.vn == nil {
+		return eth.Bytes32{}, fmt.Errorf("virtual node not initialized")
+	}
+	if c.log != nil {
+		c.log.Debug("OutputRootAtL1: query SafeHeadAtL1", "l1_block", l1BlockNum)
+	}
+	_, l2SafeHead, err := c.vn.SafeHeadAtL1(ctx, l1BlockNum)
 	if err != nil {
+		if c.log != nil {
+			c.log.Warn("OutputRootAtL1: SafeHeadAtL1 failed", "l1_block", l1BlockNum, "err", err)
+		}
 		return eth.Bytes32{}, err
 	}
-	out, err := c.engine.OutputV0AtBlockNumber(ctx, ref.Number)
+	if c.log != nil {
+		c.log.Debug("OutputRootAtL1: resolved L2 safe head", "l1_block", l1BlockNum, "l2_block", l2SafeHead.Number)
+	}
+	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2SafeHead.Number)
 	if err != nil {
+		if c.log != nil {
+			c.log.Warn("OutputRootAtL1: engine output fetch failed", "l2_block", l2SafeHead.Number, "err", err)
+		}
 		return eth.Bytes32{}, err
+	}
+	if c.log != nil {
+		c.log.Debug("OutputRootAtL1: got output root", "l2_block", l2SafeHead.Number)
 	}
 	return eth.OutputRoot(out), nil
 }
@@ -260,4 +284,78 @@ func (c *simpleChainContainer) SafeHeadAtL1(ctx context.Context, l1BlockNum uint
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("virtual node not initialized")
 	}
 	return c.vn.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
+// CurrentL1 returns the most recent processed L1 block reference.
+// This uses the SafeDB mapping as a proxy for current processed L1.
+func (c *simpleChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
+	if c.vn == nil {
+		if c.log != nil {
+			c.log.Warn("CurrentL1: virtual node not initialized")
+		}
+		return eth.BlockRef{}, nil
+	}
+	// Avoid overflow in SafeDB implementation which does l1BlockNum+1; use MaxUint64-1 to get the latest entry
+	l1, _, err := c.vn.SafeHeadAtL1(ctx, math.MaxUint64-1)
+	if err != nil {
+		// Gracefully handle SafeDB not being enabled or populated yet.
+		if errors.Is(err, safedb.ErrNotEnabled) || errors.Is(err, safedb.ErrNotFound) {
+			if c.log != nil {
+				c.log.Debug("CurrentL1: SafeDB unavailable", "err", err)
+			}
+			return eth.BlockRef{}, nil
+		}
+		return eth.BlockRef{}, err
+	}
+	// ParentHash and Time may not be available from SafeDB mapping; only Number/Hash are set.
+	return eth.BlockRef{Hash: l1.Hash, Number: l1.Number}, nil
+}
+
+// LastL1 returns the latest recorded L1 in the SafeDB mapping.
+// This does not rely on sync status, just the SafeDB (if enabled and populated).
+func (c *simpleChainContainer) LastL1(ctx context.Context) (eth.BlockRef, error) {
+	if c.vn == nil {
+		return eth.BlockRef{}, fmt.Errorf("virtual node not initialized")
+	}
+	l1, _, err := c.vn.SafeHeadAtL1(ctx, math.MaxUint64-1)
+	if err != nil {
+		return eth.BlockRef{}, err
+	}
+	return eth.BlockRef{Hash: l1.Hash, Number: l1.Number}, nil
+}
+
+// VerifiedToTimestamp returns the latest verified timestamp. Currently proxies SafeTimestamp.
+func (c *simpleChainContainer) VerifiedToTimestamp() (uint64, error) {
+	if c.vn == nil {
+		return 0, nil
+	}
+	return c.vn.SafeTimestamp(context.Background())
+}
+
+// VerifiedToTimestampWithL1 returns the latest verified timestamp with L1 context. Currently proxies SafeTimestamp.
+func (c *simpleChainContainer) VerifiedToTimestampWithL1(ctx context.Context, l1BlockNum uint64) (uint64, error) {
+	if c.vn == nil {
+		return 0, fmt.Errorf("virtual node not initialized")
+	}
+	// Resolve the L2 safe head that became safe at or before this L1 block number
+	_, l2SafeHead, err := c.vn.SafeHeadAtL1(ctx, l1BlockNum)
+	if err != nil {
+		// If SafeDB is unavailable/unpopulated, surface 0 for now
+		if errors.Is(err, safedb.ErrNotEnabled) || errors.Is(err, safedb.ErrNotFound) {
+			if c.log != nil {
+				c.log.Debug("VerifiedToTimestampWithL1: SafeDB unavailable", "l1_block", l1BlockNum, "err", err)
+			}
+			return 0, nil
+		}
+		return 0, err
+	}
+	if c.engine == nil {
+		return 0, engine_controller.ErrNoEngineClient
+	}
+	// Fetch the L2 block ref to read its timestamp
+	ref, err := c.engine.L2BlockRefByNumber(ctx, l2SafeHead.Number)
+	if err != nil {
+		return 0, err
+	}
+	return ref.Time, nil
 }

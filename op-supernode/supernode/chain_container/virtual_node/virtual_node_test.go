@@ -12,6 +12,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +57,11 @@ func (m *mockInnerNode) Stop(ctx context.Context) error {
 // SafeL2Timestamp implements the innerNode interface method used by VirtualNode for safety checks
 func (m *mockInnerNode) SafeL2Timestamp() (uint64, bool) {
 	return m.safeTs, m.haveSafe
+}
+
+// SafeHeadAtL1 implements innerNode interface method used by VirtualNode
+func (m *mockInnerNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
 // Test helpers
