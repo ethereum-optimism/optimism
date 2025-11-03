@@ -18,6 +18,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
+	operrors "github.com/ethereum-optimism/optimism/op-node/errors"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -67,24 +68,34 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 
 	p2pSignerSetup, err := p2pcli.LoadSignerSetup(ctx, log)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load p2p signer: %w", err)
+		operrors.LogError(log, err, "config", "p2p_signer_setup", map[string]interface{}{
+			"rollup_block_time": rollupConfig.BlockTime,
+		})
+		return nil, operrors.WrapError(err, "config", "p2p_signer_setup", "failed to load p2p signer", nil)
 	}
 
 	p2pConfig, err := p2pcli.NewConfig(ctx, rollupConfig.BlockTime)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load p2p config: %w", err)
+		operrors.LogError(log, err, "config", "p2p_config", map[string]interface{}{
+			"rollup_block_time": rollupConfig.BlockTime,
+		})
+		return nil, operrors.WrapError(err, "config", "p2p_config", "failed to load p2p config", nil)
 	}
 
 	l1Endpoint := NewL1EndpointConfig(ctx)
 
 	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
+		operrors.LogError(log, err, "config", "l2_endpoint", map[string]interface{}{
+			"l2_engine_addr": ctx.String(flags.L2EngineAddr.Name),
+		})
+		return nil, operrors.WrapError(err, "config", "l2_endpoint", "failed to load l2 endpoints info", nil)
 	}
 
 	syncConfig, err := NewSyncConfig(ctx, log)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create the sync config: %w", err)
+		operrors.LogError(log, err, "config", "sync_config", nil)
+		return nil, operrors.WrapError(err, "config", "sync_config", "failed to create the sync config", nil)
 	}
 
 	haltOption := ctx.String(flags.RollupHalt.Name)
