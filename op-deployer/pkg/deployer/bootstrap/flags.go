@@ -231,12 +231,6 @@ var Commands = []*cli.Command{
 		Action: ImplementationsCLI,
 	},
 	{
-		Name:   "proxy",
-		Usage:  "Bootstrap a ERC-1967 Proxy without an implementation set.",
-		Flags:  cliapp.ProtectFlags(ProxyFlags),
-		Action: ProxyCLI,
-	},
-	{
 		Name:   "superchain",
 		Usage:  "Bootstrap the Superchain configuration",
 		Flags:  cliapp.ProtectFlags(SuperchainFlags),
