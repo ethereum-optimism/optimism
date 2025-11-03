@@ -188,7 +188,8 @@ var Commands = cli.Commands{
 			//
 			SystemConfigProxyFlag,
 			OPChainProxyAdminFlag,
-			DisputeAbsolutePrestateFlag,
+			DisputeAbsolutePrestateCannonFlag,
+			DisputeAbsolutePrestateCannonKonaFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
 	},
