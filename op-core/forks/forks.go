@@ -17,11 +17,15 @@ const (
 	Isthmus  Name = "isthmus"
 	Jovian   Name = "jovian"
 	Interop  Name = "interop"
-	// ADD NEW FORKS TO All BELOW!
+	// ADD NEW MAINLINE FORKS TO [All] BELOW!
+
+	// Optional Forks - not part of mainline
+	PectraBlobSchedule Name = "pectrablobschedule"
+
 	None Name = ""
 )
 
-// All lists all known forks in chronological order.
+// All lists all known mainline forks in chronological order.
 var All = []Name{
 	Bedrock,
 	Regolith,
@@ -34,10 +38,16 @@ var All = []Name{
 	Isthmus,
 	Jovian,
 	Interop,
-	// ADD NEW FORKS HERE!
+	// ADD NEW MAINLINE FORKS HERE!
 }
 
-// Latest returns the most recent fork in All.
+// AllOpt lists all optional forks in chronological order.
+var AllOpt = []Name{
+	PectraBlobSchedule,
+	// ADD NEW OPTIONAL FORKS HERE!
+}
+
+// Latest returns the most recent fork in [All].
 var Latest = All[len(All)-1]
 
 // From returns the list of forks starting from the provided fork, inclusive.

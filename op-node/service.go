@@ -257,45 +257,12 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 }
 
 func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
-		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
-		rollupConfig.CanyonTime = &canyon
-	}
-	if ctx.IsSet(opflags.DeltaOverrideFlagName) {
-		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
-		rollupConfig.DeltaTime = &delta
-	}
-	if ctx.IsSet(opflags.EcotoneOverrideFlagName) {
-		ecotone := ctx.Uint64(opflags.EcotoneOverrideFlagName)
-		rollupConfig.EcotoneTime = &ecotone
-	}
-	if ctx.IsSet(opflags.FjordOverrideFlagName) {
-		fjord := ctx.Uint64(opflags.FjordOverrideFlagName)
-		rollupConfig.FjordTime = &fjord
-	}
-	if ctx.IsSet(opflags.GraniteOverrideFlagName) {
-		granite := ctx.Uint64(opflags.GraniteOverrideFlagName)
-		rollupConfig.GraniteTime = &granite
-	}
-	if ctx.IsSet(opflags.HoloceneOverrideFlagName) {
-		holocene := ctx.Uint64(opflags.HoloceneOverrideFlagName)
-		rollupConfig.HoloceneTime = &holocene
-	}
-	if ctx.IsSet(opflags.PectraBlobScheduleOverrideFlagName) {
-		pectrablobschedule := ctx.Uint64(opflags.PectraBlobScheduleOverrideFlagName)
-		rollupConfig.PectraBlobScheduleTime = &pectrablobschedule
-	}
-	if ctx.IsSet(opflags.IsthmusOverrideFlagName) {
-		isthmus := ctx.Uint64(opflags.IsthmusOverrideFlagName)
-		rollupConfig.IsthmusTime = &isthmus
-	}
-	if ctx.IsSet(opflags.JovianOverrideFlagName) {
-		jovian := ctx.Uint64(opflags.JovianOverrideFlagName)
-		rollupConfig.JovianTime = &jovian
-	}
-	if ctx.IsSet(opflags.InteropOverrideFlagName) {
-		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
-		rollupConfig.InteropTime = &interop
+	for _, fork := range opflags.OverridableForks {
+		flagName := opflags.OverrideName(fork)
+		if ctx.IsSet(flagName) {
+			timestamp := ctx.Uint64(flagName)
+			rollupConfig.SetActivationTime(fork, &timestamp)
+		}
 	}
 }
 
