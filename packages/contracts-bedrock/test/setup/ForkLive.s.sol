@@ -282,11 +282,16 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
-        address permissionlessDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
-        if (permissionlessDisputeGame != address(0)) {
+        address cannonDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
+        if (cannonDisputeGame != address(0)) {
             // Both names are used in different places, so we save both.
-            artifacts.save("PermissionlessDisputeGame", address(permissionlessDisputeGame));
-            artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
+            artifacts.save("PermissionlessDisputeGame", address(cannonDisputeGame));
+            artifacts.save("FaultDisputeGame", address(cannonDisputeGame));
+        }
+
+        address cannonKonaDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA));
+        if (cannonKonaDisputeGame != address(0)) {
+            artifacts.save("FaultDisputeGameCannonKona", address(cannonKonaDisputeGame));
         }
 
         IAnchorStateRegistry newAnchorStateRegistry;
