@@ -85,10 +85,9 @@ pre-deploy: build build-contracts
 deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer bootstrap implementations \
+  go run ./cmd/op-deployer bootstrap implementations \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
-    --mips-version 7 \
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
     --l1-proxy-admin-owner $L1_PROXY_ADMIN_OWNER \
@@ -102,7 +101,7 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
 verify-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer verify \
+  go run ./cmd/op-deployer verify \
     --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \
