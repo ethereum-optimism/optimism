@@ -1192,8 +1192,6 @@ jobs:
             ETH_RPC_URL: <<parameters.fork_base_rpc>>
             FORK_OP_CHAIN: <<parameters.fork_op_chain>>
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
-            DEV_FEATURE__CANNON_KONA: true
-            DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES: true
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
@@ -1207,8 +1205,6 @@ jobs:
             ETH_RPC_URL: <<parameters.fork_base_rpc>>
             FORK_OP_CHAIN: <<parameters.fork_op_chain>>
             FORK_BASE_CHAIN: <<parameters.fork_base_chain>>
-            DEV_FEATURE__CANNON_KONA: true
-            DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES: true
           working_directory: packages/contracts-bedrock
           when: on_fail
       - save_cache:
