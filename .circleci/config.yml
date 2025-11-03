@@ -2327,7 +2327,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
-          name: contracts-bedrock-tests
+          name: contracts-bedrock-tests main
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
           context:
             - circleci-repo-readonly-authenticated-github-token
