@@ -1077,6 +1077,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _gameType: GameTypes.CANNON_KONA,
                         _disputeGameFactory: disputeGameFactory
                     });
+                    uint256 initialCannonGameBond = disputeGameFactory.initBonds(GameTypes.CANNON);
+                    disputeGameFactory.setInitBond(GameTypes.CANNON_KONA, initialCannonGameBond);
                 }
             }
         }

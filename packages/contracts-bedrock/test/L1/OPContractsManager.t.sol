@@ -347,10 +347,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     )
         internal
     {
-        bytes32 expectedAbsolutePrestate = _opChainConfig.cannonPrestate.raw();
-        if (expectedAbsolutePrestate == bytes32(0)) {
-            expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
-        }
         address expectedVm = address(_opcm.implementations().mipsImpl);
 
         Claim claim = Claim.wrap(bytes32(uint256(1)));
@@ -359,12 +355,28 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
         uint256 l2BlockNumber = rootBlockNumber + 1;
 
+        bool expectCannonKonaGameSet =
+            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
+
         // Deploy live games and ensure they're configured correctly
-        GameType[] memory gameTypes = new GameType[](2);
+        GameType[] memory gameTypes = new GameType[](expectCannonKonaGameSet ? 3 : 2);
         gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
         gameTypes[1] = GameTypes.CANNON;
+        if (expectCannonKonaGameSet) {
+            gameTypes[2] = GameTypes.CANNON_KONA;
+        }
         for (uint256 i = 0; i < gameTypes.length; i++) {
             GameType gt = gameTypes[i];
+
+            bytes32 expectedAbsolutePrestate = _opChainConfig.cannonPrestate.raw();
+            if (expectedAbsolutePrestate == bytes32(0)) {
+                expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
+            }
+            if (expectCannonKonaGameSet && gt.raw() == GameTypes.CANNON_KONA.raw()) {
+                expectedAbsolutePrestate = _opChainConfig.cannonKonaPrestate.raw();
+            }
+            assertEq(bondAmount, disputeGameFactory.initBonds(gt));
+
             vm.prank(_proposer, _proposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
                 address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
@@ -392,6 +404,12 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             } else {
                 vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }
+        }
+
+        if (!expectCannonKonaGameSet) {
+            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+            assertEq(0, disputeGameFactory.initBonds(GameTypes.CANNON_KONA));
+            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
         }
     }
 

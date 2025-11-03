@@ -14,10 +14,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -91,8 +91,8 @@ type L2FeesConfigurator interface {
 }
 
 type L2HardforkConfigurator interface {
-	WithForkAtGenesis(fork rollup.ForkName)
-	WithForkAtOffset(fork rollup.ForkName, offset *uint64)
+	WithForkAtGenesis(fork forks.Name)
+	WithForkAtOffset(fork forks.Name, offset *uint64)
 }
 
 type Builder interface {
@@ -431,10 +431,10 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].OperatorFeeConstant = value
 }
 
-func (c *l2Configurator) WithForkAtGenesis(fork rollup.ForkName) {
+func (c *l2Configurator) WithForkAtGenesis(fork forks.Name) {
 	var future bool
-	for _, refFork := range rollup.AllForks {
-		if refFork == rollup.Bedrock {
+	for _, refFork := range forks.All {
+		if refFork == forks.Bedrock {
 			continue
 		}
 
@@ -450,8 +450,8 @@ func (c *l2Configurator) WithForkAtGenesis(fork rollup.ForkName) {
 	}
 }
 
-func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) {
-	require.True(c.t, rollup.IsValidFork(fork))
+func (c *l2Configurator) WithForkAtOffset(fork forks.Name, offset *uint64) {
+	require.True(c.t, forks.IsValid(fork))
 	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
 
 	if offset == nil {

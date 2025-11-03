@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
@@ -257,7 +257,7 @@ func initAllocType(root string, allocType AllocType) {
 			}
 
 			upgradeSchedule := new(genesis.UpgradeScheduleDeployConfig)
-			upgradeSchedule.ActivateForkAtGenesis(rollup.ForkName(mode))
+			upgradeSchedule.ActivateForkAtGenesis(forks.Name(mode))
 			upgradeOverridesJSON, err := json.Marshal(upgradeSchedule)
 			if err != nil {
 				panic(fmt.Errorf("failed to marshal upgrade schedule: %w", err))
@@ -369,7 +369,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"l1CancunTimeOffset":                       "0x0",
 			"faultGameAbsolutePrestate":                defaultPrestate.Hex(),
 			"faultGameMaxDepth":                        50,
-			"faultGameClockExtension":                  0,
+			"faultGameClockExtension":                  1,
 			"faultGameMaxClockDuration":                1200,
 			"faultGameGenesisBlock":                    0,
 			"faultGameGenesisOutputRoot":               genesisOutputRoot.Hex(),

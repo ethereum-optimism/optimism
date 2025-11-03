@@ -59,6 +59,12 @@ kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
 op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
 svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
 
+# These are disabled, but latest mise versions error if they don't have a known
+# install source even though it won't ever actually use that source.
+asterisc = "ubi:ethereum-optimism/fake-asterisc"
+kontrol = "ubi:ethereum-optimism/fake-kontrol"
+binary_signer = "ubi:ethereum-optimism/fake-binary_signer"
+
 [settings]
 experimental = true
 pipx.uvx = true

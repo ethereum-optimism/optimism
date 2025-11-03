@@ -3,17 +3,15 @@ package standard
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
-	"github.com/ethereum/go-ethereum/superchain"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 const (
@@ -180,13 +178,13 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	case ContractsV160Tag, ContractsV170Beta1L2Tag:
 		return sched
 	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
+		sched.ActivateForkAtGenesis(forks.Holocene)
 	case ContractsV400Tag, ContractsV410Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	default:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	}
 
 	return sched

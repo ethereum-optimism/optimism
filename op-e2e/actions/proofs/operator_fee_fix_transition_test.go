@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -28,7 +28,7 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 
 		deployConfigOverrides := func(dp *genesis.DeployConfig) {
-			dp.ActivateForkAtOffset(rollup.Jovian, 15)
+			dp.ActivateForkAtOffset(forks.Jovian, 15)
 		}
 
 		testOperatorFeeScalar := uint32(345e6)
@@ -140,7 +140,7 @@ func Test_ProgramAction_OperatorFeeFixTransition(gt *testing.T) {
 		require.True(t, aliceFinalBalance.Cmp(aliceInitialBalance) < 0, "Alice's balance should decrease")
 
 		// Now wind forward to jovian
-		unsafeL2Head = env.Sequencer.ActBuildL2ToFork(t, rollup.Jovian)
+		unsafeL2Head = env.Sequencer.ActBuildL2ToFork(t, forks.Jovian)
 
 		// reset accounting
 		aliceInitialBalance, _, _, _, operatorFeeVaultInitialBalance = getCurrentBalances(unsafeL2Head.Number)

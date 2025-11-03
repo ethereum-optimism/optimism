@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -118,25 +118,25 @@ func Test_ProgramAction_JovianMinBaseFee(gt *testing.T) {
 	}{
 		"JovianActivationAfterGenesis": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				dc.ActivateForkAtOffset(rollup.Jovian, 10)
+				dc.ActivateForkAtOffset(forks.Jovian, 10)
 			},
 			minBaseFee: 0,
 		},
 		"JovianActivationAtGenesisZeroMinBaseFee": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				dc.ActivateForkAtGenesis(rollup.Jovian)
+				dc.ActivateForkAtGenesis(forks.Jovian)
 			},
 			minBaseFee: 0,
 		},
 		"JovianActivationAtGenesisMinBaseFeeMedium": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				dc.ActivateForkAtGenesis(rollup.Jovian)
+				dc.ActivateForkAtGenesis(forks.Jovian)
 			},
 			minBaseFee: 1_000_000_000, // 1 gwei
 		},
 		"JovianActivationAtGenesisMinBaseFeeHigh": {
 			genesisConfigFn: func(dc *genesis.DeployConfig) {
-				dc.ActivateForkAtGenesis(rollup.Jovian)
+				dc.ActivateForkAtGenesis(forks.Jovian)
 			},
 			minBaseFee: 2_000_000_000, // 2 gwei
 		},

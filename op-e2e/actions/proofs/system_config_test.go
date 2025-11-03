@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -36,7 +36,7 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dp *genesis.DeployConfig) {
-		dp.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
+		dp.ActivateForkAtOffset(forks.Isthmus, isthmusOffset)
 	}
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 	sequencer := env.Sequencer

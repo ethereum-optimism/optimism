@@ -34,6 +34,10 @@ contract ReadImplementationAddresses is Script {
         address disputeGameFactory;
         address mipsSingleton;
         address preimageOracleSingleton;
+        address faultDisputeGameV2;
+        address permissionedDisputeGameV2;
+        address superFaultDisputeGame;
+        address superPermissionedDisputeGame;
     }
 
     function run(Input memory _input) public returns (Output memory output_) {
@@ -55,6 +59,10 @@ contract ReadImplementationAddresses is Script {
         output_.delayedWETH = opcm.implementations().delayedWETHImpl;
         output_.ethLockbox = opcm.implementations().ethLockboxImpl;
         output_.optimismPortalInterop = opcm.implementations().optimismPortalInteropImpl;
+        output_.faultDisputeGameV2 = opcm.implementations().faultDisputeGameV2Impl;
+        output_.permissionedDisputeGameV2 = opcm.implementations().permissionedDisputeGameV2Impl;
+        output_.superFaultDisputeGame = opcm.implementations().superFaultDisputeGameImpl;
+        output_.superPermissionedDisputeGame = opcm.implementations().superPermissionedDisputeGameImpl;
 
         // Get L1CrossDomainMessenger from AddressManager
         IAddressManager am = IAddressManager(_input.addressManager);

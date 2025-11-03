@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -397,97 +398,114 @@ func TestApplyGenesisStrategy(t *testing.T) {
 
 func TestProofParamOverrides(t *testing.T) {
 	op_e2e.InitParallel(t)
+	for _, useV2 := range []bool{true, false} {
+		t.Run(fmt.Sprintf("useV2=%v", useV2), func(t *testing.T) {
+			op_e2e.InitParallel(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
-	intent.GlobalDeployOverrides = map[string]any{
-		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
-		"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
-		"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
-		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
-		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
-		"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
-		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
-		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
-		"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,
-		"faultGameSplitDepth":                     standard.DisputeSplitDepth + 1,
-		"faultGameClockExtension":                 standard.DisputeClockExtension + 1,
-		"faultGameMaxClockDuration":               standard.DisputeMaxClockDuration + 1,
-		"dangerouslyAllowCustomDisputeParameters": true,
-	}
+			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
+			devFeatureBitmap := common.Hash{}
+			if useV2 {
+				devFeatureBitmap = deployer.DeployV2DisputeGamesDevFlag
+			}
+			intent.GlobalDeployOverrides = map[string]any{
+				"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
+				"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
+				"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
+				"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
+				"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
+				"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
+				"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
+				"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
+				"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,
+				"faultGameSplitDepth":                     standard.DisputeSplitDepth + 1,
+				"faultGameClockExtension":                 standard.DisputeClockExtension + 1,
+				"faultGameMaxClockDuration":               standard.DisputeMaxClockDuration + 1,
+				"dangerouslyAllowCustomDisputeParameters": true,
+				"devFeatureBitmap":                        devFeatureBitmap,
+			}
 
-	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+			require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 
-	allocs := st.L1StateDump.Data.Accounts
-	chainState := st.Chains[0]
+			allocs := st.L1StateDump.Data.Accounts
+			chainState := st.Chains[0]
 
-	uint64Caster := func(t *testing.T, val any) common.Hash {
-		return common.BigToHash(new(big.Int).SetUint64(val.(uint64)))
-	}
+			uint64Caster := func(t *testing.T, val any) common.Hash {
+				return common.BigToHash(new(big.Int).SetUint64(val.(uint64)))
+			}
 
-	tests := []struct {
-		name    string
-		caster  func(t *testing.T, val any) common.Hash
-		address common.Address
-	}{
-		{
-			"faultGameWithdrawalDelay",
-			uint64Caster,
-			st.ImplementationsDeployment.DelayedWethImpl,
-		},
-		{
-			"preimageOracleMinProposalSize",
-			uint64Caster,
-			st.ImplementationsDeployment.PreimageOracleImpl,
-		},
-		{
-			"preimageOracleChallengePeriod",
-			uint64Caster,
-			st.ImplementationsDeployment.PreimageOracleImpl,
-		},
-		{
-			"proofMaturityDelaySeconds",
-			uint64Caster,
-			st.ImplementationsDeployment.OptimismPortalImpl,
-		},
-		{
-			"disputeGameFinalityDelaySeconds",
-			uint64Caster,
-			st.ImplementationsDeployment.AnchorStateRegistryImpl,
-		},
-		{
-			"faultGameAbsolutePrestate",
-			func(t *testing.T, val any) common.Hash {
-				return val.(common.Hash)
-			},
-			chainState.PermissionedDisputeGameImpl,
-		},
-		{
-			"faultGameMaxDepth",
-			uint64Caster,
-			chainState.PermissionedDisputeGameImpl,
-		},
-		{
-			"faultGameSplitDepth",
-			uint64Caster,
-			chainState.PermissionedDisputeGameImpl,
-		},
-		{
-			"faultGameClockExtension",
-			uint64Caster,
-			chainState.PermissionedDisputeGameImpl,
-		},
-		{
-			"faultGameMaxClockDuration",
-			uint64Caster,
-			chainState.PermissionedDisputeGameImpl,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
+			pdgImpl := chainState.PermissionedDisputeGameImpl
+			if useV2 {
+				pdgImpl = st.ImplementationsDeployment.PermissionedDisputeGameV2Impl
+			}
+			tests := []struct {
+				name    string
+				caster  func(t *testing.T, val any) common.Hash
+				address common.Address
+			}{
+				{
+					"faultGameWithdrawalDelay",
+					uint64Caster,
+					st.ImplementationsDeployment.DelayedWethImpl,
+				},
+				{
+					"preimageOracleMinProposalSize",
+					uint64Caster,
+					st.ImplementationsDeployment.PreimageOracleImpl,
+				},
+				{
+					"preimageOracleChallengePeriod",
+					uint64Caster,
+					st.ImplementationsDeployment.PreimageOracleImpl,
+				},
+				{
+					"proofMaturityDelaySeconds",
+					uint64Caster,
+					st.ImplementationsDeployment.OptimismPortalImpl,
+				},
+				{
+					"disputeGameFinalityDelaySeconds",
+					uint64Caster,
+					st.ImplementationsDeployment.AnchorStateRegistryImpl,
+				},
+				{
+					"faultGameMaxDepth",
+					uint64Caster,
+					pdgImpl,
+				},
+				{
+					"faultGameSplitDepth",
+					uint64Caster,
+					pdgImpl,
+				},
+				{
+					"faultGameClockExtension",
+					uint64Caster,
+					pdgImpl,
+				},
+				{
+					"faultGameMaxClockDuration",
+					uint64Caster,
+					pdgImpl,
+				},
+				{
+					"faultGameAbsolutePrestate",
+					func(t *testing.T, val any) common.Hash {
+						return val.(common.Hash)
+					},
+					pdgImpl,
+				},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					if useV2 && tt.name == "faultGameAbsolutePrestate" {
+						t.Skip("absolute prestate is not an immutable in V2 contracts")
+					}
+					checkImmutable(t, allocs, tt.address, tt.caster(t, intent.GlobalDeployOverrides[tt.name]))
+				})
+			}
 		})
 	}
 }
