@@ -1,12 +1,20 @@
-use std::time::Duration;
-
 use super::{metrics::FlashblocksWsInboundMetrics, primitives::FlashblocksPayloadV1};
+use crate::FlashblocksWebsocketConfig;
+use backoff::ExponentialBackoff;
+use backoff::backoff::Backoff;
+use bytes::Bytes;
 use futures::{SinkExt, StreamExt};
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::{sync::mpsc, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use url::Url;
+
+const MAXIMUM_PINGS: NonZeroUsize = NonZeroUsize::new(60).expect("positive number always non zero");
 
 #[derive(Debug, thiserror::Error)]
 enum FlashblocksReceiverError {
@@ -16,8 +24,11 @@ enum FlashblocksReceiverError {
     #[error("Ping failed")]
     PingFailed,
 
-    #[error("Read timeout")]
-    ReadTimeout,
+    #[error("Pong timeout")]
+    PongTimeout,
+
+    #[error("Websocket haven't return the message")]
+    MessageMissing,
 
     #[error("Connection error: {0}")]
     ConnectionError(String),
@@ -30,39 +41,57 @@ enum FlashblocksReceiverError {
 
     #[error("Failed to send message to sender: {0}")]
     SendError(#[from] Box<tokio::sync::mpsc::error::SendError<FlashblocksPayloadV1>>),
+
+    #[error("Ping mutex poisoned")]
+    MutexPoisoned,
 }
 
 pub struct FlashblocksReceiverService {
     url: Url,
     sender: mpsc::Sender<FlashblocksPayloadV1>,
-    reconnect_ms: u64,
+    websocket_config: FlashblocksWebsocketConfig,
     metrics: FlashblocksWsInboundMetrics,
 }
 
 impl FlashblocksReceiverService {
-    pub fn new(url: Url, sender: mpsc::Sender<FlashblocksPayloadV1>, reconnect_ms: u64) -> Self {
+    pub fn new(
+        url: Url,
+        sender: mpsc::Sender<FlashblocksPayloadV1>,
+        websocket_config: FlashblocksWebsocketConfig,
+    ) -> Self {
         Self {
             url,
             sender,
-            reconnect_ms,
+            websocket_config,
             metrics: Default::default(),
         }
     }
 
     pub async fn run(self) {
+        let mut backoff = self.websocket_config.backoff();
         loop {
-            if let Err(e) = self.connect_and_handle().await {
-                error!("Flashblocks receiver connection error, retrying in 5 seconds: {e}");
+            if let Err(e) = self.connect_and_handle(&mut backoff).await {
+                let interval = backoff
+                    .next_backoff()
+                    .expect("max_elapsed_time not set, never None");
+                error!(
+                    "Flashblocks receiver connection error, retrying in {}ms: {}",
+                    interval.as_millis(),
+                    e
+                );
                 self.metrics.reconnect_attempts.increment(1);
                 self.metrics.connection_status.set(0);
-                tokio::time::sleep(std::time::Duration::from_millis(self.reconnect_ms)).await;
+                tokio::time::sleep(interval).await;
             } else {
                 break;
             }
         }
     }
 
-    async fn connect_and_handle(&self) -> Result<(), FlashblocksReceiverError> {
+    async fn connect_and_handle(
+        &self,
+        backoff: &mut ExponentialBackoff,
+    ) -> Result<(), FlashblocksReceiverError> {
         let (ws_stream, _) = connect_async(self.url.as_str()).await?;
         let (mut write, mut read) = ws_stream.split();
 
@@ -72,18 +101,32 @@ impl FlashblocksReceiverService {
         let cancel_token = CancellationToken::new();
         let cancel_for_ping = cancel_token.clone();
 
+        // LRU cache with capacity of 60 pings - automatically evicts oldest entries
+        let ping_cache = Arc::new(Mutex::new(LruCache::new(MAXIMUM_PINGS)));
+        let pong_cache = ping_cache.clone();
+        let mut ping_interval = interval(self.websocket_config.ping_interval());
         let ping_task = tokio::spawn(async move {
-            let mut ping_interval = interval(Duration::from_millis(500));
-
             loop {
                 tokio::select! {
                     _ = ping_interval.tick() => {
-                        if write.send(Message::Ping(Default::default())).await.is_err() {
+                        let uuid = uuid::Uuid::now_v7();
+                        if write.send(Message::Ping(Bytes::copy_from_slice(uuid.as_bytes().as_slice()))).await.is_err() {
                             return Err(FlashblocksReceiverError::PingFailed);
+                        }
+                        match ping_cache.lock() {
+                            Ok(mut cache) => {
+                                cache.put(uuid, ());
+                            }
+                            Err(_) => {
+                                return Err(FlashblocksReceiverError::MutexPoisoned);
+                            }
                         }
                     }
                     _ = cancel_for_ping.cancelled() => {
                         tracing::debug!("Ping task cancelled");
+                        if let Err(e) = write.close().await {
+                            tracing::warn!("Failed to close builder ws connection: {}", e);
+                        }
                         return Ok(());
                     }
                 }
@@ -93,39 +136,70 @@ impl FlashblocksReceiverService {
         let sender = self.sender.clone();
         let metrics = self.metrics.clone();
 
-        let read_timeout = Duration::from_millis(1500);
+        let pong_timeout = self.websocket_config.pong_interval();
         let message_handle = tokio::spawn(async move {
+            let mut pong_interval = interval(pong_timeout);
+            // We await here because first tick executes immediately
+            pong_interval.tick().await;
             loop {
-                let result = tokio::time::timeout(read_timeout, read.next())
-                    .await
-                    .map_err(|_| FlashblocksReceiverError::ReadTimeout)?;
+                tokio::select! {
+                    result = read.next() => {
+                        match result {
+                            Some(Ok(msg)) => match msg {
+                                Message::Text(text) => {
+                                    metrics.messages_received.increment(1);
+                                    match serde_json::from_str::<FlashblocksPayloadV1>(&text) {
+                                        Ok(flashblocks_msg) => sender.send(flashblocks_msg).await.map_err(|e| {
+                                                FlashblocksReceiverError::SendError(Box::new(e))
+                                            })?,
+                                        Err(e) => error!("Failed to process flashblock, error: {e}")
+                                    }
+                                }
+                                Message::Close(_) => {
+                                    return Err(FlashblocksReceiverError::ConnectionClosed);
+                                }
+                                Message::Pong(data) => {
+                                    match uuid::Uuid::from_slice(data.as_ref()) {
+                                        Ok(uuid) => {
+                                            match pong_cache.lock() {
+                                                Ok(mut cache) => {
+                                                    if cache.pop(&uuid).is_some() {
+                                                        pong_interval.reset();
+                                                    } else {
+                                                        tracing::warn!("Received pong with unknown data:{}", uuid);
+                                                    }
+                                                }
+                                                Err(_) => {
+                                                    return Err(FlashblocksReceiverError::MutexPoisoned);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!("Failed to parse pong: {e}");
+                                        }
+                                    }
 
-                match result {
-                    Some(Ok(msg)) => match msg {
-                        Message::Text(text) => {
-                            metrics.messages_received.increment(1);
-                            if let Ok(flashblocks_msg) =
-                                serde_json::from_str::<FlashblocksPayloadV1>(&text)
-                            {
-                                sender.send(flashblocks_msg).await.map_err(|e| {
-                                    FlashblocksReceiverError::SendError(Box::new(e))
-                                })?;
+                                }
+                                msg => {
+                                    tracing::warn!("Received unexpected message: {:?}", msg);
+                                }
+                            },
+                            Some(Err(e)) => {
+                                return Err(FlashblocksReceiverError::ConnectionError(e.to_string()));
+                            }
+                            None => {
+                                return Err(FlashblocksReceiverError::MessageMissing);
                             }
                         }
-                        Message::Close(_) => {
-                            return Err(FlashblocksReceiverError::ConnectionClosed);
-                        }
-                        _ => {}
                     },
-                    Some(Err(e)) => {
-                        return Err(FlashblocksReceiverError::ConnectionError(e.to_string()));
-                    }
-                    None => {
-                        return Err(FlashblocksReceiverError::ReadTimeout);
+                    _ = pong_interval.tick() => {
+                        return Err(FlashblocksReceiverError::PongTimeout);
                     }
                 };
             }
         });
+
+        let connection_start = std::time::Instant::now();
 
         let result = tokio::select! {
             result = message_handle => {
@@ -137,6 +211,12 @@ impl FlashblocksReceiverService {
         };
 
         cancel_token.cancel();
+
+        // Only reset backoff if connection was stable for the max_interval set
+        // This prevents rapid reconnection loops when a proxy accepts and immediately drops connections
+        if connection_start.elapsed() >= backoff.max_interval {
+            backoff.reset();
+        }
         result
     }
 }
@@ -149,6 +229,7 @@ mod tests {
 
     use super::*;
     use std::net::{SocketAddr, TcpListener};
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     async fn start(
         addr: SocketAddr,
@@ -191,16 +272,16 @@ mod tests {
                                         loop {
                                             tokio::select! {
                                                 Some(msg) = send_rx.recv() => {
-                                                    let serialized = serde_json::to_string(&msg).unwrap();
+                                                    let serialized = serde_json::to_string(&msg).expect("message serialized");
                                                     let utf8_bytes = Utf8Bytes::from(serialized);
 
-                                                    write.send(Message::Text(utf8_bytes)).await.unwrap();
+                                                    write.send(Message::Text(utf8_bytes)).await.expect("message sent");
                                                 },
                                                 msg = read.next() => {
                                                     match msg {
                                                         // we need to read for the library to handle pong messages
                                                         Some(Ok(Message::Ping(_))) => {
-                                                            send_ping_tx.send(()).await.unwrap();
+                                                            send_ping_tx.send(()).await.expect("ping notification sent");
                                                         },
                                                         _ => {}
                                                     }
@@ -233,14 +314,89 @@ mod tests {
         Ok((term_tx, send_tx, send_ping_rx, url))
     }
 
+    async fn start_ping_server(
+        addr: SocketAddr,
+        send_pongs: Arc<AtomicBool>,
+    ) -> eyre::Result<(watch::Receiver<bool>, mpsc::Receiver<Bytes>, url::Url)> {
+        let (term_tx, term_rx) = watch::channel(false);
+        let (send_ping_tx, send_ping_rx) = mpsc::channel(100);
+
+        let listener = TcpListener::bind(addr)?;
+        let url = Url::parse(&format!("ws://{addr}"))?;
+
+        listener
+            .set_nonblocking(true)
+            .expect("can set TcpListener socket to non-blocking");
+
+        let listener = tokio::net::TcpListener::from_std(listener)
+            .expect("can convert TcpListener to tokio TcpListener");
+
+        tokio::spawn(async move {
+            loop {
+                let result = listener.accept().await;
+                match result {
+                    Ok((connection, _addr)) => {
+                        match accept_async(connection).await {
+                            Ok(ws_stream) => {
+                                let (_, mut read) = ws_stream.split();
+                                loop {
+                                    if send_pongs.load(Ordering::Relaxed) {
+                                        let msg = read.next().await;
+                                        match msg {
+                                            // we need to read for the library to handle pong messages
+                                            Some(Ok(Message::Ping(data))) => {
+                                                send_ping_tx
+                                                    .send(data)
+                                                    .await
+                                                    .expect("ping data sent");
+                                            }
+                                            Some(Err(_)) => {
+                                                break;
+                                            }
+                                            _ => {}
+                                        }
+                                    } else {
+                                        tokio::time::sleep(tokio::time::Duration::from_millis(1))
+                                            .await;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to accept WebSocket connection: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Optionally break or continue based on error type
+                        if e.kind() == std::io::ErrorKind::Interrupted {
+                            break;
+                        }
+                    }
+                }
+                // If we have broken from the loop it means reconnection occurred
+                term_tx.send(true).expect("channel is up");
+            }
+        });
+
+        Ok((term_rx, send_ping_rx, url))
+    }
+
     #[tokio::test]
     async fn test_flashblocks_receiver_service() -> eyre::Result<()> {
-        let addr = "127.0.0.1:8080".parse::<SocketAddr>().unwrap();
+        let addr = "127.0.0.1:8080"
+            .parse::<SocketAddr>()
+            .expect("valid socket address");
         let (term, send_msg, _, url) = start(addr).await?;
 
         let (tx, mut rx) = mpsc::channel(100);
 
-        let service = FlashblocksReceiverService::new(url, tx, 100);
+        let config = FlashblocksWebsocketConfig {
+            flashblock_builder_ws_initial_reconnect_ms: 100,
+            flashblock_builder_ws_max_reconnect_ms: 100,
+            flashblock_builder_ws_ping_interval_ms: 500,
+            flashblock_builder_ws_pong_timeout_ms: 2000,
+        };
+        let service = FlashblocksReceiverService::new(url, tx, config);
         let _ = tokio::spawn(async move {
             service.run().await;
         });
@@ -249,14 +405,14 @@ mod tests {
         send_msg
             .send(FlashblocksPayloadV1::default())
             .await
-            .expect("Failed to send message");
+            .expect("message sent to websocket server");
 
-        let msg = rx.recv().await.expect("Failed to receive message");
+        let msg = rx.recv().await.expect("message received from websocket");
         assert_eq!(msg, FlashblocksPayloadV1::default());
 
         // Drop the websocket server and start another one with the same address
         // The FlashblocksReceiverService should reconnect to the new server
-        term.send(true).unwrap();
+        term.send(true).expect("termination signal sent");
 
         // sleep for 1 second to ensure the server is dropped
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -266,11 +422,11 @@ mod tests {
         send_msg
             .send(FlashblocksPayloadV1::default())
             .await
-            .expect("Failed to send message");
+            .expect("message sent to websocket server");
 
-        let msg = rx.recv().await.expect("Failed to receive message");
+        let msg = rx.recv().await.expect("message received from websocket");
         assert_eq!(msg, FlashblocksPayloadV1::default());
-        term.send(true).unwrap();
+        term.send(true).expect("termination signal sent");
 
         Ok(())
     }
@@ -280,20 +436,50 @@ mod tests {
         // test that if the builder is not sending any messages back, the service will send
         // ping messages to test the connection periodically
 
-        let addr = "127.0.0.1:8081".parse::<SocketAddr>().unwrap();
-        let (_term, _send_msg, mut ping_rx, url) = start(addr).await?;
+        let addr = "127.0.0.1:8081"
+            .parse::<SocketAddr>()
+            .expect("valid socket address");
+        let send_pongs = Arc::new(AtomicBool::new(true));
+        let (term, mut ping_rx, url) = start_ping_server(addr, send_pongs.clone()).await?;
+        let config = FlashblocksWebsocketConfig {
+            flashblock_builder_ws_initial_reconnect_ms: 100,
+            flashblock_builder_ws_max_reconnect_ms: 1000,
+            flashblock_builder_ws_ping_interval_ms: 500,
+            flashblock_builder_ws_pong_timeout_ms: 2000,
+        };
 
         let (tx, _rx) = mpsc::channel(100);
-        let service = FlashblocksReceiverService::new(url, tx, 100);
+        let service = FlashblocksReceiverService::new(url, tx, config);
         let _ = tokio::spawn(async move {
             service.run().await;
         });
 
         // even if we do not send any messages, we should receive pings to keep the connection alive
-        for _ in 0..10 {
-            ping_rx.recv().await.expect("Failed to receive ping");
+        for _ in 0..5 {
+            ping_rx.recv().await.expect("ping received");
         }
+        // Check that server hasn't reconnected because we have answered to pongs
+        let reconnected = term.has_changed().expect("channel not closed");
+        assert!(!reconnected, "not reconnected when we answered to pings");
 
+        send_pongs.store(false, Ordering::Relaxed);
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        send_pongs.store(true, Ordering::Relaxed);
+        // This sleep is to ensure that we will try to read socket and realise it closed
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // One second is not enough to break the connection
+        let reconnected = term.has_changed().expect("channel not closed");
+        assert!(!reconnected, "have reconnected before deadline is reached");
+
+        send_pongs.store(false, Ordering::Relaxed);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        send_pongs.store(true, Ordering::Relaxed);
+        // This sleep is to ensure that we will try to read socket and realise it closed
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // 3 seconds will cause reconnect
+        let reconnected = term.has_changed().expect("channel not closed");
+        assert!(reconnected, "haven't reconnected after deadline is reached");
         Ok(())
     }
 }

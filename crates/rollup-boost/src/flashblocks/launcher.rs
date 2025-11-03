@@ -1,5 +1,5 @@
 use crate::flashblocks::inbound::FlashblocksReceiverService;
-use crate::{FlashblocksService, RpcClient};
+use crate::{FlashblocksService, FlashblocksWebsocketConfig, RpcClient};
 use core::net::SocketAddr;
 use tokio::sync::mpsc;
 use url::Url;
@@ -11,11 +11,11 @@ impl Flashblocks {
         builder_url: RpcClient,
         flashblocks_url: Url,
         outbound_addr: SocketAddr,
-        reconnect_ms: u64,
+        websocket_config: FlashblocksWebsocketConfig,
     ) -> eyre::Result<FlashblocksService> {
         let (tx, rx) = mpsc::channel(100);
 
-        let receiver = FlashblocksReceiverService::new(flashblocks_url, tx, reconnect_ms);
+        let receiver = FlashblocksReceiverService::new(flashblocks_url, tx, websocket_config);
         tokio::spawn(async move {
             let _ = receiver.run().await;
         });

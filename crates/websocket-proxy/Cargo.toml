@@ -24,7 +24,7 @@ metrics-exporter-prometheus = { version = "0.17.0", features = [
 http = "1.2.0"
 axum = { version = "0.8.1", features = ["ws"] }
 dotenvy = "0.15.7"
-backoff = "0.4.0"
+backoff.workspace = true
 reqwest = { version = "0.12.15", default-features = false, features = [
     "native-tls",
 ] }

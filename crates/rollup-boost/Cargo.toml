@@ -64,6 +64,10 @@ paste = "1.0.15"
 parking_lot = "0.12.3"
 tokio-util = { version = "0.7.13" }
 dashmap = "6.1.0"
+backoff.workspace = true
+uuid = { version = "1.17.0", features = ["v4", "v7"] }
+bytes = "1.10.1"
+lru = "0.16"
 
 [dev-dependencies]
 rand = "0.9.0"

@@ -96,7 +96,7 @@ impl RollupBoostServer<FlashblocksService> {
             builder_client.clone(),
             inbound_url,
             outbound_addr,
-            flashblocks_args.flashblock_builder_ws_reconnect_ms,
+            flashblocks_args.flashblocks_ws_config,
         )?);
 
         Ok(RollupBoostServer::new(
