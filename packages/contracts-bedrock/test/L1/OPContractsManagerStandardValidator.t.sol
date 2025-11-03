@@ -95,7 +95,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     Claim cannonPrestate;
 
     /// @notice The CannonKona absolute prestate.
-    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKona")));
+    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
 
     /// @notice The proposer role set on the PermissionedDisputeGame instance.
     address proposer;
