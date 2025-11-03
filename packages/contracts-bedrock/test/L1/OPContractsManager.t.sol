@@ -165,7 +165,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
         delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
-        faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
+        faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGameCannon")));
 
         // grab the pre-upgrade state
         preUpgradeState = PreUpgradeState({

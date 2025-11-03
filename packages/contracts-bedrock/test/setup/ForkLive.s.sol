@@ -177,9 +177,14 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-        artifacts.save("FaultDisputeGame", address(faultDisputeGame));
-        artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
+        IFaultDisputeGame cannonDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
+        artifacts.save("FaultDisputeGameCannon", address(cannonDisputeGame));
+        artifacts.save("PermissionlessDelayedWETHProxy", address(cannonDisputeGame.weth()));
+        IFaultDisputeGame cannonKonaDisputeGame =
+            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+        if (address(cannonKonaDisputeGame) != address(0)) {
+            artifacts.save("FaultDisputeGameCannonKona", address(cannonKonaDisputeGame));
+        }
 
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
         // look it up onchain
@@ -284,9 +289,6 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         address cannonDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
         if (cannonDisputeGame != address(0)) {
-            // Both names are used in different places, so we save both.
-            artifacts.save("PermissionlessDisputeGame", address(cannonDisputeGame));
-            artifacts.save("FaultDisputeGame", address(cannonDisputeGame));
             artifacts.save("FaultDisputeGameCannon", address(cannonDisputeGame));
         }
 
