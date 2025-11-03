@@ -1894,8 +1894,14 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         uint256 l2SequenceNumber = l2SequenceNumberAnchor + 1;
         GameType[] memory gameTypes = _getPostMigrateExpectedGameTypes(_input);
 
+        address permissionlessWeth;
         for (uint256 i = 0; i < gameTypes.length; i++) {
             LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(dgf.gameArgs(gameTypes[i]));
+            if (permissionlessWeth == address(0) && !isGamePermissioned(gameTypes[i])) {
+                // Remember the first permissionless weth we encounter
+                permissionlessWeth = gameArgs.weth;
+            }
+
             assertEq(gameArgs.vm, opcm.implementations().mipsImpl, "gameArgs vm mismatch");
             assertEq(gameArgs.anchorStateRegistry, address(anchorStateRegistry), "gameArgs asr mismatch");
             assertEq(gameArgs.l2ChainId, 0, "gameArgs non-zero l2ChainId");
@@ -1903,6 +1909,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
                 assertEq(gameArgs.absolutePrestate, cannonKonaPrestate1.raw(), "gameArgs prestate mismatch");
             } else {
                 assertEq(gameArgs.absolutePrestate, cannonPrestate1.raw(), "gameArgs prestate mismatch");
+            }
+            if (!isGamePermissioned(gameTypes[i])) {
+                // All permissionless FDG games should share the same weth contract
+                assertEq(gameArgs.weth, permissionlessWeth, "gameArgs weth mismatch");
             }
 
             Claim rootClaim = Claim.wrap(bytes32(uint256(1)));
