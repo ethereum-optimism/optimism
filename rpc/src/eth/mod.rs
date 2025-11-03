@@ -23,8 +23,8 @@ use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
-    ExecutionPayloadBaseV1, FlashBlockBuildInfo, FlashBlockCompleteSequenceRx, FlashBlockService,
-    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    ExecutionPayloadBaseV1, FlashBlockBuildInfo, FlashBlockCompleteSequenceRx, FlashBlockRx,
+    FlashBlockService, FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
@@ -110,9 +110,14 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.flashblocks.as_ref().map(|f| f.pending_block_rx.clone())
     }
 
-    /// Returns a flashblock receiver, if any, by resubscribing to it.
-    pub fn flashblock_rx(&self) -> Option<FlashBlockCompleteSequenceRx> {
-        self.inner.flashblocks.as_ref().map(|f| f.flashblock_rx.resubscribe())
+    /// Returns a new subscription to received flashblocks.
+    pub fn subscribe_received_flashblocks(&self) -> Option<FlashBlockRx> {
+        self.inner.flashblocks.as_ref().map(|f| f.received_flashblocks.subscribe())
+    }
+
+    /// Returns a new subscription to flashblock sequences.
+    pub fn subscribe_flashblock_sequence(&self) -> Option<FlashBlockCompleteSequenceRx> {
+        self.inner.flashblocks.as_ref().map(|f| f.flashblocks_sequence.subscribe())
     }
 
     /// Returns information about the flashblock currently being built, if any.
@@ -501,12 +506,18 @@ where
                 ctx.components.task_executor().clone(),
             );
 
-            let flashblock_rx = service.subscribe_block_sequence();
+            let flashblocks_sequence = service.block_sequence_broadcaster().clone();
+            let received_flashblocks = service.flashblocks_broadcaster().clone();
             let in_progress_rx = service.subscribe_in_progress();
 
             ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
 
-            Some(FlashblocksListeners::new(pending_rx, flashblock_rx, in_progress_rx))
+            Some(FlashblocksListeners::new(
+                pending_rx,
+                flashblocks_sequence,
+                in_progress_rx,
+                received_flashblocks,
+            ))
         } else {
             None
         };

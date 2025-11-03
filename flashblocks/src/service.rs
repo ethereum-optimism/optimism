@@ -1,8 +1,8 @@
 use crate::{
     sequence::FlashBlockPendingSequence,
     worker::{BuildArgs, FlashBlockBuilder},
-    ExecutionPayloadBaseV1, FlashBlock, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
-    PendingFlashBlock,
+    ExecutionPayloadBaseV1, FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx,
+    InProgressFlashBlockRx, PendingFlashBlock,
 };
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
@@ -19,6 +19,7 @@ use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{ready, Context, Poll},
     time::Instant,
 };
@@ -42,6 +43,8 @@ pub struct FlashBlockService<
     rx: S,
     current: Option<PendingFlashBlock<N>>,
     blocks: FlashBlockPendingSequence<N::SignedTx>,
+    /// Broadcast channel to forward received flashblocks from the subscription.
+    received_flashblocks_tx: tokio::sync::broadcast::Sender<Arc<FlashBlock>>,
     rebuild: bool,
     builder: FlashBlockBuilder<EvmConfig, Provider>,
     canon_receiver: CanonStateNotifications<N>,
@@ -58,17 +61,6 @@ pub struct FlashBlockService<
     metrics: FlashBlockServiceMetrics,
     /// Enable state root calculation from flashblock with index [`FB_STATE_ROOT_FROM_INDEX`]
     compute_state_root: bool,
-}
-
-/// Information for a flashblock currently built
-#[derive(Debug, Clone, Copy)]
-pub struct FlashBlockBuildInfo {
-    /// Parent block hash
-    pub parent_hash: B256,
-    /// Flashblock index within the current block's sequence
-    pub index: u64,
-    /// Block number of the flashblock being built.
-    pub block_number: u64,
 }
 
 impl<N, S, EvmConfig, Provider> FlashBlockService<N, S, EvmConfig, Provider>
@@ -92,10 +84,12 @@ where
     /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
     pub fn new(rx: S, evm_config: EvmConfig, provider: Provider, spawner: TaskExecutor) -> Self {
         let (in_progress_tx, _) = watch::channel(None);
+        let (received_flashblocks_tx, _) = tokio::sync::broadcast::channel(128);
         Self {
             rx,
             current: None,
             blocks: FlashBlockPendingSequence::new(),
+            received_flashblocks_tx,
             canon_receiver: provider.subscribe_to_canonical_state(),
             builder: FlashBlockBuilder::new(evm_config, provider),
             rebuild: false,
@@ -112,6 +106,20 @@ where
     pub const fn compute_state_root(mut self, enable_state_root: bool) -> Self {
         self.compute_state_root = enable_state_root;
         self
+    }
+
+    /// Returns the sender half to the received flashblocks.
+    pub const fn flashblocks_broadcaster(
+        &self,
+    ) -> &tokio::sync::broadcast::Sender<Arc<FlashBlock>> {
+        &self.received_flashblocks_tx
+    }
+
+    /// Returns the sender half to the flashblock sequence.
+    pub const fn block_sequence_broadcaster(
+        &self,
+    ) -> &tokio::sync::broadcast::Sender<FlashBlockCompleteSequence> {
+        self.blocks.block_sequence_broadcaster()
     }
 
     /// Returns a subscriber to the flashblock sequence.
@@ -135,6 +143,13 @@ where
         }
 
         warn!("Flashblock service has stopped");
+    }
+
+    /// Notifies all subscribers about the received flashblock
+    fn notify_received_flashblock(&self, flashblock: &FlashBlock) {
+        if self.received_flashblocks_tx.receiver_count() > 0 {
+            let _ = self.received_flashblocks_tx.send(Arc::new(flashblock.clone()));
+        }
     }
 
     /// Returns the [`BuildArgs`] made purely out of [`FlashBlock`]s that were received earlier.
@@ -284,6 +299,7 @@ where
             while let Poll::Ready(Some(result)) = this.rx.poll_next_unpin(cx) {
                 match result {
                     Ok(flashblock) => {
+                        this.notify_received_flashblock(&flashblock);
                         if flashblock.index == 0 {
                             this.metrics.last_flashblock_length.record(this.blocks.count() as f64);
                         }
@@ -342,6 +358,17 @@ where
             return Poll::Pending
         }
     }
+}
+
+/// Information for a flashblock currently built
+#[derive(Debug, Clone, Copy)]
+pub struct FlashBlockBuildInfo {
+    /// Parent block hash
+    pub parent_hash: B256,
+    /// Flashblock index within the current block's sequence
+    pub index: u64,
+    /// Block number of the flashblock being built.
+    pub block_number: u64,
 }
 
 type BuildJob<N> =

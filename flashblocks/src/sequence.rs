@@ -38,6 +38,13 @@ where
         Self { inner: BTreeMap::new(), block_broadcaster: tx, state_root: None }
     }
 
+    /// Returns the sender half of the [`FlashBlockCompleteSequence`] channel.
+    pub const fn block_sequence_broadcaster(
+        &self,
+    ) -> &broadcast::Sender<FlashBlockCompleteSequence> {
+        &self.block_broadcaster
+    }
+
     /// Gets a subscriber to the flashblock sequences produced.
     pub fn subscribe_block_sequence(&self) -> FlashBlockCompleteSequenceRx {
         self.block_broadcaster.subscribe()
@@ -160,7 +167,10 @@ where
 }
 
 /// A complete sequence of flashblocks, often corresponding to a full block.
-/// Ensure invariants of a complete flashblocks sequence.
+///
+/// Ensures invariants of a complete flashblocks sequence.
+/// If this entire sequence of flashblocks was executed on top of latest block, this also includes
+/// the computed state root.
 #[derive(Debug, Clone)]
 pub struct FlashBlockCompleteSequence {
     inner: Vec<FlashBlock>,
