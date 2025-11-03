@@ -1169,7 +1169,8 @@ impl OpNetworkBuilder {
         Node: FullNodeTypes<Types: NodeTypes<ChainSpec: Hardforks>>,
         NetworkP: NetworkPrimitives,
     {
-        let Self { disable_txpool_gossip, disable_discovery_v4, .. } = self.clone();
+        let disable_txpool_gossip = self.disable_txpool_gossip;
+        let disable_discovery_v4 = self.disable_discovery_v4;
         let args = &ctx.config().network;
         let network_builder = ctx
             .network_config_builder()?
