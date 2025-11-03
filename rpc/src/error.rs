@@ -67,6 +67,9 @@ pub enum OpInvalidTransactionError {
     /// A deposit transaction halted post-regolith
     #[error("deposit transaction halted after regolith")]
     HaltedDepositPostRegolith,
+    /// The encoded transaction was missing during evm execution.
+    #[error("missing enveloped transaction bytes")]
+    MissingEnvelopedTx,
     /// Transaction conditional errors.
     #[error(transparent)]
     TxConditionalErr(#[from] TxConditionalErr),
@@ -76,7 +79,8 @@ impl From<OpInvalidTransactionError> for jsonrpsee_types::error::ErrorObject<'st
     fn from(err: OpInvalidTransactionError) -> Self {
         match err {
             OpInvalidTransactionError::DepositSystemTxPostRegolith |
-            OpInvalidTransactionError::HaltedDepositPostRegolith => {
+            OpInvalidTransactionError::HaltedDepositPostRegolith |
+            OpInvalidTransactionError::MissingEnvelopedTx => {
                 rpc_err(EthRpcErrorCode::TransactionRejected.code(), err.to_string(), None)
             }
             OpInvalidTransactionError::TxConditionalErr(_) => err.into(),
@@ -93,6 +97,7 @@ impl TryFrom<OpTransactionError> for OpInvalidTransactionError {
                 Ok(Self::DepositSystemTxPostRegolith)
             }
             OpTransactionError::HaltedDepositPostRegolith => Ok(Self::HaltedDepositPostRegolith),
+            OpTransactionError::MissingEnvelopedTx => Ok(Self::MissingEnvelopedTx),
             OpTransactionError::Base(err) => Err(err),
         }
     }
