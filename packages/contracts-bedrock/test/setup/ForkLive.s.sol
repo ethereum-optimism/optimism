@@ -289,6 +289,8 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
 
         address cannonDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
         if (cannonDisputeGame != address(0)) {
+            // Store under FaultDisputeGame for backwards compatibility with superchain-registry
+            artifacts.save("FaultDisputeGame", address(cannonDisputeGame));
             artifacts.save("FaultDisputeGameCannon", address(cannonDisputeGame));
         }
 
