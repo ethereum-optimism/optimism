@@ -179,6 +179,16 @@ type Metricer interface {
 
 	RecordIgnoredGames(count int)
 
+	RecordNodeEndpointErrors(count int)
+
+	RecordNodeEndpointErrorCount(count int)
+
+	RecordMixedAvailabilityGames(count int)
+
+	RecordMixedSafetyGames(count int)
+
+	RecordDifferentOutputRootGames(count int)
+
 	RecordBondCollateral(addr common.Address, required, available *big.Int)
 
 	RecordL2Challenges(agreement bool, count int)
@@ -229,8 +239,13 @@ type Metrics struct {
 	failedGames                prometheus.Gauge
 	l2Challenges               prometheus.GaugeVec
 
-	requiredCollateral  prometheus.GaugeVec
-	availableCollateral prometheus.GaugeVec
+	requiredCollateral       prometheus.GaugeVec
+	availableCollateral      prometheus.GaugeVec
+	nodeEndpointErrors       prometheus.Gauge
+	nodeEndpointErrorCount   prometheus.Gauge
+	mixedAvailabilityGames   prometheus.Gauge
+	mixedSafetyGames         prometheus.Gauge
+	differentOutputRootGames prometheus.Gauge
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -398,6 +413,31 @@ func NewMetrics() *Metrics {
 			// An l2 block number challenge with an agreement means the challenge was invalid.
 			"root_agreement",
 		}),
+		nodeEndpointErrors: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "node_endpoint_errors",
+			Help:      "Number of rollup node RPC endpoints that returned at least one error other than \"not found\" in the last update cycle",
+		}),
+		nodeEndpointErrorCount: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "node_endpoint_error_count",
+			Help:      "Total number of individual endpoint error occurrences (other than \"not found\") across all rollup node endpoints in the last update cycle",
+		}),
+		mixedAvailabilityGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "mixed_availability_games",
+			Help:      "Number of games where some rollup nodes reported \"not found\" while others successfully retrieved the block in the last update cycle",
+		}),
+		mixedSafetyGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "mixed_safety_games",
+			Help:      "Number of games where some rollup nodes reported the root as safe while others reported it as unsafe in the last update cycle",
+		}),
+		differentOutputRootGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "different_output_root_games",
+			Help:      "Number of games where rollup nodes returned different output roots for the same L2 block in the last update cycle",
+		}),
 	}
 }
 
@@ -533,6 +573,26 @@ func (m *Metrics) RecordIgnoredGames(count int) {
 
 func (m *Metrics) RecordFailedGames(count int) {
 	m.failedGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordNodeEndpointErrors(count int) {
+	m.nodeEndpointErrors.Set(float64(count))
+}
+
+func (m *Metrics) RecordNodeEndpointErrorCount(count int) {
+	m.nodeEndpointErrorCount.Set(float64(count))
+}
+
+func (m *Metrics) RecordMixedAvailabilityGames(count int) {
+	m.mixedAvailabilityGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordMixedSafetyGames(count int) {
+	m.mixedSafetyGames.Set(float64(count))
+}
+
+func (m *Metrics) RecordDifferentOutputRootGames(count int) {
+	m.differentOutputRootGames.Set(float64(count))
 }
 
 func (m *Metrics) RecordBondCollateral(addr common.Address, required, available *big.Int) {

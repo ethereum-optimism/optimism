@@ -149,16 +149,20 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 		enrichedClaims[i] = monTypes.EnrichedClaim{Claim: claim}
 	}
 	enrichedGame := &monTypes.EnrichedGameData{
-		LastUpdateTime:        e.clock.Now(),
-		GameMetadata:          game,
-		L1Head:                meta.L1Head,
-		L2BlockNumber:         meta.L2SequenceNum,
-		RootClaim:             meta.RootClaim,
-		Status:                meta.Status,
-		MaxClockDuration:      meta.MaxClockDuration,
-		BlockNumberChallenged: meta.L2BlockNumberChallenged,
-		BlockNumberChallenger: meta.L2BlockNumberChallenger,
-		Claims:                enrichedClaims,
+		LastUpdateTime:              e.clock.Now(),
+		GameMetadata:                game,
+		L1Head:                      meta.L1Head,
+		L2BlockNumber:               meta.L2SequenceNum,
+		RootClaim:                   meta.RootClaim,
+		Status:                      meta.Status,
+		MaxClockDuration:            meta.MaxClockDuration,
+		BlockNumberChallenged:       meta.L2BlockNumberChallenged,
+		BlockNumberChallenger:       meta.L2BlockNumberChallenger,
+		Claims:                      enrichedClaims,
+		RollupEndpointErrors:        make(map[string]bool),
+		RollupEndpointErrorCount:    0,
+		RollupEndpointNotFoundCount: 0,
+		RollupEndpointTotalCount:    0,
 	}
 	if err := e.applyEnrichers(ctx, blockHash, caller, enrichedGame); err != nil {
 		return nil, fmt.Errorf("failed to enrich game: %w", err)

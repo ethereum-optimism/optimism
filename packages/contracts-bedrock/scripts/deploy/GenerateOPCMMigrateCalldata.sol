@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Claim, Duration, Proposal, Hash } from "src/dispute/lib/Types.sol";
@@ -20,7 +19,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 /// directory located at foundry root.
 /// Config example:
 ///  {
-///      "absolutePrestate": "0x1234567890abcdef1234567890abcdef12345678",
+///      "cannonPrestate": "0x1234567890abcdef1234567890abcdef12345678",
 ///      "usePermissionlessGame": true,
 ///      "startingAnchorRoot": {
 ///          "root": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -45,7 +44,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 ///      ]
 ///  }
 contract GenerateOPCMMigrateCalldata is Script {
-    bytes32 absolutePrestate;
+    bytes32 cannonPrestate;
     bool usePermissionlessGame;
     Proposal startingAnchorRoot;
     address proposer;
@@ -72,8 +71,8 @@ contract GenerateOPCMMigrateCalldata is Script {
             require(false, "GenerateOPCMMigrateCalldata: Failed to read config file");
         }
 
-        absolutePrestate = stdJson.readBytes32(json, "$.absolutePrestate");
-        require(absolutePrestate != bytes32(0), "GenerateOPCMMigrateCalldata: absolutePrestate cannot be 0");
+        cannonPrestate = stdJson.readBytes32(json, "$.cannonPrestate");
+        require(cannonPrestate != bytes32(0), "GenerateOPCMMigrateCalldata: cannonPrestate cannot be 0");
 
         usePermissionlessGame = stdJson.readBool(json, "$.usePermissionlessGame");
         startingAnchorRoot = Proposal({
@@ -121,16 +120,13 @@ contract GenerateOPCMMigrateCalldata is Script {
         for (uint256 i = 0; i < j.length; i++) {
             opChainConfigs[i] = IOPContractsManager.OpChainConfig({
                 systemConfigProxy: ISystemConfig(j[i].systemConfigProxy),
-                proxyAdmin: IProxyAdmin(j[i].proxyAdmin),
-                absolutePrestate: Claim.wrap(absolutePrestate)
+                cannonPrestate: Claim.wrap(cannonPrestate),
+                // TODO(#17743): cannon-kona for opcm.migrate
+                cannonKonaPrestate: Claim.wrap(bytes32(0))
             });
             require(
                 opChainConfigs[i].systemConfigProxy != ISystemConfig(address(0)),
                 "GenerateOPCMMigrateCalldata: systemConfigProxy cannot be 0"
-            );
-            require(
-                opChainConfigs[i].proxyAdmin != IProxyAdmin(address(0)),
-                "GenerateOPCMMigrateCalldata: proxyAdmin cannot be 0"
             );
         }
 

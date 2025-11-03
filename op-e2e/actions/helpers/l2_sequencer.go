@@ -114,10 +114,10 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 }
 
 // ActL2EndBlock completes a new L2 block and applies it to the L2 chain as new canonical unsafe head
-func (s *L2Sequencer) ActL2EndBlock(t Testing) {
+func (s *L2Sequencer) ActL2EndBlock(t Testing) eth.L2BlockRef {
 	if !s.l2Building {
 		t.InvalidAction("cannot end L2 block building when no block is being built")
-		return
+		return eth.L2BlockRef{}
 	}
 	s.l2Building = false
 
@@ -135,6 +135,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}, false))
 	require.Equal(t, s.engine.UnsafeL2Head(), s.syncStatus.SyncStatus().UnsafeL2,
 		"sync status must be accurate after block building")
+	return s.engine.UnsafeL2Head()
 }
 
 func (s *L2Sequencer) ActL2EmptyBlock(t Testing) {
@@ -163,11 +164,12 @@ func (s *L2Sequencer) ActL2ForceAdvanceL1Origin(t Testing) {
 }
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
-func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
+func (s *L2Sequencer) ActBuildToL1Head(t Testing) eth.L2BlockRef {
 	for s.L2Unsafe().L1Origin.Number < s.syncStatus.L1Head().Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2EmptyBlock(t)
 	}
+	return s.L2Unsafe()
 }
 
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
@@ -210,11 +212,12 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 	}
 }
 
-func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) {
+func (s *L2Sequencer) ActBuildL2ToFork(t Testing, fork rollup.ForkName) eth.L2BlockRef {
 	require.NotNil(t, s.RollupCfg.ActivationTime(fork), "cannot activate %s when it is not scheduled", fork)
 	for !s.RollupCfg.IsForkActive(fork, s.L2Unsafe().Time) {
 		s.ActL2EmptyBlock(t)
 	}
+	return s.L2Unsafe()
 }
 
 func (s *L2Sequencer) ActBuildL2ToCanyon(t Testing) {
@@ -258,6 +261,9 @@ func (s *L2Sequencer) ActBuildL2ToIsthmus(t Testing) {
 		s.ActL2EmptyBlock(t)
 	}
 }
+
+// Instead of replicating the above helpers for later forks, e.g. ActBuildL2ToJovian
+// we can use ActBuildL2ToTime with (e.g.) the JovianTime.
 
 func (s *L2Sequencer) ActBuildL2ToInterop(t Testing) {
 	require.NotNil(t, s.RollupCfg.InteropTime, "cannot activate InteropTime when it is not scheduled")
