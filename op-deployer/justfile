@@ -94,7 +94,7 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
   ./bin/op-deployer bootstrap implementations \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
-    --mips-version 7 \
+    --mips-version 8 \
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
     --l1-proxy-admin-owner $L1_PROXY_ADMIN_OWNER \
