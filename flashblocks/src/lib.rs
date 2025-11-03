@@ -8,6 +8,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
+use reth_primitives_traits::NodePrimitives;
+
 pub use payload::{
     ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, FlashBlockDecoder,
     Metadata,
@@ -39,3 +41,37 @@ pub type FlashBlockCompleteSequenceRx =
 
 /// Receiver that signals whether a [`FlashBlock`] is currently being built.
 pub type InProgressFlashBlockRx = tokio::sync::watch::Receiver<Option<FlashBlockBuildInfo>>;
+
+/// Container for all flashblocks-related listeners.
+///
+/// Groups together the three receivers that provide flashblock-related updates.
+#[derive(Debug)]
+pub struct FlashblocksListeners<N: NodePrimitives> {
+    /// Receiver of the most recent [`PendingFlashBlock`] built out of [`FlashBlock`]s.
+    pub pending_block_rx: PendingBlockRx<N>,
+    /// Receiver of the sequences of [`FlashBlock`]s built.
+    pub flashblock_rx: FlashBlockCompleteSequenceRx,
+    /// Receiver that signals whether a [`FlashBlock`] is currently being built.
+    pub in_progress_rx: InProgressFlashBlockRx,
+}
+
+impl<N: NodePrimitives> FlashblocksListeners<N> {
+    /// Creates a new [`FlashblocksListeners`] with the given receivers.
+    pub const fn new(
+        pending_block_rx: PendingBlockRx<N>,
+        flashblock_rx: FlashBlockCompleteSequenceRx,
+        in_progress_rx: InProgressFlashBlockRx,
+    ) -> Self {
+        Self { pending_block_rx, flashblock_rx, in_progress_rx }
+    }
+}
+
+impl<N: NodePrimitives> Clone for FlashblocksListeners<N> {
+    fn clone(&self) -> Self {
+        Self {
+            pending_block_rx: self.pending_block_rx.clone(),
+            flashblock_rx: self.flashblock_rx.resubscribe(),
+            in_progress_rx: self.in_progress_rx.clone(),
+        }
+    }
+}

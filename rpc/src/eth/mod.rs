@@ -24,7 +24,7 @@ use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodeTypes};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
     ExecutionPayloadBaseV1, FlashBlockBuildInfo, FlashBlockCompleteSequenceRx, FlashBlockService,
-    InProgressFlashBlockRx, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
+    FlashblocksListeners, PendingBlockRx, PendingFlashBlock, WsFlashBlockStream,
 };
 use reth_rpc::eth::core::EthApiInner;
 use reth_rpc_eth_api::{
@@ -85,17 +85,13 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         eth_api: EthApiNodeBackend<N, Rpc>,
         sequencer_client: Option<SequencerClient>,
         min_suggested_priority_fee: U256,
-        pending_block_rx: Option<PendingBlockRx<N::Primitives>>,
-        flashblock_rx: Option<FlashBlockCompleteSequenceRx>,
-        in_progress_rx: Option<InProgressFlashBlockRx>,
+        flashblocks: Option<FlashblocksListeners<N::Primitives>>,
     ) -> Self {
         let inner = Arc::new(OpEthApiInner {
             eth_api,
             sequencer_client,
             min_suggested_priority_fee,
-            pending_block_rx,
-            flashblock_rx,
-            in_progress_rx,
+            flashblocks,
         });
         Self { inner }
     }
@@ -111,17 +107,17 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
 
     /// Returns a cloned pending block receiver, if any.
     pub fn pending_block_rx(&self) -> Option<PendingBlockRx<N::Primitives>> {
-        self.inner.pending_block_rx.clone()
+        self.inner.flashblocks.as_ref().map(|f| f.pending_block_rx.clone())
     }
 
     /// Returns a flashblock receiver, if any, by resubscribing to it.
     pub fn flashblock_rx(&self) -> Option<FlashBlockCompleteSequenceRx> {
-        self.inner.flashblock_rx.as_ref().map(|rx| rx.resubscribe())
+        self.inner.flashblocks.as_ref().map(|f| f.flashblock_rx.resubscribe())
     }
 
     /// Returns information about the flashblock currently being built, if any.
     fn flashblock_build_info(&self) -> Option<FlashBlockBuildInfo> {
-        self.inner.in_progress_rx.as_ref().and_then(|rx| *rx.borrow())
+        self.inner.flashblocks.as_ref().and_then(|f| *f.in_progress_rx.borrow())
     }
 
     /// Extracts pending block if it matches the expected parent hash.
@@ -143,7 +139,9 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         &self,
         parent_hash: B256,
     ) -> eyre::Result<Option<PendingBlock<N::Primitives>>> {
-        let Some(rx) = self.inner.pending_block_rx.as_ref() else { return Ok(None) };
+        let Some(rx) = self.inner.flashblocks.as_ref().map(|f| &f.pending_block_rx) else {
+            return Ok(None)
+        };
 
         // Check if a flashblock is being built
         if let Some(build_info) = self.flashblock_build_info() {
@@ -352,16 +350,10 @@ pub struct OpEthApiInner<N: RpcNodeCore, Rpc: RpcConvert> {
     ///
     /// See also <https://github.com/ethereum-optimism/op-geth/blob/d4e0fe9bb0c2075a9bff269fb975464dd8498f75/eth/gasprice/optimism-gasprice.go#L38-L38>
     min_suggested_priority_fee: U256,
-    /// Pending block receiver.
+    /// Flashblocks listeners.
     ///
-    /// If set, then it provides current pending block based on received Flashblocks.
-    pending_block_rx: Option<PendingBlockRx<N::Primitives>>,
-    /// Flashblocks receiver.
-    ///
-    /// If set, then it provides sequences of flashblock built.
-    flashblock_rx: Option<FlashBlockCompleteSequenceRx>,
-    /// Receiver that signals when a flashblock is being built
-    in_progress_rx: Option<InProgressFlashBlockRx>,
+    /// If set, provides receivers for pending blocks, flashblock sequences, and build status.
+    flashblocks: Option<FlashblocksListeners<N::Primitives>>,
 }
 
 impl<N: RpcNodeCore, Rpc: RpcConvert> fmt::Debug for OpEthApiInner<N, Rpc> {
@@ -497,28 +489,27 @@ where
             None
         };
 
-        let (pending_block_rx, flashblock_rx, in_progress_rx) =
-            if let Some(ws_url) = flashblocks_url {
-                info!(target: "reth:cli", %ws_url, "Launching flashblocks service");
+        let flashblocks = if let Some(ws_url) = flashblocks_url {
+            info!(target: "reth:cli", %ws_url, "Launching flashblocks service");
 
-                let (tx, pending_rx) = watch::channel(None);
-                let stream = WsFlashBlockStream::new(ws_url);
-                let service = FlashBlockService::new(
-                    stream,
-                    ctx.components.evm_config().clone(),
-                    ctx.components.provider().clone(),
-                    ctx.components.task_executor().clone(),
-                );
+            let (tx, pending_rx) = watch::channel(None);
+            let stream = WsFlashBlockStream::new(ws_url);
+            let service = FlashBlockService::new(
+                stream,
+                ctx.components.evm_config().clone(),
+                ctx.components.provider().clone(),
+                ctx.components.task_executor().clone(),
+            );
 
-                let flashblock_rx = service.subscribe_block_sequence();
-                let in_progress_rx = service.subscribe_in_progress();
+            let flashblock_rx = service.subscribe_block_sequence();
+            let in_progress_rx = service.subscribe_in_progress();
 
-                ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
+            ctx.components.task_executor().spawn(Box::pin(service.run(tx)));
 
-                (Some(pending_rx), Some(flashblock_rx), Some(in_progress_rx))
-            } else {
-                (None, None, None)
-            };
+            Some(FlashblocksListeners::new(pending_rx, flashblock_rx, in_progress_rx))
+        } else {
+            None
+        };
 
         let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 
@@ -526,9 +517,7 @@ where
             eth_api,
             sequencer_client,
             U256::from(min_suggested_priority_fee),
-            pending_block_rx,
-            flashblock_rx,
-            in_progress_rx,
+            flashblocks,
         ))
     }
 }
