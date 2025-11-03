@@ -7,7 +7,7 @@ DEVNET := simple-historical-proof
 GO_PKG_NAME := proofs
 SOURCE_DIR := $(shell pwd)
 
-.PHONY: all build run clean help
+.PHONY: all build build-contracts run clean help
 
 # Default target
 all: build run
@@ -26,8 +26,13 @@ run:
     fi; \
     kurtosis run $(KURTOSIS_PACKAGE) --args-file $$DEVNET_PATH --enclave $(DEVNET)
 
+# Build smart contract artifacts with Foundry
+build-contracts:
+	@echo "Building contracts with forge..."
+	@cd "$(SOURCE_DIR)/proofs/contracts" && forge build || { echo "forge build failed"; exit 1; }
+
 # Run E2E tests using Kurtosis
-test-e2e-kurtosis:
+test-e2e-kurtosis: build-contracts
 	@echo "Running E2E tests with Kurtosis for $(DEVNET)"
 	@DEVNET_PATH="$(SOURCE_DIR)/devnets/$(DEVNET).yaml"; \
     if [ ! -z "$(DEVNET_CUSTOM_PATH)" ]; then \

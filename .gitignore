@@ -44,10 +44,30 @@ packages/contracts-bedrock/deployments/anvil
 
 coverage.out
 
-__pycache__
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
 
 # Ignore echidna artifacts
 crytic-export
 
 # ignore local asdf config
 .tool-versions
+# vocs node_modules
+docs/vocs/node_modules
+
+# Cargo chef recipe file
+recipe.json
+
+_
+# broken links report
+links-report.json
+
+# direnv
+.envrc
+.direnv/
+
+# Optimism test artifacts
+crates/optimism/tests/proofs/contracts/artifacts
+crates/optimism/tests/proofs/contracts/cache
