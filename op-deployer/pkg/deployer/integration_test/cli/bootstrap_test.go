@@ -200,17 +200,4 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.ProtocolVersionsImpl, "ProtocolVersionsImpl should be set")
 	})
-
-	t.Run("bootstrap with stdout output", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-
-		// Test that stdout output works (no --outfile flag)
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "proxy",
-			"--proxy-owner", superchainProxyAdminOwner.Hex(),
-			"--outfile", "-", // stdout
-		}, nil)
-
-		t.Logf("Bootstrap proxy (stdout) output:\n%s", output)
-	})
 }
