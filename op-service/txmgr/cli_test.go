@@ -44,7 +44,7 @@ func configForArgs(args ...string) CLIConfig {
 }
 
 func TestFallbackToOsakaCellProofTimeIfKnown(t *testing.T) {
-	// No override, but we detect the L1 is Mainnet (no Osaka time yet)
+	// No override, but we detect the L1 is Mainnet
 	cellProofTime := fallbackToOsakaCellProofTimeIfKnown(big.NewInt(1), math.MaxUint64)
 	require.Equal(t, uint64(1764798551), cellProofTime)
 
