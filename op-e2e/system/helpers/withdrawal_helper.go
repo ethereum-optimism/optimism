@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
@@ -36,6 +37,11 @@ const SolErrClaimAlreadyResolved = "0xf1a94581"
 
 type ClientProvider interface {
 	NodeClient(name string) *ethclient.Client
+}
+
+// TimeTravelProvider is an optional interface that ClientProvider can implement to support time advancement
+type TimeTravelProvider interface {
+	AdvanceTime(d time.Duration)
 }
 
 func SendWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyOpts WithdrawalTxOptsFn) (*types.Transaction, *types.Receipt) {
@@ -95,6 +101,71 @@ func defaultWithdrawalTxOpts() *WithdrawalTxOpts {
 	}
 }
 
+// AdvancePastGameResolution advances time past the game's maxClockDuration to allow the game to be resolved.
+// This is required for fault proof withdrawals when maxClockDuration > 0.
+// The client provider must implement an AdvanceTime method (checked via reflection).
+func AdvancePastGameResolution(
+	t *testing.T,
+	cfg e2esys.SystemConfig,
+	clients ClientProvider,
+	ethPrivKey *ecdsa.PrivateKey,
+	params withdrawals.ProvenWithdrawalParameters,
+) {
+	l1Client := clients.NodeClient(e2esys.RoleL1)
+	l1Deployments := config.L1Deployments(cfg.AllocType)
+
+	// Get the dispute game address from the proven withdrawal
+	portal2, err := bindingspreview.NewOptimismPortal2Caller(l1Deployments.OptimismPortalProxy, l1Client)
+	require.NoError(t, err)
+
+	wd := crossdomain.Withdrawal{
+		Nonce:    params.Nonce,
+		Sender:   &params.Sender,
+		Target:   &params.Target,
+		Value:    params.Value,
+		GasLimit: params.GasLimit,
+		Data:     params.Data,
+	}
+	wdHash, err := wd.Hash()
+	require.NoError(t, err)
+
+	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
+	require.NoError(t, err)
+
+	game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, opts.From)
+	require.NoError(t, err)
+	require.NotNil(t, game, "withdrawal should be proven")
+
+	// Get the game contract to read maxClockDuration
+	caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
+	gameContract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, game.DisputeGameProxy, caller)
+	require.NoError(t, err)
+
+	maxClockDuration, err := gameContract.GetMaxClockDuration(context.Background())
+	require.NoError(t, err)
+
+	// Only advance time if maxClockDuration > 0 (if it's 0, the game resolves immediately)
+	if maxClockDuration > 0 {
+		// Use reflection to find and call AdvanceTime method on the client provider
+		// This ensures it works regardless of interface implementation
+		clientValue := reflect.ValueOf(clients)
+		advanceTimeMethod := clientValue.MethodByName("AdvanceTime")
+
+		if !advanceTimeMethod.IsValid() {
+			t.Fatalf("AdvancePastGameResolution: client provider %T does not implement AdvanceTime method, which is required for fault proof withdrawals with maxClockDuration > 0", clients)
+		}
+
+		// Call AdvanceTime with maxClockDuration
+		t.Logf("AdvancePastGameResolution: advancing time by %v for game resolution", maxClockDuration)
+		advanceTimeMethod.Call([]reflect.Value{reflect.ValueOf(maxClockDuration)})
+
+		// Wait for next block to ensure time advancement is reflected
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+	}
+}
+
 func ProveAndFinalizeWithdrawal(
 	t *testing.T,
 	cfg e2esys.SystemConfig,
@@ -104,6 +175,12 @@ func ProveAndFinalizeWithdrawal(
 	l2WithdrawalReceipt *types.Receipt,
 ) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
 	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
+
+	// If we're using proofs, advance time past game resolution to allow the game clock to expire
+	if cfg.AllocType.UsesProofs() {
+		AdvancePastGameResolution(t, cfg, clients, ethPrivKey, params)
+	}
+
 	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
 	return proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }

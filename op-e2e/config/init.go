@@ -410,7 +410,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
 							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 0,
+							DisputeMaxClockDuration: 302400, // Changed from 0 to production standard for testing
 						},
 						VMType:                       state.VMTypeAlphabet,
 						UseCustomOracle:              true,
