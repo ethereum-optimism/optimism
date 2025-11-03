@@ -20,6 +20,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 /// Config example:
 ///  {
 ///      "cannonPrestate": "0x1234567890abcdef1234567890abcdef12345678",
+///      "cannonKonaPrestate": "0x1122334455abcdef1234567890abcdef12345678",
 ///      "usePermissionlessGame": true,
 ///      "startingAnchorRoot": {
 ///          "root": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
