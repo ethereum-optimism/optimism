@@ -160,8 +160,9 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
-  install-contracts-dependencies:
-    description: "Install the dependencies for the smart contracts"
+
+  install-solc-compilers:
+    description: "Install the solc compilers"
     parameters:
       solc_versions:
         description: "The versions of solc to install"
@@ -182,6 +183,16 @@ commands:
           key: svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
           paths:
             - ~/.svm
+
+  install-contracts-dependencies:
+    description: "Install the dependencies for the smart contracts"
+    parameters:
+      solc_versions:
+        description: "The versions of solc to install"
+        type: string
+        default: "0.8.15,0.8.19,0.8.25,0.8.28"
+    steps:
+      - install-solc-compilers
       - run:
           name: Install dependencies
           command: |
@@ -1065,6 +1076,7 @@ jobs:
       - checkout-from-workspace
       - check-changed:
           patterns: contracts-bedrock
+      - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1153,6 +1165,7 @@ jobs:
       - checkout-from-workspace
       - check-changed:
           patterns: contracts-bedrock
+      - install-solc-compilers
       - run:
           name: Print dependencies
           command: just dep-status
