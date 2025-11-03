@@ -93,7 +93,12 @@ asm-keccak = [
     "reth-node-core/asm-keccak",
     "revm/asm-keccak",
 ]
-js-tracer = ["reth-node-builder/js-tracer"]
+js-tracer = [
+    "reth-node-builder/js-tracer",
+    "reth-optimism-node/js-tracer",
+    "reth-rpc/js-tracer",
+    "reth-rpc-eth-types/js-tracer",
+]
 test-utils = [
     "reth-tasks",
     "reth-e2e-test-utils",
