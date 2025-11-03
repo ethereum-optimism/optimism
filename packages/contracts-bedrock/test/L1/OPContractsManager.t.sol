@@ -124,7 +124,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
-    Claim absolutePrestate;
+    Claim cannonPrestate;
+    Claim cannonKonaPrestate;
     string public opChain = Config.forkOpChain();
     PreUpgradeState preUpgradeState;
 
@@ -140,7 +141,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             "OPContractsManager_Upgrade_Harness: cannot test upgrade on superchain ops repo upgrade tests"
         );
 
-        absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+        cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
+        cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
@@ -150,8 +152,8 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         opChainConfigs.push(
             IOPContractsManager.OpChainConfig({
                 systemConfigProxy: systemConfig,
-                proxyAdmin: proxyAdmin,
-                absolutePrestate: absolutePrestate
+                cannonPrestate: cannonPrestate,
+                cannonKonaPrestate: cannonKonaPrestate
             })
         );
 
@@ -276,7 +278,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // Create validationOverrides
         IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
         IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: opChainConfigs[0].proxyAdmin.owner(),
+            l1PAOMultisig: opChainConfigs[0].systemConfigProxy.proxyAdmin().owner(),
             challenger: initialChallenger
         });
 
@@ -290,25 +292,49 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         // the prestate from the actual contracts, but that doesn't actually give us any valuable
         // checks. Easier to just expect the error in this case.
         // We add the prefix of OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER because we use validationOverrides.
-        if (opChainConfigs[0].absolutePrestate.raw() == bytes32(0)) {
-            vm.expectRevert(
-                "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
-            );
+        if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+            if (
+                opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+            ) {
+                vm.expectRevert(
+                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40,CKDG-10"
+                );
+            } else {
+                vm.expectRevert(
+                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
+                );
+            }
+        } else if (
+            opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
+        ) {
+            vm.expectRevert("OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10");
         }
 
         // Run the StandardValidator checks.
-        validator.validateWithOverrides(
-            IOPContractsManagerStandardValidator.ValidationInput({
-                proxyAdmin: opChainConfigs[0].proxyAdmin,
-                sysCfg: opChainConfigs[0].systemConfigProxy,
-                absolutePrestate: opChainConfigs[0].absolutePrestate.raw(),
-                l2ChainID: l2ChainId,
-                proposer: initialProposer
-            }),
-            false,
-            validationOverrides
-        );
-
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInputDev({
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: initialProposer
+                }),
+                false,
+                validationOverrides
+            );
+        } else {
+            validator.validateWithOverrides(
+                IOPContractsManagerStandardValidator.ValidationInput({
+                    sysCfg: opChainConfigs[0].systemConfigProxy,
+                    absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
+                    l2ChainID: l2ChainId,
+                    proposer: initialProposer
+                }),
+                false,
+                validationOverrides
+            );
+        }
         _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
@@ -321,10 +347,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     )
         internal
     {
-        bytes32 expectedAbsolutePrestate = _opChainConfig.absolutePrestate.raw();
-        if (expectedAbsolutePrestate == bytes32(0)) {
-            expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
-        }
         address expectedVm = address(_opcm.implementations().mipsImpl);
 
         Claim claim = Claim.wrap(bytes32(uint256(1)));
@@ -333,12 +355,28 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
         uint256 l2BlockNumber = rootBlockNumber + 1;
 
+        bool expectCannonKonaGameSet =
+            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
+
         // Deploy live games and ensure they're configured correctly
-        GameType[] memory gameTypes = new GameType[](2);
+        GameType[] memory gameTypes = new GameType[](expectCannonKonaGameSet ? 3 : 2);
         gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
         gameTypes[1] = GameTypes.CANNON;
+        if (expectCannonKonaGameSet) {
+            gameTypes[2] = GameTypes.CANNON_KONA;
+        }
         for (uint256 i = 0; i < gameTypes.length; i++) {
             GameType gt = gameTypes[i];
+
+            bytes32 expectedAbsolutePrestate = _opChainConfig.cannonPrestate.raw();
+            if (expectedAbsolutePrestate == bytes32(0)) {
+                expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
+            }
+            if (expectCannonKonaGameSet && gt.raw() == GameTypes.CANNON_KONA.raw()) {
+                expectedAbsolutePrestate = _opChainConfig.cannonKonaPrestate.raw();
+            }
+            assertEq(bondAmount, disputeGameFactory.initBonds(gt));
+
             vm.prank(_proposer, _proposer);
             IPermissionedDisputeGame game = IPermissionedDisputeGame(
                 address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
@@ -366,6 +404,12 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             } else {
                 vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }
+        }
+
+        if (!expectCannonKonaGameSet) {
+            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+            assertEq(0, disputeGameFactory.initBonds(GameTypes.CANNON_KONA));
+            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
         }
     }
 
@@ -501,7 +545,6 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
         return IOPContractsManager.AddGameInput({
             saltMixer: "hello",
             systemConfig: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             delayedWETH: IDelayedWETH(payable(address(0))),
             disputeGameType: _gameType,
             disputeAbsolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
@@ -1462,7 +1505,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
 
         // Set the absolute prestate input to something non-zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(uint256(1)));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(uint256(1)));
+        opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(uint256(2)));
 
         // Run the upgrade.
         runCurrentUpgrade(upgrader);
@@ -1484,6 +1528,15 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Assert that the absolute prestate is the non-zero value we set.
         assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
         assertEq(fdgPrestateAfter.raw(), bytes32(uint256(1)));
+
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
+            LibGameArgs.GameArgs memory cannonKonaArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
+            assertEq(cannonKonaArgs.weth, cannonArgs.weth);
+            assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
+            assertEq(cannonKonaArgs.absolutePrestate, bytes32(uint256(2)));
+        }
     }
 
     /// @notice Tests that the old absolute prestate is used if the upgrade config does not set an
@@ -1499,9 +1552,11 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Assert that the prestate is not zero.
         assertNotEq(pdgPrestateBefore.raw(), bytes32(0));
         assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
+        assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
 
         // Set the absolute prestate input to zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(0));
 
         // Run the upgrade.
         runCurrentUpgrade(upgrader);
@@ -1523,6 +1578,102 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Assert that the absolute prestate is the same as before the upgrade.
         assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
         assertEq(fdgPrestateAfter.raw(), fdgPrestateBefore.raw());
+
+        assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+        assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
+    }
+
+    /// @notice Tests that the old absolute prestate is used and cannon kona is updated if the upgrade config does not
+    ///         set a cannon prestate.
+    function test_upgrade_cannonPrestateNotSet_succeeds() public {
+        // Get the pdg and fdg before the upgrade
+        Claim pdgPrestateBefore = IPermissionedDisputeGame(
+            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+        ).absolutePrestate();
+        Claim fdgPrestateBefore =
+            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+
+        // Assert that the prestate is not zero.
+        assertNotEq(pdgPrestateBefore.raw(), bytes32(0));
+        assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
+
+        // Set the cannon prestate input to zero.
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
+
+        // Run the upgrade.
+        runCurrentUpgrade(upgrader);
+
+        // Get the absolute prestate after the upgrade
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
+
+        // Assert that the absolute prestate is the same as before the upgrade.
+        assertEq(pdgPrestateAfter.raw(), pdgPrestateBefore.raw());
+        assertEq(fdgPrestateAfter.raw(), fdgPrestateBefore.raw());
+
+        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+            LibGameArgs.GameArgs memory cannonArgs = LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON));
+            LibGameArgs.GameArgs memory cannonKonaArgs =
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.CANNON_KONA));
+            assertEq(cannonKonaArgs.weth, cannonArgs.weth);
+            assertEq(cannonKonaArgs.anchorStateRegistry, cannonArgs.anchorStateRegistry);
+            assertEq(cannonKonaArgs.absolutePrestate, cannonKonaPrestate.raw());
+        } else {
+            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
+        }
+    }
+
+    /// @notice Tests that the cannon absolute prestate is updated even if the cannon kona prestate is not specified
+    function test_upgrade_cannonKonaPrestateNotSet_succeeds() public {
+        // Get the pdg and fdg before the upgrade
+        Claim pdgPrestateBefore = IPermissionedDisputeGame(
+            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+        ).absolutePrestate();
+        Claim fdgPrestateBefore =
+            IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+
+        // Assert that the prestate is not zero.
+        assertNotEq(pdgPrestateBefore.raw(), bytes32(0));
+        assertNotEq(fdgPrestateBefore.raw(), bytes32(0));
+
+        // Set the absolute prestate input to something non-zero.
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(uint256(1)));
+        opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(0));
+
+        // Run the upgrade.
+        runCurrentUpgrade(upgrader);
+
+        // Get the absolute prestate after the upgrade
+        Claim pdgPrestateAfter;
+        Claim fdgPrestateAfter;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            pdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.PERMISSIONED_CANNON);
+            fdgPrestateAfter = getDisputeGameV2AbsolutePrestate(GameTypes.CANNON);
+        } else {
+            pdgPrestateAfter = IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate();
+            fdgPrestateAfter =
+                IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).absolutePrestate();
+        }
+
+        // Assert that the absolute prestate is the non-zero value we set.
+        assertEq(pdgPrestateAfter.raw(), bytes32(uint256(1)));
+        assertEq(fdgPrestateAfter.raw(), bytes32(uint256(1)));
+
+        assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+        assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
     }
 
     function test_upgrade_notDelegateCalled_reverts() public {
@@ -1545,7 +1696,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
         // Set the config to try to update the absolutePrestate to zero.
-        opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
+        opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
 
         // Get the address of the PermissionedDisputeGame.
         IPermissionedDisputeGame pdg =
@@ -1676,10 +1827,10 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](2);
         opChainConfigs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, absolutePrestate1
+            chainDeployOutput1.systemConfigProxy, absolutePrestate1, Claim.wrap(bytes32(0))
         );
         opChainConfigs[1] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput2.systemConfigProxy, chainDeployOutput2.opChainProxyAdmin, absolutePrestate1
+            chainDeployOutput2.systemConfigProxy, absolutePrestate1, Claim.wrap(bytes32(0))
         );
 
         return IOPContractsManagerInteropMigrator.MigrateInput({
@@ -2010,12 +2161,12 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Mock out the owners of the ProxyAdmins to be different.
         vm.mockCall(
-            address(input.opChainConfigs[0].proxyAdmin),
+            address(input.opChainConfigs[0].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
-            address(input.opChainConfigs[1].proxyAdmin),
+            address(input.opChainConfigs[1].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(5678))
         );
@@ -2032,8 +2183,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Set the prestates to be different.
-        input.opChainConfigs[0].absolutePrestate = absolutePrestate1;
-        input.opChainConfigs[0].absolutePrestate = absolutePrestate2;
+        input.opChainConfigs[0].cannonPrestate = absolutePrestate1;
+        input.opChainConfigs[0].cannonPrestate = absolutePrestate2;
 
         // Execute the migration.
         _doMigration(

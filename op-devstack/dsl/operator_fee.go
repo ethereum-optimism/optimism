@@ -144,13 +144,13 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	// Infer active fork from block info
 	isJovian := of.l2Network.IsForkActive(rollup.Jovian, info.Time())
 
-	// Verify GPO upgraded and jovian active
-	isJovianinGPO, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
-	of.require.NoError(err)
+	// Verify GPO upgraded when jovian is active
+	// We have nothing to assert when jovian is inactive because an isthmus L2 can
+	// run against isthmus L1 contracts or jovian L1 contracts.
 	if isJovian {
-		of.require.Equal(isJovianinGPO, true)
-	} else {
-		of.require.Equal(isJovianinGPO, false)
+		isJovianinGPO, err := contractio.Read(of.gasPriceOracle.IsJovian(), of.ctx)
+		of.require.NoError(err)
+		of.require.True(isJovianinGPO)
 	}
 
 	// Get updated balance in operator fee vault to compute delta

@@ -103,6 +103,12 @@ func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, s
 	return rec
 }
 
+func (env *daFootprintEnv) getDAFootprintGasScalarOfSystemConfig(t devtest.T) uint16 {
+	scalar, err := contractio.Read(env.systemConfig.DAFootprintGasScalar(), t.Ctx())
+	t.Require().NoError(err)
+	return scalar
+}
+
 // expectL1BlockDAFootprintGasScalar expects the given DA footprint gas scalar to be set in the L1Block contract.
 func (env *daFootprintEnv) expectL1BlockDAFootprintGasScalar(t devtest.T, expected uint16) {
 	current, err := contractio.Read(env.l1Block.DAFootprintGasScalar(), t.Ctx())
@@ -150,6 +156,10 @@ func TestDAFootprint(gt *testing.T) {
 				// https://github.com/ethereum-optimism/optimism/issues/18061
 				env.l2EL.WaitL1OriginReached(eth.Unsafe, rec.BlockNumber.Uint64(), 100)
 			} else {
+				scalar := env.getDAFootprintGasScalarOfSystemConfig(t)
+				if scalar != 0 {
+					t.Skipf("Skipping default scalar test because SystemConfig DA footprint gas scalar is set to %d != 0", scalar)
+				}
 				sys.L2EL.WaitForBlockNumber(1) // make sure we don't assert on genesis
 			}
 			env.expectL1BlockDAFootprintGasScalar(t, tc.expected)

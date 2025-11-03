@@ -25,11 +25,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "contract IDelayedWETH",
             "name": "delayedWETH",
             "type": "address"

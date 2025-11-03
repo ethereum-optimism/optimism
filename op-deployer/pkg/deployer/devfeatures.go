@@ -31,6 +31,7 @@ func IsDevFeatureEnabled(bitmap, flag common.Hash) bool {
 	return featuresIsNonZero && bitmapContainsFeatures
 }
 
+// EnableDevFeature enables a specific development feature in a feature bitmap
 func EnableDevFeature(bitmap, flag common.Hash) common.Hash {
 	var result common.Hash
 	for i := 0; i < 32; i++ {
