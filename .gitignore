@@ -69,5 +69,5 @@ links-report.json
 .direnv/
 
 # Optimism test artifacts
-crates/optimism/tests/proofs/contracts/artifacts
-crates/optimism/tests/proofs/contracts/cache
+op-reth/tests/proofs/contracts/artifacts
+op-reth/tests/proofs/contracts/cache
