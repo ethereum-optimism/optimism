@@ -285,8 +285,9 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         address cannonDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
         if (cannonDisputeGame != address(0)) {
             // Both names are used in different places, so we save both.
-            artifacts.save("PermissionlessDisputeGame", address(cannonDisputeGame));
-            artifacts.save("FaultDisputeGame", address(cannonDisputeGame));
+//            artifacts.save("PermissionlessDisputeGame", address(cannonDisputeGame));
+//            artifacts.save("FaultDisputeGame", address(cannonDisputeGame));
+            artifacts.save("FaultDisputeGameCannon", address(cannonDisputeGame));
         }
 
         address cannonKonaDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA));
