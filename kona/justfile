@@ -1,4 +1,3 @@
-REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KONA_DIR := `realpath .`
 KONA_VERSION := "kona-client/v1.2.0"
 KONA_PRESTATE_HASH := "0x03723aeb1fe69eebd6b0155a4570f5944e9a2c1d918183a014b6da2fc2d1b5e5"
