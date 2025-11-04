@@ -1949,7 +1949,7 @@ jobs:
           key: kona-prestate-{{ checksum "./kona/justfile" }}
           name: Save Kona prestate to cache
           paths:
-            - "kona/prestates/*"
+            - "kona/prestates/"
       - persist_to_workspace:
           root: .
           paths:
