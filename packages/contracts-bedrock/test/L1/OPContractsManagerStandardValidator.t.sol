@@ -179,7 +179,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
 
         if (isForkTest()) {
             // Load the FaultDisputeGame once, we'll need it later.
-            fdgImpl = IFaultDisputeGame(disputeGameFactory.gameImpls(GameTypes.CANNON));
+            fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         } else {
             // Deploy a permissionless FaultDisputeGame.
             IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);

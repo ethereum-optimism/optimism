@@ -163,10 +163,20 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
 
         delayedWETHPermissionedGameProxy =
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
         IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
         faultDisputeGame = IFaultDisputeGame(address(dgf.gameImpls(GameTypes.CANNON)));
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            bytes memory args = dgf.gameArgs(GameTypes.CANNON);
+            if (args.length == 0) {
+                // Not yet using game args so load directly from the game implementation contract
+                delayedWeth = faultDisputeGame.weth();
+            } else {
+                delayedWeth = IDelayedWETH(payable(LibGameArgs.decode(args).weth));
+            }
+        } else {
+            delayedWeth = faultDisputeGame.weth();
+        }
 
         // grab the pre-upgrade state
         preUpgradeState = PreUpgradeState({
