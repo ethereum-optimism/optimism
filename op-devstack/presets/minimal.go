@@ -1,9 +1,11 @@
 package presets
 
 import (
-	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 
+	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
@@ -17,6 +19,7 @@ type Minimal struct {
 	Log          log.Logger
 	T            devtest.T
 	ControlPlane stack.ControlPlane
+	system       stack.ExtensibleSystem
 
 	L1Network *dsl.L1Network
 	L1EL      *dsl.L1ELNode
@@ -51,6 +54,12 @@ func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
 }
 
+func (m *Minimal) AdvanceTime(amount time.Duration) {
+	ttSys, ok := m.system.(stack.TimeTravelSystem)
+	m.T.Require().True(ok, "attempting to advance time on incompatible system")
+	ttSys.AdvanceTime(amount)
+}
+
 func WithMinimal() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }
@@ -77,6 +86,7 @@ func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Or
 		Log:              t.Logger(),
 		T:                t,
 		ControlPlane:     orch.ControlPlane(),
+		system:           system,
 		L1Network:        dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
 		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
 		L2Chain:          dsl.NewL2Network(l2, orch.ControlPlane()),
