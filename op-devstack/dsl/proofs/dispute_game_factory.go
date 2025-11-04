@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -218,7 +217,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	rollupClient := f.l2CL.Escape().RollupAPI()
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	l1HeadHash := game.L1Head()
-	l1Head, err := f.l1Network.Escape().L1ELNode(match.FirstL1EL).EthClient().BlockRefByHash(f.t.Ctx(), l1HeadHash)
+	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
 	f.require.NoError(err, "Failed to fetch L1 Head")
 
 	l2ElClient := f.l2EL.Escape().L2EthClient()

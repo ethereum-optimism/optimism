@@ -101,6 +101,7 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common
 func (g *FaultDisputeGame) Defend(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {
 	claim := g.claimAtIndex(claimIdx)
 	g.t.Logf("Defending claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
+	g.require.False(claim.IsRootPosition(), "Cannot defend the root claim")
 
 	requiredBond := g.requiredBond(claim.Position.Defend())
 
