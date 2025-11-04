@@ -37,23 +37,28 @@ func TestCLIUpgrade(t *testing.T) {
 		{
 			contractTag: standard.ContractsV200Tag,
 			version:     "v2.0.0",
-			forkBlock:   7792843,
+			forkBlock:   7792843, // one block past the opcm deployment block
 		},
-		//{
-		//contractTag: standard.ContractsV300Tag,
-		//version:     "v3.0.0",
-		//forkBlock:   7853303,
-		//},
+		{
+			contractTag: standard.ContractsV300Tag,
+			version:     "v3.0.0",
+			forkBlock:   8092886, // one block before op-sepolia was upgraded
+		},
 		{
 			contractTag: standard.ContractsV400Tag,
 			version:     "v4.0.0",
-			forkBlock:   8577263,
+			forkBlock:   8577263, // one block past the opcm deployment block
 		},
 		{
 			contractTag: standard.ContractsV410Tag,
 			version:     "v4.1.0",
-			forkBlock:   9165154,
+			forkBlock:   9165154, // one block past the opcm deployment block
 		},
+		//{
+		//contractTag: standard.ContractsV500Tag,
+		//version:     "v5.0.0-rc.2",
+		//forkBlock:   9554797, // one block past the opcm deployment block
+		//},
 	}
 
 	for _, tc := range testCases {
@@ -87,7 +92,7 @@ func TestCLIUpgrade(t *testing.T) {
 
 			configData, err := json.MarshalIndent(testConfig, "", "  ")
 			require.NoError(t, err)
-			require.NoError(t, os.WriteFile(configFile, configData, 0644))
+			require.NoError(t, os.WriteFile(configFile, configData, 0o644))
 
 			// Run full cli command to write calldata to outfile
 			output := runner.ExpectSuccess(t, []string{
@@ -115,7 +120,6 @@ func TestCLIUpgrade(t *testing.T) {
 			dataHex := hex.EncodeToString(dump[0].Data)
 			require.True(t, strings.HasPrefix(dataHex, "ff2dd5a1"),
 				"calldata should have opcm.upgrade fcn selector ff2dd5a1, got: %s", dataHex[:8])
-
 		})
 	}
 }
