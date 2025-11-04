@@ -1,0 +1,37 @@
+REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
+KONA_DIR := `realpath .`
+KONA_VERSION := "kona-client/v1.2.0"
+KONA_PRESTATE_HASH := "0x03723aeb1fe69eebd6b0155a4570f5944e9a2c1d918183a014b6da2fc2d1b5e5"
+
+build-prestates:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cd "{{KONA_DIR}}"
+    # Check if required prestate already exists
+    if [[ -f "prestates/{{KONA_PRESTATE_HASH}}.bin.gz" ]]; then
+        echo "Prestate already exists"
+        exit
+    fi
+    echo "Building prestate..."
+    DIR="{{KONA_DIR}}/build"
+    mkdir -p "${DIR}"
+    cd "${DIR}"
+    if [[ -d kona ]]; then
+      cd kona
+      git checkout -f "{{KONA_VERSION}}"
+      git reset --hard HEAD
+    else
+      git clone -b "{{KONA_VERSION}}" https://github.com/op-rs/kona kona
+      cd kona
+    fi
+    cd docker/fpvm-prestates
+    just cannon kona-client "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+
+    mkdir "{{KONA_DIR}}/prestates"
+    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{KONA_PRESTATE_HASH}}.bin.gz"
+
+clean:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  rm -rf "{{KONA_DIR}}/build" "{{KONA_DIR}}/prestates"

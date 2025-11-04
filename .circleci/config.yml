@@ -1929,6 +1929,29 @@ jobs:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
 
+  cannon-kona-prestate:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - checkout-from-workspace
+      - setup_remote_docker
+      - restore_cache:
+          name: Restore kona prestate cache
+          key: kona-prestate-{{ checksum "./kona/justfile" }}
+      - run:
+          name: Build kona prestates
+          command: just build-prestates
+          working_directory: kona
+      - save_cache:
+          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          name: Save Kona prestate to cache
+          paths:
+            - "kona/prestates/*"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "kona/prestates/*"
+
   publish-cannon-prestates:
     resource_class: medium
     docker:
@@ -2344,11 +2367,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build: # needed for in-process tests that some suites may use
           build_args: --skip test
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
-      - cannon-prestate-quick: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -3197,6 +3215,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3208,6 +3231,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
+            - cannon-kona-prestate
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report

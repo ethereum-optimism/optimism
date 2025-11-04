@@ -73,6 +73,8 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
 					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
 					CannonPrestate:    absolutePrestate,
+					// TODO: This should use the kona prestate hash from kona/justfile
+					CannonKonaPrestate: absolutePrestate,
 				})
 			}
 
