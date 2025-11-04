@@ -505,9 +505,11 @@ contract TimelockGuard_ScheduledTransaction_Test is TimelockGuard_TestInit {
 
         TimelockGuard.ScheduledTransaction memory scheduledTransaction =
             timelockGuard.scheduledTransaction(safe, dummyTx.hash);
+        assertEq(scheduledTransaction.txHash, dummyTx.hash);
         assertEq(scheduledTransaction.executionTime, INIT_TIME + TIMELOCK_DELAY);
         assert(scheduledTransaction.state == TimelockGuard.TransactionState.Pending);
         assertEq(keccak256(abi.encode(scheduledTransaction.params)), keccak256(abi.encode(dummyTx.params)));
+        assertEq(scheduledTransaction.nonce, dummyTx.nonce);
     }
 }
 
@@ -525,9 +527,13 @@ contract TimelockGuard_PendingTransactions_Test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
 
         TimelockGuard.ScheduledTransaction[] memory pendingTransactions = timelockGuard.pendingTransactions(safe);
+        // verify the pending transaction is the one we scheduled
         assertEq(pendingTransactions.length, 1);
-        // ensure the hash of the transaction params are the same
+        assertEq(pendingTransactions[0].txHash, dummyTx.hash);
+        assertEq(pendingTransactions[0].executionTime, INIT_TIME + TIMELOCK_DELAY);
+        assert(pendingTransactions[0].state == TimelockGuard.TransactionState.Pending);
         assertEq(pendingTransactions[0].params.to, dummyTx.params.to);
+        assertEq(pendingTransactions[0].nonce, dummyTx.nonce);
         assertEq(keccak256(abi.encode(pendingTransactions[0].params)), keccak256(abi.encode(dummyTx.params)));
     }
 
