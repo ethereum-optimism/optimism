@@ -473,6 +473,9 @@ abstract contract TimelockGuard is BaseGuard {
     ///      1. Safe disables the guard via GuardManager.setGuard(address(0)).
     ///      2. Safe calls this clearTimelockGuard() function to remove stored configuration.
     ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
+    ///      Warning: Clearing the configuration allows all transactions previously scheduled to be
+    ///      scheduled again, including cancelled transactions. It is strongly recommended to
+    ///      manually increment the Safe's nonce when a scheduled transaction is cancelled.
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -494,6 +497,11 @@ abstract contract TimelockGuard is BaseGuard {
     ///      existing signature generation tools. Owners can use any method to sign the a
     ///      transaction, including signing with a private key, calling the Safe's approveHash
     ///      function, or EIP1271 contract signatures.
+    ///      The Safe doesn't increase its nonce when a transaction is cancelled in the Timelock.
+    ///      This means that it is possible to add the very same transaction a second time to the
+    ///      safe queue, but it won't be possible to schedule it again in the Timelock. It is
+    ///      recommended that the safe nonce is manually incremented when a scheduled transaction
+    ///      is cancelled.
     /// @param _safe The Safe address to schedule the transaction for.
     /// @param _nonce The nonce of the Safe for the transaction being scheduled.
     /// @param _params The parameters of the transaction being scheduled.
