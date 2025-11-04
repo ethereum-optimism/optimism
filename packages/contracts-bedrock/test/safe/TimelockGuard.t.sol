@@ -334,6 +334,13 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
 
+    /// @notice Ensures configuration reverts when the guard has not been enabled on the Safe.
+    function test_configureTimelockGuard_guardNotEnabled_reverts() external {
+        vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
+        vm.prank(address(unguardedSafe.safe));
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
+    }
+
     /// @notice Asserts the maximum valid delay configures successfully.
     function test_configureTimelockGuard_acceptsMaxValidDelay_succeeds() external {
         vm.expectEmit(true, true, true, true);

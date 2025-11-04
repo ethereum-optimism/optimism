@@ -452,6 +452,11 @@ abstract contract TimelockGuard is BaseGuard {
             revert TimelockGuard_InvalidVersion();
         }
 
+        // Check that this guard is enabled on the calling Safe
+        if (!_isGuardEnabled(callingSafe)) {
+            revert TimelockGuard_GuardNotEnabled();
+        }
+
         // Validate timelock delay - must not be longer than 1 year
         if (_timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
