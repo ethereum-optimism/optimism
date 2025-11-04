@@ -208,6 +208,8 @@ abstract contract TimelockGuard is BaseGuard {
     /// @notice Returns the blocking threshold, which is defined as the minimum number of owners
     ///         that must coordinate to block a transaction from being executed by refusing to
     ///         sign.
+    /// @dev Becase `_safe.getOwners()` loops through the owners list, it could run out of gas if
+    ///      there are a lot of owners.
     /// @param _safe The Safe address to query
     /// @return The current blocking threshold
     function _blockingThreshold(Safe _safe) internal view returns (uint256) {
