@@ -1930,11 +1930,14 @@ jobs:
             - "op-program/bin/meta*"
 
   cannon-kona-prestate:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+#    docker:
+#      - image: <<pipeline.parameters.default_docker_image>>
+    machine:
+      image: <<pipeline.parameters.base_image>>
+      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - checkout-from-workspace
-      - setup_remote_docker
+#      - setup_remote_docker
       - restore_cache:
           name: Restore kona prestate cache
           key: kona-prestate-{{ checksum "./kona/justfile" }}
