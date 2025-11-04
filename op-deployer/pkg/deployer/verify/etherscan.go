@@ -30,6 +30,7 @@ type EtherscanContractCreationResp struct {
 
 type EtherscanClient struct {
 	apiKey      string
+	chainID     uint64
 	url         string
 	rateLimiter *rate.Limiter
 }
@@ -37,19 +38,20 @@ type EtherscanClient struct {
 func getAPIEndpoint(l1ChainID uint64) (string, error) {
 	switch l1ChainID {
 	case 1:
-		return "https://api.etherscan.io/api", nil // eth-mainnet
+		return "https://api.etherscan.io/v2/api", nil // eth-mainnet
 	case 11155111:
-		return "https://api-sepolia.etherscan.io/api", nil // eth-sepolia
+		return "https://api-sepolia.etherscan.io/v2/api", nil // eth-sepolia
 	case 84532:
-		return "https://api-sepolia.basescan.org/api", nil // base-sepolia
+		return "https://api-sepolia.basescan.org/v2/api", nil // base-sepolia
 	default:
 		return "", fmt.Errorf("unsupported L1 chain ID: %d", l1ChainID)
 	}
 }
 
-func NewEtherscanClient(apiKey string, url string, rateLimiter *rate.Limiter) *EtherscanClient {
+func NewEtherscanClient(apiKey string, chainID uint64, url string, rateLimiter *rate.Limiter) *EtherscanClient {
 	return &EtherscanClient{
 		apiKey:      apiKey,
+		chainID:     chainID,
 		url:         url,
 		rateLimiter: rateLimiter,
 	}
@@ -67,8 +69,8 @@ func (c *EtherscanClient) sendRateLimitedRequest(req *http.Request) (*http.Respo
 // getContractCreation returns the txHash of the contract creation tx
 // (useful for extracting constructor args)
 func (c *EtherscanClient) getContractCreation(address common.Address) (common.Hash, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?module=contract&action=getcontractcreation&contractaddresses=%s&apikey=%s",
-		c.url, address.Hex(), c.apiKey), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?chainid=%d&module=contract&action=getcontractcreation&contractaddresses=%s&apikey=%s",
+		c.url, c.chainID, address.Hex(), c.apiKey), nil)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to create contract creation request: %w", err)
 	}
@@ -143,8 +145,8 @@ func (c *EtherscanClient) verifySourceCode(address common.Address, artifact *con
 }
 
 func (c *EtherscanClient) isVerified(address common.Address) (bool, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?module=contract&action=getabi&address=%s&apikey=%s",
-		c.url, address.Hex(), c.apiKey), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?chainid=%d&module=contract&action=getabi&address=%s&apikey=%s",
+		c.url, c.chainID, address.Hex(), c.apiKey), nil)
 	if err != nil {
 		return false, err
 	}
@@ -164,8 +166,8 @@ func (c *EtherscanClient) isVerified(address common.Address) (bool, error) {
 }
 
 func (c *EtherscanClient) pollVerificationStatus(reqId string) error {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?apikey=%s&module=contract&action=checkverifystatus&guid=%s",
-		c.url, c.apiKey, reqId), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?chainid=%d&apikey=%s&module=contract&action=checkverifystatus&guid=%s",
+		c.url, c.chainID, c.apiKey, reqId), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create checkverifystatus request: %w", err)
 	}

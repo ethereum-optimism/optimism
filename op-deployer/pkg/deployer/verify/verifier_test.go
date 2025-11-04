@@ -51,7 +51,8 @@ func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 	artifactsFS, err := artifacts.ExtractEmbedded(testCacheDir)
 	require.NoError(t, err, "embedded artifacts should be extracted successfully")
 
-	verifier, err := NewVerifier(testAPIKey, 1, artifactsFS, log.New(log.JSONHandler(io.Discard)), nil)
+	l1ChainID := uint64(1)
+	verifier, err := NewVerifier(testAPIKey, l1ChainID, artifactsFS, log.New(log.JSONHandler(io.Discard)), nil)
 	require.NoError(t, err, "verifier should be created successfully with embedded artifacts")
 	require.NotNil(t, verifier, "verifier should not be nil")
 
@@ -74,7 +75,7 @@ func TestVerifierWithEmbeddedArtifacts(t *testing.T) {
 	}))
 	defer fakeServer.Close()
 
-	verifier.etherscan = NewEtherscanClient(testAPIKey, fakeServer.URL, rate.NewLimiter(rate.Inf, 1))
+	verifier.etherscan = NewEtherscanClient(testAPIKey, l1ChainID, fakeServer.URL, rate.NewLimiter(rate.Inf, 1))
 
 	bundle := bootstrapContractAddresses()
 

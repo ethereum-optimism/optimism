@@ -20,13 +20,13 @@ const (
 )
 
 // createTestClient creates a new EtherscanClient with a mock server for testing
-func createTestClient(t *testing.T, handler http.HandlerFunc) (*EtherscanClient, *httptest.Server) {
+func createTestClient(t *testing.T, chainid uint64, handler http.HandlerFunc) (*EtherscanClient, *httptest.Server) {
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() { server.Close() })
 
 	// Use a fast rate limiter for testing
 	limiter := rate.NewLimiter(rate.Every(time.Millisecond), 10)
-	return NewEtherscanClient(testAPIKey, server.URL, limiter), server
+	return NewEtherscanClient(testAPIKey, chainid, server.URL, limiter), server
 }
 
 // createTestArtifact creates a contract artifact for testing
@@ -52,8 +52,8 @@ func TestGetAPIEndpoint(t *testing.T) {
 		expected      string
 		expectedError bool
 	}{
-		{"Mainnet", 1, "https://api.etherscan.io/api", false},
-		{"Sepolia", 11155111, "https://api-sepolia.etherscan.io/api", false},
+		{"Mainnet", 1, "https://api.etherscan.io/v2/api", false},
+		{"Sepolia", 11155111, "https://api-sepolia.etherscan.io/v2/api", false},
 		{"Unknown", 999, "", true},
 	}
 
@@ -71,7 +71,7 @@ func TestGetAPIEndpoint(t *testing.T) {
 }
 
 func TestGetContractCreation(t *testing.T) {
-	client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := createTestClient(t, 1, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "GET", r.Method)
 		require.Contains(t, r.URL.String(), "module=contract")
 		require.Contains(t, r.URL.String(), "action=getcontractcreation")
@@ -106,7 +106,7 @@ func TestGetContractCreation(t *testing.T) {
 }
 
 func TestGetContractCreationError(t *testing.T) {
-	client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := createTestClient(t, 1, func(w http.ResponseWriter, r *http.Request) {
 		resp := EtherscanContractCreationResp{
 			Status:  "0",
 			Message: "Error",
@@ -126,7 +126,7 @@ func TestGetContractCreationError(t *testing.T) {
 }
 
 func TestVerifySourceCode(t *testing.T) {
-	client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client, _ := createTestClient(t, 1, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "POST", r.Method)
 		require.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
 
@@ -170,7 +170,7 @@ func TestIsVerified(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client, _ := createTestClient(t, 1, func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, "GET", r.Method)
 				require.Contains(t, r.URL.String(), "module=contract")
 				require.Contains(t, r.URL.String(), "action=getabi")
@@ -231,7 +231,7 @@ func TestPollVerificationStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			responseIndex := 0
 
-			client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client, _ := createTestClient(t, 1, func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, "GET", r.Method)
 				require.Contains(t, r.URL.String(), "module=contract")
 				require.Contains(t, r.URL.String(), "action=checkverifystatus")
