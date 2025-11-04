@@ -191,7 +191,8 @@ func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, atte
 		if err != nil {
 			return err
 		}
-		ethclient := cl.inner.ELs()[0].EthClient()
+
+		ethclient := cl.inner.ELClient()
 		result, err := ethclient.BlockRefByNumber(cl.ctx, target.Number)
 		if err != nil {
 			return err

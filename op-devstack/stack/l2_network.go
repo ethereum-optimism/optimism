@@ -91,6 +91,8 @@ type L2Network interface {
 	L2CLNode(m L2CLMatcher) L2CLNode
 	L2ELNode(m L2ELMatcher) L2ELNode
 	Conductor(m ConductorMatcher) Conductor
+	RollupBoostNode(m RollupBoostNodeMatcher) RollupBoostNode
+	OPRBuilderNode(m OPRBuilderNodeMatcher) OPRBuilderNode
 
 	L2BatcherIDs() []L2BatcherID
 	L2ProposerIDs() []L2ProposerID
@@ -104,10 +106,8 @@ type L2Network interface {
 	L2CLNodes() []L2CLNode
 	L2ELNodes() []L2ELNode
 	Conductors() []Conductor
-	FlashblocksBuilders() []FlashblocksBuilderNode
-	AddFlashblocksBuilder(v FlashblocksBuilderNode)
-	FlashblocksWebsocketProxies() []FlashblocksWebsocketProxy
-	AddFlashblocksWebsocketProxy(v FlashblocksWebsocketProxy)
+	RollupBoostNodes() []RollupBoostNode
+	OPRBuilderNodes() []OPRBuilderNode
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,
@@ -121,4 +121,6 @@ type ExtensibleL2Network interface {
 	AddL2CLNode(v L2CLNode)
 	AddL2ELNode(v L2ELNode)
 	AddConductor(v Conductor)
+	AddRollupBoostNode(v RollupBoostNode)
+	AddOPRBuilderNode(v OPRBuilderNode)
 }

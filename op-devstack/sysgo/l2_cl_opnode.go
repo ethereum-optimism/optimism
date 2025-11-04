@@ -73,7 +73,26 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	if n.el != nil {
-		sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+		for _, el := range l2Net.L2ELNodes() {
+			if el.ID() == *n.el {
+				sysL2CL.(stack.LinkableL2CLNode).LinkEL(el)
+				return
+			}
+		}
+		rbID := stack.RollupBoostNodeID(*n.el)
+		for _, rb := range l2Net.RollupBoostNodes() {
+			if rb.ID() == rbID {
+				sysL2CL.(stack.LinkableL2CLNode).LinkRollupBoostNode(rb)
+				return
+			}
+		}
+		oprbID := stack.OPRBuilderNodeID(*n.el)
+		for _, oprb := range l2Net.OPRBuilderNodes() {
+			if oprb.ID() == oprbID {
+				sysL2CL.(stack.LinkableL2CLNode).LinkOPRBuilderNode(oprb)
+				return
+			}
+		}
 	}
 }
 
@@ -160,7 +179,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		require.True(ok, "l1 CL node required")
 
 		// Get the L2EL node (which can be a regular EL node or a SyncTesterEL)
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
 
 		// Get dependency set from cluster if available
@@ -245,9 +264,6 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		// Set the req-resp sync flag as per config
 		p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 
-		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
-		l2EngineAddr := l2EL.EngineRPC()
-
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.UserRPC(),
@@ -261,7 +277,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			},
 			L1ChainConfig: l1Net.genesis.Config,
 			L2: &config.L2EndpointConfig{
-				L2EngineAddr:      l2EngineAddr,
+				L2EngineAddr:      l2EL.EngineRPC(),
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{

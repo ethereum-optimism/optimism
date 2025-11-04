@@ -93,11 +93,11 @@ func (g *L2MetricsDashboard) startPrometheus() {
 	logOut := logpipe.ToLogger(g.p.Logger().New("component", "prometheus", "src", "stdout"))
 	logErr := logpipe.ToLogger(g.p.Logger().New("component", "prometheus", "src", "stderr"))
 
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
 	})
@@ -116,11 +116,11 @@ func (g *L2MetricsDashboard) startGrafana() {
 	logOut := logpipe.ToLogger(g.p.Logger().New("component", "grafana", "src", "stdout"))
 	logErr := logpipe.ToLogger(g.p.Logger().New("component", "grafana", "src", "stderr"))
 
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
 	})

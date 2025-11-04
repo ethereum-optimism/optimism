@@ -210,6 +210,8 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 			},
 		}
 
+		logger.Info("Configuring test sequencer", "l1EL", l1EL.UserRPC(), "l2EL", l2EL.UserRPC(), "l2CL", l2CL.UserRPC())
+
 		jobs := work.NewJobRegistry()
 		ensemble, err := v.Start(context.Background(), &work.StartOpts{
 			Log:     logger,
