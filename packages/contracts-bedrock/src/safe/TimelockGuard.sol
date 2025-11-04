@@ -596,6 +596,9 @@ abstract contract TimelockGuard is BaseGuard {
     ///      of checkNSignatures is that owners can use any method to sign the cancellation
     ///      transaction inputs, including signing with a private key, calling the Safe's
     ///      approveHash function, or EIP1271 contract signatures.
+    ///
+    ///      It is allowed to cancel transactions from a disabled TimelockGuard, as a way of
+    ///      clearing the queue that wouldn't be as blunt as calling `clearTimelockConfiguration`.
     /// @param _safe The Safe address to cancel the transaction for.
     /// @param _txHash The hash of the transaction being cancelled.
     /// @param _nonce The nonce of the Safe for the transaction being cancelled.
