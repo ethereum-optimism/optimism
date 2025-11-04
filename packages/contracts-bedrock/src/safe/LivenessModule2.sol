@@ -279,7 +279,6 @@ abstract contract LivenessModule2 {
         _cancelChallenge(callingSafe);
     }
 
-
     /// @notice With successful challenge, removes all current owners from enabled safe, appoints
     ///         fallback as sole owner, and sets its quorum to 1.
     /// @dev After ownership transfer, the fallback owner becomes the sole owner and is also still
