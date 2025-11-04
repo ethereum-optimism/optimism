@@ -34,7 +34,6 @@ func WithFastGame() stack.CommonOption {
 							DisputeMaxClockDuration: 0,
 						},
 						VMType:                       state.VMTypeAlphabet,
-						UseCustomOracle:              true,
 						OracleMinProposalSize:        10000,
 						OracleChallengePeriodSeconds: 0,
 						MakeRespected:                true,
