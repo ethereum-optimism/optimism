@@ -2,6 +2,7 @@ package chain_container
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,6 +27,15 @@ type ChainContainer interface {
 	Stop(ctx context.Context) error
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
+
+	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1 eth.BlockID, l2 eth.BlockID, err error)
+	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
+	L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error)
+	CurrentL1(ctx context.Context) (eth.BlockRef, error)
+	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
+	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -33,6 +44,7 @@ type simpleChainContainer struct {
 	vn                 virtual_node.VirtualNode
 	vncfg              *opnodecfg.Config
 	cfg                config.CLIConfig
+	engine             engine_controller.EngineController
 	pause              atomic.Bool
 	stop               atomic.Bool
 	stopped            chan struct{}
@@ -45,6 +57,9 @@ type simpleChainContainer struct {
 	appVersion         string
 	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
 }
+
+// Interface conformance assertions
+var _ ChainContainer = (*simpleChainContainer)(nil)
 
 func NewChainContainer(
 	chainID eth.ChainID,
@@ -71,6 +86,18 @@ func NewChainContainer(
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
+	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
+	if vncfg.L2 != nil {
+		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Provide contextual logger to engine controller
+		engLog := log.New("chain_id", chainID.String(), "component", "engine_controller")
+		if eng, err := engine_controller.NewEngineControllerFromConfig(setupCtx, engLog, vncfg); err != nil {
+			log.Error("failed to setup engine controller", "err", err)
+		} else {
+			c.engine = eng
+		}
+	}
 	return c
 }
 
@@ -158,6 +185,11 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 		}
 	}
 
+	// Close engine controller RPC resources
+	if c.engine != nil {
+		_ = c.engine.Close()
+	}
+
 	select {
 	case <-c.stopped:
 		return nil
@@ -174,4 +206,87 @@ func (c *simpleChainContainer) Pause(ctx context.Context) error {
 func (c *simpleChainContainer) Resume(ctx context.Context) error {
 	c.pause.Store(false)
 	return nil
+}
+
+// BlockAtTimestamp returns the highest L2 block with timestamp <= ts using the L2 client.
+func (c *simpleChainContainer) BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+	if c.engine == nil {
+		return eth.L2BlockRef{}, engine_controller.ErrNoEngineClient
+	}
+	return c.engine.BlockAtTimestamp(ctx, ts)
+}
+
+// OutputRootAtL2BlockNumber computes the L2 output root for the specified L2 block number.
+func (c *simpleChainContainer) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+	if c.engine == nil {
+		return eth.Bytes32{}, engine_controller.ErrNoEngineClient
+	}
+	out, err := c.engine.OutputV0AtBlockNumber(ctx, l2BlockNum)
+	if err != nil {
+		return eth.Bytes32{}, err
+	}
+	return eth.OutputRoot(out), nil
+}
+
+// SafeHeadAtL1 queries the embedded op-node RPC handler for the SafeDB mapping at/preceding the given L1 block number.
+func (c *simpleChainContainer) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	if c.vn == nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("virtual node not initialized")
+	}
+	return c.vn.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
+// L1AtSafeHead delegates to the virtual node to resolve the earliest L1 at which the L2 became safe.
+func (c *simpleChainContainer) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID, error) {
+	if c.vn == nil {
+		return eth.BlockID{}, fmt.Errorf("virtual node not initialized")
+	}
+	return c.vn.L1AtSafeHead(ctx, l2)
+}
+
+// CurrentL1 returns the most recent processed L1 block reference based on the derivation pipeline sync status.
+func (c *simpleChainContainer) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
+	if c.vn == nil {
+		if c.log != nil {
+			c.log.Warn("CurrentL1: virtual node not initialized")
+		}
+		return eth.BlockRef{}, nil
+	}
+	return c.vn.CurrentL1(ctx)
+}
+
+// VerifiedAt returns the verified L2 and L1 blocks for the given L2 timestamp.
+func (c *simpleChainContainer) VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	l2Block, err := c.BlockAtTimestamp(ctx, ts)
+	if err != nil {
+		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+	l1Block, err := c.L1AtSafeHead(ctx, l2Block.ID())
+	if err != nil {
+		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+
+	// if there were Verification Activities, we would check if the data could be *verified* at this L1, or would use its L1 block number
+	// but there are currently no verification activities, so we just return the l2 and l1 blocks
+	return l2Block.ID(), l1Block, nil
+}
+
+// OptimisticAt returns the optimistic (pre-verified) L2 and L1 blocks for the given L2 timestamp.
+func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error) {
+	l2Block, err := c.BlockAtTimestamp(ctx, ts)
+	if err != nil {
+		c.log.Error("error determining l2 block at given timestamp", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+	l1Block, err := c.L1AtSafeHead(ctx, l2Block.ID())
+	if err != nil {
+		c.log.Error("error determining l1 block number at which l2 block became safe", "error", err)
+		return eth.BlockID{}, eth.BlockID{}, err
+	}
+
+	// if there were Verification Activities, we could check if there was a pre-verified block which was added to the denylist
+	// but there are currently no verification activities, so we just return the l2 and l1 blocks
+	return l2Block.ID(), l1Block, nil
 }

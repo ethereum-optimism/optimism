@@ -3,11 +3,13 @@ package virtual_node
 import (
 	"context"
 	"errors"
+	"math"
 	"sync"
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 )
@@ -31,11 +33,18 @@ var (
 type VirtualNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+
+	SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error)
+	// L1AtSafeHead returns the earliest L1 block at which the given L2 block became safe.
+	L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error)
+	CurrentL1(ctx context.Context) (eth.BlockRef, error)
 }
 
 type innerNode interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	SafeDB() rollupNode.SafeDBReader
+	SyncStatus() *eth.SyncStatus
 }
 
 type innerNodeFactory func(ctx context.Context, cfg *opnodecfg.Config, log gethlog.Logger, appVersion string, m *opmetrics.Metrics, initOverload *rollupNode.InitializationOverrides) (innerNode, error)
@@ -178,4 +187,139 @@ func (v *simpleVirtualNode) State() VNState {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.state
+}
+
+// SafeHeadAtL1 returns the recorded mapping of L1 block -> L2 safe head at or before the given L1 block number.
+func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (eth.BlockID, eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	db := inner.SafeDB()
+	if db == nil {
+		return eth.BlockID{}, eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	return db.SafeHeadAtL1(ctx, l1BlockNum)
+}
+
+// L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
+// using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
+func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: start", "target_num", target.Number, "target_hash", target.Hash)
+	}
+	if inner == nil {
+		return eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	db := inner.SafeDB()
+	if db == nil {
+		return eth.BlockID{}, ErrVirtualNodeNotRunning
+	}
+	// Get the latest entry to bound the search space
+	latestL1, latestL2, err := db.SafeHeadAtL1(ctx, math.MaxUint64-1)
+	if err != nil {
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: latest lookup failed", "err", err)
+		}
+		return eth.BlockID{}, err
+	}
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: latest bounds", "latest_l1", latestL1.Number, "latest_l2_num", latestL2.Number, "latest_l2_hash", latestL2.Hash)
+	}
+	if latestL2.Number < target.Number {
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number)
+		}
+		return eth.BlockID{}, errors.New("target not found")
+	}
+	// Restrict lower bound to rollup genesis L1 (the rollup starts after this L1)
+	var lo uint64 = v.cfg.Rollup.Genesis.L1.Number
+	hi := latestL1.Number
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: initial bounds", "lo", lo, "hi", hi)
+	}
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: probe", "mid", mid, "lo", lo, "hi", hi)
+		}
+		_, midL2, err := db.SafeHeadAtL1(ctx, mid)
+		if err != nil {
+			// before first entry; treat as below target
+			if v.log != nil {
+				v.log.Debug("L1AtSafeHead: mid lookup failed, advance lo", "mid", mid, "err", err)
+			}
+			lo = mid + 1
+			continue
+		}
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: mid result", "mid", mid, "mid_l2_num", midL2.Number, "mid_l2_hash", midL2.Hash)
+		}
+		if midL2.Number >= target.Number {
+			if v.log != nil {
+				v.log.Debug("L1AtSafeHead: move hi", "from", hi, "to", mid)
+			}
+			hi = mid
+		} else {
+			if v.log != nil {
+				v.log.Debug("L1AtSafeHead: move lo", "from", lo, "to", mid+1)
+			}
+			lo = mid + 1
+		}
+	}
+	// Validate match at boundary
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: boundary", "lo", lo)
+	}
+	fL1, fL2, err := db.SafeHeadAtL1(ctx, lo)
+	if err != nil {
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: boundary lookup failed", "lo", lo, "err", err)
+		}
+		return eth.BlockID{}, err
+	}
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: boundary result", "l1", fL1.Number, "l2_num", fL2.Number, "l2_hash", fL2.Hash)
+	}
+	// If the exact L2 is found, return its L1; otherwise, return the earliest L1
+	// at which the safe head number is >= the target (implied availability).
+	if fL2.Number == target.Number && fL2.Hash == target.Hash {
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: found", "l1", fL1.Number)
+		}
+		return fL1, nil
+	}
+	if fL2.Number >= target.Number {
+		if v.log != nil {
+			v.log.Debug("L1AtSafeHead: implied at boundary", "implied_l1", fL1.Number)
+		}
+		return fL1, nil
+	}
+	if v.log != nil {
+		v.log.Debug("L1AtSafeHead: not found (unexpected)")
+	}
+	return eth.BlockID{}, errors.New("target not found")
+}
+
+// CurrentL1 returns the current processed L1 block based on derivation pipeline sync status.
+func (v *simpleVirtualNode) CurrentL1(ctx context.Context) (eth.BlockRef, error) {
+	v.mu.Lock()
+	inner := v.inner
+	v.mu.Unlock()
+	if inner == nil {
+		return eth.BlockRef{}, ErrVirtualNodeNotRunning
+	}
+	st := inner.SyncStatus()
+	// Map L1 block ref into generic block ref
+	return eth.BlockRef{
+		Hash:       st.CurrentL1.Hash,
+		Number:     st.CurrentL1.Number,
+		ParentHash: st.CurrentL1.ParentHash,
+		Time:       st.CurrentL1.Time,
+	}, nil
 }
