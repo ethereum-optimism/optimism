@@ -94,6 +94,11 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         Self { inner }
     }
 
+    /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
+    pub const fn builder() -> OpEthApiBuilder<Rpc> {
+        OpEthApiBuilder::new()
+    }
+
     /// Returns a reference to the [`EthApiNodeBackend`].
     pub fn eth_api(&self) -> &EthApiNodeBackend<N, Rpc> {
         self.inner.eth_api()
@@ -130,11 +135,6 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         parent_hash: B256,
     ) -> Option<PendingBlock<N::Primitives>> {
         block.filter(|b| b.block().parent_hash() == parent_hash).map(|b| b.pending.clone())
-    }
-
-    /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
-    pub const fn builder() -> OpEthApiBuilder<Rpc> {
-        OpEthApiBuilder::new()
     }
 
     /// Awaits a fresh flashblock if one is being built, otherwise returns current.
