@@ -252,6 +252,18 @@ var (
 		Value:    false,
 		Category: SequencerCategory,
 	}
+	FinalityLookbackFlag = &cli.Uint64Flag{
+		Name:     "finality.lookback",
+		Usage:    "Number of L1 blocks to look back for finality verification. Uses default calculation if 0 (considers alt-DA challenge/resolve windows if applicable).",
+		EnvVars:  prefixEnvVars("FINALITY_LOOKBACK"),
+		Category: RollupCategory,
+	}
+	FinalityDelayFlag = &cli.Uint64Flag{
+		Name:     "finality.delay",
+		Usage:    "Number of L1 blocks to traverse before trying to finalize L2 blocks again. Uses default (64) if 0.",
+		EnvVars:  prefixEnvVars("FINALITY_DELAY"),
+		Category: RollupCategory,
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -450,6 +462,8 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
+	FinalityLookbackFlag,
+	FinalityDelayFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCAdminPersistence,

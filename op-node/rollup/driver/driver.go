@@ -65,9 +65,9 @@ func NewDriver(
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA, ec)
+		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, altDA, ec)
 	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, ec)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, driverCfg.Finalizer, l1, ec)
 	}
 	sys.Register("finalizer", finalizer)
 

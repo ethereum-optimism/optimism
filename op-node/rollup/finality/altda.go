@@ -27,11 +27,14 @@ type AltDAFinalizer struct {
 	backend AltDABackend
 }
 
-func NewAltDAFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
+// NewAltDAFinalizer creates a new AltDAFinalizer instance.
+// The finalizerCfg parameter is optional and may be nil to use default finality behavior.
+// When non-nil, any non-nil fields in finalizerCfg will override the defaults.
+func NewAltDAFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, finalizerCfg *Config,
 	l1Fetcher FinalizerL1Interface,
 	backend AltDABackend, ec EngineController) *AltDAFinalizer {
 
-	inner := NewFinalizer(ctx, log, cfg, l1Fetcher, ec)
+	inner := NewFinalizer(ctx, log, cfg, finalizerCfg, l1Fetcher, ec)
 
 	// In alt-da mode, the finalization signal is proxied through the AltDA manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
