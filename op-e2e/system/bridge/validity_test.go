@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

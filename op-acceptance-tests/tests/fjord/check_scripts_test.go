@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"

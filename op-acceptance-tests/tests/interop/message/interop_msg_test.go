@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"

@@ -9,7 +9,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"

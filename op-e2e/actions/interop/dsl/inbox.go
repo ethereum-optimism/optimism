@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 

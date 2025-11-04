@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

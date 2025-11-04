@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 
 	"github.com/ethereum/go-ethereum/common"

@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

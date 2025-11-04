@@ -12,7 +12,7 @@ import (
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
 // StateOracle defines the high-level API used to retrieve L2 state data pre-images

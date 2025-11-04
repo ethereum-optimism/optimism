@@ -21,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
 // ABI types

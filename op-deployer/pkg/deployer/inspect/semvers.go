@@ -23,7 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"

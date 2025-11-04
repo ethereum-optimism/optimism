@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
 func TestWriteDefaultJWT(t *testing.T) {

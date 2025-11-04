@@ -6,7 +6,7 @@ import (
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/urfave/cli/v2"
 )

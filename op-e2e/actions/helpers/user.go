@@ -31,7 +31,7 @@ import (
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
 type L1Bindings struct {
