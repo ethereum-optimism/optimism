@@ -306,6 +306,11 @@
       {
         "components": [
           {
+            "internalType": "bytes32",
+            "name": "txHash",
+            "type": "bytes32"
+          },
+          {
             "internalType": "uint256",
             "name": "executionTime",
             "type": "uint256"
@@ -366,11 +371,6 @@
             "internalType": "struct TimelockGuard.ExecTransactionParams",
             "name": "params",
             "type": "tuple"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "txHash",
-            "type": "bytes32"
           },
           {
             "internalType": "uint256",
@@ -486,6 +486,11 @@
       {
         "components": [
           {
+            "internalType": "bytes32",
+            "name": "txHash",
+            "type": "bytes32"
+          },
+          {
             "internalType": "uint256",
             "name": "executionTime",
             "type": "uint256"
@@ -546,11 +551,6 @@
             "internalType": "struct TimelockGuard.ExecTransactionParams",
             "name": "params",
             "type": "tuple"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "txHash",
-            "type": "bytes32"
           },
           {
             "internalType": "uint256",
