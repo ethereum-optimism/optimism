@@ -3,6 +3,7 @@ package bpo2
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fusaka"
 	jovian "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/jovian"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -11,6 +12,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	resetEnvVars := fusaka.ConfigureDevstackEnvVars()
+	defer resetEnvVars()
 	presets.DoMain(m, stack.MakeCommon(stack.Combine(
 		sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}),
 		sysgo.WithDeployerOptions(

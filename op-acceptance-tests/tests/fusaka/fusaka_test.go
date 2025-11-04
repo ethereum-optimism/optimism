@@ -59,17 +59,19 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 
 	spamBlobs(t, sys) // Raise the blob base fee to make blob parameter changes visible.
 
+	t.Log("Waiting for non trivial BPO1 block")
 	l2UnsafeHash, l1BlobBaseFee := waitForNonTrivialBPO1Block(t, sys)
+	t.Log("Non-trivial BPO1 block found")
 	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeHash)
 	t.Require().NoError(err)
 
-	// Check the L1 blob base fee in the system deposit tx.
+	t.Log("Checking the L1 blob base fee in the system deposit tx")
 	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l2Txs[0].Data())
 	t.Require().NoError(err)
 	l2BlobBaseFee := blockInfo.BlobBaseFee
 	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)
 
-	// Check the L1 Blob base fee in the L1Block contract.
+	t.Log("Checking the L1 blob base fee in the L1Block contract")
 	l1Block := bindings.NewL1Block(bindings.WithClient(sys.L2EL.Escape().EthClient()), bindings.WithTo(predeploys.L1BlockAddr))
 	l2BlobBaseFee, err = contractio.Read(l1Block.BlobBaseFee(), t.Ctx(), func(tx *txplan.PlannedTx) {
 		tx.AgainstBlock.Set(l2Info)

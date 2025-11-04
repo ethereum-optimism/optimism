@@ -5,12 +5,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithProofs(),
-		presets.WithJovianAtGenesis(),
+		stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithJovianAtGenesis)),
 		presets.WithSafeDBEnabled(),
 		presets.WithCannonKona(),
 		// Requires access to a challenger config which only sysgo provides
