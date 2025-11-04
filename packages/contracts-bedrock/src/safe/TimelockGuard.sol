@@ -214,7 +214,7 @@ abstract contract TimelockGuard is BaseGuard {
         return _safe.getOwners().length - _safe.getThreshold() + 1;
     }
 
-    /// @notice Internal helper to get the guard address from a Safe
+    /// @notice Internal helper to check if TimelockGuard is enabled for a Safe
     /// @param _safe The Safe address
     /// @return The current guard address
     function _isGuardEnabled(Safe _safe) internal view returns (bool) {
