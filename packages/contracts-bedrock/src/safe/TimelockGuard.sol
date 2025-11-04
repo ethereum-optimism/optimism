@@ -344,7 +344,8 @@ abstract contract TimelockGuard is BaseGuard {
 
         // Limit execution of transactions to owners of the Safe only.
         // This ensures that an attacker cannot simply collect valid signatures, but must also
-        // control a private key.
+        // control a private key. It is accepted as a trade-off that paymasters, relayers or UX
+        // wrappers cannot execute transactions with the TimelockGuard enabled.
         if (!callingSafe.isOwner(_msgSender)) {
             revert TimelockGuard_NotOwner();
         }
