@@ -75,6 +75,7 @@ func getP2PClientsAndPeers(ctx context.Context, logger log.Logger,
 func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
+		l := orch.P().Logger()
 
 		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
 		require.True(ok, "looking for L2 CL node 1 to connect p2p")
@@ -87,15 +88,18 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 
 		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
 
-		connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
+		connectPeer := func(l2CL L2CLNode, p2pClient *sources.P2PClient, multiAddress string) {
 			err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
 				return p2pClient.ConnectPeer(ctx, multiAddress)
 			})
-			require.NoError(err, "failed to connect peer")
+			if err != nil {
+				l.Error("failed to connect L2CL peer", "l2CL", l2CL, "rpc", l2CL.UserRPC(), "multiAddress", multiAddress, "error", err)
+			}
+			require.NoError(err, "failed to connect L2CL peer")
 		}
 
-		connectPeer(p.client1, p.peerInfo2.Addresses[0])
-		connectPeer(p.client2, p.peerInfo1.Addresses[0])
+		connectPeer(l2CL1, p.client1, p.peerInfo2.Addresses[0])
+		connectPeer(l2CL2, p.client2, p.peerInfo1.Addresses[0])
 
 		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
 			multiAddress := peerInfo.PeerID.String()
