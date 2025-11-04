@@ -35,10 +35,8 @@ use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
     RpcNodeCoreExt, RpcTypes,
 };
-use reth_rpc_eth_types::{
-    EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlock, PendingBlockEnvOrigin,
-};
-use reth_storage_api::ProviderHeader;
+use reth_rpc_eth_types::{EthStateCache, FeeHistoryCache, GasPriceOracle, PendingBlock};
+use reth_storage_api::{BlockReaderIdExt, ProviderHeader};
 use reth_tasks::{
     pool::{BlockingTaskGuard, BlockingTaskPool},
     TaskSpawner,
@@ -177,13 +175,11 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         OpEthApiError: FromEvmError<N::Evm>,
         Rpc: RpcConvert<Primitives = N::Primitives>,
     {
-        let pending = self.pending_block_env_and_cfg()?;
-        let parent = match pending.origin {
-            PendingBlockEnvOrigin::ActualPending(..) => return Ok(None),
-            PendingBlockEnvOrigin::DerivedFromLatest(parent) => parent,
+        let Some(latest) = self.provider().latest_header()? else {
+            return Ok(None);
         };
 
-        self.flashblock(parent.hash()).await
+        self.flashblock(latest.hash()).await
     }
 }
 
