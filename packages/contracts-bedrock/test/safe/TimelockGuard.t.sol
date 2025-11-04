@@ -153,7 +153,7 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
+    event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash);
     event Message(string message);
     event TransactionsNotCancelled(Safe indexed safe, uint256 n);
 
