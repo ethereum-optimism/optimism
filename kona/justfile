@@ -1,15 +1,24 @@
 KONA_DIR := `realpath .`
 KONA_VERSION := "kona-client/v1.2.0"
 KONA_PRESTATE_HASH := "0x03723aeb1fe69eebd6b0155a4570f5944e9a2c1d918183a014b6da2fc2d1b5e5"
+KONA_INTEROP_PRESTATE_HASH := "0x03dd682a7c55084b42c4f4711f2c501126ed8dc05808c7ef19537dbf57bcbed7"
 
-build-prestates:
+build-prestates: build-cannon-prestate build-interop-prestate
+
+build-cannon-prestate:
+    @just build-prestate kona-client {{KONA_PRESTATE_HASH}}
+
+build-interop-prestate:
+    @just build-prestate kona-client-int {{KONA_INTEROP_PRESTATE_HASH}}
+
+build-prestate VARIANT HASH:
     #!/usr/bin/env bash
     set -euo pipefail
 
     cd "{{KONA_DIR}}"
     # Check if required prestate already exists
-    if [[ -f "prestates/{{KONA_PRESTATE_HASH}}.bin.gz" ]]; then
-        echo "Prestate already exists"
+    if [[ -f "prestates/{{HASH}}.bin.gz" ]]; then
+        echo "Prestate {{HASH}} for variant {{VARIANT}} already exists"
         exit
     fi
     echo "Building prestate..."
@@ -25,10 +34,13 @@ build-prestates:
       cd kona
     fi
     cd docker/fpvm-prestates
-    just cannon kona-client "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+    # Delete any existing artifacts (they're in .gitignore so reset --hard won't delete them)
+    rm -rf ../../prestate-artifacts-cannon
+    echo just cannon {{VARIANT}} "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+    just cannon {{VARIANT}} "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
 
-    mkdir "{{KONA_DIR}}/prestates"
-    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{KONA_PRESTATE_HASH}}.bin.gz"
+    mkdir -p "{{KONA_DIR}}/prestates"
+    cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{HASH}}.bin.gz"
 
 clean:
   #!/usr/bin/env bash
