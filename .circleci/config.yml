@@ -1931,9 +1931,9 @@ jobs:
 
   cannon-kona:
     docker:
-      - image: cimg/rust:2024.04
+      - image: cimg/rust:1.91
 #    machine:
-#      image: cimg/rust:2024.04
+#      image: <<pipeline.parameters.default_docker_image>>
 #      docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - setup_remote_docker:
