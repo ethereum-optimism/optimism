@@ -15,9 +15,9 @@ use jsonrpsee::http_client::HttpBody;
 use metrics_exporter_prometheus::PrometheusHandle;
 
 use crate::ExecutionMode;
-use crate::cli::RollupBoostArgs;
+use crate::cli::RollupBoostServiceArgs;
 
-pub fn init_metrics(args: &RollupBoostArgs) -> Result<()> {
+pub fn init_metrics(args: &RollupBoostServiceArgs) -> Result<()> {
     if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();

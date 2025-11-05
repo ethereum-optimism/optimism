@@ -1,7 +1,6 @@
 use std::{fs::File, time::Duration};
 
-use crate::RollupBoostArgs;
-use clap::Parser;
+use crate::RollupBoostServiceArgs;
 use tokio::task::JoinHandle;
 use tracing::subscriber::DefaultGuard;
 use tracing_subscriber::fmt;
@@ -10,13 +9,13 @@ use crate::tests::common::{TEST_DATA, get_available_port};
 
 #[derive(Debug)]
 pub struct RollupBoost {
-    args: RollupBoostArgs,
+    args: RollupBoostServiceArgs,
     pub _handle: JoinHandle<eyre::Result<()>>,
     pub _tracing_guard: DefaultGuard,
 }
 
 impl RollupBoost {
-    pub fn args(&self) -> &RollupBoostArgs {
+    pub fn args(&self) -> &RollupBoostServiceArgs {
         &self.args
     }
 
@@ -41,12 +40,12 @@ impl RollupBoost {
 
 #[derive(Clone, Debug)]
 pub struct RollupBoostConfig {
-    pub args: RollupBoostArgs,
+    pub args: RollupBoostServiceArgs,
 }
 
 impl Default for RollupBoostConfig {
     fn default() -> Self {
-        let mut args = RollupBoostArgs::parse_from([
+        let mut args = <RollupBoostServiceArgs as clap::Parser>::parse_from([
             "rollup-boost",
             &format!("--l2-jwt-path={}/jwt_secret.hex", *TEST_DATA),
             &format!("--builder-jwt-path={}/jwt_secret.hex", *TEST_DATA),

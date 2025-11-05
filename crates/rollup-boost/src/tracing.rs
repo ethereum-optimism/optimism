@@ -12,7 +12,7 @@ use tracing_subscriber::filter::Targets;
 use tracing_subscriber::fmt::writer::BoxMakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 
-use crate::cli::{LogFormat, RollupBoostArgs};
+use crate::cli::{LogFormat, RollupBoostServiceArgs};
 
 /// Span attribute keys that should be recorded as metric labels.
 ///
@@ -99,7 +99,7 @@ impl SpanProcessor for MetricsSpanProcessor {
     }
 }
 
-pub fn init_tracing(args: &RollupBoostArgs) -> eyre::Result<()> {
+pub fn init_tracing(args: &RollupBoostServiceArgs) -> eyre::Result<()> {
     // Be cautious with snake_case and kebab-case here
     let filter_name = "rollup_boost".to_string();
 

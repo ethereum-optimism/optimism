@@ -1,7 +1,7 @@
 use crate::debug_api::ExecutionMode;
 use crate::{
     BlockSelectionPolicy, ClientArgs, EngineApiExt, Flashblocks, FlashblocksService,
-    RollupBoostArgs, update_execution_mode_gauge,
+    RollupBoostLibArgs, update_execution_mode_gauge,
 };
 use crate::{
     client::rpc::RpcClient,
@@ -71,7 +71,7 @@ pub struct RollupBoostServer<T: EngineApiExt> {
 
 impl RollupBoostServer<FlashblocksService> {
     pub fn new_from_args(
-        rollup_boost_args: RollupBoostArgs,
+        rollup_boost_args: RollupBoostLibArgs,
         probes: Arc<Probes>,
     ) -> eyre::Result<Self> {
         if !rollup_boost_args.flashblocks.flashblocks {
@@ -113,7 +113,7 @@ impl RollupBoostServer<FlashblocksService> {
 
 impl RollupBoostServer<RpcClient> {
     pub fn new_from_args(
-        rollup_boost_args: RollupBoostArgs,
+        rollup_boost_args: RollupBoostLibArgs,
         probes: Arc<Probes>,
     ) -> eyre::Result<Self> {
         if rollup_boost_args.flashblocks.flashblocks {

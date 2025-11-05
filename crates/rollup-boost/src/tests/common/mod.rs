@@ -381,15 +381,15 @@ impl RollupBoostTestHarnessBuilder {
 
         // Start Rollup-boost instance
         let mut rollup_boost = RollupBoostConfig::default();
-        rollup_boost.args.l2_client.l2_url = l2.auth_rpc().await?;
-        rollup_boost.args.builder.builder_url = builder_url.try_into().unwrap();
+        rollup_boost.args.lib.l2_client.l2_url = l2.auth_rpc().await?;
+        rollup_boost.args.lib.builder.builder_url = builder_url.try_into().unwrap();
         rollup_boost.args.log_file = Some(rollup_boost_log_file_path);
-        rollup_boost.args.external_state_root = self.external_state_root;
+        rollup_boost.args.lib.external_state_root = self.external_state_root;
         if let Some(allow_traffic) = self.ignore_unhealthy_builders {
-            rollup_boost.args.ignore_unhealthy_builders = allow_traffic;
+            rollup_boost.args.lib.ignore_unhealthy_builders = allow_traffic;
         }
         if let Some(interval) = self.max_unsafe_interval {
-            rollup_boost.args.max_unsafe_interval = interval;
+            rollup_boost.args.lib.max_unsafe_interval = interval;
         }
         let rollup_boost = rollup_boost.start().await;
         println!("rollup-boost authrpc: {}", rollup_boost.rpc_endpoint());
