@@ -522,7 +522,7 @@ mod tests {
     use alloy_op_hardforks::{
         BASE_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
     };
-    use alloy_primitives::b256;
+    use alloy_primitives::{b256, hex};
     use reth_chainspec::{test_fork_ids, BaseFeeParams, BaseFeeParamsKind};
     use reth_ethereum_forks::{EthereumHardfork, ForkCondition, ForkHash, ForkId, Head};
     use reth_optimism_forks::{OpHardfork, OpHardforks};
@@ -879,7 +879,7 @@ mod tests {
     #[test]
     fn latest_base_mainnet_fork_id() {
         assert_eq!(
-            ForkId { hash: ForkHash([0xfa, 0x71, 0x70, 0xef]), next: 0 },
+            ForkId { hash: ForkHash(hex!("1cfeafc9")), next: 0 },
             BASE_MAINNET.latest_fork_id()
         )
     }
@@ -888,7 +888,7 @@ mod tests {
     fn latest_base_mainnet_fork_id_with_builder() {
         let base_mainnet = OpChainSpecBuilder::base_mainnet().build();
         assert_eq!(
-            ForkId { hash: ForkHash([0xfa, 0x71, 0x70, 0xef]), next: 0 },
+            ForkId { hash: ForkHash(hex!("1cfeafc9")), next: 0 },
             base_mainnet.latest_fork_id()
         )
     }
