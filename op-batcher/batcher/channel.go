@@ -19,10 +19,8 @@ type channel struct {
 	metr metrics.Metricer
 	cfg  ChannelConfig
 
-	// Set of unconfirmed txID -> tx data. For tx resubmission
-	pendingTransactions map[string]txData
-	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
-	confirmedTransactions map[string]eth.BlockID
+	pendingTransactions   map[string]txData      // Set of unconfirmed txID -> tx data. For tx resubmission
+	confirmedTransactions map[string]eth.BlockID // Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 
 	minInclusionBlock uint64 // Inclusion block number of first confirmed TX
 	maxInclusionBlock uint64 // Inclusion block number of last confirmed TX
@@ -31,8 +29,7 @@ type channel struct {
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *channel {
 	cb := NewChannelBuilderWithChannelOut(cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
 	return &channel{
-		ChannelBuilder: cb,
-
+		ChannelBuilder:        cb,
 		log:                   log,
 		metr:                  metr,
 		cfg:                   cfg,
@@ -109,7 +106,7 @@ func (c *channel) isFullySubmitted() bool {
 	return c.IsFull() && len(c.pendingTransactions)+c.PendingFrames() == 0
 }
 
-func (c *channel) NoneSubmitted() bool {
+func (c *channel) noneSubmitted() bool {
 	return len(c.confirmedTransactions) == 0 && len(c.pendingTransactions) == 0
 }
 

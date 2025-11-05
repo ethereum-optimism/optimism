@@ -299,31 +299,26 @@ func TestPIDStrategy_ErrorCalculation(t *testing.T) {
 	testCases := []struct {
 		name         string
 		pendingBytes uint64
-		targetBytes  uint64
 		expectError  bool
 	}{
 		{
 			name:         "no error at threshold",
 			pendingBytes: TestPIDThreshold,
-			targetBytes:  TestPIDThreshold,
 			expectError:  false,
 		},
 		{
 			name:         "error above threshold",
 			pendingBytes: TestPIDThreshold * 2,
-			targetBytes:  TestPIDThreshold,
 			expectError:  true,
 		},
 		{
 			name:         "no error below threshold",
 			pendingBytes: TestPIDThreshold / 2,
-			targetBytes:  TestPIDThreshold,
 			expectError:  false,
 		},
 		{
 			name:         "error with different target",
 			pendingBytes: TestPIDThreshold * 2,
-			targetBytes:  TestPIDThreshold / 2,
 			expectError:  true,
 		},
 	}

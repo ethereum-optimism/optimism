@@ -176,7 +176,7 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 	for i := invalidatedChannelIdx; i < len(s.channelQueue); i++ {
 		s.log.Warn("Dropped channel",
 			"id", s.channelQueue[i].ID(),
-			"none_submitted", s.channelQueue[i].NoneSubmitted(),
+			"none_submitted", s.channelQueue[i].noneSubmitted(),
 			"fully_submitted", s.channelQueue[i].isFullySubmitted(),
 			"timed_out", s.channelQueue[i].isTimedOut(),
 			"full_reason", s.channelQueue[i].FullErr(),
@@ -232,7 +232,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 	}
 	// If the channel has already started being submitted,
 	// return now and ensure no requeuing happens
-	if !channel.NoneSubmitted() {
+	if !channel.noneSubmitted() {
 		return s.nextTxData(channel)
 	}
 

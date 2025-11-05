@@ -270,7 +270,7 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 
 			require.NotNil(t, m.currentChannel)
-			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.Timeout())
+			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.timeout)
 		})
 	}
 }
