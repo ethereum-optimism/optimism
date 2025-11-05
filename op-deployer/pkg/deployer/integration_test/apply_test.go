@@ -632,8 +632,6 @@ func TestAdditionalDisputeGames(t *testing.T) {
 				DisputeMaxClockDuration:                 1,
 				DangerouslyAllowCustomDisputeParameters: true,
 			},
-			// OracleMinProposalSize:        10000,
-			// OracleChallengePeriodSeconds: 120,
 			MakeRespected: true,
 			VMType:        state.VMTypeAlphabet,
 		},
