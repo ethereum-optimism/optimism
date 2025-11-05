@@ -3204,6 +3204,7 @@ workflows:
           no_output_timeout: 90m
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - slack
             - discord
           requires:
             - contracts-bedrock-build
