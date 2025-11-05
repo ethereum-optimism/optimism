@@ -46,7 +46,6 @@ function build_kona_prestate() {
         git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
         cd kona
     fi
-    mise trust --yes ./mise.toml
 
     # the docker buildx version in cci is too old to parse varaible blocks in docker-bake with descriptions
     # so patch them out
@@ -157,6 +156,9 @@ EXCLUDED=(
   "kona-client/v1.1.3"
 )
 printf "%s\n" "${EXCLUDED[@]}" > excluded.txt
+
+# We will be using just to build the kona prestates. just was pre-instaled by the monorepo mise so we need to trust it  now to avoid hanging on the user prompt to trust it.
+mise trust --yes "${REPO_DIR}/mise.toml"
 
 readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona-client/ \
   | sed 's|.*refs/tags/||' | sed 's/\^{}//' | sort -u \
