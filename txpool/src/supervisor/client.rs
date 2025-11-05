@@ -1,7 +1,6 @@
 //! This is our custom implementation of validator struct
 
 use crate::{
-    interop::MaybeInteropTransaction,
     supervisor::{
         metrics::SupervisorMetrics, parse_access_list_items_to_inbox_entries, ExecutingDescriptor,
         InteropTxValidatorError,
@@ -139,8 +138,7 @@ impl SupervisorClient {
     where
         InputIter: IntoIterator<Item = TItem> + Send + 'a,
         InputIter::IntoIter: Send + 'a,
-        TItem:
-            MaybeInteropTransaction + PoolTransaction + Transaction + Clone + Send + Sync + 'static,
+        TItem: PoolTransaction + Transaction + Send,
     {
         stream::iter(txs_to_revalidate.into_iter().map(move |tx_item| {
             let client_for_async_task = self.clone();
