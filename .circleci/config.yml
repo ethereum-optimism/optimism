@@ -1934,8 +1934,6 @@ jobs:
       image: <<pipeline.parameters.default_docker_image>>
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
       - checkout-from-workspace
       - restore_cache:
           name: Restore kona cache
