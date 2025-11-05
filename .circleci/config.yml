@@ -1960,12 +1960,7 @@ jobs:
           name: Restore kona host cache
           key: kona-host-{{ checksum "./kona/justfile" }}
       - run:
-          name: Install clang
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends clang
-      - run:
-          name: Build kona prestates
+          name: Build kona host
           command: just build-kona-host
           working_directory: kona
       - save_cache:
