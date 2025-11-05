@@ -1931,7 +1931,6 @@ jobs:
 
   cannon-kona-prestate:
     machine:
-      image: <<pipeline.parameters.default_docker_image>>
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - checkout-from-workspace
