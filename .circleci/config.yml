@@ -1953,7 +1953,7 @@ jobs:
 
   cannon-kona-host:
     docker:
-      - image: cimg/rust:1.91
+      - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - checkout-from-workspace
       - restore_cache:
