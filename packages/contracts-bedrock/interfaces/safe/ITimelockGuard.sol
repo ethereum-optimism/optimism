@@ -12,10 +12,13 @@ interface ITimelockGuard {
         Cancelled,
         Executed
     }
+
     struct ScheduledTransaction {
+        bytes32 txHash;
         uint256 executionTime;
         TransactionState state;
         ExecTransactionParams params;
+        uint256 nonce;
     }
 
     struct ExecTransactionParams {

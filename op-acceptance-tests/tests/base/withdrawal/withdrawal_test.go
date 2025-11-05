@@ -15,7 +15,7 @@ func TestWithdrawal(gt *testing.T) {
 	require := sys.T.Require()
 
 	bridge := sys.StandardBridge()
-	require.EqualValues(faultTypes.FastGameType, bridge.RespectedGameType(), "Respected game type must be FastGame")
+	require.EqualValues(faultTypes.PermissionedGameType, bridge.RespectedGameType(), "Respected game type must be PermissionedGameType")
 
 	initialL1Balance := eth.OneThirdEther
 
@@ -44,6 +44,13 @@ func TestWithdrawal(gt *testing.T) {
 	withdrawal.Prove(l1User)
 	expectedL1UserBalance = expectedL1UserBalance.Sub(withdrawal.ProveGasCost())
 	l1User.VerifyBalanceExact(expectedL1UserBalance)
+
+	// Advance time until game is resolvable
+	sys.AdvanceTime(bridge.GameResolutionDelay())
+	withdrawal.WaitForDisputeGameResolved()
+
+	// Advance time to when game finalization and proof finalization delay has expired
+	sys.AdvanceTime(max(bridge.WithdrawalDelay()-bridge.GameResolutionDelay(), bridge.DisputeGameFinalityDelay()))
 
 	t.Logger().Info("Attempting to finalize", "proofMaturity", bridge.WithdrawalDelay(), "gameResolutionDelay", bridge.GameResolutionDelay(), "gameFinalityDelay", bridge.DisputeGameFinalityDelay())
 	withdrawal.Finalize(l1User)

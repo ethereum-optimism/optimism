@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -36,9 +37,9 @@ func NewFrameQueue(log log.Logger, cfg *rollup.Config, prev NextDataProvider) *F
 	}
 }
 
-func (fq *FrameQueue) Transform(f rollup.ForkName) {
+func (fq *FrameQueue) Transform(f forks.Name) {
 	switch f {
-	case rollup.Holocene:
+	case forks.Holocene:
 		fq.log.Info("FrameQueue: resetting with Holocene activation")
 		// With Holocene activation, the frame queue is simply reset
 		fq.reset()

@@ -6,101 +6,46 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 )
 
 const (
-	RollupConfigFlagName               = "rollup.config"
-	NetworkFlagName                    = "network"
-	CanyonOverrideFlagName             = "override.canyon"
-	DeltaOverrideFlagName              = "override.delta"
-	EcotoneOverrideFlagName            = "override.ecotone"
-	FjordOverrideFlagName              = "override.fjord"
-	GraniteOverrideFlagName            = "override.granite"
-	HoloceneOverrideFlagName           = "override.holocene"
-	PectraBlobScheduleOverrideFlagName = "override.pectrablobschedule"
-	IsthmusOverrideFlagName            = "override.isthmus"
-	InteropOverrideFlagName            = "override.interop"
-	JovianOverrideFlagName             = "override.jovian"
+	RollupConfigFlagName = "rollup.config"
+	NetworkFlagName      = "network"
 )
 
+// OverridableForks lists all forks that can be overridden via CLI flags or env vars.
+// It's all mainline forks from Canyon onwards, plus all optional forks.
+var OverridableForks = append(forks.From(forks.Canyon), forks.AllOpt...)
+
+func OverrideName(f forks.Name) string { return "override." + string(f) }
+
+func OverrideEnvVar(envPrefix string, fork forks.Name) []string {
+	return opservice.PrefixEnvVar(envPrefix, "OVERRIDE_"+strings.ToUpper(string(fork)))
+}
+
 func CLIFlags(envPrefix string, category string) []cli.Flag {
-	return []cli.Flag{
-		&cli.Uint64Flag{
-			Name:     CanyonOverrideFlagName,
-			Usage:    "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_CANYON"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     DeltaOverrideFlagName,
-			Usage:    "Manually specify the Delta fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     EcotoneOverrideFlagName,
-			Usage:    "Manually specify the Ecotone fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ECOTONE"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     FjordOverrideFlagName,
-			Usage:    "Manually specify the Fjord fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_FJORD"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     GraniteOverrideFlagName,
-			Usage:    "Manually specify the Granite fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_GRANITE"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     HoloceneOverrideFlagName,
-			Usage:    "Manually specify the Holocene fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_HOLOCENE"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     PectraBlobScheduleOverrideFlagName,
-			Usage:    "Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_PECTRABLOBSCHEDULE"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     IsthmusOverrideFlagName,
-			Usage:    "Manually specify the Isthmus fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ISTHMUS"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     JovianOverrideFlagName,
-			Usage:    "Manually specify the Jovian fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_JOVIAN"),
-			Hidden:   false,
-			Category: category,
-		},
-		&cli.Uint64Flag{
-			Name:     InteropOverrideFlagName,
-			Usage:    "Manually specify the Interop fork timestamp, overriding the bundled setting",
-			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_INTEROP"),
-			Hidden:   false,
-			Category: category,
-		},
+	return append(CLIOverrideFlags(envPrefix, category),
 		CLINetworkFlag(envPrefix, category),
 		CLIRollupConfigFlag(envPrefix, category),
+	)
+}
+
+func CLIOverrideFlags(envPrefix string, category string) []cli.Flag {
+	var flags []cli.Flag
+	for _, fork := range OverridableForks {
+		flags = append(flags,
+			&cli.Uint64Flag{
+				Name:     OverrideName(fork),
+				Usage:    fmt.Sprintf("Manually specify the %s fork timestamp, overriding the bundled setting", fork),
+				EnvVars:  OverrideEnvVar(envPrefix, fork),
+				Category: category,
+			})
 	}
+	return flags
 }
 
 func CLINetworkFlag(envPrefix string, category string) cli.Flag {

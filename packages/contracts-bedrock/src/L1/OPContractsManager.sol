@@ -1813,7 +1813,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         // Get the proxyAdmin from the first system config.
         IProxyAdmin proxyAdmin = _input.opChainConfigs[0].systemConfigProxy.proxyAdmin();
 
-        // Check that all of the configs have the same proxy admin owner and prestate.
+        // Check that all of the configs have the same proxy admin owner and prestates.
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
             // Different chains might actually have different ProxyAdmin contracts, but it's fine
             // as long as the owner of all of those contracts is the same.
@@ -1823,6 +1823,19 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             if (_input.opChainConfigs[i].cannonPrestate.raw() != _input.opChainConfigs[0].cannonPrestate.raw()) {
                 revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
             }
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                if (
+                    _input.opChainConfigs[i].cannonKonaPrestate.raw()
+                        != _input.opChainConfigs[0].cannonKonaPrestate.raw()
+                ) {
+                    revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+                }
+            }
+        }
+
+        // Check that cannon prestate is non-empty
+        if (_input.opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
+            revert OPContractsManager.PrestateNotSet();
         }
 
         // Grab an array of portals from the configs.
@@ -1935,16 +1948,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             existingLockbox.migrateLiquidity(newEthLockbox);
 
             // Before migrating the portal, clear out any implementations that might exist in the
-            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
+            // old DisputeGameFactory proxy. We clear out all potential game types to be safe.
             IDisputeGameFactory oldDisputeGameFactory =
                 IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+            clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_PERMISSIONED_CANNON);
             if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                oldDisputeGameFactory.setImplementation(GameTypes.CANNON_KONA, IDisputeGame(address(0)));
-                oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON_KONA, IDisputeGame(address(0)));
+                clearGameImplementation(oldDisputeGameFactory, GameTypes.CANNON_KONA);
+                clearGameImplementation(oldDisputeGameFactory, GameTypes.SUPER_CANNON_KONA);
             }
 
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
@@ -2035,6 +2048,34 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 GameTypes.SUPER_CANNON, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
+
+            // If the cannon-kona game is being used, set that up too.
+            bytes32 cannonKonaPrestate = _input.opChainConfigs[0].cannonKonaPrestate.raw();
+            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA) && cannonKonaPrestate != bytes32(0)) {
+                gameArgs = LibGameArgs.encode(
+                    LibGameArgs.GameArgs({
+                        absolutePrestate: cannonKonaPrestate,
+                        vm: address(getImplementations().mipsImpl),
+                        anchorStateRegistry: address(newAnchorStateRegistry),
+                        weth: address(newPermissionlessDelayedWETHProxy),
+                        l2ChainId: uint256(0),
+                        proposer: address(0),
+                        challenger: address(0)
+                    })
+                );
+                newDisputeGameFactory.setImplementation(
+                    GameTypes.SUPER_CANNON_KONA, IDisputeGame(implementations().superFaultDisputeGameImpl), gameArgs
+                );
+                newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON_KONA, _input.gameParameters.initBond);
+            }
+        }
+    }
+
+    function clearGameImplementation(IDisputeGameFactory _dgf, GameType _gameType) internal {
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            _dgf.setImplementation(_gameType, IDisputeGame(address(0)), hex"");
+        } else {
+            _dgf.setImplementation(_gameType, IDisputeGame(address(0)));
         }
     }
 }
@@ -2167,9 +2208,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.5.0
+    /// @custom:semver 5.6.0
     function version() public pure virtual returns (string memory) {
-        return "5.5.0";
+        return "5.6.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

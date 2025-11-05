@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -49,7 +50,7 @@ type ChannelFlusher interface {
 }
 
 type ForkTransformer interface {
-	Transform(rollup.ForkName)
+	Transform(forks.Name)
 }
 
 type L2Source interface {
@@ -273,7 +274,7 @@ func (dp *DerivationPipeline) initialReset(ctx context.Context, resetL2Safe eth.
 
 func (db *DerivationPipeline) transformStages(oldOrigin, newOrigin eth.L1BlockRef) {
 	fork := db.rollupCfg.IsActivationBlock(oldOrigin.Time, newOrigin.Time)
-	if fork == rollup.None {
+	if fork == forks.None {
 		return
 	}
 

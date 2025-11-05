@@ -411,6 +411,11 @@
   },
   {
     "inputs": [],
+    "name": "PrestateNotSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ReservedBitsSet",
     "type": "error"
   },

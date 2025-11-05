@@ -7,12 +7,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -34,7 +34,7 @@ func TestCheckFjordScript(gt *testing.T) {
 	require := t.Require()
 	ctx := t.Ctx()
 
-	err := dsl.RequiresL2Fork(ctx, sys, 0, rollup.Fjord)
+	err := dsl.RequiresL2Fork(ctx, sys, 0, forks.Fjord)
 	require.NoError(err)
 
 	wallet := sys.FunderL2.NewFundedEOA(eth.OneThirdEther)

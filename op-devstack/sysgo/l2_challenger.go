@@ -21,12 +21,14 @@ type L2Challenger struct {
 	id       stack.L2ChallengerID
 	service  cliapp.Lifecycle
 	l2NetIDs []stack.L2NetworkID
+	config   *config.Config
 }
 
 func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 	bFrontend := shim.NewL2Challenger(shim.L2ChallengerConfig{
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           p.id,
+		Config:       p.config,
 	})
 
 	for _, netID := range p.l2NetIDs {
@@ -176,6 +178,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		id:       challengerID,
 		service:  svc,
 		l2NetIDs: l2NetIDs,
+		config:   cfg,
 	}
 	orch.challengers.Set(challengerID, c)
 }

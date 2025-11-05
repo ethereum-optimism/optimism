@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/params"
@@ -22,26 +23,26 @@ func IsForkActivated(c *params.ChainConfig, forkName rollup.ForkName, timestamp 
 	}
 
 	switch forkName {
-	case rollup.Bedrock:
+	case forks.Bedrock:
 		// Bedrock is activated based on block number, not timestamp
 		return true, nil // Assuming bedrock is always active in the context of this validator
-	case rollup.Regolith:
+	case forks.Regolith:
 		return c.IsOptimismRegolith(timestamp), nil
-	case rollup.Canyon:
+	case forks.Canyon:
 		return c.IsOptimismCanyon(timestamp), nil
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return c.IsOptimismEcotone(timestamp), nil
-	case rollup.Fjord:
+	case forks.Fjord:
 		return c.IsOptimismFjord(timestamp), nil
-	case rollup.Granite:
+	case forks.Granite:
 		return c.IsOptimismGranite(timestamp), nil
-	case rollup.Holocene:
+	case forks.Holocene:
 		return c.IsOptimismHolocene(timestamp), nil
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return c.IsOptimismIsthmus(timestamp), nil
-	case rollup.Jovian:
+	case forks.Jovian:
 		return c.IsOptimismJovian(timestamp), nil
-	case rollup.Interop:
+	case forks.Interop:
 		return c.IsInterop(timestamp), nil
 	default:
 		return false, fmt.Errorf("unknown fork name: %s", forkName)

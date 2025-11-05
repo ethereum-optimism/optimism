@@ -153,7 +153,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// Process the blocks
 	// We should have a pending channel with 1 frame
 	require.NoError(m.processBlocks())
-	require.NoError(m.currentChannel.channelBuilder.co.Flush())
+	require.NoError(m.currentChannel.ChannelBuilder.co.Flush())
 	require.NoError(m.outputFrames())
 	_, err := m.nextTxData(m.currentChannel)
 	require.NoError(err)
@@ -270,7 +270,7 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 
 			require.NotNil(t, m.currentChannel)
-			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.Timeout())
+			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.timeout)
 		})
 	}
 }
@@ -693,7 +693,7 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	})
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 
-	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
+	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.ChannelBuilder.co)
 }
 
 // TestChannelManager_TxData seeds the channel manager with blocks and triggers the

@@ -111,8 +111,9 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		// At the moment we only support a single chain config
 		EncodedChainConfigs: []OPChainConfig{
 			{
-				SystemConfigProxy: common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
-				CannonPrestate:    common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
+				SystemConfigProxy:  common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name)),
+				CannonPrestate:     common.HexToHash(cliCtx.String(DisputeAbsolutePrestateCannonFlag.Name)),
+				CannonKonaPrestate: common.HexToHash(cliCtx.String(DisputeAbsolutePrestateCannonKonaFlag.Name)),
 			},
 		},
 	}
