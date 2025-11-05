@@ -171,6 +171,7 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
         let handle = HealthHandle::new(
             self.probes.clone(),
             self.execution_mode.clone(),
+            self.l2_client.clone(),
             self.builder_client.clone(),
             Duration::from_secs(health_check_interval),
             max_unsafe_interval,

@@ -16,6 +16,7 @@ use crate::{EngineApiExt, ExecutionMode, Health, Probes};
 pub struct HealthHandle {
     pub probes: Arc<Probes>,
     pub execution_mode: Arc<Mutex<ExecutionMode>>,
+    pub l2_client: Arc<dyn EngineApiExt>,
     pub builder_client: Arc<dyn EngineApiExt>,
     pub health_check_interval: Duration,
     pub max_unsafe_interval: u64,
@@ -26,6 +27,7 @@ impl HealthHandle {
     pub fn new(
         probes: Arc<Probes>,
         execution_mode: Arc<Mutex<ExecutionMode>>,
+        l2_client: Arc<dyn EngineApiExt>,
         builder_client: Arc<dyn EngineApiExt>,
         health_check_interval: Duration,
         max_unsafe_interval: u64,
@@ -33,6 +35,7 @@ impl HealthHandle {
         Self {
             probes,
             execution_mode,
+            l2_client,
             builder_client,
             health_check_interval,
             max_unsafe_interval,
@@ -46,34 +49,63 @@ impl HealthHandle {
             let mut timestamp = MonotonicTimestamp::new();
 
             loop {
-                let latest_unsafe = match self
-                    .builder_client
+                let t = timestamp.tick();
+
+                // Check L2 client health. If its unhealthy, set the health status to ServiceUnavailable
+                // If in disabled or dry run execution mode, set the health status to Healthy if the l2 client is healthy
+                match self
+                    .l2_client
                     .get_block_by_number(BlockNumberOrTag::Latest, false)
                     .await
                 {
-                    Ok(block) => block,
-                    Err(e) => {
-                        warn!(target: "rollup_boost::health", "Failed to get unsafe block from builder client: {} - updating health status", e);
-                        if self.execution_mode.lock().is_enabled() {
-                            self.probes.set_health(Health::PartialContent);
+                    Ok(block) => {
+                        if t.saturating_sub(block.header.timestamp)
+                            .gt(&self.max_unsafe_interval)
+                        {
+                            warn!(target: "rollup_boost::health", curr_unix = %t, unsafe_unix = %block.header.timestamp, "L2 client - unsafe block timestamp is too old, updating health status to ServiceUnavailable");
+                            self.probes.set_health(Health::ServiceUnavailable);
+                            sleep_until(Instant::now() + self.health_check_interval).await;
+                            continue;
+                        } else if self.execution_mode.lock().is_disabled()
+                            || self.execution_mode.lock().is_dry_run()
+                        {
+                            self.probes.set_health(Health::Healthy);
+                            sleep_until(Instant::now() + self.health_check_interval).await;
+                            continue;
                         }
+                    }
+                    Err(e) => {
+                        warn!(target: "rollup_boost::health", "L2 client - Failed to get unsafe block {} - updating health status", e);
+                        self.probes.set_health(Health::ServiceUnavailable);
                         sleep_until(Instant::now() + self.health_check_interval).await;
                         continue;
                     }
                 };
 
-                let t = timestamp.tick();
-                if t.saturating_sub(latest_unsafe.header.timestamp)
-                    .gt(&self.max_unsafe_interval)
-                {
-                    warn!(target: "rollup_boost::health", curr_unix = %t, unsafe_unix = %latest_unsafe.header.timestamp, "Unsafe block timestamp is too old updating health status");
-                    if self.execution_mode.lock().is_enabled() {
-                        self.probes.set_health(Health::PartialContent);
-                    }
-                } else {
-                    self.probes.set_health(Health::Healthy);
+                if self.execution_mode.lock().is_enabled() {
+                    // Only check builder client health if execution mode is enabled
+                    // If its unhealthy, set the health status to PartialContent
+                    match self
+                        .builder_client
+                        .get_block_by_number(BlockNumberOrTag::Latest, false)
+                        .await
+                    {
+                        Ok(block) => {
+                            if t.saturating_sub(block.header.timestamp)
+                                .gt(&self.max_unsafe_interval)
+                            {
+                                warn!(target: "rollup_boost::health", curr_unix = %t, unsafe_unix = %block.header.timestamp, "Builder client - unsafe block timestamp is too old updating health status");
+                                self.probes.set_health(Health::PartialContent);
+                            } else {
+                                self.probes.set_health(Health::Healthy);
+                            }
+                        }
+                        Err(e) => {
+                            warn!(target: "rollup_boost::health", "Builder client - Failed to get unsafe block {} - updating health status", e);
+                            self.probes.set_health(Health::PartialContent);
+                        }
+                    };
                 }
-
                 sleep_until(Instant::now() + self.health_check_interval).await;
             }
         })
@@ -141,6 +173,7 @@ mod tests {
 
     use super::*;
     use crate::{Probes, payload::PayloadSource};
+    use serial_test::serial;
 
     pub struct MockHttpServer {
         addr: SocketAddr,
@@ -258,14 +291,22 @@ mod tests {
         Ok(hyper::Response::new(response.to_string()))
     }
 
+    #[serial]
     #[tokio::test]
     async fn test_health_check_healthy() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let probes = Arc::new(Probes::default());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs();
+
+        let l2 = MockHttpServer::serve(handler, now).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
 
         let builder = MockHttpServer::serve(handler, now).await.unwrap();
         let builder_client = Arc::new(RpcClient::new(
@@ -278,6 +319,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            l2_client: l2_client.clone(),
             builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
@@ -289,16 +331,26 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[tokio::test]
-    async fn test_health_check_exceeds_max_unsafe_interval() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    async fn test_health_check_builder_exceeds_max_unsafe_interval() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs();
-        let builder = MockHttpServer::serve(handler, now - 10).await.unwrap();
 
+        // L2 healthy
+        let l2 = MockHttpServer::serve(handler, now).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
+
+        // Builder unhealthy
+        let builder = MockHttpServer::serve(handler, now - 10).await.unwrap();
         let builder_client = Arc::new(RpcClient::new(
             format!("http://{}", builder.addr).parse::<Uri>()?,
             JwtSecret::random(),
@@ -309,6 +361,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            l2_client: l2_client.clone(),
             builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
@@ -320,15 +373,65 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[tokio::test]
-    async fn test_health_check_exceeds_max_unsafe_interval_execution_mode_disabled()
-    -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    async fn test_health_check_l2_exceeds_max_unsafe_interval() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs();
+
+        // L2 healthy unhealth
+        let l2 = MockHttpServer::serve(handler, now - 10).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
+
+        // Builder healthy
+        let builder = MockHttpServer::serve(handler, now).await.unwrap();
+        let builder_client = Arc::new(RpcClient::new(
+            format!("http://{}", builder.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::Builder,
+        )?);
+
+        let health_handle = HealthHandle {
+            probes: probes.clone(),
+            execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            l2_client: l2_client.clone(),
+            builder_client: builder_client.clone(),
+            health_check_interval: Duration::from_secs(60),
+            max_unsafe_interval: 5,
+        };
+
+        health_handle.spawn();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert!(matches!(probes.health(), Health::ServiceUnavailable));
+        Ok(())
+    }
+
+    #[serial]
+    #[tokio::test]
+    async fn test_health_check_exceeds_max_unsafe_interval_execution_mode_disabled()
+    -> eyre::Result<()> {
+        let probes = Arc::new(Probes::default());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        // L2 healthy
+        let l2 = MockHttpServer::serve(handler, now).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
         let builder = MockHttpServer::serve(handler, now - 10).await.unwrap();
 
         let builder_client = Arc::new(RpcClient::new(
@@ -341,6 +444,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             execution_mode: Arc::new(Mutex::new(ExecutionMode::Disabled)),
+            l2_client: l2_client.clone(),
             builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
@@ -352,15 +456,23 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[tokio::test]
     async fn test_health_check_exceeds_max_unsafe_interval_execution_mode_dryrun()
     -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let probes = Arc::new(Probes::default());
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
             .as_secs();
+        // L2 healthy
+        let l2 = MockHttpServer::serve(handler, now).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
         let builder = MockHttpServer::serve(handler, now - 10).await.unwrap();
 
         let builder_client = Arc::new(RpcClient::new(
@@ -373,6 +485,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             execution_mode: Arc::new(Mutex::new(ExecutionMode::DryRun)),
+            l2_client: l2_client.clone(),
             builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
@@ -384,10 +497,24 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
     #[tokio::test]
-    async fn test_health_check_service_unavailable() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    async fn test_health_check_service_builder_unavailable() -> eyre::Result<()> {
         let probes = Arc::new(Probes::default());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        // L2 healthy
+        let l2 = MockHttpServer::serve(handler, now).await.unwrap();
+        let l2_client = Arc::new(RpcClient::new(
+            format!("http://{}", l2.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
+
+        // Builder unhealthy
         let builder_client = Arc::new(RpcClient::new(
             "http://127.0.0.1:6000".parse::<Uri>()?,
             JwtSecret::random(),
@@ -398,6 +525,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            l2_client: l2_client.clone(),
             builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
@@ -409,9 +537,51 @@ mod tests {
         Ok(())
     }
 
+    #[serial]
+    #[tokio::test]
+    async fn test_health_check_service_l2_unavailable() -> eyre::Result<()> {
+        let probes = Arc::new(Probes::default());
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        // L2 returns an error
+        let l2_client = Arc::new(RpcClient::new(
+            "http://127.0.0.1:6000".parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::L2,
+        )?);
+
+        // Builder healthy
+        let builder = MockHttpServer::serve(handler, now).await.unwrap();
+        let builder_client = Arc::new(RpcClient::new(
+            format!("http://{}", builder.addr).parse::<Uri>()?,
+            JwtSecret::random(),
+            100,
+            PayloadSource::Builder,
+        )?);
+
+        let health_handle = HealthHandle {
+            probes: probes.clone(),
+            execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            l2_client: l2_client.clone(),
+            builder_client: builder_client.clone(),
+            health_check_interval: Duration::from_secs(60),
+            max_unsafe_interval: 5,
+        };
+
+        health_handle.spawn();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert!(matches!(probes.health(), Health::ServiceUnavailable));
+        Ok(())
+    }
+
+    #[serial]
     #[tokio::test]
     async fn tick_advances_after_sleep() {
-        let mut ts = MonotonicTimestamp::new();
+        let mut ts: MonotonicTimestamp = MonotonicTimestamp::new();
         let t1 = ts.tick();
         tokio::time::sleep(Duration::from_secs(1)).await;
         let t2 = ts.tick();
@@ -419,6 +589,7 @@ mod tests {
         assert!(t2 >= t1 + 1,);
     }
 
+    #[serial]
     #[tokio::test]
     async fn tick_matches_system_clock() {
         let mut ts = MonotonicTimestamp::new();
