@@ -1686,7 +1686,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 _input.gasLimit,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
+                _input.batchInbox == address(0) ? chainIdToBatchInboxAddress(_input.l2ChainId) : _input.batchInbox,
                 opChainAddrs,
                 _input.l2ChainId,
                 _superchainConfig
@@ -2111,6 +2111,7 @@ contract OPContractsManager is ISemver {
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
         Duration disputeMaxClockDuration;
+        address batchInbox;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.

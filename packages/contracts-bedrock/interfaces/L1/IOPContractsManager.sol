@@ -157,6 +157,7 @@ interface IOPContractsManager {
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
         Duration disputeMaxClockDuration;
+        address batchInbox;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.

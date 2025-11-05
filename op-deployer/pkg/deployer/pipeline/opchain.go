@@ -81,6 +81,10 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	return nil
 }
 
+type BatchInboxConfig struct {
+	BatchInboxAddress common.Address `json:"batchInboxAddress" toml:"batchInboxAddress"`
+}
+
 func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) (opcm.DeployOPChainInput, error) {
 	proofParams, err := jsonutil.MergeJSON(
 		state.ChainProofParams{
@@ -96,6 +100,14 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 	)
 	if err != nil {
 		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+	batchInboxConfig, err := jsonutil.MergeJSON(
+		BatchInboxConfig{},
+		intent.GlobalDeployOverrides,
+		thisIntent.DeployOverrides,
+	)
+	if err != nil {
+		return opcm.DeployOPChainInput{}, fmt.Errorf("error merging batchInbox params from overrides: %w", err)
 	}
 
 	return opcm.DeployOPChainInput{
@@ -120,6 +132,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
 		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
 		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
+		BatchInbox:                   batchInboxConfig.BatchInboxAddress,
 	}, nil
 }
 

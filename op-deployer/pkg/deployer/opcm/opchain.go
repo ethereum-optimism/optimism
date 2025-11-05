@@ -25,6 +25,7 @@ type DeployOPChainInput struct {
 	UnsafeBlockSigner      common.Address
 	Proposer               common.Address
 	Challenger             common.Address
+	BatchInbox             common.Address
 
 	BasefeeScalar     uint32
 	BlobBaseFeeScalar uint32
