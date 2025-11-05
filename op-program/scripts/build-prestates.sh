@@ -48,6 +48,16 @@ function build_kona_prestate() {
     fi
     mise trust --yes ./mise.toml
 
+    # the docker buildx version in cci is too old to parse varaible blocks in docker-bake with descriptions
+    # so patch them out
+    awk '
+  /^[[:space:]]*variable[[:space:]]*"[^"]+"[[:space:]]*{/ {invar=1}
+  invar && /^[[:space:]]*description[[:space:]]*=/ {next}
+  {print}
+  invar && /^[[:space:]]*}/ {invar=0}
+    ' docker/docker-bake.hcl > docker/docker-bake.patched.hcl
+    cp docker/docker-bake.patched.hcl docker/docker-bake.hcl
+
     cd docker/fpvm-prestates
     rm -rf ../../prestate-artifacts-cannon
     just cannon kona-client "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
@@ -128,9 +138,6 @@ EOF
 # this global is written to by build_op_program_prestate and build_kona_prestate
 VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
-
-echo docker buildx version:
-docker buildx version
 
 for VERSION in "${VERSIONS[@]}"
 do
