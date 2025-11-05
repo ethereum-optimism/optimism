@@ -155,7 +155,9 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
+			shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
 			shared.WithCannonTraceType(),
+			shared.WithCannonKonaTraceType(),
 			shared.WithPermissionedTraceType(),
 			shared.WithFastGames(),
 		)
