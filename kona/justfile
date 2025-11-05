@@ -37,6 +37,7 @@ build-prestate VARIANT HASH:
     mkdir -p "{{KONA_DIR}}/prestates"
     cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{HASH}}.bin.gz"
 
+
 build-kona-host:
     #!/usr/bin/env bash
     set -euo pipefail
