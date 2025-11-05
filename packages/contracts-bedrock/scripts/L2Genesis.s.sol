@@ -573,6 +573,9 @@ contract L2Genesis is Script {
                     || operatorFeeVault.withdrawalNetwork() != Types.WithdrawalNetwork.L2
             ) revert L2Genesis_MisconfiguredOperatorFeeVault();
 
+            // NOTE: L1Withdrawer and SuperchainRevSharesCalculator use CREATE2 (not vm.etch) because they're not
+            // predeploys (no fixed addresses), and they have constructor arguments.
+
             // Deploy L1Withdrawer with constructor args
             bytes32 l1WithdrawerSalt = keccak256("L1Withdrawer");
             address l1Withdrawer = DeployUtils.create2({
