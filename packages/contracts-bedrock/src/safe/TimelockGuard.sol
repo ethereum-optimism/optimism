@@ -460,8 +460,8 @@ abstract contract TimelockGuard is BaseGuard {
             revert TimelockGuard_GuardNotEnabled();
         }
 
-        // Validate timelock delay - must not be longer than 1 year
-        if (_timelockDelay > 365 days) {
+        // Validate timelock delay - must not be zero or longer than 1 year
+        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
