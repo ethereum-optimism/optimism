@@ -1959,6 +1959,11 @@ jobs:
       - restore_cache:
           name: Restore kona host cache
           key: kona-host-{{ checksum "./kona/justfile" }}
+      - run: # The mise plugin for clang is broken so install via apt-get
+          name: Install clang
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends clang
       - run:
           name: Build kona host
           command: just build-kona-host
