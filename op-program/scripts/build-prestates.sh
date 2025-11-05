@@ -129,6 +129,9 @@ EOF
 VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
+echo docker buildx version:
+docker buildx version
+
 for VERSION in "${VERSIONS[@]}"
 do
     pushd .
