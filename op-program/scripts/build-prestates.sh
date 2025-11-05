@@ -32,8 +32,8 @@ function build_kona_prestate() {
         exit 1
     fi
     local short_version
-    short_version=$(echo "${VERSION}" | cut -c 14-)
-    local log_file="${LOGS_DIR}/build-${short_version}.txt"
+    short_version=$(echo "${version}" | cut -c 14-)
+    local log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
     echo "Building Version: ${version} Logs: ${log_file}"
 
     mkdir -p kona-prestate-build
@@ -46,6 +46,8 @@ function build_kona_prestate() {
         git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
         cd kona
     fi
+    mise trust --yes ./mise.toml
+
     cd docker/fpvm-prestates
     rm -rf ../../prestate-artifacts-cannon
     just cannon kona-client "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
