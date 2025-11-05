@@ -410,12 +410,10 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
 							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 0,
+							DisputeMaxClockDuration: 1,
 						},
-						VMType:                       state.VMTypeAlphabet,
-						OracleMinProposalSize:        10000,
-						OracleChallengePeriodSeconds: 0,
-						MakeRespected:                true,
+						VMType:        state.VMTypeAlphabet,
+						MakeRespected: true,
 					},
 					{
 						ChainProofParams: state.ChainProofParams{
@@ -472,10 +470,12 @@ type prestateFile struct {
 	Pre string `json:"pre"`
 }
 
-var cannonPrestateMT common.Hash
-var cannonPrestateMTNext common.Hash
-var cannonPrestateMTOnce sync.Once
-var cannonPrestateMTNextOnce sync.Once
+var (
+	cannonPrestateMT         common.Hash
+	cannonPrestateMTNext     common.Hash
+	cannonPrestateMTOnce     sync.Once
+	cannonPrestateMTNextOnce sync.Once
+)
 
 func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var filename string
