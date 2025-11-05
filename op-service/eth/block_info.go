@@ -34,6 +34,7 @@ type BlockInfo interface {
 	// HeaderRLP returns the RLP of the block header as per consensus rules
 	// Returns an error if the header RLP could not be written
 	HeaderRLP() ([]byte, error)
+	Header() *types.Header
 }
 
 func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
@@ -162,7 +163,11 @@ func (h *headerBlockInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.header) // usage is rare and mostly 1-time-use, no need to cache
 }
 
-func (h headerBlockInfo) WithdrawalsRoot() *common.Hash {
+func (h *headerBlockInfo) Header() *types.Header {
+	return h.header
+}
+
+func (h *headerBlockInfo) WithdrawalsRoot() *common.Hash {
 	return h.header.WithdrawalsHash
 }
 

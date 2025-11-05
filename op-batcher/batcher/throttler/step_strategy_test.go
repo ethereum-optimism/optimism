@@ -38,43 +38,36 @@ func TestStepStrategy_Update(t *testing.T) {
 	tests := []struct {
 		name              string
 		pendingBytes      uint64
-		targetBytes       uint64
 		expectedIntensity float64
 	}{
 		{
 			name:              "zero load",
 			pendingBytes:      0,
-			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "below threshold",
 			pendingBytes:      TestStepThreshold / 2,
-			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "exactly at threshold",
 			pendingBytes:      TestStepThreshold,
-			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "just above threshold",
 			pendingBytes:      TestStepThreshold + 1,
-			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "far above threshold",
 			pendingBytes:      TestStepThreshold * 10,
-			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "with target bytes ignored",
 			pendingBytes:      TestStepThreshold + 1000,
-			targetBytes:       TestStepThreshold * 2, // Target bytes should be ignored in step strategy
 			expectedIntensity: TestIntensityMax,
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -52,9 +53,9 @@ func (c *ChannelMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.
 	return c.RawChannelProvider.Reset(ctx, base, sysCfg)
 }
 
-func (c *ChannelMux) Transform(f rollup.ForkName) {
+func (c *ChannelMux) Transform(f forks.Name) {
 	switch f {
-	case rollup.Holocene:
+	case forks.Holocene:
 		c.TransformHolocene()
 	}
 }

@@ -20,6 +20,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 /// Config example:
 ///  {
 ///      "cannonPrestate": "0x1234567890abcdef1234567890abcdef12345678",
+///      "cannonKonaPrestate": "0x1122334455abcdef1234567890abcdef12345678",
 ///      "usePermissionlessGame": true,
 ///      "startingAnchorRoot": {
 ///          "root": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -45,6 +46,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 ///  }
 contract GenerateOPCMMigrateCalldata is Script {
     bytes32 cannonPrestate;
+    bytes32 cannonKonaPrestate;
     bool usePermissionlessGame;
     Proposal startingAnchorRoot;
     address proposer;
@@ -73,6 +75,7 @@ contract GenerateOPCMMigrateCalldata is Script {
 
         cannonPrestate = stdJson.readBytes32(json, "$.cannonPrestate");
         require(cannonPrestate != bytes32(0), "GenerateOPCMMigrateCalldata: cannonPrestate cannot be 0");
+        cannonKonaPrestate = stdJson.readBytes32(json, "$.cannonKonaPrestate");
 
         usePermissionlessGame = stdJson.readBool(json, "$.usePermissionlessGame");
         startingAnchorRoot = Proposal({
@@ -121,8 +124,7 @@ contract GenerateOPCMMigrateCalldata is Script {
             opChainConfigs[i] = IOPContractsManager.OpChainConfig({
                 systemConfigProxy: ISystemConfig(j[i].systemConfigProxy),
                 cannonPrestate: Claim.wrap(cannonPrestate),
-                // TODO(#17743): cannon-kona for opcm.migrate
-                cannonKonaPrestate: Claim.wrap(bytes32(0))
+                cannonKonaPrestate: Claim.wrap(cannonKonaPrestate)
             });
             require(
                 opChainConfigs[i].systemConfigProxy != ISystemConfig(address(0)),

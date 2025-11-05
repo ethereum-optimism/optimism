@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,9 +49,9 @@ func (b *BatchMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.Sy
 	return b.SingularBatchProvider.Reset(ctx, base, sysCfg)
 }
 
-func (b *BatchMux) Transform(f rollup.ForkName) {
+func (b *BatchMux) Transform(f forks.Name) {
 	switch f {
-	case rollup.Holocene:
+	case forks.Holocene:
 		b.TransformHolocene()
 	}
 }

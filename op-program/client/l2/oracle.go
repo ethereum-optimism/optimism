@@ -8,11 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // StateOracle defines the high-level API used to retrieve L2 state data pre-images

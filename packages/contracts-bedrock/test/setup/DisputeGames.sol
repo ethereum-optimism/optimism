@@ -56,6 +56,11 @@ contract DisputeGames is FeatureFlags {
         return address(gameProxy);
     }
 
+    function isGamePermissioned(GameType _gameType) internal pure returns (bool) {
+        return _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
+            || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
+    }
+
     enum GameArg {
         PRESTATE,
         VM,

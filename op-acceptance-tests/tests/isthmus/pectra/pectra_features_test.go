@@ -6,10 +6,10 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,7 +31,7 @@ func TestPectra(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, rollup.Isthmus)
+	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Isthmus)
 	require.NoError(err, "Isthmus fork must be active for Pectra features")
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
