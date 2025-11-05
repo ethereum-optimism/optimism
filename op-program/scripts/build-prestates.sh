@@ -132,7 +132,7 @@ readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 for VERSION in "${VERSIONS[@]}"
 do
     pushd .
-    build_op_program_prestate "${VERSION}"
+    #build_op_program_prestate "${VERSION}"
     popd
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
