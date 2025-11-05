@@ -199,7 +199,10 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
         vm.expectRevert(LivenessModule2.LivenessModule2_InvalidFallbackOwner.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.configureLivenessModule(
-            LivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: address(safeInstance.safe) })
+            LivenessModule2.ModuleConfig({
+                livenessResponsePeriod: CHALLENGE_PERIOD,
+                fallbackOwner: address(safeInstance.safe)
+            })
         );
     }
 
