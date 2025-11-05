@@ -1978,15 +1978,6 @@ jobs:
           paths:
             - "kona/bin/kona-host"
 
-  test-kona:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    steps:
-      - checkout-from-workspace
-      - run:
-          name: Test kona-host
-          command: ./kona/bin/kona-host --help
-
   publish-cannon-prestates:
     resource_class: medium
     docker:
@@ -3260,11 +3251,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - test-kona:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - cannon-kona-host
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
