@@ -1,6 +1,7 @@
 package presets
 
 import (
+	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -31,6 +32,9 @@ type Minimal struct {
 	FaucetL2 *dsl.Faucet
 	FunderL1 *dsl.Funder
 	FunderL2 *dsl.Funder
+
+	// May be nil if not using sysgo
+	challengerConfig *challengerConfig.Config
 }
 
 func (m *Minimal) L2Networks() []*dsl.L2Network {
@@ -44,7 +48,7 @@ func (m *Minimal) StandardBridge() *dsl.StandardBridge {
 }
 
 func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), nil)
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
 }
 
 func WithMinimal() stack.CommonOption {
@@ -64,18 +68,24 @@ func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Or
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
 	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
 	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+	var challengerCfg *challengerConfig.Config
+	if len(l2.L2Challengers()) > 0 {
+		challengerCfg = l2.L2Challengers()[0].Config()
+	}
+
 	out := &Minimal{
-		Log:          t.Logger(),
-		T:            t,
-		ControlPlane: orch.ControlPlane(),
-		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
-		L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-		L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
-		L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
-		L2EL:         dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
-		L2CL:         dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
-		Wallet:       dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetL2:     dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		Log:              t.Logger(),
+		T:                t,
+		ControlPlane:     orch.ControlPlane(),
+		L1Network:        dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
+		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L2Chain:          dsl.NewL2Network(l2, orch.ControlPlane()),
+		L2Batcher:        dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2EL:             dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
+		L2CL:             dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
+		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
+		FaucetL2:         dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		challengerConfig: challengerCfg,
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)

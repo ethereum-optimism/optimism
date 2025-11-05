@@ -279,12 +279,16 @@ abstract contract LivenessModule2 {
         _cancelChallenge(callingSafe);
     }
 
-    /// @notice With successful challenge, removes all current owners from enabled safe,
-    ///         appoints fallback as sole owner, and sets its quorum to 1.
-    /// @dev Note: After ownership transfer, the fallback owner becomes the sole owner
-    ///      and is also still configured as the fallback owner. This means the
-    ///      fallback owner effectively becomes its own fallback owner, maintaining
-    ///      the ability to challenge itself if needed.
+    /// @notice With successful challenge, removes all current owners from enabled safe, appoints
+    ///         fallback as sole owner, and sets its quorum to 1.
+    /// @dev After ownership transfer, the fallback owner becomes the sole owner and is also still
+    ///      configured as the fallback owner. If the fallback owner would become unable to sign,
+    ///      it would not be able challenge the safe again. For this reason, it is important that
+    ///      the fallback owner has a way to preserve its own liveness.
+    ///
+    ///      It is of critical importance that this function never reverts. If it were to do so,
+    ///      the Safe would be permanently bricked. For this reason, the external calls from this
+    ///      function are allowed to fail silently instead of reverting.
     /// @param _safe The Safe address to transfer ownership of.
     function changeOwnershipToFallback(Safe _safe) external {
         // Ensure Safe is configured with this module to prevent unauthorized execution.
