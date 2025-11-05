@@ -1929,31 +1929,30 @@ jobs:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
 
-  cannon-kona-prestate:
-#    docker:
-#      - image: <<pipeline.parameters.default_docker_image>>
+  cannon-kona:
     machine:
       image: <<pipeline.parameters.base_image>>
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - checkout-from-workspace
-#      - setup_remote_docker
       - restore_cache:
-          name: Restore kona prestate cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          name: Restore kona cache
+          key: kona-{{ checksum "./kona/justfile" }}
       - run:
           name: Build kona prestates
-          command: just build-prestates
+          command: just build-all
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
-          name: Save Kona prestate to cache
+          key: kona-{{ checksum "./kona/justfile" }}
+          name: Save Kona to cache
           paths:
             - "kona/prestates/"
+            - "kona/bin/kona-host"
       - persist_to_workspace:
           root: .
           paths:
             - "kona/prestates/*"
+            - "kona/bin/kona-host"
 
   publish-cannon-prestates:
     resource_class: medium
@@ -3218,7 +3217,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
+      - cannon-kona: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
@@ -3234,7 +3233,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
-            - cannon-kona-prestate
+            - cannon-kona
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
