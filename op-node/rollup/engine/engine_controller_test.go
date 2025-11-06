@@ -291,7 +291,7 @@ func TestFetchAndEnsureRemoteL2Block_AlreadyExists(t *testing.T) {
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
 	ec.safeSourceL2Client = mockRemote
 
-	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
 	require.NoError(t, err)
 	require.Equal(t, remoteRef.Hash, hash)
 }
@@ -325,7 +325,7 @@ func TestFetchAndEnsureRemoteL2Block_Divergence(t *testing.T) {
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
 	ec.safeSourceL2Client = mockRemote
 
-	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
 	require.NoError(t, err)
 	require.Equal(t, remoteRef.Hash, hash)
 	// Verify unsafe head was set (reorg triggered)
@@ -359,7 +359,7 @@ func TestFetchAndEnsureRemoteL2Block_MissingBlock(t *testing.T) {
 	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
 	ec.safeSourceL2Client = mockRemote
 
-	hash, err := ec.fetchAndEnsureRemoteL2Block(context.Background(), eth.Safe)
+	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
 	require.NoError(t, err)
 	require.Equal(t, remoteRef.Hash, hash)
 }
