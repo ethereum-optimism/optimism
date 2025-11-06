@@ -1997,7 +1997,7 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - setup_remote_docker:
-          version: 28.3.2
+          version: default
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
