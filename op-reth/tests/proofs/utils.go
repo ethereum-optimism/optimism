@@ -153,7 +153,8 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 	return err
 }
 
-func fetchAndVerifyProofs(ctx context.Context, t devtest.T, sys *presets.SingleChainMultiNode, contractAddress common.Address, slots []common.Hash, block uint64) {
+func fetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, contractAddress common.Address, slots []common.Hash, block uint64) {
+	ctx := t.Ctx()
 	gethProofRes, err := sys.L2EL.Escape().L2EthClient().GetProof(ctx, contractAddress, slots, hexutil.Uint64(block).String())
 	if err != nil {
 		t.Errorf("failed to get proof from L2EL at block %d: %v", block, err)

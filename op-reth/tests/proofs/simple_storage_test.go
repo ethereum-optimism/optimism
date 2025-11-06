@@ -60,7 +60,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contractAddress.Hex(), blockNum)
 
 	// fetch and verify initial proof (should be zeroed storage)
-	fetchAndVerifyProofs(ctx, t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, blockNum)
+	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, blockNum)
 
 	type caseEntry struct {
 		Block uint64
@@ -88,12 +88,12 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 
 	// for each case, get proof and verify
 	for _, c := range cases {
-		fetchAndVerifyProofs(ctx, t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, c.Block)
+		fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, c.Block)
 	}
 
 	// test with non-existent storage slot
 	nonExistentSlot := common.HexToHash("0xdeadbeef")
-	fetchAndVerifyProofs(ctx, t, sys, contractAddress, []common.Hash{nonExistentSlot}, cases[len(cases)-1].Block)
+	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{nonExistentSlot}, cases[len(cases)-1].Block)
 }
 
 func multiStorageSetValues(t devtest.T, parsedABI *abi.ABI, user *dsl.EOA, contractAddress common.Address, aVal, bVal *big.Int) *types.Receipt {
@@ -142,7 +142,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contractAddress.Hex(), blockNum)
 
 	// fetch and verify initial proof (should be zeroed storage)
-	fetchAndVerifyProofs(ctx, t, sys, contractAddress, []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, blockNum)
+	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, blockNum)
 
 	// set multiple storage slots
 	type caseEntry struct {
@@ -184,7 +184,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 			slots = append(slots, slot)
 		}
 
-		fetchAndVerifyProofs(ctx, t, sys, contractAddress, slots, c.Block)
+		fetchAndVerifyProofs(t, sys, contractAddress, slots, c.Block)
 	}
 }
 
@@ -322,11 +322,11 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	// fetch & verify proofs at appropriate blocks
 	// balance after deposit (depositBlock)
 	t.Logf("Verifying balance slot %s at deposit block %d", balanceSlot.Hex(), depositBlock)
-	fetchAndVerifyProofs(ctx, t, sys, contractAddr, []common.Hash{balanceSlot, depositor0Slot}, depositBlock)
+	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{balanceSlot, depositor0Slot}, depositBlock)
 	// allowance after approve (approveBlock)
 	t.Logf("Verifying allowance slot %s at approve block %d", allowanceSlot.Hex(), approveBlock)
-	fetchAndVerifyProofs(ctx, t, sys, contractAddr, []common.Hash{allowanceSlot}, approveBlock)
+	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, approveBlock)
 	// after deactivation, allowance should be zero at deactBlock
 	t.Logf("Verifying allowance slot %s at deactivate block %d", allowanceSlot.Hex(), deactBlock)
-	fetchAndVerifyProofs(ctx, t, sys, contractAddr, []common.Hash{allowanceSlot}, deactBlock)
+	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, deactBlock)
 }
