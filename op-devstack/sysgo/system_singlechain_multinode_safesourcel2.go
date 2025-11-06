@@ -23,11 +23,20 @@ func NewDefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs(l1ID, l2ID eth.Chai
 	}
 }
 
-func DefaultSingleChainMultiNodeWithSafeSourceL2System(dest *DefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs) stack.Option[*Orchestrator] {
+func DefaultSingleChainMultiNodeWithSafeSourceL2System(dest *DefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs, eqWithSafeSourceL2 bool) stack.Option[*Orchestrator] {
 	ids := NewDefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs(DefaultL1ID, DefaultL2AID)
 
 	opt := stack.Combine[*Orchestrator]()
-	opt.Add(DefaultMinimalSystem(&dest.DefaultMinimalSystemIDs))
+	if eqWithSafeSourceL2 {
+		// correct labels
+		ids.L2CL = stack.NewL2CLNodeID("verifier", DefaultL2AID)
+		ids.L2EL = stack.NewL2ELNodeID("verifier", DefaultL2AID)
+		ids.L2CLB = stack.NewL2CLNodeID("sequencer", DefaultL2AID)
+		ids.L2ELB = stack.NewL2ELNodeID("sequencer", DefaultL2AID)
+		opt.Add(DefaultMinimalSystemNoSeq(&dest.DefaultMinimalSystemIDs))
+	} else {
+		opt.Add(DefaultMinimalSystem(&dest.DefaultMinimalSystemIDs))
+	}
 
 	opt.Add(WithL2ELNode(ids.L2ELB))
 
@@ -46,8 +55,12 @@ func DefaultSingleChainMultiNodeWithSafeSourceL2System(dest *DefaultSingleChainM
 			cfg.SafeSourceL2RPC = l2EL.UserRPC()
 		})
 
+		l2CLOpts := []L2CLOption{safeSourceOpt}
+		if eqWithSafeSourceL2 {
+			l2CLOpts = append(l2CLOpts, L2CLSequencer())
+		}
 		// Create the node by calling both Deploy and AfterDeploy
-		nodeOpt := WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, safeSourceOpt)
+		nodeOpt := WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, l2CLOpts...)
 		nodeOpt.Deploy(orch)
 		nodeOpt.AfterDeploy(orch)
 

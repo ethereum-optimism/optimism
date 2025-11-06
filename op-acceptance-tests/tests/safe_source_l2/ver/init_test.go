@@ -9,7 +9,7 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
-		presets.WithSingleChainMultiNodeWithSafeSourceL2(),
+		presets.WithSingleChainMultiNodeWithSafeSourceL2(false /* seqWithSafeSourceL2 */),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }

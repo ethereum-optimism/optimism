@@ -17,8 +17,8 @@ type SingleChainMultiNodeWithSafeSourceL2 struct {
 	L2CLB *dsl.L2CLNode
 }
 
-func WithSingleChainMultiNodeWithSafeSourceL2() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeWithSafeSourceL2System(&sysgo.DefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs{}))
+func WithSingleChainMultiNodeWithSafeSourceL2(seqWithSafeSourceL2 bool) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainMultiNodeWithSafeSourceL2System(&sysgo.DefaultSingleChainMultiNodeWithSafeSourceL2SystemIDs{}, seqWithSafeSourceL2))
 }
 
 func NewSingleChainMultiNodeWithSafeSourceL2(t devtest.T) *SingleChainMultiNodeWithSafeSourceL2 {
