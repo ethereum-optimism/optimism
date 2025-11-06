@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -68,38 +67,14 @@ func (m *StateMutator) Randomize(randSeed int64) {
 	SetupThreads(randSeed+1, m.state, traverseRight, activeStackThreads, inactiveStackThreads)
 }
 
-func (m *StateMutator) SetHI(val arch.Word) {
-	m.state.GetCurrentThread().Cpu.HI = val
-}
-
-func (m *StateMutator) SetLO(val arch.Word) {
-	m.state.GetCurrentThread().Cpu.LO = val
-}
-
-func (m *StateMutator) SetExitCode(val uint8) {
-	m.state.ExitCode = val
-}
-
-func (m *StateMutator) SetExited(val bool) {
-	m.state.Exited = val
-}
-
 func (m *StateMutator) SetPC(val arch.Word) {
 	thread := m.state.GetCurrentThread()
 	thread.Cpu.PC = val
 }
 
-func (m *StateMutator) SetHeap(val arch.Word) {
-	m.state.Heap = val
-}
-
 func (m *StateMutator) SetNextPC(val arch.Word) {
 	thread := m.state.GetCurrentThread()
 	thread.Cpu.NextPC = val
-}
-
-func (m *StateMutator) SetLastHint(val hexutil.Bytes) {
-	m.state.LastHint = val
 }
 
 func (m *StateMutator) SetPreimageKey(val common.Hash) {
@@ -116,46 +91,10 @@ func (m *StateMutator) SetStep(val uint64) {
 
 type StateOption func(state *StateMutator)
 
-func WithPC(pc arch.Word) StateOption {
-	return func(state *StateMutator) {
-		state.SetPC(pc)
-	}
-}
-
-func WithNextPC(nextPC arch.Word) StateOption {
-	return func(state *StateMutator) {
-		state.SetNextPC(nextPC)
-	}
-}
-
 func WithPCAndNextPC(pc arch.Word) StateOption {
 	return func(state *StateMutator) {
 		state.SetPC(pc)
 		state.SetNextPC(pc + 4)
-	}
-}
-
-func WithHI(hi arch.Word) StateOption {
-	return func(state *StateMutator) {
-		state.SetHI(hi)
-	}
-}
-
-func WithLO(lo arch.Word) StateOption {
-	return func(state *StateMutator) {
-		state.SetLO(lo)
-	}
-}
-
-func WithHeap(addr arch.Word) StateOption {
-	return func(state *StateMutator) {
-		state.SetHeap(addr)
-	}
-}
-
-func WithLastHint(lastHint hexutil.Bytes) StateOption {
-	return func(state *StateMutator) {
-		state.SetLastHint(lastHint)
 	}
 }
 
