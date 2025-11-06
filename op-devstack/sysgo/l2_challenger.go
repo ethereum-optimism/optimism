@@ -131,6 +131,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),
 			shared.WithCannonConfig(rollupCfgs, l1Genesis, l2Geneses, prestateVariant),
+			shared.WithCannonKonaConfig(rollupCfgs, l1Genesis, l2Geneses),
 			shared.WithSuperCannonTraceType(),
 			shared.WithSuperPermissionedTraceType(),
 		)
