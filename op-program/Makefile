@@ -141,8 +141,8 @@ analyze-op-program-client-next:
 	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
 
 run-vm-compat:
-	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
-	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
+	@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
+	@docker build --build-arg GO_VERSION=1.25.4-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \
