@@ -29,6 +29,12 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	isthmusTime := sys.L2Chain.Escape().ChainConfig().IsthmusTime
 	require.NotNil(isthmusTime, "isthmus must be activated")
 	require.Greater(current.Time, *isthmusTime, "must pass isthmus block")
+
+	// Check Jovian activation
+	jovianTime := sys.L2Chain.Escape().ChainConfig().JovianTime
+	require.NotNil(jovianTime, "jovian must be activated")
+	require.Greater(current.Time, *jovianTime, "must pass jovian block")
+
 	// Check block hash state from L2CL2 which was synced using the sync tester
 	require.Equal(sys.L2EL.BlockRefByNumber(current.Number).Hash, current.Hash, "hash mismatch")
 }
