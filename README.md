@@ -148,3 +148,8 @@ Feature branches are typically used when there are conflicts between 2 projects 
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+
+### Cambio #9 - 20251106005408
+
+Esta sección fue mejorada en la rama `pr-9-enhance-documentation`.
+
