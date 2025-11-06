@@ -1994,7 +1994,7 @@ jobs:
     machine: true
     resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
