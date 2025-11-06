@@ -1995,7 +1995,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
       - utils/checkout-with-mise
-      - setup_remote_docker
+      - setup_remote_docker:
+          version: 28.3.2
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
