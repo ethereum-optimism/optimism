@@ -334,13 +334,9 @@ abstract contract LivenessModule2 {
         }
 
         // Now swap the remaining single owner with the fallback owner
-        // Note: `fallbackOwner` would be an owner of the safe after a call to this function and
-        // while the ownership is being restored. If the ownership restoration is botched, we will
-        // want to execute this function again to remove the other owners and leave the fallback
-        // owner. The call below will internally revert in that scenario as the fallback owner
-        // would be the last owner after removing the other and we would request to OwnerManager to
-        // swap it by itself. Ignoring reverts protects us against this and other similar but
-        // unknown scenarios.
+        // Note: If the fallback owner would be the only or the last owner in the owners list,
+        // swapOwner would internally revert in OwnerManager, but we ignore it because the final
+        // owners list would still be what we want.
         _safe.execTransactionFromModule({
             to: address(_safe),
             value: 0,
