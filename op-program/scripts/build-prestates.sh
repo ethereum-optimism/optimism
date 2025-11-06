@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 KONA_REPO_URL=https://github.com/op-rs/kona
@@ -46,17 +46,8 @@ function build_kona_prestate() {
         git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
         cd kona
     fi
-    mise trust --yes ./mise.toml
-
-    # HACK: The docker buildx version in cci is too old to parse variable blocks in docker-bake that contain
-    # descriptions. So patch them out
-    awk '
-  /^[[:space:]]*variable[[:space:]]*"[^"]+"[[:space:]]*{/ {invar=1}
-  invar && /^[[:space:]]*description[[:space:]]*=/ {next}
-  {print}
-  invar && /^[[:space:]]*}/ {invar=0}
-    ' docker/docker-bake.hcl > docker/docker-bake.patched.hcl
-    cp docker/docker-bake.patched.hcl docker/docker-bake.hcl
+    # kona doesn't define a mise dependency. luckily the monorepo does and it should be preinstalled by now. So let's setup just shim.
+    MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just
 
     cd docker/fpvm-prestates
     rm -rf ../../prestate-artifacts-cannon
