@@ -1993,6 +1993,7 @@ jobs:
   preimage-reproducibility:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
       - utils/checkout-with-mise
       - setup_remote_docker:
