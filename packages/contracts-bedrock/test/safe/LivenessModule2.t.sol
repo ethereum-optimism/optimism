@@ -195,7 +195,7 @@ contract LivenessModule2_ConfigureLivenessModule_Test is LivenessModule2_TestIni
     }
 
     function test_configureLivenessModule_safeAddressFallbackOwner_reverts() external {
-        // Test with zero address
+        // Test with safe address as fallbackOwner
         vm.expectRevert(LivenessModule2.LivenessModule2_InvalidFallbackOwner.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.configureLivenessModule(
