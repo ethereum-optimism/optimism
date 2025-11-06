@@ -50,7 +50,7 @@ function build_kona_prestate() {
 
     # HACK: the docker buildx version in cci is too old to parse varaible blocks in docker-bake with descriptions
     # so patch them out
-    if false; then
+    if true; then
       echo "DEBUG: Applying hacks"
       awk '
     /^[[:space:]]*variable[[:space:]]*"[^"]+"[[:space:]]*{/ {invar=1}
@@ -140,12 +140,13 @@ EOF
 
 # this global is written to by build_op_program_prestate and build_kona_prestate
 VERSIONS_JSON="[]"
-readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
+#readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
+readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate | tail -n1)
 
 for VERSION in "${VERSIONS[@]}"
 do
     pushd .
-    #build_op_program_prestate "${VERSION}"
+    build_op_program_prestate "${VERSION}"
     popd
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"

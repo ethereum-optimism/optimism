@@ -1996,8 +1996,7 @@ jobs:
     resource_class: large
     steps:
       - utils/checkout-with-mise
-      - setup_remote_docker:
-          version: default
+      - setup_remote_docker
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
