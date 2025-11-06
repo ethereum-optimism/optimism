@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"math/big"
+	"net/url"
+	"path"
 	"time"
 
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -206,12 +210,45 @@ func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *Fau
 	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonGameType, f.honestTraceForGame, opts...)
 }
 
+func (f *DisputeGameFactory) StartCannonKonaGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
+	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonKonaGameType, f.honestTraceForGame, opts...)
+}
+
 func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challengerTypes.TraceAccessor {
 	if existing, ok := f.honestTraces[game.Address]; ok {
 		return existing
 	}
-	f.require.Equal(challengerTypes.CannonGameType, game.GameType(), "Honest trace only supported for cannon game types")
 	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
+	switch game.GameType() {
+	case challengerTypes.CannonGameType:
+		return f.honestOutputCannonTrace(
+			game,
+			f.challengerCfg.CannonAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonAbsolutePreState,
+			f.challengerCfg.Cannon,
+			vm.NewOpProgramServerExecutor(f.log),
+		)
+	case challengerTypes.CannonKonaGameType:
+		return f.honestOutputCannonTrace(
+			game,
+			f.challengerCfg.CannonKonaAbsolutePreStateBaseURL,
+			f.challengerCfg.CannonKonaAbsolutePreState,
+			f.challengerCfg.CannonKona,
+			vm.NewKonaExecutor(),
+		)
+	default:
+		f.require.Truef(false, "Honest trace not supported for game type %v", game.GameType())
+		return nil
+	}
+}
+
+func (f *DisputeGameFactory) honestOutputCannonTrace(
+	game *FaultDisputeGame,
+	prestateBaseUrl *url.URL,
+	prestateFile string,
+	vmConfig vm.Config,
+	serverExecutor vm.OracleServerExecutor,
+) challengerTypes.TraceAccessor {
 	logger := f.t.Logger().New("role", "honestTrace")
 	prestateBlock := game.StartingL2SequenceNumber()
 	rollupClient := f.l2CL.Escape().RollupAPI()
@@ -220,15 +257,23 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
 	f.require.NoError(err, "Failed to fetch L1 Head")
 
+	prestateSource := prestates.NewPrestateSource(
+		prestateBaseUrl,
+		prestateFile,
+		path.Join(f.challengerCfg.Datadir, "test-prestates"),
+		cannon.NewStateConverter(vmConfig),
+	)
+	prestatePath, err := prestateSource.PrestatePath(f.t.Ctx(), game.absolutePrestate())
+	f.require.NoError(err, "Failed to get prestate path")
 	l2ElClient := f.l2EL.Escape().L2EthClient()
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
 		logger,
 		metrics.NoopMetrics,
-		f.challengerCfg.Cannon,
-		vm.NewOpProgramServerExecutor(logger),
+		vmConfig,
+		serverExecutor,
 		&ethClientHeaderProvider{client: l2ElClient},
 		prestateProvider,
-		f.challengerCfg.CannonAbsolutePreState,
+		prestatePath,
 		rollupClient,
 		f.t.TempDir(),
 		l1Head.ID(),
@@ -236,7 +281,7 @@ func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challeng
 		prestateBlock,
 		game.L2SequenceNumber(),
 	)
-	f.require.NoError(err, "Failed to create cannon trace accessor")
+	f.require.NoError(err, "Failed to create trace accessor")
 	f.honestTraces[game.Address] = accessor
 	return accessor
 }

@@ -9,3 +9,10 @@ import (
 func WithDisputeGameV2() stack.CommonOption {
 	return stack.MakeCommon(sysgo.WithDeployerOptions(sysgo.WithDevFeatureEnabled(deployer.DeployV2DisputeGamesDevFlag)))
 }
+
+func WithCannonKona() stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(
+		sysgo.WithDevFeatureEnabled(deployer.DeployV2DisputeGamesDevFlag), // Required for cannon kona
+		sysgo.WithDevFeatureEnabled(deployer.CannonKonaDevFlag),
+	))
+}

@@ -236,6 +236,10 @@ func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return common.HexToHash(findKonaVariable(t, "KONA_INTEROP_PRESTATE_HASH"))
 }
 
+func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
+	return common.HexToHash(findKonaVariable(t, "KONA_PRESTATE_HASH"))
+}
+
 func findKonaVariable(t devtest.CommonT, name string) string {
 	konaJustfilePath := "kona/justfile"
 	root, err := findMonorepoRoot(konaJustfilePath)
