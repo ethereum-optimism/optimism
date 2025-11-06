@@ -148,3 +148,7 @@ Feature branches are typically used when there are conflicts between 2 projects 
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+
+## Editing
+
+Sometimes this file gets edited. For example, this commit edits this file. Usually this commit is not where the edit comes from though. You can read what the README says by reading the README.md file in this repository.
