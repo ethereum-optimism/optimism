@@ -2,7 +2,6 @@ KONA_DIR := `realpath .`
 KONA_VERSION := "kona-client/v1.2.0"
 KONA_PRESTATE_HASH := "0x03723aeb1fe69eebd6b0155a4570f5944e9a2c1d918183a014b6da2fc2d1b5e5"
 KONA_INTEROP_PRESTATE_HASH := "0x03dd682a7c55084b42c4f4711f2c501126ed8dc05808c7ef19537dbf57bcbed7"
-FORCED_CHANGE := "2"
 
 default: build-all
 
