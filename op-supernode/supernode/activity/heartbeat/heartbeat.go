@@ -5,8 +5,15 @@ import (
 	"crypto/rand"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethlog "github.com/ethereum/go-ethereum/log"
+)
+
+// compile time assertions
+var (
+	_ activity.RunnableActivity = (*Heartbeat)(nil)
+	_ activity.RPCActivity      = (*Heartbeat)(nil)
 )
 
 // Activity that emits periodic heartbeats and exposes a simple liveness RPC.
@@ -57,13 +64,12 @@ func (h *Heartbeat) RPCService() interface{} { return (*api)(h) }
 // api hosts JSON-RPC methods for the Heartbeat activity.
 type api Heartbeat
 
-// Check returns a 4-byte random UUID (hex-encoded) for liveness.
+// Check returns a random 4-byte for liveness.
 func (a *api) Check(ctx context.Context) (hexutil.Bytes, error) {
 	buf := make([]byte, 4)
 	_, err := rand.Read(buf)
 	if err != nil {
 		return nil, err
 	}
-	// return as 0x-prefixed hex bytes (hexutil.Bytes handles encoding)
 	return hexutil.Bytes(buf), nil
 }

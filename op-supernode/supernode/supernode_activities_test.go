@@ -75,6 +75,11 @@ func TestRunnableActivityGating(t *testing.T) {
 
 	require.Equal(t, 1, run.started, "runnable activity should be started exactly once")
 	require.Equal(t, 0, run.stopped, "Stop is invoked during Stop(), not here")
+
+	// now stop and ensure Stop was called on runnable activity
+	err := s.Stop(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, run.stopped, "runnable activity should be stopped exactly once")
 }
 
 func TestRPCActivityRegistration(t *testing.T) {
@@ -94,7 +99,7 @@ func TestRPCActivityRegistration(t *testing.T) {
 
 	deadline := time.Now().Add(500 * time.Millisecond)
 	for {
-		body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "act_Echo", "params": []any{}}
+		body := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "act_echo", "params": []any{}}
 		raw, _ := json.Marshal(body)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(raw))
