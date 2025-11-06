@@ -128,12 +128,10 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 	fees = new(big.Int).Add(proveFee, finalizeFee)
-	if sys.Config().AllocType.UsesProofs() {
-		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
-		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
-		fees = new(big.Int).Add(fees, resolveClaimFee)
-		fees = new(big.Int).Add(fees, resolveFee)
-	}
+	resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
+	resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
+	fees = new(big.Int).Add(fees, resolveClaimFee)
+	fees = new(big.Int).Add(fees, resolveFee)
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
 }

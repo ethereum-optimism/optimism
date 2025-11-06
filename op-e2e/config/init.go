@@ -66,15 +66,6 @@ func (a AllocType) Check() error {
 	return nil
 }
 
-func (a AllocType) UsesProofs() bool {
-	switch a {
-	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA, AllocTypeFastGame:
-		return true
-	default:
-		return false
-	}
-}
-
 var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
 
 var (

@@ -323,21 +323,10 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			_ = depositContract
 			require.NoError(t, err)
 
-			var l2OutputOracle *bindings.L2OutputOracleCaller
-			var disputeGameFactory *bindings.DisputeGameFactoryCaller
-			var optimismPortal2 *bindingspreview.OptimismPortal2Caller
-			if allocType.UsesProofs() {
-				disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
-				require.NoError(t, err)
-				optimismPortal2, err = bindingspreview.NewOptimismPortal2Caller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-				require.NoError(t, err)
-			} else {
-				l2OutputOracle, err = bindings.NewL2OutputOracleCaller(cfg.L1Deployments.L2OutputOracleProxy, l1Client)
-				require.NoError(t, err)
-				finalizationPeriod, err := l2OutputOracle.FINALIZATIONPERIODSECONDS(nil)
-				require.NoError(t, err)
-				require.Equal(t, cfg.DeployConfig.FinalizationPeriodSeconds, finalizationPeriod.Uint64())
-			}
+			disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
+			require.NoError(t, err)
+			optimismPortal2, err := bindingspreview.NewOptimismPortal2Caller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+			require.NoError(t, err)
 
 			// Create a struct used to track our transactors and their transactions sent.
 			type TestAccountState struct {
@@ -428,15 +417,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			var blockNumber uint64
-			if allocType.UsesProofs() {
-				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
-			} else {
-				blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
-			}
-			require.Nil(t, err)
-
-			header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+			_, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
 			require.Nil(t, err)
 
 			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].UserRPC().RPC())
@@ -452,7 +433,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			require.NoError(t, err)
 
 			// Now create the withdrawal
-			params, err := helpers.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, optimismPortal2, cfg.AllocType)
+			params, err := helpers.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), disputeGameFactory, optimismPortal2)
 			require.Nil(t, err)
 
 			// Obtain our withdrawal parameters
@@ -541,13 +522,11 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			} else {
 				require.NoError(t, err)
 
-				if allocType.UsesProofs() {
-					// Start a challenger to resolve claims and games once the clock expires
-					factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
-					factoryHelper.StartChallenger(ctx, "Challenger",
-						challenger.WithFastGames(),
-						challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
-				}
+				// Start a challenger to resolve claims and games once the clock expires
+				factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
+				factoryHelper.StartChallenger(ctx, "Challenger",
+					challenger.WithFastGames(),
+					challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.NoError(t, err, "finalize withdrawal")
 
@@ -569,13 +548,8 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 75*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer withdrawalCancel()
-				if allocType.UsesProofs() {
-					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy, transactor.Account.L1Opts.From)
-					require.NoError(t, err)
-				} else {
-					err = wait.ForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
-					require.NoError(t, err)
-				}
+				err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy, transactor.Account.L1Opts.From)
+				require.NoError(t, err)
 
 				// Do a large deposit into the OptimismPortal so there's a balance to withdraw
 				depositAmount := big.NewInt(1_000_000_000_000)
