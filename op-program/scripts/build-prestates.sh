@@ -50,7 +50,7 @@ function build_kona_prestate() {
 
     # HACK: the docker buildx version in cci is too old to parse varaible blocks in docker-bake with descriptions
     # so patch them out
-    if [[ false ]]; then
+    if false; then
       echo "DEBUG: Applying hacks"
       awk '
     /^[[:space:]]*variable[[:space:]]*"[^"]+"[[:space:]]*{/ {invar=1}
