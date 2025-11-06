@@ -173,8 +173,8 @@ abstract contract LivenessModule2 {
         if (_config.livenessResponsePeriod == 0) {
             revert LivenessModule2_InvalidResponsePeriod();
         }
-        // fallbackOwner must not be zero address to have a valid ownership recipient.
-        if (_config.fallbackOwner == address(0)) {
+        // fallbackOwner must not be zero address or the safe itself to be able to become an owner.
+        if (_config.fallbackOwner == address(0) || _config.fallbackOwner == address(callingSafe)) {
             revert LivenessModule2_InvalidFallbackOwner();
         }
 
@@ -334,6 +334,9 @@ abstract contract LivenessModule2 {
         }
 
         // Now swap the remaining single owner with the fallback owner
+        // Note: If the fallback owner would be the only or the last owner in the owners list,
+        // swapOwner would internally revert in OwnerManager, but we ignore it because the final
+        // owners list would still be what we want.
         _safe.execTransactionFromModule({
             to: address(_safe),
             value: 0,

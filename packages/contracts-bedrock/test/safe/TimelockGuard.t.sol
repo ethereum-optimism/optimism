@@ -153,7 +153,7 @@ abstract contract TimelockGuard_TestInit is Test, SafeTestTools {
     event TransactionScheduled(Safe indexed safe, bytes32 indexed txId, uint256 when);
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txId);
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
-    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
+    event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash);
     event Message(string message);
     event TransactionsNotCancelled(Safe indexed safe, uint256 n);
 
@@ -317,6 +317,13 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         timelockGuard.configureTimelockGuard(_delay);
     }
 
+    /// @notice Ensures setting delay to zero reverts.
+    function test_configureTimelockGuard_zeroDelay_reverts() external {
+        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidTimelockDelay.selector);
+        vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(0);
+    }
+
     /// @notice Checks configuration reverts when the contract is not 1.4.1.
     function test_configureTimelockGuard_withWrongVersion_reverts() external {
         // nosemgrep: sol-style-use-abi-encodecall
@@ -331,6 +338,13 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
         // nosemgrep: sol-style-use-abi-encodecall
         vm.mockCall(address(safeInstance.safe), abi.encodeWithSignature("VERSION()"), abi.encode("1.4.1-rc.1"));
         vm.prank(address(safeInstance.safe));
+        timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
+    }
+
+    /// @notice Ensures configuration reverts when the guard has not been enabled on the Safe.
+    function test_configureTimelockGuard_guardNotEnabled_reverts() external {
+        vm.expectRevert(TimelockGuard.TimelockGuard_GuardNotEnabled.selector);
+        vm.prank(address(unguardedSafe.safe));
         timelockGuard.configureTimelockGuard(TIMELOCK_DELAY);
     }
 
@@ -368,31 +382,6 @@ contract TimelockGuard_ConfigureTimelockGuard_Test is TimelockGuard_TestInit {
 
         _configureGuard(safeInstance, newDelay);
         assertEq(timelockGuard.timelockDelay(safe), newDelay);
-    }
-
-    /// @notice Ensures setting delay to zero clears the configuration.
-    function test_configureTimelockGuard_clearConfiguration_succeeds() external {
-        // First configure the guard
-        _configureGuard(safeInstance, TIMELOCK_DELAY);
-        assertEq(timelockGuard.timelockDelay(safe), TIMELOCK_DELAY);
-
-        // Configure timelock delay to 0 should succeed and emit event
-        vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, 0);
-        vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(0);
-
-        // Timelock delay should be set to 0
-        assertEq(timelockGuard.timelockDelay(safe), 0);
-    }
-
-    /// @notice Checks clearing succeeds even if the guard was never configured.
-    function test_configureTimelockGuard_notConfigured_succeeds() external {
-        // Try to clear - should succeed even if not yet configured
-        vm.expectEmit(true, true, true, true);
-        emit GuardConfigured(safe, 0);
-        vm.prank(address(safeInstance.safe));
-        timelockGuard.configureTimelockGuard(0);
     }
 }
 
@@ -1009,26 +998,6 @@ contract TimelockGuard_Integration_Test is TimelockGuard_TestInit {
 
         vm.expectRevert(TimelockGuard.TimelockGuard_TransactionAlreadyScheduled.selector);
         dummyTx.scheduleTransaction(timelockGuard);
-    }
-
-    /// @notice Test that the guard can be reset while still enabled, and then can be disabled
-    function test_integration_resetThenDisableGuard_succeeds() external {
-        TransactionBuilder.Transaction memory resetGuardTx = _createEmptyTransaction(safeInstance);
-        resetGuardTx.params.to = address(timelockGuard);
-        resetGuardTx.params.data = abi.encodeCall(TimelockGuard.configureTimelockGuard, (0));
-        resetGuardTx.updateTransaction();
-        resetGuardTx.scheduleTransaction(timelockGuard);
-
-        vm.warp(block.timestamp + TIMELOCK_DELAY);
-        resetGuardTx.executeTransaction(safeInstance.owners[0]);
-
-        TransactionBuilder.Transaction memory disableGuardTx = _createEmptyTransaction(safeInstance);
-        disableGuardTx.params.to = address(safeInstance.safe);
-        disableGuardTx.params.data = abi.encodeCall(GuardManager.setGuard, (address(0)));
-        disableGuardTx.updateTransaction();
-
-        vm.warp(block.timestamp + TIMELOCK_DELAY);
-        disableGuardTx.executeTransaction(safeInstance.owners[0]);
     }
 
     /// @notice Test that the max cancellation threshold is not exceeded

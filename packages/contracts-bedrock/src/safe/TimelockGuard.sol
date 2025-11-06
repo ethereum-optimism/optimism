@@ -190,16 +190,16 @@ abstract contract TimelockGuard is BaseGuard {
     /// @param txHash The identifier of the cancelled transaction.
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
 
+    /// @notice Emitted when a transaction is executed for a Safe.
+    /// @param safe The Safe whose transaction is executed.
+    /// @param txHash The identifier of the executed transaction.
+    event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash);
+
     /// @notice Emitted when the cancellation threshold is updated
     /// @param safe The Safe whose cancellation threshold is updated.
     /// @param oldThreshold The old cancellation threshold.
     /// @param newThreshold The new cancellation threshold.
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
-
-    /// @notice Emitted when a transaction is executed for a Safe.
-    /// @param safe The Safe whose transaction is executed.
-    /// @param txHash The identifier of the executed transaction.
-    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
     /// @notice Used to emit a message, primarily to ensure that the cancelTransaction function is
     ///         is not labelled as view so that it is treated as a state-changing function.
@@ -455,8 +455,13 @@ abstract contract TimelockGuard is BaseGuard {
             revert TimelockGuard_InvalidVersion();
         }
 
-        // Validate timelock delay - must not be longer than 1 year
-        if (_timelockDelay > 365 days) {
+        // Check that this guard is enabled on the calling Safe
+        if (!_isGuardEnabled(callingSafe)) {
+            revert TimelockGuard_GuardNotEnabled();
+        }
+
+        // Validate timelock delay - must not be zero or longer than 1 year
+        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
