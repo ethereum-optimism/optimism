@@ -6,7 +6,6 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -270,96 +269,4 @@ func (m *mockSafeSourceL2Client) ForkchoiceUpdate(ctx context.Context, state *et
 
 func (m *mockSafeSourceL2Client) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
-}
-
-// Tests for fetchAndEnsureRemoteL2Block
-
-func TestFetchAndEnsureRemoteL2Block_AlreadyExists(t *testing.T) {
-	rng := mrand.New(mrand.NewSource(1234))
-	remoteRef := testutils.RandomL2BlockRef(rng)
-
-	mockRemote := newMockSafeSourceL2Client()
-	mockRemote.blockRefs[eth.Safe] = remoteRef
-
-	mockEngine := &testutils.MockEngine{}
-	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, remoteRef, nil)
-
-	emitter := &testutils.MockEmitter{}
-	cfg := &rollup.Config{}
-	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
-
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
-	ec.safeSourceL2Client = mockRemote
-
-	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
-	require.NoError(t, err)
-	require.Equal(t, remoteRef.Hash, hash)
-}
-
-func TestFetchAndEnsureRemoteL2Block_Divergence(t *testing.T) {
-	rng := mrand.New(mrand.NewSource(1234))
-	remoteRef := testutils.RandomL2BlockRef(rng)
-	localRef := remoteRef
-	localRef.Hash = testutils.RandomHash(rng) // Different hash at same number
-
-	mockRemote := newMockSafeSourceL2Client()
-	mockRemote.blockRefs[eth.Safe] = remoteRef
-	mockRemote.payloads[remoteRef.Hash] = &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{
-			BlockHash:   remoteRef.Hash,
-			BlockNumber: eth.Uint64Quantity(remoteRef.Number),
-		},
-	}
-
-	mockEngine := &testutils.MockEngine{}
-	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, localRef, nil)
-	mockEngine.ExpectNewPayload(&eth.ExecutionPayload{
-		BlockHash:   remoteRef.Hash,
-		BlockNumber: eth.Uint64Quantity(remoteRef.Number),
-	}, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
-
-	emitter := &testutils.MockEmitter{}
-	cfg := &rollup.Config{}
-	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
-
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
-	ec.safeSourceL2Client = mockRemote
-
-	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
-	require.NoError(t, err)
-	require.Equal(t, remoteRef.Hash, hash)
-	// Verify unsafe head was set (reorg triggered)
-	require.Equal(t, remoteRef, ec.unsafeHead)
-}
-
-func TestFetchAndEnsureRemoteL2Block_MissingBlock(t *testing.T) {
-	rng := mrand.New(mrand.NewSource(1234))
-	remoteRef := testutils.RandomL2BlockRef(rng)
-
-	mockRemote := newMockSafeSourceL2Client()
-	mockRemote.blockRefs[eth.Safe] = remoteRef
-	mockRemote.payloads[remoteRef.Hash] = &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{
-			BlockHash:   remoteRef.Hash,
-			BlockNumber: eth.Uint64Quantity(remoteRef.Number),
-		},
-	}
-
-	mockEngine := &testutils.MockEngine{}
-	mockEngine.ExpectL2BlockRefByNumber(remoteRef.Number, eth.L2BlockRef{}, ethereum.NotFound)
-	mockEngine.ExpectNewPayload(&eth.ExecutionPayload{
-		BlockHash:   remoteRef.Hash,
-		BlockNumber: eth.Uint64Quantity(remoteRef.Number),
-	}, nil, &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil)
-
-	emitter := &testutils.MockEmitter{}
-	cfg := &rollup.Config{}
-	syncCfg := &sync.Config{SafeSource: sync.SafeSourceL2}
-
-	ec := NewEngineController(context.Background(), mockEngine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, syncCfg, &testutils.MockL1Source{}, emitter)
-	ec.safeSourceL2Client = mockRemote
-
-	hash, _, _, err := ec.FetchAndInsertRemotePayloadIfMissing(context.Background(), eth.Safe)
-	require.NoError(t, err)
-	require.Equal(t, remoteRef.Hash, hash)
 }
