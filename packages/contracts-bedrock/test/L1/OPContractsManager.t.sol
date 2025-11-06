@@ -163,9 +163,10 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
 
         delayedWETHPermissionedGameProxy =
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
-        faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
+        IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
+        faultDisputeGame = IFaultDisputeGame(address(dgf.gameImpls(GameTypes.CANNON)));
+        delayedWeth = faultDisputeGame.weth();
 
         // grab the pre-upgrade state
         preUpgradeState = PreUpgradeState({
@@ -1970,6 +1971,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
     function _getPostMigrateExpectedGameTypes(IOPContractsManagerInteropMigrator.MigrateInput memory _input)
         internal
+        view
         returns (GameType[] memory gameTypes_)
     {
         uint256 gameCount = 1;

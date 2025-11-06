@@ -3,6 +3,7 @@ package stack
 import (
 	"log/slog"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -69,4 +70,5 @@ func (id L2ChallengerID) Match(elems []L2Challenger) []L2Challenger {
 type L2Challenger interface {
 	Common
 	ID() L2ChallengerID
+	Config() *config.Config
 }

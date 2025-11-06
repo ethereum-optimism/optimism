@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
@@ -202,7 +203,7 @@ func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
 }
 
 func NewDriverConfig(ctx cliiface.Context) *driver.Config {
-	return &driver.Config{
+	cfg := &driver.Config{
 		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
@@ -210,6 +211,20 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 		RecoverMode:         ctx.Bool(flags.SequencerRecoverMode.Name),
 	}
+
+	// Populate finality config from flags. A finality config with null fields
+	// is handled the same way as a null finality config.
+	cfg.Finalizer = &finality.Config{}
+	if ctx.IsSet(flags.FinalityLookbackFlag.Name) {
+		lookback := ctx.Uint64(flags.FinalityLookbackFlag.Name)
+		cfg.Finalizer.FinalityLookback = &lookback
+	}
+	if ctx.IsSet(flags.FinalityDelayFlag.Name) {
+		delay := ctx.Uint64(flags.FinalityDelayFlag.Name)
+		cfg.Finalizer.FinalityDelay = &delay
+	}
+
+	return cfg
 }
 
 func NewRollupConfigFromCLI(log log.Logger, ctx cliiface.Context) (*rollup.Config, error) {

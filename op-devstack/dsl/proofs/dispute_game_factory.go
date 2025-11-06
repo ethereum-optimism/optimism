@@ -1,11 +1,17 @@
 package proofs
 
 import (
+	"context"
 	"encoding/binary"
 	"math/big"
 	"time"
 
+	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	safetyTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,37 +27,58 @@ import (
 )
 
 type DisputeGameFactory struct {
-	t          devtest.T
-	require    *require.Assertions
-	log        log.Logger
-	l1Network  *dsl.L1Network
-	ethClient  apis.EthClient
-	dgf        *bindings.DisputeGameFactory
-	addr       common.Address
-	supervisor *dsl.Supervisor
-	gameHelper *GameHelper
+	t             devtest.T
+	require       *require.Assertions
+	log           log.Logger
+	l1Network     *dsl.L1Network
+	ethClient     apis.EthClient
+	dgf           *bindings.DisputeGameFactory
+	addr          common.Address
+	l2CL          *dsl.L2CLNode
+	l2EL          *dsl.L2ELNode
+	supervisor    *dsl.Supervisor
+	gameHelper    *GameHelper
+	challengerCfg *challengerConfig.Config
+
+	honestTraces map[common.Address]challengerTypes.TraceAccessor
 }
 
-func NewDisputeGameFactory(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
+func NewDisputeGameFactory(
+	t devtest.T,
+	l1Network *dsl.L1Network,
+	ethClient apis.EthClient,
+	dgfAddr common.Address,
+	l2CL *dsl.L2CLNode,
+	l2EL *dsl.L2ELNode,
+	supervisor *dsl.Supervisor,
+	challengerCfg *challengerConfig.Config,
+) *DisputeGameFactory {
 	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
 
 	return &DisputeGameFactory{
-		t:          t,
-		require:    require.New(t),
-		log:        t.Logger(),
-		l1Network:  l1Network,
-		dgf:        dgf,
-		addr:       dgfAddr,
-		supervisor: supervisor,
-		ethClient:  ethClient,
+		t:             t,
+		require:       require.New(t),
+		log:           t.Logger(),
+		l1Network:     l1Network,
+		dgf:           dgf,
+		addr:          dgfAddr,
+		l2CL:          l2CL,
+		l2EL:          l2EL,
+		supervisor:    supervisor,
+		ethClient:     ethClient,
+		challengerCfg: challengerCfg,
+
+		honestTraces: make(map[common.Address]challengerTypes.TraceAccessor),
 	}
 }
 
 type GameCfg struct {
-	allowFuture  bool
-	allowUnsafe  bool
-	rootClaimSet bool
-	rootClaim    common.Hash
+	allowFuture         bool
+	allowUnsafe         bool
+	l2SequenceNumber    uint64
+	l2SequenceNumberSet bool
+	rootClaimSet        bool
+	rootClaim           common.Hash
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -81,6 +108,13 @@ func WithRootClaim(claim common.Hash) GameOpt {
 	})
 }
 
+func WithL2SequenceNumber(seqNum uint64) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.l2SequenceNumber = seqNum
+		c.l2SequenceNumberSet = true
+	})
+}
+
 func NewGameCfg(opts ...GameOpt) *GameCfg {
 	cfg := &GameCfg{}
 	for _, opt := range opts {
@@ -97,7 +131,7 @@ func (f *DisputeGameFactory) getGameHelper(eoa *dsl.EOA) *GameHelper {
 	if f.gameHelper != nil {
 		return f.gameHelper
 	}
-	gs := DeployGameHelper(f.t, eoa)
+	gs := DeployGameHelper(f.t, eoa, f.honestTraceForGame)
 	f.gameHelper = gs
 	return gs
 }
@@ -109,13 +143,13 @@ func (f *DisputeGameFactory) GameCount() int64 {
 func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, game)
+	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) GameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, game)
+	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, f.honestTraceForGame, game)
 }
 
 func (f *DisputeGameFactory) GameArgs(gameType challengerTypes.GameType) []byte {
@@ -136,13 +170,16 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	f.require.NotNil(f.supervisor, "supervisor is required to start super games")
-	proposalTimestamp := f.supervisor.FetchSyncStatus().SafeTimestamp
 
-	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, challengerTypes.SuperCannonGameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, challengerTypes.SuperCannonGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
+	timestamp := cfg.l2SequenceNumber
+	if !cfg.l2SequenceNumberSet {
+		timestamp = f.supervisor.FetchSyncStatus().SafeTimestamp
+	}
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	rootClaim := cfg.rootClaim
 	if !cfg.rootClaimSet {
@@ -162,6 +199,77 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 	}
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], timestamp)
+	return extraData
+}
+
+func (f *DisputeGameFactory) StartCannonGame(eoa *dsl.EOA, opts ...GameOpt) *FaultDisputeGame {
+	return f.startOutputRootGameOfType(eoa, challengerTypes.CannonGameType, f.honestTraceForGame, opts...)
+}
+
+func (f *DisputeGameFactory) honestTraceForGame(game *FaultDisputeGame) challengerTypes.TraceAccessor {
+	if existing, ok := f.honestTraces[game.Address]; ok {
+		return existing
+	}
+	f.require.Equal(challengerTypes.CannonGameType, game.GameType(), "Honest trace only supported for cannon game types")
+	f.require.NotNil(f.challengerCfg, "Challenger config is required to create honest trace")
+	logger := f.t.Logger().New("role", "honestTrace")
+	prestateBlock := game.StartingL2SequenceNumber()
+	rollupClient := f.l2CL.Escape().RollupAPI()
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
+	l1HeadHash := game.L1Head()
+	l1Head, err := f.ethClient.BlockRefByHash(f.t.Ctx(), l1HeadHash)
+	f.require.NoError(err, "Failed to fetch L1 Head")
+
+	l2ElClient := f.l2EL.Escape().L2EthClient()
+	accessor, err := outputs.NewOutputCannonTraceAccessor(
+		logger,
+		metrics.NoopMetrics,
+		f.challengerCfg.Cannon,
+		vm.NewOpProgramServerExecutor(logger),
+		&ethClientHeaderProvider{client: l2ElClient},
+		prestateProvider,
+		f.challengerCfg.CannonAbsolutePreState,
+		rollupClient,
+		f.t.TempDir(),
+		l1Head.ID(),
+		game.SplitDepth(),
+		prestateBlock,
+		game.L2SequenceNumber(),
+	)
+	f.require.NoError(err, "Failed to create cannon trace accessor")
+	f.honestTraces[game.Address] = accessor
+	return accessor
+}
+
+func (f *DisputeGameFactory) startOutputRootGameOfType(
+	eoa *dsl.EOA,
+	gameType challengerTypes.GameType,
+	honestTraceProvider func(game *FaultDisputeGame) challengerTypes.TraceAccessor,
+	opts ...GameOpt) *FaultDisputeGame {
+	cfg := NewGameCfg(opts...)
+	blockNum := cfg.l2SequenceNumber
+	if !cfg.l2SequenceNumberSet {
+		blockNum = f.l2CL.SafeL2BlockRef().Number
+	}
+	extraData := f.createOutputGameExtraData(blockNum, cfg)
+	rootClaim := cfg.rootClaim
+	if !cfg.rootClaimSet {
+		// Default to correct root claim
+		response, err := f.l2CL.Escape().RollupAPI().OutputAtBlock(f.t.Ctx(), blockNum)
+		f.require.NoErrorf(err, "Failed to get output root at block %v", blockNum)
+		rootClaim = common.Hash(response.OutputRoot)
+	}
+	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
+	return NewFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, honestTraceProvider, game)
+}
+
+func (f *DisputeGameFactory) createOutputGameExtraData(blockNum uint64, cfg *GameCfg) []byte {
+	f.require.NotNil(f.l2CL, "L2 CL is required create output games")
+	if !cfg.allowFuture {
+		f.l2CL.Reached(safetyTypes.LocalSafe, blockNum, 30)
+	}
+	extraData := make([]byte, 32)
+	binary.BigEndian.PutUint64(extraData[24:], blockNum)
 	return extraData
 }
 
@@ -208,4 +316,18 @@ func (a *GameHelperEOA) PerformMoves(game *FaultDisputeGame, moves ...GameHelper
 
 func (a *GameHelperEOA) Address() common.Address {
 	return a.EOA.Address()
+}
+
+// ethClientHeaderProvider is an adapter for the L1Client interface used in op-node and devstack to
+// the HeaderProvider interface used in challenger
+type ethClientHeaderProvider struct {
+	client apis.EthClient
+}
+
+func (p *ethClientHeaderProvider) HeaderByNumber(ctx context.Context, blockNum *big.Int) (*types.Header, error) {
+	info, err := p.client.InfoByNumber(ctx, blockNum.Uint64())
+	if err != nil {
+		return nil, err
+	}
+	return info.Header(), nil
 }
