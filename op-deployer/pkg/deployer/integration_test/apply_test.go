@@ -238,6 +238,7 @@ func TestGlobalOverrides(t *testing.T) {
 	expectedBaseFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	expectedL1FeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000002")
 	expectedSequencerFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000003")
+	expectedOperatorFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000004")
 	expectedBaseFeeVaultMinimumWithdrawalAmount := strings.ToLower("0x1BC16D674EC80000")
 	expectedBaseFeeVaultWithdrawalNetwork := genesis.FromUint8(0)
 	expectedEnableGovernance := false
@@ -249,6 +250,7 @@ func TestGlobalOverrides(t *testing.T) {
 		"baseFeeVaultRecipient":               expectedBaseFeeVaultRecipient,
 		"l1FeeVaultRecipient":                 expectedL1FeeVaultRecipient,
 		"sequencerFeeVaultRecipient":          expectedSequencerFeeVaultRecipient,
+		"operatorFeeVaultRecipient":           expectedOperatorFeeVaultRecipient,
 		"baseFeeVaultMinimumWithdrawalAmount": expectedBaseFeeVaultMinimumWithdrawalAmount,
 		"baseFeeVaultWithdrawalNetwork":       expectedBaseFeeVaultWithdrawalNetwork,
 		"enableGovernance":                    expectedEnableGovernance,
@@ -483,6 +485,12 @@ func TestInvalidL2Genesis(t *testing.T) {
 			name: "sequencer fee vault recipient not set",
 			overrides: map[string]any{
 				"sequencerFeeVaultRecipient": nil,
+			},
+		},
+		{
+			name: "operator fee vault recipient not set",
+			overrides: map[string]any{
+				"operatorFeeVaultRecipient": nil,
 			},
 		},
 		{
@@ -748,9 +756,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		alloc := chainState.Allocs.Data.Accounts
 
 		chainIntent := intent.Chains[i]
-		checkImmutableBehindProxy(t, alloc, predeploys.BaseFeeVaultAddr, chainIntent.BaseFeeVaultRecipient)
-		checkImmutableBehindProxy(t, alloc, predeploys.L1FeeVaultAddr, chainIntent.L1FeeVaultRecipient)
-		checkImmutableBehindProxy(t, alloc, predeploys.SequencerFeeVaultAddr, chainIntent.SequencerFeeVaultRecipient)
 		checkImmutableBehindProxy(t, alloc, predeploys.OptimismMintableERC721FactoryAddr, common.BigToHash(new(big.Int).SetUint64(intent.L1ChainID)))
 
 		// ownership slots

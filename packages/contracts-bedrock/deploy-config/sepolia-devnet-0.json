@@ -43,12 +43,15 @@
   "baseFeeVaultRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2",
   "l1FeeVaultRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2",
   "sequencerFeeVaultRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2",
+  "operatorFeeVaultRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2",
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "operatorFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "baseFeeVaultWithdrawalNetwork": 1,
   "l1FeeVaultWithdrawalNetwork": 1,
   "sequencerFeeVaultWithdrawalNetwork": 1,
+  "operatorFeeVaultWithdrawalNetwork": 1,
   "l1StandardBridgeProxy": "0x0000000000000000000000000000000000000000",
   "l1CrossDomainMessengerProxy": "0x0000000000000000000000000000000000000000",
   "l1ERC721BridgeProxy": "0x0000000000000000000000000000000000000000",
@@ -79,5 +82,7 @@
   "useFaultProofs": true,
   "fundDevAccounts": false,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000005000000000000000000000000",
+  "useRevenueShare": true,
+  "chainFeesRecipient": "0x8c20c40180751d93e939dddee3517ae0d1ebead2"
 }

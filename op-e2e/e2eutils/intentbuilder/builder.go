@@ -52,6 +52,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithRevenueShare(enabled bool, chainFeesRecipient common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -70,6 +71,7 @@ type L2VaultsConfigurator interface {
 	WithBaseFeeVaultRecipient(address common.Address)
 	WithSequencerFeeVaultRecipient(address common.Address)
 	WithL1FeeVaultRecipient(address common.Address)
+	WithOperatorFeeVaultRecipient(address common.Address)
 }
 
 type L2RolesConfigurator interface {
@@ -113,6 +115,7 @@ func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Config
 	configurator.WithBaseFeeVaultRecipient(addrFor(devkeys.BaseFeeVaultRecipientRole))
 	configurator.WithSequencerFeeVaultRecipient(addrFor(devkeys.SequencerFeeVaultRecipientRole))
 	configurator.WithL1FeeVaultRecipient(addrFor(devkeys.L1FeeVaultRecipientRole))
+	configurator.WithOperatorFeeVaultRecipient(addrFor(devkeys.OperatorFeeVaultRecipientRole))
 }
 
 func WithDevkeyL2Roles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -374,6 +377,10 @@ func (c *l2Configurator) WithL1FeeVaultRecipient(address common.Address) {
 	c.builder.intent.Chains[c.chainIndex].L1FeeVaultRecipient = address
 }
 
+func (c *l2Configurator) WithOperatorFeeVaultRecipient(address common.Address) {
+	c.builder.intent.Chains[c.chainIndex].OperatorFeeVaultRecipient = address
+}
+
 func (c *l2Configurator) WithL1ProxyAdminOwner(address common.Address) {
 	c.builder.intent.Chains[c.chainIndex].Roles.L1ProxyAdminOwner = address
 }
@@ -455,6 +462,11 @@ func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) 
 		// The typing is important, or op-deployer merge-JSON tricks will fail
 		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 	}
+}
+
+func (c *l2Configurator) WithRevenueShare(enabled bool, chainFeesRecipient common.Address) {
+	c.builder.intent.Chains[c.chainIndex].UseRevenueShare = enabled
+	c.builder.intent.Chains[c.chainIndex].ChainFeesRecipient = chainFeesRecipient
 }
 
 func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {

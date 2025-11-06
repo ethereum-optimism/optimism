@@ -169,6 +169,11 @@ func (c *Intent) validateStandardValues() error {
 		if len(chain.AdditionalDisputeGames) > 0 {
 			return fmt.Errorf("%w: chainId=%s additionalDisputeGames must be nil", ErrNonStandardValue, chain.ID)
 		}
+		if chain.UseRevenueShare {
+			if chain.ChainFeesRecipient == emptyAddress {
+				return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, chain.ID)
+			}
+		}
 	}
 
 	challenger, _ := standard.ChallengerAddressFor(c.L1ChainID)
@@ -354,6 +359,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L1ProxyAdminOwner: l1ProxyAdminOwner,
 				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
+			UseRevenueShare: standard.UseRevenueShare,
 		})
 	}
 	return intent, nil

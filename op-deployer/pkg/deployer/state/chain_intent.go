@@ -61,6 +61,7 @@ type ChainIntent struct {
 	BaseFeeVaultRecipient      common.Address            `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
 	L1FeeVaultRecipient        common.Address            `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
 	SequencerFeeVaultRecipient common.Address            `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
+	OperatorFeeVaultRecipient  common.Address            `json:"operatorFeeVaultRecipient" toml:"operatorFeeVaultRecipient"`
 	Eip1559DenominatorCanyon   uint64                    `json:"eip1559DenominatorCanyon" toml:"eip1559DenominatorCanyon"`
 	Eip1559Denominator         uint64                    `json:"eip1559Denominator" toml:"eip1559Denominator"`
 	Eip1559Elasticity          uint64                    `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
@@ -72,6 +73,8 @@ type ChainIntent struct {
 	OperatorFeeScalar          uint32                    `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
 	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
 	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
+	UseRevenueShare            bool                      `json:"useRevenueShare,omitempty" toml:"useRevenueShare,omitempty"`
+	ChainFeesRecipient         common.Address            `json:"chainFeesRecipient,omitempty" toml:"chainFeesRecipient,omitempty"`
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 
@@ -94,6 +97,7 @@ var ErrGasLimitZeroValue = fmt.Errorf("chain has a gas limit set to zero value")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
+var ErrRevenueShareZeroAddress = fmt.Errorf("chain has enabled revenue share but recipient is set to zero address")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -116,12 +120,19 @@ func (c *ChainIntent) Check() error {
 
 	if c.BaseFeeVaultRecipient == emptyAddress ||
 		c.L1FeeVaultRecipient == emptyAddress ||
-		c.SequencerFeeVaultRecipient == emptyAddress {
+		c.SequencerFeeVaultRecipient == emptyAddress ||
+		c.OperatorFeeVaultRecipient == emptyAddress {
 		return fmt.Errorf("%w: chainId=%s", ErrFeeVaultZeroAddress, c.ID)
 	}
 
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
+	}
+
+	if c.UseRevenueShare {
+		if c.ChainFeesRecipient == emptyAddress {
+			return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, c.ID)
+		}
 	}
 
 	return nil

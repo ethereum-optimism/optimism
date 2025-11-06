@@ -130,6 +130,8 @@ contract Artifacts {
             return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
         } else if (digest == keccak256(bytes("SuperchainTokenBridge"))) {
             return payable(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        } else if (digest == keccak256(bytes("FeeSplitter"))) {
+            return payable(Predeploys.FEE_SPLITTER);
         }
         return payable(address(0));
     }

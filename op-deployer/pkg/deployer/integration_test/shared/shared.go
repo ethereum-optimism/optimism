@@ -29,6 +29,7 @@ func NewChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 		BaseFeeVaultRecipient:      AddrFor(t, dk, devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
 		L1FeeVaultRecipient:        AddrFor(t, dk, devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
 		SequencerFeeVaultRecipient: AddrFor(t, dk, devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
+		OperatorFeeVaultRecipient:  AddrFor(t, dk, devkeys.OperatorFeeVaultRecipientRole.Key(l1ChainID)),
 		Eip1559DenominatorCanyon:   standard.Eip1559DenominatorCanyon,
 		Eip1559Denominator:         standard.Eip1559Denominator,
 		Eip1559Elasticity:          standard.Eip1559Elasticity,
@@ -42,6 +43,8 @@ func NewChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 			Proposer:          AddrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
 			Challenger:        AddrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
 		},
+		UseRevenueShare:    false,
+		ChainFeesRecipient: common.Address{},
 	}
 }
 
