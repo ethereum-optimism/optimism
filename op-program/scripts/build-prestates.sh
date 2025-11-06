@@ -46,20 +46,7 @@ function build_kona_prestate() {
         git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
         cd kona
     fi
-    mise trust --yes ./mise.toml
-
-    # HACK: the docker buildx version in cci is too old to parse varaible blocks in docker-bake with descriptions
-    # so patch them out
-    if true; then
-      echo "DEBUG: Applying hacks"
-      awk '
-    /^[[:space:]]*variable[[:space:]]*"[^"]+"[[:space:]]*{/ {invar=1}
-    invar && /^[[:space:]]*description[[:space:]]*=/ {next}
-    {print}
-    invar && /^[[:space:]]*}/ {invar=0}
-      ' docker/docker-bake.hcl > docker/docker-bake.patched.hcl
-      cp docker/docker-bake.patched.hcl docker/docker-bake.hcl
-    fi
+    mise use -g just@1.37.0
 
     cd docker/fpvm-prestates
     rm -rf ../../prestate-artifacts-cannon
