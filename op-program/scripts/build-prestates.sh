@@ -46,8 +46,9 @@ function build_kona_prestate() {
         git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
         cd kona
     fi
-    # kona doesn't define a mise dependency. luckily the monorepo does and it should be preinstalled by now. So let's setup just shim.
-    MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just
+    # kona doesn't define a just dependency in its mise config.
+    # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
+    MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
 
     cd docker/fpvm-prestates
     rm -rf ../../prestate-artifacts-cannon
