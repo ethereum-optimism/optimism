@@ -322,7 +322,7 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 //   - {status: SYNCING} when the head block is unknown or not yet validated, or
 //     when block data cannot be retrieved from the execution layer.
 func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTesterSession, logger log.Logger, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, payloadVersion engine.PayloadVersion,
-	isCanyon, isEcotone, isIsthmus, isJovian bool,
+	isCanyon, isEcotone, isIsthmusParam, isJovianParam bool,
 ) (*eth.ForkchoiceUpdatedResult, error) {
 	// Validate attributes shape
 	if attr != nil {
@@ -441,9 +441,12 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		// Implicitly determine whether isthmus is enabled by inspecting withdrawalsRoot from read only EL data
 		// Jovian comes after Isthmus, so if Jovian is active, Isthmus must also be active
 		// Both Isthmus and Jovian require withdrawalsRoot, so we check for it
-		isIsthmus = newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
-		// Note: isJovian is determined separately based on execution layer changes
+		blockIsIsthmus := newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
+		// Note: Jovian is determined separately based on execution layer changes
 		// Jovian uses the same API versions as Isthmus but has different execution layer behavior
+		// For now, we use the parameter passed in, but in practice Jovian would be determined by checking timestamp against JovianTime
+		isIsthmus := blockIsIsthmus
+		isJovian := isJovianParam && blockIsIsthmus
 		// Initialize payload args for sane payload ID
 		// All attr fields already sanity checked
 		args := miner.BuildPayloadArgs{
@@ -624,10 +627,11 @@ func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus, isJ
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))
 	}
 	// Sanity check parent beacon block root and block hash by recomputation
-	if !isIsthmus {
+	// Isthmus and Jovian both require withdrawalsRoot, so we only depopulate if neither is active
+	if !isIsthmus && !isJovian {
 		// Depopulate withdrawal root field for block hash recomputation
 		if payload.WithdrawalsRoot != nil {
-			logger.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
+			logger.Warn("Isthmus/Jovian disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
 		}
 		payload.WithdrawalsRoot = nil
 	}
@@ -686,7 +690,12 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil blobGasUsed pre-cancun"))
 		}
 	}
-	if isIsthmus || isJovian {
+	if isIsthmus {
+		if executionRequests == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil executionRequests post-prague"))
+		}
+	}
+	if isJovian {
 		if executionRequests == nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil executionRequests post-prague"))
 		}
@@ -698,11 +707,22 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("versionedHashes length non-zero: %d", len(versionedHashes)))
 		}
 	}
-	// Isthmus and Jovian both require withdrawalsRoot, but Jovian has additional execution layer changes
-	if isIsthmus || isJovian {
+	// Isthmus requires withdrawalsRoot
+	if isIsthmus {
 		if payload.WithdrawalsRoot == nil {
 			// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#update-to-executionpayload
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+		}
+		if len(executionRequests) != 0 {
+			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv4
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("executionRequests must be empty array but got %d", len(executionRequests)))
+		}
+	}
+	// Jovian has execution layer changes beyond Isthmus and also requires withdrawalsRoot
+	if isJovian {
+		if payload.WithdrawalsRoot == nil {
+			// Jovian requires withdrawalsRoot (inherited from Isthmus)
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-jovian"))
 		}
 		if len(executionRequests) != 0 {
 			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv4
