@@ -308,6 +308,18 @@ func (c Config) Check() error {
 			return err
 		}
 	}
+	if c.TraceTypeEnabled(types.TraceTypeSuperCannonKona) {
+		if c.SupervisorRPC == "" {
+			return ErrMissingSupervisorRpc
+		}
+
+		if len(c.CannonKona.Networks) == 0 && c.CannonKona.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
+		}
+		if err := c.validateBaseCannonKonaOptions(); err != nil {
+			return err
+		}
+	}
 	if c.TraceTypeEnabled(types.TraceTypeCannonKona) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc

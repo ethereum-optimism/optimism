@@ -38,7 +38,7 @@ func createTraceProvider(
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
-	case types.TraceTypeCannonKona:
+	case types.TraceTypeCannonKona, types.TraceTypeSuperCannonKona:
 		serverExecutor := vm.NewKonaExecutor()
 		stateConverter := cannon.NewStateConverter(cfg.CannonKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState, dir, stateConverter)
