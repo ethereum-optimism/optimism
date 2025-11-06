@@ -111,7 +111,7 @@ library ChainAssertions {
         // Depends on start block being set to 0 in `initialize`
         require(config.startBlock() == block.number, "CHECK-SCFG-140");
         require(
-            config.batchInbox() == IOPContractsManager(_doi.opcm).chainIdToBatchInboxAddress(_doi.l2ChainId),
+            config.batchInbox() == (_doi.batchInbox == address(0) ? IOPContractsManager(_doi.opcm).chainIdToBatchInboxAddress(_doi.l2ChainId) : _doi.batchInbox),
             "CHECK-SCFG-150"
         );
         // Check _addresses
