@@ -37,10 +37,6 @@ func (e *EngineFrontend) GetPayloadV4(ctx context.Context, payloadID eth.Payload
 	return e.b.GetPayloadV4(ctx, payloadID)
 }
 
-func (e *EngineFrontend) GetPayloadV5(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return e.b.GetPayloadV5(ctx, payloadID)
-}
-
 func (e *EngineFrontend) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return e.b.ForkchoiceUpdatedV1(ctx, state, attr)
 }
@@ -51,10 +47,6 @@ func (e *EngineFrontend) ForkchoiceUpdatedV2(ctx context.Context, state *eth.For
 
 func (e *EngineFrontend) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return e.b.ForkchoiceUpdatedV3(ctx, state, attr)
-}
-
-func (e *EngineFrontend) ForkchoiceUpdatedV4(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return e.b.ForkchoiceUpdatedV4(ctx, state, attr)
 }
 
 func (e *EngineFrontend) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
@@ -71,8 +63,4 @@ func (e *EngineFrontend) NewPayloadV3(ctx context.Context, payload *eth.Executio
 
 func (e *EngineFrontend) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	return e.b.NewPayloadV4(ctx, payload, versionedHashes, beaconRoot, executionRequests)
-}
-
-func (e *EngineFrontend) NewPayloadV5(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
-	return e.b.NewPayloadV5(ctx, payload, versionedHashes, beaconRoot, executionRequests)
 }
