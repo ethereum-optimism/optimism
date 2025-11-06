@@ -43,10 +43,8 @@ type ChainProofParams struct {
 
 type AdditionalDisputeGame struct {
 	ChainProofParams
-	VMType                       VMType
-	OracleMinProposalSize        uint64
-	OracleChallengePeriodSeconds uint64
-	MakeRespected                bool
+	VMType        VMType
+	MakeRespected bool
 }
 
 type L2DevGenesisParams struct {
