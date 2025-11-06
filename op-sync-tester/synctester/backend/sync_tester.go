@@ -263,6 +263,17 @@ func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) 
 	})
 }
 
+// GetPayloadV5 must be only called when Jovian activated.
+func (s *SyncTester) GetPayloadV5(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+		logger.Debug("GetPayloadV5", "payloadID", payloadID)
+		if !payloadID.Is(engine.PayloadV3) {
+			return nil, engine.UnsupportedFork
+		}
+		return s.getPayload(session, logger, payloadID)
+	})
+}
+
 // getPayload retrieves an execution payload previously initialized by
 // ForkchoiceUpdated engine APIs when valid payload attributes were provided.
 // Retrieved payloads are deleted from the session after being served to
@@ -282,7 +293,7 @@ func (s *SyncTester) getPayload(session *eth.SyncTesterSession, logger log.Logge
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
 		logger.Debug("ForkchoiceUpdatedV1", "state", state, "attr", attr)
-		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV1, false, false)
+		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV1, false, false, false, false)
 	})
 }
 
@@ -290,7 +301,7 @@ func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkcho
 func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
 		logger.Debug("ForkchoiceUpdatedV2", "state", state, "attr", attr)
-		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV2, true, false)
+		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV2, true, false, false, false)
 	})
 }
 
@@ -298,7 +309,15 @@ func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkcho
 func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
 		logger.Debug("ForkchoiceUpdatedV3", "state", state, "attr", attr)
-		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true)
+		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true, false, false)
+	})
+}
+
+// ForkchoiceUpdatedV4 must be only called with Jovian attributes
+func (s *SyncTester) ForkchoiceUpdatedV4(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ForkchoiceUpdatedResult, error) {
+		logger.Debug("ForkchoiceUpdatedV4", "state", state, "attr", attr)
+		return s.forkchoiceUpdated(ctx, session, logger, state, attr, engine.PayloadV3, true, true, true, true)
 	})
 }
 
@@ -320,7 +339,7 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 //   - {status: SYNCING} when the head block is unknown or not yet validated, or
 //     when block data cannot be retrieved from the execution layer.
 func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTesterSession, logger log.Logger, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, payloadVersion engine.PayloadVersion,
-	isCanyon, isEcotone bool,
+	isCanyon, isEcotone, isIsthmus, isJovian bool,
 ) (*eth.ForkchoiceUpdatedResult, error) {
 	// Validate attributes shape
 	if attr != nil {
@@ -437,7 +456,9 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#header-validity-rules
 		// Implicitly determine whether isthmus is enabled by inspecting withdrawalsRoot from read only EL data
-		isIsthmus := newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
+		// Jovian comes after Isthmus, so if Jovian is active, Isthmus must also be active
+		// Both Isthmus and Jovian require withdrawalsRoot, so we check for it
+		isIsthmus = newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
 		// Initialize payload args for sane payload ID
 		// All attr fields already sanity checked
 		args := miner.BuildPayloadArgs{
@@ -461,6 +482,9 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 		if isIsthmus {
 			config.IsthmusTime = new(uint64)
+		}
+		if isJovian {
+			config.JovianTime = new(uint64)
 		}
 		payloadID := args.Id()
 		id = &payloadID
@@ -564,7 +588,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
 		logger.Debug("NewPayloadV1", "payload", payload)
-		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
+		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false, false)
 	})
 }
 
@@ -572,7 +596,7 @@ func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPay
 func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
 		logger.Debug("NewPayloadV2", "payload", payload)
-		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false)
+		return s.newPayload(ctx, session, logger, payload, nil, nil, nil, false, false, false)
 	})
 }
 
@@ -580,7 +604,7 @@ func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPay
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
 		logger.Debug("NewPayloadV3", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot)
-		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, nil, true, false)
+		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, nil, true, false, false)
 	})
 }
 
@@ -588,11 +612,19 @@ func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPay
 func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
 		logger.Debug("NewPayloadV4", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests)
-		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true)
+		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true, false)
 	})
 }
 
-func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool, block *types.Block, payload *eth.ExecutionPayload, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+// NewPayloadV5 must be only called with Jovian payload
+func (s *SyncTester) NewPayloadV5(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.PayloadStatusV1, error) {
+		logger.Debug("NewPayloadV5", "payload", payload, "versionedHashes", versionedHashes, "beaconRoot", beaconRoot, "executionRequests", executionRequests)
+		return s.newPayload(ctx, session, logger, payload, versionedHashes, beaconRoot, executionRequests, true, true, true)
+	})
+}
+
+func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus, isJovian bool, block *types.Block, payload *eth.ExecutionPayload, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	// Already have the block locally or advance single block without setting the head
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 	// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
@@ -603,6 +635,9 @@ func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool
 	}
 	if isIsthmus {
 		config.IsthmusTime = new(uint64)
+	}
+	if isJovian {
+		config.JovianTime = new(uint64)
 	}
 	correctPayload, err := eth.BlockAsPayload(block, config)
 	if err != nil {
@@ -646,7 +681,7 @@ func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool
 //   - Errors surfaced as engine.InvalidParams or engine.GenericServerError to
 //     trigger appropriate consensus-layer retries.
 func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSession, logger log.Logger, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes,
-	isEcotone, isIsthmus bool,
+	isEcotone, isIsthmus, isJovian bool,
 ) (*eth.PayloadStatusV1, error) {
 	// Validate request shape, fork required fields
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
@@ -672,7 +707,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil blobGasUsed pre-cancun"))
 		}
 	}
-	if isIsthmus {
+	if isIsthmus || isJovian {
 		if executionRequests == nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil executionRequests post-prague"))
 		}
@@ -684,7 +719,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("versionedHashes length non-zero: %d", len(versionedHashes)))
 		}
 	}
-	if isIsthmus {
+	if isIsthmus || isJovian {
 		if payload.WithdrawalsRoot == nil {
 			// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#update-to-executionpayload
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
@@ -735,7 +770,13 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 	blockNumber := block.NumberU64()
 	// We only attempt to advance non-canonical view of the chain, following the read only EL
 	if blockNumber <= session.Validated+1 {
-		if status, err := s.validatePayload(logger, isCanyon, isIsthmus, block, payload, beaconRoot); status != nil {
+		// Determine if this is an Isthmus or Jovian block
+		// Jovian comes after Isthmus, so check withdrawalsRoot to determine fork
+		blockIsIsthmus := block.WithdrawalsRoot() != nil && len(*block.WithdrawalsRoot()) == 32
+		// For Jovian, we need to check if it's post-Isthmus. Since Jovian requires Isthmus features,
+		// we can infer Jovian if isJovian flag is set (from the API call) and block has Isthmus features
+		blockIsJovian := isJovian && blockIsIsthmus
+		if status, err := s.validatePayload(logger, isCanyon, blockIsIsthmus, blockIsJovian, block, payload, beaconRoot); status != nil {
 			return status, err
 		}
 		if blockNumber == session.Validated+1 {
