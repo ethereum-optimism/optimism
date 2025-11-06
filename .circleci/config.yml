@@ -2397,6 +2397,11 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+      - cannon-prestate-quick: # needed for sysgo tests (if any package is in-memory)
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - op-acceptance-tests-kurtosis:
           name: kurtosis-simple-nightly
           devnet: simple
