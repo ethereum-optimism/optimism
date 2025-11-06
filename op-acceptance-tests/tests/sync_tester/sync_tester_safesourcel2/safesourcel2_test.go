@@ -48,14 +48,7 @@ func TestSyncTesterSafeSourceL2(gt *testing.T) {
 	sys.L2CL.Reached(types.LocalSafe, target, 30)
 	sys.L2CL2.Reached(types.LocalSafe, target, 30)
 
-	// Verify safe heads match
-	l2CLStatus := sys.L2CL.SyncStatus()
-	l2CL2Status := sys.L2CL2.SyncStatus()
+	sys.L2CL.Matched(sys.L2CL2, types.LocalSafe, 5)
 
-	require.Equal(l2CLStatus.SafeL2.Hash, l2CL2Status.SafeL2.Hash, "Safe heads should match")
-	require.Equal(l2CLStatus.SafeL2.Number, l2CL2Status.SafeL2.Number, "Safe block numbers should match")
-
-	logger.Info("SyncTester SafeSourceL2 test completed successfully",
-		"l2cl_safe", l2CLStatus.SafeL2,
-		"l2cl2_safe", l2CL2Status.SafeL2)
+	logger.Info("SyncTester SafeSourceL2 test completed successfully")
 }
