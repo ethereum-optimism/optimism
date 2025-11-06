@@ -11,8 +11,13 @@ func WithDisputeGameV2() stack.CommonOption {
 }
 
 func WithCannonKona() stack.CommonOption {
-	return stack.MakeCommon(sysgo.WithDeployerOptions(
-		sysgo.WithDevFeatureEnabled(deployer.DeployV2DisputeGamesDevFlag), // Required for cannon kona
-		sysgo.WithDevFeatureEnabled(deployer.CannonKonaDevFlag),
-	))
+	return stack.Combine(
+		// Enable dev features required
+		stack.MakeCommon(sysgo.WithDeployerOptions(
+			sysgo.WithDevFeatureEnabled(deployer.DeployV2DisputeGamesDevFlag), // Required for cannon kona
+			sysgo.WithDevFeatureEnabled(deployer.CannonKonaDevFlag),
+		)),
+		// Add cannon-kona game type
+		stack.MakeCommon(sysgo.WithCannonKonaGameTypeAdded()),
+	)
 }

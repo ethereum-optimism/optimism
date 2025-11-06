@@ -32,11 +32,13 @@ func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) sta
 	}
 }
 
-func WithCannonKonaGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) stack.Option[*Orchestrator] {
+func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
-			addGameType(o, absolutePrestate, types.CannonKonaGameType, l1ELID, l2ChainID)
+			for _, l2ChainID := range o.l2Nets.Keys() {
+				addGameType(o, absolutePrestate, types.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+			}
 		},
 	}
 }
