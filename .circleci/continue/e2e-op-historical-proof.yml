@@ -1,0 +1,59 @@
+name: e2e-op-historical-proof
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: e2e-testsuite
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Verify tools
+        run: |
+          echo "forge: $(command -v forge || true)"
+          go version
+
+      - name: Build contract artifacts with forge
+        working-directory: crates/optimism/tests/proofs/contracts
+        run: |
+          forge build
+
+      - uses: jdx/mise-action@v3
+
+      - name: Run kurtosis
+        run: |
+          kurtosis engine start
+
+      - name: Run DEVNET
+        working-directory: crates/optimism/tests
+        run: |
+          make all
+
+      - name: Run E2E kurtosis tests
+        working-directory: crates/optimism/tests
+        run: |
+          make test-e2e-kurtosis
