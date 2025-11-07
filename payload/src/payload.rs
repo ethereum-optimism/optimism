@@ -16,12 +16,13 @@ use op_alloy_consensus::{encode_holocene_extra_data, encode_jovian_extra_data, E
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
 };
-use reth_chain_state::ExecutedBlock;
 use reth_chainspec::EthChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_payload_builder::{EthPayloadBuilderAttributes, PayloadBuilderError};
-use reth_payload_primitives::{BuildNextEnv, BuiltPayload, PayloadBuilderAttributes};
+use reth_payload_primitives::{
+    BuildNextEnv, BuiltPayload, BuiltPayloadExecutedBlock, PayloadBuilderAttributes,
+};
 use reth_primitives_traits::{
     NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
 };
@@ -176,7 +177,7 @@ pub struct OpBuiltPayload<N: NodePrimitives = OpPrimitives> {
     /// Sealed block
     pub(crate) block: Arc<SealedBlock<N::Block>>,
     /// Block execution data for the payload, if any.
-    pub(crate) executed_block: Option<ExecutedBlock<N>>,
+    pub(crate) executed_block: Option<BuiltPayloadExecutedBlock<N>>,
     /// The fees of the block
     pub(crate) fees: U256,
 }
@@ -189,7 +190,7 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
         id: PayloadId,
         block: Arc<SealedBlock<N::Block>>,
         fees: U256,
-        executed_block: Option<ExecutedBlock<N>>,
+        executed_block: Option<BuiltPayloadExecutedBlock<N>>,
     ) -> Self {
         Self { id, block, fees, executed_block }
     }
@@ -226,7 +227,7 @@ impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {
         self.fees
     }
 
-    fn executed_block(&self) -> Option<ExecutedBlock<N>> {
+    fn executed_block(&self) -> Option<BuiltPayloadExecutedBlock<N>> {
         self.executed_block.clone()
     }
 
