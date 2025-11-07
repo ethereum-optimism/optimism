@@ -992,7 +992,7 @@ func TestEVM_RandomProgram(t *testing.T) {
 			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := testutil.ProgramPath("random", testutil.Go1_24)
+			elfFile := testutil.ProgramPath("random", testutil.Go1_25)
 			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 

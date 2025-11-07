@@ -1,8 +1,6 @@
 module syscalleventfd
 
-go 1.24
-
-toolchain go1.24.2
+go 1.25.4
 
 require common v0.0.0
 
