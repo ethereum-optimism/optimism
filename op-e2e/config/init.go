@@ -54,6 +54,7 @@ const (
 	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
+	AllocTypeFastGame     AllocType = "fast-game"
 
 	DefaultAllocType = AllocTypeMTCannon
 )
@@ -67,14 +68,14 @@ func (a AllocType) Check() error {
 
 func (a AllocType) UsesProofs() bool {
 	switch a {
-	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
+	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA, AllocTypeFastGame:
 		return true
 	default:
 		return false
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
 
 var (
 	// All of the following variables are set in the init function
@@ -242,6 +243,10 @@ func initAllocType(root string, allocType AllocType) {
 					DABondSize:                 1000000,
 					DAResolverRefundPercentage: 0,
 				}
+			}
+			if allocType == AllocTypeFastGame {
+				intent.GlobalDeployOverrides["faultGameMaxClockDuration"] = 1200
+				intent.GlobalDeployOverrides["faultGameClockExtension"] = 1
 			}
 
 			baseUpgradeSchedule := map[string]any{
@@ -422,8 +427,8 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeAbsolutePrestate: defaultPrestate,
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
-							DisputeClockExtension:   1,
-							DisputeMaxClockDuration: 60,
+							DisputeClockExtension:   0,
+							DisputeMaxClockDuration: 1200,
 						},
 						VMType: state.VMTypeAlphabet,
 					},
@@ -433,8 +438,8 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeAbsolutePrestate: cannonPrestate(root, allocType),
 							DisputeMaxGameDepth:     50,
 							DisputeSplitDepth:       14,
-							DisputeClockExtension:   1,
-							DisputeMaxClockDuration: 60,
+							DisputeClockExtension:   0,
+							DisputeMaxClockDuration: 1200,
 						},
 						VMType: cannonVMType(allocType),
 					},

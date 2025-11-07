@@ -9,6 +9,7 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -313,7 +314,7 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 func TestHighestActedL1BlockMetric(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t)
+	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
