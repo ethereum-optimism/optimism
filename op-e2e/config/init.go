@@ -245,7 +245,7 @@ func initAllocType(root string, allocType AllocType) {
 				}
 			}
 			if allocType == AllocTypeFastGame {
-				intent.GlobalDeployOverrides["faultGameMaxClockDuration"] = 1200
+				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
 			}
 
 			baseUpgradeSchedule := map[string]any{
@@ -374,14 +374,14 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"faultGameAbsolutePrestate":                defaultPrestate.Hex(),
 			"faultGameMaxDepth":                        50,
 			"faultGameClockExtension":                  1,
-			"faultGameMaxClockDuration":                60,
+			"faultGameMaxClockDuration":                1200,
 			"faultGameGenesisBlock":                    0,
 			"faultGameGenesisOutputRoot":               genesisOutputRoot.Hex(),
 			"faultGameSplitDepth":                      14,
 			"dangerouslyAllowCustomDisputeParameters":  true,
 			"faultGameWithdrawalDelay":                 604800,
 			"preimageOracleMinProposalSize":            10000,
-			"preimageOracleChallengePeriod":            8,
+			"preimageOracleChallengePeriod":            120,
 			"proofMaturityDelaySeconds":                12,
 			"disputeGameFinalityDelaySeconds":          6,
 		},
@@ -413,8 +413,8 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeAbsolutePrestate: defaultPrestate,
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
-							DisputeClockExtension:   1,
-							DisputeMaxClockDuration: 10,
+							DisputeClockExtension:   8,
+							DisputeMaxClockDuration: 200,
 						},
 						VMType:        state.VMTypeAlphabet,
 						MakeRespected: true,
