@@ -246,7 +246,6 @@ func initAllocType(root string, allocType AllocType) {
 			}
 			if allocType == AllocTypeFastGame {
 				intent.GlobalDeployOverrides["faultGameMaxClockDuration"] = 1200
-				intent.GlobalDeployOverrides["faultGameClockExtension"] = 1
 			}
 
 			baseUpgradeSchedule := map[string]any{
@@ -415,7 +414,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
 							DisputeClockExtension:   1,
-							DisputeMaxClockDuration: 60,
+							DisputeMaxClockDuration: 10,
 						},
 						VMType:        state.VMTypeAlphabet,
 						MakeRespected: true,
