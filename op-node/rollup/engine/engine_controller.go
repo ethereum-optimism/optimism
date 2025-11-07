@@ -525,7 +525,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	if err != nil {
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
-	e.log.Debug("engine.NewPayload returned", "ref", ref, "status", status.Status)
+	e.log.Debug("insertUnsafePayload e.NewPayload returned", "ref", ref, "status", status.Status)
 	if status.Status == eth.ExecutionInvalid {
 		e.emitter.Emit(ctx, PayloadInvalidEvent{
 			Envelope: envelope,
@@ -572,7 +572,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 			return derive.NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
 		}
 	}
-	e.log.Debug("engine.ForkchoiceUpdate returned", "ref", ref, "status", fcRes.PayloadStatus.Status)
+	e.log.Debug("insertUnsafePayload e.ForkchoiceUpdate returned", "ref", ref, "status", fcRes.PayloadStatus.Status)
 	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
 		payload := envelope.ExecutionPayload
 		return derive.NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
