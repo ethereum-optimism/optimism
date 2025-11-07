@@ -16,10 +16,11 @@ type VirtualCLI struct {
 	// this is useful for enforcing defaults or disabling features which aren't supported by the virtual node
 	stringOverrides map[string]string
 	boolOverrides   map[string]bool
+	uintOverrides   map[string]uint
 }
 
 func NewVirtualCLI(base *cli.Context, chainID uint64) *VirtualCLI {
-	return &VirtualCLI{inner: base, chainID: chainID, stringOverrides: make(map[string]string), boolOverrides: make(map[string]bool)}
+	return &VirtualCLI{inner: base, chainID: chainID, stringOverrides: make(map[string]string), boolOverrides: make(map[string]bool), uintOverrides: make(map[string]uint)}
 }
 
 func (v *VirtualCLI) chainName(name string) string {
@@ -38,6 +39,9 @@ func (v *VirtualCLI) IsSet(name string) bool {
 		return true
 	}
 	if _, ok := v.boolOverrides[name]; ok {
+		return true
+	}
+	if _, ok := v.uintOverrides[name]; ok {
 		return true
 	}
 	if v.inner.IsSet(v.chainName(name)) {
@@ -87,6 +91,9 @@ func (v *VirtualCLI) Int(name string) int {
 }
 
 func (v *VirtualCLI) Uint(name string) uint {
+	if val, ok := v.uintOverrides[name]; ok {
+		return val
+	}
 	cName := v.chainName(name)
 	if v.inner.IsSet(cName) {
 		return v.inner.Uint(cName)
@@ -158,5 +165,11 @@ func (v *VirtualCLI) WithStringOverride(name, value string) *VirtualCLI {
 // WithBoolOverride sets a bool override for the given base flag name
 func (v *VirtualCLI) WithBoolOverride(name string, value bool) *VirtualCLI {
 	v.boolOverrides[name] = value
+	return v
+}
+
+// WithUintOverride sets a uint override for the given base flag name
+func (v *VirtualCLI) WithUintOverride(name string, value uint) *VirtualCLI {
+	v.uintOverrides[name] = value
 	return v
 }

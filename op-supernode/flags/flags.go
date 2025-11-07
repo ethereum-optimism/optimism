@@ -45,6 +45,13 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 		Required: false,
 	}
+	DisableP2P = &cli.BoolFlag{
+		Name:     "disable-p2p",
+		Usage:    "Disable P2P for all chains. Affects configuration handed to virtual nodes.",
+		EnvVars:  prefixEnvVars("DISABLE_P2P"),
+		Value:    false,
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -52,7 +59,9 @@ var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 }
 
-var optionalFlags []cli.Flag
+var optionalFlags = []cli.Flag{
+	DisableP2P,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, L1BeaconAddr)
