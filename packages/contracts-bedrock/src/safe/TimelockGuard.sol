@@ -88,13 +88,17 @@ abstract contract TimelockGuard is BaseGuard {
     }
 
     /// @notice Scheduled transaction
+    /// @custom:field txHash The hash of the transaction.
     /// @custom:field executionTime The timestamp when execution becomes valid.
     /// @custom:field state The state of the transaction.
     /// @custom:field params The parameters of the transaction.
+    /// @custom:field nonce The nonce of the transaction.
     struct ScheduledTransaction {
+        bytes32 txHash;
         uint256 executionTime;
         TransactionState state;
         ExecTransactionParams params;
+        uint256 nonce;
     }
 
     /// @notice Parameters for the Safe's execTransaction function
@@ -186,16 +190,16 @@ abstract contract TimelockGuard is BaseGuard {
     /// @param txHash The identifier of the cancelled transaction.
     event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
 
+    /// @notice Emitted when a transaction is executed for a Safe.
+    /// @param safe The Safe whose transaction is executed.
+    /// @param txHash The identifier of the executed transaction.
+    event TransactionExecuted(Safe indexed safe, bytes32 indexed txHash);
+
     /// @notice Emitted when the cancellation threshold is updated
     /// @param safe The Safe whose cancellation threshold is updated.
     /// @param oldThreshold The old cancellation threshold.
     /// @param newThreshold The new cancellation threshold.
     event CancellationThresholdUpdated(Safe indexed safe, uint256 oldThreshold, uint256 newThreshold);
-
-    /// @notice Emitted when a transaction is executed for a Safe.
-    /// @param safe The Safe whose transaction is executed.
-    /// @param txHash The identifier of the executed transaction.
-    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
 
     /// @notice Used to emit a message, primarily to ensure that the cancelTransaction function is
     ///         is not labelled as view so that it is treated as a state-changing function.
@@ -208,13 +212,15 @@ abstract contract TimelockGuard is BaseGuard {
     /// @notice Returns the blocking threshold, which is defined as the minimum number of owners
     ///         that must coordinate to block a transaction from being executed by refusing to
     ///         sign.
+    /// @dev Because `_safe.getOwners()` loops through the owners list, it could run out of gas if
+    ///      there are a lot of owners.
     /// @param _safe The Safe address to query
     /// @return The current blocking threshold
     function _blockingThreshold(Safe _safe) internal view returns (uint256) {
         return _safe.getOwners().length - _safe.getThreshold() + 1;
     }
 
-    /// @notice Internal helper to get the guard address from a Safe
+    /// @notice Internal helper to check if TimelockGuard is enabled for a Safe
     /// @param _safe The Safe address
     /// @return The current guard address
     function _isGuardEnabled(Safe _safe) internal view returns (bool) {
@@ -229,7 +235,7 @@ abstract contract TimelockGuard is BaseGuard {
         return _safeStates[_safe][_safeConfigNonces[_safe]];
     }
 
-    /// @notice Internal helper function which can be overriden in a child contract to check if the
+    /// @notice Internal helper function which can be overridden in a child contract to check if the
     ///         guard's configuration is valid in the context of other extensions that are enabled
     ///         on the Safe.
     function _checkCombinedConfig(Safe _safe) internal view virtual;
@@ -342,7 +348,8 @@ abstract contract TimelockGuard is BaseGuard {
 
         // Limit execution of transactions to owners of the Safe only.
         // This ensures that an attacker cannot simply collect valid signatures, but must also
-        // control a private key.
+        // control a private key. It is accepted as a trade-off that paymasters, relayers or UX
+        // wrappers cannot execute transactions with the TimelockGuard enabled.
         if (!callingSafe.isOwner(_msgSender)) {
             revert TimelockGuard_NotOwner();
         }
@@ -448,8 +455,13 @@ abstract contract TimelockGuard is BaseGuard {
             revert TimelockGuard_InvalidVersion();
         }
 
-        // Validate timelock delay - must not be longer than 1 year
-        if (_timelockDelay > 365 days) {
+        // Check that this guard is enabled on the calling Safe
+        if (!_isGuardEnabled(callingSafe)) {
+            revert TimelockGuard_GuardNotEnabled();
+        }
+
+        // Validate timelock delay - must not be zero or longer than 1 year
+        if (_timelockDelay == 0 || _timelockDelay > 365 days) {
             revert TimelockGuard_InvalidTimelockDelay();
         }
 
@@ -471,6 +483,9 @@ abstract contract TimelockGuard is BaseGuard {
     ///      1. Safe disables the guard via GuardManager.setGuard(address(0)).
     ///      2. Safe calls this clearTimelockGuard() function to remove stored configuration.
     ///      3. If Safe later re-enables the guard, it must call configureTimelockGuard() again.
+    ///      Warning: Clearing the configuration allows all transactions previously scheduled to be
+    ///      scheduled again, including cancelled transactions. It is strongly recommended to
+    ///      manually increment the Safe's nonce when a scheduled transaction is cancelled.
     function clearTimelockGuard() external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -492,6 +507,11 @@ abstract contract TimelockGuard is BaseGuard {
     ///      existing signature generation tools. Owners can use any method to sign the a
     ///      transaction, including signing with a private key, calling the Safe's approveHash
     ///      function, or EIP1271 contract signatures.
+    ///      The Safe doesn't increase its nonce when a transaction is cancelled in the Timelock.
+    ///      This means that it is possible to add the very same transaction a second time to the
+    ///      safe queue, but it won't be possible to schedule it again in the Timelock. It is
+    ///      recommended that the safe nonce is manually incremented when a scheduled transaction
+    ///      is cancelled.
     /// @param _safe The Safe address to schedule the transaction for.
     /// @param _nonce The nonce of the Safe for the transaction being scheduled.
     /// @param _params The parameters of the transaction being scheduled.
@@ -564,8 +584,13 @@ abstract contract TimelockGuard is BaseGuard {
         uint256 executionTime = block.timestamp + _currentSafeState(_safe).timelockDelay;
 
         // Schedule the transaction and add it to the pending transactions set
-        _currentSafeState(_safe).scheduledTransactions[txHash] =
-            ScheduledTransaction({ executionTime: executionTime, state: TransactionState.Pending, params: _params });
+        _currentSafeState(_safe).scheduledTransactions[txHash] = ScheduledTransaction({
+            txHash: txHash,
+            executionTime: executionTime,
+            state: TransactionState.Pending,
+            params: _params,
+            nonce: _nonce
+        });
         _currentSafeState(_safe).pendingTxHashes.add(txHash);
 
         emit TransactionScheduled(_safe, txHash, executionTime);
@@ -585,6 +610,9 @@ abstract contract TimelockGuard is BaseGuard {
     ///      of checkNSignatures is that owners can use any method to sign the cancellation
     ///      transaction inputs, including signing with a private key, calling the Safe's
     ///      approveHash function, or EIP1271 contract signatures.
+    ///
+    ///      It is allowed to cancel transactions from a disabled TimelockGuard, as a way of
+    ///      clearing the queue that wouldn't be as blunt as calling `clearTimelockConfiguration`.
     /// @param _safe The Safe address to cancel the transaction for.
     /// @param _txHash The hash of the transaction being cancelled.
     /// @param _nonce The nonce of the Safe for the transaction being cancelled.

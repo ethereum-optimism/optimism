@@ -44,9 +44,15 @@ l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
   baseFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   l1FeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   sequencerFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
+  operatorFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
   eip1559DenominatorCanyon = 250
   eip1559Denominator = 50
   eip1559Elasticity = 6
+
+  # Revenue Sharing Configuration
+  useRevenueShare = true
+  chainFeesRecipient = "0x0000000000000000000000000000000000000000"
+
   [chains.roles]
     l1ProxyAdminOwner = "0x0000000000000000000000000000000000000000"
     l2ProxyAdminOwner = "0x0000000000000000000000000000000000000000"
@@ -60,20 +66,38 @@ l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
 Before you can use your intent file for a deployment, you will need to update all zero values to whatever is
 appropriate for your chain. For dev environments, it is ok to use all EOAs/hot-wallets.
 
+## Revenue Sharing Configuration
+
+The `useRevenueShare` field controls whether your chain enables the revenue sharing system feature:
+
+- **`useRevenueShare = true`** (default for standard configurations): `FeeVault`s are upgraded and configured to use the `FeeSplitter` contract as the recipient, L2 as withdrawal network and `0` as the minimum withdrawal amount. The split logic is calculated using the `SuperchainRevSharesCalculator` contract. The `L1Withdrawer` contract is set to withdraw the OP portion of fees automatically.
+
+- **`useRevenueShare = false`**: `FeeSplitter` is deployed but initialized with zero address for the `sharesCalculator` field. No deployment is made for the `SuperchainRevSharesCalculator` and `L1Withdrawer` contracts. `FeeVault`s are upgraded but initialized using the custom configuration you provide.
+
+### Configuration Fields
+
+- `useRevenueShare` (optional): Enables or disables the revenue sharing system. Defaults to `true` for standard configurations, `false` for custom.
+- `chainFeesRecipient` (required when `useRevenueShare = true`): Address that receives the chain operator's portion of fee revenue on L2. Must be able to receive ETH.
+
+> **Note**: Since `useRevenueShare` defaults to `true` for standard configurations, you must either provide a `chainFeesRecipient` address OR explicitly set `useRevenueShare = false` to opt out. The deployment will fail validation if revenue sharing is enabled without a recipient.
+
 ## Production Setup
+
 In production environments, you should use a more secure setup with cold-wallet multisigs (e.g. Gnosis Safes) for the following:
-* `baseFeeVaultRecipient`
-* `l1FeeVaultRecipient`
-* `sequencerFeeVaultRecipient`
-* `l1ProxyAdminOwner`
-* `l2ProxyAdminOwner`
-* `systemConfigOwner`
+
+- `baseFeeVaultRecipient`
+- `l1FeeVaultRecipient`
+- `sequencerFeeVaultRecipient`
+- `operatorFeeVaultRecipient`
+- `l1ProxyAdminOwner`
+- `l2ProxyAdminOwner`
+- `systemConfigOwner`
 
 HSMs (hardware security modules) are recommended for the following hot-wallets:
-* `unsafeBlockSigner`
-* `batcher`
-* `proposer`
-* `challenger`
 
+- `unsafeBlockSigner`
+- `batcher`
+- `proposer`
+- `challenger`
 
 [stages]: ../architecture/pipeline.md

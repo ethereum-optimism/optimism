@@ -543,6 +543,11 @@ contract L1FeeVault_Version_Test {
    - MUST pass before creating any PR
 4. Search for any vm.expectRevert() without arguments and fix them
 
+**INTERPRETING CI STATUS:**
+- Only investigate actual code failures: build errors, test failures, lint violations
+- "Code Review Requirements" status = waiting for reviewer approvals, not code issues
+- Test-only changes cannot affect these CI jobs - skip them: `diff-asterisc-bytecode`, `op-program-compat`
+
 **ZERO TOLERANCE - CI FAILURES:**
 - vm.expectRevert() must ALWAYS have arguments: either selector or bytes message
 - ALL tests must pass - no exceptions

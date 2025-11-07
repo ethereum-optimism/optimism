@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -179,7 +179,7 @@ func createGenesisWithIsthmusTimeOffset(forkTimeOffset uint64) *core.Genesis {
 		},
 	}
 
-	deployConfig.ActivateForkAtOffset(rollup.Isthmus, forkTimeOffset)
+	deployConfig.ActivateForkAtOffset(forks.Isthmus, forkTimeOffset)
 
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	if err != nil {

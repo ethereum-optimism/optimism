@@ -95,7 +95,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     Claim cannonPrestate;
 
     /// @notice The CannonKona absolute prestate.
-    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKona")));
+    Claim cannonKonaPrestate = Claim.wrap(bytes32(keccak256("cannonKonaPrestate")));
 
     /// @notice The proposer role set on the PermissionedDisputeGame instance.
     address proposer;
@@ -137,7 +137,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         // address in fork tests but it's fine.
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
-            cannonPrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
             proposer = address(123);
 
             vm.mockCall(
@@ -145,18 +145,10 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
                 abi.encode(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl())
             );
-
-            if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-                vm.mockCall(
-                    address(pdgImpl),
-                    abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
-                    abi.encode(opcm.opcmStandardValidator().challenger())
-                );
-                vm.mockCall(
-                    address(pdgImpl), abi.encodeCall(IPermissionedDisputeGame.proposer, ()), abi.encode(proposer)
-                );
-            }
-
+            DisputeGames.mockGameImplChallenger(
+                disputeGameFactory, GameTypes.PERMISSIONED_CANNON, opcm.opcmStandardValidator().challenger()
+            );
+            DisputeGames.mockGameImplProposer(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, proposer);
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.owner, ()),
@@ -187,11 +179,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
 
         if (isForkTest()) {
             // Load the FaultDisputeGame once, we'll need it later.
-            fdgImpl = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
-
-            // Add the FaultDisputeGame to the DisputeGameFactory.
-            vm.prank(disputeGameFactory.owner());
-            disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdgImpl)));
+            fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         } else {
             // Deploy a permissionless FaultDisputeGame.
             IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);

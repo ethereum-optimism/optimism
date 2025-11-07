@@ -119,6 +119,9 @@ library Predeploys {
     /// @notice Address of the LiquidityController predeploy.
     address internal constant LIQUIDITY_CONTROLLER = 0x420000000000000000000000000000000000002a;
 
+    /// @notice Address of the FeeSplitter predeploy.
+    address internal constant FEE_SPLITTER = 0x420000000000000000000000000000000000002B;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
@@ -153,6 +156,7 @@ library Predeploys {
         if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
         if (_addr == LIQUIDITY_CONTROLLER) return "LiquidityController";
         if (_addr == NATIVE_ASSET_LIQUIDITY) return "NativeAssetLiquidity";
+        if (_addr == FEE_SPLITTER) return "FeeSplitter";
         revert("Predeploys: unnamed predeploy");
     }
 
@@ -178,7 +182,7 @@ library Predeploys {
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN
+            || _addr == GOVERNANCE_TOKEN || _addr == FEE_SPLITTER
             || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
             || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             || (_isCustomGasToken && _addr == LIQUIDITY_CONTROLLER)

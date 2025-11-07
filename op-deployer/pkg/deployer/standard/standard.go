@@ -3,17 +3,15 @@ package standard
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
-	"github.com/ethereum/go-ethereum/superchain"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 const (
@@ -35,6 +33,8 @@ const (
 	Eip1559Denominator              uint64 = 50
 	Eip1559Elasticity               uint64 = 6
 
+	UseRevenueShare = true
+
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
@@ -44,6 +44,9 @@ const (
 	ContractsV410Tag        = "op-contracts/v4.1.0"
 	CurrentTag              = ContractsV410Tag
 )
+
+// TODO(#17505): This address should be updated to the actual address once deployed
+var L1FeesDepositor = common.HexToAddress("0x81c01427DFA9A2512b4EBf1462868856BA4aA91a")
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 
@@ -180,13 +183,13 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	case ContractsV160Tag, ContractsV170Beta1L2Tag:
 		return sched
 	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
+		sched.ActivateForkAtGenesis(forks.Holocene)
 	case ContractsV400Tag, ContractsV410Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	default:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	}
 
 	return sched

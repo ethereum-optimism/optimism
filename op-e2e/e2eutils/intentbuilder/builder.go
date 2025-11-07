@@ -15,10 +15,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -53,6 +53,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithRevenueShare(enabled bool, chainFeesRecipient common.Address)
 	WithCustomGasToken(enabled bool, name string, symbol string, initialLiquidity *big.Int)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -72,6 +73,7 @@ type L2VaultsConfigurator interface {
 	WithBaseFeeVaultRecipient(address common.Address)
 	WithSequencerFeeVaultRecipient(address common.Address)
 	WithL1FeeVaultRecipient(address common.Address)
+	WithOperatorFeeVaultRecipient(address common.Address)
 }
 
 type L2RolesConfigurator interface {
@@ -93,8 +95,8 @@ type L2FeesConfigurator interface {
 }
 
 type L2HardforkConfigurator interface {
-	WithForkAtGenesis(fork rollup.ForkName)
-	WithForkAtOffset(fork rollup.ForkName, offset *uint64)
+	WithForkAtGenesis(fork forks.Name)
+	WithForkAtOffset(fork forks.Name, offset *uint64)
 }
 
 type Builder interface {
@@ -116,6 +118,7 @@ func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Config
 	configurator.WithBaseFeeVaultRecipient(addrFor(devkeys.BaseFeeVaultRecipientRole))
 	configurator.WithSequencerFeeVaultRecipient(addrFor(devkeys.SequencerFeeVaultRecipientRole))
 	configurator.WithL1FeeVaultRecipient(addrFor(devkeys.L1FeeVaultRecipientRole))
+	configurator.WithOperatorFeeVaultRecipient(addrFor(devkeys.OperatorFeeVaultRecipientRole))
 }
 
 func WithDevkeyL2Roles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -381,6 +384,10 @@ func (c *l2Configurator) WithL1FeeVaultRecipient(address common.Address) {
 	c.builder.intent.Chains[c.chainIndex].L1FeeVaultRecipient = address
 }
 
+func (c *l2Configurator) WithOperatorFeeVaultRecipient(address common.Address) {
+	c.builder.intent.Chains[c.chainIndex].OperatorFeeVaultRecipient = address
+}
+
 func (c *l2Configurator) WithL1ProxyAdminOwner(address common.Address) {
 	c.builder.intent.Chains[c.chainIndex].Roles.L1ProxyAdminOwner = address
 }
@@ -442,10 +449,10 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].OperatorFeeConstant = value
 }
 
-func (c *l2Configurator) WithForkAtGenesis(fork rollup.ForkName) {
+func (c *l2Configurator) WithForkAtGenesis(fork forks.Name) {
 	var future bool
-	for _, refFork := range rollup.AllForks {
-		if refFork == rollup.Bedrock {
+	for _, refFork := range forks.All {
+		if refFork == forks.Bedrock {
 			continue
 		}
 
@@ -461,8 +468,8 @@ func (c *l2Configurator) WithForkAtGenesis(fork rollup.ForkName) {
 	}
 }
 
-func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) {
-	require.True(c.t, rollup.IsValidFork(fork))
+func (c *l2Configurator) WithForkAtOffset(fork forks.Name, offset *uint64) {
+	require.True(c.t, forks.IsValid(fork))
 	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
 
 	if offset == nil {
@@ -471,6 +478,11 @@ func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) 
 		// The typing is important, or op-deployer merge-JSON tricks will fail
 		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 	}
+}
+
+func (c *l2Configurator) WithRevenueShare(enabled bool, chainFeesRecipient common.Address) {
+	c.builder.intent.Chains[c.chainIndex].UseRevenueShare = enabled
+	c.builder.intent.Chains[c.chainIndex].ChainFeesRecipient = chainFeesRecipient
 }
 
 func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {

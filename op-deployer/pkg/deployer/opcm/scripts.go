@@ -15,7 +15,6 @@ type Scripts struct {
 	DeployImplementations DeployImplementationsScript
 	DeployMIPS            DeployMIPSScript
 	DeployPreimageOracle  DeployPreimageOracleScript
-	DeployProxy           DeployProxyScript
 	DeploySuperchain      DeploySuperchainScript
 	DeployOPChain         DeployOPChainScript
 }
@@ -63,11 +62,6 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 		return nil, fmt.Errorf("failed to load DeployPreimageOracle script: %w", err)
 	}
 
-	deployProxy, err := NewDeployProxyScript(host)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load DeployProxy script: %w", err)
-	}
-
 	deployOPChain, err := NewDeployOPChainScript(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
@@ -80,7 +74,6 @@ func NewScripts(host *script.Host) (*Scripts, error) {
 		DeployDisputeGame:     deployDisputeGame,
 		DeployMIPS:            deployMIPSScript,
 		DeployPreimageOracle:  deployPreimageOracle,
-		DeployProxy:           deployProxy,
 		DeployImplementations: deployImplementations,
 		DeploySuperchain:      deploySuperchain,
 		DeployOPChain:         deployOPChain,

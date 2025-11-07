@@ -390,8 +390,3 @@ Certain types of tests are excluded from standard naming conventions:
 - **Library tests** (`test/libraries/`): May have different artifact structures
 - **Formal verification** (`test/kontrol/`): Use specialized tooling conventions
 - **Vendor tests** (`test/vendor/`): Test external code with different patterns
-
-## Withdrawing From Fee Vaults
-
-See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
-instructions on how to run it. `foundry` is required.

@@ -263,7 +263,12 @@
           },
           {
             "internalType": "Claim",
-            "name": "absolutePrestate",
+            "name": "cannonPrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "Claim",
+            "name": "cannonKonaPrestate",
             "type": "bytes32"
           }
         ],

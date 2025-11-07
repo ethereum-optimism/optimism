@@ -56,6 +56,18 @@ var (
 		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
 		Value:   standard.DisputeAbsolutePrestate.Hex(),
 	}
+	DisputeAbsolutePrestateCannonFlag = &cli.StringFlag{
+		Name:    "dispute-absolute-prestate-cannon",
+		Usage:   "The absolute prestate hash for the CANNON dispute game. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON"),
+		Value:   standard.DisputeAbsolutePrestate.Hex(),
+	}
+	DisputeAbsolutePrestateCannonKonaFlag = &cli.StringFlag{
+		Name:    "dispute-absolute-prestate-cannon-kona",
+		Usage:   "The absolute prestate hash for the CANNON_KONA dispute game. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE_CANNON_KONA"),
+		Value:   standard.DisputeAbsolutePrestate.Hex(),
+	}
 	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
 		Name:    "dispute-max-game-depth",
 		Usage:   "Maximum depth of the dispute game tree (value as string). Defaults to the standard value.",
@@ -176,7 +188,8 @@ var Commands = cli.Commands{
 			//
 			SystemConfigProxyFlag,
 			OPChainProxyAdminFlag,
-			DisputeAbsolutePrestateFlag,
+			DisputeAbsolutePrestateCannonFlag,
+			DisputeAbsolutePrestateCannonKonaFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: MigrateCLI,
 	},
