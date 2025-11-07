@@ -694,8 +694,7 @@ func (c *Config) ForkchoiceUpdatedVersion(attr *eth.PayloadAttributes) eth.Engin
 
 // NewPayloadVersion returns the EngineAPIMethod suitable for the chain hard fork version.
 func (c *Config) NewPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
-	if c.IsIsthmus(timestamp) || c.IsJovian(timestamp) {
-		// Jovian uses the same API version as Isthmus
+	if c.IsIsthmus(timestamp) {
 		return eth.NewPayloadV4
 	} else if c.IsEcotone(timestamp) {
 		// Cancun
@@ -707,8 +706,7 @@ func (c *Config) NewPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
 
 // GetPayloadVersion returns the EngineAPIMethod suitable for the chain hard fork version.
 func (c *Config) GetPayloadVersion(timestamp uint64) eth.EngineAPIMethod {
-	if c.IsIsthmus(timestamp) || c.IsJovian(timestamp) {
-		// Jovian uses the same API version as Isthmus
+	if c.IsIsthmus(timestamp) {
 		return eth.GetPayloadV4
 	} else if c.IsEcotone(timestamp) {
 		// Cancun
