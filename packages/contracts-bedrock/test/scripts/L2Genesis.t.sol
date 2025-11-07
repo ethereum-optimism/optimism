@@ -374,6 +374,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         input.useCustomGasToken = true;
         input.gasPayingTokenName = "Custom Gas Token";
         input.gasPayingTokenSymbol = "CGT";
+        input.useRevenueShare = false;
     }
 
     /// @notice Tests that the run function succeeds when CGT is enabled.
@@ -384,7 +385,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
 
         testProxyAdmin();
         testPredeploys();
-        testVaults();
+        testVaultsWithoutRevenueShare();
         testGovernance();
         testFactories();
         testForks();
@@ -403,7 +404,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_baseFeeVault_reverts() external {
         _setInputCGTEnabled();
         input.baseFeeVaultWithdrawalNetwork = 0;
-        vm.expectRevert("BaseFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
     }
 
@@ -411,7 +412,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_l1FeeVault_reverts() external {
         _setInputCGTEnabled();
         input.l1FeeVaultWithdrawalNetwork = 0;
-        vm.expectRevert("L1FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
     }
 

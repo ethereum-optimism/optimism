@@ -441,6 +441,7 @@ contract L2Genesis is Script {
         _setFeeVault({
             _vaultAddr: Predeploys.OPERATOR_FEE_VAULT,
             _useRevenueShare: _input.useRevenueShare,
+            _useCustomGasToken: _input.useCustomGasToken,
             _recipient: _input.operatorFeeVaultRecipient,
             _minWithdrawalAmount: _input.operatorFeeVaultMinimumWithdrawalAmount,
             _withdrawalNetwork: Types.WithdrawalNetwork(_input.operatorFeeVaultWithdrawalNetwork)
@@ -692,6 +693,7 @@ contract L2Genesis is Script {
     function _setFeeVault(
         address _vaultAddr,
         bool _useRevenueShare,
+        bool _useCustomGasToken,
         address _recipient,
         uint256 _minWithdrawalAmount,
         Types.WithdrawalNetwork _withdrawalNetwork

@@ -310,6 +310,11 @@ contract DeployConfig is Script {
         sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
     }
 
+    /// @notice Allow the `operatorFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setOperatorFeeVaultWithdrawalNetwork(uint256 _operatorFeeVaultWithdrawalNetwork) public {
+        operatorFeeVaultWithdrawalNetwork = _operatorFeeVaultWithdrawalNetwork;
+    }
+
     function latestGenesisFork() internal view returns (Fork) {
         if (l2GenesisJovianTimeOffset == 0) {
             return Fork.JOVIAN;

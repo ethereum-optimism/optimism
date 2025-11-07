@@ -57,6 +57,7 @@ contract L2ToL1MessagePasser_Receive_Test is CommonTest {
 contract L2ToL1MessagePasser_Burn_Test is CommonTest {
     /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
     function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
         vm.deal(address(this), _value);
 
         l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
@@ -212,15 +213,5 @@ contract L2ToL1MessagePasser_MessageNonce_Test is CommonTest {
         // Version is stored in bits 240-255 (upper 2 bytes of uint256)
         uint256 version = nonce >> 240;
         assertEq(version, 1);
-    }
-}
-
-/// @title L2ToL1MessagePasser_Burn_Test
-/// @notice Tests the `burn` function of the `L2ToL1MessagePasser` contract.
-contract L2ToL1MessagePasser_Burn_Test is CommonTest {
-    /// @notice Tests that `burn` succeeds and destroys the ETH held in the contract.
-    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-        vm.deal(address(this), _value);
     }
 }

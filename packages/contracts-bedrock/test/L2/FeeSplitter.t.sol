@@ -161,7 +161,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
 
         vm.prank(_caller);
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _amount }("");
+        assembly {
+            pop(call(gas(), sload(feeSplitter.slot), _amount, 0, 0, 0, 0))
+        }
     }
 
     /// @notice Test receive function from non-approved vault reverts even during disbursement
@@ -177,7 +179,9 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
 
         // Now we test the actual sender validation
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _amount }("");
+        assembly {
+            pop(call(gas(), sload(feeSplitter.slot), _amount, 0, 0, 0, 0))
+        }
     }
 
     /// @notice Test receive function works during disbursement from SequencerFeeVault
@@ -659,7 +663,9 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         // Attempt to send ETH from the vault - should revert because transient storage was cleared
         vm.prank(_vault);
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _attemptAmount }("");
+        assembly {
+            pop(call(gas(), sload(feeSplitter.slot), _attemptAmount, 0, 0, 0, 0))
+        }
     }
 }
 

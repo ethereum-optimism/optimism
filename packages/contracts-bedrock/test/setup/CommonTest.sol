@@ -95,6 +95,7 @@ abstract contract CommonTest is Test, Setup, Events {
             deploy.cfg().setBaseFeeVaultWithdrawalNetwork(1);
             deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
             deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setOperatorFeeVaultWithdrawalNetwork(1);
         }
 
         if (isForkTest()) {
