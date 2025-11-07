@@ -575,6 +575,7 @@ func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := defaultMinimalSystemOpts(&ids, dest)
 	opt.Add(WithCannonGameTypeAdded(ids.L1EL, ids.L2.ChainID()))
+	opt.Add(WithCannonKonaGameTypeAdded())
 	return opt
 }
 

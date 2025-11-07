@@ -132,30 +132,17 @@ contract OPContractsManagerV2_TestInit is CommonTest, DisputeGames {
         }
 
         // Run the StandardValidator checks on the newly deployed chain.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: cts_.systemConfig,
-                    cannonPrestate: cannonPrestate.raw(),
-                    cannonKonaPrestate: cannonKonaPrestate.raw(),
-                    l2ChainID: _deployConfig.l2ChainId,
-                    proposer: deployProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: cts_.systemConfig,
-                    absolutePrestate: cannonPrestate.raw(),
-                    l2ChainID: _deployConfig.l2ChainId,
-                    proposer: deployProposer
-                }),
-                false,
-                validationOverrides
-            );
-        }
+        validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: cts_.systemConfig,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                l2ChainID: _deployConfig.l2ChainId,
+                proposer: deployProposer
+            }),
+            false,
+            validationOverrides
+        );
 
         return cts_;
     }
@@ -275,7 +262,7 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         );
         v2UpgradeInput.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
-                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+                enabled: true,
                 initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
@@ -396,30 +383,17 @@ contract OPContractsManagerV2_Upgrade_TestInit is OPContractsManagerV2_TestInit 
         }
 
         // Run the StandardValidator checks.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: v2UpgradeInput.systemConfig,
-                    cannonPrestate: cannonPrestate.raw(),
-                    cannonKonaPrestate: cannonKonaPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: v2UpgradeInput.systemConfig,
-                    absolutePrestate: cannonPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        }
+        validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInputDev({
+                sysCfg: v2UpgradeInput.systemConfig,
+                cannonPrestate: cannonPrestate.raw(),
+                cannonKonaPrestate: cannonKonaPrestate.raw(),
+                l2ChainID: l2ChainId,
+                proposer: initialProposer
+            }),
+            false,
+            validationOverrides
+        );
     }
 
     /// @notice Executes all past upgrades that have not yet been executed on mainnet as of the
@@ -897,8 +871,8 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
         );
         deployConfig.disputeGameConfigs.push(
             IOPContractsManagerV2.DisputeGameConfig({
-                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
-                initBond: isDevFeatureEnabled(DevFeatures.CANNON_KONA) ? 0.08 ether : 0, // Standard init bond
+                enabled: true,
+                initBond: 0.08 ether, // Standard init bond
                 gameType: GameTypes.CANNON_KONA,
                 gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
             })
