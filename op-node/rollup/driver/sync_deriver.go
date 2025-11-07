@@ -238,6 +238,9 @@ func (s *SyncDeriver) SyncStep() {
 		// unsafe head to progress at max speed via P2P gossip.
 		s.Log.Debug("Skipping derivation pipeline because using L2 safe source.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
+		if (s.Engine.UnsafeL2Head() == eth.L2BlockRef{}) {
+			s.Emitter.Emit(s.Ctx, rollup.ResetEvent{Err: errors.New("reset for initializing engine unsafe head")})
+		}
 		return
 	}
 
