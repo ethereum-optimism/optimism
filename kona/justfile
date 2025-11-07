@@ -1,7 +1,7 @@
 KONA_DIR := `realpath .`
-KONA_VERSION := "kona-client/v1.2.0"
-KONA_PRESTATE_HASH := "0x03723aeb1fe69eebd6b0155a4570f5944e9a2c1d918183a014b6da2fc2d1b5e5"
-KONA_INTEROP_PRESTATE_HASH := "0x03dd682a7c55084b42c4f4711f2c501126ed8dc05808c7ef19537dbf57bcbed7"
+KONA_VERSION := "kona-client/v1.2.2"
+KONA_PRESTATE_HASH := "0x03e183aa55db11aba6c1f2f7adccad15411d44fb54285e104cb73468927de0e7"
+KONA_INTEROP_PRESTATE_HASH := "0x033f554908ed264b81963ad6bf8a856c7c114af950df5a6fff67c5db85886083"
 
 default: build-all
 
@@ -67,6 +67,7 @@ checkout-kona:
     cd "${DIR}"
     if [[ -d kona ]]; then
       cd kona
+      git fetch origin
       git checkout -f "{{KONA_VERSION}}"
       git reset --hard HEAD
     else
