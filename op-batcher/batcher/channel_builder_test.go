@@ -847,6 +847,54 @@ func TestChannelBuilder_OldestL1Origin(t *testing.T) {
 	require.Equal(t, uint64(1), cb.OldestL1Origin().Number)
 }
 
+// TestChannelBuilder_OldestL1Origin_Regression tests the bug fix where oldestL1Origin
+// was incorrectly compared with latestL1Origin instead of oldestL1Origin itself.
+//
+// The bug: The original code compared l1info.Number < c.latestL1Origin.Number, which
+// is incorrect because:
+// 1. It breaks consistency with oldestL2 tracking logic (which compares with oldestL2)
+// 2. It can lead to incorrect behavior when latestL1Origin and oldestL1Origin diverge
+//
+// This test demonstrates that when adding blocks with varying L1 origins, oldestL1Origin
+// correctly tracks the minimum L1 origin by comparing with itself (oldestL1Origin),
+// not with latestL1Origin.
+func TestChannelBuilder_OldestL1Origin_Regression(t *testing.T) {
+	cb, err := newChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{}, cb.OldestL1Origin())
+	require.Equal(t, eth.BlockID{}, cb.LatestL1Origin())
+
+	// Add block with L1 origin 3
+	// This sets both oldestL1Origin and latestL1Origin to 3
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 3, 100)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), cb.OldestL1Origin().Number, "oldestL1Origin should be 3 after first block")
+	require.Equal(t, uint64(3), cb.LatestL1Origin().Number, "latestL1Origin should be 3 after first block")
+
+	// Add block with L1 origin 2 (smaller than current oldestL1Origin)
+	// This should update oldestL1Origin to 2, but latestL1Origin should remain 3
+	// With the bug (comparing with latestL1Origin): 2 < 3 would still work in this case,
+	// but the logic is incorrect because we should compare with oldestL1Origin for consistency.
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 2, 110)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), cb.OldestL1Origin().Number, "oldestL1Origin should update to 2 when adding block with smaller L1 origin")
+	require.Equal(t, uint64(3), cb.LatestL1Origin().Number, "latestL1Origin should remain 3")
+
+	// Add block with L1 origin 4 (larger than current latestL1Origin)
+	// This should update latestL1Origin to 4, but oldestL1Origin should remain 2
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 4, 120)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), cb.OldestL1Origin().Number, "oldestL1Origin should remain 2")
+	require.Equal(t, uint64(4), cb.LatestL1Origin().Number, "latestL1Origin should update to 4")
+
+	// Add another block with L1 origin 1 (even smaller)
+	// This should update oldestL1Origin to 1
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(4), common.Hash{}, 1, 130)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), cb.OldestL1Origin().Number, "oldestL1Origin should update to 1 when adding block with even smaller L1 origin")
+	require.Equal(t, uint64(4), cb.LatestL1Origin().Number, "latestL1Origin should remain 4")
+}
+
 func TestChannelBuilder_LatestL2(t *testing.T) {
 	cb, err := newChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
