@@ -99,8 +99,7 @@ contract DeployFeesDepositor is Script {
         );
 
         vm.broadcast(deployer);
-        IProxy(_feesDepositorProxy)
-            .upgradeToAndCall({ _implementation: address(_feesDepositorImpl), _data: initData });
+        IProxy(_feesDepositorProxy).upgradeToAndCall({ _implementation: address(_feesDepositorImpl), _data: initData });
     }
 
     /// @notice Transfers the ownership of the proxy to the final proxy.
@@ -143,4 +142,3 @@ contract DeployFeesDepositor is Script {
         console.log("================================");
     }
 }
-
