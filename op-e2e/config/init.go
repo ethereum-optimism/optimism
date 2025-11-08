@@ -245,7 +245,7 @@ func initAllocType(root string, allocType AllocType) {
 				}
 			}
 			if allocType == AllocTypeFastGame {
-				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 8
+				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
 			}
 
 			baseUpgradeSchedule := map[string]any{
