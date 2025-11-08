@@ -15,14 +15,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 /// @title DeployFeesDepositor
 /// @notice Script used to deploy and initialize the FeesDepositor contract.
 contract DeployFeesDepositor is Script {
-    /// @notice Output addresses from deployment.
-    struct Output {
-        /// @notice The deployed FeesDepositor implementation address.
-        address feesDepositorImpl;
-        /// @notice The deployed FeesDepositor proxy address.
-        address feesDepositorProxy;
-    }
-
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
 
     address deployer;
@@ -33,7 +25,6 @@ contract DeployFeesDepositor is Script {
     /// @param _l2Recipient The L2 recipient of the fees.
     /// @param _messenger The L1CrossDomainMessenger contract address.
     /// @param _gasLimit The gas limit for the deposit transaction.
-    /// @return output_ The deployment output addresses.
     function run(
         address _proxyAdmin,
         uint96 _minDepositAmount,
@@ -42,57 +33,50 @@ contract DeployFeesDepositor is Script {
         uint32 _gasLimit
     )
         public
-        returns (Output memory output_)
+        returns (IFeesDepositor feesDepositorImpl, IProxy feesDepositorProxy)
     {
         deployer = msg.sender;
 
         assertValidInput(_proxyAdmin, _l2Recipient, _messenger, _minDepositAmount, _gasLimit);
 
         // Deploy the implementation.
-        deployImplementation(output_);
+        IFeesDepositor impl = deployImplementation();
 
         // Deploy the proxy.
-        deployProxy(_proxyAdmin, output_);
+        IProxy proxy = deployProxy();
 
         // Initialize the proxy.
-        initializeProxy(_minDepositAmount, _l2Recipient, _messenger, _gasLimit, output_);
+        initializeProxy(proxy, impl, _minDepositAmount, _l2Recipient, _messenger, _gasLimit);
 
         // Transfer the ownership of the proxy to the final proxy.
-        transferToFinalProxyAdmin(_proxyAdmin, output_);
+        transferToFinalProxyAdmin(_proxyAdmin, proxy);
 
         // Log the results.
-        logResults(output_);
+        logResults(impl, proxy);
+
+        return (impl, proxy);
     }
 
     /// @notice Deploys the FeesDepositor implementation contract.
-    /// @param _output The output struct to populate.
-    function deployImplementation(Output memory _output) internal {
-        FeesDepositor impl = FeesDepositor(
+    function deployImplementation() internal returns (IFeesDepositor) {
+        return IFeesDepositor(
             DeployUtils.createDeterministic({
                 _name: "FeesDepositor",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IFeesDepositor.__constructor__, ())),
                 _salt: _salt
             })
         );
-
-        vm.label(address(impl), "FeesDepositorImpl");
-        _output.feesDepositorImpl = address(impl);
     }
 
     /// @notice Deploys the Proxy contract for FeesDepositor.
-    /// @param _proxyAdmin The address that will be the admin of the proxy.
-    /// @param _output The output struct to populate.
-    function deployProxy(address _proxyAdmin, Output memory _output) internal {
-        IProxy proxy = IProxy(
+    function deployProxy() internal returns (IProxy) {
+        return IProxy(
             DeployUtils.createDeterministic({
                 _name: "Proxy",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (deployer))),
                 _salt: _salt
             })
         );
-
-        vm.label(address(proxy), "FeesDepositorProxy");
-        _output.feesDepositorProxy = address(proxy);
     }
 
     /// @notice Initializes the FeesDepositor proxy contract.
@@ -100,34 +84,30 @@ contract DeployFeesDepositor is Script {
     /// @param _l2Recipient The L2 recipient of the fees.
     /// @param _messenger The L1CrossDomainMessenger contract address.
     /// @param _gasLimit The gas limit for the deposit transaction.
-    /// @param _output The deployment output addresses.
     function initializeProxy(
+        IProxy _feesDepositorProxy,
+        IFeesDepositor _feesDepositorImpl,
         uint96 _minDepositAmount,
         address _l2Recipient,
         address _messenger,
-        uint32 _gasLimit,
-        Output memory _output
+        uint32 _gasLimit
     )
         internal
     {
         bytes memory initData = abi.encodeCall(
-            FeesDepositor.initialize, (_minDepositAmount, _l2Recipient, IL1CrossDomainMessenger(_messenger), _gasLimit)
+            IFeesDepositor.initialize, (_minDepositAmount, _l2Recipient, IL1CrossDomainMessenger(_messenger), _gasLimit)
         );
 
-        console.log("Proxy admin:", deployer);
-        console.logBytes32(
-            vm.load(address(_output.feesDepositorProxy), bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1))
-        );
         vm.broadcast(deployer);
-        IProxy(payable(_output.feesDepositorProxy))
-            .upgradeToAndCall({ _implementation: _output.feesDepositorImpl, _data: initData });
+        IProxy(_feesDepositorProxy)
+            .upgradeToAndCall({ _implementation: address(_feesDepositorImpl), _data: initData });
     }
 
     /// @notice Transfers the ownership of the proxy to the final proxy.
     /// @param _proxyAdmin The address that will be the admin of the proxy.
-    function transferToFinalProxyAdmin(address _proxyAdmin, Output memory _output) internal {
+    function transferToFinalProxyAdmin(address _proxyAdmin, IProxy _feesDepositorProxy) internal {
         vm.broadcast(deployer);
-        IProxy(payable(_output.feesDepositorProxy)).changeAdmin(_proxyAdmin);
+        _feesDepositorProxy.changeAdmin(_proxyAdmin);
     }
 
     /// @notice Validates the input parameters.
@@ -154,11 +134,12 @@ contract DeployFeesDepositor is Script {
     }
 
     /// @notice Logs the deployment results.
-    /// @param _output The deployment output addresses.
-    function logResults(Output memory _output) internal view {
+    /// @param _feesDepositorImpl The deployed FeesDepositor implementation address.
+    /// @param _feesDepositorProxy The deployed FeesDepositor proxy address.
+    function logResults(IFeesDepositor _feesDepositorImpl, IProxy _feesDepositorProxy) internal view {
         console.log("=== FeesDepositor Deployment ===");
-        console.log("Implementation:", _output.feesDepositorImpl);
-        console.log("Proxy:", _output.feesDepositorProxy);
+        console.log("Implementation:", address(_feesDepositorImpl));
+        console.log("Proxy:", address(_feesDepositorProxy));
         console.log("================================");
     }
 }

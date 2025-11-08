@@ -43,29 +43,29 @@ contract DeployFeesDepositor_Test is Test {
         vm.assume(_gasLimit > 0);
 
         // Run the deployment script.
-        DeployFeesDepositor.Output memory output1 =
+        (IFeesDepositor feesDepositorImpl, IProxy feesDepositorProxy) =
             deployFeesDepositor.run(_proxyAdmin, _minDepositAmount, _l2Recipient, _messenger, _gasLimit);
 
         // Verify the implementation is deployed correctly.
         FeesDepositor impl = new FeesDepositor();
-        assertEq(output1.feesDepositorImpl.code, address(impl).code, "Implementation code mismatch");
+        assertEq(address(feesDepositorImpl).code, address(impl).code, "Implementation code mismatch");
 
         // Verify the proxy is deployed correctly.
         Proxy proxy = new Proxy(_proxyAdmin);
-        assertEq(output1.feesDepositorProxy.code, address(proxy).code, "Proxy code mismatch");
+        assertEq(address(feesDepositorProxy).code, address(proxy).code, "Proxy code mismatch");
 
         // Verify the proxy admin is set correctly.
-        assertEq(EIP1967Helper.getAdmin(output1.feesDepositorProxy), _proxyAdmin, "Proxy admin mismatch");
+        assertEq(EIP1967Helper.getAdmin(address(feesDepositorProxy)), _proxyAdmin, "Proxy admin mismatch");
 
         // Verify the proxy implementation is set correctly.
         assertEq(
-            EIP1967Helper.getImplementation(output1.feesDepositorProxy),
-            output1.feesDepositorImpl,
+            EIP1967Helper.getImplementation(address(feesDepositorProxy)),
+            address(feesDepositorImpl),
             "Proxy implementation mismatch"
         );
 
         // Verify the FeesDepositor is initialized correctly.
-        FeesDepositor feesDepositor = FeesDepositor(payable(output1.feesDepositorProxy));
+        FeesDepositor feesDepositor = FeesDepositor(payable(address(feesDepositorProxy)));
         assertEq(feesDepositor.minDepositAmount(), _minDepositAmount, "MinDepositAmount mismatch");
         assertEq(feesDepositor.l2Recipient(), _l2Recipient, "L2Recipient mismatch");
         assertEq(address(feesDepositor.messenger()), _messenger, "Messenger mismatch");
@@ -103,20 +103,20 @@ contract DeployFeesDepositor_Test is Test {
     }
 
     function test_run_defaultInput_succeeds() public {
-        DeployFeesDepositor.Output memory output = deployFeesDepositor.run(
+        (IFeesDepositor feesDepositorImpl, IProxy feesDepositorProxy) = deployFeesDepositor.run(
             defaultProxyAdmin, defaultMinDepositAmount, defaultL2Recipient, address(defaultMessenger), defaultGasLimit
         );
 
         // Verify addresses are non-zero.
-        assertNotEq(output.feesDepositorImpl, address(0), "Implementation address is zero");
-        assertNotEq(output.feesDepositorProxy, address(0), "Proxy address is zero");
+        assertNotEq(address(feesDepositorImpl), address(0), "Implementation address is zero");
+        assertNotEq(address(feesDepositorProxy), address(0), "Proxy address is zero");
 
         // Verify contracts have code.
-        assertGt(output.feesDepositorImpl.code.length, 0, "Implementation has no code");
-        assertGt(output.feesDepositorProxy.code.length, 0, "Proxy has no code");
+        assertGt(address(feesDepositorImpl).code.length, 0, "Implementation has no code");
+        assertGt(address(feesDepositorProxy).code.length, 0, "Proxy has no code");
 
         // Verify the FeesDepositor is initialized correctly.
-        FeesDepositor feesDepositor = FeesDepositor(payable(output.feesDepositorProxy));
+        IFeesDepositor feesDepositor = IFeesDepositor(payable(address(feesDepositorProxy)));
         assertEq(feesDepositor.minDepositAmount(), defaultMinDepositAmount, "MinDepositAmount mismatch");
         assertEq(feesDepositor.l2Recipient(), defaultL2Recipient, "L2Recipient mismatch");
         assertEq(address(feesDepositor.messenger()), address(defaultMessenger), "Messenger mismatch");
