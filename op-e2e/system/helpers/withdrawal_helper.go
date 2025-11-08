@@ -196,7 +196,7 @@ func ProveWithdrawalParameters(ctx context.Context, proofCl withdrawals.ProofCli
 
 func FinalizeWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 
 	wd := crossdomain.Withdrawal{
@@ -231,7 +231,7 @@ func FinalizeWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclie
 		gameContract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, game.DisputeGameProxy, caller)
 		require.NoError(t, err)
 
-		timedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		timedCtx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 		defer cancel()
 		require.NoError(t, wait.For(timedCtx, time.Second, func() (bool, error) {
 			err := gameContract.CallResolveClaim(context.Background(), 0)
