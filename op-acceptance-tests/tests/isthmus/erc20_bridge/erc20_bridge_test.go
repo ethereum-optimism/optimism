@@ -18,8 +18,7 @@ func TestERC20Bridge(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Isthmus)
-	require.NoError(err, "Isthmus fork must be active for this test")
+	require.True(sys.L2Chain.IsForkActive(forks.Isthmus), "Isthmus fork must be active for this test")
 
 	// Create users with same identity on both chains
 	l1User := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)

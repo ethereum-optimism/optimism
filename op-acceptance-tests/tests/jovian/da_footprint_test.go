@@ -121,8 +121,7 @@ func TestDAFootprint(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Jovian)
-	require.NoError(err, "Jovian fork must be active for this test")
+	require.True(sys.L2Chain.IsForkActive(forks.Jovian), "Jovian fork must be active for this test")
 
 	env := newDAFootprintEnv(t, sys.L2Chain, sys.L1EL, sys.L2EL)
 	env.checkCompatibility(t)
