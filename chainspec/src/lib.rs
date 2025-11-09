@@ -520,7 +520,8 @@ mod tests {
     use alloc::string::{String, ToString};
     use alloy_genesis::{ChainConfig, Genesis};
     use alloy_op_hardforks::{
-        BASE_MAINNET_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_JOVIAN_TIMESTAMP,
+        BASE_MAINNET_JOVIAN_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
+        OP_SEPOLIA_JOVIAN_TIMESTAMP,
     };
     use alloy_primitives::{b256, hex};
     use reth_chainspec::{test_fork_ids, BaseFeeParams, BaseFeeParamsKind};
@@ -824,14 +825,14 @@ mod tests {
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
                     ForkId {
                         hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]),
-                        next: OP_SEPOLIA_JOVIAN_TIMESTAMP,
-                    }, /* TODO: update timestamp when Jovian is planned */
+                        next: BASE_SEPOLIA_JOVIAN_TIMESTAMP,
+                    },
                 ),
                 // Jovian
                 (
                     Head {
                         number: 0,
-                        timestamp: OP_SEPOLIA_JOVIAN_TIMESTAMP,
+                        timestamp: BASE_SEPOLIA_JOVIAN_TIMESTAMP,
                         ..Default::default()
                     },
                     BASE_SEPOLIA.hardfork_fork_id(OpHardfork::Jovian).unwrap(),
