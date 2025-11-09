@@ -15,8 +15,7 @@ func TestWithdrawalRoot(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := sys.T.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Isthmus)
-	require.NoError(err, "Isthmus fork must be active for this test")
+	require.True(sys.L2Chain.IsForkActive(forks.Isthmus), "Isthmus fork must be active for this test")
 
 	secondCheck, err := dsl.CheckForChainFork(t.Ctx(), sys.L2Networks(), t.Logger())
 	require.NoError(err, "error checking for chain fork")

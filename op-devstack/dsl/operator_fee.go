@@ -142,7 +142,7 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 	of.require.NoError(err)
 
 	// Infer active fork from block info
-	isJovian := of.l2Network.IsForkActive(forks.Jovian, info.Time())
+	isJovian := of.l2Network.IsForkActiveAt(forks.Jovian, info.Time())
 
 	// Verify GPO upgraded when jovian is active
 	// We have nothing to assert when jovian is inactive because an isthmus L2 can

@@ -16,8 +16,7 @@ func TestFees(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Ecotone)
-	require.NoError(err, "Ecotone fork must be active for this test")
+	require.True(sys.L2Chain.IsForkActive(forks.Ecotone), "Ecotone fork must be active for this test")
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	bob := sys.Wallet.NewEOA(sys.L2EL)
