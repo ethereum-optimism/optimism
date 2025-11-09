@@ -390,6 +390,8 @@ pub fn payload_id_optimism(
 
     let mut out = hasher.finalize();
     out[0] = payload_version;
+
+    #[allow(deprecated)] // generic-array 0.14 deprecated
     PayloadId::new(out.as_slice()[..8].try_into().expect("sufficient length"))
 }
 
