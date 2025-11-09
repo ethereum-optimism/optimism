@@ -46,9 +46,6 @@ func NewEcotoneFees(t devtest.T, l2Network *L2Network) *EcotoneFees {
 func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) EcotoneFeesValidationResult {
 	client := ef.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
 
-	startBalance := from.GetBalance()
-	vaultsBefore := ef.getVaultBalances(client)
-
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(ef.ctx)
 	ef.require.NoError(err)
@@ -58,8 +55,17 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	blockInfo, err := client.InfoByHash(ef.ctx, receipt.BlockHash)
 	ef.require.NoError(err)
 
-	endBalance := from.GetBalance()
-	vaultsAfter := ef.getVaultBalances(client)
+	// Read balances from specific blocks to ensure consistency and avoid race conditions
+	// This prevents flakiness when new blocks are mined between balance reads
+	blockBeforeTx := new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1))
+
+	// Read "before" state from the block before the transaction
+	startBalance := ef.getBalanceAtBlock(client, from.Address(), blockBeforeTx)
+	vaultsBefore := ef.getVaultBalancesAtBlock(client, blockBeforeTx)
+
+	// Read "after" state from the transaction's block
+	endBalance := ef.getBalanceAtBlock(client, from.Address(), receipt.BlockNumber)
+	vaultsAfter := ef.getVaultBalancesAtBlock(client, receipt.BlockNumber)
 	vaultIncreases := ef.calculateVaultIncreases(vaultsBefore, vaultsAfter)
 
 	// In Ecotone, L1 fee includes both base fee and blob base fee components
@@ -78,7 +84,9 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	totalFee := new(big.Int).Add(vaultIncreases.BaseFeeVault, vaultIncreases.L1FeeVault)
 	totalFee.Add(totalFee, vaultIncreases.SequencerVault)
 
-	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
+	// Calculate wallet balance difference
+	// Both startBalance and endBalance are already *big.Int from specific blocks
+	walletBalanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
 
 	// Validate total balance first to ensure all fees are accounted for
@@ -103,10 +111,14 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 }
 
 func (ef *EcotoneFees) getVaultBalances(client apis.EthClient) VaultBalances {
-	baseFee := ef.getBalance(client, predeploys.BaseFeeVaultAddr)
-	l1Fee := ef.getBalance(client, predeploys.L1FeeVaultAddr)
-	sequencer := ef.getBalance(client, predeploys.SequencerFeeVaultAddr)
-	operator := ef.getBalance(client, predeploys.OperatorFeeVaultAddr)
+	return ef.getVaultBalancesAtBlock(client, nil)
+}
+
+func (ef *EcotoneFees) getVaultBalancesAtBlock(client apis.EthClient, blockNumber *big.Int) VaultBalances {
+	baseFee := ef.getBalanceAtBlock(client, predeploys.BaseFeeVaultAddr, blockNumber)
+	l1Fee := ef.getBalanceAtBlock(client, predeploys.L1FeeVaultAddr, blockNumber)
+	sequencer := ef.getBalanceAtBlock(client, predeploys.SequencerFeeVaultAddr, blockNumber)
+	operator := ef.getBalanceAtBlock(client, predeploys.OperatorFeeVaultAddr, blockNumber)
 
 	return VaultBalances{
 		BaseFeeVault:   baseFee,
@@ -117,7 +129,11 @@ func (ef *EcotoneFees) getVaultBalances(client apis.EthClient) VaultBalances {
 }
 
 func (ef *EcotoneFees) getBalance(client apis.EthClient, addr common.Address) *big.Int {
-	balance, err := client.BalanceAt(ef.ctx, addr, nil)
+	return ef.getBalanceAtBlock(client, addr, nil)
+}
+
+func (ef *EcotoneFees) getBalanceAtBlock(client apis.EthClient, addr common.Address, blockNumber *big.Int) *big.Int {
+	balance, err := client.BalanceAt(ef.ctx, addr, blockNumber)
 	ef.require.NoError(err)
 	return balance
 }
