@@ -135,7 +135,7 @@ contract DeployFeesDepositor is Script {
     /// @notice Logs the deployment results.
     /// @param _feesDepositorImpl The deployed FeesDepositor implementation address.
     /// @param _feesDepositorProxy The deployed FeesDepositor proxy address.
-    function logResults(IFeesDepositor _feesDepositorImpl, IProxy _feesDepositorProxy) internal view {
+    function logResults(IFeesDepositor _feesDepositorImpl, IProxy _feesDepositorProxy) internal pure {
         console.log("=== FeesDepositor Deployment ===");
         console.log("Implementation:", address(_feesDepositorImpl));
         console.log("Proxy:", address(_feesDepositorProxy));
