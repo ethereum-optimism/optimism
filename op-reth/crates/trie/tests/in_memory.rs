@@ -1203,7 +1203,7 @@ async fn test_large_batch_operations<S: OpProofsStore>(
 /// When `store_trie_updates` receives a [`HashedPostState`] with wiped=true for a storage entry,
 /// it should iterate all existing values for that address and create deletion entries for them.
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
-// #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[tokio::test]
 #[serial]
 async fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
@@ -1292,7 +1292,7 @@ async fn test_store_trie_updates_with_wiped_storage<S: OpProofsStore>(
 /// This test verifies that all data stored via `store_trie_updates` can be read back
 /// through the cursor APIs.
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
-// #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[tokio::test]
 #[serial]
 async fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
@@ -1464,7 +1464,7 @@ async fn test_store_trie_updates_comprehensive<S: OpProofsStore>(
 /// and `post_states` directly without populating the internal data structures
 /// (`hashed_accounts`, `hashed_storages`, `account_branches`, `storage_branches`).
 #[test_case(InMemoryProofsStorage::new(); "InMemory")]
-// #[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
 #[tokio::test]
 #[serial]
 async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
@@ -1512,7 +1512,7 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
     };
 
     let block_ref_100 =
-        BlockWithParent::new(B256::ZERO, NumHash::new(100, B256::repeat_byte(0x97)));
+        BlockWithParent::new(block_ref_50.block.hash, NumHash::new(100, B256::repeat_byte(0x97)));
 
     storage.store_trie_updates(block_ref_100, initial_diff_100).await?;
 
@@ -1531,7 +1531,7 @@ async fn test_replace_updates_applies_all_updates<S: OpProofsStore>(
         post_state: initial_post_state_101,
     };
     let block_ref_101 =
-        BlockWithParent::new(B256::ZERO, NumHash::new(101, B256::repeat_byte(0x98)));
+        BlockWithParent::new(block_ref_100.block.hash, NumHash::new(101, B256::repeat_byte(0x98)));
     storage.store_trie_updates(block_ref_101, initial_diff_101).await?;
 
     let block_ref_102 =
