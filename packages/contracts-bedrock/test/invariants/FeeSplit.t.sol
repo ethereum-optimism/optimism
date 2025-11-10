@@ -10,6 +10,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @notice A struct to keep track of the state when a disburse call fails
 struct DisburseFailureState {
@@ -216,6 +217,8 @@ contract FeeSplitter_Invariant is CommonTest {
     function setUp() public override {
         super.enableRevenueShare();
         super.setUp();
+
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
 
         disburser = new FeeSplitter_Disburser(vm, feeSplitter, l1Withdrawer);
         preconditions = new FeeSplitter_Preconditions();
