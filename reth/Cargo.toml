@@ -126,6 +126,11 @@ rpc = [
     "dep:reth-optimism-rpc",
 ]
 tasks = ["dep:reth-tasks"]
+jemalloc = [
+    "reth-cli-util?/jemalloc",
+    "reth-node-core?/jemalloc",
+    "reth-optimism-cli?/jemalloc",
+]
 js-tracer = [
     "rpc",
     "reth-rpc/js-tracer",
@@ -134,6 +139,14 @@ js-tracer = [
     "reth-rpc-eth-types?/js-tracer",
 ]
 network = ["dep:reth-network", "tasks", "dep:reth-network-api", "dep:reth-eth-wire"]
+otlp = [
+    "reth-node-core?/otlp",
+    "reth-optimism-cli?/otlp",
+]
+portable = [
+    "reth-optimism-evm?/portable",
+    "reth-revm?/portable",
+]
 provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db", "dep:reth-codecs"]
 pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
