@@ -1,5 +1,3 @@
-ARG GITHUB_TOKEN
-
 # Rust 1.88, stagex 2025.08.0
 FROM stagex/pallet-rust@sha256:b9021d2b75eac64fe8b931d96dde63ef11792e5023cee77c3471ccc34a95a377 AS build
 
@@ -24,15 +22,18 @@ FROM debian:trixie AS mise-rt
 COPY --from=build /build/mise /opt/mise/bin/mise
 RUN apt update && apt install -y libunwind8 binutils ca-certificates curl git python3 python3-pip
 
+# NOTE: `.mise/config.toml` must not be added, to avoid adding files that have
+# been quarantined for not being deterministic.
 WORKDIR /optimism
 ADD mise.toml /optimism
 ADD requirements-tools.txt /optimism
 ENV MISE_DATA_DIR=/opt/mise/data
 ENV MISE_CACHE_DIR=/opt/mise/var/cache
-ARG GITHUB_TOKEN
-ENV MISE_GITHUB_TOKEN=${GITHUB_TOKEN}
 RUN /opt/mise/bin/mise trust -a
-RUN --mount=type=cache,target=/opt/mise/var/cache /opt/mise/bin/mise install -y
+RUN \
+	--mount=type=cache,target=/opt/mise/var/cache \
+	--mount=type=secret,id=GITHUB_TOKEN,env=MISE_GITHUB_TOKEN \
+	/opt/mise/bin/mise install -y
 
 FROM mise-rt AS mise-locker
 RUN find /opt/mise/data -type f -exec sha256sum {} + > /mise.sha256sum
@@ -53,6 +54,22 @@ ADD requirements-tools.freeze.txt .
 WORKDIR /optimism
 ENV MISE_DATA_DIR=/opt/mise/data
 ENV MISE_CACHE_DIR=/opt/mise/var/cache
+
+# This check ensures no entries exist in `requirements-tools.txt` that would
+# not be reflected in the `requirements-tools.freeze.txt` version file.
+# Otherwise, it is possible for a user to change a version in the original file
+# without updating the lockfile, resulting in a change that could be unnoticed
+# until the next time someone updates the lockfiles.
+# NOTE: Because `pip freeze` doesn't change the previous entries in the file,
+# we would not need to sort the input files. The order should never change.
+RUN if ! test -z "$(comm -23 requirements-tools.txt requirements-tools.freeze.txt 2>/dev/null)"; then echo "ERROR: mismatch between requirements-tools.txt and requirements-tools.freeze.txt; please run \`make pip.sha256sum\`" >/dev/stderr; exit 1; fi
+
+# This check ensures the versions are shared between mise and requirements.txt,
+# with no options that exist in one that doesn't exist in the other.
+COPY .mise .mise
+RUN sed --quiet --regexp-extended 's/^"pipx:([^"]+)" = "([^"]+)"/\1==\2/p' .mise/config.toml > requirements-tools.compare.txt
+RUN if ! test -z "$(comm -3 requirements-tools.txt requirements-tools.compare.txt 2>/dev/null)"; then echo "ERROR: mismatch between mise.toml and requirements-tools.txt" >/dev/stderr; exit 1; fi
+
 RUN pip install -r requirements-tools.freeze.txt --break-system-packages
 RUN sha256sum --quiet -c /pip.sha256sum
 RUN sha256sum --quiet -c /mise.sha256sum

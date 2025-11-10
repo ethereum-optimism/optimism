@@ -1,0 +1,10 @@
+# NOTE: This file must not be added to the `Containerfile`. This file contains
+# tools that are not installable in a deterministic manner and have been
+# installed via other methods.
+
+[tools]
+
+# Python dependencies - Mirrored in requirements-tools.txt
+"pipx:slither-analyzer" = "0.10.2"
+"pipx:semgrep" = "1.90.0"
+"pipx:md_toc" = "9.0.0"
