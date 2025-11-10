@@ -134,6 +134,8 @@ type EngineController struct {
 	backupUnsafeHead eth.L2BlockRef
 
 	needFCUCall bool
+	// Safe head debouncing: buffer safe head updates until other updates occur
+	needSafeHeadUpdate bool
 	// Track when the rollup node changes the forkchoice to restore previous
 	// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
 	// This update does not retry except engine returns non-input error
@@ -235,6 +237,7 @@ func (e *EngineController) SetFinalizedHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_finalized", r)
 	e.finalizedHead = r
 	e.needFCUCall = true
+	e.needSafeHeadUpdate = false
 }
 
 // SetPendingSafeL2Head implements LocalEngineControl.
@@ -254,6 +257,8 @@ func (e *EngineController) SetSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
 	e.safeHead = r
 	e.needFCUCall = true
+	// Instead of immediately calling FCU, buffer this update
+	e.needSafeHeadUpdate = true
 }
 
 // SetUnsafeHead sets the local-unsafe head.
@@ -261,6 +266,7 @@ func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
+	e.needSafeHeadUpdate = false
 	e.chainSpec.CheckForkActivation(e.log, r)
 }
 
@@ -274,6 +280,7 @@ func (e *EngineController) SetCrossUnsafeHead(r eth.L2BlockRef) {
 func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg bool) {
 	e.metrics.RecordL2Ref("l2_backup_unsafe", r)
 	e.backupUnsafeHead = r
+	e.flushPendingSafeHead()
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
 }
 
@@ -461,6 +468,7 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 	}
 	e.needFCUCall = false
+	e.needSafeHeadUpdate = false
 	return nil
 }
 
@@ -566,6 +574,7 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 	fcu2Finish := time.Now()
 	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
+	e.needSafeHeadUpdate = false
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
@@ -588,6 +597,15 @@ func (e *EngineController) insertUnsafePayload(ctx context.Context, envelope *et
 		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime))
 
 	return nil
+}
+
+// flushPendingSafeHead applies any pending safe head update to the current forkchoice state.
+// This should be called before any FCU call to ensure the latest safe head is included.
+func (e *EngineController) flushPendingSafeHead() {
+	if e.needSafeHeadUpdate {
+		e.needFCUCall = true
+		e.needSafeHeadUpdate = false
+	}
 }
 
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
@@ -622,6 +640,8 @@ func (e *EngineController) tryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		// Do not need to perform FCU.
 		return false, nil
 	}
+	// Flush pending safe head updates since backup unsafe reorgs are complex
+	e.flushPendingSafeHead()
 	// Only try FCU once because execution engine may forgot backupUnsafeHead
 	// or backupUnsafeHead is not part of the chain.
 	// Exception: Retry when forkChoiceUpdate returns non-input error.
