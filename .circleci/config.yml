@@ -586,6 +586,9 @@ jobs:
     steps:
       - checkout-from-workspace
       - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
+      - run:
           name: Print forge version
           command: forge --version
       - run:
@@ -905,6 +908,9 @@ jobs:
     steps:
       - checkout-from-workspace
       - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
+      - run:
           name: Check if test list is empty
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
@@ -969,6 +975,9 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout-from-workspace
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1074,6 +1083,9 @@ jobs:
         default: ""
     steps:
       - checkout-from-workspace
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1167,6 +1179,9 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout-from-workspace
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -2231,6 +2246,9 @@ jobs:
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - utils/checkout-with-mise
       - install-contracts-dependencies
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh

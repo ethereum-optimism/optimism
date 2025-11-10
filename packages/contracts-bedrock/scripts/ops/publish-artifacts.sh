@@ -106,7 +106,7 @@ if [ "$HAS_ZSTD" = true ]; then
   else
     echoerr "> Cache directory not found, excluding from archive"
   fi
-  "$tar" -cf "$temp_tar" $tar_args
+  "$tar" -cf "$temp_tar" "$tar_args"
 
   archive_name_gz="artifacts-v1-$checksum.tar.gz"
   archive_name_zst="artifacts-v1-$checksum.tar.zst"
@@ -148,7 +148,7 @@ else
   else
     echoerr "> Cache directory not found, excluding from archive"
   fi
-  "$tar" -czf "$archive_name_gz" $tar_args
+  "$tar" -czf "$archive_name_gz" "$tar_args"
   du -sh "$archive_name_gz" | awk '{$1=$1};1' # trim leading whitespace
   echoerr "> Created .tar.gz archive"
 fi

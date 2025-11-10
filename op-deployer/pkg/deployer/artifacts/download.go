@@ -8,13 +8,16 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 
@@ -110,7 +113,14 @@ func (d *CachingDownloader) Download(ctx context.Context, url string, progress i
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	cachePath := path.Join(targetDir, fmt.Sprintf("%x.tgz", sha256.Sum256([]byte(url))))
+	var ext string
+	if strings.HasSuffix(url, ".tzst") || strings.Contains(url, ".tzst") {
+		ext = ".tzst"
+	} else {
+		ext = ".tgz"
+	}
+
+	cachePath := path.Join(targetDir, fmt.Sprintf("%x%s", sha256.Sum256([]byte(url)), ext))
 	if _, err := os.Stat(cachePath); err == nil {
 		return cachePath, nil
 	}
@@ -138,16 +148,38 @@ func (e *TarballExtractor) Extract(src string, dest string) error {
 		return fmt.Errorf("integrity check failed: %w", err)
 	}
 
-	gzr, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+	var decompressor io.ReadCloser
+	if e.isGzipCompressed(data) {
+		gzr, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		decompressor = gzr
+	} else if e.isZstdCompressed(data) {
+		zr, err := zstd.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("failed to create zstd reader: %w", err)
+		}
+		decompressor = zr.IOReadCloser()
+	} else {
+		return fmt.Errorf("unsupported compression format: file does not appear to be gzip or zstd compressed")
 	}
-	defer gzr.Close()
+	defer decompressor.Close()
 
-	tr := tar.NewReader(gzr)
+	tr := tar.NewReader(decompressor)
 	if err := ioutil.Untar(dest, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
 
 	return nil
+}
+
+// isGzipCompressed checks if the data starts with gzip magic bytes (0x1f 0x8b)
+func (e *TarballExtractor) isGzipCompressed(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
+
+// isZstdCompressed checks if the data starts with zstd magic bytes (0x28 0xb5 0x2f 0xfd)
+func (e *TarballExtractor) isZstdCompressed(data []byte) bool {
+	return len(data) >= 4 && data[0] == 0x28 && data[1] == 0xb5 && data[2] == 0x2f && data[3] == 0xfd
 }
