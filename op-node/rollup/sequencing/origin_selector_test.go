@@ -340,6 +340,87 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	require.Equal(t, b, next)
 }
 
+// TestOriginSelectorHandlesReorg ensures that the origin selector
+// can handle the current origin being reorged out
+//
+// There are 3 blocks [a, b, c]. After advancing to b, a reorg is simulated
+// where b is reorged and replaced by providing a `c` next that has a different parent hash.
+// The origin should still provide c as the next origin so upstream services can detect the reorg.
+func TestOriginSelectorHandlesReorg(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log := testlog.Logger(t, log.LevelDebug)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 500,
+		BlockTime:         2,
+	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	b := eth.L1BlockRef{
+		Hash:       common.Hash{'b'},
+		Number:     11,
+		Time:       22,
+		ParentHash: a.Hash,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     24,
+	}
+
+	// This is called as part of the background prefetch job
+	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
+
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s.currentOrigin = a
+
+	next, err := s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
+
+	// Selection is stable until the next origin is fetched
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
+
+	// Trigger the background fetch via a forkchoice update
+	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	// The next origin should be `b` now.
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, b, next)
+
+	// A reorg happens and `b` is replaced by `bNew`
+	c := eth.L1BlockRef{
+		Hash:       common.Hash{'c'},
+		Number:     12,
+		Time:       24,
+		ParentHash: common.Hash{'b', '2'},
+	}
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+	l2Head = eth.L2BlockRef{
+		L1Origin: b.ID(),
+		Time:     26,
+	}
+
+	// Trigger the background fetch via a forkchoice update
+	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	// The next origin should be `c` now, otherwise an upstream service cannot detect the reorg
+	// and the origin will be stuck at `b`
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, c, next)
+}
+
 // TestOriginSelectorRespectsOriginTiming ensures that the origin selector
 // does not pick an origin that is ahead of the next L2 block time
 //

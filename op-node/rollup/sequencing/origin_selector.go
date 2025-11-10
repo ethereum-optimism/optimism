@@ -171,7 +171,7 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	defer los.mu.Unlock()
 
 	// Set the next origin if it is the immediate child of the current origin.
-	if nextOrigin.ParentHash == los.currentOrigin.Hash {
+	if nextOrigin.Number == los.currentOrigin.Number + 1 {
 		los.nextOrigin = nextOrigin
 	}
 }
