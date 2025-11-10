@@ -47,7 +47,7 @@ contract DeployFeesDepositor is Script {
         // Initialize the proxy.
         initializeProxy(proxy, impl, _minDepositAmount, _l2Recipient, _messenger, _gasLimit);
 
-        // Transfer the ownership of the proxy to the final proxy.
+        // Transfer the ownership of the proxy to the final proxy admin.
         transferToFinalProxyAdmin(_proxyAdmin, proxy);
 
         // Log the results.
@@ -101,7 +101,7 @@ contract DeployFeesDepositor is Script {
         IProxy(_feesDepositorProxy).upgradeToAndCall({ _implementation: address(_feesDepositorImpl), _data: initData });
     }
 
-    /// @notice Transfers the ownership of the proxy to the final proxy.
+    /// @notice Transfers the ownership of the proxy to the final proxy admin.
     /// @param _proxyAdmin The address that will be the admin of the proxy.
     function transferToFinalProxyAdmin(address _proxyAdmin, IProxy _feesDepositorProxy) internal {
         vm.broadcast(deployer);
