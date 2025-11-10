@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { FeesDepositor } from "src/L1/FeesDepositor.sol";
 import { IFeesDepositor } from "interfaces/L1/IFeesDepositor.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
