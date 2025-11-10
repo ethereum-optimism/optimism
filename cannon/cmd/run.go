@@ -262,16 +262,7 @@ func (p *ProcessPreimageOracle) Close() error {
 		return err
 	}
 
-	// Demand the process exit
-	p.log.Warn("Preimage server process did not exit on interrupt signal, sending kill signal")
-	if err := p.cmd.Process.Signal(os.Kill); err != nil {
-		p.log.Warn("Failed to send kill signal to preimage server process", "err", err)
-	}
-	if exited, err := tryWait(30 * time.Second); exited {
-		return err
-	}
-
-	// No more Mr Nice Guy, just terminate the process
+	// Just terminate the process
 	p.log.Warn("Preimage server process would not exit cleanly, terminating")
 	if err := p.cmd.Process.Kill(); err != nil {
 		p.log.Warn("Failed to kill preimage server process", "err", err)
