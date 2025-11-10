@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -55,6 +56,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				OperatorFeeVaultWithdrawalNetwork:        "local",
 				EnableGovernance:                         false,
 				GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
+				NativeAssetLiquidityAmount: 			  (*hexutil.Big)(big.NewInt(0)),
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				return standard.DefaultHardforkScheduleForTag("")
