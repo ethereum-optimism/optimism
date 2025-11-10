@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -33,7 +33,7 @@ func TestValidators(t *testing.T) {
 	t.Run("multiple validators", func(t *testing.T) {
 		walletGetter1, validator1 := AcquireL2WalletWithFunds(0, types.NewBalance(big.NewInt(1)))
 		walletGetter2, validator2 := AcquireL2WalletWithFunds(0, types.NewBalance(big.NewInt(10)))
-		chainConfigGetter, l2ForkValidator := AcquireL2WithFork(0, rollup.Isthmus)
+		chainConfigGetter, l2ForkValidator := AcquireL2WithFork(0, forks.Isthmus)
 
 		// We create a system that has a low-level L1 chain and at least one wallet
 		systestSystem := &mockSystem{
@@ -109,7 +109,7 @@ func TestValidators(t *testing.T) {
 		}
 
 		// Get the validator for requiring Isthmus fork to be active
-		chainConfigGetter, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		chainConfigGetter, validator := AcquireL2WithFork(0, forks.Isthmus)
 		systestT := systest.NewT(t)
 
 		// Apply the validator
@@ -119,7 +119,7 @@ func TestValidators(t *testing.T) {
 		// Verify the chain config getter works
 		chainConfig := chainConfigGetter(ctx)
 		require.NotNil(t, chainConfig)
-		isActive, err := IsForkActivated(chainConfig, rollup.Isthmus, 100)
+		isActive, err := IsForkActivated(chainConfig, forks.Isthmus, 100)
 		require.NoError(t, err)
 		require.True(t, isActive)
 	})
@@ -143,7 +143,7 @@ func TestValidators(t *testing.T) {
 		}
 
 		// Get the validator for requiring Isthmus fork to be active
-		_, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		_, validator := AcquireL2WithFork(0, forks.Isthmus)
 		systestT := systest.NewT(t)
 
 		// Apply the validator - should fail since fork is not active
@@ -171,7 +171,7 @@ func TestValidators(t *testing.T) {
 		}
 
 		// Get the validator for requiring Isthmus fork to not be active
-		chainConfigGetter, validator := AcquireL2WithoutFork(0, rollup.Isthmus)
+		chainConfigGetter, validator := AcquireL2WithoutFork(0, forks.Isthmus)
 		systestT := systest.NewT(t)
 
 		// Apply the validator
@@ -181,7 +181,7 @@ func TestValidators(t *testing.T) {
 		// Verify the chain config getter works
 		chainConfig := chainConfigGetter(ctx)
 		require.NotNil(t, chainConfig)
-		isActive, err := IsForkActivated(chainConfig, rollup.Isthmus, 100)
+		isActive, err := IsForkActivated(chainConfig, forks.Isthmus, 100)
 		require.NoError(t, err)
 		require.False(t, isActive)
 	})
@@ -205,7 +205,7 @@ func TestValidators(t *testing.T) {
 		}
 
 		// Get the validator for requiring Isthmus fork to not be active
-		_, validator := AcquireL2WithoutFork(0, rollup.Isthmus)
+		_, validator := AcquireL2WithoutFork(0, forks.Isthmus)
 		systestT := systest.NewT(t)
 
 		// Apply the validator - should fail since fork is active
@@ -221,7 +221,7 @@ func TestValidators(t *testing.T) {
 		}
 
 		// Try to get chain config for an invalid chain index
-		_, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		_, validator := AcquireL2WithFork(0, forks.Isthmus)
 		systestT := systest.NewT(t)
 
 		// Apply the validator - should fail since chain index is out of range

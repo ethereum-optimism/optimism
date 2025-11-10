@@ -106,6 +106,10 @@ type ReadImplementationAddressesOutput struct {
 	DisputeGameFactory           common.Address
 	MipsSingleton                common.Address
 	PreimageOracleSingleton      common.Address
+	FaultDisputeGameV2           common.Address
+	PermissionedDisputeGameV2    common.Address
+	SuperFaultDisputeGame        common.Address
+	SuperPermissionedDisputeGame common.Address
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]

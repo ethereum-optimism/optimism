@@ -194,6 +194,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
+        - packages/contracts-bedrock/test/invariants/FeeSplit.t.sol
 
   - id: sol-style-enforce-require-msg
     languages: [solidity]

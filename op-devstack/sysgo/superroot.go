@@ -72,7 +72,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				l2ChainIDs = append(l2ChainIDs, l2ChainID)
 				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
 					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
-					AbsolutePrestate:  absolutePrestate,
+					CannonPrestate:    absolutePrestate,
 				})
 			}
 

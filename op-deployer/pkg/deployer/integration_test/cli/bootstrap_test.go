@@ -200,44 +200,4 @@ func TestCLIBootstrap(t *testing.T) {
 		require.NotEqual(t, common.Address{}, implsOutput.SuperchainConfigImpl, "SuperchainConfigImpl should be set")
 		require.NotEqual(t, common.Address{}, implsOutput.ProtocolVersionsImpl, "ProtocolVersionsImpl should be set")
 	})
-
-	t.Run("bootstrap proxy", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-		workDir := runner.GetWorkDir()
-
-		proxyOutputFile := filepath.Join(workDir, "bootstrap_proxy.json")
-
-		// Run bootstrap proxy command
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "proxy",
-			"--proxy-owner", superchainProxyAdminOwner.Hex(),
-			"--outfile", proxyOutputFile,
-		}, nil)
-
-		t.Logf("Bootstrap proxy output:\n%s", output)
-
-		// Verify output file was created
-		require.FileExists(t, proxyOutputFile)
-
-		// Parse and validate the output
-		var proxyOutput opcm.DeployProxyOutput
-		data, err := os.ReadFile(proxyOutputFile)
-		require.NoError(t, err)
-		err = json.Unmarshal(data, &proxyOutput)
-		require.NoError(t, err)
-		require.NoError(t, addresses.CheckNoZeroAddresses(proxyOutput))
-	})
-
-	t.Run("bootstrap with stdout output", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-
-		// Test that stdout output works (no --outfile flag)
-		output := runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "proxy",
-			"--proxy-owner", superchainProxyAdminOwner.Hex(),
-			"--outfile", "-", // stdout
-		}, nil)
-
-		t.Logf("Bootstrap proxy (stdout) output:\n%s", output)
-	})
 }

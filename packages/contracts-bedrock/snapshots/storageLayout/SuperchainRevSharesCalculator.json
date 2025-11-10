@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "20",
+    "label": "shareRecipient",
+    "offset": 0,
+    "slot": "0",
+    "type": "address payable"
+  },
+  {
+    "bytes": "20",
+    "label": "remainderRecipient",
+    "offset": 0,
+    "slot": "1",
+    "type": "address payable"
+  }
+]

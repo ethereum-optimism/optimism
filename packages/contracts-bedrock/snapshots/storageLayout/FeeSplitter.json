@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "sharesCalculator",
+    "offset": 2,
+    "slot": "0",
+    "type": "contract ISharesCalculator"
+  },
+  {
+    "bytes": "16",
+    "label": "lastDisbursementTime",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint128"
+  },
+  {
+    "bytes": "16",
+    "label": "feeDisbursementInterval",
+    "offset": 16,
+    "slot": "1",
+    "type": "uint128"
+  }
+]

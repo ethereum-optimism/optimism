@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -274,7 +275,7 @@ func MigrateInterop(
 		l2Deployment := l2Deployments[l2ChainID]
 		chainConfigs[i] = manage.OPChainConfig{
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
-			AbsolutePrestate:  l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
+			CannonPrestate:    l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
 		}
 	}
 
@@ -329,11 +330,17 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, mul
 		L1FeeVaultRecipient:                      cfg.L1FeeVaultRecipient,
 		L1FeeVaultMinimumWithdrawalAmount:        cfg.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
 		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
+		OperatorFeeVaultRecipient:                cfg.OperatorFeeVaultRecipient,
+		OperatorFeeVaultMinimumWithdrawalAmount:  cfg.OperatorFeeVaultMinimumWithdrawalAmount.ToInt(),
+		OperatorFeeVaultWithdrawalNetwork:        big.NewInt(int64(cfg.OperatorFeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
 		DeployCrossL2Inbox:                       multichainDepSet,
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
+		UseRevenueShare:                          cfg.UseRevenueShare,
+		ChainFeesRecipient:                       cfg.ChainFeesRecipient,
+		L1FeesDepositor:                          standard.L1FeesDepositor,
 		UseCustomGasToken:                        cfg.UseCustomGasToken,
 		GasPayingTokenName:                       cfg.GasPayingTokenName,
 		GasPayingTokenSymbol:                     cfg.GasPayingTokenSymbol,

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -117,15 +117,15 @@ type ForkMatrix = []*Hardfork
 
 // Hardfork definitions
 var (
-	Regolith = &Hardfork{Name: string(rollup.Regolith), Precedence: 1}
-	Canyon   = &Hardfork{Name: string(rollup.Canyon), Precedence: 2}
-	Delta    = &Hardfork{Name: string(rollup.Delta), Precedence: 3}
-	Ecotone  = &Hardfork{Name: string(rollup.Ecotone), Precedence: 4}
-	Fjord    = &Hardfork{Name: string(rollup.Fjord), Precedence: 5}
-	Granite  = &Hardfork{Name: string(rollup.Granite), Precedence: 6}
-	Holocene = &Hardfork{Name: string(rollup.Holocene), Precedence: 7}
-	Isthmus  = &Hardfork{Name: string(rollup.Isthmus), Precedence: 8}
-	Jovian   = &Hardfork{Name: string(rollup.Jovian), Precedence: 9}
+	Regolith = &Hardfork{Name: string(forks.Regolith), Precedence: 1}
+	Canyon   = &Hardfork{Name: string(forks.Canyon), Precedence: 2}
+	Delta    = &Hardfork{Name: string(forks.Delta), Precedence: 3}
+	Ecotone  = &Hardfork{Name: string(forks.Ecotone), Precedence: 4}
+	Fjord    = &Hardfork{Name: string(forks.Fjord), Precedence: 5}
+	Granite  = &Hardfork{Name: string(forks.Granite), Precedence: 6}
+	Holocene = &Hardfork{Name: string(forks.Holocene), Precedence: 7}
+	Isthmus  = &Hardfork{Name: string(forks.Isthmus), Precedence: 8}
+	Jovian   = &Hardfork{Name: string(forks.Jovian), Precedence: 9}
 )
 
 var (

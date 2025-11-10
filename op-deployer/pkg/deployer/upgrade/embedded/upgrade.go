@@ -18,11 +18,12 @@ type UpgradeOPChainInput struct {
 }
 
 type OPChainConfig struct {
-	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	AbsolutePrestate  common.Hash    `json:"absolutePrestate"`
+	SystemConfigProxy  common.Address `json:"systemConfigProxy"`
+	CannonPrestate     common.Hash    `json:"cannonPrestate"`
+	CannonKonaPrestate common.Hash    `json:"cannonKonaPrestate"`
 }
 
-var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,bytes32 absolutePrestate)[])", "")
+var opChainConfigEncoder = w3.MustNewFunc("dummy((address systemConfigProxy,bytes32 cannonPrestate,bytes32 cannonKonaPrestate)[])", "")
 
 func (u *UpgradeOPChainInput) OpChainConfigs() ([]byte, error) {
 	data, err := opChainConfigEncoder.EncodeArgs(u.EncodedChainConfigs)
@@ -37,7 +38,7 @@ type UpgradeOPChain struct {
 }
 
 func Upgrade(host *script.Host, input UpgradeOPChainInput) error {
-	return opcm.RunScriptVoid[UpgradeOPChainInput](host, input, "UpgradeOPChain.s.sol", "UpgradeOPChain")
+	return opcm.RunScriptVoid(host, input, "UpgradeOPChain.s.sol", "UpgradeOPChain")
 }
 
 type Upgrader struct{}

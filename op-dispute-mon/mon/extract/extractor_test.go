@@ -373,6 +373,28 @@ func (m *mockGameCaller) IsResolved(_ context.Context, _ rpcblock.Block, claims 
 	return resolved, nil
 }
 
+func TestExtractor_EnrichGameInitializesRollupEndpointErrorCount(t *testing.T) {
+	extractor, _, games, _, _ := setupExtractorTest(t)
+	games.games = []gameTypes.GameMetadata{{}}
+	enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, enriched, 1)
+	require.Equal(t, 0, enriched[0].RollupEndpointErrorCount, "RollupEndpointErrorCount should be initialized to 0")
+}
+
+func TestExtractor_EnrichGameInitializesRollupEndpointOutOfSyncCount(t *testing.T) {
+	extractor, _, games, _, _ := setupExtractorTest(t)
+	games.games = []gameTypes.GameMetadata{{}}
+	enriched, ignored, failed, err := extractor.Extract(context.Background(), common.Hash{}, 0)
+	require.NoError(t, err)
+	require.Zero(t, ignored)
+	require.Zero(t, failed)
+	require.Len(t, enriched, 1)
+	require.Equal(t, 0, enriched[0].RollupEndpointOutOfSyncCount, "RollupEndpointOutOfSyncCount should be initialized to 0")
+}
+
 type mockEnricher struct {
 	err    error
 	calls  int

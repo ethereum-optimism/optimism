@@ -18,6 +18,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -85,6 +86,22 @@ type DevDeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
+type RevenueShareDeployConfig struct {
+	UseRevenueShare    bool           `json:"useRevenueShare"`
+	ChainFeesRecipient common.Address `json:"chainFeesRecipient"`
+}
+
+var _ ConfigChecker = (*RevenueShareDeployConfig)(nil)
+
+func (d *RevenueShareDeployConfig) Check(log log.Logger) error {
+	if d.UseRevenueShare {
+		if d.ChainFeesRecipient == (common.Address{}) {
+			return fmt.Errorf("%w: ChainFeesRecipient cannot be address(0)", ErrInvalidDeployConfig)
+		}
+	}
+	return nil
+}
+
 type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
@@ -149,18 +166,24 @@ type L2VaultsDeployConfig struct {
 	// SequencerFeeVaultRecipient represents the recipient of fees accumulated in the SequencerFeeVault.
 	// Can be an account on L1 or L2, depending on the SequencerFeeVaultWithdrawalNetwork value.
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
+	// OperatorFeeVaultRecipient represents the recipient of fees accumulated in the OperatorFeeVault.
+	OperatorFeeVaultRecipient common.Address `json:"operatorFeeVaultRecipient"`
 	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
 	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
 	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
 	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
 	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	// OperatorFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the OperatorFeeVault.
+	OperatorFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"operatorFeeVaultMinimumWithdrawalAmount"`
 	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
 	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
 	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
 	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
 	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	// OperatorFeeVaultWithdrawalNetwork represents the withdrawal network for the OperatorFeeVault.
+	OperatorFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 }
 
 var _ ConfigChecker = (*L2VaultsDeployConfig)(nil)
@@ -175,6 +198,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.OperatorFeeVaultRecipient == (common.Address{}) {
+		return fmt.Errorf("%w: OperatorFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
+	}
 	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
@@ -183,6 +209,9 @@ func (d *L2VaultsDeployConfig) Check(log log.Logger) error {
 	}
 	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
+	if !d.OperatorFeeVaultWithdrawalNetwork.Valid() {
+		return fmt.Errorf("%w: OperatorFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -417,25 +446,25 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		return (*uint64)(d.L2GenesisCanyonTimeOffset)
-	case rollup.Delta:
+	case forks.Delta:
 		return (*uint64)(d.L2GenesisDeltaTimeOffset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return (*uint64)(d.L2GenesisEcotoneTimeOffset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		return (*uint64)(d.L2GenesisFjordTimeOffset)
-	case rollup.Granite:
+	case forks.Granite:
 		return (*uint64)(d.L2GenesisGraniteTimeOffset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		return (*uint64)(d.L2GenesisJovianTimeOffset)
-	case rollup.Interop:
+	case forks.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
@@ -444,32 +473,32 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		d.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		d.L2GenesisCanyonTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Delta:
+	case forks.Delta:
 		d.L2GenesisDeltaTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		d.L2GenesisEcotoneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		d.L2GenesisFjordTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Granite:
+	case forks.Granite:
 		d.L2GenesisGraniteTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Interop:
+	case forks.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
 }
 
-var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
+var scheduleableForks = forks.From(forks.Regolith)
 
 // ActivateForkAtOffset activates the given fork at the given offset. Previous forks are activated
 // at genesis and later forks are deactivated.
@@ -477,7 +506,7 @@ var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
 // ActivateForkAtOffset with the earliest fork and then SetForkTimeOffset to individually set later
 // forks.
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName, offset uint64) {
-	if !rollup.IsValidFork(fork) || fork == rollup.Bedrock {
+	if !forks.IsValid(fork) || fork == forks.Bedrock {
 		panic(fmt.Sprintf("invalid fork: %s", fork))
 	}
 	ts := new(uint64)
@@ -753,6 +782,7 @@ type L2InitializationConfig struct {
 	L2CoreDeployConfig
 	FeeMarketConfig
 	AltDADeployConfig
+	RevenueShareDeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {

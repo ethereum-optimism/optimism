@@ -36,6 +36,10 @@ type MockBlockInfo struct {
 	InfoWithdrawalsRoot  *common.Hash
 }
 
+func (l *MockBlockInfo) Header() *types.Header {
+	panic("not implemented")
+}
+
 func (l *MockBlockInfo) Hash() common.Hash {
 	return l.InfoHash
 }

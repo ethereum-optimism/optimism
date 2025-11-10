@@ -52,7 +52,25 @@ type RegisterTask struct {
 }
 
 func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
-	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
+}
+
+func NewSuperCannonKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
+	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
+}
+
+func newSuperCannonVMRegisterTaskWithConfig(
+	gameType faultTypes.GameType,
+	cfg *config.Config,
+	m caching.Metrics,
+	serverExecutor vm.OracleServerExecutor,
+	rootProvider super.RootProvider,
+	syncValidator SyncValidator,
+	vmCfg vm.Config,
+	preStateBaseURL *url.URL,
+	preState string,
+) *RegisterTask {
+	stateConverter := cannon.NewStateConverter(vmCfg)
 	return &RegisterTask{
 		gameType:               gameType,
 		syncValidator:          syncValidator,
@@ -64,8 +82,8 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 			gameType,
 			stateConverter,
 			m,
-			cfg.CannonAbsolutePreStateBaseURL,
-			cfg.CannonAbsolutePreState,
+			preStateBaseURL,
+			preState,
 			filepath.Join(cfg.Datadir, "super-cannon-prestates"),
 			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
@@ -82,7 +100,7 @@ func NewSuperCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config
 			poststateBlock uint64) (*trace.Accessor, error) {
 			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			preimagePrestateProvider := prestateProvider.(super.PreimagePrestateProvider)
-			return super.NewSuperCannonTraceAccessor(logger, m, cfg.Cannon, serverExecutor, preimagePrestateProvider, rootProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+			return super.NewSuperCannonTraceAccessor(logger, m, vmCfg, serverExecutor, preimagePrestateProvider, rootProvider, provider.PrestatePath(), dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
 }

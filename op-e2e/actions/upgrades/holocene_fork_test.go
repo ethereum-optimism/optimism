@@ -9,15 +9,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestHoloceneActivationAtGenesis(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(rollup.Holocene))
+	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(forks.Holocene))
 
 	// Start op-nodes
 	env.Seq.ActL2PipelineFull(t)
@@ -53,7 +53,7 @@ func TestHoloceneActivationAtGenesis(gt *testing.T) {
 func TestHoloceneLateActivationAndReset(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	holoceneOffset := uint64(24)
-	env := helpers.SetupEnv(t, helpers.WithActiveFork(rollup.Holocene, holoceneOffset))
+	env := helpers.SetupEnv(t, helpers.WithActiveFork(forks.Holocene, holoceneOffset))
 
 	requireHoloceneTransformationLogs := func(role string, expNumLogs int) {
 		recs := env.Logs.FindLogs(testlog.NewMessageContainsFilter("transforming to Holocene"), testlog.NewAttributesFilter("role", role))
@@ -135,7 +135,7 @@ func TestHoloceneLateActivationAndReset(gt *testing.T) {
 
 func TestHoloceneInvalidPayload(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(rollup.Holocene))
+	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(forks.Holocene))
 	ctx := context.Background()
 
 	requireDepositOnlyLogs := func(role string, expNumLogs int) {

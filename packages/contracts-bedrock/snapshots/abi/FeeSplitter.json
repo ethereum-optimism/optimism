@@ -1,0 +1,294 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_DISBURSEMENT_INTERVAL",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disburseFees",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "feeDisbursementInterval",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISharesCalculator",
+        "name": "_sharesCalculator",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastDisbursementTime",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "_newFeeDisbursementInterval",
+        "type": "uint128"
+      }
+    ],
+    "name": "setFeeDisbursementInterval",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISharesCalculator",
+        "name": "_newSharesCalculator",
+        "type": "address"
+      }
+    ],
+    "name": "setSharesCalculator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "sharesCalculator",
+    "outputs": [
+      {
+        "internalType": "contract ISharesCalculator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "oldFeeDisbursementInterval",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "newFeeDisbursementInterval",
+        "type": "uint128"
+      }
+    ],
+    "name": "FeeDisbursementIntervalUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address payable",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ISharesCalculator.ShareInfo[]",
+        "name": "shareInfo",
+        "type": "tuple[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "grossRevenue",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesDisbursed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesReceived",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldSharesCalculator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newSharesCalculator",
+        "type": "address"
+      }
+    ],
+    "name": "SharesCalculatorUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_DisbursementIntervalNotReached",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_ExceedsMaxFeeDisbursementTime",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FailedToSendToRevenueShareRecipient",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FeeDisbursementIntervalCannotBeZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FeeShareInfoEmpty",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FeeVaultMustWithdrawToFeeSplitter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FeeVaultMustWithdrawToL2",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_FeeVaultWithdrawalAmountMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_NoFeesCollected",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_OnlyProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_SenderNotCurrentVault",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_SharesCalculatorCannotBeZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FeeSplitter_SharesCalculatorMalformedOutput",
+    "type": "error"
+  }
+]

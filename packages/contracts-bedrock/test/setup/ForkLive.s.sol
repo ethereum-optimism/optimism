@@ -177,9 +177,6 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-        artifacts.save("FaultDisputeGame", address(faultDisputeGame));
-        artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
         // look it up onchain
@@ -208,7 +205,8 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            cannonPrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+            cannonKonaPrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
         });
 
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
@@ -280,13 +278,6 @@ contract ForkLive is Deployer, StdAssertions, FeatureFlags {
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
-
-        address permissionlessDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
-        if (permissionlessDisputeGame != address(0)) {
-            // Both names are used in different places, so we save both.
-            artifacts.save("PermissionlessDisputeGame", address(permissionlessDisputeGame));
-            artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
-        }
 
         IAnchorStateRegistry newAnchorStateRegistry;
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {

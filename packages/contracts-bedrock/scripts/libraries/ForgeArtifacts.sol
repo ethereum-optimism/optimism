@@ -218,6 +218,16 @@ library ForgeArtifacts {
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF) != 0;
     }
 
+    /// @notice Checks if a contract is initialized using OpenZeppelin v5 namespaced storage pattern.
+    ///         OZ v5 storage slot: keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.Initializable")) - 1))
+    /// & ~bytes32(uint256(0xff))
+    function isInitializedV5(address _addr) internal view returns (bool) {
+        bytes32 INITIALIZABLE_STORAGE_SLOT = 0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+        bytes32 slotVal = vm.load(_addr, INITIALIZABLE_STORAGE_SLOT);
+        // In OZ v5, byte 0 is _initialized, byte 1 is _initializing
+        return uint8(uint256(slotVal) & 0xFF) != 0;
+    }
+
     /// @notice Returns the names of all contracts in a given directory.
     /// @param _path The path to search for contracts.
     /// @param _pathExcludes An array of paths to exclude from the search.
