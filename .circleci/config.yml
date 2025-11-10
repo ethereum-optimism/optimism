@@ -769,6 +769,7 @@ jobs:
             fi
 
             # Let them cook!
+            KONA_VERSION=$(jq -r .version kona/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -1994,13 +1995,13 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona to cache
           paths:
             - "kona/prestates/"

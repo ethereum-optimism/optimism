@@ -1,7 +1,7 @@
 KONA_DIR := `realpath .`
-KONA_VERSION := "kona-client/v1.2.2"
-KONA_PRESTATE_HASH := "0x03e183aa55db11aba6c1f2f7adccad15411d44fb54285e104cb73468927de0e7"
-KONA_INTEROP_PRESTATE_HASH := "0x033f554908ed264b81963ad6bf8a856c7c114af950df5a6fff67c5db85886083"
+KONA_VERSION := `jq -r .version ./version.json`
+KONA_PRESTATE_HASH := `jq -r .prestateHash ./version.json`
+KONA_INTEROP_PRESTATE_HASH := `jq -r .interopPrestateHash ./version.json`
 
 default: build-all
 
@@ -31,8 +31,15 @@ build-prestate VARIANT HASH:
     cd docker/fpvm-prestates
     # Delete any existing artifacts (they're in .gitignore so reset --hard won't delete them)
     rm -rf ../../prestate-artifacts-cannon
-    echo just cannon {{VARIANT}} "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
-    just cannon {{VARIANT}} "{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+    echo just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+    just cannon {{VARIANT}} "kona-client/v{{KONA_VERSION}}" $(cat ../../.config/cannon_tag)
+
+    # Check the prestate hash matches what we expect
+    ACTUAL_HASH=$(jq -r .pre ../../prestate-artifacts-cannon/prestate-proof.json)
+    if [[ "${ACTUAL_HASH}" != "{{HASH}}" ]]; then
+      echo "Incorrect prestate hash, expected {{HASH}} but was ${ACTUAL_HASH}"
+      exit 1
+    fi
 
     mkdir -p "{{KONA_DIR}}/prestates"
     cp ../../prestate-artifacts-cannon/prestate.bin.gz "{{KONA_DIR}}/prestates/{{HASH}}.bin.gz"
@@ -46,7 +53,7 @@ build-kona-host:
     # which contains the kona version we're checking out. Locally you may need to run
     # just clean to force a rebuild if the kona version has changed.
     if [[ -f "bin/kona-host" ]]; then
-        echo "kona-host already built. Assuming it is built from {{KONA_VERSION}}"
+        echo "kona-host already built. Assuming it is built from kona-client/v{{KONA_VERSION}}"
         exit
     fi
 
@@ -68,10 +75,10 @@ checkout-kona:
     if [[ -d kona ]]; then
       cd kona
       git fetch origin
-      git checkout -f "{{KONA_VERSION}}"
+      git checkout -f "kona-client/v{{KONA_VERSION}}"
       git reset --hard HEAD
     else
-      git clone -b "{{KONA_VERSION}}" https://github.com/op-rs/kona kona
+      git clone -b "kona-client/v{{KONA_VERSION}}" https://github.com/op-rs/kona kona
       cd kona
     fi
 
