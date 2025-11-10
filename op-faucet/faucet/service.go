@@ -162,10 +162,10 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	// This causes tests to fail if the faucet can't fund in the aforementioned time, even if the
 	// test timeout is longer
 	faucetTimeouts := httputil.HTTPTimeouts{
-		ReadTimeout:       6 * time.Minute,
+		ReadTimeout:       2 * time.Minute,
 		ReadHeaderTimeout: 30 * time.Second,
-		WriteTimeout:      6 * time.Minute,
-		IdleTimeout:       3 * time.Minute,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       1 * time.Minute,
 	}
 
 	s.httpServer = httputil.NewHTTPServer(endpoint, s.rpcHandler,
