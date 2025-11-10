@@ -22,8 +22,8 @@ var DefaultFaucetTxManagerValues = txmgr.DefaultFlagValues{
 	MinBaseFeeGwei:            1.0,
 	ResubmissionTimeout:       24 * time.Second,
 	NetworkTimeout:            10 * time.Second,
-	TxSendTimeout:             2 * time.Minute,
-	TxNotInMempoolTimeout:     1 * time.Minute,
+	TxSendTimeout:             5 * time.Minute,
+	TxNotInMempoolTimeout:     2 * time.Minute,
 	ReceiptQueryInterval:      200 * time.Millisecond,
 }
 
