@@ -8,6 +8,7 @@ import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title RevenueSharingIntegration_Test
 /// @notice Integration tests for the complete revenue sharing system including
@@ -134,6 +135,8 @@ contract RevenueSharingIntegration_Test is CommonTest {
     // | 0/0/0/0          | 2.5          | 205.55       | Accumulating                   |
     // |__________________|______________|______________|________________________________|
     function test_revenueSharing_fullFlow_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Configure vaults to withdraw to FeeSplitter
         _configureVaultsForFeeSplitter();
 
@@ -253,6 +256,8 @@ contract RevenueSharingIntegration_Test is CommonTest {
     )
         public
     {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Bound inputs to prevent overflow and ensure reasonable test ranges
         _sequencerFees = bound(_sequencerFees, 0, 100 ether);
         _baseFees = bound(_baseFees, 0, 100 ether);

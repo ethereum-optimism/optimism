@@ -6,6 +6,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title L1Withdrawer_TestInit
 /// @notice Base test contract with initialization for `L1Withdrawer` tests.
@@ -75,6 +76,8 @@ contract L1Withdrawer_Receive_Test is L1Withdrawer_TestInit {
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         _sendAmount = bound(_sendAmount, minWithdrawalAmount, type(uint256).max);
 
         vm.deal(address(this), _sendAmount);
@@ -102,6 +105,8 @@ contract L1Withdrawer_Receive_Test is L1Withdrawer_TestInit {
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // First amount should not exceed minWithdrawalAmount (so it doesn't trigger withdrawal)
         _firstAmount = bound(_firstAmount, 0, minWithdrawalAmount - 1);
 

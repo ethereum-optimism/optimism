@@ -27,6 +27,8 @@ contract L2ToL1MessagePasser_Version_Test is CommonTest {
 contract L2ToL1MessagePasser_Receive_Test is CommonTest {
     /// @notice Tests that receive() initiates withdrawal with default gas limit.
     function testFuzz_receive_initiatesWithdrawal_succeeds(uint256 _value) external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         uint256 nonce = l2ToL1MessagePasser.messageNonce();
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
