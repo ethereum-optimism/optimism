@@ -34,6 +34,9 @@ func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) sta
 
 func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.l2ChallengerOpts.useCannonKonaConfig = true
+		},
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
 			for _, l2ChainID := range o.l2Nets.Keys() {
