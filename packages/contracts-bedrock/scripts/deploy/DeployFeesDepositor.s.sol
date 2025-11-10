@@ -79,6 +79,8 @@ contract DeployFeesDepositor is Script {
     }
 
     /// @notice Initializes the FeesDepositor proxy contract.
+    /// @param _feesDepositorProxy The address of the FeesDepositor proxy.
+    /// @param _feesDepositorImpl The address of the FeesDepositor implementation.
     /// @param _minDepositAmount The threshold at which fees are deposited.
     /// @param _l2Recipient The L2 recipient of the fees.
     /// @param _messenger The L1CrossDomainMessenger contract address.
