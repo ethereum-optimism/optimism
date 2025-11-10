@@ -24,6 +24,56 @@ use tracing::{debug, error};
 /// Saves and serves trie nodes to make proofs faster. This handles the process of
 /// saving the current state, new blocks as they're added, and serving proof RPCs
 /// based on the saved data.
+///
+/// # Examples
+///
+/// The following example shows how to install the ExEx with either in-memory or persistent storage.
+/// This can be used when launching an OP-Reth node via a binary.
+/// We are currently using it in optimism/bin/src/main.rs.
+///
+/// ```
+/// use futures_util::FutureExt;
+/// use reth_db::test_utils::create_test_rw_db;
+/// use reth_node_api::NodeTypesWithDBAdapter;
+/// use reth_node_builder::{NodeBuilder, NodeConfig};
+/// use reth_optimism_chainspec::BASE_MAINNET;
+/// use reth_optimism_exex::OpProofsExEx;
+/// use reth_optimism_node::{args::RollupArgs, OpNode};
+/// use reth_optimism_trie::{db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage};
+/// use reth_provider::providers::BlockchainProvider;
+/// use std::sync::Arc;
+///
+/// let config = NodeConfig::new(BASE_MAINNET.clone());
+/// let db = create_test_rw_db();
+/// let args = RollupArgs::default();
+/// let op_node = OpNode::new(args);
+///
+/// // Create in-memory or persistent storage
+/// let storage: OpProofsStorage<Arc<InMemoryProofsStorage>> =
+///     Arc::new(InMemoryProofsStorage::new()).into();
+///
+/// // Example for creating persistent storage
+/// # let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+/// # let storage_path = temp_dir.path().join("proofs_storage");
+///
+/// # let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = Arc::new(
+/// #    MdbxProofsStorage::new(&storage_path).expect("Failed to create MdbxProofsStorage"),
+/// # ).into();
+///
+/// let storage_exec = storage.clone();
+/// let proofs_history_window = 1_296_000u64;
+/// // Can also use install_exex_if along with a boolean flag
+/// // Set this based on your configuration or CLI args
+/// let _builder = NodeBuilder::new(config)
+///     .with_database(db)
+///     .with_types_and_provider::<OpNode, BlockchainProvider<NodeTypesWithDBAdapter<OpNode, _>>>()
+///     .with_components(op_node.components())
+///     .install_exex("proofs-history", move |exex_context| async move {
+///         Ok(OpProofsExEx::new(exex_context, storage_exec, proofs_history_window).run().boxed())
+///     })
+///     .on_node_started(|_full_node| Ok(()))
+///     .check_launch();
+/// ```
 #[derive(Debug, Constructor)]
 pub struct OpProofsExEx<Node, Storage>
 where
