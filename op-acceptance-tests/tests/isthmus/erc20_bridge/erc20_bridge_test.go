@@ -24,7 +24,7 @@ func TestERC20Bridge(gt *testing.T) {
 	// Create users with same identity on both chains
 	l1User := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	l2User := l1User.AsEL(sys.L2EL)
-	sys.FunderL2.FundAtLeast(l2User, eth.OneHundredthEther)
+	sys.FunderL2.FundAtLeast(l2User, eth.OneTenthEther)
 
 	l1TokenAddress := l1User.DeployWETH()
 	t.Logger().Info("Deployed WETH token on L1", "address", l1TokenAddress)
