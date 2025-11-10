@@ -33,7 +33,7 @@ contract DeployFeesDepositor is Script {
         uint32 _gasLimit
     )
         public
-        returns (IFeesDepositor feesDepositorImpl, IProxy feesDepositorProxy)
+        returns (IFeesDepositor, IProxy)
     {
         deployer = msg.sender;
 
