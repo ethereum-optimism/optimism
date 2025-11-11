@@ -239,7 +239,12 @@ func (s *SyncDeriver) SyncStep() {
 		s.Log.Debug("Skipping derivation pipeline because using L2 safe source.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		if (s.Engine.UnsafeL2Head() == eth.L2BlockRef{}) {
-			s.Emitter.Emit(s.Ctx, rollup.ResetEvent{Err: errors.New("reset for initializing engine unsafe head")})
+			s.Engine.InitCL(s.Ctx)
+			// Changwan(initial): s.Emitter.Emit(s.Ctx, rollup.ResetEvent{Err: errors.New("reset for initializing engine unsafe head")})
+			// Karl: s.emitter.Emit(s.driverCtx, engine.ResetEngineRequestEvent{})
+
+			// Both sent FCU to genesis causing snap sync to be complete
+			// https://github.com/ethereum-optimism/optimism/commit/da1b08a9d7b8efd2a0a245994d5ef0f0c13611b4
 		}
 		return
 	}

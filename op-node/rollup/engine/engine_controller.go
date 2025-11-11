@@ -1051,6 +1051,49 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
 }
 
+// equivalent to e.forceReset but never sending FCU to EL
+func (e *EngineController) InitCL(ctx context.Context) {
+	e.log.Info("InitCL")
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	r, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
+	if err != nil {
+		e.emitter.Emit(ctx, rollup.ResetEvent{
+			Err: fmt.Errorf("failed to find the L2 Heads to start from while initializing: %w", err),
+		})
+		return
+	}
+	// Reset other components before resetting the engine
+	if e.attributesResetter != nil {
+		e.attributesResetter.ForceReset(ctx, r.Unsafe, r.Unsafe, r.Safe, r.Safe, r.Finalized)
+	}
+	if e.pipelineResetter != nil {
+		e.pipelineResetter.ResetPipeline()
+	}
+	// originSelectorResetter is only present when sequencing is enabled
+	if e.originSelectorResetter != nil {
+		e.originSelectorResetter.ResetOrigins()
+	}
+	ForceEngineReset(e, r.Unsafe, r.Unsafe, r.Safe, r.Safe, r.Finalized)
+
+	v := EngineResetConfirmedEvent{
+		LocalUnsafe: e.unsafeHead,
+		CrossUnsafe: e.crossUnsafeHead,
+		LocalSafe:   e.localSafeHead,
+		CrossSafe:   e.safeHead,
+		Finalized:   e.finalizedHead,
+	}
+	// We do not emit the original event values, since those might not be set (optional attributes).
+	e.emitter.Emit(ctx, v)
+	e.log.Info("Reset of Engine is completed at InitCL",
+		"local_unsafe", v.LocalUnsafe,
+		"cross_unsafe", v.CrossUnsafe,
+		"local_safe", v.LocalSafe,
+		"cross_safe", v.CrossSafe,
+		"finalized", v.Finalized,
+	)
+}
+
 var ErrEngineSyncing = errors.New("engine is syncing")
 
 type BlockInsertionErrType uint
