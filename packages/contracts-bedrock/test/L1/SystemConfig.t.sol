@@ -164,7 +164,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -220,7 +221,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -254,7 +256,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -285,7 +288,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))
@@ -582,7 +586,8 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
+                optimismMintableERC20Factory: address(0),
+                delayedWETH: address(0)
             }),
             _l2ChainId: 1234,
             _superchainConfig: ISuperchainConfig(address(0))

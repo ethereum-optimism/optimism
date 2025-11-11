@@ -25,8 +25,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.5.0
-    string public constant version = "3.5.0";
+    /// @custom:semver 3.6.0
+    string public constant version = "3.6.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -103,7 +103,16 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         disputeGameFactory = _disputeGameFactory;
         startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
-        retirementTimestamp = uint64(block.timestamp);
+
+        // Set the retirement timestamp to the current timestamp the first time the contract is
+        // initialized. This was originally done in U16a to guarantee that all games created before
+        // the initialization of the new AnchorStateRegistry would be retired. This is no longer
+        // required behavior but it's useful to maintain common behavior across all new and old
+        // AnchorStateRegistry instances. We don't set the retirement timestamp if already set to
+        // avoid retiring games when re-initializing the contract during an upgrade.
+        if (retirementTimestamp == 0) {
+            retirementTimestamp = uint64(block.timestamp);
+        }
     }
 
     /// @notice Returns whether the contract is paused.
