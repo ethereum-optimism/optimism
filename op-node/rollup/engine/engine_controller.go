@@ -445,6 +445,12 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return err
 	}
+	if e.unsafeHead.Number == 0 {
+		// early return for snap syncing
+		e.log.Warn("Skipping FCU targeting genesis", "unsafe", e.unsafeHead, "safe", e.safeHead, "finalized", e.finalizedHead)
+		e.needFCUCall = false
+		return nil
+	}
 
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      e.unsafeHead.Hash,
@@ -1075,6 +1081,16 @@ func (e *EngineController) InitCL(ctx context.Context) {
 		e.originSelectorResetter.ResetOrigins()
 	}
 	ForceEngineReset(e, r.Unsafe, r.Unsafe, r.Safe, r.Safe, r.Finalized)
+
+	if e.needFCUCall {
+		e.emitter.Emit(ctx,
+			ForkchoiceUpdateSequencerEvent{
+				UnsafeL2Head:    e.unsafeHead,
+				SafeL2Head:      e.safeHead,
+				FinalizedL2Head: e.finalizedHead,
+			})
+		// e.requestForkchoiceUpdate(ctx) -> race condition
+	}
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.unsafeHead,

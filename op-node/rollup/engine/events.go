@@ -27,6 +27,14 @@ func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
 }
 
+type ForkchoiceUpdateSequencerEvent struct {
+	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+}
+
+func (ev ForkchoiceUpdateSequencerEvent) String() string {
+	return "forkchoice-update-sequencer"
+}
+
 // UnsafeUpdateEvent signals that the given block is now considered safe.
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
 type UnsafeUpdateEvent struct {
