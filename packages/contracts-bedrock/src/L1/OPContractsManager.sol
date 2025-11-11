@@ -960,6 +960,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
+        // Upgrade the AnchorStateRegistry contract. No upgrade/initializer needed, just updating
+        // the implementation to latest.
+        upgradeTo(proxyAdmin, address(optimismPortal.anchorStateRegistry()), _impls.anchorStateRegistryImpl);
+
         // Upgrade the OptimismMintableERC20Factory contract.
         upgradeTo(
             proxyAdmin,
