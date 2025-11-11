@@ -98,11 +98,13 @@ where
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        let db_provider =
-            self.ctx.provider().database_provider_ro()?.disable_long_read_transaction_safety();
-        let db_tx = db_provider.into_tx();
-        let ChainInfo { best_number, best_hash } = self.ctx.provider().chain_info()?;
-        BackfillJob::new(self.storage.clone(), &db_tx).run(best_number, best_hash).await?;
+        {
+            let db_provider =
+                self.ctx.provider().database_provider_ro()?.disable_long_read_transaction_safety();
+            let db_tx = db_provider.into_tx();
+            let ChainInfo { best_number, best_hash } = self.ctx.provider().chain_info()?;
+            BackfillJob::new(self.storage.clone(), &db_tx).run(best_number, best_hash).await?;
+        }
 
         let collector = LiveTrieCollector::new(
             self.ctx.evm_config().clone(),
