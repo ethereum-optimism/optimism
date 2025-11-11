@@ -1,4 +1,4 @@
-You are enhancing a Solidity test file to improve coverage and quality. You will modify the file by fixing test organization, converting appropriate tests to fuzz tests, and ensuring every public/external function has coverage.
+You are enhancing a Solidity test file to improve coverage and quality. You will modify the file by converting appropriate tests to fuzz tests, improving test categorization, and ensuring every public/external function has coverage.
 
 <role>
 You enhance test files by implementing comprehensive tests that improve coverage and quality. You prioritize improving existing tests over adding new ones.
@@ -56,7 +56,6 @@ Enhance the provided Solidity test file following these objectives:
 1. Convert regular tests to fuzz tests where appropriate
 2. Add tests for uncovered code paths (if statements, branches, reverts)
 3. Ensure every public/external function has at least one test
-4. Organize all tests to match source function declaration order
 
 Focus on mechanical improvements that increase coverage and quality.
 </task>
@@ -89,12 +88,10 @@ This systematic approach ensures comprehensive test improvements without missing
 - Add new tests for gaps identified in Phase 2
 - Commit each test or group based on what coverage gap it fills using conventional commit format
 - Validate each change maintains expected behavior
-- Ensure all tests pass before proceeding to organization
+- Ensure all tests pass
 
-**Phase 4 - Organization & Finalization**
-*Goal: Clean structure that matches source code*
-- Reorganize test contracts to match source function declaration order
-- Commit organization changes (addresses structure/readability) using conventional commit format
+**Phase 4 - Finalization**
+*Goal: Clean, passing test suite*
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -102,7 +99,6 @@ This systematic approach ensures comprehensive test improvements without missing
 - Systematic coverage ensures no functions or edge cases are missed
 - Enhancement-first approach maximizes existing test value
 - Structured validation prevents breaking changes
-- Consistent organization improves maintainability
 - Motivation-based commits make PRs easier to review
 
 *These phases provide analytical structure - you can iterate between them as needed, but ensure each phase's goals are met for comprehensive coverage.*
@@ -160,14 +156,10 @@ Uncategorized_Test Contract:
 
 Ask yourself: "What is the PRIMARY behavior I'm testing?" The answer determines the categorization.
 
-**Final Organization Structure:**
-1. After all tests are implemented and passing
-2. Map all functions from source contract in declaration order
-3. Reorganize ALL test contracts to match this order
-4. Structure: Helper contracts → TestInit → function tests (in source order) → Uncategorized last
-5. NEVER delete existing tests - only enhance, rename, or reorganize
-
-CRITICAL: Organization happens LAST, after all improvements are complete
+**Test File Structure:**
+- Helper contracts → TestInit → function-specific test contracts → Uncategorized last
+- NEVER delete existing tests - only enhance, rename, or reorganize
+- Don't reorganize tests just to match source function order - focus on meaningful improvements
 
 **COMMON CATEGORIZATION MISTAKES:**
 - Putting tests in Uncategorized_Test just because they call multiple functions
@@ -563,11 +555,6 @@ contract L1FeeVault_Version_Test {
 - Search for `vm.expectRevert()` without arguments
 - Replace with `vm.expectRevert(ErrorName.selector)` or `vm.expectRevert(bytes("message"))`
 
-*Organization confusion:*
-- Read source contract function order first
-- Move test contracts to match that exact order
-- Keep helper contracts at top, Uncategorized last
-
 *Fuzz test failures:*
 - Check if constraints properly bound the values
 - Verify test setup works for all possible fuzzed inputs
@@ -609,11 +596,7 @@ After successful validation, open a pull request using the default PR template.
 - New tests added: [count with names]
 - All tests passing: [YES/NO]
 
-**Phase 4 - Organization:**
-- Final order matches source: [YES/NO]
-- Tests reorganized: [count if any needed to move]
-
-**Phase 5 - PR Submission:**
+**Phase 4 - PR Submission:**
 - Validation complete: [YES/NO]
 - PR opened with default template: [YES/NO]
 - Commits made: [count and brief description of each]
