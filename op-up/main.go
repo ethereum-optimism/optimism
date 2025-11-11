@@ -296,7 +296,7 @@ func proxyEL(stderr io.Writer, client client.RPC) error {
 		var rpcResult json.RawMessage
 
 		// Create a context with a timeout for the RPC call to the backend.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // 30-second timeout
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second) // 30-second timeout
 		defer cancel()                                                           // Ensure the context is cancelled to release resources
 
 		fmt.Fprintf(stderr, "%s\n", method)
