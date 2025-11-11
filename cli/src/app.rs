@@ -151,15 +151,16 @@ where
         let endpoint = endpoint.clone();
         let protocol = self.cli.traces.protocol;
         let level_filter = self.cli.traces.otlp_filter.clone();
+        let service_name = self.cli.traces.service_name.clone();
 
         match protocol {
             OtlpProtocol::Grpc => {
                 runner.block_on(async {
-                    layers.with_span_layer("reth".to_string(), endpoint, level_filter, protocol)
+                    layers.with_span_layer(service_name, endpoint, level_filter, protocol)
                 })?;
             }
             OtlpProtocol::Http => {
-                layers.with_span_layer("reth".to_string(), endpoint, level_filter, protocol)?;
+                layers.with_span_layer(service_name, endpoint, level_filter, protocol)?;
             }
         }
 
