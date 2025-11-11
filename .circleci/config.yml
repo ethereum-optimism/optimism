@@ -2220,8 +2220,9 @@ jobs:
       - notify-failures-on-develop
 
   publish-contract-artifacts:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
