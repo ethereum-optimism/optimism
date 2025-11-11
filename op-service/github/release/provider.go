@@ -51,20 +51,49 @@ type GithubReleaseCachePather func() (string, error)
 type GithubReleaseBinaryLocator func(releaseDir string, name string, version string, os string, arch string) (string, error)
 
 type GithubReleaseDownloader struct {
-	owner           string
-	repo            string
-	name            string
+	// Repository owner (e.g. "ethereum-optimism").
+	owner string
+
+	// Repository name (e.g. "optimism").
+	repo string
+
+	// Name of the binary to download (e.g. "op-deployer").
+	//
+	// If the binary is not located under this name directly in the tarball,
+	// a custom BinaryLocator should be provided.
+	name string
+
+	// Maximum allowed download size in bytes. When zero, no size limit is
+	// enforced. This helps protect against unexpectedly large artifacts.
 	maxDownloadSize int64
 
 	// checksummerFactory produces a checksum-verifier for the artifact to be
-	// downloaded. It must be set before Download is called.
+	// downloaded. It must be set before attempting a download if checksum
+	// validation is required.
 	checksummerFactory GithubReleaseChecksummerFactory
-	urlGetter          GithubReleaseURLGetter
-	osGetter           GithubReleaseOSGetter
-	progressor         ioutil.Progressor
-	cachePather        GithubReleaseCachePather
-	logger             *log.Logger
-	locator            GithubReleaseBinaryLocator
+
+	// urlGetter constructs the download URL for the release asset. The
+	// default implementation assumes GitHub release download URL formats.
+	urlGetter GithubReleaseURLGetter
+
+	// osGetter returns the OS/arch pair used to select the appropriate
+	// release artifact. It can be overridden for testing.
+	osGetter GithubReleaseOSGetter
+
+	// progressor reports download progress. Optional; may be nil.
+	progressor ioutil.Progressor
+
+	// cachePather returns the directory used for local caching of downloaded
+	// artifacts. Typically points to a user-writable cache directory.
+	cachePather GithubReleaseCachePather
+
+	// locator determines where the desired file is located inside the
+	// extracted tarball (useful for artifacts with nested directories).
+	locator GithubReleaseBinaryLocator
+
+	// logger is optional and used for informational logging during the
+	// download/extract process. The `WithLogger` option sets this field.
+	logger *log.Logger
 }
 
 var _ BinaryProvider = (*GithubReleaseDownloader)(nil)
@@ -182,7 +211,6 @@ func NewGithubReleaseDownloader(owner string, repo string, name string, opts ...
 		urlGetter:   NewDefaultURLGetter(),
 		osGetter:    NewDefaultOSGetter(),
 		cachePather: NewHomeDirCachePather("op-name-downloader"),
-		logger:      log.Default(),
 		locator:     NewDefaultBinaryLocator(),
 	}
 
@@ -260,8 +288,6 @@ func (d *GithubReleaseDownloader) download(ctx context.Context, version string, 
 	if err != nil {
 		return "", fmt.Errorf("failed to get download URL: %w", err)
 	}
-
-	d.logger.Printf("Downloading %s release %s for %s/%s from %s", d.repo, version, releaseOS, releaseArch, releaseURL)
 
 	// Obtain a checksum-verifier for the target OS/arch. This allows the
 	// downloader to validate the archive before extraction.
