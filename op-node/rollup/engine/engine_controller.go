@@ -81,7 +81,6 @@ type Metrics interface {
 
 type SyncDeriver interface {
 	OnELSyncStarted()
-	SafeSource() string
 }
 
 type AttributesForceResetter interface {
@@ -446,13 +445,6 @@ func (e *EngineController) tryUpdateEngineInternal(ctx context.Context) error {
 		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return err
 	}
-	if sync.SafeSource(e.SyncDeriver.SafeSource()) == sync.SafeSourceL2 && e.unsafeHead.Number == 0 {
-		// early return for snap syncing
-		e.log.Warn("Skipping FCU targeting genesis", "unsafe", e.unsafeHead, "safe", e.safeHead, "finalized", e.finalizedHead)
-		e.needFCUCall = false
-		return nil
-	}
-
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      e.unsafeHead.Hash,
 		SafeBlockHash:      e.safeHead.Hash,
