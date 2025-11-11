@@ -25,6 +25,12 @@ func Untar(outDir string, tr *tar.Reader) error {
 			return fmt.Errorf("invalid file path: %s", hdr.Name)
 		}
 		dst := path.Join(outDir, cleanedName)
+
+		dirName := path.Dir(dst)
+		if err := os.MkdirAll(dirName, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+
 		if hdr.FileInfo().IsDir() {
 			if err := os.MkdirAll(dst, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
