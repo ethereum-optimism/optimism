@@ -82,7 +82,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     }
 
     /// @notice Tests that the retirement timestamp is set on the first initialization.
-    function test_initialize_firstInitialization_setsRetirementTimestamp_succeeds() public {
+    function test_initialize_setsRetirementTimestamp_succeeds() public {
         skipIfForkTest("State has changed since initialization on a forked network.");
 
         (Hash root, uint256 l2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
@@ -112,7 +112,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     }
 
     /// @notice Tests that the retirement timestamp is unchanged during re-initialization.
-    function test_initialize_reinitialization_doesNotChangeRetirementTimestamp_succeeds() public {
+    function test_initialize_reinitializationDoesNotChangeRetirementTimestamp_succeeds() public {
         skipIfForkTest("State has changed since initialization on a forked network.");
 
         (Hash root, uint256 l2SequenceNumber) = anchorStateRegistry.getAnchorRoot();
