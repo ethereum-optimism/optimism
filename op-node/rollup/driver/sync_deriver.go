@@ -148,6 +148,10 @@ func (s *SyncDeriver) OnELSyncStarted() {
 	}
 }
 
+func (s *SyncDeriver) SafeSource() string {
+	return s.SyncCfg.SafeSourceL2RPC
+}
+
 func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.EngineResetConfirmedEvent) {
 	// If the listener update fails, we return,
 	// and don't confirm the engine-reset with the derivation pipeline.
