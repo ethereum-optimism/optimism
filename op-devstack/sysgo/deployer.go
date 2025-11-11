@@ -49,6 +49,12 @@ func WithForkAtL1Genesis(fork forks.Fork) DeployerOption {
 	}
 }
 
+func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
+	return func(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.L1().WithL1ForkAtOffset(fork, &offset)
+	}
+}
+
 func WithDefaultBPOBlobSchedule(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
 	// Once we get the latest changes from op-geth we can change this to
 	// params.DefaultBlobSchedule.

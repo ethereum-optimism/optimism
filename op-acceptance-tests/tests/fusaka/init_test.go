@@ -19,7 +19,10 @@ func TestMain(m *testing.M) {
 		sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}),
 		sysgo.WithDeployerOptions(
 			sysgo.WithDefaultBPOBlobSchedule,
-			sysgo.WithForkAtL1Genesis(forks.BPO1),
+			// Make the BPO fork happen after Osaka so we can easily use geth's eip4844.CalcBlobFee
+			// to calculate the blob base fee using the Osaka parameters.
+			sysgo.WithForkAtL1Offset(forks.Osaka, 0),
+			sysgo.WithForkAtL1Offset(forks.BPO1, 1),
 		),
 		sysgo.WithBatcherOption(func(_ stack.L2BatcherID, cfg *batcher.CLIConfig) {
 			cfg.DataAvailabilityType = flags.BlobsType
