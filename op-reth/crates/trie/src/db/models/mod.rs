@@ -12,7 +12,9 @@ pub use version::*;
 mod storage;
 pub use storage::*;
 mod change_set;
+pub(crate) mod kv;
 pub use change_set::*;
+pub use kv::*;
 
 use alloy_primitives::B256;
 use reth_db::{

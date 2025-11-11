@@ -4,7 +4,7 @@ use crate::{
     db::{
         cursor::Dup,
         models::{
-            AccountTrieHistory, BlockChangeSet, ChangeSet, HashedAccountHistory,
+            kv::IntoKV, AccountTrieHistory, BlockChangeSet, ChangeSet, HashedAccountHistory,
             HashedStorageHistory, HashedStorageKey, MaybeDeleted, StorageTrieHistory,
             StorageTrieKey, StorageValue, VersionedValue,
         },
@@ -19,14 +19,13 @@ use itertools::Itertools;
 use reth_db::{
     cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO, DbDupCursorRW},
     mdbx::{init_db_for, DatabaseArguments},
+    table::{DupSort, Table},
     transaction::{DbTx, DbTxMut},
     Database, DatabaseEnv, DatabaseError,
 };
 use reth_primitives_traits::Account;
-use reth_trie::{
-    updates::StorageTrieUpdates, BranchNodeCompact, HashedStorage, Nibbles, StoredNibbles,
-};
-use std::path::Path;
+use reth_trie::{updates::StorageTrieUpdates, BranchNodeCompact, HashedStorage, Nibbles};
+use std::{cmp::max, ops::RangeBounds, path::Path};
 
 /// MDBX implementation of [`OpProofsStore`].
 #[derive(Debug)]
@@ -87,16 +86,154 @@ impl MdbxProofsStorage {
         Ok(())
     }
 
-    fn store_trie_updates_inner(
+    /// Write a batch into a dup-sorted history at `block_number`.
+    /// If `soft_delete`: append all (incl. tombstones).
+    /// Else: hard-delete tombstone entries at this block, then append non-tombstones.
+    fn append_or_delete_dup_sorted<T, I, V>(
+        &self,
+        tx: &(impl DbTxMut + DbTx),
+        block_number: T::SubKey,
+        items: I,
+        soft_delete: bool,
+    ) -> OpProofsStorageResult<Vec<T::Key>>
+    where
+        T: Table<Value = VersionedValue<V>> + DupSort<SubKey = u64>,
+        T::Key: Clone,
+        I: IntoIterator,
+        I::Item: IntoKV<T>,
+    {
+        let mut cur = tx.cursor_dup_write::<T>()?;
+        let mut keys = Vec::<T::Key>::new();
+
+        // Materialize once to avoid recomputing into_kv and to allow partitioning.
+        let mut pairs: Vec<(T::Key, T::Value)> = Vec::new();
+        for it in items {
+            let (k, vv) = it.into_kv(block_number);
+            pairs.push((k.clone(), vv));
+            keys.push(k)
+        }
+
+        if soft_delete {
+            // Fast path: append everything (including tombstones).
+            for (k, vv) in pairs {
+                cur.append_dup(k.clone(), vv)?;
+            }
+            return Ok(keys);
+        }
+        // Hard delete removed entries (vv.value == None) at this exact subkey; append the rest.
+        let (to_delete, to_append): (Vec<_>, Vec<_>) =
+            pairs.into_iter().partition(|(_, vv)| vv.value.0.is_none());
+
+        self.delete_dup_sorted::<T, _, V>(tx, block_number, to_delete.into_iter().map(|(k, _)| k))?;
+
+        for (k, vv) in to_append {
+            cur.append_dup(k, vv)?;
+        }
+
+        Ok(keys)
+    }
+
+    /// Delete entries for `items` at exactly `block_number` in a dup-sorted table.
+    /// Seeks (key, block) and deletes current if the subkey matches.
+    fn delete_dup_sorted<T, I, V>(
+        &self,
+        tx: &(impl DbTxMut + DbTx),
+        block_number: u64,
+        items: I,
+    ) -> OpProofsStorageResult<()>
+    where
+        T: Table<Value = VersionedValue<V>> + DupSort<SubKey = u64>,
+        T::Key: Clone,
+        T::SubKey: PartialEq + Clone,
+        I: IntoIterator<Item = T::Key>,
+    {
+        let mut cur = tx.cursor_dup_write::<T>()?;
+        for key in items {
+            if let Some(vv) = cur.seek_by_key_subkey(key.clone(), block_number)? {
+                // ensure we didn't land on a >subkey
+                if vv.block_number == block_number {
+                    cur.delete_current()?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Append deletion tombstones for all existing storage items of `hashed_address` at
+    /// `block_number`. Iterates via `next()` from a RO cursor and writes MaybeDeleted(None)
+    /// rows.
+    fn wipe_storage<T, Next, K, VV, V>(
+        &self,
+        tx: &(impl DbTxMut + DbTx),
+        block_number: u64,
+        hashed_address: B256,
+        mut next: Next,
+    ) -> OpProofsStorageResult<Vec<T::Key>>
+    where
+        T: Table<Value = VersionedValue<V>> + DupSort,
+        Next: FnMut() -> OpProofsStorageResult<Option<(K, VV)>>,
+        (B256, K, Option<V>): IntoKV<T>,
+        T::Key: Clone,
+    {
+        let mut cur = tx.cursor_dup_write::<T>()?;
+        let mut keys: Vec<T::Key> = Vec::new();
+
+        while let Some((k, _vv)) = next()? {
+            let key: T::Key = (hashed_address, k, Option::<V>::None).into_key();
+            let del: T::Value = VersionedValue { block_number, value: MaybeDeleted(None) };
+            cur.append_dup(key.clone(), del)?;
+            keys.push(key);
+        }
+
+        Ok(keys)
+    }
+
+    /// Delete versioned history over `block_range` using `BlockChangeSet`.
+    /// For each block: delete referenced rows at that block and drop the changeset entry.
+    fn delete_history_ranged(
+        &self,
+        tx: &(impl DbTxMut + DbTx),
+        block_range: impl RangeBounds<u64>,
+    ) -> OpProofsStorageResult<()> {
+        let mut change_set_cursor = tx.cursor_write::<BlockChangeSet>()?;
+        let mut walker = change_set_cursor.walk_range(block_range)?;
+        while let Some(Ok((block_number, change_set))) = walker.next() {
+            self.delete_dup_sorted::<AccountTrieHistory, _, _>(
+                tx,
+                block_number,
+                change_set.account_trie_keys,
+            )?;
+            self.delete_dup_sorted::<StorageTrieHistory, _, _>(
+                tx,
+                block_number,
+                change_set.storage_trie_keys,
+            )?;
+            self.delete_dup_sorted::<HashedAccountHistory, _, _>(
+                tx,
+                block_number,
+                change_set.hashed_account_keys,
+            )?;
+            self.delete_dup_sorted::<HashedStorageHistory, _, _>(
+                tx,
+                block_number,
+                change_set.hashed_storage_keys,
+            )?;
+
+            walker.delete_current()?
+        }
+        Ok(())
+    }
+
+    /// Write trie/state history for `block_number` from `block_state_diff`.
+    fn store_trie_updates_for_block(
         &self,
         tx: &<DatabaseEnv as Database>::TXMut,
-        block_ref: BlockWithParent,
+        block_number: u64,
         block_state_diff: BlockStateDiff,
-    ) -> OpProofsStorageResult<WriteCounts> {
-        let block_number = block_ref.block.number;
-        // TODO: refactor the code - remove sorting out of tx
-
+        soft_delete: bool,
+    ) -> OpProofsStorageResult<ChangeSet> {
         let sorted_trie_updates = block_state_diff.trie_updates.into_sorted();
+
         //  Sorted list of updated and removed account nodes
         let sorted_account_nodes = sorted_trie_updates.account_nodes;
 
@@ -108,15 +245,96 @@ impl MdbxProofsStorage {
             .collect::<Vec<_>>();
 
         let sorted_post_state = block_state_diff.post_state.into_sorted();
-        let sorted_accounts = sorted_post_state.accounts().accounts_sorted();
 
+        let sorted_accounts = sorted_post_state.accounts().accounts_sorted();
         let sorted_storage = sorted_post_state
             .account_storages()
             .iter()
             .sorted_by_key(|(hashed_address, _)| *hashed_address)
             .collect::<Vec<_>>();
 
-        // check latest stored block is the parent of incoming block
+        let storage_trie_len = sorted_storage_nodes.len();
+        let hashed_storage_len = sorted_storage.len();
+
+        let account_trie_keys = self.append_or_delete_dup_sorted(
+            tx,
+            block_number,
+            sorted_account_nodes.into_iter(),
+            soft_delete,
+        )?;
+        let hashed_account_keys = self.append_or_delete_dup_sorted(
+            tx,
+            block_number,
+            sorted_accounts.into_iter(),
+            soft_delete,
+        )?;
+
+        let mut storage_trie_keys = Vec::<StorageTrieKey>::with_capacity(storage_trie_len);
+        for (hashed_address, nodes) in sorted_storage_nodes {
+            // Handle wiped - mark all storage trie as deleted at the current block number
+            if nodes.is_deleted {
+                // Yet to have any update for the current block number - So just using up to
+                // previous block number
+                let mut ro = self.storage_trie_cursor(hashed_address, block_number - 1)?;
+                let keys = self.wipe_storage(tx, block_number, hashed_address, || ro.next())?;
+                storage_trie_keys.extend(keys);
+
+                // Skip any further processing for this hashed_address
+                continue;
+            }
+
+            let keys = self.append_or_delete_dup_sorted(
+                tx,
+                block_number,
+                nodes.storage_nodes.into_iter().map(|(path, node)| (hashed_address, path, node)),
+                soft_delete,
+            )?;
+            storage_trie_keys.extend(keys);
+        }
+
+        let mut hashed_storage_keys = Vec::<HashedStorageKey>::with_capacity(hashed_storage_len);
+        for (hashed_address, storage) in sorted_storage {
+            // Handle wiped - mark all storage slots as deleted at the current block number
+            if storage.is_wiped() {
+                // Yet to have any update for the current block number - So just using up to
+                // previous block number
+                let mut ro = self.storage_hashed_cursor(*hashed_address, block_number - 1)?;
+                let keys = self.wipe_storage(tx, block_number, *hashed_address, || ro.next())?;
+                hashed_storage_keys.extend(keys);
+                // Skip any further processing for this hashed_address
+                continue;
+            }
+            let storage_items = storage.storage_slots_sorted().collect::<Vec<_>>();
+            let keys = self.append_or_delete_dup_sorted(
+                tx,
+                block_number,
+                storage_items
+                    .into_iter()
+                    .map(|(key, val)| (*hashed_address, key, Some(StorageValue(val)))),
+                soft_delete,
+            )?;
+            hashed_storage_keys.extend(keys);
+        }
+
+        Ok(ChangeSet {
+            account_trie_keys,
+            storage_trie_keys,
+            hashed_account_keys,
+            hashed_storage_keys,
+        })
+    }
+
+    /// Append-only writer for a block: validates parent, persists diff (soft-delete=true),
+    /// records a `BlockChangeSet`, and advances `ProofWindow::LatestBlock`.
+    fn store_trie_updates_append_only(
+        &self,
+        tx: &<DatabaseEnv as Database>::TXMut,
+        block_ref: BlockWithParent,
+        block_state_diff: BlockStateDiff,
+    ) -> OpProofsStorageResult<WriteCounts> {
+        let block_number = block_ref.block.number;
+
+        // Check the latest stored block is the parent of the incoming block
         let latest_block_hash = match self.inner_get_latest_block_number_hash(tx)? {
             Some((_num, hash)) => hash,
             None => B256::ZERO,
@@ -130,116 +348,26 @@ impl MdbxProofsStorage {
             });
         }
 
-        let account_trie_len = sorted_account_nodes.len();
-        let storage_trie_len = sorted_storage_nodes.len();
-        let hashed_account_len = sorted_accounts.size_hint().0;
-        let hashed_storage_len = sorted_storage.len();
-
-        // Preparing the entries for the `BlockChangeSet` table
-        let mut account_trie_keys = Vec::<StoredNibbles>::with_capacity(account_trie_len);
-        let mut storage_trie_keys = Vec::<StorageTrieKey>::with_capacity(storage_trie_len);
-        let mut hashed_account_keys = Vec::<B256>::with_capacity(hashed_account_len);
-        let mut hashed_storage_keys = Vec::<HashedStorageKey>::with_capacity(hashed_storage_len);
-
-        let mut write_counts = WriteCounts::default();
-
-        let mut account_trie_cursor = tx.new_cursor::<AccountTrieHistory>()?;
-        for (path, node) in sorted_account_nodes {
-            let key: StoredNibbles = path.into();
-            let vv = VersionedValue { block_number, value: MaybeDeleted(node) };
-            account_trie_cursor.append_dup(key.clone(), vv)?;
-
-            account_trie_keys.push(key);
-            write_counts.account_trie_updates_written_total += 1;
-        }
-
-        let mut storage_trie_cursor = tx.new_cursor::<StorageTrieHistory>()?;
-        for (hashed_address, nodes) in sorted_storage_nodes {
-            // Handle wiped - mark all storage trie as deleted at the current block number
-            if nodes.is_deleted {
-                // Yet to have any update for the current block number - So just using up to
-                // previous block number
-                let mut storage_trie_cursor_ro =
-                    self.storage_trie_cursor(hashed_address, block_number - 1)?;
-                while let Some((path, _vv)) = storage_trie_cursor_ro.next()? {
-                    // Mark deleted at current block
-                    let del = VersionedValue { block_number, value: MaybeDeleted(None) };
-                    storage_trie_cursor
-                        .append_dup(StorageTrieKey::new(hashed_address, path.into()), del)?;
-                    write_counts.storage_trie_updates_written_total += 1;
-                }
-                // Skip any further processing for this hashed_address
-                continue;
-            }
-            for (path, node) in nodes.storage_nodes {
-                let key = StorageTrieKey::new(hashed_address, path.into());
-                let vv = VersionedValue { block_number, value: MaybeDeleted(node) };
-                storage_trie_cursor.append_dup(key.clone(), vv)?;
-
-                storage_trie_keys.push(key);
-                write_counts.storage_trie_updates_written_total += 1;
-            }
-        }
-
-        let mut account_cursor = tx.new_cursor::<HashedAccountHistory>()?;
-        for (hashed_address, account) in sorted_accounts {
-            let vv = VersionedValue { block_number, value: MaybeDeleted(account) };
-            account_cursor.append_dup(hashed_address, vv)?;
-
-            hashed_account_keys.push(hashed_address);
-            write_counts.hashed_accounts_written_total += 1;
-        }
-
-        let mut storage_cursor = tx.new_cursor::<HashedStorageHistory>()?;
-        for (hashed_address, storage) in sorted_storage {
-            // Handle wiped - mark all storage slots as deleted at the current block number
-            if storage.is_wiped() {
-                // Yet to have any update for the current block number - So just using up to
-                // previous block number
-                let mut storage_hashed_cursor =
-                    self.storage_hashed_cursor(*hashed_address, block_number - 1)?;
-                while let Some((key, _vv)) = storage_hashed_cursor.next()? {
-                    // Mark deleted at current block
-                    let del = VersionedValue { block_number, value: MaybeDeleted(None) };
-                    storage_cursor.append_dup(HashedStorageKey::new(*hashed_address, key), del)?;
-                    write_counts.hashed_storages_written_total += 1;
-                }
-                // Skip any further processing for this hashed_address
-                continue;
-            }
-            let storage_items = storage.storage_slots_sorted().collect::<Vec<_>>();
-            for (storage_key, storage_value) in storage_items {
-                let vv = VersionedValue {
-                    block_number,
-                    value: MaybeDeleted(Some(StorageValue(storage_value))),
-                };
-                let key = HashedStorageKey::new(*hashed_address, storage_key);
-                storage_cursor.append_dup(key.clone(), vv)?;
-
-                hashed_storage_keys.push(key);
-                write_counts.hashed_storages_written_total += 1;
-            }
-        }
+        let change_set =
+            &self.store_trie_updates_for_block(tx, block_number, block_state_diff, true)?;
 
         // Cursor for recording all changes made in this block for all history tables
         let mut change_set_cursor = tx.new_cursor::<BlockChangeSet>()?;
-        change_set_cursor.append(
-            block_number,
-            &ChangeSet {
-                account_trie_keys,
-                storage_trie_keys,
-                hashed_account_keys,
-                hashed_storage_keys,
-            },
-        )?;
+        change_set_cursor.append(block_number, change_set)?;
 
-        // update proof window latest block
+        // Update proof window's latest block
         let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
         proof_window_cursor.append(
             ProofWindowKey::LatestBlock,
             &BlockNumberHash::new(block_number, block_ref.block.hash),
         )?;
-        Ok(write_counts)
+
+        Ok(WriteCounts {
+            account_trie_updates_written_total: change_set.account_trie_keys.len() as u64,
+            storage_trie_updates_written_total: change_set.storage_trie_keys.len() as u64,
+            hashed_accounts_written_total: change_set.hashed_account_keys.len() as u64,
+            hashed_storages_written_total: change_set.hashed_storage_keys.len() as u64,
+        })
     }
 }
 
@@ -273,11 +401,7 @@ impl OpProofsStore for MdbxProofsStorage {
         account_nodes.sort_by_key(|(key, _)| *key);
 
         self.env.update(|tx| {
-            let mut cursor = tx.new_cursor::<AccountTrieHistory>()?;
-            for (nibble, branch_node) in account_nodes {
-                let vv = VersionedValue { block_number: 0, value: MaybeDeleted(branch_node) };
-                cursor.append_dup(StoredNibbles::from(nibble), vv)?;
-            }
+            self.append_or_delete_dup_sorted(tx, 0, account_nodes.into_iter(), true)?;
             Ok(())
         })?
     }
@@ -295,12 +419,12 @@ impl OpProofsStore for MdbxProofsStorage {
         storage_nodes.sort_by_key(|(key, _)| *key);
 
         self.env.update(|tx| {
-            let mut cursor = tx.new_cursor::<StorageTrieHistory>()?;
-            for (nibble, branch_node) in storage_nodes {
-                let key = StorageTrieKey::new(hashed_address, StoredNibbles::from(nibble));
-                let vv = VersionedValue { block_number: 0, value: MaybeDeleted(branch_node) };
-                cursor.append_dup(key, vv)?;
-            }
+            self.append_or_delete_dup_sorted(
+                tx,
+                0,
+                storage_nodes.into_iter().map(|(path, node)| (hashed_address, path, node)),
+                true,
+            )?;
             Ok(())
         })?
     }
@@ -318,11 +442,7 @@ impl OpProofsStore for MdbxProofsStorage {
         accounts.sort_by_key(|(key, _)| *key);
 
         self.env.update(|tx| {
-            let mut cursor = tx.new_cursor::<HashedAccountHistory>()?;
-            for (key, account) in accounts {
-                let vv = VersionedValue { block_number: 0, value: MaybeDeleted(account) };
-                cursor.append_dup(key, vv)?;
-            }
+            self.append_or_delete_dup_sorted(tx, 0, accounts.into_iter(), true)?;
             Ok(())
         })?
     }
@@ -341,15 +461,14 @@ impl OpProofsStore for MdbxProofsStorage {
         storages.sort_by_key(|(key, _)| *key);
 
         self.env.update(|tx| {
-            let mut cursor = tx.new_cursor::<HashedStorageHistory>()?;
-            for (key, value) in storages {
-                let vv = VersionedValue {
-                    block_number: 0,
-                    value: MaybeDeleted(Some(StorageValue(value))),
-                };
-                let storage_key = HashedStorageKey::new(hashed_address, key);
-                cursor.append_dup(storage_key, vv)?;
-            }
+            self.append_or_delete_dup_sorted(
+                tx,
+                0,
+                storages
+                    .into_iter()
+                    .map(|(key, val)| (hashed_address, key, Some(StorageValue(val)))),
+                true,
+            )?;
             Ok(())
         })?
     }
@@ -417,7 +536,8 @@ impl OpProofsStore for MdbxProofsStorage {
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        self.env.update(|tx| self.store_trie_updates_inner(tx, block_ref, block_state_diff))?
+        self.env
+            .update(|tx| self.store_trie_updates_append_only(tx, block_ref, block_state_diff))?
     }
 
     async fn fetch_trie_updates(&self, block_number: u64) -> OpProofsStorageResult<BlockStateDiff> {
@@ -535,147 +655,24 @@ impl OpProofsStore for MdbxProofsStorage {
         diff: BlockStateDiff,
     ) -> OpProofsStorageResult<()> {
         let new_earliest_block_number = new_earliest_block_ref.block.number;
-        let Some((start_block, _)) = self.get_earliest_block_number().await? else {
+        let Some((old_earliest_block_number, _)) = self.get_earliest_block_number().await? else {
             return Ok(()); // Nothing to prune
         };
 
-        if start_block >= new_earliest_block_number {
+        if old_earliest_block_number >= new_earliest_block_number {
             return Ok(()); // Nothing to prune
         }
 
-        let branches_diff = diff.trie_updates;
-        let leaves_diff = diff.post_state;
-
         let _ = self.env.update(|tx| {
-            let mut account_trie_cursor = tx.new_cursor::<AccountTrieHistory>()?;
-            let mut storage_trie_cursor = tx.new_cursor::<StorageTrieHistory>()?;
-            let mut hashed_account_cursor = tx.new_cursor::<HashedAccountHistory>()?;
-            let mut hashed_storage_cursor = tx.new_cursor::<HashedStorageHistory>()?;
+            // First, delete the old entries for the block range excluding block 0
+            self.delete_history_ranged(
+                tx,
+                max(old_earliest_block_number, 1)..new_earliest_block_number,
+            )?;
 
-            // START PRUNING TABLES FIRST
-            // We must delete old entries before inserting new ones at block 0
-            // to maintain sorted order for append_dup operations.
-
-            // First collect keys to prune to avoid borrow checker issues with cursors.
-            let mut change_set_cursor = tx.new_cursor::<BlockChangeSet>()?;
-            let keys_to_prune: Vec<(u64, ChangeSet)> = {
-                change_set_cursor
-                    .walk_range(start_block..new_earliest_block_number)?
-                    .collect::<Result<Vec<_>, _>>()?
-            };
-
-            if !keys_to_prune.is_empty() {
-                // Process already sorted entries directly
-                for (block_number, change_set) in &keys_to_prune {
-                    // Process account trie entries
-                    for key in &change_set.account_trie_keys {
-                        if let Some(vv) =
-                            account_trie_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            account_trie_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process storage trie entries
-                    for key in &change_set.storage_trie_keys {
-                        if let Some(vv) =
-                            storage_trie_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            storage_trie_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process hashed account entries
-                    for key in &change_set.hashed_account_keys {
-                        if let Some(vv) =
-                            hashed_account_cursor.seek_by_key_subkey(*key, *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            hashed_account_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process hashed storage entries
-                    for key in &change_set.hashed_storage_keys {
-                        if let Some(vv) =
-                            hashed_storage_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            hashed_storage_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Delete the change set immediately
-                    change_set_cursor.seek_exact(*block_number)?;
-                    change_set_cursor.delete_current()?;
-                }
-            }
-
-            // NOW INSERT THE NEW INITIAL STATE AT BLOCK 0
-            // After deleting old entries, we can safely insert at block 0 with append_dup
-
-            // Insert account trie nodes at block 0
-            for (path, branch) in branches_diff.into_sorted_ref().account_nodes {
-                let key: StoredNibbles = StoredNibbles::from(*path);
-                let vv =
-                    VersionedValue { block_number: 0, value: MaybeDeleted(Some(branch.clone())) };
-                account_trie_cursor.append_dup(key, vv)?;
-            }
-
-            // Remove old entries for removed nodes prior to new_earliest_block_number
-            // This ensures that any node that was removed but got added later which is still within
-            // the new proof window is not deleted.
-            for path in branches_diff.removed_nodes {
-                let key: StoredNibbles = path.into();
-                let mut walker = account_trie_cursor.walk_dup(Some(key.clone()), Some(0))?;
-                while let Some(Ok((_, vv))) = walker.next() {
-                    if vv.block_number < new_earliest_block_number {
-                        walker.delete_current()?;
-                    }
-                }
-            }
-
-            // Same for storage trie nodes
-            for (hashed_address, storage_updates) in branches_diff.storage_tries {
-                for (path, branch) in storage_updates.into_sorted_ref().storage_nodes {
-                    let key = StorageTrieKey::new(hashed_address, StoredNibbles::from(*path));
-                    let vv = VersionedValue {
-                        block_number: 0,
-                        value: MaybeDeleted(Some(branch.clone())),
-                    };
-                    storage_trie_cursor.append_dup(key, vv)?;
-                }
-
-                for path in &storage_updates.removed_nodes {
-                    let key = StorageTrieKey::new(hashed_address, StoredNibbles::from(*path));
-                    let mut walker = storage_trie_cursor.walk_dup(Some(key.clone()), Some(0))?;
-                    while let Some(Ok((_, vv))) = walker.next() {
-                        if vv.block_number < new_earliest_block_number {
-                            walker.delete_current()?;
-                        }
-                    }
-                }
-            }
-
-            // Insert hashed account diff entries at block 0
-            for (hashed_address, account) in leaves_diff.accounts {
-                let vv = VersionedValue { block_number: 0, value: MaybeDeleted(account) };
-                hashed_account_cursor.append_dup(hashed_address, vv)?;
-            }
-
-            // Hashed storage leaves
-            for (hashed_address, storage) in leaves_diff.storages {
-                for (slot, value) in storage.storage {
-                    let key = HashedStorageKey::new(hashed_address, slot);
-                    let vv = VersionedValue {
-                        block_number: 0,
-                        value: MaybeDeleted(Some(StorageValue(value))),
-                    };
-                    hashed_storage_cursor.append_dup(key, vv)?;
-                }
-            }
+            // Then, store the new entries for block 0.
+            // The removed entries in diff from block 0 will also be removed(hard-delete) by this
+            self.store_trie_updates_for_block(tx, 0, diff, false)?;
 
             // Set the earliest block number to the new value
             Self::inner_set_earliest_block_number(
@@ -696,67 +693,7 @@ impl OpProofsStore for MdbxProofsStorage {
         blocks_to_add: HashMap<BlockWithParent, BlockStateDiff>,
     ) -> OpProofsStorageResult<()> {
         self.env.update(|tx| {
-            let keys_to_rollback: Vec<(u64, ChangeSet)> = {
-                let mut change_set_cursor = tx.new_cursor::<BlockChangeSet>()?;
-                change_set_cursor
-                    .walk(Some(latest_common_block_number + 1))?
-                    .collect::<Result<Vec<_>, _>>()?
-            };
-
-            if !keys_to_rollback.is_empty() {
-                let mut account_trie_cursor = tx.new_cursor::<AccountTrieHistory>()?;
-                let mut storage_trie_cursor = tx.new_cursor::<StorageTrieHistory>()?;
-                let mut hashed_account_cursor = tx.new_cursor::<HashedAccountHistory>()?;
-                let mut hashed_storage_cursor = tx.new_cursor::<HashedStorageHistory>()?;
-                let mut change_set_cursor = tx.new_cursor::<BlockChangeSet>()?;
-
-                // Process already sorted entries directly
-                for (block_number, change_set) in &keys_to_rollback {
-                    // Process account trie entries
-                    for key in &change_set.account_trie_keys {
-                        if let Some(vv) =
-                            account_trie_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            account_trie_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process storage trie entries
-                    for key in &change_set.storage_trie_keys {
-                        if let Some(vv) =
-                            storage_trie_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            storage_trie_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process hashed account entries
-                    for key in &change_set.hashed_account_keys {
-                        if let Some(vv) =
-                            hashed_account_cursor.seek_by_key_subkey(*key, *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            hashed_account_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Process hashed storage entries
-                    for key in &change_set.hashed_storage_keys {
-                        if let Some(vv) =
-                            hashed_storage_cursor.seek_by_key_subkey(key.clone(), *block_number)? &&
-                            vv.block_number == *block_number
-                        {
-                            hashed_storage_cursor.delete_current()?;
-                        }
-                    }
-
-                    // Delete the change set immediately
-                    change_set_cursor.seek_exact(*block_number)?;
-                    change_set_cursor.delete_current()?;
-                }
-            }
+            self.delete_history_ranged(tx, latest_common_block_number + 1..)?;
 
             // Sort by block number: Hashmap does not guarantee order
             // todo: use a sorted vec instead
@@ -778,7 +715,7 @@ impl OpProofsStore for MdbxProofsStorage {
             )?;
 
             for (block_with_parent, diff) in blocks_to_add_vec {
-                self.store_trie_updates_inner(tx, block_with_parent, diff)?;
+                self.store_trie_updates_append_only(tx, block_with_parent, diff)?;
             }
             Ok(())
         })?
