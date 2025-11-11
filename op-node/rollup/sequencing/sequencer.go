@@ -197,11 +197,7 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.EngineResetConfirmedEvent:
 		d.onEngineResetConfirmedEvent(x)
 	case engine.ForkchoiceUpdateSequencerEvent:
-		d.onForkchoiceUpdate(engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    x.UnsafeL2Head,
-			SafeL2Head:      x.SafeL2Head,
-			FinalizedL2Head: x.FinalizedL2Head,
-		})
+		d.onForkchoiceUpdate(engine.ForkchoiceUpdateEvent(x))
 	case engine.ForkchoiceUpdateEvent:
 		d.onForkchoiceUpdate(x)
 	default:
