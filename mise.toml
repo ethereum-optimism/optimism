@@ -2,6 +2,7 @@
 
 # Core dependencies
 go = "1.25.4"
+golangci-lint = "1.64.8"
 gotestsum = "1.12.3"
 mockery = "2.53.3"
 rust = "1.91.0"
@@ -18,7 +19,6 @@ svm-rs = "0.5.19"
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
 "go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
-# "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "1.64.8"
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"
@@ -54,6 +54,7 @@ cast = "ubi:foundry-rs/foundry[exe=cast]"
 anvil = "ubi:foundry-rs/foundry[exe=anvil]"
 just = "ubi:casey/just"
 codecov-uploader = "ubi:codecov/uploader"
+golangci-lint = "ubi:golangci/golangci-lint"
 goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 gotestsum = "ubi:gotestyourself/gotestsum"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
