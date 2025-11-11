@@ -224,6 +224,8 @@ func (s *SyncDeriver) SyncStep() {
 
 	if s.Engine.UnsafeL2Head().Number != 0 {
 		s.Engine.TryUpdateEngine(s.Ctx)
+	} else {
+		s.Log.Warn("Not trying to update engine because targeting to genesis")
 	}
 
 	if s.Engine.IsEngineSyncing() {
