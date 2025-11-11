@@ -78,6 +78,14 @@ contract Hashing_hashDepositSource_Test is CommonTest {
         bytes32 expected = keccak256(abi.encode(bytes32(0), depositId));
         assertEq(Hashing.hashDepositSource(_l1BlockHash, _logIndex), expected);
     }
+
+    /// @notice Tests that hashDepositSource returns the correct hash for a known vector.
+    function test_hashDepositSource_knownVector_succeeds() external pure {
+        assertEq(
+            Hashing.hashDepositSource(0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959, 0x1),
+            0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
+        );
+    }
 }
 
 /// @title Hashing_hashCrossDomainMessage_Test
