@@ -6,38 +6,69 @@ import { Test } from "forge-std/Test.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
 import "src/libraries/rlp/RLPErrors.sol";
 
-/// @title RLPReader_ToRLPItem_Test
-/// @notice Tests the `toRLPItem` function of the `RLPReader` library.
-contract RLPReader_ToRLPItem_Test is Test {
-    /// @notice Tests that the `toRLPItem` function reverts when given an empty byte array.
+/// @title RLPReader_readBytes_Test
+/// @notice Tests the `readBytes` function of the `RLPReader` library.
+/// @dev Here we allow internal reverts as readRawBytes uses memory allocations and can only be
+///      tested internally.
+contract RLPReader_readBytes_Test is Test {
+    /// @notice Tests that the `readBytes` function returns the correct bytes when given a null
+    ///         byte.
+    function test_readBytes_bytestring00_succeeds() external pure {
+        assertEq(RLPReader.readBytes(hex"00"), hex"00");
+    }
+
+    /// @notice Tests that the `readBytes` function returns the correct bytes when given a single
+    ///         byte with value 1.
+    function test_readBytes_bytestring01_succeeds() external pure {
+        assertEq(RLPReader.readBytes(hex"01"), hex"01");
+    }
+
+    /// @notice Tests that the `readBytes` function returns the correct bytes when given a single
+    ///         byte with value 127.
+    function test_readBytes_bytestring7f_succeeds() external pure {
+        assertEq(RLPReader.readBytes(hex"7f"), hex"7f");
+    }
+
+    /// @notice Tests that the `readBytes` function reverts when given a list item instead of a
+    ///         byte string.
     /// forge-config: default.allow_internal_expect_revert = true
-    function test_toRLPItem_emptyBytes_reverts() external {
-        vm.expectRevert(EmptyItem.selector);
-        RLPReader.toRLPItem(hex"");
+    function test_readBytes_revertListItem_reverts() external {
+        vm.expectRevert(UnexpectedList.selector);
+        RLPReader.readBytes(hex"c7c0c1c0c3c0c1c0");
     }
 
-    /// @notice Tests that the `toRLPItem` function correctly converts a single byte.
-    function test_toRLPItem_singleByte_succeeds() external pure {
-        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"00");
-        assertEq(item.length, 1);
+    /// @notice Tests that the `readBytes` function reverts when given an invalid string length.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_readBytes_invalidStringLength_reverts() external {
+        vm.expectRevert(ContentLengthMismatch.selector);
+        RLPReader.readBytes(hex"b9");
     }
 
-    /// @notice Tests that the `toRLPItem` function correctly converts a multi-byte array.
-    function test_toRLPItem_multiBytes_succeeds() external pure {
-        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"827a77");
-        assertEq(item.length, 3);
+    /// @notice Tests that the `readBytes` function reverts when given an invalid list length.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_readBytes_invalidListLength_reverts() external {
+        vm.expectRevert(ContentLengthMismatch.selector);
+        RLPReader.readBytes(hex"ff");
     }
 
-    /// @notice Tests that the `toRLPItem` function correctly converts an RLP-encoded list.
-    function test_toRLPItem_rlpList_succeeds() external pure {
-        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"c0");
-        assertEq(item.length, 1);
+    /// @notice Tests that the `readBytes` function reverts when given data with invalid remainder.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_readBytes_invalidRemainder_reverts() external {
+        vm.expectRevert(InvalidDataRemainder.selector);
+        RLPReader.readBytes(hex"800a");
+    }
+
+    /// @notice Tests that the `readBytes` function reverts when given data with an invalid prefix.
+    /// forge-config: default.allow_internal_expect_revert = true
+    function test_readBytes_invalidPrefix_reverts() external {
+        vm.expectRevert(InvalidHeader.selector);
+        RLPReader.readBytes(hex"810a");
     }
 }
 
-/// @title RLPReader_ReadList_Test
+/// @title RLPReader_readList_Test
 /// @notice Tests the `readList` function of the `RLPReader` library.
-contract RLPReader_ReadList_Test is Test {
+contract RLPReader_readList_Test is Test {
     /// @notice Tests that the `readList` function returns an empty array when given an empty list.
     function test_readList_empty_succeeds() external pure {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c0");
@@ -295,63 +326,32 @@ contract RLPReader_ReadList_Test is Test {
     }
 }
 
-/// @title RLPReader_ReadBytes_Test
-/// @notice Tests the `readBytes` function of the `RLPReader` library.
-/// @dev Here we allow internal reverts as readRawBytes uses memory allocations and can only be
-///      tested internally.
-contract RLPReader_ReadBytes_Test is Test {
-    /// @notice Tests that the `readBytes` function returns the correct bytes when given a null
-    ///         byte.
-    function test_readBytes_bytestring00_succeeds() external pure {
-        assertEq(RLPReader.readBytes(hex"00"), hex"00");
-    }
-
-    /// @notice Tests that the `readBytes` function returns the correct bytes when given a single
-    ///         byte with value 1.
-    function test_readBytes_bytestring01_succeeds() external pure {
-        assertEq(RLPReader.readBytes(hex"01"), hex"01");
-    }
-
-    /// @notice Tests that the `readBytes` function returns the correct bytes when given a single
-    ///         byte with value 127.
-    function test_readBytes_bytestring7f_succeeds() external pure {
-        assertEq(RLPReader.readBytes(hex"7f"), hex"7f");
-    }
-
-    /// @notice Tests that the `readBytes` function reverts when given a list item instead of a
-    ///         byte string.
+/// @title RLPReader_ToRLPItem_Test
+/// @notice Tests the `toRLPItem` function of the `RLPReader` library.
+contract RLPReader_ToRLPItem_Test is Test {
+    /// @notice Tests that the `toRLPItem` function reverts when given an empty byte array.
     /// forge-config: default.allow_internal_expect_revert = true
-    function test_readBytes_revertListItem_reverts() external {
-        vm.expectRevert(UnexpectedList.selector);
-        RLPReader.readBytes(hex"c7c0c1c0c3c0c1c0");
+    function test_toRLPItem_emptyBytes_reverts() external {
+        vm.expectRevert(EmptyItem.selector);
+        RLPReader.toRLPItem(hex"");
     }
 
-    /// @notice Tests that the `readBytes` function reverts when given an invalid string length.
-    /// forge-config: default.allow_internal_expect_revert = true
-    function test_readBytes_invalidStringLength_reverts() external {
-        vm.expectRevert(ContentLengthMismatch.selector);
-        RLPReader.readBytes(hex"b9");
+    /// @notice Tests that the `toRLPItem` function correctly converts a single byte.
+    function test_toRLPItem_singleByte_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"00");
+        assertEq(item.length, 1);
     }
 
-    /// @notice Tests that the `readBytes` function reverts when given an invalid list length.
-    /// forge-config: default.allow_internal_expect_revert = true
-    function test_readBytes_invalidListLength_reverts() external {
-        vm.expectRevert(ContentLengthMismatch.selector);
-        RLPReader.readBytes(hex"ff");
+    /// @notice Tests that the `toRLPItem` function correctly converts a multi-byte array.
+    function test_toRLPItem_multiBytes_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"827a77");
+        assertEq(item.length, 3);
     }
 
-    /// @notice Tests that the `readBytes` function reverts when given data with invalid remainder.
-    /// forge-config: default.allow_internal_expect_revert = true
-    function test_readBytes_invalidRemainder_reverts() external {
-        vm.expectRevert(InvalidDataRemainder.selector);
-        RLPReader.readBytes(hex"800a");
-    }
-
-    /// @notice Tests that the `readBytes` function reverts when given data with an invalid prefix.
-    /// forge-config: default.allow_internal_expect_revert = true
-    function test_readBytes_invalidPrefix_reverts() external {
-        vm.expectRevert(InvalidHeader.selector);
-        RLPReader.readBytes(hex"810a");
+    /// @notice Tests that the `toRLPItem` function correctly converts an RLP-encoded list.
+    function test_toRLPItem_rlpList_succeeds() external pure {
+        RLPReader.RLPItem memory item = RLPReader.toRLPItem(hex"c0");
+        assertEq(item.length, 1);
     }
 }
 
