@@ -68,6 +68,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.OptimismPortalInteropImpl = impls.OptimismPortalInterop
 	st.ImplementationsDeployment.EthLockboxImpl = impls.EthLockbox
 	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
+	st.ImplementationsDeployment.AnchorStateRegistryImpl = impls.AnchorStateRegistry
 	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
 	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
 	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
@@ -77,6 +78,11 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
 	st.ImplementationsDeployment.FaultDisputeGameV2Impl = impls.FaultDisputeGameV2
 	st.ImplementationsDeployment.PermissionedDisputeGameV2Impl = impls.PermissionedDisputeGameV2
+	st.ImplementationsDeployment.OpcmDeployerImpl = impls.OpcmDeployer
+	st.ImplementationsDeployment.OpcmGameTypeAdderImpl = impls.OpcmGameTypeAdder
+	st.ImplementationsDeployment.OpcmUpgraderImpl = impls.OpcmUpgrader
+	st.ImplementationsDeployment.OpcmInteropMigratorImpl = impls.OpcmInteropMigrator
+	st.ImplementationsDeployment.OpcmStandardValidatorImpl = impls.OpcmStandardValidator
 
 	return nil
 }
