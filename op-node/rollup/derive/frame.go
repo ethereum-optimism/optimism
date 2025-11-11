@@ -12,7 +12,7 @@ import (
 
 // Frames cannot be larger than 1 MB.
 // Data transactions that carry frames are generally not larger than 128 KB due to L1 network conditions,
-// but we leave space to grow larger anyway (gas limit allows for more data).
+// but frames posted to an AltDa server can be larger.
 const MaxFrameLen = 1_000_000
 
 // Data Format
