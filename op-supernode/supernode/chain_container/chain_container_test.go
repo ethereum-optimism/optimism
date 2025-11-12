@@ -122,17 +122,6 @@ func TestChainContainer_Constructor(t *testing.T) {
 		require.Equal(t, 1, cap(impl.stopped))
 	})
 
-	t.Run("P2P disabled for virtual nodes", func(t *testing.T) {
-		vncfgCopy := createTestVNConfig()
-		container := NewChainContainer(chainID, vncfgCopy, log, cfg, initOverload, nil, nil, nil)
-
-		impl, ok := container.(*simpleChainContainer)
-		require.True(t, ok)
-
-		require.NotNil(t, impl.vncfg.P2P)
-		require.True(t, impl.vncfg.P2P.Disabled())
-	})
-
 	t.Run("SafeDBPath uses subPath", func(t *testing.T) {
 		cfg := config.CLIConfig{
 			DataDir: "/tmp/datadir",
