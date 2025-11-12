@@ -123,7 +123,7 @@ func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.Execu
 	if s.SyncCfg.SyncMode == sync.ELSync {
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {
-			s.Log.Warn("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
+			s.Log.Error("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
 			return
 		}
 		if ref.Number <= s.Engine.UnsafeL2Head().Number {
