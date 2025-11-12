@@ -274,6 +274,7 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisInteropTimeOffset:  (*hexutil.Uint64)(&r.InteropOffset),
 				L1CancunTimeOffset:          new(hexutil.Uint64),
 				L1PragueTimeOffset:          new(hexutil.Uint64),
+				L1OsakaTimeOffset:           new(hexutil.Uint64),
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID:                 l1ChainID,

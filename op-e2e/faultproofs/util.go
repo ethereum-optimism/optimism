@@ -57,6 +57,7 @@ func WithLatestFork() faultDisputeConfigOpts {
 			genesisActivation := hexutil.Uint64(0)
 			cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
 			cfg.DeployConfig.L1PragueTimeOffset = &genesisActivation
+			cfg.DeployConfig.L1OsakaTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 			cfg.DeployConfig.L2GenesisFjordTimeOffset = &genesisActivation
