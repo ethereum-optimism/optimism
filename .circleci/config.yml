@@ -357,16 +357,13 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-      use_circleci_runner:
-        description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
-        type: boolean
-        default: true
-    machine:
-      image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
-      docker_layer_caching: <<parameters.use_circleci_runner>>
-    resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - checkout-from-workspace
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -472,8 +469,9 @@ jobs:
             - "."
 
   cannon-go-lint-and-test:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     parameters:
       skip_slow_tests:
         type: boolean
@@ -532,8 +530,9 @@ jobs:
                 mentions: "@proofs-team"
 
   diff-asterisc-bytecode:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - checkout-from-workspace
       - run:
@@ -1237,8 +1236,9 @@ jobs:
       - notify-failures-on-develop
 
   contracts-bedrock-checks:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - checkout-from-workspace
       - check-changed:
@@ -1901,8 +1901,9 @@ jobs:
           working_directory: cannon
 
   cannon-prestate-quick:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - checkout-from-workspace
       - restore_cache:
@@ -2146,8 +2147,9 @@ jobs:
           working_directory: op-program
 
   op-program-compat:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
       - checkout-from-workspace
       - run:
@@ -2157,8 +2159,9 @@ jobs:
           working_directory: op-program
 
   check-generated-mocks-op-node:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
       - checkout-from-workspace
       - check-changed:
@@ -2168,8 +2171,9 @@ jobs:
           command: make generate-mocks-op-node && git diff --exit-code
 
   check-generated-mocks-op-service:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
       - checkout-from-workspace
       - check-changed:
@@ -2220,8 +2224,9 @@ jobs:
       - notify-failures-on-develop
 
   publish-contract-artifacts:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
@@ -2418,7 +2423,6 @@ workflows:
           name: kurtosis-simple-nightly
           devnet: simple
           gate: base
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2430,7 +2434,6 @@ workflows:
           name: kurtosis-jovian-nightly
           devnet: jovian
           gate: jovian
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2442,7 +2445,6 @@ workflows:
           name: kurtosis-interop-nightly
           devnet: interop
           gate: interop
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
