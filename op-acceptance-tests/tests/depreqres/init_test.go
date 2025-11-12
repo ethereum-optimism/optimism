@@ -12,5 +12,6 @@ func TestMain(m *testing.M) {
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithReqRespSyncDisabled(),
+		presets.WithNoDiscovery(),
 	)
 }

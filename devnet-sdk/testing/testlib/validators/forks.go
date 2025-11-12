@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -39,32 +39,32 @@ func getChainConfig(t systest.T, sys system.System, chainIdx uint64) (*params.Ch
 
 // IsForkActivated checks if a specific fork is activated at the given timestamp
 // based on the chain configuration.
-func IsForkActivated(c *params.ChainConfig, forkName rollup.ForkName, timestamp uint64) (bool, error) {
+func IsForkActivated(c *params.ChainConfig, forkName forks.Name, timestamp uint64) (bool, error) {
 	if c == nil {
 		return false, fmt.Errorf("provided chain config is nil")
 	}
 
 	switch forkName {
-	case rollup.Bedrock:
+	case forks.Bedrock:
 		// Bedrock is activated based on block number, not timestamp
 		return true, nil // Assuming bedrock is always active in the context of this validator
-	case rollup.Regolith:
+	case forks.Regolith:
 		return c.IsOptimismRegolith(timestamp), nil
-	case rollup.Canyon:
+	case forks.Canyon:
 		return c.IsOptimismCanyon(timestamp), nil
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return c.IsOptimismEcotone(timestamp), nil
-	case rollup.Fjord:
+	case forks.Fjord:
 		return c.IsOptimismFjord(timestamp), nil
-	case rollup.Granite:
+	case forks.Granite:
 		return c.IsOptimismGranite(timestamp), nil
-	case rollup.Holocene:
+	case forks.Holocene:
 		return c.IsOptimismHolocene(timestamp), nil
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return c.IsOptimismIsthmus(timestamp), nil
-	case rollup.Jovian:
+	case forks.Jovian:
 		return c.IsOptimismJovian(timestamp), nil
-	case rollup.Interop:
+	case forks.Interop:
 		return c.IsInterop(timestamp), nil
 	default:
 		return false, fmt.Errorf("unknown fork name: %s", forkName)
@@ -72,7 +72,7 @@ func IsForkActivated(c *params.ChainConfig, forkName rollup.ForkName, timestamp 
 }
 
 // forkConfigValidator is a helper function that checks if a specific L2 chain meets a fork condition.
-func forkConfigValidator(chainIdx uint64, forkName rollup.ForkName, shouldBeActive bool, forkConfigMarker interface{}) systest.PreconditionValidator {
+func forkConfigValidator(chainIdx uint64, forkName forks.Name, shouldBeActive bool, forkConfigMarker interface{}) systest.PreconditionValidator {
 	return func(t systest.T, sys system.System) (context.Context, error) {
 		chainConfig, timestamp, err := getChainConfig(t, sys, chainIdx)
 		if err != nil {
@@ -105,7 +105,7 @@ type ChainConfigGetter = func(context.Context) *params.ChainConfig
 // AcquireForkConfig returns a ForkConfigGetter and a PreconditionValidator
 // that ensures a ForkConfig is available for the specified L2 chain.
 // The ForkConfig can be used to check if various forks are activated.
-func acquireForkConfig(chainIdx uint64, forkName rollup.ForkName, shouldBeActive bool) (ChainConfigGetter, systest.PreconditionValidator) {
+func acquireForkConfig(chainIdx uint64, forkName forks.Name, shouldBeActive bool) (ChainConfigGetter, systest.PreconditionValidator) {
 	chainConfigMarker := new(byte)
 	validator := forkConfigValidator(chainIdx, forkName, shouldBeActive, chainConfigMarker)
 	return func(ctx context.Context) *params.ChainConfig {
@@ -114,13 +114,13 @@ func acquireForkConfig(chainIdx uint64, forkName rollup.ForkName, shouldBeActive
 }
 
 // RequiresFork returns a validator that ensures a specific L2 chain has a specific fork activated.
-func AcquireL2WithFork(chainIdx uint64, forkName rollup.ForkName) (ChainConfigGetter, systest.PreconditionValidator) {
+func AcquireL2WithFork(chainIdx uint64, forkName forks.Name) (ChainConfigGetter, systest.PreconditionValidator) {
 	return acquireForkConfig(chainIdx, forkName, true)
 }
 
 // RequiresNotFork returns a validator that ensures a specific L2 chain does not
 // have a specific fork activated. Will not work with the interop fork
 // specifically since interop is not an ordered release fork.
-func AcquireL2WithoutFork(chainIdx uint64, forkName rollup.ForkName) (ChainConfigGetter, systest.PreconditionValidator) {
+func AcquireL2WithoutFork(chainIdx uint64, forkName forks.Name) (ChainConfigGetter, systest.PreconditionValidator) {
 	return acquireForkConfig(chainIdx, forkName, false)
 }

@@ -20,41 +20,48 @@ ARG KONA_VERSION=none
 # The only build that uses this is `op-challenger-target`.
 ARG ASTERISC_VERSION=none
 
-# We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.23.8-alpine3.20 AS builder
+# builder_foundry does not need to be built on $BUILDPLATFORM, as foundry produces static binaries.
+FROM alpine:3.21 AS builder_foundry
 
-RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq bash
-
-# Install mise (the apk version is outdated)
-RUN curl https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
-
+# Build args are only-available in top-level by default, so we'll need to declare it inside the stage too
 ARG TARGETARCH
 
-# Install yq
-RUN wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$TARGETARCH -O /usr/local/bin/yq && \
-  chmod +x /usr/local/bin/yq
+RUN apk add --no-cache curl bash git jq
 
-# Install versioned toolchain
-COPY ./mise.toml .
-RUN mise trust
-RUN mise install -v -y just && cp $(mise which just) /usr/local/bin/just && just --version
-# mise does not install the alpine binary for forge, so we download it manually
 COPY ./op-deployer/pkg/deployer/forge/version.json /tmp/op-deployer-versions.json
-RUN set -e && \
-    FORGE_VERSION=$(jq -r '.forge' /tmp/op-deployer-versions.json) && \
-    mkdir -p /usr/local/bin && \
-    FORGE_URL="https://github.com/foundry-rs/foundry/releases/download/${FORGE_VERSION}/foundry_${FORGE_VERSION}_alpine_${TARGETARCH}.tar.gz" && \
-    echo "Downloading forge from: ${FORGE_URL}" && \
-    if ! curl -SL "${FORGE_URL}" -o /tmp/foundry.tar.gz; then \
-        echo "Failed to download forge from ${FORGE_URL}" >&2; \
-        exit 1; \
-    fi && \
-    ls -la /tmp/foundry.tar.gz && \
-    tar -tzf /tmp/foundry.tar.gz && \
-    tar -xzf /tmp/foundry.tar.gz -C /usr/local/bin forge && \
-    rm /tmp/foundry.tar.gz && \
-    chmod +x /usr/local/bin/forge
-# Note: can't check the forge version because in CI we're building arm64 images using a non-emulated x86_64 host, therefore the version check would fail
+
+# Verify forge checksums
+RUN <<-EOF
+    #!/bin/bash
+    set -e
+
+    FOUNDRY_VERSION="$(jq -r '.forge' /tmp/op-deployer-versions.json)"
+    FOUNDRY_PLATFORM=alpine_${TARGETARCH}
+    FOUNDRY_URL="https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_${FOUNDRY_PLATFORM}.tar.gz"
+    DOWNLOAD_PATH="/tmp/forge.tar.gz"
+
+    # Download the artifact archive
+    curl -fL -o ${DOWNLOAD_PATH} "${FOUNDRY_URL}"
+
+    # Ensure the checksum matches our expectations
+    ACTUAL_SHA="$(sha256sum "${DOWNLOAD_PATH}" | awk '{print $1}')"
+    EXPECTED_SHA="$(jq -r --arg arch "${FOUNDRY_PLATFORM}" '.checksums[$arch]' /tmp/op-deployer-versions.json)"
+
+    [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
+
+    # Extract the archive
+    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
+EOF
+
+# Display installed version for visibility
+RUN forge --version
+
+# We may be cross-building for another platform. Specify which platform we need as builder.
+FROM --platform=$BUILDPLATFORM golang:1.23.8-alpine3.21 AS builder
+
+RUN apk add --no-cache curl tar gzip make gcc musl-dev linux-headers git jq yq-go bash just
+
+ARG TARGETARCH
 
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
@@ -79,6 +86,9 @@ ARG GIT_COMMIT
 ARG GIT_DATE
 
 ARG TARGETOS
+
+# Show just version
+RUN just --version
 
 # separate docker-builds:
 # - proxyd
@@ -157,6 +167,11 @@ ARG OP_SUPERVISOR_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-supernode-builder
+ARG OP_SUPERNODE_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supernode && make op-supernode  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERNODE_VERSION"
+
 FROM --platform=$BUILDPLATFORM builder AS op-test-sequencer-builder
 ARG OP_TEST_SEQUENCER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-test-sequencer && make op-test-sequencer  \
@@ -164,6 +179,10 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
 ARG OP_DEPLOYER_VERSION=v0.0.0
+
+# Add forge
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/forge
+
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION" \
   op-deployer/build-go
@@ -248,6 +267,10 @@ CMD ["da-server"]
 FROM $TARGET_BASE_IMAGE AS op-supervisor-target
 COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
 CMD ["op-supervisor"]
+
+FROM $TARGET_BASE_IMAGE AS op-supernode-target
+COPY --from=op-supernode-builder /app/op-supernode/bin/op-supernode /usr/local/bin/
+CMD ["op-supernode"]
 
 FROM $TARGET_BASE_IMAGE AS op-test-sequencer-target
 COPY --from=op-test-sequencer-builder /app/op-test-sequencer/bin/op-test-sequencer /usr/local/bin/

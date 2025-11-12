@@ -396,8 +396,11 @@ func WithBlobs(blobs []*eth.Blob, config *params.ChainConfig) Option {
 			return uint256.MustFromBig(tx.AgainstBlock.Value().BlobBaseFee(config)), nil
 		})
 		var blobHashes []common.Hash
+		tx.Sidecar.DependOn(&tx.AgainstBlock)
 		tx.Sidecar.Fn(func(_ context.Context) (*types.BlobTxSidecar, error) {
-			sidecar, hashes, err := txmgr.MakeSidecar(blobs, true)
+			againstBlock := tx.AgainstBlock.Value()
+			useCellProofs := config.IsOsaka(new(big.Int).SetUint64(againstBlock.NumberU64()), againstBlock.Time())
+			sidecar, hashes, err := txmgr.MakeSidecar(blobs, useCellProofs)
 			if err != nil {
 				return nil, fmt.Errorf("make blob tx sidecar: %w", err)
 			}

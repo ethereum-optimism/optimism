@@ -7,6 +7,7 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
 import { DelegateCaller } from "test/mocks/Callers.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -14,9 +15,11 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -43,7 +46,7 @@ import { IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.s
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 
-contract ForkLive is Deployer, StdAssertions {
+contract ForkLive is Deployer, StdAssertions, FeatureFlags {
     using stdToml for string;
     using LibString for string;
 
@@ -62,6 +65,11 @@ contract ForkLive is Deployer, StdAssertions {
     /// @return The OP chain name as a string
     function opChain() internal view returns (string memory) {
         return Config.forkOpChain();
+    }
+
+    function setUp() public override {
+        super.setUp();
+        resolveFeaturesFromEnv();
     }
 
     /// @dev This function sets up the system to test it as follows:
@@ -169,8 +177,7 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("MipsSingleton", vm.parseTomlAddress(opToml, ".addresses.MIPS"));
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IFaultDisputeGame faultDisputeGame =
-            IFaultDisputeGame(opToml.readAddressOr(".addresses.FaultDisputeGame", address(0)));
+        IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         artifacts.save("FaultDisputeGame", address(faultDisputeGame));
         artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
 
@@ -198,13 +205,11 @@ contract ForkLive is Deployer, StdAssertions {
     /// @param _delegateCaller The address of the upgrader to use for the upgrade.
     function _doUpgrade(IOPContractsManager _opcm, address _delegateCaller) internal {
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-        IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
-
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
-            proxyAdmin: proxyAdmin,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
+            cannonPrestate: Claim.wrap(bytes32(keccak256("cannonPrestate"))),
+            cannonKonaPrestate: Claim.wrap(bytes32(keccak256("cannonKonaPrestate")))
         });
 
         // Turn the SuperchainPAO into a DelegateCaller so we can try to upgrade the
@@ -218,8 +223,7 @@ contract ForkLive is Deployer, StdAssertions {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         try DelegateCaller(superchainPAO).dcForward(
-            address(_opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
         ) {
             // Great, the upgrade succeeded.
         } catch (bytes memory reason) {
@@ -261,8 +265,8 @@ contract ForkLive is Deployer, StdAssertions {
         // Run past upgrades depending on network.
         if (block.chainid == 1) {
             // Mainnet
-            // U16a.
-            _doUpgrade(IOPContractsManager(0x8123739C1368C2DEDc8C564255bc417FEEeBFF9D), upgrader);
+            // This is empty because the block number in the justfile is after the most recent upgrade so there are no
+            // past upgrades to run.
         } else {
             revert UnsupportedChainId();
         }
@@ -285,8 +289,14 @@ contract ForkLive is Deployer, StdAssertions {
             artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
         }
 
-        IAnchorStateRegistry newAnchorStateRegistry =
-            IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
+        IAnchorStateRegistry newAnchorStateRegistry;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            newAnchorStateRegistry = IAnchorStateRegistry(
+                LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).anchorStateRegistry
+            );
+        } else {
+            newAnchorStateRegistry = IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
+        }
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
         // Get the lockbox address from the portal, and save it
@@ -295,7 +305,14 @@ contract ForkLive is Deployer, StdAssertions {
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
         // Get the new DelayedWETH address and save it (might be a new proxy).
-        IDelayedWETH newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
+        IDelayedWETH newDelayedWeth;
+        if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            newDelayedWeth = IDelayedWETH(
+                payable(LibGameArgs.decode(disputeGameFactory.gameArgs(GameTypes.PERMISSIONED_CANNON)).weth)
+            );
+        } else {
+            newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
+        }
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));
     }

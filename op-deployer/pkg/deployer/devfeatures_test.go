@@ -84,6 +84,11 @@ func TestIsDevFeatureEnabled(t *testing.T) {
 	})
 }
 
+func TestEnableDevFeature(t *testing.T) {
+	result := EnableDevFeature(EMPTY_FEATURES, FEATURE_A)
+	require.Equal(t, FEATURE_A, result)
+}
+
 func or(values ...[32]byte) [32]byte {
 	var out [32]byte
 	for i := 0; i < 32; i++ {

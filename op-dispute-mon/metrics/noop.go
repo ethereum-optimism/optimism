@@ -53,3 +53,13 @@ func (*NoopMetricsImpl) RecordFailedGames(_ int) {}
 func (*NoopMetricsImpl) RecordBondCollateral(_ common.Address, _, _ *big.Int) {}
 
 func (*NoopMetricsImpl) RecordL2Challenges(_ bool, _ int) {}
+
+func (*NoopMetricsImpl) RecordNodeEndpointErrors(_ int) {}
+
+func (*NoopMetricsImpl) RecordNodeEndpointErrorCount(_ int) {}
+
+func (*NoopMetricsImpl) RecordMixedAvailabilityGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordMixedSafetyGames(_ int) {}
+
+func (*NoopMetricsImpl) RecordDifferentOutputRootGames(_ int) {}

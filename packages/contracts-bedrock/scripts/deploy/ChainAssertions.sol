@@ -16,6 +16,7 @@ import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -32,7 +33,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -377,8 +377,7 @@ library ChainAssertions {
         Types.ContractSet memory _impls,
         Types.ContractSet memory _proxies,
         IOPContractsManager _opcm,
-        IMIPS64 _mips,
-        IProxyAdmin _superchainProxyAdmin
+        IMIPS64 _mips
     )
         internal
         view
@@ -388,7 +387,6 @@ library ChainAssertions {
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
-        require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
 
         // Ensure that the OPCM impls are correctly saved
@@ -429,17 +427,25 @@ library ChainAssertions {
             Blueprint.parseBlueprintPreamble(address(blueprints.resolvedDelegateProxy).code);
         require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
 
-        Blueprint.Preamble memory pdg1Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
-        Blueprint.Preamble memory pdg2Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame2).code);
-        // combine pdg1 and pdg2 initcodes
-        bytes memory fullPermissionedDisputeGameInitcode =
-            abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
-        require(
-            keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
-            "CHECK-OPCM-210"
-        );
+        if (!_opcm.isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            Blueprint.Preamble memory pdg1Preamble =
+                Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
+            Blueprint.Preamble memory pdg2Preamble =
+                Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame2).code);
+            // combine pdg1 and pdg2 initcodes
+            bytes memory fullPermissionedDisputeGameInitcode =
+                abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
+            require(
+                keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
+                "CHECK-OPCM-210"
+            );
+        } else {
+            // Should not deploy V1 blueprints when using V2 dispute games
+            require(address(blueprints.permissionedDisputeGame1).code.length == 0, "CHECK-OPCM-220");
+            require(address(blueprints.permissionedDisputeGame2).code.length == 0, "CHECK-OPCM-230");
+            require(address(blueprints.permissionlessDisputeGame1).code.length == 0, "CHECK-OPCM-240");
+            require(address(blueprints.permissionlessDisputeGame2).code.length == 0, "CHECK-OPCM-250");
+        }
     }
 
     function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {

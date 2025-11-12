@@ -56,8 +56,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
@@ -165,21 +165,39 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // Get the hash of the parent block.
         bytes32 parentHash = blockhash(block.number - 1);
 
-        // Clone the implementation contract and initialize it with the given parameters.
-        //
-        // CWIA Calldata Layout:
-        // ┌──────────────────────┬─────────────────────────────────────┐
-        // │        Bytes         │            Description              │
-        // ├──────────────────────┼─────────────────────────────────────┤
-        // │ [0, 20)              │ Game creator address                │
-        // │ [20, 52)             │ Root claim                          │
-        // │ [52, 84)             │ Parent block hash at creation time  │
-        // │ [84, 84 + n)         │ Extra data (opaque)                 │
-        // │ [84 + n, 84 + n + m) │ Implementation args (opaque)        │
-        // └──────────────────────┴─────────────────────────────────────┘
-        proxy_ = IDisputeGame(
-            address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData, gameArgs[_gameType]))
-        );
+        if (gameArgs[_gameType].length == 0) {
+            // Clone the implementation contract and initialize it with the given parameters.
+            //
+            // CWIA Calldata Layout:
+            // ┌──────────────────────┬─────────────────────────────────────┐
+            // │        Bytes         │            Description              │
+            // ├──────────────────────┼─────────────────────────────────────┤
+            // │ [0, 20)              │ Game creator address                │
+            // │ [20, 52)             │ Root claim                          │
+            // │ [52, 84)             │ Parent block hash at creation time  │
+            // │ [84, 84 + n)         │ Extra data (opaque)                 │
+            // └──────────────────────┴─────────────────────────────────────┘
+            proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData)));
+        } else {
+            // Clone the implementation contract and initialize it with the given parameters.
+            //
+            // CWIA Calldata Layout:
+            // ┌──────────────────────┬─────────────────────────────────────┐
+            // │        Bytes         │            Description              │
+            // ├──────────────────────┼─────────────────────────────────────┤
+            // │ [0, 20)              │ Game creator address                │
+            // │ [20, 52)             │ Root claim                          │
+            // │ [52, 84)             │ Parent block hash at creation time  │
+            // │ [84, 88)             │ Game type                           │
+            // │ [88, 88 + n)         │ Extra data (opaque)                 │
+            // │ [88 + n, 88 + n + m) │ Implementation args (opaque)        │
+            // └──────────────────────┴─────────────────────────────────────┘
+            proxy_ = IDisputeGame(
+                address(impl).clone(
+                    abi.encodePacked(msg.sender, _rootClaim, parentHash, _gameType, _extraData, gameArgs[_gameType])
+                )
+            );
+        }
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.

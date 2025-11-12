@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -230,7 +231,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(rollup.Interop)
+		cfg.ActivateAtGenesis(forks.Interop)
 
 		seqNumber := uint64(0)
 		epoch := l1Info.ID()
@@ -271,7 +272,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number // same origin again, so the sequence number is not reset
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(rollup.Interop)
+		cfg.ActivateAtGenesis(forks.Interop)
 
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
@@ -297,7 +298,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 	t.Run("holocene 1559 params", func(t *testing.T) {
 		cfg := mkCfg()
-		cfg.ActivateAtGenesis(rollup.Holocene)
+		cfg.ActivateAtGenesis(forks.Holocene)
 		rng := rand.New(rand.NewSource(1234))
 		l1Fetcher := &testutils.MockL1Source{}
 		defer l1Fetcher.AssertExpectations(t)
@@ -382,7 +383,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 	t.Run("interop", func(t *testing.T) {
 		prepareActivationAttributes := func(t *testing.T, depSet depset.DependencySet) *eth.PayloadAttributes {
 			cfg := mkCfg()
-			cfg.ActivateAtGenesis(rollup.Isthmus)
+			cfg.ActivateAtGenesis(forks.Isthmus)
 			interopTime := uint64(1000)
 			cfg.InteropTime = &interopTime
 			rng := rand.New(rand.NewSource(1234))
@@ -444,7 +445,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		t.Run("minimum base fee param", func(t *testing.T) {
 			cfg := mkCfg()
-			cfg.ActivateAtGenesis(rollup.Jovian)
+			cfg.ActivateAtGenesis(forks.Jovian)
 			rng := rand.New(rand.NewSource(1234))
 			l1Fetcher := &testutils.MockL1Source{}
 			defer l1Fetcher.AssertExpectations(t)

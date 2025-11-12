@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -37,7 +37,7 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 
 	// Activate all forks at genesis, and schedule Fjord the block after
 	fjordOffset := uint64(2)
-	dp.DeployConfig.ActivateForkAtOffset(rollup.Fjord, fjordOffset)
+	dp.DeployConfig.ActivateForkAtOffset(forks.Fjord, fjordOffset)
 
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 

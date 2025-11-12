@@ -192,6 +192,10 @@ func (n *L2Network) IsActivated(timestamp uint64) bool {
 	return head.Number >= blockNum
 }
 
+func (n *L2Network) IsForkActive(forkName rollup.ForkName, timestamp uint64) bool {
+	return n.Escape().RollupConfig().IsForkActive(forkName, timestamp)
+}
+
 // LatestBlockBeforeTimestamp finds the latest block before fork activation
 func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) eth.BlockRef {
 	require := t.Require()
@@ -227,7 +231,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	el := n.Escape().L2ELNode(match.FirstL2EL)
 
 	rollupCfg := n.Escape().RollupConfig()
-	maybeActivationTime := rollupCfg.ActivationTimeFor(forkName)
+	maybeActivationTime := rollupCfg.ActivationTime(forkName)
 	require.NotNil(maybeActivationTime, "Required fork is not scheduled for activation")
 	activationTime := *maybeActivationTime
 	if activationTime == 0 {
@@ -237,11 +241,9 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	}
 	blockNum, err := rollupCfg.TargetBlockNumber(activationTime)
 	require.NoError(err)
-	NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum).ID()
-	activationBlock, err := el.EthClient().BlockRefByNumber(t.Ctx(), blockNum)
-	require.NoError(err, "Failed to get activation block")
-	t.Logger().Info("Activation block", "block", activationBlock.ID())
-	return activationBlock.ID()
+	activationBlock := eth.ToBlockID(NewL2ELNode(el, n.control).WaitForBlockNumber(blockNum))
+	t.Logger().Info("Activation block", "block", activationBlock)
+	return activationBlock
 
 }
 

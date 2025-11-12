@@ -91,6 +91,16 @@ func TestFees(t *testing.T) {
 
 		testFees(t, cfg)
 	})
+
+	t.Run("jovian", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		cfg := e2esys.JovianSystemConfig(t, new(hexutil.Uint64))
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+		cfg.DeployConfig.GasPriceOracleOperatorFeeScalar = 1439103868
+		cfg.DeployConfig.GasPriceOracleOperatorFeeConstant = 12564178266093314607
+
+		testFees(t, cfg)
+	})
 }
 
 func testFees(t *testing.T, cfg e2esys.SystemConfig) {
@@ -244,6 +254,10 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	require.NoError(t, err)
 	require.Equal(t, sys.RollupConfig.IsIsthmus(header.Time), gpoIsthmus, "GPO and chain must have same isthmus view")
 
+	gpoJovian, err := gpoContract.IsJovian(nil)
+	require.NoError(t, err)
+	require.Equal(t, sys.RollupConfig.IsJovian(header.Time), gpoJovian, "GPO and chain must have same jovian view")
+
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
 
@@ -277,18 +291,26 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 			new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times base fee")
 	}
 
-	expectedOperatorFee := new(big.Int).Add(
-		new(big.Int).Div(
-			new(big.Int).Mul(
-				gasUsed,
-				new(big.Int).SetUint64(uint64(cfg.DeployConfig.GasPriceOracleOperatorFeeScalar)),
-			),
-			new(big.Int).SetUint64(uint64(1e6)),
-		),
-		new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOperatorFeeConstant),
-	)
-
 	if sys.RollupConfig.IsIsthmus(header.Time) {
+		baseOperatorFee := new(big.Int).Mul(
+			gasUsed,
+			new(big.Int).SetUint64(uint64(cfg.DeployConfig.GasPriceOracleOperatorFeeScalar)),
+		)
+
+		scaledOperatorFee := new(big.Int)
+		if sys.RollupConfig.IsJovian(header.Time) {
+			// For Jovian, multiply by 100.
+			scaledOperatorFee.Mul(baseOperatorFee, new(big.Int).SetUint64(uint64(100)))
+		} else {
+			// For Isthmus, divide by 1e6.
+			scaledOperatorFee.Div(baseOperatorFee, new(big.Int).SetUint64(uint64(1e6)))
+		}
+
+		expectedOperatorFee := new(big.Int).Add(
+			scaledOperatorFee,
+			new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOperatorFeeConstant),
+		)
+
 		require.True(t, expectedOperatorFee.Cmp(operatorFee.ToBig()) == 0,
 			"operator fee is correct",
 		)

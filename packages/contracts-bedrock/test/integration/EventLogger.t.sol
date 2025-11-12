@@ -15,7 +15,7 @@ import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 /// @title EventLogger_TestInit
 /// @notice Reusable test initialization for `EventLogger` tests.
-contract EventLogger_TestInit is Test {
+abstract contract EventLogger_TestInit is Test {
     event ExecutingMessage(bytes32 indexed msgHash, ImplIdentifier id);
 
     EventLogger eventLogger;

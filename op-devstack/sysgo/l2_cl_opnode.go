@@ -226,6 +226,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 			p2pConfig, err = p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 			require.NoError(err, "failed to load p2p config")
+			p2pConfig.NoDiscovery = cfg.NoDiscovery
 		}
 
 		// specify interop config, but do not configure anything, to disable indexing mode

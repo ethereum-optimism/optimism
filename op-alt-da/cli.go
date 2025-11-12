@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/urfave/cli/v2"
 )
 
@@ -102,15 +103,11 @@ func (c CLIConfig) Check() error {
 	return nil
 }
 
-func (c CLIConfig) NewDAClient() (*DAClient, error) {
-	err := c.Check()
-	if err != nil {
-		return nil, fmt.Errorf("check daclient CLIConfig: %w", err)
-	}
-	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead, precompute: !c.GenericDA, getTimeout: c.GetTimeout, putTimeout: c.PutTimeout}, nil
+func (c CLIConfig) NewDAClient() *DAClient {
+	return &DAClient{url: c.DAServerURL, verify: c.VerifyOnRead, precompute: !c.GenericDA, getTimeout: c.GetTimeout, putTimeout: c.PutTimeout}
 }
 
-func ReadCLIConfig(c *cli.Context) CLIConfig {
+func ReadCLIConfig(c cliiface.Context) CLIConfig {
 	return CLIConfig{
 		Enabled:               c.Bool(EnabledFlagName),
 		DAServerURL:           c.String(DaServerAddressFlagName),

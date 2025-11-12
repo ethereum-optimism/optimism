@@ -18,6 +18,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -405,27 +406,26 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 }
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
-
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		return (*uint64)(d.L2GenesisCanyonTimeOffset)
-	case rollup.Delta:
+	case forks.Delta:
 		return (*uint64)(d.L2GenesisDeltaTimeOffset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		return (*uint64)(d.L2GenesisEcotoneTimeOffset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		return (*uint64)(d.L2GenesisFjordTimeOffset)
-	case rollup.Granite:
+	case forks.Granite:
 		return (*uint64)(d.L2GenesisGraniteTimeOffset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		return (*uint64)(d.L2GenesisJovianTimeOffset)
-	case rollup.Interop:
+	case forks.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
@@ -434,32 +434,32 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
 	switch fork {
-	case rollup.Regolith:
+	case forks.Regolith:
 		d.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Canyon:
+	case forks.Canyon:
 		d.L2GenesisCanyonTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Delta:
+	case forks.Delta:
 		d.L2GenesisDeltaTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Ecotone:
+	case forks.Ecotone:
 		d.L2GenesisEcotoneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Fjord:
+	case forks.Fjord:
 		d.L2GenesisFjordTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Granite:
+	case forks.Granite:
 		d.L2GenesisGraniteTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Holocene:
+	case forks.Holocene:
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Isthmus:
+	case forks.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Jovian:
+	case forks.Jovian:
 		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Interop:
+	case forks.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
 }
 
-var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
+var scheduleableForks = forks.From(forks.Regolith)
 
 // ActivateForkAtOffset activates the given fork at the given offset. Previous forks are activated
 // at genesis and later forks are deactivated.
@@ -467,7 +467,7 @@ var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
 // ActivateForkAtOffset with the earliest fork and then SetForkTimeOffset to individually set later
 // forks.
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName, offset uint64) {
-	if !rollup.IsValidFork(fork) || fork == rollup.Bedrock {
+	if !forks.IsValid(fork) || fork == forks.Bedrock {
 		panic(fmt.Sprintf("invalid fork: %s", fork))
 	}
 	ts := new(uint64)
@@ -715,6 +715,18 @@ func (d *AltDADeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
+type FeeMarketConfig struct {
+	// MinBaseFee is the minimum base applied to each block.
+	MinBaseFee uint64 `json:"minBaseFee"`
+	// DAFootprintGasScalar is the scalar used to compute the DAFootprint of each block.
+	DAFootprintGasScalar uint16 `json:"daFootprintGasScalar"`
+}
+
+func (f *FeeMarketConfig) Check(log log.Logger) error {
+	// All values are valid.
+	return nil
+}
+
 // L2InitializationConfig represents all L2 configuration
 // data that can be configured before the deployment of any L1 contracts.
 type L2InitializationConfig struct {
@@ -729,6 +741,7 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
+	FeeMarketConfig
 	AltDADeployConfig
 }
 
@@ -1122,6 +1135,10 @@ func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 		Scalar:            d.FeeScalar(),
 		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
 		OperatorFeeParams: d.OperatorFeeParams(),
+		MinBaseFee:        d.MinBaseFee,
+		// Note that we don't use SetDAFootprintGasScalar here because this SystemConfig is supposed to
+		// reflect the genesis state and is not used inside derivation.
+		DAFootprintGasScalar: d.DAFootprintGasScalar,
 	}
 }
 

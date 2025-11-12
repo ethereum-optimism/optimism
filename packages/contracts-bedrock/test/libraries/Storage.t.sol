@@ -7,7 +7,7 @@ import { Test } from "forge-std/Test.sol";
 
 /// @title Storage_TestInit
 /// @notice Reusable test initialization for `Storage` tests.
-contract Storage_TestInit is Test {
+abstract contract Storage_TestInit is Test {
     StorageSetter setter;
 
     function setUp() public {

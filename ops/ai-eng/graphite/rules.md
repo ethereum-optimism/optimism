@@ -16,7 +16,7 @@ This section applies to Solidity files ONLY.
 
 ### Versioning
 
-- Verify that the version bumps being made in source files are appropriate for the type of change that was made. For example, a change that only modifies a contract should be a patch change, not a minor change.
+- Do NOT comment on the choice of version increment for a given Solidity file.
 
 ### Interfaces
 

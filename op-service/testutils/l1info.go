@@ -28,6 +28,7 @@ type MockBlockInfo struct {
 	InfoExcessBlobGas *uint64
 	InfoReceiptRoot   common.Hash
 	InfoGasUsed       uint64
+	InfoBlobGasUsed   *uint64
 	InfoGasLimit      uint64
 	InfoHeaderRLP     []byte
 
@@ -81,6 +82,10 @@ func (l *MockBlockInfo) ReceiptHash() common.Hash {
 
 func (l *MockBlockInfo) GasUsed() uint64 {
 	return l.InfoGasUsed
+}
+
+func (l *MockBlockInfo) BlobGasUsed() *uint64 {
+	return l.InfoBlobGasUsed
 }
 
 func (l *MockBlockInfo) GasLimit() uint64 {

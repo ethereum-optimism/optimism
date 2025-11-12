@@ -16,7 +16,7 @@ import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Imp
 
 /// @title SuperchainERC20_TestInit
 /// @notice Reusable test initialization for `SuperchainERC20` tests.
-contract SuperchainERC20_TestInit is Test {
+abstract contract SuperchainERC20_TestInit is Test {
     address internal constant ZERO_ADDRESS = address(0);
     address internal constant SUPERCHAIN_TOKEN_BRIDGE = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;

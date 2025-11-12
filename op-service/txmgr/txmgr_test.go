@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"testing"
@@ -116,6 +117,7 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		From:          common.Address{},
 		RetryInterval: 1 * time.Millisecond,
 		MaxRetries:    5,
+		CellProofTime: math.MaxUint64,
 	}
 
 	cfg.RebroadcastInterval.Store(int64(time.Second / 2))

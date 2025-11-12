@@ -40,6 +40,8 @@ type BatcherConfig struct {
 	// UseAltDA is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the DA server and post commitments to blobs or calldata.
 	UseAltDA bool
+	// GenericDA is true if the DA server generates commitments for the input
+	GenericDA bool
 	// maximum number of concurrent blob put requests to the DA server
 	MaxConcurrentDARequests uint64
 
@@ -269,6 +271,8 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		// DaType: set below
 	}
 
+	// 1
+
 	if bs.UseAltDA {
 		if cfg.DataAvailabilityType == flags.CalldataType {
 			cc.DaType = DaTypeAltDA
@@ -292,6 +296,14 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		default:
 			return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 		}
+	}
+
+	if bs.UseAltDA && cc.UseBlobs() {
+		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
+	}
+
+	if bs.UseAltDA && !bs.GenericDA && cc.MaxFrameSize > altda.MaxInputSize {
+		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, altda.MaxInputSize)
 	}
 
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
@@ -429,12 +441,12 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
 	config := cfg.AltDA
-	daClient, err := config.NewDAClient()
-	if err != nil {
+	if err := config.Check(); err != nil {
 		return err
 	}
-	bs.AltDA = daClient
+	bs.AltDA = config.NewDAClient()
 	bs.UseAltDA = config.Enabled
+	bs.GenericDA = config.GenericDA
 	return nil
 }
 

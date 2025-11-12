@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -22,6 +23,7 @@ var (
 )
 
 type OutputRollupClient interface {
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 	SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error)
 }
@@ -47,10 +49,11 @@ func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client
 }
 
 type outputResult struct {
-	outputRoot common.Hash
-	isSafe     bool
-	notFound   bool
-	err        error
+	outputRoot            common.Hash
+	gameL1HeadUnprocessed bool
+	isSafe                bool
+	notFound              bool
+	err                   error
 }
 
 // Enrich validates the specified root claim against the output at the given block number.
@@ -69,18 +72,36 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		return nil
 	}
 
+	game.RollupEndpointTotalCount = len(o.clients)
+
 	results := make([]outputResult, len(o.clients))
 	var wg sync.WaitGroup
 	for i, client := range o.clients {
 		wg.Add(1)
 		go func(i int, client OutputRollupClient) {
 			defer wg.Done()
+
+			syncStatus, err := client.SyncStatus(ctx)
+			if err != nil {
+				results[i] = outputResult{err: fmt.Errorf("failed to fetch sync status: %w", err)}
+				return
+			}
+			if syncStatus.CurrentL1.Number <= game.L1HeadNum {
+				o.log.Warn("Rollup node out of sync", "gameL1HeadNum", game.L1HeadNum, "nodeCurrentL1", syncStatus.CurrentL1.Number)
+				results[i] = outputResult{gameL1HeadUnprocessed: true}
+				return
+			}
+
 			output, err := client.OutputAtBlock(ctx, game.L2BlockNumber)
 			if err != nil {
-				// string match as the error comes from the remote server so we can't use Errors.Is sadly.
-				if strings.Contains(err.Error(), "not found") {
-					results[i] = outputResult{notFound: true}
-					return
+				// Only treat JSON-RPC application-level "not found" as notFound.
+				// Transport/HTTP errors or other failures should be treated as errors.
+				var rpcErr rpc.Error
+				if errors.As(err, &rpcErr) {
+					if strings.Contains(strings.ToLower(rpcErr.Error()), "not found") {
+						results[i] = outputResult{notFound: true}
+						return
+					}
 				}
 				results[i] = outputResult{err: err}
 				return
@@ -110,13 +131,29 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	for idx, result := range results {
 		if result.err != nil {
 			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
+			endpointID := fmt.Sprintf("client-%d", idx)
+			game.RollupEndpointErrors[endpointID] = true
+			game.RollupEndpointErrorCount++
+			continue
+		}
+		if result.gameL1HeadUnprocessed {
 			continue
 		}
 
 		validResults = append(validResults, result)
 
-		if !result.notFound {
+		if result.notFound {
+			game.RollupEndpointNotFoundCount++
+		} else {
 			foundResults = append(foundResults, result)
+			// Track safety counts only for found results where the output root matches the game's root claim
+			if result.outputRoot == game.RootClaim {
+				if result.isSafe {
+					game.RollupEndpointSafeCount++
+				} else {
+					game.RollupEndpointUnsafeCount++
+				}
+			}
 		}
 	}
 
@@ -145,6 +182,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		for _, result := range foundResults[1:] {
 			if result.outputRoot != firstResult.outputRoot {
 				diverged = true
+				game.RollupEndpointDifferentOutputRoots = true
 				break
 			}
 		}

@@ -321,3 +321,75 @@ func TestVerifyBlob(t *testing.T) {
 	differentBlob[0] = byte(8)
 	require.Error(t, verifyBlob(&differentBlob, versionedHash))
 }
+
+func TestGetBlobs(t *testing.T) {
+	hash0, sidecar0 := makeTestBlobSidecar(0)
+	hash1, sidecar1 := makeTestBlobSidecar(1)
+	hash2, sidecar2 := makeTestBlobSidecar(2)
+
+	hashes := []eth.IndexedBlobHash{hash0, hash2, hash1} // Mix up the order.
+
+	invalidBlob0 := sidecar0.Blob
+	invalidBlob0[10]++
+
+	cases := []struct {
+		name           string
+		beaconBlobs    []*eth.Blob
+		expectFallback bool
+	}{
+		{
+			name: "happy path",
+			// From the /blobs/ spec:
+			//   Blobs are returned as an ordered list matching the order of their corresponding
+			//   KZG commitments in the block.
+			beaconBlobs:    []*eth.Blob{&sidecar0.Blob, &sidecar1.Blob, &sidecar2.Blob},
+			expectFallback: false,
+		},
+		{
+			name:           "fallback on client error",
+			beaconBlobs:    nil,
+			expectFallback: true,
+		},
+		{
+			name:           "fallback on invalid number of blobs",
+			beaconBlobs:    []*eth.Blob{&sidecar0.Blob},
+			expectFallback: true,
+		},
+		{
+			name:           "fallback on invalid blob",
+			beaconBlobs:    []*eth.Blob{&invalidBlob0, &sidecar1.Blob, &sidecar2.Blob},
+			expectFallback: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+			p := mocks.NewBeaconClient(t)
+			p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
+			p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
+			client := NewL1BeaconClient(p, L1BeaconClientConfig{})
+			ref := eth.L1BlockRef{Time: 12}
+
+			// construct the mock response for the beacon blobs call
+			var beaconBlobsResponse eth.APIBeaconBlobsResponse
+			var err error
+			if c.beaconBlobs == nil {
+				err = errors.New("client error")
+			} else {
+				beaconBlobsResponse = eth.APIBeaconBlobsResponse{Data: c.beaconBlobs}
+			}
+			p.EXPECT().BeaconBlobs(ctx, uint64(1), hashes).Return(beaconBlobsResponse, err)
+
+			if c.expectFallback {
+				p.EXPECT().BeaconBlobSideCars(ctx, false, uint64(1), hashes).Return(eth.APIGetBlobSidecarsResponse{
+					Data: toAPISideCars([]*eth.BlobSidecar{sidecar0, sidecar1, sidecar2}),
+				}, nil)
+			}
+
+			resp, err := client.GetBlobs(ctx, ref, hashes)
+			require.NoError(t, err)
+			require.Equal(t, []*eth.Blob{&sidecar0.Blob, &sidecar2.Blob, &sidecar1.Blob}, resp)
+		})
+	}
+}

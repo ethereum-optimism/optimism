@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.5.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.6.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -99,7 +99,7 @@ acceptance-test devnet="" gate="base":
             "--exclude-gates" "flake-shake"
             "--allow-skips"
             "--timeout" "90m"
-            "--default-timeout" "10m"
+            "--default-timeout" "30m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )

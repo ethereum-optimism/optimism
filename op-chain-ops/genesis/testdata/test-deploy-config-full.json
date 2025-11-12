@@ -59,6 +59,8 @@
   "gasPriceOracleOperatorFeeConstant": 0,
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
+  "minBaseFee": 100,
+  "daFootprintGasScalar": 400,
   "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",

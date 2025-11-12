@@ -26,7 +26,6 @@ func compareAddGameTypeInputs(t *testing.T, expected, actual AddGameTypeInput) {
 	require.Equal(t, expected.L1ProxyAdminOwner, actual.L1ProxyAdminOwner)
 	require.Equal(t, expected.OPCMImpl, actual.OPCMImpl)
 	require.Equal(t, expected.SystemConfigProxy, actual.SystemConfigProxy)
-	require.Equal(t, expected.OPChainProxyAdmin, actual.OPChainProxyAdmin)
 	require.Equal(t, expected.DelayedWETHProxy, actual.DelayedWETHProxy)
 	require.Equal(t, expected.DisputeGameType, actual.DisputeGameType)
 	require.Equal(t, expected.DisputeAbsolutePrestate, actual.DisputeAbsolutePrestate)
@@ -54,7 +53,6 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 				L1ProxyAdminOwner:       common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
 				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
-				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),
 				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),
@@ -74,7 +72,6 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 				L1ProxyAdminOwner:       common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
 				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
-				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),
 				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),

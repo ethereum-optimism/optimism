@@ -6,11 +6,17 @@ test args='./...': build-contracts copy-contract-artifacts
     go test -v {{args}}
 
 build-contracts:
-  just ../packages/contracts-bedrock/forge-build
+  just ../packages/contracts-bedrock/build-no-tests
 
 copy-contract-artifacts:
-    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+    #!/bin/bash
+    set -euo pipefail
+
+    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst
+    go run ./pkg/deployer/artifacts/cmd/mktar \
+        -base ../packages/contracts-bedrock \
+        -out ./pkg/deployer/artifacts/forge-artifacts/artifacts.tzst \
+        --exclude="*.t.sol"
 
 _LDFLAGSSTRING := "'" + trim(
     "-X main.GitCommit=" + GITCOMMIT + " " + \
@@ -81,18 +87,16 @@ _validate_rpc:
 pre-deploy: build build-contracts
 
 # Run with:
-# PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm 'op-contracts/v4.0.0-rc.8'
-deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
+# PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm
+deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer bootstrap implementations \
+  go run ./cmd/op-deployer bootstrap implementations \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
-    --mips-version 7 \
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
-    --l1-proxy-admin-owner $L1_PROXY_ADMIN_OWNER \
-    --l1-contracts-release {{release}} \
+    --upgrade-controller $L1_PROXY_ADMIN_OWNER \
     --superchain-proxy-admin $SUPERCHAIN_PROXY_ADMIN \
     --challenger $CHALLENGER \
     --outfile deploy-${NETWORK}.json
@@ -102,7 +106,7 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
 verify-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer verify \
+  go run ./cmd/op-deployer verify \
     --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \

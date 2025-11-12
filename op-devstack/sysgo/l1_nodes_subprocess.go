@@ -135,7 +135,7 @@ func (n *ExternalL1Geth) Start() {
 func (n *ExternalL1Geth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	err := n.sub.Stop()
+	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
 }
@@ -185,6 +185,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 			"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
 			"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 			"--ipcdisable",
+			"--port", "0",
 			"--nodiscover",
 			"--verbosity", "5",
 			"--miner.recommit", "2s",
@@ -216,7 +217,7 @@ func WithL1NodesSubprocess(id stack.L1ELNodeID, clID stack.L1CLNodeID) stack.Opt
 			l1Clock = orch.timeTravelClock
 		}
 
-		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime)
+		bcn := fakebeacon.NewBeacon(p.Logger(), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime, l1Net.genesis.Config.OsakaTime)
 		p.Cleanup(func() {
 			_ = bcn.Close()
 		})

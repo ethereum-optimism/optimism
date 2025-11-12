@@ -52,7 +52,7 @@ func (m *TestTxManager) makeStuckTx(ctx context.Context, candidate TxCandidate) 
 	var sidecar *types.BlobTxSidecar
 	var blobHashes []common.Hash
 	if len(candidate.Blobs) > 0 {
-		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, m.cfg.EnableCellProofs); err != nil {
+		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs, false); err != nil {
 			return nil, err
 		}
 	}

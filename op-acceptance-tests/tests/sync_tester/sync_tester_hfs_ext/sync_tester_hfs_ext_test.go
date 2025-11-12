@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -40,14 +40,14 @@ const (
 
 var (
 	// Network upgrade block numbers for op-sepolia
-	networkUpgradeBlocks = map[rollup.ForkName]uint64{
-		rollup.Canyon:   4089330,
-		rollup.Delta:    5700330,
-		rollup.Ecotone:  8366130,
-		rollup.Fjord:    12597930,
-		rollup.Granite:  15837930,
-		rollup.Holocene: 20415330,
-		rollup.Isthmus:  26551530,
+	networkUpgradeBlocks = map[forks.Name]uint64{
+		forks.Canyon:   4089330,
+		forks.Delta:    5700330,
+		forks.Ecotone:  8366130,
+		forks.Fjord:    12597930,
+		forks.Granite:  15837930,
+		forks.Holocene: 20415330,
+		forks.Isthmus:  26551530,
 	}
 
 	// Load configuration from environment variables with defaults
@@ -61,59 +61,59 @@ var (
 )
 
 func TestSyncTesterHFS_Canyon_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Canyon, sync.CLSync)
+	hfsExt(gt, forks.Canyon, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Canyon_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Canyon, sync.ELSync)
+	hfsExt(gt, forks.Canyon, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Delta_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Delta, sync.CLSync)
+	hfsExt(gt, forks.Delta, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Delta_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Delta, sync.ELSync)
+	hfsExt(gt, forks.Delta, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Ecotone_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Ecotone, sync.CLSync)
+	hfsExt(gt, forks.Ecotone, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Ecotone_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Ecotone, sync.ELSync)
+	hfsExt(gt, forks.Ecotone, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Fjord_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Fjord, sync.CLSync)
+	hfsExt(gt, forks.Fjord, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Fjord_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Fjord, sync.ELSync)
+	hfsExt(gt, forks.Fjord, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Granite_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Granite, sync.CLSync)
+	hfsExt(gt, forks.Granite, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Granite_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Granite, sync.ELSync)
+	hfsExt(gt, forks.Granite, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Holocene_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Holocene, sync.CLSync)
+	hfsExt(gt, forks.Holocene, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Holocene_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Holocene, sync.ELSync)
+	hfsExt(gt, forks.Holocene, sync.ELSync)
 }
 
 func TestSyncTesterHFS_Isthmus_CLSync(gt *testing.T) {
-	hfsExt(gt, rollup.Isthmus, sync.CLSync)
+	hfsExt(gt, forks.Isthmus, sync.CLSync)
 }
 
 func TestSyncTesterHFS_Isthmus_ELSync(gt *testing.T) {
-	hfsExt(gt, rollup.Isthmus, sync.ELSync)
+	hfsExt(gt, forks.Isthmus, sync.ELSync)
 }
 
 // getEnvOrDefault returns the environment variable value or the default if not set
@@ -191,7 +191,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 		}
 		opt = stack.Combine(opt,
 			presets.WithExecutionLayerSyncOnVerifiers(),
-			presets.WithELSyncTarget(targetBlock),
+			presets.WithELSyncActive(),
 			presets.WithSyncTesterELInitialState(eth.FCUState{
 				Latest: blk,
 				Safe:   0,
@@ -215,7 +215,7 @@ func setupOrchestrator(gt *testing.T, t devtest.T, blk, targetBlock uint64, l2CL
 	return orch.(*sysgo.Orchestrator)
 }
 
-func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) {
+func hfsExt(gt *testing.T, upgradeName forks.Name, l2CLSyncMode sync.Mode) {
 	t := devtest.ParallelT(gt)
 	l := t.Logger()
 
@@ -249,14 +249,17 @@ func hfsExt(gt *testing.T, upgradeName rollup.ForkName, l2CLSyncMode sync.Mode) 
 	}
 	require := t.Require()
 
-	ft := sys.L2.Escape().RollupConfig().ActivationTimeFor(upgradeName)
+	ft := sys.L2.Escape().RollupConfig().ActivationTime(upgradeName)
 	var l2CLSyncStatus *eth.SyncStatus
 	attempts := 1000
 	if l2CLSyncMode == sync.ELSync {
 		// After EL Sync is finished, the FCU state will advance to target immediately so less attempts
 		attempts = 5
 		// Signal L2CL for finishing EL Sync
-		sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock)
+		// Must send consecutive three payloads due to default EL Sync policy
+		for i := 2; i >= 0; i-- {
+			sys.L2CL.SignalTarget(sys.L2ELReadOnly, targetBlock-uint64(i))
+		}
 	} else {
 		l2CLSyncStatus := sys.L2CL.WaitForNonZeroUnsafeTime(t.Ctx())
 		require.Less(l2CLSyncStatus.UnsafeL2.Time, *ft, "L2CL unsafe time should be less than fork timestamp before upgrade")

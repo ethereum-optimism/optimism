@@ -81,12 +81,8 @@ type DA struct {
 }
 
 // NewAltDA creates a new AltDA instance with the given log and CLIConfig.
-func NewAltDA(log log.Logger, cli CLIConfig, cfg Config, metrics Metricer) (*DA, error) {
-	daClient, err := cli.NewDAClient()
-	if err != nil {
-		return nil, fmt.Errorf("new DAClient: %w", err)
-	}
-	return NewAltDAWithStorage(log, cfg, daClient, metrics), nil
+func NewAltDA(log log.Logger, cli CLIConfig, cfg Config, metrics Metricer) *DA {
+	return NewAltDAWithStorage(log, cfg, cli.NewDAClient(), metrics)
 }
 
 // NewAltDAWithStorage creates a new AltDA instance with the given log and DAStorage interface.

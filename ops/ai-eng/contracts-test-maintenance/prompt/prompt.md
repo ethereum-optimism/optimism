@@ -30,8 +30,9 @@ Don't guess or assume - if unsure, examine the source contract carefully.
 
 <zero_tolerance_rules>
 1. NO creating NEW tests for inherited functions - only test functions declared in target contract
-2. NO failing tests kept - all must pass or task fails
-3. NO removing ANY existing tests - even if they test inherited functions (enhance/modify instead)
+2. NO creating test contracts for constructor parameters - use Constructor_Test instead
+3. NO failing tests kept - all must pass or task fails
+4. NO removing ANY existing tests - even if they test inherited functions (enhance/modify instead)
 </zero_tolerance_rules>
 
 <core_principles>
@@ -84,12 +85,16 @@ This systematic approach ensures comprehensive test improvements without missing
 **Phase 3 - Implementation & Validation**
 *Goal: Apply improvements while maintaining all tests passing*
 - Implement enhancements identified in Phase 1
+- Commit each distinct change based on what issue it addresses using conventional commit format
 - Add new tests for gaps identified in Phase 2
+- Commit each test or group based on what coverage gap it fills using conventional commit format
 - Validate each change maintains expected behavior
 - Ensure all tests pass before proceeding to organization
 
 **Phase 4 - Organization & Finalization**
 *Goal: Clean structure that matches source code*
+- Reorganize test contracts to match source function declaration order
+- Commit organization changes (addresses structure/readability) using conventional commit format
 - Verify zero semgrep violations and compiler warnings
 - Final validation to ensure all tests pass
 
@@ -98,6 +103,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Enhancement-first approach maximizes existing test value
 - Structured validation prevents breaking changes
 - Consistent organization improves maintainability
+- Motivation-based commits make PRs easier to review
 
 *These phases provide analytical structure - you can iterate between them as needed, but ensure each phase's goals are met for comprehensive coverage.*
 </methodology>
@@ -106,6 +112,7 @@ This systematic approach ensures comprehensive test improvements without missing
 <naming_rules>
 **Test Contract Names:**
 - `TargetContract_FunctionName_Test` - ONE contract per function (no exceptions)
+- `TargetContract_Constructor_Test` - For constructor tests
 - `TargetContract_Uncategorized_Test` - For multi-function integration tests only (NEVER use "Unclassified")
 - `TargetContract_TestInit` - Shared setup contract
 - Constants/ALL CAPS: Convert to PascalCase (e.g., `MAX_LIMIT` → `TargetContract_MaxLimit_Test`)
@@ -119,6 +126,7 @@ This systematic approach ensures comprehensive test improvements without missing
 - Format: `[method]_[functionName]_[scenario]_[outcome]`
   - Methods: `test`, `testFuzz`, `testDiff`
   - Outcomes: `succeeds`, `reverts`, `fails` (never `works`)
+  - Scenarios: Keep concise (e.g., `expired` not `expiredPause`)
 - ALL parameters use underscore prefix: `_param`
 - Read-only tests MUST have `view` modifier
 
@@ -152,8 +160,12 @@ Uncategorized_Test Contract:
 
 Ask yourself: "What is the PRIMARY behavior I'm testing?" The answer determines the categorization.
 
-**Expected Structure:**
-Helper contracts → TestInit → function tests (in source order) → Uncategorized_Test last
+**Final Organization Structure:**
+1. After all tests are implemented and passing
+2. Map all functions from source contract in declaration order
+3. Reorganize ALL test contracts to match this order
+4. Structure: Helper contracts → TestInit → function tests (in source order) → Uncategorized last
+5. NEVER delete existing tests - only enhance, rename, or reorganize
 
 CRITICAL: Organization happens LAST, after all improvements are complete
 
@@ -207,7 +219,7 @@ Low-level calls: check both success=false and error selector
 
 **Implementation Details:**
 - Before implementing helper functions, check for existing libraries (OpenZeppelin, Solady, etc.)
-- Version testing: Use `assertGt(bytes(contractName.version()).length, 0);` not specific version strings
+- Version testing: Use `SemverComp.parse(contractName.version());` to validate proper semver format (not specific version strings or length checks)
 - Never use dummy values: hex"test" → use valid hex like hex"1234" or hex""
 - Check actual contract behavior before making assumptions
 </test_assumptions>
@@ -250,6 +262,7 @@ NO - Use focused test when:
 
 <fuzz_constraints>
 Always use bound() for ranges: `_limit = bound(_limit, 0, MAX - 1)`
+Bound value amounts to prevent arithmetic overflow in test calculations (e.g., `type(uint192).max` for comprehensive coverage)
 Only use vm.assume() when bound() isn't possible (e.g., address exclusions)
 Check actual function requirements before adding constraints - don't assume
 NEVER fuzz a parameter if you need a specific value - just use that value directly
@@ -267,6 +280,7 @@ NEVER fuzz a parameter if you need a specific value - just use that value direct
 - Tests that are logically equivalent despite using different numbers
 - Tests that cannot fail or always pass regardless of input
 - Testing undefined behavior without proper setup or context
+- Tests that only verify non-reversion without asserting actual state changes or return values
 </avoid>
 
 <getter_strategy>
@@ -293,6 +307,7 @@ A test provides value only if:
 - It has clear success and failure conditions
 - It validates specific, expected behavior
 - It could catch real bugs or regressions
+- It uses explicit assertions to verify outcomes (non-reversion alone is insufficient)
 </meaningful_test_criteria>
 
 <code_quality>
@@ -440,6 +455,73 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
 // No empty Storage_Uncategorized_Test remains
 </right>
 </example>
+<example>
+<scenario>Missing explicit assertion for protection mechanism</scenario>
+<wrong>
+function test_zeroProtection_succeeds() {
+    vm.fee(0);
+    contract.method(); // ❌ Only checks doesn't revert
+}
+</wrong>
+<right>
+function test_zeroProtection_succeeds() {
+    vm.fee(0);
+    contract.method();
+    assertEq(contract.getValue(), 1); // ✓ Verifies protection worked
+}
+</right>
+</example>
+<example>
+<scenario>Constructor parameter treated as function</scenario>
+<wrong>
+contract Base_InitVersion_Test { // ❌ Constructor param, not a function
+    function testFuzz_initVersion_succeeds(uint8 _version) { ... }
+}
+</wrong>
+<right>
+contract Base_Constructor_Test { // ✓ All constructor tests together
+    function testFuzz_constructor_validVersion_succeeds(uint8 _version) { ... }
+}
+</right>
+</example>
+<example>
+<scenario>Version testing with hardcoded strings</scenario>
+<wrong>
+contract L1FeeVault_Version_Test {
+    function test_version_succeeds() external view {
+        assertEq(l1FeeVault.version(), "1.5.1"); // ❌ Hardcoded version string
+    }
+}
+// Or:
+function test_version_succeeds() external view {
+    assertGt(bytes(l1FeeVault.version()).length, 0); // ❌ Only checks non-empty
+}
+</wrong>
+<right>
+contract L1FeeVault_Version_Test {
+    function test_version_validFormat_succeeds() external view {
+        SemverComp.parse(l1FeeVault.version()); // ✓ Validates x.y.z format, no maintenance
+    }
+}
+</right>
+</example>
+<example>
+<scenario>Combining unrelated changes in single commit</scenario>
+<wrong>
+// Single commit with both changes:
+- Renamed test_constructor_baseFeeVault_succeeds() to test_constructor_succeeds()
+- Added test_version_validFormat_succeeds()
+// ❌ Two different motivations combined
+</wrong>
+<right>
+// Commit 1: refactor(test): remove redundant contract name from constructor test
+- Renamed test_constructor_baseFeeVault_succeeds() to test_constructor_succeeds()
+
+// Commit 2: test(contracts): add version format validation for BaseFeeVault
+- Added test_version_validFormat_succeeds() using SemverComp.parse()
+// ✓ Each commit addresses one specific issue
+</right>
+</example>
 </examples>
 
 <documentation_standards>
@@ -461,6 +543,11 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
    - MUST pass before creating any PR
 4. Search for any vm.expectRevert() without arguments and fix them
 
+**INTERPRETING CI STATUS:**
+- Only investigate actual code failures: build errors, test failures, lint violations
+- "Code Review Requirements" status = waiting for reviewer approvals, not code issues
+- Test-only changes cannot affect these CI jobs - skip them: `diff-asterisc-bytecode`, `op-program-compat`
+
 **ZERO TOLERANCE - CI FAILURES:**
 - vm.expectRevert() must ALWAYS have arguments: either selector or bytes message
 - ALL tests must pass - no exceptions
@@ -477,8 +564,9 @@ contract Storage_Uncategorized_Test is Storage_TestInit {
 - Replace with `vm.expectRevert(ErrorName.selector)` or `vm.expectRevert(bytes("message"))`
 
 *Organization confusion:*
-- Expected order: Helper contracts at top, Uncategorized last
-- Function tests should follow source contract declaration order
+- Read source contract function order first
+- Move test contracts to match that exact order
+- Keep helper contracts at top, Uncategorized last
 
 *Fuzz test failures:*
 - Check if constraints properly bound the values
@@ -498,6 +586,13 @@ After successful validation, open a pull request using the default PR template.
 **Branch Naming:**
 - Format: `ai/improve-[contract-name]-coverage`
 - Example: `ai/improve-l1-standard-bridge-coverage`
+
+**Commit Strategy:**
+- Make discrete commits based on the motivation/issue each change addresses
+- Ask "what problem does this change solve?" to determine commit boundaries
+- Even small changes should be separate commits if they solve different problems
+- Use conventional commit format: `type(scope): description`
+- Example: Don't combine "fix test naming" with "add coverage test" - different motivations
 </pr_submission>
 
 <output_format>
@@ -521,10 +616,5 @@ After successful validation, open a pull request using the default PR template.
 **Phase 5 - PR Submission:**
 - Validation complete: [YES/NO]
 - PR opened with default template: [YES/NO]
-
-**Commit Message:**
-refactor(test): improve [ContractName] test coverage and quality
-- add X tests for uncovered functions/paths
-- convert Y tests to fuzz tests
-- [other specific changes]
+- Commits made: [count and brief description of each]
 </output_format>

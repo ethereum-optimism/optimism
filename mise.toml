@@ -15,7 +15,7 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka release.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
 "go:gotest.tools/gotestsum" = "1.12.1"
 "go:github.com/vektra/mockery/v2" = "2.46.0"
 "go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "1.64.8"
@@ -38,7 +38,7 @@ anvil = "1.1.0"
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.11.2"
 kurtosis = "1.8.1"
-op-acceptor = "op-acceptor/v3.5.0"
+op-acceptor = "op-acceptor/v3.6.1"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't
@@ -58,6 +58,12 @@ goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
 op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
 svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
+
+# These are disabled, but latest mise versions error if they don't have a known
+# install source even though it won't ever actually use that source.
+asterisc = "ubi:ethereum-optimism/fake-asterisc"
+kontrol = "ubi:ethereum-optimism/fake-kontrol"
+binary_signer = "ubi:ethereum-optimism/fake-binary_signer"
 
 [settings]
 experimental = true

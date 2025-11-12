@@ -367,11 +367,49 @@ func (cl *L2CLNode) WaitForNonZeroUnsafeTime(ctx context.Context) *eth.SyncStatu
 	return ss
 }
 
-func (cl *L2CLNode) SignalTarget(el *L2ELNode, targetNum uint64) {
-	cl.log.Info("Signaling L2CL", "target", targetNum)
-	payload := el.PayloadByNumber(targetNum)
+func (cl *L2CLNode) SignalTarget(refNode *L2ELNode, targetNum uint64) {
+	cl.log.Info("Signaling L2CL", "target", targetNum, "refNode", refNode)
+	payload := refNode.PayloadByNumber(targetNum)
+	cl.PostUnsafePayload(payload)
+}
+
+func (cl *L2CLNode) PostUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
+	cl.log.Info("PostUnsafePayload", "target", payload.ExecutionPayload.BlockNumber)
 	err := retry.Do0(cl.ctx, 3, retry.Fixed(2*time.Second), func() error {
 		return cl.inner.RollupAPI().PostUnsafePayload(cl.ctx, payload)
 	})
-	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", targetNum)
+	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", payload.ExecutionPayload.BlockNumber)
+}
+
+func (cl *L2CLNode) Reset(lvl types.SafetyLevel, target eth.L2BlockRef) {
+	cl.require.NoError(retry.Do0(cl.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			res := cl.HeadBlockRef(lvl)
+			cl.log.Info("Chain sync Status", lvl, res)
+			if res.Hash == target.Hash {
+				return nil
+			}
+			return errors.New("waiting to reset")
+		}))
+}
+
+func (cl *L2CLNode) AppendUnsafePayloadUntilTip(verEL, seqEL *L2ELNode, maxAttempts int) {
+	trial := 0
+	cl.require.NoError(
+		retry.Do0(cl.ctx, 200, &retry.FixedStrategy{Dur: 250 * time.Millisecond}, func() error {
+			verUnsafe := verEL.BlockRefByLabel(eth.Unsafe)
+			seqUnsafe := seqEL.BlockRefByLabel(eth.Unsafe)
+			gap := seqUnsafe.Number - verUnsafe.Number
+			cl.log.Info("Filling in the gap by appending unsafe payload", "gap", gap, "ver", verUnsafe, "seq", seqUnsafe, "trial", trial)
+			if gap == 0 {
+				return nil
+			}
+			trial += 1
+			cl.SignalTarget(seqEL, verUnsafe.Number+1)
+			return fmt.Errorf("unsafe gap with size %d still exists", gap)
+		}))
+}
+
+func (cl *L2CLNode) UnsafeHead() *BlockRefResult {
+	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.LocalUnsafe)}
 }

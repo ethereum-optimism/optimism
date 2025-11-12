@@ -4,6 +4,7 @@
 
 !/cannon
 !/devnet-sdk
+!/op-core
 !/op-batcher
 !/op-chain-ops
 !/op-deployer
@@ -18,6 +19,7 @@
 !/op-proposer
 !/op-service
 !/op-supervisor
+!/op-supernode
 !/op-test-sequencer
 !/op-wheel
 !/op-alt-da
@@ -28,6 +30,7 @@
 !/justfiles
 !/mise.toml
 !/op-e2e/e2eutils
+!./ops/scripts/install_mise.sh
 
 **/bin
 **/testdata

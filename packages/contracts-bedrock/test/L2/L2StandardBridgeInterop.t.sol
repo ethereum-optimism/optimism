@@ -15,7 +15,7 @@ import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 
 /// @title L2StandardBridgeInterop_TestInit
 /// @notice Reusable test initialization for `L2StandardBridgeInterop` tests.
-contract L2StandardBridgeInterop_TestInit is CommonTest {
+abstract contract L2StandardBridgeInterop_TestInit is CommonTest {
     /// @notice Emitted when a conversion is made.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 

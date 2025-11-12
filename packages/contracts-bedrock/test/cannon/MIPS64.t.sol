@@ -10,7 +10,7 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title MIPS64_TestInit
 /// @notice Reusable test initialization for `MIPS64` tests.
-contract MIPS64_TestInit is Test {
+abstract contract MIPS64_TestInit is Test {
     IPreimageOracle oracle;
 
     // Store some data about acceptable versions

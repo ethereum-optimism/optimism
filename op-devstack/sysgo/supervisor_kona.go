@@ -109,7 +109,7 @@ func (s *KonaSupervisor) Stop() {
 		s.p.Logger().Warn("kona-supervisor already stopped")
 		return
 	}
-	err := s.sub.Stop()
+	err := s.sub.Stop(true)
 	s.p.Require().NoError(err, "Must stop")
 	s.sub = nil
 }
@@ -154,6 +154,7 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 			"RPC_ENABLE_ADMIN=true",
 			"L2_CONSENSUS_NODES=",
 			"L2_CONSENSUS_JWT_SECRET=",
+			"KONA_LOG_LEVEL=3", // info level, consistent with l2_cl_kona.go
 			"KONA_LOG_STDOUT_FORMAT=json",
 		}
 

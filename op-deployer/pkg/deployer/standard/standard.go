@@ -3,17 +3,15 @@ package standard
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
-	"github.com/ethereum/go-ethereum/superchain"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 const (
@@ -41,7 +39,8 @@ const (
 	ContractsV200Tag        = "op-contracts/v2.0.0"
 	ContractsV300Tag        = "op-contracts/v3.0.0"
 	ContractsV400Tag        = "op-contracts/v4.0.0-rc.7"
-	CurrentTag              = ContractsV400Tag
+	ContractsV410Tag        = "op-contracts/v4.1.0"
+	CurrentTag              = ContractsV410Tag
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -179,13 +178,13 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	case ContractsV160Tag, ContractsV170Beta1L2Tag:
 		return sched
 	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-	case ContractsV400Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+	case ContractsV400Tag, ContractsV410Tag:
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	default:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		sched.ActivateForkAtGenesis(forks.Holocene)
+		sched.ActivateForkAtGenesis(forks.Isthmus)
 	}
 
 	return sched

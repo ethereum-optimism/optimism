@@ -26,7 +26,7 @@ contract Proxy_Clasher_Harness {
 
 /// @title Proxy_TestInit
 /// @notice Reusable test initialization for `Proxy` tests.
-contract Proxy_TestInit is Test {
+abstract contract Proxy_TestInit is Test {
     event Upgraded(address indexed implementation);
     event AdminChanged(address previousAdmin, address newAdmin);
 

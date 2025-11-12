@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type SingleChainInterop struct {
@@ -141,7 +141,7 @@ func WithUnscheduledInterop() stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(sysgo.WithDeployerOptions(func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2 := range builder.L2s() {
-				l2.WithForkAtOffset(rollup.Interop, nil)
+				l2.WithForkAtOffset(forks.Interop, nil)
 			}
 		})),
 		stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
@@ -175,7 +175,7 @@ func WithSuggestedInteropActivationOffset(offset uint64) stack.CommonOption {
 	return stack.MakeCommon(sysgo.WithDeployerOptions(
 		func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 			for _, l2Cfg := range builder.L2s() {
-				l2Cfg.WithForkAtOffset(rollup.Interop, &offset)
+				l2Cfg.WithForkAtOffset(forks.Interop, &offset)
 			}
 		},
 	))

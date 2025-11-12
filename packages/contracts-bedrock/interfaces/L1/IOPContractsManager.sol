@@ -94,7 +94,7 @@ interface IOPContractsManagerUpgrader {
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -194,10 +194,6 @@ interface IOPContractsManager {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
-        address superPermissionedDisputeGame1;
-        address superPermissionedDisputeGame2;
-        address superPermissionlessDisputeGame1;
-        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
@@ -216,13 +212,17 @@ interface IOPContractsManager {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
     }
 
     /// @notice The input required to identify a chain for upgrading.
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
-        IProxyAdmin proxyAdmin;
-        Claim absolutePrestate;
+        Claim cannonPrestate;
+        Claim cannonKonaPrestate;
     }
 
     /// @notice The input required to identify a chain for updating prestates
@@ -235,7 +235,6 @@ interface IOPContractsManager {
     struct AddGameInput {
         string saltMixer;
         ISystemConfig systemConfig;
-        IProxyAdmin proxyAdmin;
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -262,9 +261,6 @@ interface IOPContractsManager {
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);
-
-    /// @notice Address of the ProxyAdmin contract shared by all chains.
-    function superchainProxyAdmin() external view returns (IProxyAdmin);
 
     // -------- Errors --------
 
@@ -304,6 +300,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error InvalidDevFeatureAccess(bytes32 devFeature);
+
     // -------- Methods --------
 
     function __constructor__(
@@ -313,8 +311,7 @@ interface IOPContractsManager {
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
-        IProxyAdmin _superchainProxyAdmin
+        IProtocolVersions _protocolVersions
     )
         external;
 
@@ -335,6 +332,23 @@ interface IOPContractsManager {
         view
         returns (string memory);
 
+    function validateWithOverrides(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
+        bool _allowFailure,
+        IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
+    )
+    external
+    view
+    returns (string memory);
+
+    function validate(
+        IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
+        bool _allowFailure
+    )
+    external
+    view
+    returns (string memory);
+
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 
     /// @notice Upgrades the implementation of all proxies in the specified chains
@@ -343,8 +357,7 @@ interface IOPContractsManager {
 
     /// @notice Upgrades the SuperchainConfig contract.
     /// @param _superchainConfig The SuperchainConfig contract to upgrade.
-    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
-    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external;
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.

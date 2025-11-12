@@ -10,7 +10,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 /// @title WETH98_TestInit
 /// @notice Reusable test initialization for `WETH98` tests.
-contract WETH98_TestInit is Test {
+abstract contract WETH98_TestInit is Test {
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
     event Deposit(address indexed dst, uint256 wad);
