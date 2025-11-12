@@ -68,7 +68,7 @@ fs_permissions = [
 ]
 
 # 5159 error code is selfdestruct error code
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size", 5159]
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-many-warnings", 5159]
 deny_warnings = true
 ffi = true
 
