@@ -1,7 +1,7 @@
 [tools]
 
 # Core dependencies
-go = "1.25.4"
+go = "1.23.8"
 golangci-lint = "1.64.8"
 gotestsum = "1.12.3"
 mockery = "2.53.3"
