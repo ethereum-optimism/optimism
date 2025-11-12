@@ -52,7 +52,7 @@ The process is as follows:
 ## Release checklist
 
 Prior to governance, the OPCM and any other contracts which are deployed to be released must undergo
-the [contracts release checklist](https://www.notion.so/oplabs/Contracts-Release-Checklists-216f153ee16280fda3c2f141c062f974?source=copy_link) process. This process provides a final review which protects against
+the [contracts release checklist](https://www.notion.so/oplabs/Contracts-Release-Checklists-216f153ee16280fda3c2f141c062f974) process. This process provides a final review which protects against
 deployment errors and supply chain risks.
 
 ## Finalizing a release
