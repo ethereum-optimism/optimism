@@ -1635,6 +1635,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - attach_workspace:
+          at: .
       # Restore cached Go modules
       - restore_cache:
           keys:
