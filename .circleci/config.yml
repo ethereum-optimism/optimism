@@ -1338,7 +1338,7 @@ jobs:
   go-lint:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout-from-workspace
       - restore_cache:
