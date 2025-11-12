@@ -872,7 +872,7 @@ jobs:
       test_command:
         description: Test command to execute (test or coverage)
         type: string
-        default: test
+        default: test --deny-warnings
       test_flags:
         description: Additional flags to pass to the test command
         type: string
