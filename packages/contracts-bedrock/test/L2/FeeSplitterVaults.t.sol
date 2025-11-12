@@ -52,7 +52,8 @@ contract FeeSplitterVaults_Receive_Test is Test {
                 }
 
                 vm.prank(_selectedVault);
-                payable(address(feeSplitter)).call{ value: _amount }("");
+                (bool revertsAsExpected,) = payable(address(feeSplitter)).call{ value: _amount }("");
+                assertTrue(revertsAsExpected);
             }
         }
     }
