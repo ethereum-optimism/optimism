@@ -8382,7 +8382,11 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-exex"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
+=======
+version = "1.10.1"
+>>>>>>> af7fe0d53f (fix: rebase conflicts (#367)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "derive_more",
@@ -8634,7 +8638,6 @@ dependencies = [
  "reth-revm",
  "reth-rpc",
  "reth-rpc-api",
- "reth-rpc-convert",
  "reth-rpc-engine-api",
  "reth-rpc-eth-api",
  "reth-rpc-eth-types",
@@ -8665,7 +8668,11 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-trie"
+<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
+=======
+version = "1.10.1"
+>>>>>>> af7fe0d53f (fix: rebase conflicts (#367)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -10635,7 +10642,7 @@ checksum = "5d69265a08751de7844521fd15003ae0a888e035773ba05695c5c759a6f89eef"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.107",
+ "syn 2.0.114",
 ]
 
 [[package]]

@@ -186,11 +186,11 @@ where
                 let config = PayloadConfig { parent_header: Arc::new(parent_header), attributes };
                 let ctx = OpPayloadBuilderCtx {
                     evm_config: this.evm_config.clone(),
-                    da_config: Default::default(), // doesn't matter if no txpool
                     chain_spec: this.provider.chain_spec(),
                     config,
                     cancel: Default::default(),
                     best_payload: Default::default(),
+                    builder_config: Default::default(),
                 };
 
                 let state_provider = this

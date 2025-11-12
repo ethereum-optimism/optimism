@@ -246,11 +246,10 @@ impl MdbxProofsStorage {
 
         let sorted_post_state = block_state_diff.post_state.into_sorted();
 
-        let sorted_accounts = sorted_post_state.accounts().accounts_sorted();
         let sorted_storage = sorted_post_state
             .account_storages()
             .iter()
-            .sorted_by_key(|(hashed_address, _)| *hashed_address)
+            .map(|(k, v)| (*k, v.clone()))
             .collect::<Vec<_>>();
 
         let storage_trie_len = sorted_storage_nodes.len();
@@ -265,7 +264,7 @@ impl MdbxProofsStorage {
         let hashed_account_keys = self.append_or_delete_dup_sorted(
             tx,
             block_number,
-            sorted_accounts.into_iter(),
+            sorted_post_state.accounts().iter().copied(),
             soft_delete,
         )?;
 
@@ -298,19 +297,19 @@ impl MdbxProofsStorage {
             if storage.is_wiped() {
                 // Yet to have any update for the current block number - So just using up to
                 // previous block number
-                let mut ro = self.storage_hashed_cursor(*hashed_address, block_number - 1)?;
-                let keys = self.wipe_storage(tx, block_number, *hashed_address, || ro.next())?;
+                let mut ro = self.storage_hashed_cursor(hashed_address, block_number - 1)?;
+                let keys = self.wipe_storage(tx, block_number, hashed_address, || ro.next())?;
                 hashed_storage_keys.extend(keys);
                 // Skip any further processing for this hashed_address
                 continue;
             }
-            let storage_items = storage.storage_slots_sorted().collect::<Vec<_>>();
             let keys = self.append_or_delete_dup_sorted(
                 tx,
                 block_number,
-                storage_items
-                    .into_iter()
-                    .map(|(key, val)| (*hashed_address, key, Some(StorageValue(val)))),
+                storage
+                    .storage_slots_ref()
+                    .iter()
+                    .map(|(key, val)| (hashed_address, *key, Some(StorageValue(*val)))),
                 soft_delete,
             )?;
             hashed_storage_keys.extend(keys);

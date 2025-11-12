@@ -10,7 +10,7 @@ use reth_db_common::init::init_genesis;
 use reth_ethereum_primitives::{Block, BlockBody, Receipt, TransactionSigned};
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_evm_ethereum::EthEvmConfig;
-use reth_node_api::{FullNodePrimitives, NodeTypesWithDB};
+use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
     backfill::BackfillJob, in_memory::InMemoryProofsStorage, live::LiveTrieCollector,
     OpProofsStorage,
@@ -145,7 +145,7 @@ fn execute_block<N>(
 ) -> eyre::Result<reth_evm::execute::BlockExecutionOutput<Receipt>>
 where
     N: ProviderNodeTypes<
-            Primitives: FullNodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider()?;
@@ -172,7 +172,7 @@ fn commit_block_to_database<N>(
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
-            Primitives: FullNodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
         > + NodeTypesWithDB,
 {
     let execution_outcome = ExecutionOutcome {
@@ -210,7 +210,7 @@ async fn run_test_scenario<N>(
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
-            Primitives: FullNodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
         > + NodeTypesWithDB,
 {
     let genesis_hash = chain_spec.genesis_hash();

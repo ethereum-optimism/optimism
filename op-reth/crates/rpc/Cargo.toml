@@ -30,7 +30,6 @@ reth-node-builder.workspace = true
 reth-chainspec.workspace = true
 reth-chain-state.workspace = true
 reth-rpc-engine-api.workspace = true
-reth-rpc-convert.workspace = true
 reth-payload-util.workspace = true
 reth-provider.workspace = true
 
