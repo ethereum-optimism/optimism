@@ -67,7 +67,7 @@ where
         &self,
         mut args: BuildArgs<I>,
     ) -> eyre::Result<Option<(PendingFlashBlock<N>, CachedReads)>> {
-        trace!("Attempting new pending block from flashblocks");
+        trace!(target: "flashblocks", "Attempting new pending block from flashblocks");
 
         let latest = self
             .provider
@@ -76,7 +76,7 @@ where
         let latest_hash = latest.hash();
 
         if args.base.parent_hash != latest_hash {
-            trace!(flashblock_parent = ?args.base.parent_hash, local_latest=?latest.num_hash(),"Skipping non consecutive flashblock");
+            trace!(target: "flashblocks", flashblock_parent = ?args.base.parent_hash, local_latest=?latest.num_hash(),"Skipping non consecutive flashblock");
             // doesn't attach to the latest block
             return Ok(None)
         }

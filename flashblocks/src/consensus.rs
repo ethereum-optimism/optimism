@@ -51,7 +51,7 @@ impl FlashBlockConsensusClient {
                     previous_block_hashes.push(block_hash);
 
                     if sequence.state_root().is_none() {
-                        warn!("Missing state root for the complete sequence")
+                        warn!(target: "flashblocks", "Missing state root for the complete sequence")
                     }
 
                     // Load previous block hashes. We're using (head - 32) and (head - 64) as the
@@ -74,7 +74,7 @@ impl FlashBlockConsensusClient {
                 }
                 Err(err) => {
                     warn!(
-                        target: "consensus::flashblock-client",
+                        target: "flashblocks",
                         %err,
                         "error while fetching flashblock completed sequence"
                     );

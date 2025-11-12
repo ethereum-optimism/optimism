@@ -126,7 +126,9 @@ where
                     }
                     Ok(Message::Ping(bytes)) => this.ping(bytes),
                     Ok(Message::Close(frame)) => this.close(frame),
-                    Ok(msg) => debug!("Received unexpected message: {:?}", msg),
+                    Ok(msg) => {
+                        debug!(target: "flashblocks", "Received unexpected message: {:?}", msg)
+                    }
                     Err(err) => return Poll::Ready(Some(Err(err.into()))),
                 }
             }

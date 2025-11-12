@@ -137,12 +137,14 @@ where
     /// Note: this should be spawned
     pub async fn run(mut self, tx: tokio::sync::watch::Sender<Option<PendingFlashBlock<N>>>) {
         while let Some(block) = self.next().await {
-            if let Ok(block) = block.inspect_err(|e| tracing::error!("{e}")) {
-                let _ = tx.send(block).inspect_err(|e| tracing::error!("{e}"));
+            if let Ok(block) = block.inspect_err(|e| tracing::error!(target: "flashblocks", "{e}"))
+            {
+                let _ =
+                    tx.send(block).inspect_err(|e| tracing::error!(target: "flashblocks", "{e}"));
             }
         }
 
-        warn!("Flashblock service has stopped");
+        warn!(target: "flashblocks", "Flashblock service has stopped");
     }
 
     /// Notifies all subscribers about the received flashblock
@@ -165,6 +167,7 @@ where
     > {
         let Some(base) = self.blocks.payload_base() else {
             trace!(
+                target: "flashblocks",
                 flashblock_number = ?self.blocks.block_number(),
                 count = %self.blocks.count(),
                 "Missing flashblock payload base"
@@ -177,12 +180,12 @@ where
         if let Some(latest) = self.builder.provider().latest_header().ok().flatten() &&
             latest.hash() != base.parent_hash
         {
-            trace!(flashblock_parent=?base.parent_hash, flashblock_number=base.block_number, local_latest=?latest.num_hash(), "Skipping non consecutive build attempt");
+            trace!(target: "flashblocks", flashblock_parent=?base.parent_hash, flashblock_number=base.block_number, local_latest=?latest.num_hash(), "Skipping non consecutive build attempt");
             return None
         }
 
         let Some(last_flashblock) = self.blocks.last_flashblock() else {
-            trace!(flashblock_number = ?self.blocks.block_number(), count = %self.blocks.count(), "Missing last flashblock");
+            trace!(target: "flashblocks", flashblock_number = ?self.blocks.block_number(), count = %self.blocks.count(), "Missing last flashblock");
             return None
         };
 
@@ -276,6 +279,7 @@ where
                         let elapsed = now.elapsed();
                         this.metrics.execution_duration.record(elapsed.as_secs_f64());
                         trace!(
+                            target: "flashblocks",
                             parent_hash = %new_pending.block().parent_hash(),
                             block_number = new_pending.block().number(),
                             flash_blocks = this.blocks.count(),
@@ -290,7 +294,7 @@ where
                     }
                     Err(err) => {
                         // we can ignore this error
-                        debug!(%err, "failed to execute flashblock");
+                        debug!(target: "flashblocks", %err, "failed to execute flashblock");
                     }
                 }
             }
@@ -305,7 +309,9 @@ where
                         }
                         match this.blocks.insert(flashblock) {
                             Ok(_) => this.rebuild = true,
-                            Err(err) => debug!(%err, "Failed to prepare flashblock"),
+                            Err(err) => {
+                                debug!(target: "flashblocks", %err, "Failed to prepare flashblock")
+                            }
                         }
                     }
                     Err(err) => return Poll::Ready(Some(Err(err))),
@@ -320,6 +326,7 @@ where
             } && let Some(current) = this.on_new_tip(state)
             {
                 trace!(
+                    target: "flashblocks",
                     parent_hash = %current.block().parent_hash(),
                     block_number = current.block().number(),
                     "Clearing current flashblock on new canonical block"

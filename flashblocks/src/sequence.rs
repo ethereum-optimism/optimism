@@ -81,7 +81,7 @@ where
     /// A [`FlashBlock`] with index 0 resets the set.
     pub fn insert(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
         if flashblock.index == 0 {
-            trace!(number=%flashblock.block_number(), "Tracking new flashblock sequence");
+            trace!(target: "flashblocks", number=%flashblock.block_number(), "Tracking new flashblock sequence");
 
             // Flash block at index zero resets the whole state.
             self.clear_and_broadcast_blocks();
@@ -96,10 +96,10 @@ where
         let same_payload = self.payload_id() == Some(flashblock.payload_id);
 
         if same_block && same_payload {
-            trace!(number=%flashblock.block_number(), index = %flashblock.index, block_count = self.inner.len()  ,"Received followup flashblock");
+            trace!(target: "flashblocks", number=%flashblock.block_number(), index = %flashblock.index, block_count = self.inner.len()  ,"Received followup flashblock");
             self.inner.insert(flashblock.index, PreparedFlashBlock::new(flashblock)?);
         } else {
-            trace!(number=%flashblock.block_number(), index = %flashblock.index, current=?self.block_number()  ,"Ignoring untracked flashblock following");
+            trace!(target: "flashblocks", number=%flashblock.block_number(), index = %flashblock.index, current=?self.block_number()  ,"Ignoring untracked flashblock following");
         }
 
         Ok(())
