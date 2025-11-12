@@ -110,10 +110,6 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	}
 }
 
-func (ef *EcotoneFees) getVaultBalances(client apis.EthClient) VaultBalances {
-	return ef.getVaultBalancesAtBlock(client, nil)
-}
-
 func (ef *EcotoneFees) getVaultBalancesAtBlock(client apis.EthClient, blockNumber *big.Int) VaultBalances {
 	baseFee := ef.getBalanceAtBlock(client, predeploys.BaseFeeVaultAddr, blockNumber)
 	l1Fee := ef.getBalanceAtBlock(client, predeploys.L1FeeVaultAddr, blockNumber)
@@ -126,10 +122,6 @@ func (ef *EcotoneFees) getVaultBalancesAtBlock(client apis.EthClient, blockNumbe
 		SequencerVault: sequencer,
 		OperatorVault:  operator,
 	}
-}
-
-func (ef *EcotoneFees) getBalance(client apis.EthClient, addr common.Address) *big.Int {
-	return ef.getBalanceAtBlock(client, addr, nil)
 }
 
 func (ef *EcotoneFees) getBalanceAtBlock(client apis.EthClient, addr common.Address, blockNumber *big.Int) *big.Int {
