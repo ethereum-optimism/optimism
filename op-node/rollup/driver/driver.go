@@ -186,11 +186,11 @@ type Driver struct {
 // Start starts up the state loop.
 // The loop will have been started iff err is not nil.
 func (s *Driver) Start() error {
-	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled,
+	s.log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled,
 		"sequencerStopped", s.driverConfig.SequencerStopped, "recoverMode", s.driverConfig.RecoverMode)
 	if s.driverConfig.SequencerEnabled {
 		if s.driverConfig.RecoverMode {
-			log.Warn("sequencer is in recover mode")
+			s.log.Warn("sequencer is in recover mode")
 			s.sequencer.SetRecoverMode(true)
 		}
 		if err := s.sequencer.SetMaxSafeLag(s.driverCtx, s.driverConfig.SequencerMaxSafeLag); err != nil {
