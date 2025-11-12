@@ -10,9 +10,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -35,9 +36,8 @@ func TestBuilder(t *testing.T) {
 	superchainConfig.WithChallenger(common.HexToAddress("0xdddd"))
 
 	// Configure L1
-	pragueOffset := uint64(100)
-	osakaOffset := uint64(200)
-	bpo1Offset := uint64(300)
+	pragueOffset := uint64(0)
+	osakaOffset := uint64(1)
 	alice := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	aliceFunds := uint256.NewInt(10000)
 	l1Params := state.L1DevGenesisParams{
@@ -48,7 +48,6 @@ func TestBuilder(t *testing.T) {
 		},
 		PragueTimeOffset: &pragueOffset,
 		OsakaTimeOffset:  &osakaOffset,
-		BPO1TimeOffset:   &bpo1Offset,
 		Prefund: map[common.Address]*hexutil.U256{
 			alice: (*hexutil.U256)(aliceFunds),
 		},
@@ -58,9 +57,8 @@ func TestBuilder(t *testing.T) {
 	l1Config.WithTimestamp(l1Params.BlockParams.Timestamp)
 	l1Config.WithGasLimit(l1Params.BlockParams.GasLimit)
 	l1Config.WithExcessBlobGas(l1Params.BlockParams.ExcessBlobGas)
-	l1Config.WithPragueOffset(*l1Params.PragueTimeOffset)
-	l1Config.WithOsakaOffset(*l1Params.OsakaTimeOffset)
-	l1Config.WithBPO1Offset(*l1Params.BPO1TimeOffset)
+	l1Config.WithL1ForkAtGenesis(forks.Prague)
+	l1Config.WithL1ForkAtOffset(forks.Osaka, l1Params.OsakaTimeOffset)
 	l1Config.WithPrefundedAccount(alice, *aliceFunds)
 
 	// Configure L2
@@ -119,8 +117,8 @@ func TestBuilder(t *testing.T) {
 
 	// Test L2HardforkConfigurator methods
 	isthmusOffset := uint64(8000)
-	l2Config.WithForkAtGenesis(forks.Holocene)
-	l2Config.WithForkAtOffset(forks.Isthmus, &isthmusOffset)
+	l2Config.WithForkAtGenesis(opforks.Holocene)
+	l2Config.WithForkAtOffset(opforks.Isthmus, &isthmusOffset)
 
 	// Build the intent
 	intent, err := builder.Build()

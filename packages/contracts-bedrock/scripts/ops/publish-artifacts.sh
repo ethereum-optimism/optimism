@@ -157,6 +157,8 @@ echoerr "> Done."
 
 echoerr "> Uploading artifacts to GCS..."
 
+# Force single-stream upload to improve reliability
+gcloud config set storage/parallel_composite_upload_enabled False
 if [ "$HAS_ZSTD" = true ]; then
   gcloud --verbosity="info" storage cp "$archive_name_gz" "$archive_name_zst" "gs://$DEPLOY_BUCKET/"
   echoerr "> Uploaded to: $upload_url_gz"

@@ -33,7 +33,6 @@ import (
 )
 
 type ProposerCfg struct {
-	OutputOracleAddr       *common.Address
 	DisputeGameFactoryAddr *common.Address
 	ProposalInterval       time.Duration
 	ProposalRetryInterval  time.Duration
@@ -48,8 +47,6 @@ type L2Proposer struct {
 	log                    log.Logger
 	l1                     *ethclient.Client
 	driver                 *proposer.L2OutputSubmitter
-	l2OutputOracle         *bindings.L2OutputOracleCaller
-	l2OutputOracleAddr     *common.Address
 	disputeGameFactory     *bindings.DisputeGameFactoryCaller
 	disputeGameFactoryAddr *common.Address
 	address                common.Address
@@ -103,7 +100,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		PollInterval:           time.Second,
 		NetworkTimeout:         time.Second,
 		ProposalInterval:       cfg.ProposalInterval,
-		L2OutputOracleAddr:     cfg.OutputOracleAddr,
 		DisputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		DisputeGameType:        cfg.DisputeGameType,
 		AllowNonFinalized:      cfg.AllowNonFinalized,
@@ -126,25 +122,13 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 
 	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
 
-	var l2OutputOracle *bindings.L2OutputOracleCaller
-	var disputeGameFactory *bindings.DisputeGameFactoryCaller
-	if cfg.AllocType.UsesProofs() {
-		disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
-		require.NoError(t, err)
-	} else {
-		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(*cfg.OutputOracleAddr, l1)
-		require.NoError(t, err)
-		proposer, err := l2OutputOracle.PROPOSER(&bind.CallOpts{})
-		require.NoError(t, err)
-		require.Equal(t, proposer, address, "PROPOSER must be the proposer's address")
-	}
+	disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
+	require.NoError(t, err)
 
 	return &L2Proposer{
 		log:                    log,
 		l1:                     l1,
 		driver:                 dr,
-		l2OutputOracle:         l2OutputOracle,
-		l2OutputOracleAddr:     cfg.OutputOracleAddr,
 		disputeGameFactory:     disputeGameFactory,
 		disputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		address:                address,
@@ -165,16 +149,9 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	nonce, err := p.l1.NonceAt(t.Ctx(), p.address, nil)
 	require.NoError(t, err)
 
-	var addr common.Address
-	if p.allocType.UsesProofs() {
-		addr = *p.disputeGameFactoryAddr
-	} else {
-		addr = *p.l2OutputOracleAddr
-	}
-
 	gasLimit, err := estimateGasPending(t.Ctx(), p.l1, ethereum.CallMsg{
 		From:      p.address,
-		To:        &addr,
+		To:        p.disputeGameFactoryAddr,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
 		Data:      data,
@@ -183,7 +160,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 
 	rawTx := &types.DynamicFeeTx{
 		Nonce:     nonce,
-		To:        &addr,
+		To:        p.disputeGameFactoryAddr,
 		Data:      data,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
@@ -214,25 +191,21 @@ func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {
-	if p.allocType.UsesProofs() {
-		output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
-		if err != nil || !shouldPropose {
-			return source.Proposal{}, false, err
-		}
-		encodedBlockNumber := make([]byte, 32)
-		binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.SequenceNum)
-		game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, encodedBlockNumber)
-		if err != nil {
-			return source.Proposal{}, false, err
-		}
-		if game.Timestamp != 0 {
-			return source.Proposal{}, false, nil
-		}
-
-		return output, true, nil
-	} else {
-		return p.driver.FetchL2OOOutput(t.Ctx())
+	output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
+	if err != nil || !shouldPropose {
+		return source.Proposal{}, false, err
 	}
+	encodedBlockNumber := make([]byte, 32)
+	binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.SequenceNum)
+	game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.Root, encodedBlockNumber)
+	if err != nil {
+		return source.Proposal{}, false, err
+	}
+	if game.Timestamp != 0 {
+		return source.Proposal{}, false, nil
+	}
+
+	return output, true, nil
 }
 
 func (p *L2Proposer) CanPropose(t Testing) bool {
@@ -249,15 +222,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 		return
 	}
 
-	var txData []byte
-	if p.allocType.UsesProofs() {
-		tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
-		require.NoError(t, err)
-		txData = tx.TxData
-	} else {
-		txData, err = p.driver.ProposeL2OutputTxData(output)
-		require.NoError(t, err)
-	}
+	tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
+	require.NoError(t, err)
+	txData := tx.TxData
 
 	// Note: Use L1 instead of the output submitter's transaction manager because
 	// this is non-blocking while the txmgr is blocking & deadlocks the tests

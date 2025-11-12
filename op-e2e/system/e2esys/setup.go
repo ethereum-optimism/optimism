@@ -925,35 +925,19 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
-	var proposerCLIConfig *l2os.CLIConfig
-	if cfg.AllocType.UsesProofs() {
-		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   254, // Fast game type
-			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
-			LogConfig: oplog.CLIConfig{
-				Level:  log.LvlInfo,
-				Format: oplog.FormatText,
-			},
-		}
-	} else {
-		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			L2OOAddress:       config.L1Deployments(cfg.AllocType).L2OutputOracleProxy.Hex(),
-			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
-			LogConfig: oplog.CLIConfig{
-				Level:  log.LvlInfo,
-				Format: oplog.FormatText,
-			},
-		}
+	proposerCLIConfig := &l2os.CLIConfig{
+		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
+		RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
+		DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
+		ProposalInterval:  6 * time.Second,
+		DisputeGameType:   254, // Fast game type
+		PollInterval:      500 * time.Millisecond,
+		TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
+		AllowNonFinalized: cfg.NonFinalizedProposals,
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
+		},
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {

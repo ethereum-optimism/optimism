@@ -165,6 +165,8 @@ abstract contract LivenessModule2 {
     /// @notice Configures the module for a Safe that has already enabled it.
     /// @param _config The configuration parameters for the module containing the response
     ///                period and fallback owner.
+    /// @dev It is strongly recommended that the fallback owner is also a Safe or at least a
+    ///      contract that is capable of building and executing transaction batches.
     function configureLivenessModule(ModuleConfig memory _config) external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -357,6 +359,13 @@ abstract contract LivenessModule2 {
         // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
         // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
+        // WARNING: Removing the TimelockGuard from a Safe will make all Scheduled and Cancelled
+        // transactions at or below the Safe nonce immediately executable by anyone. To avoid this,
+        // particularly in an adversarial environment, it is recommended that the fallback owner is
+        // also a Safe, and that the call to `changeOwnershipToFallback` is the first transaction
+        // in a batch that also includes as many nonce-bumping no-op transactions through the Safe
+        // with the TimelockGuard as needed to increase its nonce above that of all Scheduled and
+        // Cancelled transactions.
         _safe.execTransactionFromModule({
             to: address(_safe),
             value: 0,

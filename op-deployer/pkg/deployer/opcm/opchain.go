@@ -99,6 +99,7 @@ type ReadImplementationAddressesOutput struct {
 	OptimismPortalInterop        common.Address
 	EthLockbox                   common.Address `evm:"ethLockbox"`
 	SystemConfig                 common.Address
+	AnchorStateRegistry          common.Address
 	L1CrossDomainMessenger       common.Address
 	L1ERC721Bridge               common.Address
 	L1StandardBridge             common.Address
@@ -110,6 +111,11 @@ type ReadImplementationAddressesOutput struct {
 	PermissionedDisputeGameV2    common.Address
 	SuperFaultDisputeGame        common.Address
 	SuperPermissionedDisputeGame common.Address
+	OpcmDeployer                 common.Address
+	OpcmUpgrader                 common.Address
+	OpcmGameTypeAdder            common.Address
+	OpcmStandardValidator        common.Address
+	OpcmInteropMigrator          common.Address
 }
 
 type ReadImplementationAddressesScript script.DeployScriptWithOutput[ReadImplementationAddressesInput, ReadImplementationAddressesOutput]

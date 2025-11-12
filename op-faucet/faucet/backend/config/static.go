@@ -23,7 +23,7 @@ var DefaultFaucetTxManagerValues = txmgr.DefaultFlagValues{
 	ResubmissionTimeout:       24 * time.Second,
 	NetworkTimeout:            10 * time.Second,
 	TxSendTimeout:             2 * time.Minute,
-	TxNotInMempoolTimeout:     1 * time.Minute,
+	TxNotInMempoolTimeout:     90 * time.Second,
 	ReceiptQueryInterval:      200 * time.Millisecond,
 }
 

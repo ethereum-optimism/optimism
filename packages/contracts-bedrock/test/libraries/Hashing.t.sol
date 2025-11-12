@@ -16,6 +16,21 @@ contract Hashing_Harness {
     function hashSuperRootProof(Types.SuperRootProof memory _proof) external pure returns (bytes32) {
         return Hashing.hashSuperRootProof(_proof);
     }
+
+    function hashCrossDomainMessage(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        external
+        pure
+        returns (bytes32)
+    {
+        return Hashing.hashCrossDomainMessage(_nonce, _sender, _target, _value, _gasLimit, _data);
+    }
 }
 
 /// @title Hashing_hashDepositTransaction_Test
@@ -55,8 +70,17 @@ contract Hashing_hashDepositTransaction_Test is CommonTest {
 /// @title Hashing_hashDepositSource_Test
 /// @notice Tests the `hashDepositSource` function of the `Hashing` library.
 contract Hashing_hashDepositSource_Test is CommonTest {
-    /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
-    function test_hashDepositSource_succeeds() external pure {
+    /// @notice Tests that hashDepositSource returns the correct hash.
+    /// @param _l1BlockHash Hash of the L1 block where the deposit was included.
+    /// @param _logIndex The index of the log that created the deposit transaction.
+    function testFuzz_hashDepositSource_succeeds(bytes32 _l1BlockHash, uint256 _logIndex) external pure {
+        bytes32 depositId = keccak256(abi.encode(_l1BlockHash, _logIndex));
+        bytes32 expected = keccak256(abi.encode(bytes32(0), depositId));
+        assertEq(Hashing.hashDepositSource(_l1BlockHash, _logIndex), expected);
+    }
+
+    /// @notice Tests that hashDepositSource returns the correct hash for a known vector.
+    function test_hashDepositSource_knownVector_succeeds() external pure {
         assertEq(
             Hashing.hashDepositSource(0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959, 0x1),
             0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
@@ -67,7 +91,15 @@ contract Hashing_hashDepositSource_Test is CommonTest {
 /// @title Hashing_hashCrossDomainMessage_Test
 /// @notice Tests the `hashCrossDomainMessage` function of the `Hashing` library.
 contract Hashing_hashCrossDomainMessage_Test is CommonTest {
+    Hashing_Harness internal harness;
+
+    /// @notice Sets up the test.
+    function setUp() public override {
+        super.setUp();
+        harness = new Hashing_Harness();
+    }
     /// @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.
+
     function testDiff_hashCrossDomainMessage_succeeds(
         uint240 _nonce,
         uint16 _version,
@@ -103,6 +135,33 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
             keccak256(LegacyCrossDomainUtils.encodeXDomainCalldata(_target, _sender, _message, _messageNonce)),
             Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _messageNonce)
         );
+    }
+
+    /// @notice Tests that hashCrossDomainMessage reverts with unknown version.
+    /// @param _nonce Message nonce base value.
+    /// @param _version Invalid version number (will be bounded to 2+).
+    /// @param _sender Address of the sender of the message.
+    /// @param _target Address of the target of the message.
+    /// @param _value ETH value to send to the target.
+    /// @param _gasLimit Gas limit to use for the message.
+    /// @param _data Data to send with the message.
+    function testFuzz_hashCrossDomainMessage_unknownVersion_reverts(
+        uint240 _nonce,
+        uint16 _version,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
+        // Use version 2 or higher (invalid versions)
+        uint16 invalidVersion = uint16(bound(uint256(_version), 2, type(uint16).max));
+        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, invalidVersion);
+
+        vm.expectRevert(bytes("Hashing: unknown cross domain message version"));
+        harness.hashCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
     }
 }
 
@@ -149,6 +208,34 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
                 })
             ),
             ffi.hashOutputRootProof(version, _stateRoot, _messagePasserStorageRoot, _latestBlockhash)
+        );
+    }
+}
+
+/// @title Hashing_hashL2toL2CrossDomainMessage_Test
+/// @notice Tests the `hashL2toL2CrossDomainMessage` function of the `Hashing` library.
+contract Hashing_hashL2toL2CrossDomainMessage_Test is CommonTest {
+    /// @notice Tests that hashL2toL2CrossDomainMessage returns the correct hash.
+    /// @param _destination Chain ID of the destination chain.
+    /// @param _source Chain ID of the source chain.
+    /// @param _nonce Unique nonce associated with the message.
+    /// @param _sender Address of the user who originally sent the message.
+    /// @param _target Address of the contract or wallet that the message is targeting.
+    /// @param _message The message payload to be relayed to the target.
+    function testFuzz_hashL2toL2CrossDomainMessage_succeeds(
+        uint256 _destination,
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes memory _message
+    )
+        external
+        pure
+    {
+        bytes32 expected = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
+        assertEq(
+            Hashing.hashL2toL2CrossDomainMessage(_destination, _source, _nonce, _sender, _target, _message), expected
         );
     }
 }
