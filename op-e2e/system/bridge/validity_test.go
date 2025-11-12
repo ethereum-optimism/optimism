@@ -267,7 +267,7 @@ func TestMixedDepositValidity(t *testing.T) {
 }
 
 func TestMixedWithdrawalValidity_Default(t *testing.T) {
-	testMixedWithdrawalValidity(t, config.DefaultAllocType)
+	testMixedWithdrawalValidity(t, config.AllocTypeFastGame)
 }
 
 // TestMixedWithdrawalValidity makes a number of withdrawal transactions and ensures ones with modified parameters are
