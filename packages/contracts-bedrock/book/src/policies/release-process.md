@@ -49,6 +49,12 @@ The process is as follows:
 1. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n`.
    Create a new release for this tag per the instructions above.
 
+## Release checklist
+
+Prior to governance, the OPCM and any other contracts which are deployed to be released must undergo
+the [contracts release checklist](https://www.notion.so/oplabs/Contracts-Release-Checklists-216f153ee16280fda3c2f141c062f974?source=copy_link) process. This process provides a final review which protects against
+deployment errors and supply chain risks.
+
 ## Finalizing a release
 
 Once a release has passed governance, a new tag should be created without the `-rc.n` suffix. To do this follow the
