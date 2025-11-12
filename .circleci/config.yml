@@ -471,6 +471,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
@@ -571,6 +573,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - install-contracts-dependencies
       - run:
           name: Print forge version
           command: forge --version
@@ -1066,6 +1069,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - install-contracts-dependencies
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1159,6 +1165,9 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-contracts-dependencies
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1234,6 +1243,9 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-contracts-dependencies
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
@@ -1386,6 +1398,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - attach_workspace:
+          at: .
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
       - run:
@@ -1459,6 +1473,8 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - attach_workspace:
+          at: .
       - run:
           name: build op-program-client
           command: make op-program-client
@@ -2306,6 +2322,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - install-contracts-dependencies
       - run:
           name: Build contracts
           command: |
