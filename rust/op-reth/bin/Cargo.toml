@@ -41,6 +41,7 @@ otlp = ["reth-optimism-cli/otlp"]
 
 js-tracer = [
     "reth-optimism-node/js-tracer",
+    "reth-node-builder/js-tracer",
 ]
 
 jemalloc = ["reth-cli-util/jemalloc", "reth-optimism-cli/jemalloc"]
