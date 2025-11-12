@@ -2232,7 +2232,7 @@ jobs:
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
