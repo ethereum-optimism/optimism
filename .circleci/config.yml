@@ -464,7 +464,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - install-contracts-dependencies
       - persist_to_workspace:
           root: "."
@@ -1284,7 +1285,8 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Install ripgrep
           command: sudo apt-get install -y ripgrep
@@ -1996,7 +1998,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - attach_workspace:
           at: "."
       - gcp-cli/install
@@ -2056,7 +2059,8 @@ jobs:
     machine: true
     resource_class: large
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
@@ -2070,7 +2074,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Build cannon
@@ -2192,7 +2197,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
@@ -2229,7 +2235,8 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
           project_id: GCP_TOOLS_ARTIFACTS_PROJECT_ID
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - install-contracts-dependencies
       - run:
           name: Pull artifacts
@@ -2344,7 +2351,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
@@ -2367,7 +2375,8 @@ jobs:
     machine: true
     resource_class: medium
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Generate flaky acceptance tests report
           command: |
