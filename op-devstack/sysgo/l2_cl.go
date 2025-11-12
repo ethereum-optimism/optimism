@@ -31,7 +31,7 @@ type L2CLConfig struct {
 	// EnableReqRespSync is the flag to enable/disable req-resp sync.
 	EnableReqRespSync bool
 
-	// UseReqRespSync is the flag to force the use or not of req-resp sync protocol. EnableReqRespSync == false && UseReqRespSync == true is not allowed, and node will fail to start.
+	// UseReqRespSync controls whether to use the req-resp sync protocol. EnableReqRespSync == false && UseReqRespSync == true is not allowed, and node will fail to start.
 	UseReqRespSync bool
 
 	// NoDiscovery is the flag to enable/disable discovery
