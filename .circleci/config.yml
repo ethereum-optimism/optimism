@@ -1446,7 +1446,7 @@ jobs:
       resource_class:
         description: Machine resource class
         type: string
-        default: ethereum-optimism/latitude-1-go-e2e
+        default: 2xlarge
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -3003,7 +3003,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: ethereum-optimism/latitude-fps-1
+          resource_class: large
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
