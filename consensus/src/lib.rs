@@ -12,7 +12,9 @@
 extern crate alloc;
 
 use alloc::{format, sync::Arc};
-use alloy_consensus::{BlockHeader as _, EMPTY_OMMER_ROOT_HASH};
+use alloy_consensus::{
+    constants::MAXIMUM_EXTRA_DATA_SIZE, BlockHeader as _, EMPTY_OMMER_ROOT_HASH,
+};
 use alloy_primitives::B64;
 use core::fmt::Debug;
 use reth_chainspec::EthChainSpec;
@@ -46,12 +48,25 @@ pub use error::OpConsensusError;
 pub struct OpBeaconConsensus<ChainSpec> {
     /// Configuration
     chain_spec: Arc<ChainSpec>,
+    /// Maximum allowed extra data size in bytes
+    max_extra_data_size: usize,
 }
 
 impl<ChainSpec> OpBeaconConsensus<ChainSpec> {
     /// Create a new instance of [`OpBeaconConsensus`]
     pub const fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        Self { chain_spec }
+        Self { chain_spec, max_extra_data_size: MAXIMUM_EXTRA_DATA_SIZE }
+    }
+
+    /// Returns the maximum allowed extra data size.
+    pub const fn max_extra_data_size(&self) -> usize {
+        self.max_extra_data_size
+    }
+
+    /// Sets the maximum allowed extra data size and returns the updated instance.
+    pub const fn with_max_extra_data_size(mut self, size: usize) -> Self {
+        self.max_extra_data_size = size;
+        self
     }
 }
 
@@ -166,7 +181,7 @@ where
         // is greater than its parent timestamp.
 
         // validate header extra data for all networks post merge
-        validate_header_extra_data(header)?;
+        validate_header_extra_data(header, self.max_extra_data_size)?;
         validate_header_gas(header)?;
         validate_header_base_fee(header, &self.chain_spec)
     }
