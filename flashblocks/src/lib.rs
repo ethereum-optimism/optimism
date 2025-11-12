@@ -11,23 +11,25 @@
 use reth_primitives_traits::NodePrimitives;
 use std::sync::Arc;
 
-pub use payload::{
-    ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, FlashBlockDecoder,
-    Metadata,
-};
-pub use service::{FlashBlockBuildInfo, FlashBlockService};
-pub use ws::{WsConnect, WsFlashBlockStream};
+// Included to enable serde feature for OpReceipt type used transitively
+use reth_optimism_primitives as _;
 
 mod consensus;
 pub use consensus::FlashBlockConsensusClient;
+
 mod payload;
-pub use payload::PendingFlashBlock;
+pub use payload::{FlashBlock, PendingFlashBlock};
+
 mod sequence;
 pub use sequence::{FlashBlockCompleteSequence, FlashBlockPendingSequence};
 
 mod service;
+pub use service::{FlashBlockBuildInfo, FlashBlockService};
+
 mod worker;
+
 mod ws;
+pub use ws::{WsConnect, WsFlashBlockStream};
 
 /// Receiver of the most recent [`PendingFlashBlock`] built out of [`FlashBlock`]s.
 ///

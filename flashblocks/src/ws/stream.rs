@@ -1,4 +1,4 @@
-use crate::{FlashBlock, FlashBlockDecoder};
+use crate::{ws::FlashBlockDecoder, FlashBlock};
 use futures_util::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, Stream, StreamExt,
@@ -240,7 +240,6 @@ impl WsConnect for WsConnector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ExecutionPayloadBaseV1;
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
     use std::{future, iter};
@@ -451,23 +450,7 @@ mod tests {
     }
 
     fn flashblock() -> FlashBlock {
-        FlashBlock {
-            payload_id: Default::default(),
-            index: 0,
-            base: Some(ExecutionPayloadBaseV1 {
-                parent_beacon_block_root: Default::default(),
-                parent_hash: Default::default(),
-                fee_recipient: Default::default(),
-                prev_randao: Default::default(),
-                block_number: 0,
-                gas_limit: 0,
-                timestamp: 0,
-                extra_data: Default::default(),
-                base_fee_per_gas: Default::default(),
-            }),
-            diff: Default::default(),
-            metadata: Default::default(),
-        }
+        Default::default()
     }
 
     #[test_case::test_case(to_json_message(Message::Binary); "json binary")]

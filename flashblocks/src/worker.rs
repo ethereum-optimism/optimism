@@ -1,6 +1,7 @@
-use crate::{ExecutionPayloadBaseV1, PendingFlashBlock};
+use crate::PendingFlashBlock;
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag};
 use alloy_primitives::B256;
+use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::{CanonStateSubscriptions, ExecutedBlock};
 use reth_errors::RethError;
 use reth_evm::{
@@ -38,7 +39,7 @@ impl<EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider> {
 }
 
 pub(crate) struct BuildArgs<I> {
-    pub(crate) base: ExecutionPayloadBaseV1,
+    pub(crate) base: OpFlashblockPayloadBase,
     pub(crate) transactions: I,
     pub(crate) cached_state: Option<(B256, CachedReads)>,
     pub(crate) last_flashblock_index: u64,
@@ -49,7 +50,7 @@ pub(crate) struct BuildArgs<I> {
 impl<N, EvmConfig, Provider> FlashBlockBuilder<EvmConfig, Provider>
 where
     N: NodePrimitives,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
+    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider: StateProviderFactory
         + CanonStateSubscriptions<Primitives = N>
         + BlockReaderIdExt<
@@ -60,7 +61,7 @@ where
         > + Unpin,
 {
     /// Returns the [`PendingFlashBlock`] made purely out of transactions and
-    /// [`ExecutionPayloadBaseV1`] in `args`.
+    /// [`OpFlashblockPayloadBase`] in `args`.
     ///
     /// Returns `None` if the flashblock doesn't attach to the latest header.
     pub(crate) fn execute<I: IntoIterator<Item = WithEncoded<Recovered<N::SignedTx>>>>(
