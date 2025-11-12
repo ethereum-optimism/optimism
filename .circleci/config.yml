@@ -1618,7 +1618,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     circleci_ip_ranges: true
-    resource_class: 2xlarge
+    resource_class: 2xlarge+
     steps:
       - checkout-from-workspace
       # Restore cached Go modules
