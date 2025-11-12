@@ -1,3 +1,4 @@
+> Note: The L2 gas price oracle values are updated periodically by governance and should not be assumed constant.
 Commit directly to the main branch
 <div align="center">
   <br />
