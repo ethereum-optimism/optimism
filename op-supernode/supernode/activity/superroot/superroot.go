@@ -30,27 +30,49 @@ func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 
 type superrootAPI struct{ s *Superroot }
 
-// API Response Shape not final
-type derivedPair struct {
-	L2 eth.BlockID
-	L1 eth.BlockID
-}
-type atTimestampResponse struct {
-	CurrentL1s map[eth.ChainID]eth.BlockID
-	Verified   map[eth.ChainID]derivedPair
-	Optimistic map[eth.ChainID]derivedPair
-	SuperRoot  eth.Bytes32
+// L2WithSource is a L2 block and its source L1 block
+type L2WithSource struct {
+	L2       eth.BlockID
+	SourceL1 eth.BlockID
 }
 
-// AtL1 computes the super-root at the given L1 block number.
+// L2WithRequiredL1 is a verified L2 block and the minimum L1 block at which the verification is possible
+type L2WithRequiredL1 struct {
+	L2            eth.BlockID
+	MinRequiredL1 eth.BlockID
+}
+
+// atTimestampResponse is the response superroot_atTimestamp
+// it contains:
+// - CurrentL1Derived: the current L1 block that each chain has derived up to (without any verification)
+// - CurrentL1Verified: the current L1 block that each verifier has processed up to
+// - VerifiedAtTimestamp: the L2 blocks which are fully verified at the given timestamp, and the minimum L1 block at which verification is possible
+// - OptimisticAtTimestamp: the L2 blocks which would be applied if verification were assumed to be successful, and their L1 sources
+// - SuperRoot: the superroot at the given timestamp using verified L2 blocks
+type atTimestampResponse struct {
+	CurrentL1Derived      map[eth.ChainID]eth.BlockID
+	CurrentL1Verified     map[string]eth.BlockID
+	VerifiedAtTimestamp   map[eth.ChainID]L2WithRequiredL1
+	OptimisticAtTimestamp map[eth.ChainID]L2WithSource
+	MinCurrentL1          eth.BlockID
+	MinVerifiedRequiredL1 eth.BlockID
+	SuperRoot             eth.Bytes32
+}
+
+// AtTimestamp computes the super-root at the given timestamp, plus additional information about the current L1s, verified L2s, and optimistic L2s
 func (api *superrootAPI) AtTimestamp(ctx context.Context, timestamp uint64) (atTimestampResponse, error) {
 	return api.s.atTimestamp(ctx, timestamp)
 }
 
 func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimestampResponse, error) {
-	currentL1s := map[eth.ChainID]eth.BlockID{}
-	verified := map[eth.ChainID]derivedPair{}
-	optimistic := map[eth.ChainID]derivedPair{}
+	currentL1Derived := map[eth.ChainID]eth.BlockID{}
+	// there are no Verification Activities yet, so there is no call to make to collect their CurrentL1
+	// this will be replaced with a call to the Verification Activities when they are implemented
+	currentL1Verified := map[string]eth.BlockID{}
+	verified := map[eth.ChainID]L2WithRequiredL1{}
+	optimistic := map[eth.ChainID]L2WithSource{}
+	minCurrentL1 := eth.BlockID{}
+	minVerifiedRequiredL1 := eth.BlockID{}
 	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
 
 	// get current l1s
@@ -62,9 +84,13 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 			s.log.Warn("failed to get current L1", "chain_id", chainID.String(), "err", err)
 			return atTimestampResponse{}, err
 		}
-		currentL1s[chainID] = currentL1.ID()
+		currentL1Derived[chainID] = currentL1.ID()
+		if currentL1.ID().Number < minCurrentL1.Number || minCurrentL1 == (eth.BlockID{}) {
+			minCurrentL1 = currentL1.ID()
+		}
 	}
 
+	// collect verified and optimistic L2 and L1 blocks at the given timestamp
 	for chainID, chain := range s.chains {
 		// verifiedAt returns the L2 block which is fully verified at the given timestamp, and the minimum L1 block at which verification is possible
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
@@ -72,9 +98,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 			s.log.Warn("failed to get verified L1", "chain_id", chainID.String(), "err", err)
 			return atTimestampResponse{}, err
 		}
-		verified[chainID] = derivedPair{
-			L2: verifiedL2,
-			L1: verifiedL1,
+		verified[chainID] = L2WithRequiredL1{
+			L2:            verifiedL2,
+			MinRequiredL1: verifiedL1,
+		}
+		if verifiedL1.Number < minVerifiedRequiredL1.Number || minVerifiedRequiredL1 == (eth.BlockID{}) {
+			minVerifiedRequiredL1 = verifiedL1
 		}
 		// Compute output root at or before timestamp using the verified L2 block number
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
@@ -83,15 +112,16 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 			return atTimestampResponse{}, err
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
-		// optimisticAt returns the L2 block which would be applied if verification were assumed to be successful
+		// optimisticAt returns the L2 block which would apply if verification were successful at the given timestamp
+		// it will differ from the verified L2 block if the optimistic L2 block was invalid.
 		optimisticL2, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
 			return atTimestampResponse{}, err
 		}
-		optimistic[chainID] = derivedPair{
-			L2: optimisticL2,
-			L1: optimisticL1,
+		optimistic[chainID] = L2WithSource{
+			L2:       optimisticL2,
+			SourceL1: optimisticL1,
 		}
 	}
 
@@ -100,9 +130,12 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 	superRoot := eth.SuperRoot(superV1)
 
 	return atTimestampResponse{
-		CurrentL1s: currentL1s,
-		Verified:   verified,
-		Optimistic: optimistic,
-		SuperRoot:  superRoot,
+		CurrentL1Derived:      currentL1Derived,
+		CurrentL1Verified:     currentL1Verified,
+		VerifiedAtTimestamp:   verified,
+		OptimisticAtTimestamp: optimistic,
+		MinCurrentL1:          minCurrentL1,
+		MinVerifiedRequiredL1: minVerifiedRequiredL1,
+		SuperRoot:             superRoot,
 	}, nil
 }

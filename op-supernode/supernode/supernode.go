@@ -197,15 +197,6 @@ func (s *Supernode) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Stop runnable activities
-	for _, a := range s.activities {
-		if run, ok := a.(activity.RunnableActivity); ok {
-			if err := run.Stop(ctx); err != nil {
-				s.log.Error("error stopping runnable activity", "error", err)
-			}
-		}
-	}
-
 	for chainID, chain := range s.chains {
 		if err := chain.Stop(ctx); err != nil {
 			s.log.Error("error stopping chain container", "chain_id", chainID.String(), "error", err)

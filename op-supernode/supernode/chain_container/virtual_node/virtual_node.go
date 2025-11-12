@@ -204,15 +204,14 @@ func (v *simpleVirtualNode) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64)
 	return db.SafeHeadAtL1(ctx, l1BlockNum)
 }
 
+var ErrL1AtSafeHeadNotFound = errors.New("l1 at safe head not found")
+
 // L1AtSafeHead finds the earliest L1 block at which the provided L2 block became safe,
 // using the monotonicity of SafeDB (L2 safe head number is non-decreasing over L1).
 func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID) (eth.BlockID, error) {
 	v.mu.Lock()
 	inner := v.inner
 	v.mu.Unlock()
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: start", "target_num", target.Number, "target_hash", target.Hash)
-	}
 	if inner == nil {
 		return eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
@@ -220,90 +219,45 @@ func (v *simpleVirtualNode) L1AtSafeHead(ctx context.Context, target eth.BlockID
 	if db == nil {
 		return eth.BlockID{}, ErrVirtualNodeNotRunning
 	}
-	// Get the latest entry to bound the search space
+	// Get the latest entry to start the walkback
 	latestL1, latestL2, err := db.SafeHeadAtL1(ctx, math.MaxUint64-1)
 	if err != nil {
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: latest lookup failed", "err", err)
-		}
+		v.log.Debug("L1AtSafeHead: latest lookup failed", "err", err)
 		return eth.BlockID{}, err
 	}
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: latest bounds", "latest_l1", latestL1.Number, "latest_l2_num", latestL2.Number, "latest_l2_hash", latestL2.Hash)
-	}
+	v.log.Debug("L1AtSafeHead: latest bounds", "latest_l1", latestL1.Number, "latest_l2_num", latestL2.Number, "latest_l2_hash", latestL2.Hash)
 	if latestL2.Number < target.Number {
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number)
-		}
-		return eth.BlockID{}, errors.New("target not found")
+		v.log.Debug("L1AtSafeHead: target beyond latest", "latest_l2", latestL2.Number)
+		return eth.BlockID{}, ErrL1AtSafeHeadNotFound
 	}
-	// Restrict lower bound to rollup genesis L1 (the rollup starts after this L1)
-	var lo uint64 = v.cfg.Rollup.Genesis.L1.Number
-	hi := latestL1.Number
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: initial bounds", "lo", lo, "hi", hi)
-	}
-	for lo < hi {
-		mid := (lo + hi) / 2
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: probe", "mid", mid, "lo", lo, "hi", hi)
+	// Walk back until the cursor would drop below the target
+	cursor := latestL1
+	genesisL1 := v.cfg.Rollup.Genesis.L1.Number
+	for {
+		if cursor.Number <= 0 || cursor.Number <= genesisL1 {
+			// if we made it all the way back to genesis, it is likely the SafeDB is not stable enough for use
+			// safer to simply return an error for now.
+			v.log.Warn("L1AtSafeHead: reached genesis bound", "genesis_l1", genesisL1, "earliest_l1", cursor.Number)
+			return eth.BlockID{}, ErrL1AtSafeHeadNotFound
 		}
-		_, midL2, err := db.SafeHeadAtL1(ctx, mid)
+		prev := cursor.Number - 1
+		v.log.Debug("L1AtSafeHead: checking previous l1 block", "l1_num", prev)
+		l1Prev, l2Prev, err := db.SafeHeadAtL1(ctx, prev)
 		if err != nil {
-			// before first entry; treat as below target
-			if v.log != nil {
-				v.log.Debug("L1AtSafeHead: mid lookup failed, advance lo", "mid", mid, "err", err)
-			}
-			lo = mid + 1
+			v.log.Debug("L1AtSafeHead: walkback lookup failed, stopping", "probe_l1", prev, "err", err)
+			break
+		}
+		v.log.Debug("L1AtSafeHead: walkback result", "l1_prev", l1Prev.Number, "l2_prev_num", l2Prev.Number, "l2_prev_hash", l2Prev.Hash)
+		if l2Prev.Number >= target.Number {
+			// Still meets or exceeds target; continue walking back
+			cursor = l1Prev
 			continue
 		}
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: mid result", "mid", mid, "mid_l2_num", midL2.Number, "mid_l2_hash", midL2.Hash)
-		}
-		if midL2.Number >= target.Number {
-			if v.log != nil {
-				v.log.Debug("L1AtSafeHead: move hi", "from", hi, "to", mid)
-			}
-			hi = mid
-		} else {
-			if v.log != nil {
-				v.log.Debug("L1AtSafeHead: move lo", "from", lo, "to", mid+1)
-			}
-			lo = mid + 1
-		}
+		// Dropped below target; current cursor is the first that meets/exceeds
+		break
 	}
-	// Validate match at boundary
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: boundary", "lo", lo)
-	}
-	fL1, fL2, err := db.SafeHeadAtL1(ctx, lo)
-	if err != nil {
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: boundary lookup failed", "lo", lo, "err", err)
-		}
-		return eth.BlockID{}, err
-	}
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: boundary result", "l1", fL1.Number, "l2_num", fL2.Number, "l2_hash", fL2.Hash)
-	}
-	// If the exact L2 is found, return its L1; otherwise, return the earliest L1
-	// at which the safe head number is >= the target (implied availability).
-	if fL2.Number == target.Number && fL2.Hash == target.Hash {
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: found", "l1", fL1.Number)
-		}
-		return fL1, nil
-	}
-	if fL2.Number >= target.Number {
-		if v.log != nil {
-			v.log.Debug("L1AtSafeHead: implied at boundary", "implied_l1", fL1.Number)
-		}
-		return fL1, nil
-	}
-	if v.log != nil {
-		v.log.Debug("L1AtSafeHead: not found (unexpected)")
-	}
-	return eth.BlockID{}, errors.New("target not found")
+	v.log.Debug("L1AtSafeHead: result", "l1", cursor)
+	return cursor, nil
 }
 
 // CurrentL1 returns the current processed L1 block based on derivation pipeline sync status.

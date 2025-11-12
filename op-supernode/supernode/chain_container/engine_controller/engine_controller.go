@@ -14,8 +14,9 @@ import (
 
 // EngineController abstracts access to the L2 execution layer
 type EngineController interface {
-	// BlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp.
-	BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
+	// SafeBlockAtTimestamp returns the L2 block ref for the block at or before the given timestamp,
+	// clamped to the current SAFE head.
+	SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error)
 	// OutputV0AtBlockNumber returns the output preimage for the given L2 block number.
 	OutputV0AtBlockNumber(ctx context.Context, num uint64) (*eth.OutputV0, error)
 	// Close releases any underlying RPC resources.
@@ -59,9 +60,10 @@ func NewEngineControllerFromConfig(ctx context.Context, log gethlog.Logger, vncf
 var (
 	ErrNoEngineClient = errors.New("engine client not initialized")
 	ErrNoRollupConfig = errors.New("rollup config not available")
+	ErrNotFound       = errors.New("not found")
 )
 
-func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
+func (e *simpleEngineController) SafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
 	if e.l2 == nil {
 		return eth.L2BlockRef{}, ErrNoEngineClient
 	}
@@ -73,9 +75,16 @@ func (e *simpleEngineController) BlockAtTimestamp(ctx context.Context, ts uint64
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
-	if e.log != nil {
-		e.log.Debug("engine_controller: computed target block number from timestamp", "timestamp", ts, "blockNumber", num)
+	safeHead, err := e.l2.L2BlockRefByLabel(ctx, eth.Safe)
+	if err != nil {
+		return eth.L2BlockRef{}, err
 	}
+	if num > safeHead.Number {
+		e.log.Warn("engine_controller: target block number exceeds safe head", "targetBlockNumber", num, "safeHead", safeHead.Number)
+		return eth.L2BlockRef{}, ErrNotFound
+	}
+	e.log.Debug("engine_controller: computed safe block number from timestamp",
+		"timestamp", ts, "targetBlockNumber", num, "safeHead", safeHead.Number, "safeHeadErr", err)
 	return e.l2.L2BlockRefByNumber(ctx, num)
 }
 
