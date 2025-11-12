@@ -282,4 +282,6 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
 	// Activated by default, contracts depend on it
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
 }
