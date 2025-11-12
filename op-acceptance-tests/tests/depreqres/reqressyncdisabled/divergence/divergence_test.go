@@ -22,7 +22,6 @@ func TestMain(m *testing.M) {
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
-			// For stopping derivation, not to advance safe heads
 			cfg.Stopped = true
 		})),
 	)
