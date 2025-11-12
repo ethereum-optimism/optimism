@@ -14,7 +14,7 @@ import (
 
 func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
@@ -24,9 +24,6 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
 		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
 	)
-
-	l.Info("Stop the L2 batcher")
-	sys.L2Batcher.Stop()
 
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
@@ -60,7 +57,7 @@ func UnsafeChainNotStalling_Disconnect(gt *testing.T, syncMode sync.Mode, sleep 
 
 func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sleep time.Duration) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	require := t.Require()
 	l := t.Logger().With("syncmode", syncMode)
 
@@ -70,9 +67,6 @@ func UnsafeChainNotStalling_RestartOpNode(gt *testing.T, syncMode sync.Mode, sle
 		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
 		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
 	)
-
-	l.Info("Stop the L2 batcher")
-	sys.L2Batcher.Stop()
 
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)

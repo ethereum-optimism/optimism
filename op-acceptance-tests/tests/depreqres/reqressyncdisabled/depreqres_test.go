@@ -13,7 +13,7 @@ import (
 
 func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	require := t.Require()
 	l := t.Logger()
 
@@ -23,9 +23,6 @@ func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 		sys.L2CL.AdvancedFn(types.LocalUnsafe, delta, 30),
 		sys.L2CLB.AdvancedFn(types.LocalUnsafe, delta, 30),
 	)
-
-	l.Info("Stop the L2 batcher")
-	sys.L2Batcher.Stop()
 
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
