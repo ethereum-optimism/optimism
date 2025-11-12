@@ -9,7 +9,9 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
+		presets.WithELSyncActive(),
 		presets.WithSimpleWithSyncTesterSafeSourceL2(),
+		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
 }

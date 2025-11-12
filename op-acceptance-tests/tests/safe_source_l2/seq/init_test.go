@@ -11,5 +11,7 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithSingleChainMultiNodeWithSafeSourceL2(true /* seqWithSafeSourceL2 */),
 		presets.WithCompatibleTypes(compat.SysGo),
+		// test should work w/wo WithExecutionLayerSyncOnVerifiers.
+		// presets.WithExecutionLayerSyncOnVerifiers(),
 	)
 }

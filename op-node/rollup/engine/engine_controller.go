@@ -623,6 +623,10 @@ func (e *EngineController) L2BlockRefByNumber(ctx context.Context, num uint64) (
 	return e.engine.L2BlockRefByNumber(ctx, num)
 }
 
+func (e *EngineController) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	return e.engine.L2BlockRefByLabel(ctx, label)
+}
+
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
 // Returns boolean which decides to trigger FCU.
 func (e *EngineController) shouldTryBackupUnsafeReorg() bool {

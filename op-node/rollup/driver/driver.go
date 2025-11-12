@@ -303,7 +303,8 @@ func (s *Driver) eventLoop() {
 
 		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
 		// there is no need to request L2 blocks when we are syncing already.
-		if head := s.SyncDeriver.Engine.UnsafeL2Head(); head != lastUnsafeL2 || !s.SyncDeriver.Derivation.DerivationReady() {
+		if head := s.SyncDeriver.Engine.UnsafeL2Head(); head != lastUnsafeL2 || (!s.SyncDeriver.Derivation.DerivationReady() && s.SyncDeriver.SyncCfg.SafeSource != sync.SafeSourceL2) {
+			s.log.Info("Resetting alt sync ticker", "head", head, "lastUnsafeL2", lastUnsafeL2, "derivationReady", s.SyncDeriver.Derivation.DerivationReady())
 			lastUnsafeL2 = head
 			altSyncTicker.Reset(syncCheckInterval)
 		}
@@ -312,6 +313,7 @@ func (s *Driver) eventLoop() {
 		case <-sequencerCh:
 			s.emitter.Emit(s.driverCtx, sequencing.SequencerActionEvent{})
 		case <-altSyncTicker.C:
+			s.log.Info("alt sync ticker tick")
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 			err := s.checkForGapInUnsafeQueue(ctx)
@@ -323,10 +325,12 @@ func (s *Driver) eventLoop() {
 			// Sync safe/finalized from remote L2 when using safe-source=l2
 			if s.SyncDeriver.SyncCfg.SafeSource == sync.SafeSourceL2 {
 				// Skip if EL is syncing - consistent with SyncStep behavior
+				// This must be here; we first bootstrap then follow the safe, finalized
 				if s.SyncDeriver.Engine.IsEngineSyncing() {
 					s.log.Debug("Skipping safeSourceL2Ticker update because engine is syncing")
 					continue
 				}
+				// only advance when initial EL Sync is done
 
 				ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 				err := s.syncSafeHeadFromL2(ctx)
@@ -382,17 +386,42 @@ func (s *Driver) syncSafeHeadFromL2(ctx context.Context) error {
 		return err
 	}
 
+	// info purposes, not necessary
+	localUnsafe, err := s.SyncDeriver.Engine.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		s.log.Info("syncSafeHeadFromL2 failed to fetch local unsafe from EL", "err", err)
+		return nil
+	}
+
 	// Check if remote safe block is on our canonical chain
 	localRef, err := s.SyncDeriver.Engine.L2BlockRefByNumber(ctx, remoteSafeRef.Number)
+
+	// if remote safe's block number block exists at local EL
+	//   if hash not match
+	//      reorg unsafe to remote safe block(mandatory)
+	//   else
+	//      do not reorg unsafe head of EL
+	// else
+	//   proceed EL Sync only relying on initial EL Sync until remote safe's block number exists
+	//
+	// Signaling
+	//  1. We signal EL using the external safe && sequencer unsafe payload
+	//    - only the external safe is used to signal the EL
+	//  2. After we reach the external safe (FCU returing VALID)
+	//
+	// Current implementation: Initial EL Sync works even we use syncmode=consensus-layer
+
 	if err != nil || localRef.Hash != remoteSafeRef.Hash {
 		// Either we don't have the block yet, or it's a different hash (reorg needed)
 		s.log.Info("Remote safe block not on canonical chain, advancing unsafe head",
 			"remote_safe", remoteSafeRef.Number,
 			"remote_hash", remoteSafeRef.Hash,
+			"localUnsafe", localUnsafe,
 			"local_err", err,
 			"needs_reorg", err == nil && localRef.Hash != remoteSafeRef.Hash)
 		s.SyncDeriver.Engine.SetUnsafeHead(remoteSafeRef)
 	}
+	s.log.Info("syncSafeHeadFromL2", "safe", remoteSafeRef, "finalized", remoteFinalizedRef)
 
 	// Update heads and request forkchoice update
 	s.SyncDeriver.Engine.SetFinalizedHead(remoteFinalizedRef)
@@ -477,6 +506,7 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.SyncDeriver.Engine.UnsafeL2Head()
 	end := s.SyncDeriver.Engine.LowestQueuedUnsafeBlock()
+	s.log.Info("checkForGapInUnsafeQueue", "start", start, "end", end, "size", end.Number-start.Number)
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("requesting sync with open-end range", "start", start)

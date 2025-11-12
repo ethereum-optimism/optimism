@@ -20,6 +20,7 @@ func MaybeAsNotFoundErr(err error) error {
 	}
 	if errStr := strings.ToLower(err.Error()); strings.Contains(errStr, "block not found") ||
 		strings.Contains(errStr, "header not found") ||
+		strings.Contains(errStr, "not found") ||
 		strings.Contains(errStr, "unknown block") {
 		return errors.Join(err, ethereum.NotFound)
 	}

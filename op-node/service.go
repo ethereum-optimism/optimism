@@ -358,9 +358,9 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if safeSource == sync.SafeSourceL2 && safeSourceL2RPC == "" {
 		return nil, fmt.Errorf("--safe-source.l2-rpc is required when --safe-source=l2")
 	}
-	if safeSource == sync.SafeSourceL2 && mode == sync.ELSync {
-		return nil, fmt.Errorf("--safe-source=l2 is not compatible with --syncmode=execution-layer")
-	}
+	// if safeSource == sync.SafeSourceL2 && mode == sync.ELSync {
+	// 	return nil, fmt.Errorf("--safe-source=l2 is not compatible with --syncmode=execution-layer")
+	// }
 	if safeSource == sync.SafeSourceL2 {
 		log.Warn("Using L2 safe source mode - trusting remote node for safe/finalized heads!",
 			"remote_rpc", safeSourceL2RPC)

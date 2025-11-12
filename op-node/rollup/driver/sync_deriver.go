@@ -233,6 +233,18 @@ func (s *SyncDeriver) SyncStep() {
 		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		s.StepDeriver.ResetStepBackoff(s.Ctx)
+
+		// This progresses unsafe head of sequencer, but never makes s.Engine.IsEngineSyncing() to false.
+		// Somewhat useless
+		// if (s.Engine.UnsafeL2Head() == eth.L2BlockRef{}) {
+		// 	s.Engine.InitCL(s.Ctx)
+		// }
+
+		// Makes no sense to make sequencer run as a el syncing state
+		// So when running as a sequencer + light node, always syncmode=consesnus-layer, even when following safe source
+		// So when running as a verifier + light node, always syncmode=execution-layer.
+		//   - syncmode=consensus-layer will still work, but every payload must be applied after genesis to the CL
+
 		return
 	}
 

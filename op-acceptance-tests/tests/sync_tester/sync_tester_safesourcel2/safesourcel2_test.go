@@ -48,7 +48,18 @@ func TestSyncTesterSafeSourceL2(gt *testing.T) {
 	sys.L2CL.Reached(types.LocalSafe, target, 30)
 	sys.L2CL2.Reached(types.LocalSafe, target, 30)
 
-	sys.L2CL.Matched(sys.L2CL2, types.LocalSafe, 5)
+	sys.L2CL.Matched(sys.L2CL2, types.LocalSafe, 30)
 
 	logger.Info("SyncTester SafeSourceL2 test completed successfully")
+
+	logger.Info("### Safe  ", "ver", sys.L2CL2.SafeL2BlockRef(), "seq", sys.L2CL.SafeL2BlockRef())
+	logger.Info("### Unsafe", "ver", sys.L2CL2.UnsafeHead(), "seq", sys.L2CL.UnsafeHead())
+	// Safe matches but unsafe gap still happen
+
+	sys.L2CL.Matched(sys.L2CL2, types.LocalUnsafe, 100)
+
+	logger.Info("### Safe  ", "ver", sys.L2CL2.SafeL2BlockRef(), "seq", sys.L2CL.SafeL2BlockRef())
+	logger.Info("### Unsafe", "ver", sys.L2CL2.UnsafeHead(), "seq", sys.L2CL.UnsafeHead())
+	logger.Info("### Finalzed", "ver", sys.L2CL2.SyncStatus().FinalizedL2, "seq", sys.L2CL.SyncStatus().FinalizedL2)
+
 }
