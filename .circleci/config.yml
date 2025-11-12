@@ -219,6 +219,13 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  install-zstd:
+    description: "Install zstd compression utility"
+    steps:
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd
+
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -585,9 +592,7 @@ jobs:
         default: ci
     steps:
       - checkout-from-workspace
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - run:
           name: Print forge version
           command: forge --version
@@ -907,9 +912,7 @@ jobs:
         default: ""
     steps:
       - checkout-from-workspace
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - run:
           name: Check if test list is empty
           command: |
@@ -975,9 +978,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout-from-workspace
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1083,9 +1084,7 @@ jobs:
         default: ""
     steps:
       - checkout-from-workspace
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1179,9 +1178,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout-from-workspace
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -2246,9 +2243,7 @@ jobs:
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - utils/checkout-with-mise
       - install-contracts-dependencies
-      - run:
-          name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+      - install-zstd
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
