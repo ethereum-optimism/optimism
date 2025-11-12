@@ -224,7 +224,7 @@ commands:
     steps:
       - run:
           name: Install zstd
-          command: sudo apt-get update && sudo apt-get install -y zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
 
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
