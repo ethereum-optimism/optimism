@@ -67,7 +67,7 @@ ai-contracts-test:
   docker:
     - image: cimg/base:2024.01
   steps:
-    - checkout-from-workspace
+    - utils/checkout-with-mise
     - run: just ai-contracts-test
     - store_artifacts: log.json
 ```
