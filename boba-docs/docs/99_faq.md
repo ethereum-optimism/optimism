@@ -226,33 +226,3 @@ Bridging multiple assets in one transaction and LP floating fee rate are two twe
 Bridging multiple assets in one transaction involves extending the LP1 contract to allow bridging eth, and/or multiple tokens, to L2 in a single transaction call. This primarily enables users to bridge gas token along with their desired token to L2 in one transaction. This is a method that is applicable only on bridging (on-ramp) through the Liquidity Pools, and works for only the tokens that the LPs support. Contract methods that enforce this bridging are: `clientDepositL1Batch()` on L1LP, and `clientPayL2Batch()` on L2LP.
 
 LP floating fee rate refers to the change in the fee logic on LPs. LP fee consists of `userRewardFee` (fee distributed to liquidity providers), and `ownerRewardFee` (fee for the owner of the contract). Before the change, LPs had a configurable fixed value for both these fees. After the change, the `userRewardFee` is a dynamic value that depends on the pool balance, which moves between configured min/max ranges. The `ownerRewardFeeRate` continues to be a configurable fixed value.
-
-***
-
-## Hybrid Compute
-
-### What are the limits on Hybrid Compute Web2 calls?
-
-Boba's Hybrid Compute Turing model:
-
-* limits strings returned from external endpoints to 322 characters (5\*64+2=322).
-* allows only one Turing call per execution.
-* imposes a 1200 ms timeout on API responses. Hence, please make sure that API responds promptly. If you are using AWS, note that some of their services take several seconds to spin up from a 'coldstart', and could result in persistent failure of the first call to your endpoint.
-
-### If Hybrid Compute is automatic, does that mean contract execution now waits on API response? How long can an endpoint delay execution? Won't this hit the API endpoint even in cases of Simulations/Reverts?
-
-Hybrid Compute calls need to execute estimateGas first. This puts the API response in a short lived cache, out of which the result is fetched in transaction processing.
-
-[Check out additional info in Boba examples](https://github.com/bobanetwork/boba\_legacy/blob/develop/boba\_examples/turing-lending/README.md).
-
-### When using the Hybrid Compute feature, the transaction pops up on Metamask, and if I submit it within a few seconds, everything works. However, waiting longer and submitting results in failure. Why does this happen?
-
-That's because the Hybrid Compute feature puts the Hybrid Compute response in a cache bucket. Your request including a Hybrid Compute request will put the response under a cache key that expires in 5 seconds:
-
-`const turingCacheExpire = 5 \* time.Second`
-
-[Learn more about cache expiration.](https://github.com/bobanetwork/boba\_legacy/blob/develop/l2geth/core/vm/evm.go#L277)
-
-### Is it possible to hide the API Key on Boba Hybrid Compute?
-
-Not directly at the moment. We propose all authenticated calls that need API keys and similar go through a proxy/gateway that would act as an authentication layer for the caller - if that's a suitable design.
