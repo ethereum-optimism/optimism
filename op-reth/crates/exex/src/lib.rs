@@ -16,8 +16,9 @@ use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
 use reth_optimism_trie::{live::LiveTrieCollector, BackfillJob, OpProofsStorage, OpProofsStore};
+use reth_primitives_traits::{BlockTy, RecoveredBlock};
 use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 /// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
 ///
@@ -166,14 +167,51 @@ where
                     }
                 }
                 ExExNotification::ChainReorged { old, new } => {
-                    debug!(
+                    info!(
                         old_block_number = old.tip().number(),
                         old_block_hash = ?old.tip().hash(),
                         new_block_number = new.tip().number(),
                         new_block_hash = ?new.tip().hash(),
                         "ChainReorged notification received",
                     );
-                    unimplemented!("Chain reorg handling not yet implemented in OpProofsExEx");
+
+                    // find the common ancestor
+                    let mut new_blocks: Vec<&RecoveredBlock<BlockTy<Primitives>>> =
+                        Vec::with_capacity(new.len());
+                    for block_number in new.blocks().keys().rev() {
+                        let old_block = old.blocks().get(block_number);
+                        let new_block = new.blocks().get(block_number);
+                        match (new_block, old_block) {
+                            (Some(new_block), Some(old_block)) => {
+                                if new_block.hash() == old_block.hash() {
+                                    break;
+                                }
+
+                                new_blocks.push(new_block);
+                                if new_block.parent_hash() == old_block.parent_hash() {
+                                    break;
+                                }
+                            }
+                            (Some(new_block), None) => {
+                                // Block only exists in new chain, collect it
+                                new_blocks.push(new_block);
+                            }
+                            _ => {
+                                error!(
+                                    block_number,
+                                    "Missing block in new chain during reorg detection",
+                                );
+                                return Err(eyre::eyre!(
+                                    "Missing block {} in new chain during reorg detection",
+                                    block_number
+                                ));
+                            }
+                        }
+                    }
+
+                    // reverse to get the new blocks in the correct order
+                    new_blocks.reverse();
+                    collector.unwind_and_store_block_updates(new_blocks).await?;
                 }
                 ExExNotification::ChainReverted { old } => {
                     debug!(

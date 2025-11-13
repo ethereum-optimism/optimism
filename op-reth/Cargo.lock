@@ -8382,11 +8382,7 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-exex"
-<<<<<<< HEAD:op-reth/Cargo.lock
 version = "1.10.2"
-=======
-version = "1.10.1"
->>>>>>> af7fe0d53f (fix: rebase conflicts (#367)):Cargo.lock
 dependencies = [
  "alloy-consensus",
  "derive_more",
@@ -8402,6 +8398,7 @@ dependencies = [
  "reth-optimism-chainspec",
  "reth-optimism-node",
  "reth-optimism-trie",
+ "reth-primitives-traits",
  "reth-provider",
  "serde",
  "thiserror 2.0.18",
