@@ -569,14 +569,19 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 	defer wg.Done()
 	l.Log.Info("Starting receipts processing loop")
 	for r := range receiptsCh {
+		// Snapshot guarded state under lock to avoid data races with checkTxpool/setTxPoolState
+		l.txpoolMutex.Lock()
+		state := l.txpoolState
+		blockedBlob := l.txpoolBlockedBlob
+		l.txpoolMutex.Unlock()
 
-		if errors.Is(r.Err, txpool.ErrAlreadyReserved) && l.txpoolState == TxpoolGood {
+		if errors.Is(r.Err, txpool.ErrAlreadyReserved) && state == TxpoolGood {
 			l.setTxPoolState(TxpoolBlocked, r.ID.isBlob)
 			l.Log.Warn("incompatible tx in txpool", "id", r.ID, "is_blob", r.ID.isBlob)
-		} else if r.ID.isCancel && l.txpoolState == TxpoolCancelPending {
+		} else if r.ID.isCancel && state == TxpoolCancelPending {
 			// Set state to TxpoolGood even if the cancellation transaction ended in error
 			// since the stuck transaction could have cleared while we were waiting.
-			l.setTxPoolState(TxpoolGood, l.txpoolBlockedBlob)
+			l.setTxPoolState(TxpoolGood, blockedBlob)
 			l.Log.Info("txpool may no longer be blocked", "err", r.Err)
 		}
 		l.Log.Info("Handling receipt", "id", r.ID)
