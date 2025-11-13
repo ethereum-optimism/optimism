@@ -28,6 +28,7 @@ fi
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
 DEPLOY_BUCKET="oplabs-contract-artifacts"
+BUCKET_URL="https://storage.googleapis.com/$DEPLOY_BUCKET"
 
 cd "$CONTRACTS_DIR"
 
@@ -60,11 +61,16 @@ fi
 
 checksum=$(bash scripts/ops/calculate-checksum.sh)
 
+archive_name_gz="artifacts-v1-$checksum.tar.gz"
+archive_name_zst="artifacts-v1-$checksum.tar.zst"
+
+upload_url_gz="$BUCKET_URL/$archive_name_gz"
+upload_url_zst="$BUCKET_URL/$archive_name_zst"
+
 echoerr "> Checksum: $checksum"
 echoerr "> Checking for existing artifacts..."
 
 if [ "$HAS_ZSTD" = true ]; then
-  upload_url_zst="https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-$checksum.tar.zst"
   exists_zst=$(curl -s -o /dev/null --fail -LI "$upload_url_zst" || echo "fail")
   if [ "$exists_zst" != "fail" ] && [ "$FORCE" = false ]; then
     echoerr "> Existing artifacts found (.tar.zst), nothing to do. Use --force to overwrite."
@@ -72,7 +78,6 @@ if [ "$HAS_ZSTD" = true ]; then
   fi
 fi
 
-upload_url_gz="https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-$checksum.tar.gz"
 exists_gz=$(curl -s -o /dev/null --fail -LI "$upload_url_gz" || echo "fail")
 
 if [ "$exists_gz" != "fail" ] && [ "$FORCE" = false ]; then
@@ -93,23 +98,21 @@ rm -f COMMIT
 commit=$(git rev-parse HEAD)
 echo "$commit" > COMMIT
 
+tar_args=("artifacts" "forge-artifacts" "COMMIT")
+if [ -d "cache" ]; then
+  tar_args+=("cache")
+  echoerr "> Including cache directory in archive"
+else
+  echoerr "> Cache directory not found, excluding from archive"
+fi
+
 
 if [ "$HAS_ZSTD" = true ]; then
   echoerr "> Compressing artifacts (.tar.gz and .tar.zst)..."
 
   # Create intermediate tar file first for reliable compression
   temp_tar="artifacts-v1-$checksum.tar"
-  tar_args="artifacts forge-artifacts COMMIT"
-  if [ -d "cache" ]; then
-    tar_args="$tar_args cache"
-    echoerr "> Including cache directory in archive"
-  else
-    echoerr "> Cache directory not found, excluding from archive"
-  fi
-  "$tar" -cf "$temp_tar" "$tar_args"
-
-  archive_name_gz="artifacts-v1-$checksum.tar.gz"
-  archive_name_zst="artifacts-v1-$checksum.tar.zst"
+  "$tar" -cf "$temp_tar" "${tar_args[@]}"
 
   gzip -9 < "$temp_tar" > "$archive_name_gz" &
   gz_pid=$!
@@ -140,22 +143,15 @@ if [ "$HAS_ZSTD" = true ]; then
   fi
 else
   echoerr "> Compressing artifacts (.tar.gz)..."
-  archive_name_gz="artifacts-v1-$checksum.tar.gz"
-  tar_args="artifacts forge-artifacts COMMIT"
-  if [ -d "cache" ]; then
-    tar_args="$tar_args cache"
-    echoerr "> Including cache directory in archive"
-  else
-    echoerr "> Cache directory not found, excluding from archive"
-  fi
-  "$tar" -czf "$archive_name_gz" "$tar_args"
+
+  "$tar" -czf "$archive_name_gz" "${tar_args[@]}"
   du -sh "$archive_name_gz" | awk '{$1=$1};1' # trim leading whitespace
   echoerr "> Created .tar.gz archive"
 fi
 
 echoerr "> Done."
 
-echoerr "> Uploading artifacts to GCS..."
+echoerr "> Uploading artifacts to $BUCKET_URL..."
 
 # Force single-stream upload to improve reliability
 gcloud config set storage/parallel_composite_upload_enabled False
