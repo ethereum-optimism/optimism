@@ -54,46 +54,6 @@ func TestGetContractBundle(t *testing.T) {
 	require.Greater(t, len(retrievedBundle), 0, "contract bundle should not be empty")
 }
 
-func TestGetArtifactPath(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "OptimismPortal",
-			input:    "OptimismPortal",
-			expected: "OptimismPortal2.sol/OptimismPortal2.json",
-		},
-		{
-			name:     "Regular contract",
-			input:    "SystemConfig",
-			expected: "SystemConfig.sol/SystemConfig.json",
-		},
-		{
-			name:     "Contract with Address suffix",
-			input:    "protocolVersionsProxyAddress",
-			expected: "Proxy.sol/Proxy.json",
-		},
-		{
-			name:     "Proxy contract",
-			input:    "superchainConfigProxyAddress",
-			expected: "Proxy.sol/Proxy.json",
-		},
-		{
-			name:     "Implementation with Impl suffix",
-			input:    "protocolVersionsImplAddress",
-			expected: "ProtocolVersions.sol/ProtocolVersions.json",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getArtifactPath(tt.input)
-			require.Equal(t, tt.expected, result)
-		})
-	}
-}
 
 func TestFieldNameToContractName(t *testing.T) {
 	tests := []struct {

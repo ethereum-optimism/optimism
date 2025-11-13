@@ -38,12 +38,6 @@ func NewApp(versionWithMeta string) *cli.App {
 			Action: bootstrap.ImplementationsCLI,
 		},
 		{
-			Name:   "proxy",
-			Usage:  "Bootstrap a ERC-1967 Proxy without an implementation set.",
-			Flags:  cliapp.ProtectFlags(bootstrap.ProxyFlags),
-			Action: bootstrap.ProxyCLI,
-		},
-		{
 			Name:   "superchain",
 			Usage:  "Bootstrap the Superchain configuration",
 			Flags:  cliapp.ProtectFlags(bootstrapSuperchainFlags),

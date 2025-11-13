@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 	"github.com/stretchr/testify/require"
 )
 
@@ -139,6 +140,24 @@ func TestCLIVerify(t *testing.T) {
 		require.Contains(t, output, "Verification Summary")
 		require.Contains(t, output, "verified=5")
 		require.Contains(t, output, "failed=0")
+	})
+
+	t.Run("state file contract name mapping", func(t *testing.T) {
+		// Test the artifact path mapping for underscore contract names
+
+		testCases := map[string]string{
+			"superchain_superchain_config_proxy": "Proxy.sol/Proxy.json",
+			"superchain_protocol_versions_proxy": "Proxy.sol/Proxy.json",
+			"superchain_superchain_config_impl":  "SuperchainConfig.sol/SuperchainConfig.json",
+			"implementations_opcm_impl":          "Opcm.sol/Opcm.json",
+			"regular_contract_name":              "RegularContractName.sol/RegularContractName.json",
+		}
+
+		for contractName, expectedPath := range testCases {
+			actualPath := verify.GetArtifactPath(contractName)
+			require.Equal(t, expectedPath, actualPath,
+				"contract name %q should map to %q, got %q", contractName, expectedPath, actualPath)
+		}
 	})
 }
 

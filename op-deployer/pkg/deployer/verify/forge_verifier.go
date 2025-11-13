@@ -37,8 +37,8 @@ type ForgeVerifierOpts struct {
 }
 
 func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
-	if opts.VerifierType != "etherscan" && opts.VerifierType != "blockscout" {
-		return nil, fmt.Errorf("unsupported verifier type: %s (must be 'etherscan' or 'blockscout')", opts.VerifierType)
+	if opts.VerifierType != "etherscan" && opts.VerifierType != "blockscout" && opts.VerifierType != "custom" {
+		return nil, fmt.Errorf("unsupported verifier type: %s (must be 'etherscan', 'blockscout', or 'custom')", opts.VerifierType)
 	}
 
 	forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
@@ -101,47 +101,15 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		"artifactPath", artifactPath,
 		"verifier", v.verifierType)
 
-	f, err := v.artifactsFS.Open(artifactPath)
+	_, metadata, err := loadArtifact(v.artifactsFS, artifactPath, v.logger)
 	if err != nil {
-		return fmt.Errorf("failed to open artifact %s: %w", artifactPath, err)
-	}
-	defer f.Close()
-
-	var art foundry.Artifact
-	if err := json.NewDecoder(f).Decode(&art); err != nil {
-		return fmt.Errorf("failed to decode artifact: %w", err)
-	}
-
-	var contractPath string
-	for path, name := range art.Metadata.Settings.CompilationTarget {
-		contractPath = fmt.Sprintf("%s:%s", path, name)
-		break
-	}
-
-	if contractPath == "" {
-		return fmt.Errorf("failed to find compilation target in artifact")
-	}
-
-	compilerVersion := art.Metadata.Compiler.Version
-	if compilerVersion == "" {
-		return fmt.Errorf("compiler version not found in artifact")
-	}
-
-	// Parse optimizer settings from artifact metadata
-	var optimizerSettings struct {
-		Enabled bool `json:"enabled"`
-		Runs    int  `json:"runs"`
-	}
-	if len(art.Metadata.Settings.Optimizer) > 0 {
-		if err := json.Unmarshal(art.Metadata.Settings.Optimizer, &optimizerSettings); err != nil {
-			return fmt.Errorf("failed to parse optimizer settings: %w", err)
-		}
+		return err
 	}
 
 	args := []string{
 		address.Hex(),
-		contractPath,
-		"--compiler-version", compilerVersion,
+		metadata.ContractPath,
+		"--compiler-version", metadata.CompilerVersion,
 		"--watch",
 	}
 
@@ -156,13 +124,13 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 	}
 
 	// Need to add these settings forcefully, because forge doesn't parse them correctly (1.2.3)
-	if optimizerSettings.Enabled {
-		args = append(args, "--num-of-optimizations", fmt.Sprintf("%d", optimizerSettings.Runs))
+	if metadata.Optimizer.Enabled {
+		args = append(args, "--num-of-optimizations", fmt.Sprintf("%d", metadata.Optimizer.Runs))
 	}
 
 	// Same here
-	if art.Metadata.Settings.EVMVersion != "" {
-		args = append(args, "--evm-version", art.Metadata.Settings.EVMVersion)
+	if metadata.EVMVersion != "" {
+		args = append(args, "--evm-version", metadata.EVMVersion)
 	}
 
 	if v.verifierUrl != "" {
@@ -247,6 +215,19 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 
 		isIndexingError := isContractNotFound(verifyErr.Error(), output)
 
+		if isIndexingError && v.verifierType == "etherscan" && v.apiKey != "" {
+			v.logger.Info("Contract not found, checking if already verified via Etherscan API", "address", address.Hex())
+			isVerified, err := v.checkEtherscanVerificationStatus(ctx, address)
+			if err != nil {
+				v.logger.Warn("Failed to check Etherscan verification status", "address", address.Hex(), "error", err)
+			} else if isVerified {
+				v.logger.Info("Contract already verified (confirmed via Etherscan API)", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
+				return ErrAlreadyVerified
+			} else {
+				v.logger.Info("Etherscan API confirms contract is NOT verified", "address", address.Hex())
+			}
+		}
+
 		if !isIndexingError || attempt == maxRetries {
 			errStr := verifyErr.Error()
 			if strings.Contains(errStr, "constructor") || strings.Contains(errStr, "Constructor") {
@@ -313,6 +294,56 @@ func (v *ForgeVerifier) checkBlockscoutVerificationStatus(ctx context.Context, a
 
 	v.logger.Info("Blockscout API verification status", "address", address.Hex(), "is_verified", result.IsVerified)
 	return result.IsVerified, nil
+}
+
+// checkEtherscanVerificationStatus checks if a contract is already verified on Etherscan
+func (v *ForgeVerifier) checkEtherscanVerificationStatus(ctx context.Context, address common.Address) (bool, error) {
+	baseURL := "https://api.etherscan.io/v2/api"
+	checkUrl := fmt.Sprintf("%s?chainid=%d&module=contract&action=getsourcecode&address=%s&apikey=%s", baseURL, v.chainID, address.Hex(), v.apiKey)
+
+	v.logger.Info("Checking Etherscan verification status via V2 API", "url", checkUrl)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", checkUrl, nil)
+	if err != nil {
+		v.logger.Warn("Failed to create HTTP request for Etherscan API", "error", err)
+		return false, err
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		v.logger.Warn("Failed to query Etherscan API", "error", err)
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		v.logger.Info("Etherscan API returned non-OK status", "status", resp.StatusCode)
+		return false, nil
+	}
+
+	var result struct {
+		Status  string `json:"status"`
+		Message string `json:"message"`
+		Result  []struct {
+			SourceCode string `json:"SourceCode"`
+			ABI        string `json:"ABI"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		v.logger.Warn("Failed to parse Etherscan API response", "error", err)
+		return false, err
+	}
+
+	if result.Status == "0" && strings.Contains(result.Message, "deprecated") {
+		v.logger.Warn("Etherscan API returned deprecation message, cannot check verification status via API. Will rely on forge's own verification detection.")
+		return false, nil
+	}
+
+	isVerified := len(result.Result) > 0 && result.Result[0].SourceCode != "" && result.Result[0].SourceCode != "{{"
+
+	v.logger.Info("Etherscan API verification status", "address", address.Hex(), "is_verified", isVerified)
+	return isVerified, nil
 }
 
 func (v *ForgeVerifier) VerifyContracts(ctx context.Context, contracts map[string]common.Address) (verified, skipped, failed int, failedContracts []string) {

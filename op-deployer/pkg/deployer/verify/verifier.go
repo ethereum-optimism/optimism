@@ -2,6 +2,7 @@ package verify
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
@@ -22,7 +23,20 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	verifierType := cliCtx.String(flags.VerifierTypeFlagName)
 	verifierUrl := cliCtx.String(flags.VerifierUrlFlagName)
 
-	if verifierType == "etherscan" && verifierAPIKey == "" {
+	verifiers := strings.Split(verifierType, ",")
+	for i := range verifiers {
+		verifiers[i] = strings.TrimSpace(verifiers[i])
+	}
+
+	needsAPIKey := false
+	for _, v := range verifiers {
+		if v == "etherscan" {
+			needsAPIKey = true
+			break
+		}
+	}
+
+	if needsAPIKey && verifierAPIKey == "" {
 		return fmt.Errorf("verifier-api-key is required for etherscan")
 	}
 
@@ -63,59 +77,88 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	}
 	l.Info("Downloaded artifacts")
 
-	v, err := NewForgeVerifier(ForgeVerifierOpts{
-		RpcUrl:       l1RPCUrl,
-		VerifierType: verifierType,
-		VerifierUrl:  verifierUrl,
-		ApiKey:       verifierAPIKey,
-		ChainID:      l1ChainId,
-		ArtifactsFS:  artifactsFS,
-		Logger:       l,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create verifier: %w", err)
-	}
-
 	bundle, err := GetBundleFromFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bundle: %w", err)
 	}
 
-	var numVerified, numSkipped, numFailed int
+	l.Info("Starting contract verification", "verifiers", verifierType)
 
-	if contractName != "" {
-		addr, ok := bundle[contractName]
-		if !ok {
-			return fmt.Errorf("contract %s not found in bundle", contractName)
+	totalVerified := 0
+	totalSkipped := 0
+	totalFailed := 0
+	allFailedContracts := make(map[string][]string)
+
+	for _, vt := range verifiers {
+		l.Info("Verifying contracts", "verifier", vt)
+
+		v, err := NewForgeVerifier(ForgeVerifierOpts{
+			RpcUrl:       l1RPCUrl,
+			VerifierType: vt,
+			VerifierUrl:  verifierUrl,
+			ApiKey:       verifierAPIKey,
+			ChainID:      l1ChainId,
+			ArtifactsFS:  artifactsFS,
+			Logger:       l,
+		})
+		if err != nil {
+			errMsg := fmt.Sprintf("failed to create %s verifier: %v", vt, err)
+			l.Error(errMsg)
+			continue
 		}
 
-		err := v.VerifyContract(ctx, addr, contractName)
-		if err == nil {
-			numVerified++
-		} else if err == ErrAlreadyVerified {
-			numSkipped++
-		} else {
-			return fmt.Errorf("failed to verify contract %s: %w", contractName, err)
-		}
-	} else {
+		var numVerified, numSkipped, numFailed int
 		var failedContracts []string
-		numVerified, numSkipped, numFailed, failedContracts = v.VerifyContracts(ctx, bundle)
-		if numFailed > 0 && len(failedContracts) > 0 {
-			l.Warn("Failed contracts:")
-			for _, contract := range failedContracts {
-				l.Warn(fmt.Sprintf("  - %s", contract))
+
+		if contractName != "" {
+			addr, ok := bundle[contractName]
+			if !ok {
+				return fmt.Errorf("contract %s not found in bundle", contractName)
 			}
+
+			err := v.VerifyContract(ctx, addr, contractName)
+			if err == nil {
+				numVerified++
+			} else if err == ErrAlreadyVerified {
+				numSkipped++
+			} else {
+				numFailed++
+				failedContracts = append(failedContracts, contractName)
+			}
+		} else {
+			numVerified, numSkipped, numFailed, failedContracts = v.VerifyContracts(ctx, bundle)
+		}
+
+		l.Info("Verification complete", "verifier", vt, "verified", numVerified, "skipped", numSkipped, "failed", numFailed)
+
+		totalVerified += numVerified
+		totalSkipped += numSkipped
+		totalFailed += numFailed
+
+		if numFailed > 0 {
+			allFailedContracts[vt] = failedContracts
 		}
 	}
 
 	l.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	l.Info("Verification Summary")
 	l.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	l.Info("Results", "verified", numVerified, "skipped", numSkipped, "failed", numFailed)
-	if numFailed > 0 {
-		l.Warn(fmt.Sprintf("Failed to verify %d contracts", numFailed))
-		return fmt.Errorf("failed to verify %d contracts", numFailed)
-	} else if numSkipped > 0 {
+	l.Info("Results", "verified", totalVerified, "skipped", totalSkipped, "failed", totalFailed)
+
+	if len(allFailedContracts) > 0 {
+		l.Warn("Failed contracts by verifier:")
+		for verifier, contracts := range allFailedContracts {
+			l.Warn(fmt.Sprintf("  %s:", verifier))
+			for _, contract := range contracts {
+				l.Warn(fmt.Sprintf("    - %s", contract))
+			}
+		}
+	}
+
+	if totalFailed > 0 {
+		l.Warn(fmt.Sprintf("Failed to verify %d contracts", totalFailed))
+		return fmt.Errorf("failed to verify %d contracts", totalFailed)
+	} else if totalSkipped > 0 {
 		l.Info("All contracts verified or already verified")
 	} else {
 		l.Info("All contracts verified successfully")

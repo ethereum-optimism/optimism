@@ -13,6 +13,7 @@ set -e
 #
 # Optional:
 #   DEPLOYER_VERIFIER_TYPE      - Verifier(s): etherscan, blockscout, or etherscan,blockscout
+#                                 (if set, uses auto-verify during deployment)
 #   DEPLOYER_VERIFIER_API_KEY   - API key for Etherscan (if using etherscan verifier)
 #
 # For superchain deployment (step 1):
@@ -47,11 +48,12 @@ mkdir -p "$OUTPUT_DIR"
 
 cd "$REPO_ROOT"
 
-echo -e "${BLUE}What would you like to deploy?${NC}"
-echo "  1) Superchain contracts (recommended for first deployment)"
-echo "  2) Implementation contracts (requires existing superchain deployment)"
+echo -e "${BLUE}What would you like to do?${NC}"
+echo "  1) Deploy superchain contracts (recommended for first deployment)"
+echo "  2) Deploy implementation contracts (requires existing superchain deployment)"
+echo "  3) Verify previous deployment (using state/bootstrap output file)"
 echo ""
-read -r -p "Enter choice [1-2]: " DEPLOY_TYPE
+read -r -p "Enter choice [1-3]: " DEPLOY_TYPE
 
 echo ""
 echo -e "${BLUE}━━━ Required Inputs ━━━${NC}"
@@ -70,63 +72,128 @@ else
     echo -e "${GREEN}✓ Using L1_RPC_URL from environment${NC}"
 fi
 
-if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
-    echo ""
-    echo -e "${YELLOW}Private Key${NC}"
-    echo "  ⚠️  This account must have Sepolia ETH (~0.1-0.2 ETH recommended)"
-    echo "  ⚠️  Never use mainnet keys or keys with real funds!"
-    echo ""
-    read -r -sp "Enter private key (hidden): " PRIVATE_KEY
-    echo ""
-else
-    PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY"
-    echo ""
-    echo -e "${GREEN}✓ Using DEPLOYER_PRIVATE_KEY from environment${NC}"
+# Only ask for private key if deploying (not verify-only)
+if [ "$DEPLOY_TYPE" != "3" ]; then
+    if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
+        echo ""
+        echo -e "${YELLOW}Private Key${NC}"
+        echo "  ⚠️  This account must have Sepolia ETH (~0.1-0.2 ETH recommended)"
+        echo "  ⚠️  Never use mainnet keys or keys with real funds!"
+        echo ""
+        read -r -sp "Enter private key (hidden): " PRIVATE_KEY
+        echo ""
+    else
+        PRIVATE_KEY="$DEPLOYER_PRIVATE_KEY"
+        echo ""
+        echo -e "${GREEN}✓ Using DEPLOYER_PRIVATE_KEY from environment${NC}"
+    fi
 fi
 
-if [ -z "$DEPLOYER_VERIFIER_TYPE" ]; then
+# Ask about verification method (skip for verify-only mode)
+if [ "$DEPLOY_TYPE" != "3" ]; then
+    # If DEPLOYER_VERIFIER_TYPE is set, still ask for verification method but pre-fill verifier type
+    if [ -n "$DEPLOYER_VERIFIER_TYPE" ]; then
+        VERIFIER_TYPE_PREFILL="$DEPLOYER_VERIFIER_TYPE"
+        ETHERSCAN_API_KEY_PREFILL="${DEPLOYER_VERIFIER_API_KEY}"
+    else
+        VERIFIER_TYPE_PREFILL=""
+        ETHERSCAN_API_KEY_PREFILL=""
+    fi
+    
     echo ""
     echo -e "${YELLOW}Contract Verification${NC}"
-    echo "  Choose verifier(s) to use (or press Enter to skip verification):"
-    echo "    1) Etherscan only"
-    echo "    2) Blockscout only"
-    echo "    3) Both Etherscan + Blockscout (recommended)"
+    echo "  How would you like to verify contracts?"
+    echo "    1) Auto-verify during deployment (--verify flag)"
+    echo "    2) Verify after deployment using state file"
+    echo "    3) Skip verification"
     echo ""
-    read -r -p "Enter choice [1-3 or Enter to skip]: " VERIFIER_CHOICE
+    read -r -p "Enter choice [1-3]: " VERIFY_METHOD_CHOICE
 
     VERIFIER_TYPE=""
-    ETHERSCAN_API_KEY="${DEPLOYER_VERIFIER_API_KEY}"
+    ETHERSCAN_API_KEY="${ETHERSCAN_API_KEY_PREFILL:-${DEPLOYER_VERIFIER_API_KEY}}"
+    AUTO_VERIFY=false
+    POST_DEPLOY_VERIFY=false
 
-    if [ "$VERIFIER_CHOICE" == "1" ]; then
-        VERIFIER_TYPE="etherscan"
-        if [ -z "$ETHERSCAN_API_KEY" ]; then
-            echo ""
-            echo -e "${YELLOW}Etherscan API Key${NC}"
-            echo "  Get one free at: https://etherscan.io/myapikey"
-            echo ""
-            read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
-        fi
-    elif [ "$VERIFIER_CHOICE" == "2" ]; then
-        VERIFIER_TYPE="blockscout"
+    if [ "$VERIFY_METHOD_CHOICE" == "1" ]; then
+        AUTO_VERIFY=true
         echo ""
-        echo -e "${GREEN}✓ Blockscout verification selected (no API key required)${NC}"
-    elif [ "$VERIFIER_CHOICE" == "3" ]; then
-        VERIFIER_TYPE="etherscan,blockscout"
-        if [ -z "$ETHERSCAN_API_KEY" ]; then
-            echo ""
-            echo -e "${YELLOW}Etherscan API Key${NC}"
-            echo "  Get one free at: https://etherscan.io/myapikey"
-            echo ""
-            read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
-        fi
+        echo -e "${YELLOW}Choose verifier(s) for auto-verification:${NC}"
+        echo "    1) Etherscan only"
+        echo "    2) Blockscout only"
+        echo "    3) Both Etherscan + Blockscout"
         echo ""
-        echo -e "${GREEN}✓ Dual verification: Etherscan + Blockscout${NC}"
+        if [ -n "$VERIFIER_TYPE_PREFILL" ]; then
+            echo -e "${GREEN}  (Pre-filled from DEPLOYER_VERIFIER_TYPE: $VERIFIER_TYPE_PREFILL)${NC}"
+        fi
+        read -r -p "Enter choice [1-3]: " VERIFIER_CHOICE
+
+        if [ "$VERIFIER_CHOICE" == "1" ]; then
+            VERIFIER_TYPE="etherscan"
+            if [ -z "$ETHERSCAN_API_KEY" ]; then
+                echo ""
+                echo -e "${YELLOW}Etherscan API Key${NC}"
+                echo "  Get one free at: https://etherscan.io/myapikey"
+                echo ""
+                read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+            fi
+        elif [ "$VERIFIER_CHOICE" == "2" ]; then
+            VERIFIER_TYPE="blockscout"
+            echo ""
+            echo -e "${GREEN}✓ Blockscout auto-verification selected${NC}"
+        elif [ "$VERIFIER_CHOICE" == "3" ]; then
+            VERIFIER_TYPE="etherscan,blockscout"
+            if [ -z "$ETHERSCAN_API_KEY" ]; then
+                echo ""
+                echo -e "${YELLOW}Etherscan API Key${NC}"
+                echo "  Get one free at: https://etherscan.io/myapikey"
+                echo ""
+                read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+            fi
+            echo ""
+            echo -e "${GREEN}✓ Dual auto-verification: Etherscan + Blockscout${NC}"
+        fi
+    elif [ "$VERIFY_METHOD_CHOICE" == "2" ]; then
+        POST_DEPLOY_VERIFY=true
+        echo ""
+        echo -e "${YELLOW}Choose verifier(s) for post-deployment verification:${NC}"
+        echo "    1) Etherscan only"
+        echo "    2) Blockscout only"
+        echo "    3) Both Etherscan + Blockscout (recommended)"
+        echo ""
+        if [ -n "$VERIFIER_TYPE_PREFILL" ]; then
+            echo -e "${GREEN}  (Pre-filled from DEPLOYER_VERIFIER_TYPE: $VERIFIER_TYPE_PREFILL)${NC}"
+        fi
+        read -r -p "Enter choice [1-3]: " VERIFIER_CHOICE
+
+        if [ "$VERIFIER_CHOICE" == "1" ]; then
+            VERIFIER_TYPE="etherscan"
+            if [ -z "$ETHERSCAN_API_KEY" ]; then
+                echo ""
+                echo -e "${YELLOW}Etherscan API Key${NC}"
+                echo "  Get one free at: https://etherscan.io/myapikey"
+                echo ""
+                read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+            fi
+        elif [ "$VERIFIER_CHOICE" == "2" ]; then
+            VERIFIER_TYPE="blockscout"
+            echo ""
+            echo -e "${GREEN}✓ Blockscout verification selected${NC}"
+        elif [ "$VERIFIER_CHOICE" == "3" ]; then
+            VERIFIER_TYPE="etherscan,blockscout"
+            if [ -z "$ETHERSCAN_API_KEY" ]; then
+                echo ""
+                echo -e "${YELLOW}Etherscan API Key${NC}"
+                echo "  Get one free at: https://etherscan.io/myapikey"
+                echo ""
+                read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+            fi
+            echo ""
+            echo -e "${GREEN}✓ Dual verification: Etherscan + Blockscout${NC}"
+        fi
+    else
+        echo ""
+        echo -e "${YELLOW}✓ Verification skipped${NC}"
     fi
-else
-    VERIFIER_TYPE="$DEPLOYER_VERIFIER_TYPE"
-    ETHERSCAN_API_KEY="${DEPLOYER_VERIFIER_API_KEY}"
-    echo ""
-    echo -e "${GREEN}✓ Using DEPLOYER_VERIFIER_TYPE from environment: $VERIFIER_TYPE${NC}"
 fi
 
 if [ "$DEPLOY_TYPE" == "1" ]; then
@@ -204,27 +271,150 @@ elif [ "$DEPLOY_TYPE" == "2" ]; then
     fi
     
     OUTPUT_FILE="$OUTPUT_DIR/sepolia-implementations-$(date +%Y%m%d-%H%M%S).json"
+elif [ "$DEPLOY_TYPE" == "3" ]; then
+    echo ""
+    echo -e "${BLUE}━━━ Verification Configuration ━━━${NC}"
+    echo ""
+    
+    if [ -z "$DEPLOYER_STATE_FILE" ]; then
+        echo -e "${YELLOW}State/Bootstrap Output File${NC}"
+        echo "  Path to the JSON file with contract addresses"
+        echo "  Can be bootstrap output (e.g., bootstrap_superchain.json) or state.json"
+        echo ""
+        read -r -p "Enter path to state/bootstrap output file: " STATE_FILE
+    else
+        STATE_FILE="$DEPLOYER_STATE_FILE"
+        echo -e "${GREEN}✓ Using DEPLOYER_STATE_FILE: $STATE_FILE${NC}"
+    fi
+    
+    if [ ! -f "$STATE_FILE" ]; then
+        echo -e "${RED}✗ File not found: $STATE_FILE${NC}"
+        exit 1
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Contract Verification${NC}"
+    echo "  Choose verifier(s) to use:"
+    echo "    1) Etherscan only"
+    echo "    2) Blockscout only"
+    echo "    3) Both Etherscan + Blockscout (recommended)"
+    echo ""
+    if [ -n "$DEPLOYER_VERIFIER_TYPE" ]; then
+        echo -e "${GREEN}  (Pre-filled from DEPLOYER_VERIFIER_TYPE: $DEPLOYER_VERIFIER_TYPE)${NC}"
+    fi
+    read -r -p "Enter choice [1-3]: " VERIFIER_CHOICE
+    
+    VERIFIER_TYPE=""
+    ETHERSCAN_API_KEY="${DEPLOYER_VERIFIER_API_KEY}"
+    
+    if [ "$VERIFIER_CHOICE" == "1" ]; then
+        VERIFIER_TYPE="etherscan"
+        if [ -z "$ETHERSCAN_API_KEY" ]; then
+            echo ""
+            echo -e "${YELLOW}Etherscan API Key${NC}"
+            echo "  Get one free at: https://etherscan.io/myapikey"
+            echo ""
+            read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+        fi
+    elif [ "$VERIFIER_CHOICE" == "2" ]; then
+        VERIFIER_TYPE="blockscout"
+        echo ""
+        echo -e "${GREEN}✓ Blockscout verification selected${NC}"
+    elif [ "$VERIFIER_CHOICE" == "3" ]; then
+        VERIFIER_TYPE="etherscan,blockscout"
+        if [ -z "$ETHERSCAN_API_KEY" ]; then
+            echo ""
+            echo -e "${YELLOW}Etherscan API Key${NC}"
+            echo "  Get one free at: https://etherscan.io/myapikey"
+            echo ""
+            read -r -p "Enter Etherscan API key: " ETHERSCAN_API_KEY
+        fi
+        echo ""
+        echo -e "${GREEN}✓ Dual verification: Etherscan + Blockscout${NC}"
+    else
+        echo -e "${RED}Invalid choice. Exiting.${NC}"
+        exit 1
+    fi
+    
+    # Confirmation for verify-only
+    echo ""
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Ready to verify!${NC}"
+    echo ""
+    echo "  RPC URL: $L1_RPC_URL"
+    echo "  Input file: $STATE_FILE"
+    echo -e "  Verification: ${GREEN}$VERIFIER_TYPE${NC}"
+    echo ""
+    read -r -p "Continue? [y/N]: " CONFIRM
+    
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Verification cancelled.${NC}"
+        exit 0
+    fi
+    
+    # Run verification
+    echo ""
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}🔍 Starting verification...${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    
+    VERIFY_CMD=("go" "run" "./cmd/op-deployer" "verify"
+        "--l1-rpc-url" "$L1_RPC_URL"
+        "--input-file" "$STATE_FILE"
+        "--verifier" "$VERIFIER_TYPE"
+        "--artifacts-locator" "embedded"
+    )
+    
+    if [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ]; then
+        VERIFY_CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+    fi
+    
+    if "${VERIFY_CMD[@]}"; then
+        echo ""
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}✓ Verification complete!${NC}"
+        echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        if [[ "$VERIFIER_TYPE" == *"etherscan"* ]]; then
+            echo "  Etherscan: https://sepolia.etherscan.io/"
+        fi
+        if [[ "$VERIFIER_TYPE" == *"blockscout"* ]]; then
+            echo "  Blockscout: https://eth-sepolia.blockscout.com/"
+        fi
+    else
+        echo ""
+        echo -e "${RED}✗ Verification failed!${NC}"
+        echo ""
+        echo "Check the error messages above for details."
+        exit 1
+    fi
+    
+    exit 0
 else
     echo -e "${RED}Invalid choice. Exiting.${NC}"
     exit 1
 fi
 
-# Confirmation
-echo ""
-echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}Ready to deploy!${NC}"
-echo ""
-echo "  RPC URL: $L1_RPC_URL"
-echo "  Output file: $OUTPUT_FILE"
-if [ -n "$VERIFIER_TYPE" ]; then
-    echo -e "  Verification: ${GREEN}Enabled${NC} ($VERIFIER_TYPE)"
-else
-    echo -e "  Verification: ${YELLOW}Disabled${NC}"
-fi
-echo ""
-echo -e "${YELLOW}⚠️  This will deploy contracts to Sepolia and consume ETH for gas!${NC}"
-echo ""
-read -r -p "Continue? [y/N]: " CONFIRM
+# Confirmation for deployment
+if [ "$DEPLOY_TYPE" != "3" ]; then
+    echo ""
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${GREEN}Ready to deploy!${NC}"
+    echo ""
+    echo "  RPC URL: $L1_RPC_URL"
+    echo "  Output file: $OUTPUT_FILE"
+    if [ "$AUTO_VERIFY" == "true" ]; then
+        echo -e "  Verification: ${GREEN}Auto-verify during deployment${NC} ($VERIFIER_TYPE)"
+    elif [ "$POST_DEPLOY_VERIFY" == "true" ]; then
+        echo -e "  Verification: ${GREEN}Post-deployment using state file${NC} ($VERIFIER_TYPE)"
+    else
+        echo -e "  Verification: ${YELLOW}Disabled${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}⚠️  This will deploy contracts to Sepolia and consume ETH for gas!${NC}"
+    echo ""
+    read -r -p "Continue? [y/N]: " CONFIRM
 
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo -e "${RED}Deployment cancelled.${NC}"
@@ -265,7 +455,7 @@ else
     )
 fi
 
-if [ -n "$VERIFIER_TYPE" ]; then
+if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
     CMD+=(
         "--verify"
         "--verifier" "$VERIFIER_TYPE"
@@ -293,25 +483,47 @@ if "${CMD[@]}"; then
         echo ""
     fi
     
-    if [ -n "$VERIFIER_TYPE" ]; then
-        echo -e "${GREEN}✓ Contracts verified${NC}"
+    if [ "$AUTO_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+        echo -e "${GREEN}✓ Contracts verified during deployment${NC}"
         if [[ "$VERIFIER_TYPE" == *"etherscan"* ]]; then
             echo "  Etherscan: https://sepolia.etherscan.io/"
         fi
         if [[ "$VERIFIER_TYPE" == *"blockscout"* ]]; then
             echo "  Blockscout: https://eth-sepolia.blockscout.com/"
         fi
+    elif [ "$POST_DEPLOY_VERIFY" == "true" ] && [ -n "$VERIFIER_TYPE" ]; then
+        echo ""
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${YELLOW}🔍 Verifying contracts using bootstrap output...${NC}"
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        
+        VERIFY_CMD=("go" "run" "./cmd/op-deployer" "verify"
+            "--l1-rpc-url" "$L1_RPC_URL"
+            "--input-file" "$OUTPUT_FILE"
+            "--verifier" "$VERIFIER_TYPE"
+            "--artifacts-locator" "embedded"
+        )
+        
+        if [[ "$VERIFIER_TYPE" == *"etherscan"* ]] && [ -n "$ETHERSCAN_API_KEY" ]; then
+            VERIFY_CMD+=("--verifier-api-key" "$ETHERSCAN_API_KEY")
+        fi
+        
+        if "${VERIFY_CMD[@]}"; then
+            echo ""
+            echo -e "${GREEN}✓ Verification complete!${NC}"
+            if [[ "$VERIFIER_TYPE" == *"etherscan"* ]]; then
+                echo "  Etherscan: https://sepolia.etherscan.io/"
+            fi
+            if [[ "$VERIFIER_TYPE" == *"blockscout"* ]]; then
+                echo "  Blockscout: https://eth-sepolia.blockscout.com/"
+            fi
+        else
+            echo ""
+            echo -e "${YELLOW}⚠  Verification had some issues (check output above)${NC}"
+        fi
     else
-        echo -e "${YELLOW}ℹ  Run the verify command later to verify contracts:${NC}"
-        echo ""
-        echo "  go run ./cmd/op-deployer verify \\"
-        echo "    --l1-rpc-url $L1_RPC_URL \\"
-        echo "    --input-file $OUTPUT_FILE \\"
-        echo "    --verifier etherscan,blockscout \\"
-        echo "    --verifier-api-key YOUR_ETHERSCAN_API_KEY \\"
-        echo "    --artifacts-locator embedded"
-        echo ""
-        echo "  (Verifies on both Etherscan and Blockscout)"
+        echo -e "${YELLOW}ℹ  Verification was skipped${NC}"
     fi
     
     if [ "$DEPLOY_TYPE" == "1" ] && [ -f "$OUTPUT_FILE" ]; then
@@ -361,5 +573,6 @@ else
     echo "  - Network connectivity issues"
     echo ""
     exit 1
+fi
 fi
 
