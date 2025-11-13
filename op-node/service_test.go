@@ -62,8 +62,7 @@ func TestNewSyncConfig_FollowSourceWithDerivationEnabled(t *testing.T) {
 		// unsafe-only defaults in false
 		fmt.Sprintf("--%s=http://example", flags.L2FollowSource.Name),
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot follow external safe/finalized with derivation enabled")
+	require.ErrorContains(t, err, "cannot follow external safe/finalized with derivation enabled")
 }
 
 func TestNewSyncConfig_VerifierUnsafeOnlyWithRRSyncEnabled(t *testing.T) {
@@ -72,6 +71,5 @@ func TestNewSyncConfig_VerifierUnsafeOnlyWithRRSyncEnabled(t *testing.T) {
 		fmt.Sprintf("--%s=true", flags.L2UnsafeOnly.Name),
 		fmt.Sprintf("--%s=true", flags.SyncModeReqRespFlag.Name),
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "reaching the unsafe tip would rely solely on RR sync")
+	require.ErrorContains(t, err, "reaching the unsafe tip would rely solely on RR sync")
 }
