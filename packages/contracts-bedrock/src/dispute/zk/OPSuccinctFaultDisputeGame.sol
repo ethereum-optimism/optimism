@@ -25,7 +25,6 @@ import {
     NoCreditToClaim,
     UnexpectedRootClaim,
     ClaimAlreadyChallenged,
-    UnexpectedGameType,
     InvalidParentGame,
     ParentGameNotResolved,
     GameOver,
