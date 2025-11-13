@@ -117,6 +117,7 @@ where
             match &notification {
                 ExExNotification::ChainCommitted { new } => {
                     debug!(
+                        target: "optimism::exex",
                         block_number = new.tip().number(),
                         block_hash = ?new.tip().hash(),
                         "ChainCommitted notification received",
@@ -134,6 +135,7 @@ where
                     // If tip is not newer than what we have, nothing to do.
                     if new.tip().number() <= latest_stored_block_number {
                         debug!(
+                            target: "optimism::exex",
                             block_number = new.tip().number(),
                             latest_stored = latest_stored_block_number,
                             "Tip number is less than or equal to latest stored, skipping"
@@ -144,6 +146,7 @@ where
                     // Start from the next block after the latest stored one.
                     let start = latest_stored_block_number.saturating_add(1);
                     debug!(
+                        target: "optimism::exex",
                         start,
                         end = new.tip().number(),
                         "Applying updates for blocks in committed chain"
@@ -215,6 +218,7 @@ where
                 }
                 ExExNotification::ChainReverted { old } => {
                     debug!(
+                        target: "optimism::exex",
                         old_block_number = old.tip().number(),
                         old_block_hash = ?old.tip().hash(),
                         "ChainReverted notification received",
