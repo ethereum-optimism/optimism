@@ -36,3 +36,4 @@ This section applies to Solidity files ONLY.
   assertTrue(revertsAsExpected, "expectRevert: call did not revert");
   ```
 - Do NOT suggest removing the return value checking on low-level calls following `vm.expectRevert`
+- DO flag if `vm.expectRevert` is used with low-level calls but the return value is not captured and asserted
