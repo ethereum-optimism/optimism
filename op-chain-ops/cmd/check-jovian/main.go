@@ -145,9 +145,18 @@ func checkBlockHeader(ctx context.Context, env *actionEnv) error {
 	if latest.BlobGasUsed == nil {
 		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number)
 	}
-	env.log.Info("Block header test: success",
-		"blockNumber", latest.Number,
-		"blobGasUsed", *latest.BlobGasUsed)
+
+	// A non-zero BlobGasUsed is hard evidence of Jovian being active
+	// A zero value is inconclusive (could be an empty block or pre-Jovian)
+	if *latest.BlobGasUsed == 0 {
+		env.log.Warn("Block header BlobGasUsed is zero - inconclusive for Jovian activation",
+			"blockNumber", latest.Number,
+			"note", "Zero could indicate an empty block or pre-Jovian state")
+	} else {
+		env.log.Info("Block header test: success - non-zero BlobGasUsed is hard evidence of Jovian being active",
+			"blockNumber", latest.Number,
+			"blobGasUsed", *latest.BlobGasUsed)
+	}
 	return nil
 }
 
