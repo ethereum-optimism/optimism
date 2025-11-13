@@ -152,7 +152,7 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	require.Nil(t, cl.unsafePayloads.Peek())
 }
 
-func TestLowestQueuedUnsafeBlock(t *testing.T) {
+func TestPeekUnsafePayload(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
@@ -171,7 +171,7 @@ func TestLowestQueuedUnsafeBlock(t *testing.T) {
 	require.Equal(t, want, ref)
 }
 
-func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
+func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
