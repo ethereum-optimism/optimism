@@ -238,7 +238,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
         // - 0x14 creator address
         // - 0x20 root claim
         // - 0x20 l1 head
-        // - 0x20 extraData (l2BlockNumber)
+        // - 0x20 extraData (l2SequenceNumber)
         // - 0x04 extraData (parentIndex)
         // - 0x02 CWIA bytes
         assembly {
@@ -268,7 +268,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
             }
 
             startingProposal = Proposal({
-                l2BlockNumber: OPSuccinctFaultDisputeGame(address(proxy)).l2BlockNumber(),
+                l2SequenceNumber: OPSuccinctFaultDisputeGame(address(proxy)).l2SequenceNumber(),
                 root: Hash.wrap(OPSuccinctFaultDisputeGame(address(proxy)).rootClaim().raw())
             });
 
@@ -276,13 +276,13 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
-            (startingProposal.root, startingProposal.l2BlockNumber) =
+            (startingProposal.root, startingProposal.l2SequenceNumber) =
                 IAnchorStateRegistry(ANCHOR_STATE_REGISTRY).anchors(GAME_TYPE);
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
-        if (l2BlockNumber() <= startingProposal.l2BlockNumber) {
+        if (l2SequenceNumber() <= startingProposal.l2SequenceNumber) {
             revert UnexpectedRootClaim(rootClaim());
         }
 
@@ -311,8 +311,8 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice The L2 block number for which this game is proposing an output root.
-    function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x54);
+    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
+        l2SequenceNumber_ = _getArgUint256(0x54);
     }
 
     /// @notice The parent index of the game.
@@ -322,7 +322,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Only the starting block number of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingProposal.l2BlockNumber;
+        startingBlockNumber_ = startingProposal.l2SequenceNumber;
     }
 
     /// @notice Starting output root of the game.
@@ -376,7 +376,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
             l1Head: Hash.unwrap(l1Head()),
             l2PreRoot: Hash.unwrap(startingProposal.root),
             claimRoot: rootClaim().raw(),
-            claimBlockNum: l2BlockNumber(),
+            claimBlockNum: l2SequenceNumber(),
             rollupConfigHash: ROLLUP_CONFIG_HASH,
             rangeVkeyCommitment: RANGE_VKEY_COMMITMENT,
             proverAddress: msg.sender
@@ -592,7 +592,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
-        // is 36 bytes long. 32 bytes are for the l2BlockNumber, 4 bytes are for the parentIndex.
+        // is 36 bytes long. 32 bytes are for the l2SequenceNumber, 4 bytes are for the parentIndex.
         extraData_ = _getArgBytes(0x54, 0x24);
     }
 
