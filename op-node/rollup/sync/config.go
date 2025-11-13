@@ -74,4 +74,11 @@ type Config struct {
 	SkipSyncStartCheck bool `json:"skip_sync_start_check"`
 
 	SupportsPostFinalizationELSync bool `json:"supports_post_finalization_elsync"`
+
+	UnsafeOnly             bool   `json:"unsafe_only"`
+	L2FollowSourceEndpoint string `json:"l2_follow_source_endpoint"`
+}
+
+func (c *Config) L2FollowSourceEnabled() bool {
+	return c.L2FollowSourceEndpoint != ""
 }
