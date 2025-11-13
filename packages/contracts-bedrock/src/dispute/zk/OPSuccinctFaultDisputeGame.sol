@@ -6,25 +6,20 @@ import { Clone } from "@solady/utils/Clone.sol";
 import {
     BondDistributionMode,
     Claim,
-    Clock,
     Duration,
     GameStatus,
     GameType,
     Hash,
-    LibClock,
-    OutputRoot,
-    Timestamp
-} from "src/libraries/Types.sol";
+    Timestamp,
+    Proposal
+} from "src/dispute/lib/Types.sol";
 import { AggregationOutputs, OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
 import {
     AlreadyInitialized,
-    AnchorRootNotFound,
     BadAuth,
     BondTransferFailed,
     ClaimAlreadyResolved,
-    ClockTimeExceeded,
     GameNotFinalized,
-    GameNotInProgress,
     IncorrectBondAmount,
     InvalidBondDistributionMode,
     NoCreditToClaim,
@@ -158,7 +153,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice The starting output root of the game that is proven from in case of a challenge.
     /// @dev This should match the claim root of the parent game.
-    OutputRoot public startingOutputRoot;
+    Proposal public startingProposal;
 
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
@@ -264,7 +259,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
                 revert InvalidParentGame();
             }
 
-            startingOutputRoot = OutputRoot({
+            startingProposal = Proposal({
                 l2BlockNumber: OPSuccinctFaultDisputeGame(address(proxy)).l2BlockNumber(),
                 root: Hash.wrap(OPSuccinctFaultDisputeGame(address(proxy)).rootClaim().raw())
             });
@@ -273,13 +268,13 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
             if (proxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidParentGame();
         } else {
             // When there is no parent game, the starting output root is the anchor state for the game type.
-            (startingOutputRoot.root, startingOutputRoot.l2BlockNumber) =
+            (startingProposal.root, startingProposal.l2BlockNumber) =
                 IAnchorStateRegistry(ANCHOR_STATE_REGISTRY).anchors(GAME_TYPE);
         }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
-        if (l2BlockNumber() <= startingOutputRoot.l2BlockNumber) {
+        if (l2BlockNumber() <= startingProposal.l2BlockNumber) {
             revert UnexpectedRootClaim(rootClaim());
         }
 
@@ -319,12 +314,12 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice Only the starting block number of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
+        startingBlockNumber_ = startingProposal.l2BlockNumber;
     }
 
     /// @notice Starting output root of the game.
     function startingRootHash() external view returns (Hash startingRootHash_) {
-        startingRootHash_ = startingOutputRoot.root;
+        startingRootHash_ = startingProposal.root;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -371,7 +366,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
         // Decode the public values to check the claim root
         AggregationOutputs memory publicValues = AggregationOutputs({
             l1Head: Hash.unwrap(l1Head()),
-            l2PreRoot: Hash.unwrap(startingOutputRoot.root),
+            l2PreRoot: Hash.unwrap(startingProposal.root),
             claimRoot: rootClaim().raw(),
             claimBlockNum: l2BlockNumber(),
             rollupConfigHash: ROLLUP_CONFIG_HASH,

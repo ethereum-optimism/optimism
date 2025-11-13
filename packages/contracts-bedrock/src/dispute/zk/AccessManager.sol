@@ -6,7 +6,6 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { GameType } from "src/dispute/lib/Types.sol";
 import { Timestamp } from "src/dispute/lib/LibUDT.sol";
 import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
-import { console } from "forge-std/console.sol";
 
 /// @title AccessManager
 /// @notice Manages permissions for dispute game proposers and challengers.
