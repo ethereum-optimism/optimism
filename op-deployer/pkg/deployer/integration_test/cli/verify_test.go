@@ -149,7 +149,7 @@ func TestCLIVerify(t *testing.T) {
 			"superchain_superchain_config_proxy": "Proxy.sol/Proxy.json",
 			"superchain_protocol_versions_proxy": "Proxy.sol/Proxy.json",
 			"superchain_superchain_config_impl":  "SuperchainConfig.sol/SuperchainConfig.json",
-			"implementations_opcm_impl":          "Opcm.sol/Opcm.json",
+			"implementations_opcm_impl":          "OPContractsManager.sol/OPContractsManager.json",
 			"regular_contract_name":              "RegularContractName.sol/RegularContractName.json",
 		}
 

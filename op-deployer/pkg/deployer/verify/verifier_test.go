@@ -54,7 +54,6 @@ func TestGetContractBundle(t *testing.T) {
 	require.Greater(t, len(retrievedBundle), 0, "contract bundle should not be empty")
 }
 
-
 func TestFieldNameToContractName(t *testing.T) {
 	tests := []struct {
 		name     string
