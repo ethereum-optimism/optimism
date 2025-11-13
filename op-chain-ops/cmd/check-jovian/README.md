@@ -4,11 +4,12 @@ A tool to verify that the Jovian upgrade has been successfully applied to an OP 
 
 ## Overview
 
-This tool checks three key aspects of the Jovian upgrade:
+This tool checks four key aspects of the Jovian upgrade:
 
 1. **GasPriceOracle Contract**: Verifies that `GasPriceOracle.isJovian()` returns `true`
 2. **L1Block Contract**: Verifies that `L1Block.DAFootprintGasScalar()` returns a valid number
 3. **Block Headers**: Verifies that the latest block header has a non-nil `BlobGasUsed` field
+4. **Extra Data Format**: Verifies that the block header `extraData` has the correct Jovian format (17 bytes with version=1, EIP-1559 params, and minimum base fee)
 
 ## Usage
 
@@ -48,6 +49,11 @@ Check block header:
 go run . block-header
 ```
 
+Check extra data format:
+```bash
+go run . extra-data
+```
+
 ## Build
 
 From the `optimism` directory:
@@ -62,6 +68,12 @@ The tool uses the `op-e2e/bindings` package to interact with the L2 contracts an
 - **GasPriceOracle.isJovian**: Returns `true` after the Jovian upgrade is activated
 - **L1Block.DAFootprintGasScalar**: Returns the DA footprint gas scalar value (warns if 0, as SystemConfig needs to update)
 - **Block Header BlobGasUsed**: Non-nil after Jovian activation (used to track DA footprint limits)
+- **Extra Data Format**: Validates the header `extraData` field contains:
+  - 17 bytes total length
+  - Version byte = 1 (Jovian version)
+  - Denominator (uint32, bytes 1-5)
+  - Elasticity (uint32, bytes 5-9)
+  - Minimum Base Fee (uint64, bytes 9-17)
 
 ## Pattern
 

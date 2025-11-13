@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ func main() {
 			},
 		},
 		makeCommand("block-header", checkBlockHeader),
+		makeCommand("extra-data", checkExtraData),
 		makeCommand("all", checkAll),
 	}
 
@@ -149,6 +151,48 @@ func checkBlockHeader(ctx context.Context, env *actionEnv) error {
 	return nil
 }
 
+// checkExtraData validates that the block header has the correct Jovian extra data format
+func checkExtraData(ctx context.Context, env *actionEnv) error {
+	latest, err := env.l2.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get latest block: %w", err)
+	}
+
+	extra := latest.Extra
+
+	// Check length - Jovian extraData must be 17 bytes
+	if len(extra) != 17 {
+		return fmt.Errorf("extraData should be 17 bytes for Jovian, got %d", len(extra))
+	}
+
+	// Check version byte - must be 1 for Jovian (incremented from Holocene's 0)
+	const JovianExtraDataVersionByte = uint8(0x01)
+	if extra[0] != JovianExtraDataVersionByte {
+		return fmt.Errorf("extraData version byte should be %d for Jovian, got %d",
+			JovianExtraDataVersionByte, extra[0])
+	}
+
+	// Decode EIP-1559 parameters (denominator and elasticity)
+	denominator := binary.BigEndian.Uint32(extra[1:5])
+	elasticity := binary.BigEndian.Uint32(extra[5:9])
+
+	// Validate EIP-1559 params: denominator must be non-zero (unless elasticity is also 0)
+	if elasticity != 0 && denominator == 0 {
+		return fmt.Errorf("extraData has invalid EIP-1559 params: denominator cannot be 0 when elasticity is %d", elasticity)
+	}
+
+	// Decode minimum base fee
+	minBaseFee := binary.BigEndian.Uint64(extra[9:17])
+
+	env.log.Info("ExtraData format test: success",
+		"blockNumber", latest.Number,
+		"version", extra[0],
+		"denominator", denominator,
+		"elasticity", elasticity,
+		"minBaseFee", minBaseFee)
+	return nil
+}
+
 // checkAll runs all Jovian checks
 func checkAll(ctx context.Context, env *actionEnv) error {
 	env.log.Info("starting Jovian checks")
@@ -161,6 +205,9 @@ func checkAll(ctx context.Context, env *actionEnv) error {
 	}
 	if err := checkBlockHeader(ctx, env); err != nil {
 		return fmt.Errorf("failed: block header error: %w", err)
+	}
+	if err := checkExtraData(ctx, env); err != nil {
+		return fmt.Errorf("failed: extra data format error: %w", err)
 	}
 
 	env.log.Info("completed all tests successfully!")
