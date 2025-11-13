@@ -97,40 +97,51 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
 
     /// @notice The maximum duration allowed for a challenger to challenge a game.
+    // nosemgrep: sol-safety-no-immutable-variables
     Duration internal immutable MAX_CHALLENGE_DURATION;
 
     /// @notice The maximum duration allowed for a proposer to prove against a challenge.
+    // nosemgrep: sol-safety-no-immutable-variables
     Duration internal immutable MAX_PROVE_DURATION;
 
     /// @notice The game type ID.
+    // nosemgrep: sol-safety-no-immutable-variables
     GameType internal immutable GAME_TYPE;
 
     /// @notice The dispute game factory.
+    // nosemgrep: sol-safety-no-immutable-variables
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
 
     /// @notice The SP1 verifier.
+    // nosemgrep: sol-safety-no-immutable-variables
     ISP1Verifier internal immutable SP1_VERIFIER;
 
     /// @notice The rollup config hash.
+    // nosemgrep: sol-safety-no-immutable-variables
     bytes32 internal immutable ROLLUP_CONFIG_HASH;
 
     /// @notice The vkey for the aggregation program.
+    // nosemgrep: sol-safety-no-immutable-variables
     bytes32 internal immutable AGGREGATION_VKEY;
 
     /// @notice The 32 byte commitment to the BabyBear representation of the verification key of the range SP1 program.
     /// Specifically,
     /// this verification is the output of converting the [u32; 8] range BabyBear verification key to a [u8; 32] array.
+    // nosemgrep: sol-safety-no-immutable-variables
     bytes32 internal immutable RANGE_VKEY_COMMITMENT;
 
     /// @notice The challenger bond for the game. This is the amount of the bond that the
     ///         challenger has to bond to challenge. The prover will receive this bond if they
     ///         provide a valid proof in response to a challenge.
+    // nosemgrep: sol-safety-no-immutable-variables
     uint256 internal immutable CHALLENGER_BOND;
 
     /// @notice The anchor state registry.
+    // nosemgrep: sol-safety-no-immutable-variables
     IAnchorStateRegistry internal immutable ANCHOR_STATE_REGISTRY;
 
     /// @notice The access manager.
+    // nosemgrep: sol-safety-no-immutable-variables
     AccessManager internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
@@ -365,8 +376,8 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Proves the game.
-    /// @param proofBytes The proof bytes to validate the claim.
-    function prove(bytes calldata proofBytes) external returns (ProposalStatus) {
+    /// @param _proofBytes The proof bytes to validate the claim.
+    function prove(bytes calldata _proofBytes) external returns (ProposalStatus) {
         // INVARIANT: Cannot prove if the game is over.
         if (gameOver()) revert GameOver();
 
@@ -382,7 +393,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
         });
 
         // Verify the proof. Reverts if the proof is invalid.
-        SP1_VERIFIER.verifyProof(AGGREGATION_VKEY, abi.encode(publicValues), proofBytes);
+        SP1_VERIFIER.verifyProof(AGGREGATION_VKEY, abi.encode(publicValues), _proofBytes);
 
         // Update the prover address
         claimData.prover = msg.sender;
@@ -534,6 +545,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
 
         // Try to update the anchor game first. Won't always succeed because delays can lead
         // to situations in which this game might not be eligible to be a new anchor game.
+        // nosemgrep: sol-safety-trycatch-eip150
         try ANCHOR_STATE_REGISTRY.setAnchorState(IDisputeGame(address(this))) { } catch { }
 
         // Check if the game is a proper game, which will determine the bond distribution mode.

@@ -31,12 +31,15 @@ contract AccessManager is Ownable {
     mapping(address => bool) public challengers;
 
     /// @notice The timeout (in seconds) after which permissionless proposing is allowed (immutable).
+    // nosemgrep: sol-safety-no-immutable-variables
     uint256 public immutable FALLBACK_TIMEOUT;
 
     /// @notice The dispute game factory address.
+    // nosemgrep: sol-safety-no-immutable-variables
     IDisputeGameFactory public immutable DISPUTE_GAME_FACTORY;
 
     /// @notice The timestamp of this contract's creation. Used for permissionless fallback proposals.
+    // nosemgrep: sol-safety-no-immutable-variables
     uint256 public immutable DEPLOYMENT_TIMESTAMP;
 
     ////////////////////////////////////////////////////////////////
@@ -56,21 +59,17 @@ contract AccessManager is Ownable {
     //                      Functions                             //
     ////////////////////////////////////////////////////////////////
 
-    /**
-     * @notice Allows the owner to whitelist or un-whitelist proposers.
-     * @param _proposer The address to set in the proposers mapping.
-     * @param _allowed True if whitelisting, false otherwise.
-     */
+    /// @notice Allows the owner to whitelist or un-whitelist proposers.
+    /// @param _proposer The address to set in the proposers mapping.
+    /// @param _allowed True if whitelisting, false otherwise.
     function setProposer(address _proposer, bool _allowed) external onlyOwner {
         proposers[_proposer] = _allowed;
         emit ProposerPermissionUpdated(_proposer, _allowed);
     }
 
-    /**
-     * @notice Allows the owner to whitelist or un-whitelist challengers.
-     * @param _challenger The address to set in the challengers mapping.
-     * @param _allowed True if whitelisting, false otherwise.
-     */
+    /// @notice Allows the owner to whitelist or un-whitelist challengers.
+    /// @param _challenger The address to set in the challengers mapping.
+    /// @param _allowed True if whitelisting, false otherwise.
     function setChallenger(address _challenger, bool _allowed) external onlyOwner {
         challengers[_challenger] = _allowed;
         emit ChallengerPermissionUpdated(_challenger, _allowed);
