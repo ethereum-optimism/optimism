@@ -70,7 +70,7 @@ func TestInstrumentedState_Claim(t *testing.T) {
 }
 
 func TestInstrumentedState_Random(t *testing.T) {
-	state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("random", testutil.Go1_24), CreateInitialState)
+	state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("random", testutil.Go1_25), CreateInitialState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := latestVm(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
@@ -420,6 +420,7 @@ func runTestsAcrossVms[T any](t *testing.T, testNamer TestNamer[T], testCases []
 	variations := []VMVariations{
 		{name: "Go 1.23 VM", goTarget: testutil.Go1_23, features: mipsevm.FeatureToggles{}},
 		{name: "Go 1.24 VM", goTarget: testutil.Go1_24, features: allFeaturesEnabled()},
+		{name: "Go 1.25 VM", goTarget: testutil.Go1_25, features: allFeaturesEnabled()},
 	}
 
 	for _, testCase := range testCases {
