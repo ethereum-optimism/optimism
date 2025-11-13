@@ -23,7 +23,15 @@ import {
     IncorrectBondAmount,
     InvalidBondDistributionMode,
     NoCreditToClaim,
-    UnexpectedRootClaim
+    UnexpectedRootClaim,
+    ClaimAlreadyChallenged,
+    UnexpectedGameType,
+    InvalidParentGame,
+    ParentGameNotResolved,
+    GameOver,
+    GameNotOver,
+    InvalidProposalStatus,
+    IncorrectDisputeGameFactory
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
