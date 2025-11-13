@@ -16,25 +16,25 @@ func TestCheckDifferentOutputRoots(t *testing.T) {
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			RollupEndpointDifferentOutputRoots: true,
-			L2BlockNumber:                      100,
+			L2SequenceNumber:                   100,
 			RootClaim:                          common.HexToHash("0xaaa"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
 			RollupEndpointDifferentOutputRoots: false, // No disagreement
-			L2BlockNumber:                      200,
+			L2SequenceNumber:                   200,
 			RootClaim:                          common.HexToHash("0xbbb"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
 			RollupEndpointDifferentOutputRoots: true,
-			L2BlockNumber:                      300,
+			L2SequenceNumber:                   300,
 			RootClaim:                          common.HexToHash("0xccc"),
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x44}},
 			RollupEndpointDifferentOutputRoots: false, // No disagreement
-			L2BlockNumber:                      400,
+			L2SequenceNumber:                   400,
 			RootClaim:                          common.HexToHash("0xddd"),
 		},
 	}
@@ -52,7 +52,7 @@ func TestCheckDifferentOutputRoots(t *testing.T) {
 
 	l := logs[0]
 	require.Equal(t, common.Address{0x11}, l.AttrValue("game"))
-	require.Equal(t, uint64(100), l.AttrValue("l2BlockNumber"))
+	require.Equal(t, uint64(100), l.AttrValue("l2SequenceNumber"))
 	require.Equal(t, common.HexToHash("0xaaa"), l.AttrValue("rootClaim"))
 
 	// Info log for summary
@@ -108,17 +108,17 @@ func TestCheckDifferentOutputRoots_AllGamesHaveDisagreements(t *testing.T) {
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			RollupEndpointDifferentOutputRoots: true,
-			L2BlockNumber:                      100,
+			L2SequenceNumber:                   100,
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x22}},
 			RollupEndpointDifferentOutputRoots: true,
-			L2BlockNumber:                      200,
+			L2SequenceNumber:                   200,
 		},
 		{
 			GameMetadata:                       gameTypes.GameMetadata{Proxy: common.Address{0x33}},
 			RollupEndpointDifferentOutputRoots: true,
-			L2BlockNumber:                      300,
+			L2SequenceNumber:                   300,
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}

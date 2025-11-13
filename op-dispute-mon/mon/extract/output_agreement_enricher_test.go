@@ -31,7 +31,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:            200,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -50,9 +50,9 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:     200,
-					L2BlockNumber: 0,
-					RootClaim:     mockRootClaim,
+					L1HeadNum:        200,
+					L2SequenceNumber: 0,
+					RootClaim:        mockRootClaim,
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -71,9 +71,9 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:     200,
-					L2BlockNumber: 0,
-					RootClaim:     mockRootClaim,
+					L1HeadNum:        200,
+					L2SequenceNumber: 0,
+					RootClaim:        mockRootClaim,
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		}
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -108,7 +108,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		}
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -125,9 +125,9 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[1].currentL1 = 100 // Out of sync because it is only equal to the game L1 head
 		clients[2].currentL1 = 0
 		game := &types.EnrichedGameData{
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrAllNodesUnavailable)
@@ -142,9 +142,9 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		// Would disagree but will be ignored because node is not in sync
 		clients[0].outputRoot = common.Hash{0xaa, 0xbb, 0xcc, 0xdd}
 		game := &types.EnrichedGameData{
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].outputErr = nil
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -181,7 +181,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[3].safeHeadNum = 100
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        50,
+			L2SequenceNumber:     50,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -200,7 +200,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].outputRoot = differentRoot
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        50,
+			L2SequenceNumber:     50,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -219,7 +219,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].outputRoot = divergedRoot
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -237,7 +237,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].safeHeadNum = 101
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -255,7 +255,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].safeHeadErr = nil
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        0,
+			L2SequenceNumber:     0,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -273,7 +273,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].safeHeadNum = 70
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        80,
+			L2SequenceNumber:     80,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -294,7 +294,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        50, // Higher than all safe heads
+			L2SequenceNumber:     50, // Higher than all safe heads
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -317,7 +317,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        50,
+			L2SequenceNumber:     50,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -336,7 +336,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		rollup.outputErr = errors.New("should not have even requested the output root")
 		game := &types.EnrichedGameData{
 			L1HeadNum:            100,
-			L2BlockNumber:        uint64(math.MaxInt64) + 1,
+			L2SequenceNumber:     uint64(math.MaxInt64) + 1,
 			RootClaim:            mockRootClaim,
 			RollupEndpointErrors: make(map[string]bool),
 		}
@@ -356,7 +356,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:            200,
-				L2BlockNumber:        100,
+				L2SequenceNumber:     100,
 				RootClaim:            mockRootClaim,
 				RollupEndpointErrors: make(map[string]bool),
 			}
@@ -377,7 +377,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:            200,
-				L2BlockNumber:        100,
+				L2SequenceNumber:     100,
 				RootClaim:            mockRootClaim,
 				RollupEndpointErrors: make(map[string]bool),
 			}
@@ -398,7 +398,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:            200,
-				L2BlockNumber:        100,
+				L2SequenceNumber:     100,
 				RootClaim:            mockRootClaim,
 				RollupEndpointErrors: make(map[string]bool),
 			}
@@ -419,7 +419,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                200,
-				L2BlockNumber:            100,
+				L2SequenceNumber:         100,
 				RootClaim:                mockRootClaim,
 				RollupEndpointErrors:     make(map[string]bool),
 				RollupEndpointErrorCount: 0,
@@ -441,7 +441,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                200,
-				L2BlockNumber:            100,
+				L2SequenceNumber:         100,
 				RootClaim:                mockRootClaim,
 				RollupEndpointErrors:     make(map[string]bool),
 				RollupEndpointErrorCount: 0,
@@ -462,7 +462,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                200,
-				L2BlockNumber:            100,
+				L2SequenceNumber:         100,
 				RootClaim:                mockRootClaim,
 				RollupEndpointErrors:     make(map[string]bool),
 				RollupEndpointErrorCount: 0,
@@ -484,7 +484,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                200,
-				L2BlockNumber:            100,
+				L2SequenceNumber:         100,
 				RootClaim:                mockRootClaim,
 				RollupEndpointErrors:     make(map[string]bool),
 				RollupEndpointErrorCount: 0,
@@ -508,7 +508,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                    200,
-				L2BlockNumber:                100,
+				L2SequenceNumber:             100,
 				RootClaim:                    mockRootClaim,
 				RollupEndpointErrors:         make(map[string]bool),
 				RollupEndpointOutOfSyncCount: 0,
@@ -529,7 +529,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                    200,
-				L2BlockNumber:                100,
+				L2SequenceNumber:             100,
 				RootClaim:                    mockRootClaim,
 				RollupEndpointErrors:         make(map[string]bool),
 				RollupEndpointOutOfSyncCount: 0,
@@ -551,7 +551,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                    200,
-				L2BlockNumber:                100,
+				L2SequenceNumber:             100,
 				RootClaim:                    mockRootClaim,
 				RollupEndpointErrors:         make(map[string]bool),
 				RollupEndpointOutOfSyncCount: 0,
@@ -572,7 +572,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                    200,
-				L2BlockNumber:                100,
+				L2SequenceNumber:             100,
 				RootClaim:                    mockRootClaim,
 				RollupEndpointErrors:         make(map[string]bool),
 				RollupEndpointOutOfSyncCount: 0,
@@ -595,7 +595,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 					GameType: 0,
 				},
 				L1HeadNum:                    200,
-				L2BlockNumber:                100,
+				L2SequenceNumber:             100,
 				RootClaim:                    mockRootClaim,
 				RollupEndpointErrors:         make(map[string]bool),
 				RollupEndpointErrorCount:     0,
@@ -717,7 +717,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                 200,
-			L2BlockNumber:             75,
+			L2SequenceNumber:          75,
 			RootClaim:                 rootClaim,
 			RollupEndpointErrors:      make(map[string]bool),
 			RollupEndpointSafeCount:   0,
@@ -748,7 +748,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                 200,
-			L2BlockNumber:             75,
+			L2SequenceNumber:          75,
 			RootClaim:                 rootClaim,
 			RollupEndpointErrors:      make(map[string]bool),
 			RollupEndpointSafeCount:   0,
@@ -783,7 +783,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                 200,
-			L2BlockNumber:             75,
+			L2SequenceNumber:          75,
 			RootClaim:                 rootClaim,
 			RollupEndpointErrors:      make(map[string]bool),
 			RollupEndpointSafeCount:   0,
@@ -813,7 +813,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                 200,
-			L2BlockNumber:             75,
+			L2SequenceNumber:          75,
 			RootClaim:                 rootClaim,
 			RollupEndpointErrors:      make(map[string]bool),
 			RollupEndpointSafeCount:   0,
@@ -842,7 +842,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                          100,
-			L2BlockNumber:                      0,
+			L2SequenceNumber:                   0,
 			RootClaim:                          mockRootClaim,
 			RollupEndpointErrors:               make(map[string]bool),
 			RollupEndpointDifferentOutputRoots: false,
@@ -866,7 +866,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                          100,
-			L2BlockNumber:                      0,
+			L2SequenceNumber:                   0,
 			RootClaim:                          mockRootClaim,
 			RollupEndpointErrors:               make(map[string]bool),
 			RollupEndpointDifferentOutputRoots: false,
@@ -890,7 +890,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                          100,
-			L2BlockNumber:                      0,
+			L2SequenceNumber:                   0,
 			RootClaim:                          mockRootClaim,
 			RollupEndpointErrors:               make(map[string]bool),
 			RollupEndpointDifferentOutputRoots: false,
@@ -916,7 +916,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                          100,
-			L2BlockNumber:                      0,
+			L2SequenceNumber:                   0,
 			RootClaim:                          mockRootClaim,
 			RollupEndpointErrors:               make(map[string]bool),
 			RollupEndpointDifferentOutputRoots: false,
@@ -940,7 +940,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 				GameType: 0,
 			},
 			L1HeadNum:                          100,
-			L2BlockNumber:                      0,
+			L2SequenceNumber:                   0,
 			RootClaim:                          mockRootClaim,
 			RollupEndpointErrors:               make(map[string]bool),
 			RollupEndpointDifferentOutputRoots: false,
