@@ -189,6 +189,12 @@ func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
 
+func (e *EngineController) UnsafeL2HeadInitialized() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.unsafeHead != eth.L2BlockRef{}
+}
+
 func (e *EngineController) PendingSafeL2Head() eth.L2BlockRef {
 	return e.pendingSafeHead
 }
@@ -872,6 +878,11 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUns
 
 // forceReset performs a forced reset to the specified block references
 func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	unsafeL2NotInitialized := e.unsafeHead == eth.L2BlockRef{}
+	if unsafeL2NotInitialized {
+		e.log.Info("EngineController Unsafe head was not initialized at the start of the reset")
+	}
+
 	// Reset other components before resetting the engine
 	if e.attributesResetter != nil {
 		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
@@ -890,8 +901,17 @@ func (e *EngineController) forceReset(ctx context.Context, localUnsafe, crossUns
 		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 	}
 
-	// Time to apply the changes to the underlying engine
-	e.tryUpdateEngine(ctx)
+	if unsafeL2NotInitialized {
+		// Do not FCU but propagate the initial reset info to the sequencer when sequencing enabled
+		e.emitter.Emit(ctx, ForkchoiceUpdateInitEvent{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		})
+	} else {
+		// Time to apply the changes to the underlying engine
+		e.tryUpdateEngine(ctx)
+	}
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.unsafeHead,
@@ -1036,6 +1056,12 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 		return
 	}
 	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
+}
+
+func (e *EngineController) ResetEngine(ctx context.Context) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onResetEngineRequest(ctx)
 }
 
 var ErrEngineSyncing = errors.New("engine is syncing")
