@@ -238,10 +238,8 @@ func (s *SyncDeriver) SyncStep() {
 	}
 
 	if s.SyncCfg.UnsafeOnly {
-		if !s.Engine.UnsafeL2HeadInitialized() {
-			// Need a single reset to tripper sequencer block building
-			s.Engine.ResetEngine(s.Ctx)
-		}
+		// May need a single reset to trigger sequencer block building
+		s.Engine.TryInitialResetEngineForSequencer(s.Ctx)
 		return
 	}
 
