@@ -14,7 +14,6 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSingleChainMultiNode(),
 		presets.WithExecutionLayerSyncOnVerifiers(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithSyncModeReqRespSync(),
 		presets.WithNoDiscovery(),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
 			cfg.Stopped = true
