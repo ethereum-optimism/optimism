@@ -201,8 +201,10 @@ type InitializationOverrides struct {
 // some later initialization steps depend on the node being partially initialized with other components,
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
-
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+	if cfg.Sync.UnsafeOnly {
+		n.log.Info("Disabled derivation", "followSourceEnabled", cfg.Sync.L2FollowSourceEndpoint != "")
+	}
 
 	var err error
 

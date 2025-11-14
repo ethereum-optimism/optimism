@@ -372,9 +372,6 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		return nil, errors.New("cannot follow external safe/finalized with derivation enabled (--l2.unsafe-only=false): " +
 			"Either remove --l2.follow.source or set --l2.unsafe-only=true to disable derivation")
 	}
-	if unsafeOnly {
-		log.Info("Disabled derivation", "followSourceEnabled", l2FollowSourceEndpoint != "")
-	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
 		SyncMode:                       mode,
