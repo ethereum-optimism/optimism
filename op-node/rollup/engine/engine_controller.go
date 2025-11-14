@@ -1049,7 +1049,7 @@ func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 	e.forceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized, false)
 }
 
-// InitialResetEngineForSequencer resets engine controller with the info from FindL2Heads and only propagates
+// TryInitialResetEngineForSequencer resets engine controller with the info from FindL2Heads and only propagates
 // ForkchoiceUpdateEvent info to the sequencer to trigger sequencer block building, but not propagating
 // ForkchoiceUpdateEvent to other event Deriver avoiding side effects
 func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context) {
