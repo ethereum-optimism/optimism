@@ -7,7 +7,7 @@ use crate::{
 use alloy_eips::eip2718::WithEncoded;
 use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
-use metrics::Histogram;
+use metrics::{Gauge, Histogram};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
 use reth_chain_state::{CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions};
 use reth_evm::ConfigureEvm;
@@ -279,6 +279,7 @@ where
 
                         let elapsed = now.elapsed();
                         this.metrics.execution_duration.record(elapsed.as_secs_f64());
+
                         trace!(
                             target: "flashblocks",
                             parent_hash = %new_pending.block().parent_hash(),
@@ -349,6 +350,9 @@ where
                     index: args.last_flashblock_index,
                     block_number: args.base.block_number,
                 };
+                // Record current block and index metrics
+                this.metrics.current_block_height.set(fb_info.block_number as f64);
+                this.metrics.current_index.set(fb_info.index as f64);
                 // Signal that a flashblock build has started with build metadata
                 let _ = this.in_progress_tx.send(Some(fb_info));
                 let (tx, rx) = oneshot::channel();
@@ -389,4 +393,8 @@ struct FlashBlockServiceMetrics {
     last_flashblock_length: Histogram,
     /// The duration applying flashblock state changes in seconds.
     execution_duration: Histogram,
+    /// Current block height.
+    current_block_height: Gauge,
+    /// Current flashblock index.
+    current_index: Gauge,
 }
