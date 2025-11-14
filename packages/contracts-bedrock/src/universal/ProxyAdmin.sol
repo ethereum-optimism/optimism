@@ -13,6 +13,7 @@ import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
 
 /// @title ProxyAdmin
 /// @notice This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,
@@ -190,5 +191,13 @@ contract ProxyAdmin is Ownable {
             (bool success,) = _proxy.call{ value: msg.value }(_data);
             require(success, "ProxyAdmin: call to proxy after upgrade failed");
         }
+    }
+
+    /// @notice Performs a delegate call to the target contract.
+    /// @param _target Address of the target contract.
+    function performDelegateCall(address _target) external payable {
+        require(msg.sender == Constants.DEPOSITOR_ACCOUNT || msg.sender == owner(), "not allowed");
+        (bool success,) = _target.delegatecall(abi.encodeCall(L2ContractsManager.execute, ()));
+        require(success, "ProxyAdmin: delegatecall to target failed");
     }
 }
