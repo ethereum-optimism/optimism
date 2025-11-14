@@ -31,9 +31,9 @@ download_and_extract() {
 
   echoerr "> Extracting artifacts..."
   if [[ "$archive_name" == *.tar.zst ]]; then
-    zstd -dc "$archive_name" | tar -xf -
+    zstd -dc "$archive_name" | tar -xf - --exclude='*../*'
   else
-    tar -xzvf "$archive_name"
+    tar -xzvf "$archive_name" --exclude='*../*'
   fi
   echoerr "> Done."
 
