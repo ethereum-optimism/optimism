@@ -110,7 +110,8 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		standard.ContractsV300Tag,
 		standard.ContractsV400Tag,
 		standard.ContractsV410Tag,
-		standard.ContractsV500Tag,
+		// Enable whenever we upgrade the superchain registry
+		//standard.ContractsV500Tag,
 	}
 
 	for _, semver := range contractVersions {
