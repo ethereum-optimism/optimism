@@ -222,7 +222,6 @@ var (
 		Usage:    "Disable derivation",
 		EnvVars:  prefixEnvVars("L2_UNSAFE_ONLY"),
 		Category: RollupCategory,
-		Value:    false,
 		Required: false,
 	}
 	L2FollowSource = &cli.StringFlag{
@@ -230,7 +229,6 @@ var (
 		Usage:    "Address of L2 EL RPC HTTP endpoint to fetch safe/finalized blocks",
 		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE"),
 		Category: RollupCategory,
-		Value:    "",
 		Required: false,
 	}
 	VerifierL1Confs = &cli.Uint64Flag{
