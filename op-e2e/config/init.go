@@ -419,7 +419,6 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 				UseRevenueShare:    true,
 				ChainFeesRecipient: common.HexToAddress("0xBcd4042DE499D14e55001CcbB24a551F3b954096"),
 				CustomGasToken: state.CustomGasToken{
-					Enabled:          false,
 					Name:             "",
 					Symbol:           "",
 					InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),

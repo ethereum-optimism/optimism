@@ -156,4 +156,3 @@ func TestIsCustomGasTokenEnabled(t *testing.T) {
 		})
 	}
 }
-

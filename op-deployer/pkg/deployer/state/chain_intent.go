@@ -55,9 +55,9 @@ type L2DevGenesisParams struct {
 }
 
 type CustomGasToken struct {
-	Name             string          `json:"name,omitempty" toml:"name,omitempty"`
-	Symbol           string          `json:"symbol,omitempty" toml:"symbol,omitempty"`
-	InitialLiquidity *hexutil.Big    `json:"initialLiquidity" toml:"initialLiquidity"`
+	Name                     string         `json:"name,omitempty" toml:"name,omitempty"`
+	Symbol                   string         `json:"symbol,omitempty" toml:"symbol,omitempty"`
+	InitialLiquidity         *hexutil.Big   `json:"initialLiquidity" toml:"initialLiquidity"`
 	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner" toml:"liquidityControllerOwner"`
 }
 

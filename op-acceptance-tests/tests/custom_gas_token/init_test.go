@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
@@ -16,7 +18,7 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m,
 		presets.WithMinimal(),
 		stack.MakeCommon(sysgo.WithDeployerOptions(
-			sysgo.WithCustomGasToken(true, "Custom Gas Token", "CGT", liq),
+			sysgo.WithCustomGasToken("Custom Gas Token", "CGT", liq, common.Address{}),
 		)),
 	)
 }

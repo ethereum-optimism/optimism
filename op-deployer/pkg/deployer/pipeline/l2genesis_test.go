@@ -144,8 +144,8 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"l2GenesisInteropTimeOffset": "0x0",
 				},
 			},
-			chainIntent: &state.ChainIntent{},
-			expectError: false,
+			chainIntent:       &state.ChainIntent{},
+			expectError:       false,
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				schedule := standard.DefaultHardforkScheduleForTag("")
