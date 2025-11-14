@@ -168,7 +168,7 @@ abstract contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     /// @notice Checks if the Custom Gas Token feature is enabled.
     /// @return bool True if the Custom Gas Token feature is enabled.
     function isUsingCustomGasToken() public view returns (bool) {
-        return isDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        return systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Enables the ETHLockbox feature if not enabled.
@@ -241,6 +241,7 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
         } else {
             assertEq(address(optimismPortal2.ethLockbox()), address(0));
         }
+
         if (isUsingCustomGasToken()) {
             assertTrue(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
         } else if (!isUsingLockbox()) {
@@ -642,7 +643,7 @@ contract OptimismPortal2_NumProofSubmitters_Test is OptimismPortal2_TestInit {
 contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `receive` successfully deposits ETH.
     function testFuzz_receive_succeeds(uint256 _value) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         // Prevent overflow on an upgrade context
         _value = bound(_value, 0, type(uint256).max - address(ethLockbox).balance);
         uint256 balanceBefore = address(optimismPortal2).balance;
@@ -681,7 +682,7 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
     }
 
     function testFuzz_receive_withLockbox_succeeds(uint256 _value) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
         // Prevent overflow on an upgrade context.
         // We use a dummy lockbox here because the real one won't work for upgrade tests.
         address dummyLockbox = address(0xdeadbeef);
@@ -720,7 +721,8 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that `receive` reverts when custom gas token is enabled
     function testFuzz_receive_customGasToken_reverts(uint256 _value) external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+
         _value = bound(_value, 1, type(uint128).max);
         vm.deal(alice, _value);
 
@@ -1406,10 +1408,7 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_proveWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
-        skipIfForkTest(
-            "OptimismPortal2_ProveWithdrawalTransaction_Test: isCustomGasToken() not available on forked networks"
-        );
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         // Set the withdrawal transaction value to a non-zero value.
         _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
 
@@ -1911,10 +1910,7 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_finalizeWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
-        skipIfForkTest(
-            "OptimismPortal2_FinalizeWithdrawalTransaction_Test: isCustomGasToken() not available on forked networks"
-        );
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
         // Set the withdrawal transaction value to a non-zero value.
         _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
 
@@ -2517,8 +2513,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `depositTransaction` reverts when the value is greater than 0 and the
     ///         custom gas token is active.
     function test_depositTransaction_withCustomGasTokenAndValue_reverts(bytes memory _data, uint256 _value) external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
-        skipIfForkTest("OptimismPortal2_DepositTransaction_Test: isCustomGasToken() not available on forked networks");
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
 
         // Prevent overflow on an upgrade context
         _value = bound(_value, 1, type(uint256).max - address(optimismPortal2).balance);
