@@ -350,8 +350,8 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		return nil, err
 	}
 	unsafeOnly := ctx.Bool(flags.L2UnsafeOnly.Name)
-	isVerifier := !ctx.Bool(flags.SequencerEnabledFlag.Name)
-	if unsafeOnly && isVerifier {
+	isSequencer := ctx.Bool(flags.SequencerEnabledFlag.Name)
+	if unsafeOnly && !isSequencer {
 		// The verifier node initially gains payloads from the sequencer via CLP2P.
 		// To sync to the chain tip, the verifier must close the gap between its current
 		// unsafe view and the sequencer's latest unsafe payloads.
