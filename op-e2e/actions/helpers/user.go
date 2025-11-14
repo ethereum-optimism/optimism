@@ -37,7 +37,6 @@ import (
 type L1Bindings struct {
 	// contract bindings
 	OptimismPortal     *bindings.OptimismPortal
-	L2OutputOracle     *bindings.L2OutputOracle
 	OptimismPortal2    *bindingspreview.OptimismPortal2
 	DisputeGameFactory *bindings.DisputeGameFactory
 }
@@ -45,9 +44,6 @@ type L1Bindings struct {
 func NewL1Bindings(t Testing, l1Cl *ethclient.Client, allocType config.AllocType) *L1Bindings {
 	l1Deployments := config.L1Deployments(allocType)
 	optimismPortal, err := bindings.NewOptimismPortal(l1Deployments.OptimismPortalProxy, l1Cl)
-	require.NoError(t, err)
-
-	l2OutputOracle, err := bindings.NewL2OutputOracle(l1Deployments.L2OutputOracleProxy, l1Cl)
 	require.NoError(t, err)
 
 	optimismPortal2, err := bindingspreview.NewOptimismPortal2(l1Deployments.OptimismPortalProxy, l1Cl)
@@ -58,7 +54,6 @@ func NewL1Bindings(t Testing, l1Cl *ethclient.Client, allocType config.AllocType
 
 	return &L1Bindings{
 		OptimismPortal:     optimismPortal,
-		L2OutputOracle:     l2OutputOracle,
 		OptimismPortal2:    optimismPortal2,
 		DisputeGameFactory: disputeGameFactory,
 	}
@@ -447,39 +442,17 @@ func (s *CrossLayerUser) getLastWithdrawalParams(t Testing) (*withdrawals.Proven
 	l2WithdrawalBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), receipt.BlockNumber)
 	require.NoError(t, err)
 
-	var l2OutputBlockNr *big.Int
-	var l2OutputBlock *types.Block
-	if s.allocType.UsesProofs() {
-		latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
-		require.NoError(t, err)
-		l2OutputBlockNr = new(big.Int).SetBytes(latestGame.ExtraData[0:32])
-		l2OutputBlock, err = s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
-		require.NoError(t, err)
-	} else {
-		l2OutputBlockNr, err = s.L1.env.Bindings.L2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
-		require.NoError(t, err)
-		l2OutputBlock, err = s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
-		require.NoError(t, err)
-	}
+	latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
+	require.NoError(t, err)
+	l2OutputBlockNr := new(big.Int).SetBytes(latestGame.ExtraData[0:32])
+	l2OutputBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
+	require.NoError(t, err)
 
 	if l2OutputBlock.NumberU64() < l2WithdrawalBlock.NumberU64() {
 		return nil, fmt.Errorf("the latest L2 output is %d and is not past L2 block %d that includes the withdrawal yet, no withdrawal can be proved yet", l2OutputBlock.NumberU64(), l2WithdrawalBlock.NumberU64())
 	}
 
-	if !s.allocType.UsesProofs() {
-		finalizationPeriod, err := s.L1.env.Bindings.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
-		require.NoError(t, err)
-		l1Head, err := s.L1.env.EthCl.HeaderByNumber(t.Ctx(), nil)
-		require.NoError(t, err)
-
-		if l2OutputBlock.Time()+finalizationPeriod.Uint64() >= l1Head.Time {
-			return nil, fmt.Errorf("L2 output block %d (time %d) is not past finalization period %d from L2 block %d (time %d) at head %d (time %d)", l2OutputBlock.NumberU64(), l2OutputBlock.Time(), finalizationPeriod.Uint64(), l2WithdrawalBlock.NumberU64(), l2WithdrawalBlock.Time(), l1Head.Number.Uint64(), l1Head.Time)
-		}
-	}
-
-	header, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
-	require.NoError(t, err)
-	params, err := e2ehelpers.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller, s.allocType)
+	params, err := e2ehelpers.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 	require.NoError(t, err)
 
 	return &params, nil

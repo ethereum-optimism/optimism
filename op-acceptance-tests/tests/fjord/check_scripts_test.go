@@ -34,8 +34,7 @@ func TestCheckFjordScript(gt *testing.T) {
 	require := t.Require()
 	ctx := t.Ctx()
 
-	err := dsl.RequiresL2Fork(ctx, sys, 0, forks.Fjord)
-	require.NoError(err)
+	require.True(sys.L2Chain.IsForkActive(forks.Fjord))
 
 	wallet := sys.FunderL2.NewFundedEOA(eth.OneThirdEther)
 

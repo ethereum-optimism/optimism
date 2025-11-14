@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -156,7 +157,19 @@ func (s *Service) initRPCHandler(cfg *config.Config) error {
 
 func (s *Service) initHTTPServer(cfg *config.Config) error {
 	endpoint := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort))
-	s.httpServer = httputil.NewHTTPServer(endpoint, s.rpcHandler)
+
+	// Define new timeouts instead of the default of 30 seconds
+	// This causes tests to fail if the faucet can't fund in the aforementioned time, even if the
+	// test timeout is longer
+	faucetTimeouts := httputil.HTTPTimeouts{
+		ReadTimeout:       2 * time.Minute,
+		ReadHeaderTimeout: 30 * time.Second,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       1 * time.Minute,
+	}
+
+	s.httpServer = httputil.NewHTTPServer(endpoint, s.rpcHandler,
+		httputil.WithHTTPOptions(httputil.WithTimeouts(faucetTimeouts)))
 	return nil
 }
 

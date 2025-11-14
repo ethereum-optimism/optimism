@@ -31,8 +31,7 @@ func TestPectra(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 	require := t.Require()
 
-	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, forks.Isthmus)
-	require.NoError(err, "Isthmus fork must be active for Pectra features")
+	require.True(sys.L2Chain.IsForkActive(forks.Isthmus), "Isthmus fork must be active for Pectra features")
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 

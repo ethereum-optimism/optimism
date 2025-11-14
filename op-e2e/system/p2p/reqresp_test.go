@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -52,6 +53,9 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
+		Sync: sync.Config{
+			SyncModeReqResp: true,
+		},
 	}
 	cfg.Nodes["bob"] = &config.Config{
 		Driver: driver.Config{
@@ -61,6 +65,9 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
+		Sync: sync.Config{
+			SyncModeReqResp: true,
+		},
 	}
 	cfg.Loggers["alice"] = testlog.Logger(t, log.LevelInfo).New("role", "alice")
 	cfg.Loggers["bob"] = testlog.Logger(t, log.LevelInfo).New("role", "bob")
@@ -135,6 +142,9 @@ func TestSystemP2PAltSync(t *testing.T) {
 			OnUnsafeL2PayloadFn: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
 				syncedPayloads = append(syncedPayloads, payload.ExecutionPayload.ID().String())
 			},
+		},
+		Sync: sync.Config{
+			SyncModeReqResp: true,
 		},
 	}
 	e2esys.ConfigureL1(syncNodeCfg, sys.EthInstances["l1"], sys.L1BeaconEndpoint())

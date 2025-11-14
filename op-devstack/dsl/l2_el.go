@@ -113,7 +113,7 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 					return nil
 				}
 				logger.Info("L2EL sync status", "current", head.Number)
-				return fmt.Errorf("expected head to advance: %s", label)
+				return fmt.Errorf("expected head for label=%s to advance to target=%d, but got current=%d", label, target, head.Number)
 			})
 	}
 }

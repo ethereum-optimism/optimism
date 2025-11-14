@@ -682,7 +682,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	(&intent.Chains[0].Roles).L1ProxyAdminOwner = deployerAddr
 	intent.SuperchainRoles.SuperchainGuardian = deployerAddr
 	intent.GlobalDeployOverrides = map[string]any{
-		"challengePeriodSeconds": 1,
+		"preimageOracleChallengePeriod": 1,
 	}
 	intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
 		{
@@ -691,15 +691,12 @@ func TestAdditionalDisputeGames(t *testing.T) {
 				DisputeAbsolutePrestate:                 standard.DisputeAbsolutePrestate,
 				DisputeMaxGameDepth:                     50,
 				DisputeSplitDepth:                       14,
-				DisputeClockExtension:                   0,
-				DisputeMaxClockDuration:                 1200,
+				DisputeClockExtension:                   1,
+				DisputeMaxClockDuration:                 10,
 				DangerouslyAllowCustomDisputeParameters: true,
 			},
-			UseCustomOracle:              true,
-			OracleMinProposalSize:        10000,
-			OracleChallengePeriodSeconds: 120,
-			MakeRespected:                true,
-			VMType:                       state.VMTypeAlphabet,
+			MakeRespected: true,
+			VMType:        state.VMTypeAlphabet,
 		},
 	}
 
@@ -712,7 +709,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	require.NotEmpty(t, gameInfo.VMAddress)
 	require.NotEmpty(t, gameInfo.GameAddress)
 	require.NotEmpty(t, gameInfo.OracleAddress)
-	require.NotEqual(t, st.ImplementationsDeployment.PreimageOracleImpl, gameInfo.OracleAddress)
+	require.Equal(t, st.ImplementationsDeployment.PreimageOracleImpl, gameInfo.OracleAddress)
 }
 
 func TestIntentConfiguration(t *testing.T) {

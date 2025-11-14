@@ -19,6 +19,19 @@
   },
   {
     "inputs": [],
+    "name": "DELAYED_WETH_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {
@@ -188,6 +201,19 @@
   },
   {
     "inputs": [],
+    "name": "delayedWETH",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "addr_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "disputeGameFactory",
     "outputs": [
       {
@@ -267,6 +293,11 @@
           {
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETH",
             "type": "address"
           }
         ],
@@ -403,6 +434,11 @@
           {
             "internalType": "address",
             "name": "optimismMintableERC20Factory",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETH",
             "type": "address"
           }
         ],

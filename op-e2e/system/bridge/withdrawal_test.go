@@ -10,7 +10,7 @@ import (
 )
 
 func TestWithdrawals_Default(t *testing.T) {
-	testWithdrawals(t, config.DefaultAllocType)
+	testWithdrawals(t, config.AllocTypeFastGame)
 }
 
 // testWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
