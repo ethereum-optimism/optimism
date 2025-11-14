@@ -463,7 +463,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - echo  "Initializing..."
+      - run:
+          command: echo  "Initializing..."
 
   cannon-go-lint-and-test:
     docker:
