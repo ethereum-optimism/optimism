@@ -178,7 +178,7 @@ func (c *Intent) validateStandardValues() error {
 				return fmt.Errorf("%w: chainId=%s", ErrRevenueShareZeroAddress, chain.ID)
 			}
 		}
-		if chain.CustomGasToken.Enabled {
+		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
@@ -322,12 +322,8 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 		intent.Chains = append(intent.Chains, &ChainIntent{
 			ID:       l2ChainID,
 			GasLimit: standard.GasLimit,
-			CustomGasToken: CustomGasToken{
-				Enabled:          false,
-				Name:             "",
-				Symbol:           "",
-				InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
-			},
+			// CustomGasToken defaults to disabled (all fields nil/empty)
+			CustomGasToken: CustomGasToken{},
 		})
 	}
 	return intent, nil
@@ -373,12 +369,8 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
 			UseRevenueShare: standard.UseRevenueShare,
-			CustomGasToken: CustomGasToken{
-				Enabled:          false,
-				Name:             "",
-				Symbol:           "",
-				InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
-			},
+			// CustomGasToken defaults to disabled (all fields nil/empty)
+			CustomGasToken: CustomGasToken{},
 		})
 	}
 	return intent, nil

@@ -310,6 +310,8 @@ type GasTokenDeployConfig struct {
 	GasPayingTokenSymbol string `json:"gasPayingTokenSymbol"`
 	// NativeAssetLiquidityAmount represents the amount of liquidity to pre-fund the NativeAssetLiquidity contract with.
 	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"`
+	// LiquidityControllerOwner represents the owner of the LiquidityController.
+	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner"`
 }
 
 var _ ConfigChecker = (*GasTokenDeployConfig)(nil)
@@ -325,7 +327,9 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 		if d.NativeAssetLiquidityAmount == nil || d.NativeAssetLiquidityAmount.ToInt().Sign() < 0 {
 			return fmt.Errorf("%w: NativeAssetLiquidityAmount cannot be nil or negative", ErrInvalidDeployConfig)
 		}
-
+		if d.LiquidityControllerOwner == (common.Address{}) {
+			return fmt.Errorf("%w: LiquidityControllerOwner cannot be address(0)", ErrInvalidDeployConfig)
+		}
 		log.Info("Using custom gas token", "name", d.GasPayingTokenName, "symbol", d.GasPayingTokenSymbol, "nativeAssetLiquidityAmount", d.NativeAssetLiquidityAmount.ToInt())
 	}
 	return nil

@@ -202,6 +202,7 @@ abstract contract L2Genesis_TestInit is Test {
     function testCGT() internal view {
         // Test LiquidityController deployment
         ILiquidityController controller = ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER);
+        assertEq(controller.owner(), input.liquidityControllerOwner);
         assertEq(controller.gasPayingTokenName(), input.gasPayingTokenName);
         assertEq(controller.gasPayingTokenSymbol(), input.gasPayingTokenSymbol);
 
@@ -251,7 +252,8 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             useCustomGasToken: false,
             gasPayingTokenName: "",
             gasPayingTokenSymbol: "",
-            nativeAssetLiquidityAmount: type(uint248).max
+            nativeAssetLiquidityAmount: type(uint248).max,
+            liquidityControllerOwner: address(0x000000000000000000000000000000000000000d)
         });
     }
 

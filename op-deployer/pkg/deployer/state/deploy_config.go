@@ -78,12 +78,13 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				ChainFeesRecipient: chainIntent.ChainFeesRecipient,
 			},
 
-			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
-				UseCustomGasToken:          chainIntent.CustomGasToken.Enabled,
-				GasPayingTokenName:         chainIntent.CustomGasToken.Name,
-				GasPayingTokenSymbol:       chainIntent.CustomGasToken.Symbol,
-				NativeAssetLiquidityAmount: chainIntent.CustomGasToken.InitialLiquidity,
-			},
+	GasTokenDeployConfig: genesis.GasTokenDeployConfig{
+		UseCustomGasToken:          chainIntent.IsCustomGasTokenEnabled(),
+		GasPayingTokenName:         chainIntent.CustomGasToken.Name,
+		GasPayingTokenSymbol:       chainIntent.CustomGasToken.Symbol,
+		NativeAssetLiquidityAmount: (*hexutil.Big)(chainIntent.GetInitialLiquidity()),
+		LiquidityControllerOwner:   chainIntent.GetLiquidityControllerOwner(),
+	},
 
 			// STOP! This struct sets the _default_ upgrade schedule for all chains.
 			// Any upgrades you enable here will be enabled for all new deployments.

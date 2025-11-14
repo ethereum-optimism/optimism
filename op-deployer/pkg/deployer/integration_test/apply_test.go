@@ -314,7 +314,6 @@ func TestEndToEndApply(t *testing.T) {
 		amount := new(big.Int)
 		amount.SetString("1000000000000000000000", 10)
 		intent.Chains[0].CustomGasToken = state.CustomGasToken{
-			Enabled:          true,
 			Name:             "Custom Gas Token",
 			Symbol:           "CGT",
 			InitialLiquidity: (*hexutil.Big)(amount),

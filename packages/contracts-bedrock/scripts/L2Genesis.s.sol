@@ -80,6 +80,7 @@ contract L2Genesis is Script {
         string gasPayingTokenName;
         string gasPayingTokenSymbol;
         uint256 nativeAssetLiquidityAmount;
+        address liquidityControllerOwner;
     }
 
     using ForkUtils for Fork;
@@ -550,9 +551,14 @@ contract L2Genesis is Script {
     function setLiquidityController(Input memory _input) internal {
         address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
 
-        ILiquidityController(impl).initialize({ _gasPayingTokenName: "", _gasPayingTokenSymbol: "" });
+        ILiquidityController(impl).initialize({
+            _owner: _input.liquidityControllerOwner,
+            _gasPayingTokenName: "",
+            _gasPayingTokenSymbol: ""
+        });
 
         ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).initialize({
+            _owner: _input.liquidityControllerOwner,
             _gasPayingTokenName: _input.gasPayingTokenName,
             _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
         });

@@ -1,7 +1,6 @@
 package state
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -37,12 +36,8 @@ func TestCombineDeployConfig(t *testing.T) {
 		},
 		UseRevenueShare:    true,
 		ChainFeesRecipient: common.HexToAddress("0x123"),
-		CustomGasToken: CustomGasToken{
-			Enabled:          false,
-			Name:             "",
-			Symbol:           "",
-			InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
-		},
+		// CustomGasToken defaults to disabled (all fields nil/empty)
+		CustomGasToken: CustomGasToken{},
 	}
 	state := State{
 		SuperchainDeployment: &addresses.SuperchainContracts{ProtocolVersionsProxy: common.HexToAddress("0x123")},

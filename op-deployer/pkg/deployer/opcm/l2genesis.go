@@ -38,6 +38,7 @@ type L2GenesisInput struct {
 	GasPayingTokenName                       string
 	GasPayingTokenSymbol                     string
 	NativeAssetLiquidityAmount               *big.Int
+	LiquidityControllerOwner                 common.Address
 }
 
 type L2GenesisScript script.DeployScriptWithoutOutput[L2GenesisInput]

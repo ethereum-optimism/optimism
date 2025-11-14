@@ -346,7 +346,8 @@ abstract contract Setup is FeatureFlags {
                 useCustomGasToken: deploy.cfg().useCustomGasToken(),
                 gasPayingTokenName: deploy.cfg().gasPayingTokenName(),
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
-                nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount()
+                nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
+                liquidityControllerOwner: deploy.cfg().liquidityControllerOwner()
             })
         );
 

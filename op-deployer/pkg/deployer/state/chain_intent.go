@@ -58,10 +58,10 @@ type L2DevGenesisParams struct {
 }
 
 type CustomGasToken struct {
-	Enabled          bool         `json:"enabled" toml:"enabled"`
-	Name             string       `json:"name,omitempty" toml:"name,omitempty"`
-	Symbol           string       `json:"symbol,omitempty" toml:"symbol,omitempty"`
-	InitialLiquidity *hexutil.Big `json:"initialLiquidity,omitempty" toml:"initialLiquidity,omitempty"`
+	Name             string          `json:"name,omitempty" toml:"name,omitempty"`
+	Symbol           string          `json:"symbol,omitempty" toml:"symbol,omitempty"`
+	InitialLiquidity *hexutil.Big    `json:"initialLiquidity" toml:"initialLiquidity"`
+	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner" toml:"liquidityControllerOwner"`
 }
 
 type ChainIntent struct {
@@ -134,17 +134,25 @@ func (c *ChainIntent) Check() error {
 		return fmt.Errorf("%w: chainId=%s", ErrFeeVaultZeroAddress, c.ID)
 	}
 
-	if c.CustomGasToken.Enabled {
-		if c.CustomGasToken.Name == "" {
-			return fmt.Errorf("%w: CustomGasToken.Name cannot be empty when enabled, chainId=%s", ErrIncompatibleValue, c.ID)
+	// Validate CustomGasToken: if any field is set, both Name and Symbol must be present
+	hasName := c.CustomGasToken.Name != ""
+	hasSymbol := c.CustomGasToken.Symbol != ""
+	hasAnyCustomGasTokenField := hasName || hasSymbol || c.CustomGasToken.InitialLiquidity != nil || c.CustomGasToken.LiquidityControllerOwner != (common.Address{})
+
+	if hasAnyCustomGasTokenField {
+		if !hasName {
+			return fmt.Errorf("%w: CustomGasToken.Name must be set when using custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
-		if c.CustomGasToken.Symbol == "" {
-			return fmt.Errorf("%w: CustomGasToken.Symbol cannot be empty when enabled, chainId=%s", ErrIncompatibleValue, c.ID)
+		if !hasSymbol {
+			return fmt.Errorf("%w: CustomGasToken.Symbol must be set when using custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
 
-		if c.CustomGasToken.InitialLiquidity == nil || c.CustomGasToken.InitialLiquidity.ToInt().Sign() < 0 {
-			return fmt.Errorf("%w: CustomGasToken.InitialLiquidity must be set and non-negative when custom gas token is enabled, chainId=%s", ErrIncompatibleValue, c.ID)
+		// InitialLiquidity is optional - if not set, type(uint248).max will be used as default
+		// But if it IS set, it must be non-negative
+		if c.CustomGasToken.InitialLiquidity != nil && c.CustomGasToken.InitialLiquidity.ToInt().Sign() < 0 {
+			return fmt.Errorf("%w: CustomGasToken.InitialLiquidity must be non-negative when custom gas token is enabled, chainId=%s", ErrIncompatibleValue, c.ID)
 		}
+		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
 	}
 
 	if c.DangerousAltDAConfig.UseAltDA {
@@ -161,11 +169,36 @@ func (c *ChainIntent) Check() error {
 }
 
 // GetInitialLiquidity returns the native asset liquidity amount for the chain.
-// If not set, returns the default value of zero.
+// If not set and custom gas token is enabled, returns type(uint248).max as the default.
+// Otherwise returns zero.
 func (c *ChainIntent) GetInitialLiquidity() *big.Int {
 	if c.CustomGasToken.InitialLiquidity != nil {
 		return c.CustomGasToken.InitialLiquidity.ToInt()
 	}
 
-	return (*hexutil.Big)(big.NewInt(0)).ToInt()
+	// If custom gas token is enabled but no liquidity specified, use type(uint248).max
+	// This is the safe default: large enough to never go to 0, small enough to never overflow
+	if c.IsCustomGasTokenEnabled() {
+		maxUint248 := new(big.Int)
+		maxUint248.SetString("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16)
+		return maxUint248
+	}
+
+	// When CGT is not enabled, return zero to indicate no liquidity
+	return big.NewInt(0)
+}
+
+// GetLiquidityControllerOwner returns the owner of the LiquidityController.
+// If not set in CustomGasToken config, defaults to L2ProxyAdminOwner.
+func (c *ChainIntent) GetLiquidityControllerOwner() common.Address {
+	if c.CustomGasToken.LiquidityControllerOwner != (common.Address{}) {
+		return c.CustomGasToken.LiquidityControllerOwner
+	}
+	return c.Roles.L2ProxyAdminOwner
+}
+
+// IsCustomGasTokenEnabled returns true if custom gas token is enabled.
+// It's enabled when both Name and Symbol are provided.
+func (c *ChainIntent) IsCustomGasTokenEnabled() bool {
+	return c.CustomGasToken.Name != "" && c.CustomGasToken.Symbol != ""
 }

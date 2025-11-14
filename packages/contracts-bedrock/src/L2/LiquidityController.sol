@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { SafeSend } from "src/universal/SafeSend.sol";
 
 // Libraries
@@ -10,7 +11,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { INativeAssetLiquidity } from "interfaces/L2/INativeAssetLiquidity.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @custom:proxied true
@@ -18,7 +18,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title LiquidityController
 /// @notice The LiquidityController contract is responsible for controlling the liquidity of the native asset on the L2
 ///         chain.
-contract LiquidityController is ISemver, Initializable {
+contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
     /// @notice Emitted when an address is authorized to mint/burn liquidity
     /// @param minter The address that was authorized
     event MinterAuthorized(address indexed minter);
@@ -59,25 +59,34 @@ contract LiquidityController is ISemver, Initializable {
     }
 
     /// @notice Initializer.
+    /// @param _owner The owner of the LiquidityController
     /// @param _gasPayingTokenName The name of the native asset
     /// @param _gasPayingTokenSymbol The symbol of the native asset
-    function initialize(string memory _gasPayingTokenName, string memory _gasPayingTokenSymbol) external initializer {
+    function initialize(
+        address _owner,
+        string memory _gasPayingTokenName,
+        string memory _gasPayingTokenSymbol
+    )
+        external
+        initializer
+    {
+        __Ownable_init();
+        transferOwnership(_owner);
+
         gasPayingTokenName = _gasPayingTokenName;
         gasPayingTokenSymbol = _gasPayingTokenSymbol;
     }
 
     /// @notice Authorizes an address to perform liquidity control operations
     /// @param _minter The address to authorize as a minter
-    function authorizeMinter(address _minter) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert LiquidityController_Unauthorized();
+    function authorizeMinter(address _minter) external onlyOwner {
         minters[_minter] = true;
         emit MinterAuthorized(_minter);
     }
 
     /// @notice Deauthorizes an address from performing liquidity control operations
     /// @param _minter The address to deauthorize as a minter
-    function deauthorizeMinter(address _minter) external {
-        if (msg.sender != IProxyAdmin(Predeploys.PROXY_ADMIN).owner()) revert LiquidityController_Unauthorized();
+    function deauthorizeMinter(address _minter) external onlyOwner {
         delete minters[_minter];
         emit MinterDeauthorized(_minter);
     }
