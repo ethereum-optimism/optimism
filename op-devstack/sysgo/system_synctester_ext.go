@@ -77,8 +77,8 @@ func ExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExter
 
 	opt.Add(WithExtL1Nodes(ids.L1EL, ids.L1CL, networkPreset.L1ELEndpoint, networkPreset.L1CLBeaconEndpoint))
 
-	// Use superchain registry instead of deployer
-	opt.Add(WithL2NetworkFromSuperchainRegistryWithDependencySet(
+	// Use empty dependency set and minimal cluster instead of deployer
+	opt.Add(WithEmptyDepSet(
 		stack.L2NetworkID(l2ChainID),
 		networkPreset.L2NetworkName,
 	))

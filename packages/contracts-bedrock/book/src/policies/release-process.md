@@ -4,6 +4,7 @@
 
 First select a tag string based on the guidance in [Monorepo Contracts Release Versioning](./versioning.md#monorepo-contracts-release-versioning)
 
+1. Before creating a [finalized release](#finalizing-a-release) (i.e. not a release candidate), you MUST have the contracts deployed on Sepolia and Mainnet and work with the EVM Safety team to perform the [Contracts Release Checklist](https://www.notion.so/oplabs/Contracts-Release-Checklists-216f153ee16280fda3c2f141c062f974)
 1. Checkout the commit
 2. Run `git tag <tag-string>`
 3. Run `git push origin <tag-string>`

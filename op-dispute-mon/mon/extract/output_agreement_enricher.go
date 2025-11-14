@@ -64,7 +64,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	if len(o.clients) == 0 {
 		return fmt.Errorf("%w but required for game type %v", ErrRollupRpcRequired, game.GameType)
 	}
-	if game.L2BlockNumber > math.MaxInt64 {
+	if game.L2SequenceNumber > math.MaxInt64 {
 		// The claimed block number is bigger than an int64. The BlockNumber type used by RPCs is an int64 so anything
 		// bigger than that can't be a valid block. So we can determine that this proposal invalid just because it
 		// has a ridiculously big block number which must be far in the future.
@@ -92,7 +92,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 				return
 			}
 
-			output, err := client.OutputAtBlock(ctx, game.L2BlockNumber)
+			output, err := client.OutputAtBlock(ctx, game.L2SequenceNumber)
 			if err != nil {
 				// Only treat JSON-RPC application-level "not found" as notFound.
 				// Transport/HTTP errors or other failures should be treated as errors.
@@ -114,13 +114,13 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 			if outputRoot == game.RootClaim {
 				safeHead, err := client.SafeHeadAtL1Block(ctx, game.L1HeadNum)
 				if err != nil {
-					o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2BlockNum", game.L2BlockNumber, "err", err)
+					o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2SequenceNumber", game.L2SequenceNumber, "err", err)
 					// If safe head data isn't available, assume the output root was safe
 					// Avoids making the dispute mon dependent on safe head db being available
 					results[i].isSafe = true
 					return
 				}
-				results[i].isSafe = safeHead.SafeHead.Number >= game.L2BlockNumber
+				results[i].isSafe = safeHead.SafeHead.Number >= game.L2SequenceNumber
 			}
 		}(i, client)
 	}
@@ -130,7 +130,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	foundResults := make([]outputResult, 0, len(results))
 	for idx, result := range results {
 		if result.err != nil {
-			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
+			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2SequenceNumber", game.L2SequenceNumber, "err", result.err)
 			endpointID := fmt.Sprintf("client-%d", idx)
 			game.RollupEndpointErrors[endpointID] = true
 			game.RollupEndpointErrorCount++
@@ -191,7 +191,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 
 	if diverged {
 		o.log.Warn("Nodes disagree on output root",
-			"l2BlockNum", game.L2BlockNumber,
+			"l2SequenceNumber", game.L2SequenceNumber,
 			"firstOutput", firstResult.outputRoot,
 			"found", len(foundResults),
 			"valid", len(validResults))

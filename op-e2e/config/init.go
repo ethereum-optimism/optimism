@@ -54,6 +54,7 @@ const (
 	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
+	AllocTypeFastGame     AllocType = "fast-game"
 
 	DefaultAllocType = AllocTypeMTCannon
 )
@@ -65,16 +66,7 @@ func (a AllocType) Check() error {
 	return nil
 }
 
-func (a AllocType) UsesProofs() bool {
-	switch a {
-	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
-		return true
-	default:
-		return false
-	}
-}
-
-var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
 
 var (
 	// All of the following variables are set in the init function
@@ -241,6 +233,26 @@ func initAllocType(root string, allocType AllocType) {
 					DAResolveWindow:            16,
 					DABondSize:                 1000000,
 					DAResolverRefundPercentage: 0,
+				}
+			}
+			if allocType == AllocTypeFastGame {
+				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
+				for _, chain := range intent.Chains {
+					chain.AdditionalDisputeGames = append(chain.AdditionalDisputeGames,
+						state.AdditionalDisputeGame{
+							ChainProofParams: state.ChainProofParams{
+								// Fast game
+								DisputeGameType: 254,
+								// Prestate doesn't matter as there's no time to play the game anyway.
+								DisputeAbsolutePrestate: common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
+								DisputeMaxGameDepth:     14 + 3 + 1,
+								DisputeSplitDepth:       14,
+								DisputeClockExtension:   0,
+								DisputeMaxClockDuration: 1,
+							},
+							VMType:        state.VMTypeAlphabet,
+							MakeRespected: true,
+						})
 				}
 			}
 
@@ -413,22 +425,6 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 					InitialLiquidity: (*hexutil.Big)(big.NewInt(0)),
 				},
 				AdditionalDisputeGames: []state.AdditionalDisputeGame{
-					{
-						ChainProofParams: state.ChainProofParams{
-							// Fast game
-							DisputeGameType:         254,
-							DisputeAbsolutePrestate: defaultPrestate,
-							DisputeMaxGameDepth:     14 + 3 + 1,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 0,
-						},
-						VMType:                       state.VMTypeAlphabet,
-						UseCustomOracle:              true,
-						OracleMinProposalSize:        10000,
-						OracleChallengePeriodSeconds: 0,
-						MakeRespected:                true,
-					},
 					{
 						ChainProofParams: state.ChainProofParams{
 							// Alphabet game

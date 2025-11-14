@@ -152,30 +152,34 @@ func TestOnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	require.Nil(t, cl.unsafePayloads.Peek())
 }
 
-func TestLowestQueuedUnsafeBlock(t *testing.T) {
+func TestPeekUnsafePayload(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	// empty -> zero
-	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
+	_, ref := ec.PeekUnsafePayload()
+	require.Equal(t, eth.L2BlockRef{}, ref)
 
 	// queue -> returns derived ref
 	_ = ec.unsafePayloads.Push(payloadA1)
 	want, err := derive.PayloadToBlockRef(cfg, payloadA1.ExecutionPayload)
 	require.NoError(t, err)
-	require.Equal(t, want, ec.LowestQueuedUnsafeBlock())
+
+	_, ref = ec.PeekUnsafePayload()
+	require.Equal(t, want, ref)
 }
 
-func TestLowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
+func TestPeekUnsafePayload_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	emitter := &testutils.MockEmitter{}
 	ec := NewEngineController(context.Background(), nil, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{SyncMode: sync.CLSync}, &testutils.MockL1Source{}, emitter)
 
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = ec.unsafePayloads.Push(bad)
-	require.Equal(t, eth.L2BlockRef{}, ec.LowestQueuedUnsafeBlock())
+	_, ref := ec.PeekUnsafePayload()
+	require.Equal(t, eth.L2BlockRef{}, ref)
 }
 
 func TestInvalidPayloadForNonHead_NoDrop(t *testing.T) {

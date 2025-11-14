@@ -28,7 +28,7 @@ func (m *DifferentOutputRootMonitor) CheckDifferentOutputRoots(games []*types.En
 			count++
 			m.logger.Debug("Different output roots detected",
 				"game", game.Proxy,
-				"l2BlockNumber", game.L2BlockNumber,
+				"l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim)
 		}
 	}

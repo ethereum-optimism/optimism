@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"regexp"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -65,14 +66,16 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			superchainProxyAdmin := getProxyAdmin(t, w3Client, superchainConfigAddr)
 			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
 
-			absolutePrestate := getInteropAbsolutePrestate(t)
+			absoluteCannonPrestate := getInteropCannonAbsolutePrestate(t)
+			absoluteCannonKonaPrestate := getInteropCannonKonaAbsolutePrestate(t)
 			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
 			var l2ChainIDs []eth.ChainID
 			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
 				l2ChainIDs = append(l2ChainIDs, l2ChainID)
 				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
-					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
-					CannonPrestate:    absolutePrestate,
+					SystemConfigProxy:  l2Deployment.SystemConfigProxyAddr(),
+					CannonPrestate:     absoluteCannonPrestate,
+					CannonKonaPrestate: absoluteCannonKonaPrestate,
 				})
 			}
 
@@ -225,8 +228,36 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	return super.SuperRoot
 }
 
-func getInteropAbsolutePrestate(t devtest.CommonT) common.Hash {
+func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 	return getAbsolutePrestate(t, "op-program/bin/prestate-proof-interop.json")
+}
+
+func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
+	return common.HexToHash(findKonaVariable(t, "KONA_INTEROP_PRESTATE_HASH"))
+}
+
+func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
+	return common.HexToHash(findKonaVariable(t, "KONA_PRESTATE_HASH"))
+}
+
+func findKonaVariable(t devtest.CommonT, name string) string {
+	konaJustfilePath := "kona/justfile"
+	root, err := findMonorepoRoot(konaJustfilePath)
+	t.Require().NoError(err)
+	p := path.Join(root, konaJustfilePath)
+	data, err := os.ReadFile(p)
+	t.Require().NoError(err, "Failed to read kona justfile")
+	justfileVariableMatcher := regexp.MustCompile("([_A-Z]+) := \"([^\"]*)\"")
+	variables := justfileVariableMatcher.FindAllStringSubmatch(string(data), -1)
+	for _, matches := range variables {
+		key := matches[1]
+		value := matches[2]
+		if key == name {
+			return value
+		}
+	}
+	t.Require().True(false, "Did not find required kona variable")
+	return ""
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {

@@ -33,6 +33,7 @@ type Orchestrator struct {
 	proposerOptions         []ProposerOption
 	l2CLOptions             L2CLOptionBundle
 	l2ELOptions             L2ELOptionBundle
+	l2ChallengerOpts        l2ChallengerOpts
 	SyncTesterELOptions     SyncTesterELOptionBundle
 	deployerPipelineOptions []DeployerPipelineOption
 

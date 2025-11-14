@@ -93,15 +93,15 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		if metrics.LatestValidProposal < game.Timestamp {
 			metrics.LatestValidProposal = game.Timestamp
 		}
-		if metrics.LatestValidProposalL2Block < game.L2BlockNumber {
-			metrics.LatestValidProposalL2Block = game.L2BlockNumber
+		if metrics.LatestValidProposalL2Block < game.L2SequenceNumber {
+			metrics.LatestValidProposalL2Block = game.L2SequenceNumber
 		}
 	}
 
 	if game.Status != types.GameStatusInProgress {
 		if game.Status != expectedResult {
 			f.logger.Error("Unexpected game result",
-				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber,
 				"expectedResult", expectedResult, "actualResult", game.Status,
 				"rootClaim", game.RootClaim, "correctClaim", expected)
 		}
@@ -127,7 +127,7 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 	// by the challenger since the counter is proven on-chain.
 	if game.BlockNumberChallenged {
 		f.logger.Debug("Found game with challenged block number",
-			"game", game.Proxy, "blockNum", game.L2BlockNumber, "agreement", agreement)
+			"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber, "agreement", agreement)
 		// If the block number is challenged the challenger will always win
 		forecastStatus = types.GameStatusChallengerWon
 	} else {
@@ -141,12 +141,12 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		if forecastStatus == types.GameStatusChallengerWon {
 			metrics.AgreeChallengerAhead++
 			f.logger.Warn("Forecasting unexpected game result", "status", forecastStatus,
-				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.AgreeDefenderAhead++
 			f.logger.Debug("Forecasting expected game result", "status", forecastStatus,
-				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim, "expected", expected)
 		}
 	} else {
@@ -154,12 +154,12 @@ func (f *Forecast) forecastGame(game *monTypes.EnrichedGameData, metrics *foreca
 		if forecastStatus == types.GameStatusDefenderWon {
 			metrics.DisagreeDefenderAhead++
 			f.logger.Warn("Forecasting unexpected game result", "status", forecastStatus,
-				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim, "expected", expected)
 		} else {
 			metrics.DisagreeChallengerAhead++
 			f.logger.Debug("Forecasting expected game result", "status", forecastStatus,
-				"game", game.Proxy, "blockNum", game.L2BlockNumber,
+				"game", game.Proxy, "l2SequenceNumber", game.L2SequenceNumber,
 				"rootClaim", game.RootClaim, "expected", expected)
 		}
 	}
