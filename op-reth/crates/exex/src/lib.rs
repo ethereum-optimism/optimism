@@ -17,7 +17,9 @@ use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_types::NodeTypes;
 use reth_optimism_trie::{live::LiveTrieCollector, BackfillJob, OpProofsStorage, OpProofsStore};
 use reth_primitives_traits::{BlockTy, RecoveredBlock};
-use reth_provider::{BlockNumReader, DBProvider, DatabaseProviderFactory};
+use reth_provider::{
+    BlockNumReader, BlockReader, DBProvider, DatabaseProviderFactory, TransactionVariant,
+};
 use tracing::{debug, error, info};
 
 /// OP Proofs ExEx - processes blocks and tracks state changes within fault proof window.
@@ -152,9 +154,13 @@ where
                         "Applying updates for blocks in committed chain"
                     );
                     for block_number in start..=new.tip().number() {
-                        match new.blocks().get(&block_number) {
+                        match self
+                            .ctx
+                            .provider()
+                            .recovered_block(block_number.into(), TransactionVariant::NoHash)?
+                        {
                             Some(block) => {
-                                collector.execute_and_store_block_updates(block).await?;
+                                collector.execute_and_store_block_updates(&block).await?;
                             }
                             None => {
                                 error!(
