@@ -174,12 +174,16 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		L2CLOptionBundle(opts).Apply(p, l2CLID, cfg) // apply specific options
 
 		syncMode := cfg.VerifierSyncMode
+		unsafeOnly := false
 		if cfg.IsSequencer {
 			syncMode = cfg.SequencerSyncMode
 			// Sanity check, to navigate legacy sync-mode test assumptions.
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
+			unsafeOnly = cfg.SequencerUnsafeOnly
+		} else {
+			unsafeOnly = cfg.VerifierUnsafeOnly
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -291,6 +295,8 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SyncModeReqResp:                cfg.UseReqRespSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
+				UnsafeOnly:                     unsafeOnly,
+				L2FollowSourceEndpoint:         "",
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
