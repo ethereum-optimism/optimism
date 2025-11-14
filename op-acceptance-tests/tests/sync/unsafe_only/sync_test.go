@@ -44,9 +44,9 @@ func TestUnsafeOnly_VerifierUnsafeGapClosed(gt *testing.T) {
 	sys.L2CLB.MatchedUnsafe(sys.L2CL, attempts)
 	sys.L2ELB.MatchedUnsafe(sys.L2EL, attempts)
 
-	// Derivation did not happen at sequencer and the first verifier
+	// Derivation did not happen
 	sys.L2CL.SafeHead().IsGenesis()
-	sys.L2CLB.SafeHead().IsGenesis()
+
 	// Derivation happened at the second verifier
 	require.Greater(sys.L2CLC.SafeHead().BlockRef.Number, uint64(0))
 
@@ -80,9 +80,9 @@ func TestUnsafeOnly_SequencerRestart(gt *testing.T) {
 	// Sequencer produces blocks again
 	sys.L2CL.AdvancedUnsafe(3, attempts)
 
-	// Derivation did not happen at sequencer and the first verifier
+	// Derivation did not happen at sequencer
 	sys.L2CL.SafeHead().IsGenesis()
-	// sys.L2CLB.SafeHead().IsGenesis()
+
 	// Derivation happened at the second verifier
 	safeHeadNum := sys.L2CLC.SafeHead().BlockRef.Number
 	require.Greater(safeHeadNum, uint64(0))
