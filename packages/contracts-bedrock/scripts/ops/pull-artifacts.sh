@@ -16,6 +16,33 @@ echoerr() {
   echo "$@" 1>&2
 }
 
+download_and_extract() {
+  local archive_name=$1
+
+  echoerr "> Downloading..."
+  curl -o "$archive_name" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name"
+  echoerr "> Done."
+
+  echoerr "> Cleaning up existing artifacts..."
+  rm -rf artifacts
+  rm -rf forge-artifacts
+  rm -rf cache
+  echoerr "> Done."
+
+  echoerr "> Extracting artifacts..."
+  if [[ "$archive_name" == *.tar.zst ]]; then
+    zstd -dc "$archive_name" | tar -xf -
+  else
+    tar -xzvf "$archive_name"
+  fi
+  echoerr "> Done."
+
+  echoerr "> Cleaning up."
+  rm "$archive_name"
+  echoerr "> Done."
+  exit 0
+}
+
 # Check for help flag
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   usage
@@ -50,24 +77,7 @@ if [ "$HAS_ZSTD" = true ]; then
   exists_zst=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst" || echo "fail")
 
   if [ "$exists_zst" != "fail" ]; then
-    echoerr "> Found .tar.zst artifacts. Downloading..."
-    curl -o "$archive_name_zst" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst"
-    echoerr "> Done."
-
-    echoerr "> Cleaning up existing artifacts..."
-    rm -rf artifacts
-    rm -rf forge-artifacts
-    rm -rf cache
-    echoerr "> Done."
-
-    echoerr "> Extracting existing artifacts..."
-    zstd -dc "$archive_name_zst" | tar -xf -
-    echoerr "> Done."
-
-    echoerr "> Cleaning up."
-    rm "$archive_name_zst"
-    echoerr "> Done."
-    exit 0
+    download_and_extract "$archive_name_zst"
   fi
 
   # Try latest fallback if enabled
@@ -77,24 +87,7 @@ if [ "$HAS_ZSTD" = true ]; then
     exists_latest_zst=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst" || echo "fail")
 
     if [ "$exists_latest_zst" != "fail" ]; then
-      echoerr "> Found latest .tar.zst artifacts. Downloading..."
-      curl -o "$archive_name_zst" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst"
-      echoerr "> Done."
-
-      echoerr "> Cleaning up existing artifacts..."
-      rm -rf artifacts
-      rm -rf forge-artifacts
-      rm -rf cache
-      echoerr "> Done."
-
-      echoerr "> Extracting latest artifacts..."
-      zstd -dc "$archive_name_zst" | tar -xf -
-      echoerr "> Done."
-
-      echoerr "> Cleaning up."
-      rm "$archive_name_zst"
-      echoerr "> Done."
-      exit 0
+      download_and_extract "$archive_name_zst"
     fi
   fi
 fi
@@ -121,26 +114,4 @@ if [ "$exists_gz" == "fail" ]; then
   fi
 fi
 
-if [ "$HAS_ZSTD" = true ]; then
-  echoerr "> Only .tar.gz artifacts available (zstd format not found)."
-else
-  echoerr "> Found .tar.gz artifacts (zstd not available)."
-fi
-
-echoerr "> Cleaning up existing artifacts..."
-rm -rf artifacts
-rm -rf forge-artifacts
-rm -rf cache
-echoerr "> Done."
-
-echoerr "> Downloading artifacts..."
-curl -o "$archive_name_gz" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_gz"
-echoerr "> Done."
-
-echoerr "> Extracting existing artifacts..."
-tar -xzvf "$archive_name_gz"
-echoerr "> Done."
-
-echoerr "> Cleaning up."
-rm "$archive_name_gz"
-echoerr "> Done."
+download_and_extract "$archive_name_gz"
