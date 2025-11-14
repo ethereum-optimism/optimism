@@ -340,6 +340,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
+    /// @notice Updates the batcher hash by formatting a provided batcher address.
+    /// @param _batcher New batcher address.
+    function setBatcherHash(address _batcher) external onlyOwner {
+        _setBatcherHash(bytes32(uint256(uint160(_batcher))));
+    }
+
     /// @notice Updates the batcher hash. Can only be called by the owner.
     /// @param _batcherHash New batcher hash.
     function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
