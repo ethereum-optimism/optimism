@@ -109,7 +109,6 @@ func (s *channelManager) TxFailed(_id txID) {
 // TxConfirmed marks a transaction as confirmed on L1. Only if the channel timed out
 // the channelManager's state is modified.
 func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
-
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
@@ -225,7 +224,7 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forcePublish bool) (txData, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forcePublish pubInfo) (txData, error) {
 	channel, err := s.getReadyChannel(l1Head, forcePublish)
 	if err != nil {
 		return emptyTxData, err
@@ -267,6 +266,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 	return s.nextTxData(channel)
 }
 
+type pubInfo struct {
+	forcePublish bool
+	moreComing   bool
+}
+
 // getReadyChannel returns the next channel ready to submit data, or an error.
 // It will create a new channel if necessary.
 // If there is no data ready to send, it adds blocks from the block queue
@@ -275,9 +279,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 // there is no channel with txData
 // If forcePublish is true, it will force close channels and
 // generate frames for them.
-func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
-
-	if forcePublish && s.currentChannel.TotalFrames() == 0 {
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*channel, error) {
+	if pi.forcePublish && s.currentChannel.TotalFrames() == 0 {
 		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
 		s.currentChannel.Close()
 		if err := s.currentChannel.OutputFrames(); err != nil {
@@ -315,10 +318,12 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) 
 		return nil, err
 	}
 
-	// Register current L1 head only after all pending blocks have been
-	// processed. Even if a timeout will be triggered now, it is better to have
-	// all pending blocks be included in this channel for submission.
-	s.registerL1Block(l1Head)
+	if !pi.moreComing {
+		// Register current L1 head only after all pending blocks have been
+		// processed. Even if a timeout will be triggered now, it is better to have
+		// all pending blocks be included in this channel for submission.
+		s.registerL1Block(l1Head)
+	}
 
 	if err := s.outputFrames(); err != nil {
 		return nil, err
@@ -540,7 +545,6 @@ func (s *channelManager) PruneChannels(num int) {
 	if clearCurrentChannel {
 		s.currentChannel = nil
 	}
-
 }
 
 // PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2

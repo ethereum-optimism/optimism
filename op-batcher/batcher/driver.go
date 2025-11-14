@@ -274,7 +274,7 @@ func (l *BatchSubmitter) Flush(ctx context.Context) error {
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan bool, unsafeBytesUpdated chan int64) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan pubInfo, unsafeBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -297,12 +297,14 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 		}
 		latestBlock = block
 
+		// 100: "every few seconds, but not too often"
+		// Could make this time-based, e.g. every 5s.
 		if numBlocksLoaded := (i - start + 1); numBlocksLoaded%100 == 0 {
 			// Every 100 blocks, signal the publishing loop to publish.
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			l.sendToThrottlingLoop(unsafeBytesUpdated)
-			trySignal(publishSignal, false)
+			trySignal(publishSignal, pubInfo{moreComing: i < end})
 		}
 
 	}
@@ -328,7 +330,6 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 	defer cancel()
 
 	block, err := l2Client.BlockByNumber(cCtx, new(big.Int).SetUint64(blockNumber))
-
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
@@ -439,7 +440,7 @@ func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 
 // trySignal tries to send an empty struct on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
-func trySignal(c chan bool, value bool) {
+func trySignal[T any](c chan T, value T) {
 	select {
 	case c <- value:
 	default:
