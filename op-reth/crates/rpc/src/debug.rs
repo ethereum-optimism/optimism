@@ -31,8 +31,18 @@ use reth_rpc_api::eth::helpers::FullEthApi;
 use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{result::internal_rpc_err, ToRpcResult};
 use reth_tasks::TaskSpawner;
+use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::{oneshot, Semaphore};
+
+/// Represents the current proofs sync status.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ProofsSyncStatus {
+    /// The earliest block number for which proofs are available.
+    earliest: Option<u64>,
+    /// The latest block number for which proofs are available.
+    latest: Option<u64>,
+}
 
 #[cfg_attr(not(test), rpc(server, namespace = "debug"))]
 #[cfg_attr(test, rpc(server, client, namespace = "debug"))]
@@ -48,6 +58,10 @@ pub trait DebugApiOverride<Attributes> {
     /// Returns the execution witness for a given block.
     #[method(name = "executionWitness")]
     async fn execution_witness(&self, block: BlockNumberOrTag) -> RpcResult<ExecutionWitness>;
+
+    /// Returns the current proofs sync status.
+    #[method(name = "proofsSyncStatus")]
+    async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus>;
 }
 
 #[derive(Debug)]
@@ -89,6 +103,7 @@ where
 pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs> {
     provider: Provider,
     eth_api: Eth,
+    storage: OpProofsStorage<Storage>,
     state_provider_factory: OpStateProviderFactory<Eth, Storage>,
     evm_config: EvmConfig,
     task_spawner: Box<dyn TaskSpawner>,
@@ -106,13 +121,14 @@ where
     fn new(
         provider: Provider,
         eth_api: Eth,
-        preimage_store: OpProofsStorage<P>,
+        storage: OpProofsStorage<P>,
         task_spawner: Box<dyn TaskSpawner>,
         evm_config: EvmConfig,
     ) -> Self {
         Self {
             provider,
-            state_provider_factory: OpStateProviderFactory::new(eth_api.clone(), preimage_store),
+            storage: storage.clone(),
+            state_provider_factory: OpStateProviderFactory::new(eth_api.clone(), storage),
             eth_api,
             evm_config,
             task_spawner,
@@ -279,5 +295,25 @@ where
             .collect();
 
         Ok(exec_witness)
+    }
+
+    async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
+        let earliest = self
+            .inner
+            .storage
+            .get_earliest_block_number()
+            .await
+            .map_err(|err| internal_rpc_err(err.to_string()))?;
+        let latest = self
+            .inner
+            .storage
+            .get_latest_block_number()
+            .await
+            .map_err(|err| internal_rpc_err(err.to_string()))?;
+
+        Ok(ProofsSyncStatus {
+            earliest: earliest.map(|(block_number, _)| block_number),
+            latest: latest.map(|(block_number, _)| block_number),
+        })
     }
 }

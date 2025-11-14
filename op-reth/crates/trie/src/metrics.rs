@@ -8,7 +8,7 @@ use crate::{
 use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use derive_more::Constructor;
-use metrics::{Counter, Histogram};
+use metrics::{Counter, Gauge, Histogram};
 use reth_metrics::Metrics;
 use reth_primitives_traits::Account;
 use reth_trie::{BranchNodeCompact, Nibbles};
@@ -217,6 +217,10 @@ pub struct BlockMetrics {
     pub hashed_accounts_written_total: Counter,
     /// Number of hashed storages written
     pub hashed_storages_written_total: Counter,
+    /// Earliest block number that the proofs storage has stored.
+    pub earliest_number: Gauge,
+    /// Latest block number that the proofs storage has stored.
+    pub latest_number: Gauge,
 }
 
 impl BlockMetrics {
@@ -487,7 +491,9 @@ where
         block_ref: BlockWithParent,
         block_state_diff: BlockStateDiff,
     ) -> OpProofsStorageResult<WriteCounts> {
-        self.storage.store_trie_updates(block_ref, block_state_diff).await
+        let result = self.storage.store_trie_updates(block_ref, block_state_diff).await?;
+        self.metrics.block_metrics.latest_number.set(block_ref.block.number as f64);
+        Ok(result)
     }
 
     // no metrics for these
@@ -519,6 +525,7 @@ where
         block_number: u64,
         hash: B256,
     ) -> OpProofsStorageResult<()> {
+        self.metrics.block_metrics.earliest_number.set(block_number as f64);
         self.storage.set_earliest_block_number(block_number, hash).await
     }
 }

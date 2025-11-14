@@ -65,6 +65,7 @@ revm.workspace = true
 op-revm.workspace = true
 
 # async
+serde.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tokio-stream.workspace = true
