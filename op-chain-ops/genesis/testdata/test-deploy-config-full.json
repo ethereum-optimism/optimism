@@ -92,6 +92,7 @@
   "gasPayingTokenName": "",
   "gasPayingTokenSymbol": "",
   "nativeAssetLiquidityAmount": null,
+  "liquidityControllerOwner": "0x0000000000000000000000000000000000000000",
   "useFaultProofs": false,
   "useAltDA": false,
   "daBondSize": 0,
