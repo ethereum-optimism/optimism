@@ -160,12 +160,26 @@ echoerr "> Uploading artifacts to GCS..."
 # Force single-stream upload to improve reliability
 gcloud config set storage/parallel_composite_upload_enabled False
 if [ "$HAS_ZSTD" = true ]; then
+  # Upload with checksum-based names
   gcloud --verbosity="info" storage cp "$archive_name_gz" "$archive_name_zst" "gs://$DEPLOY_BUCKET/"
   echoerr "> Uploaded to: $upload_url_gz"
   echoerr "> Uploaded to: $upload_url_zst"
+
+  # Also upload as "latest" for PR fallback
+  echoerr "> Uploading as 'latest' for PR fallback..."
+  gcloud --verbosity="info" storage cp "$archive_name_gz" "gs://$DEPLOY_BUCKET/artifacts-v1-latest.tar.gz"
+  gcloud --verbosity="info" storage cp "$archive_name_zst" "gs://$DEPLOY_BUCKET/artifacts-v1-latest.tar.zst"
+  echoerr "> Uploaded to: https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-latest.tar.gz"
+  echoerr "> Uploaded to: https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-latest.tar.zst"
 else
+  # Upload with checksum-based name
   gcloud --verbosity="info" storage cp "$archive_name_gz" "gs://$DEPLOY_BUCKET/$archive_name_gz"
   echoerr "> Uploaded to: $upload_url_gz"
+
+  # Also upload as "latest" for PR fallback
+  echoerr "> Uploading as 'latest' for PR fallback..."
+  gcloud --verbosity="info" storage cp "$archive_name_gz" "gs://$DEPLOY_BUCKET/artifacts-v1-latest.tar.gz"
+  echoerr "> Uploaded to: https://storage.googleapis.com/$DEPLOY_BUCKET/artifacts-v1-latest.tar.gz"
 fi
 
 echoerr "> Done."

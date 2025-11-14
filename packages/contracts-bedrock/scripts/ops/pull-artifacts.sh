@@ -21,6 +21,13 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   usage
 fi
 
+# Check for fallback-to-latest flag
+USE_LATEST_FALLBACK=false
+if [ "${1:-}" = "--fallback-to-latest" ]; then
+  USE_LATEST_FALLBACK=true
+  echoerr "> Fallback to latest enabled"
+fi
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
 
@@ -41,26 +48,54 @@ echoerr "> Checking for existing artifacts..."
 if [ "$HAS_ZSTD" = true ]; then
   archive_name_zst="artifacts-v1-$checksum.tar.zst"
   exists_zst=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst" || echo "fail")
-  
+
   if [ "$exists_zst" != "fail" ]; then
     echoerr "> Found .tar.zst artifacts. Downloading..."
     curl -o "$archive_name_zst" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst"
     echoerr "> Done."
-    
+
     echoerr "> Cleaning up existing artifacts..."
     rm -rf artifacts
     rm -rf forge-artifacts
     rm -rf cache
     echoerr "> Done."
-    
+
     echoerr "> Extracting existing artifacts..."
     zstd -dc "$archive_name_zst" | tar -xf -
     echoerr "> Done."
-    
+
     echoerr "> Cleaning up."
     rm "$archive_name_zst"
     echoerr "> Done."
     exit 0
+  fi
+
+  # Try latest fallback if enabled
+  if [ "$USE_LATEST_FALLBACK" = true ]; then
+    echoerr "> Exact checksum not found, trying latest artifacts..."
+    archive_name_zst="artifacts-v1-latest.tar.zst"
+    exists_latest_zst=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst" || echo "fail")
+
+    if [ "$exists_latest_zst" != "fail" ]; then
+      echoerr "> Found latest .tar.zst artifacts. Downloading..."
+      curl -o "$archive_name_zst" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_zst"
+      echoerr "> Done."
+
+      echoerr "> Cleaning up existing artifacts..."
+      rm -rf artifacts
+      rm -rf forge-artifacts
+      rm -rf cache
+      echoerr "> Done."
+
+      echoerr "> Extracting latest artifacts..."
+      zstd -dc "$archive_name_zst" | tar -xf -
+      echoerr "> Done."
+
+      echoerr "> Cleaning up."
+      rm "$archive_name_zst"
+      echoerr "> Done."
+      exit 0
+    fi
   fi
 fi
 
@@ -68,8 +103,22 @@ archive_name_gz="artifacts-v1-$checksum.tar.gz"
 exists_gz=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_gz" || echo "fail")
 
 if [ "$exists_gz" == "fail" ]; then
-  echoerr "> No existing artifacts found, exiting."
-  exit 0
+  # Try latest fallback if enabled
+  if [ "$USE_LATEST_FALLBACK" = true ]; then
+    echoerr "> Exact checksum not found, trying latest artifacts..."
+    archive_name_gz="artifacts-v1-latest.tar.gz"
+    exists_latest_gz=$(curl -s -o /dev/null --fail -LI "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name_gz" || echo "fail")
+
+    if [ "$exists_latest_gz" == "fail" ]; then
+      echoerr "> No existing artifacts found (including latest), exiting."
+      exit 0
+    fi
+
+    echoerr "> Found latest .tar.gz artifacts."
+  else
+    echoerr "> No existing artifacts found, exiting."
+    exit 0
+  fi
 fi
 
 if [ "$HAS_ZSTD" = true ]; then
