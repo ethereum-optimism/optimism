@@ -297,3 +297,110 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateSystemConfigWithL1Receipts_Atomicity(t *testing.T) {
+	t.Run("applies all updates when all receipts well-formed", func(t *testing.T) {
+		sysCfg := eth.SystemConfig{}
+		l1Addr := common.Address{19: 0x42}
+		cfg := rollup.Config{
+			L1SystemConfigAddress: l1Addr,
+		}
+		// Build a well-formed Batcher update
+		newBatcher := common.Address{19: 0xaa}
+		addrData, err := addressArgs.Pack(&newBatcher)
+		require.NoError(t, err)
+		batcherData, err := bytesArgs.Pack(addrData)
+		require.NoError(t, err)
+		batcherLog := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				ConfigUpdateEventVersion0,
+				SystemConfigUpdateBatcher,
+			},
+			Data: batcherData,
+		}
+		// Build a well-formed GasLimit update
+		gasLimit := big.NewInt(0xbb)
+		gasDataEnc, err := oneUint256.Pack(gasLimit)
+		require.NoError(t, err)
+		gasData, err := bytesArgs.Pack(gasDataEnc)
+		require.NoError(t, err)
+		gasLog := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				ConfigUpdateEventVersion0,
+				SystemConfigUpdateGasLimit,
+			},
+			Data: gasData,
+		}
+		receipts := []*types.Receipt{
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{batcherLog},
+			},
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{gasLog},
+			},
+		}
+		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		require.NoError(t, err)
+		require.Equal(t, newBatcher, sysCfg.BatcherAddr)
+		require.Equal(t, uint64(0xbb), sysCfg.GasLimit)
+	})
+
+	t.Run("no update applied if any receipt malformed", func(t *testing.T) {
+		// Start with a non-zero initial config so we can detect accidental partial updates
+		initial := eth.SystemConfig{
+			BatcherAddr: common.Address{19: 0x11},
+			GasLimit:    0x1234,
+		}
+		sysCfg := initial
+		l1Addr := common.Address{19: 0x43}
+		cfg := rollup.Config{
+			L1SystemConfigAddress: l1Addr,
+		}
+		// Well-formed Batcher update (would change value if applied)
+		newBatcher := common.Address{19: 0xaa}
+		addrData, err := addressArgs.Pack(&newBatcher)
+		require.NoError(t, err)
+		batcherData, err := bytesArgs.Pack(addrData)
+		require.NoError(t, err)
+		batcherLog := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				ConfigUpdateEventVersion0,
+				SystemConfigUpdateBatcher,
+			},
+			Data: batcherData,
+		}
+		// Malformed GasLimit update (invalid data to trigger parse failure)
+		malformedGasLog := &types.Log{
+			Address: l1Addr,
+			Topics: []common.Hash{
+				ConfigUpdateEventABIHash,
+				ConfigUpdateEventVersion0,
+				SystemConfigUpdateGasLimit,
+			},
+			Data: []byte{0x00}, // insufficient bytes for pointer/length -> parse error
+		}
+		receipts := []*types.Receipt{
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{batcherLog},
+			},
+			{
+				Status: types.ReceiptStatusSuccessful,
+				Logs:   []*types.Log{malformedGasLog},
+			},
+		}
+		err = UpdateSystemConfigWithL1Receipts(&sysCfg, receipts, &cfg, 0)
+		// No error should be returned; the entire update batch is ignored
+		require.NoError(t, err)
+		// Confirm original config is unchanged
+		require.Equal(t, initial, sysCfg)
+	})
+}
