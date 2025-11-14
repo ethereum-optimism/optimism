@@ -48,9 +48,6 @@ func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) 
 
 	var validator validations.Validator
 
-	// Use new validator if:
-	// 1. Version is v5.0.0+, OR
-	// 2. Validator address is provided (for custom deployments with OPCMStandardValidator)
 	useNewValidator := release == standard.ContractsV500Tag || cfg.ValidatorAddress != (common.Address{})
 
 	if useNewValidator {
