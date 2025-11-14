@@ -202,9 +202,14 @@ type InitializationOverrides struct {
 // so order is important to ensure that all resources are available when needed.
 func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides InitializationOverrides) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+	safe := "enabled"
 	if cfg.Sync.UnsafeOnly {
-		n.log.Info("Disabled derivation", "followSourceEnabled", cfg.Sync.L2FollowSourceEndpoint != "")
+		safe = cfg.Sync.L2FollowSourceEndpoint
+		if safe == "" {
+			safe = "disabled"
+		}
 	}
+	n.log.Info("Safety levels", "unsafe", "enabled", "safe", safe)
 
 	var err error
 
