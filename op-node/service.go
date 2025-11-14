@@ -340,6 +340,12 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
+	unsafeOnly := ctx.Bool(flags.L2UnsafeOnly.Name)
+	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
+	if !unsafeOnly && l2FollowSourceEndpoint != "" {
+		return nil, errors.New("cannot follow external safe/finalized with derivation enabled (--l2.unsafe-only=false): " +
+			"Either remove --l2.follow.source or set --l2.unsafe-only=true to disable derivation")
+	}
 	rrSyncEnabled := ctx.Bool(flags.SyncModeReqRespFlag.Name)
 	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
 	if !ctx.Bool(flags.SyncReqRespName) && rrSyncEnabled {
@@ -349,7 +355,6 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	unsafeOnly := ctx.Bool(flags.L2UnsafeOnly.Name)
 	isSequencer := ctx.Bool(flags.SequencerEnabledFlag.Name)
 	if unsafeOnly && !isSequencer {
 		// The verifier node initially gains payloads from the sequencer via CLP2P.
@@ -366,11 +371,6 @@ func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 		}
 		// If RR Sync is not used, EL Sync will fill in the unsafe gap.
 		// This path is much faster and more practical for closing the gap.
-	}
-	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
-	if !unsafeOnly && l2FollowSourceEndpoint != "" {
-		return nil, errors.New("cannot follow external safe/finalized with derivation enabled (--l2.unsafe-only=false): " +
-			"Either remove --l2.follow.source or set --l2.unsafe-only=true to disable derivation")
 	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
 	cfg := &sync.Config{
