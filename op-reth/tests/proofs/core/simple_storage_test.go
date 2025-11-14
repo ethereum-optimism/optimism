@@ -1,4 +1,4 @@
-package proofs
+package core
 
 import (
 	"math/big"
@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/op-rs/op-geth/proofs/utils"
 )
 
 func simpleStorageSetValue(t devtest.T, parsedABI *abi.ABI, user *dsl.EOA, contractAddress common.Address, value *big.Int) *types.Receipt {
@@ -42,8 +43,8 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	ctx := t.Ctx()
 
 	sys := presets.NewSingleChainMultiNode(t)
-	artifactPath := "contracts/artifacts/SimpleStorage.sol/SimpleStorage.json"
-	parsedABI, bin, err := loadArtifact(artifactPath)
+	artifactPath := "../contracts/artifacts/SimpleStorage.sol/SimpleStorage.json"
+	parsedABI, bin, err := utils.LoadArtifact(artifactPath)
 	if err != nil {
 		t.Error("failed to load artifact: %v", err)
 		t.FailNow()
@@ -52,7 +53,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 
 	// deploy contract via helper
-	contractAddress, blockNum, err := deployContract(ctx, user, bin)
+	contractAddress, blockNum, err := utils.DeployContract(ctx, user, bin)
 	if err != nil {
 		t.Error("failed to deploy contract: %v", err)
 		t.FailNow()
@@ -60,7 +61,7 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contractAddress.Hex(), blockNum)
 
 	// fetch and verify initial proof (should be zeroed storage)
-	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, blockNum)
+	utils.FetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, blockNum)
 
 	type caseEntry struct {
 		Block uint64
@@ -88,12 +89,12 @@ func TestStorageProofUsingSimpleStorageContract(gt *testing.T) {
 
 	// for each case, get proof and verify
 	for _, c := range cases {
-		fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, c.Block)
+		utils.FetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0")}, c.Block)
 	}
 
 	// test with non-existent storage slot
 	nonExistentSlot := common.HexToHash("0xdeadbeef")
-	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{nonExistentSlot}, cases[len(cases)-1].Block)
+	utils.FetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{nonExistentSlot}, cases[len(cases)-1].Block)
 }
 
 func multiStorageSetValues(t devtest.T, parsedABI *abi.ABI, user *dsl.EOA, contractAddress common.Address, aVal, bVal *big.Int) *types.Receipt {
@@ -123,8 +124,8 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	ctx := t.Ctx()
 
 	sys := presets.NewSingleChainMultiNode(t)
-	artifactPath := "contracts/artifacts/MultiStorage.sol/MultiStorage.json"
-	parsedABI, bin, err := loadArtifact(artifactPath)
+	artifactPath := "../contracts/artifacts/MultiStorage.sol/MultiStorage.json"
+	parsedABI, bin, err := utils.LoadArtifact(artifactPath)
 	if err != nil {
 		t.Error("failed to load artifact: %v", err)
 		t.FailNow()
@@ -133,7 +134,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 
 	// deploy contract via helper
-	contractAddress, blockNum, err := deployContract(ctx, user, bin)
+	contractAddress, blockNum, err := utils.DeployContract(ctx, user, bin)
 	if err != nil {
 		t.Error("failed to deploy contract: %v", err)
 		t.FailNow()
@@ -142,7 +143,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 	t.Logf("contract deployed at address %s in L2 block %d", contractAddress.Hex(), blockNum)
 
 	// fetch and verify initial proof (should be zeroed storage)
-	fetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, blockNum)
+	utils.FetchAndVerifyProofs(t, sys, contractAddress, []common.Hash{common.HexToHash("0x0"), common.HexToHash("0x1")}, blockNum)
 
 	// set multiple storage slots
 	type caseEntry struct {
@@ -184,7 +185,7 @@ func TestStorageProofUsingMultiStorageContract(gt *testing.T) {
 			slots = append(slots, slot)
 		}
 
-		fetchAndVerifyProofs(t, sys, contractAddress, slots, c.Block)
+		utils.FetchAndVerifyProofs(t, sys, contractAddress, slots, c.Block)
 	}
 }
 
@@ -220,8 +221,8 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	ctx := t.Ctx()
 
 	sys := presets.NewSingleChainMultiNode(t)
-	artifactPath := "contracts/artifacts/TokenVault.sol/TokenVault.json"
-	parsedABI, bin, err := loadArtifact(artifactPath)
+	artifactPath := "../contracts/artifacts/TokenVault.sol/TokenVault.json"
+	parsedABI, bin, err := utils.LoadArtifact(artifactPath)
 	if err != nil {
 		t.Errorf("failed to load artifact: %v", err)
 		t.FailNow()
@@ -232,7 +233,7 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	bob := sys.FunderL2.NewFundedEOA(eth.OneEther)
 
 	// deploy contract
-	contractAddr, deployBlock, err := deployContract(ctx, alice, bin)
+	contractAddr, deployBlock, err := utils.DeployContract(ctx, alice, bin)
 	if err != nil {
 		t.Errorf("deploy failed: %v", err)
 		t.FailNow()
@@ -322,11 +323,11 @@ func TestTokenVaultStorageProofs(gt *testing.T) {
 	// fetch & verify proofs at appropriate blocks
 	// balance after deposit (depositBlock)
 	t.Logf("Verifying balance slot %s at deposit block %d", balanceSlot.Hex(), depositBlock)
-	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{balanceSlot, depositor0Slot}, depositBlock)
+	utils.FetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{balanceSlot, depositor0Slot}, depositBlock)
 	// allowance after approve (approveBlock)
 	t.Logf("Verifying allowance slot %s at approve block %d", allowanceSlot.Hex(), approveBlock)
-	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, approveBlock)
+	utils.FetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, approveBlock)
 	// after deactivation, allowance should be zero at deactBlock
 	t.Logf("Verifying allowance slot %s at deactivate block %d", allowanceSlot.Hex(), deactBlock)
-	fetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, deactBlock)
+	utils.FetchAndVerifyProofs(t, sys, contractAddr, []common.Hash{allowanceSlot}, deactBlock)
 }

@@ -4,6 +4,10 @@
 optimism_package:
   faucet:
     enabled: true
+  test-sequencers:
+    sequencer:
+      image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-test-sequencer:9243bb0452efa3fd255556631688d1255723384a
+      enabled: true
   chains:
     chain0:
       # Chain with only two nodes
@@ -15,6 +19,7 @@ optimism_package:
           cl:
             type: op-node
             log_level: "debug"
+            extra_params: [--experimental.sequencer-api=true]
           sequencer: true
         validator:
           el:
@@ -25,6 +30,7 @@ optimism_package:
           cl: 
             type: op-node
             log_level: "debug"
+            extra_params: [--experimental.sequencer-api=true]
           sequencer: false
       network_params:
         network: "kurtosis"

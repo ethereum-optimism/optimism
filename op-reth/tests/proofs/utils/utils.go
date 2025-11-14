@@ -1,4 +1,4 @@
-package proofs
+package utils
 
 import (
 	"bytes"
@@ -25,22 +25,22 @@ import (
 )
 
 // minimal parts of artifact
-type artifact struct {
+type Artifact struct {
 	ABI      json.RawMessage `json:"abi"`
 	Bytecode struct {
 		Object string `json:"object"`
 	} `json:"bytecode"`
 }
 
-// loadArtifact reads the forge artifact JSON at artifactPath and returns the parsed ABI
+// LoadArtifact reads the forge artifact JSON at artifactPath and returns the parsed ABI
 // and the creation bytecode (as bytes). It prefers bytecode.object (creation) and falls
 // back to deployedBytecode.object if needed.
-func loadArtifact(artifactPath string) (abi.ABI, []byte, error) {
+func LoadArtifact(artifactPath string) (abi.ABI, []byte, error) {
 	data, err := os.ReadFile(artifactPath)
 	if err != nil {
 		return abi.ABI{}, nil, err
 	}
-	var art artifact
+	var art Artifact
 	if err := json.Unmarshal(data, &art); err != nil {
 		return abi.ABI{}, nil, err
 	}
@@ -55,9 +55,9 @@ func loadArtifact(artifactPath string) (abi.ABI, []byte, error) {
 	return parsedABI, common.FromHex(binHex), nil
 }
 
-// deployContract deploys the contract creation bytecode from the given artifact.
+// DeployContract deploys the contract creation bytecode from the given artifact.
 // user must provide a Plan() method compatible with txplan.NewPlannedTx (kept generic).
-func deployContract(ctx context.Context, user *dsl.EOA, bin []byte) (common.Address, uint64, error) {
+func DeployContract(ctx context.Context, user *dsl.EOA, bin []byte) (common.Address, uint64, error) {
 	tx := txplan.NewPlannedTx(user.Plan(), txplan.WithData(bin))
 	res, err := tx.Included.Eval(ctx)
 	if err != nil {
@@ -66,7 +66,7 @@ func deployContract(ctx context.Context, user *dsl.EOA, bin []byte) (common.Addr
 	return res.ContractAddress, res.BlockNumber.Uint64(), nil
 }
 
-// normalizeProofResponse standardizes an AccountResult obtained from eth_getProof
+// NormalizeProofResponse standardizes an AccountResult obtained from eth_getProof
 // across different client implementations (e.g., Geth, Reth) so that they can be
 // compared meaningfully in tests.
 //
@@ -76,7 +76,7 @@ func deployContract(ctx context.Context, user *dsl.EOA, bin []byte) (common.Addr
 //
 // This function normalizes such differences by:
 //   - Converting single-element proofs containing "0x80" to an empty proof slice.
-func normalizeProofResponse(res *eth.AccountResult) {
+func NormalizeProofResponse(res *eth.AccountResult) {
 	for i := range res.StorageProof {
 		if len(res.StorageProof[i].Proof) == 1 && bytes.Equal(res.StorageProof[i].Proof[0], []byte{0x80}) {
 			res.StorageProof[i].Proof = []hexutil.Bytes{}
@@ -153,7 +153,8 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 	return err
 }
 
-func fetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, contractAddress common.Address, slots []common.Hash, block uint64) {
+// FetchAndVerifyProofs fetches account proofs from both L2EL and L2ELB for the given
+func FetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, contractAddress common.Address, slots []common.Hash, block uint64) {
 	ctx := t.Ctx()
 	gethProofRes, err := sys.L2EL.Escape().L2EthClient().GetProof(ctx, contractAddress, slots, hexutil.Uint64(block).String())
 	if err != nil {
@@ -166,7 +167,7 @@ func fetchAndVerifyProofs(t devtest.T, sys *presets.SingleChainMultiNode, contra
 		t.Errorf("failed to get proof from L2ELB at block %d: %v", block, err)
 		t.FailNow()
 	}
-	normalizeProofResponse(rethProofRes)
+	NormalizeProofResponse(rethProofRes)
 
 	require.Equal(t, gethProofRes, rethProofRes, "geth and reth proofs should match")
 

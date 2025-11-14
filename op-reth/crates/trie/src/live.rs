@@ -142,29 +142,34 @@ where
         &self,
         new_blocks: Vec<&RecoveredBlock<BlockTy<Evm::Primitives>>>,
     ) -> eyre::Result<()> {
-        info!(
-            start_block_number = new_blocks.first().map(|b| b.number()),
-            end_block_number = new_blocks.last().map(|b| b.number()),
-            "Unwinding and storing trie updates for new blocks",
-        );
         if new_blocks.is_empty() {
             return Ok(());
         }
+
+        let mut operation_durations = OperationDurations::default();
+        let start = Instant::now();
         let latest_common_block_number = new_blocks[0].number().saturating_sub(1);
 
         let mut block_trie_updates: HashMap<BlockWithParent, BlockStateDiff> =
             HashMap::with_capacity_and_hasher(new_blocks.len(), DefaultHashBuilder::default());
 
         for block_ref in &new_blocks {
+            let pb_start = Instant::now();
             let state_provider = self.provider.state_by_block_hash(block_ref.parent_hash())?;
             let db = StateProviderDatabase::new(&state_provider);
             let block_executor = self.evm_config.batch_executor(db);
             let execution_result =
                 block_executor.execute(block_ref).map_err(|err| eyre::eyre!(err))?;
 
+            let execution_duration = pb_start.elapsed();
+            operation_durations.execution_duration_seconds += execution_duration;
+
             let hashed_state = state_provider.hashed_post_state(&execution_result.state);
             let (state_root, trie_updates) =
                 state_provider.state_root_with_updates(hashed_state.clone())?;
+
+            operation_durations.state_root_duration_seconds +=
+                pb_start.elapsed() - execution_duration;
 
             if state_root != block_ref.state_root() {
                 return Err(OpProofsStorageError::StateRootMismatch {
@@ -183,7 +188,17 @@ where
                 .insert(block_ref, BlockStateDiff { trie_updates, post_state: hashed_state });
         }
 
+        let st_start = Instant::now();
         self.storage.replace_updates(latest_common_block_number, block_trie_updates).await?;
+        operation_durations.write_duration_seconds += st_start.elapsed();
+        operation_durations.total_duration_seconds = start.elapsed();
+
+        info!(
+            start_block_number = new_blocks.first().map(|b| b.number()),
+            end_block_number = new_blocks.last().map(|b| b.number()),
+            ?operation_durations,
+            "Trie updates rewound and stored successfully",
+        );
         Ok(())
     }
 }

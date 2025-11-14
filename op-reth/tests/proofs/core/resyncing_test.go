@@ -1,4 +1,4 @@
-package proofs
+package core
 
 import (
 	"testing"
@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/op-rs/op-geth/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +58,7 @@ func TestResyncing(gt *testing.T) {
 	t.Logf("Fetching and verifying proofs for transactions produced while node was down")
 	// verify the proofs for the transactions produced while the node was down
 	for _, blockNumber := range blockNumbers {
-		fetchAndVerifyProofs(t, sys, bob.Address(), []common.Hash{}, blockNumber)
-		fetchAndVerifyProofs(t, sys, alice.Address(), []common.Hash{}, blockNumber)
+		utils.FetchAndVerifyProofs(t, sys, bob.Address(), []common.Hash{}, blockNumber)
+		utils.FetchAndVerifyProofs(t, sys, alice.Address(), []common.Hash{}, blockNumber)
 	}
 }

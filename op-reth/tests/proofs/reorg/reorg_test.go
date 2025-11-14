@@ -1,0 +1,156 @@
+package reorg
+
+import (
+	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/op-rs/op-geth/proofs/utils"
+	"github.com/stretchr/testify/require"
+)
+
+func TestReorgUnsafeHead(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	ctx := t.Ctx()
+
+	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
+	l := sys.Log
+
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2Chain.ChainID())
+
+	// stop batcher on chain A
+	sys.L2Batcher.Stop()
+
+	// two EOAs for a sample transfer tx used later in a conflicting block
+	alice := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
+
+	// sys.L1Network.WaitForBlock()
+	time.Sleep(12 * time.Second)
+
+	sys.L2Chain.WaitForBlock()
+
+	divergenceHead := sys.L2Chain.WaitForBlock()
+	// build up some blocks that will be reorged away
+
+	type caseEntry struct {
+		Block uint64
+		addr  common.Address
+	}
+	var cases []caseEntry
+	for i := 0; i < 3; i++ {
+		tx := alice.Transfer(bob.Address(), eth.OneGWei)
+		receipt, err := tx.Included.Eval(ctx)
+		require.NoError(gt, err)
+		require.Equal(gt, types.ReceiptStatusSuccessful, receipt.Status)
+
+		cases = append(cases, caseEntry{
+			Block: receipt.BlockNumber.Uint64(),
+			addr:  alice.Address(),
+		})
+		cases = append(cases, caseEntry{
+			Block: receipt.BlockNumber.Uint64(),
+			addr:  bob.Address(),
+		})
+	}
+
+	sys.L2CL.StopSequencer()
+
+	var divergenceBlockNumber uint64
+	var originalRef eth.L2BlockRef
+	// prepare and sequence a conflicting block for the L2A chain
+	{
+		divergenceBlockRef := sys.L2EL.BlockRefByNumber(divergenceHead.Number)
+
+		l.Info("Expect to reorg the chain on block", "number", divergenceBlockRef.Number, "head", divergenceHead, "parent", divergenceBlockRef.ParentID().Hash)
+		divergenceBlockNumber = divergenceBlockRef.Number
+		originalRef = divergenceBlockRef
+
+		parentOfDivergenceHead := divergenceBlockRef.ParentID()
+
+		l.Info("Sequencing a conflicting block", "divergenceBlockRef", divergenceBlockRef, "parent", parentOfDivergenceHead)
+
+		// sequence a conflicting block with a simple transfer tx, based on the parent of the parent of the unsafe head
+		{
+			err := ia.New(ctx, seqtypes.BuildOpts{
+				Parent:   parentOfDivergenceHead.Hash,
+				L1Origin: nil,
+			})
+			require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
+
+			// include simple transfer tx in opened block
+			{
+				to := bob.PlanTransfer(alice.Address(), eth.OneGWei)
+				opt := txplan.Combine(to)
+				ptx := txplan.NewPlannedTx(opt)
+				signed_tx, err := ptx.Signed.Eval(ctx)
+				require.NoError(t, err, "Expected to be able to evaluate a planned transaction on op-test-sequencer, but got error")
+				txdata, err := signed_tx.MarshalBinary()
+				require.NoError(t, err, "Expected to be able to marshal a signed transaction on op-test-sequencer, but got error")
+
+				err = ia.IncludeTx(ctx, txdata)
+				require.NoError(t, err, "Expected to be able to include a signed transaction on op-test-sequencer, but got error")
+
+				cases = append(cases, caseEntry{
+					Block: divergenceHead.Number,
+					addr:  alice.Address(),
+				})
+				cases = append(cases, caseEntry{
+					Block: divergenceHead.Number,
+					addr:  bob.Address(),
+				})
+			}
+
+			err = ia.Next(ctx)
+			require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
+		}
+	}
+
+	// start batcher on chain A
+	sys.L2Batcher.Start()
+
+	// sequence a second block with op-test-sequencer (no L1 origin override)
+	{
+		l.Info("Sequencing with op-test-sequencer (no L1 origin override)")
+		err := ia.New(ctx, seqtypes.BuildOpts{
+			Parent:   sys.L2EL.BlockRefByLabel(eth.Unsafe).Hash,
+			L1Origin: nil,
+		})
+		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
+		time.Sleep(2 * time.Second)
+
+		err = ia.Next(ctx)
+		require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
+		time.Sleep(2 * time.Second)
+	}
+
+	// continue sequencing with consensus node (op-node)
+	sys.L2CL.StartSequencer()
+
+	for i := 0; i < 3; i++ {
+		sys.L2Chain.WaitForBlock()
+	}
+
+	// wait for the reorg to be processed
+	// todo: replace with proof status sync based wait
+	time.Sleep(30 * time.Second)
+
+	reorgedRef_A, err := sys.L2EL.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber)
+	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
+
+	l.Info("Reorged chain on divergence block number (prior the reorg)", "number", divergenceBlockNumber, "head", originalRef.Hash, "parent", originalRef.ParentID().Hash)
+	l.Info("Reorged chain on divergence block number (after the reorg)", "number", divergenceBlockNumber, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
+	require.NotEqual(t, originalRef.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened on chain A")
+	require.Equal(t, originalRef.ParentID().Hash, reorgedRef_A.ParentHash, "Expected to get same parent hashes on divergence block number, but got different hashes")
+
+	// verify that the accounts involved in the conflicting blocks
+	for _, c := range cases {
+		utils.FetchAndVerifyProofs(t, &sys.SingleChainMultiNode, c.addr, []common.Hash{}, c.Block)
+	}
+}

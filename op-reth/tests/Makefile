@@ -2,9 +2,9 @@
 DOCKER_IMAGE_NAME := op-reth
 DOCKER_TAG := local
 DOCKERFILE_PATH := ../../../DockerfileOp
-KURTOSIS_PACKAGE := github.com/ethpandaops/optimism-package@1.4.0
+KURTOSIS_PACKAGE := github.com/ethpandaops/optimism-package@998796c0f3bb478d63d729e65f0b76e24112e00d
 DEVNET := simple-historical-proof
-GO_PKG_NAME := proofs
+GO_PKG_NAME ?= proofs/core
 SOURCE_DIR := $(shell pwd)
 
 .PHONY: all build build-contracts run clean help

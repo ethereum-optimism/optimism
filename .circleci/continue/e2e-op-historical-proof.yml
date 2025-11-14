@@ -38,19 +38,7 @@ jobs:
           go version
 
       - name: Build contract artifacts with forge
-<<<<<<< HEAD
-<<<<<<< HEAD
-        working-directory: crates/optimism/tests/proofs/contracts
-=======
-<<<<<<< HEAD
-        working-directory: crates/op-reth/tests/proofs/contracts
-=======
-        working-directory: crates/optimism/tests/proofs/contracts
->>>>>>> b013471135 (chore: historical proof e2e ci integration (#347))
->>>>>>> cc93b89cff (chore: historical proof e2e ci integration (#347))
-=======
         working-directory: op-reth/tests/proofs/contracts
->>>>>>> efe4e992b8 (test: multi slot and zero testing (#343))
         run: |
           forge build
 
@@ -61,35 +49,16 @@ jobs:
           kurtosis engine start
 
       - name: Run DEVNET
-<<<<<<< HEAD
-<<<<<<< HEAD
-        working-directory: crates/optimism/tests
-=======
-<<<<<<< HEAD
-        working-directory: crates/op-reth/tests
-=======
-        working-directory: crates/optimism/tests
->>>>>>> b013471135 (chore: historical proof e2e ci integration (#347))
->>>>>>> cc93b89cff (chore: historical proof e2e ci integration (#347))
-=======
         working-directory: op-reth/tests
->>>>>>> efe4e992b8 (test: multi slot and zero testing (#343))
         run: |
           make all
 
-      - name: Run E2E kurtosis tests
-<<<<<<< HEAD
-<<<<<<< HEAD
-        working-directory: crates/optimism/tests
-=======
-<<<<<<< HEAD
-        working-directory: crates/op-reth/tests
-=======
-        working-directory: crates/optimism/tests
->>>>>>> b013471135 (chore: historical proof e2e ci integration (#347))
->>>>>>> cc93b89cff (chore: historical proof e2e ci integration (#347))
-=======
+      - name: Run core e2e tests
         working-directory: op-reth/tests
->>>>>>> efe4e992b8 (test: multi slot and zero testing (#343))
         run: |
-          make test-e2e-kurtosis
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/core
+
+      - name: Run reorg e2e tests
+        working-directory: op-reth/tests
+        run: |
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg
