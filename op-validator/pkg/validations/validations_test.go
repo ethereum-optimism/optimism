@@ -60,6 +60,18 @@ func TestValidate_Mocked(t *testing.T) {
 				return NewV400Validator(rpcClient)
 			},
 		},
+		{
+			version: standard.ContractsV410Tag,
+			validator: func(rpcClient *rpc.Client) Validator {
+				return NewV410Validator(rpcClient)
+			},
+		},
+		{
+			version: standard.ContractsV500Tag,
+			validator: func(rpcClient *rpc.Client) Validator {
+				return NewV500Validator(rpcClient)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.version), func(t *testing.T) {
