@@ -70,7 +70,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	for _, gap := range []uint64{3, 5} {
 		targetNum := startNum + gap
 		sys.L2CLB.SignalTarget(sys.L2EL, targetNum)
-		sys.L2ELB.NotAdvanced(eth.Unsafe)
+		sys.L2ELB.NotAdvanced(eth.Unsafe, 5)
 		sys.L2ELB.UnsafeHead().NumEqualTo(startNum)
 		// Check FCU returns SYNCING
 		sys.L2ELB.ForkchoiceUpdate(sys.L2EL, targetNum, startNum, startNum, nil).Retry(attempts).ResultAllSyncing()
@@ -95,7 +95,7 @@ func TestCLUnsafeNotRewoundOnInvalidDuringELSync(gt *testing.T) {
 	require.True(ok)
 	sys.L2CLB.PostUnsafePayload(payload)
 	sys.L2CLB.NotAdvanced(types.LocalUnsafe, attempts)
-	sys.L2ELB.NotAdvanced(eth.Unsafe)
+	sys.L2ELB.NotAdvanced(eth.Unsafe, attempts)
 	// EL did not advance
 	sys.L2ELB.UnsafeHead().NumEqualTo(startNum)
 	// CL did not advance
