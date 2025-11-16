@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-
 	var result []byte
 	state := sha3.NewLegacyKeccak256()
 	state.Write([]byte{1, 2, 3})

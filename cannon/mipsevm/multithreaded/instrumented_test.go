@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -66,6 +67,34 @@ func TestInstrumentedState_Claim(t *testing.T) {
 
 		require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
 		require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
+	})
+}
+
+func TestInstrumentedState_Keccak(t *testing.T) {
+	runTestAcrossVms(t, "Keccak", func(t *testing.T, vmFactory VMFactory[*State], goTarget testutil.GoTarget) {
+		state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("keccak", goTarget), CreateInitialState)
+
+		var stdOutBuf, stdErrBuf bytes.Buffer
+		us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
+
+		for i := 0; i < 2000_000; i++ {
+			if us.GetState().GetExited() {
+				break
+			}
+			_, err := us.Step(false)
+			require.NoError(t, err)
+		}
+
+		require.True(t, state.GetExited(), "must complete program")
+		require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+
+		var result []byte
+		keccakState := sha3.NewLegacyKeccak256()
+		keccakState.Write([]byte{1, 2, 3})
+		result = keccakState.Sum(result)
+		expectedStdOut := fmt.Sprintf("keccak program. result=%x\n", result)
+		require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
+		require.Equal(t, "", stdErrBuf.String(), "stderr")
 	})
 }
 

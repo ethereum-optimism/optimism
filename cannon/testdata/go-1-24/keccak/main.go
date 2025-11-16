@@ -1,4 +1,3 @@
-//go:debug decoratemappings=0
 package main
 
 import (
