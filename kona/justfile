@@ -85,4 +85,4 @@ checkout-kona:
 clean:
   #!/usr/bin/env bash
   set -euo pipefail
-  rm -rf "{{KONA_DIR}}/build" "{{KONA_DIR}}/prestates"
+  rm -rf "{{KONA_DIR}}/build" "{{KONA_DIR}}/prestates" "{{KONA_DIR}}/bin"
