@@ -2018,7 +2018,7 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -2029,7 +2029,7 @@ jobs:
           command: just build-kona-host
           working_directory: kona
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona host to cache
           paths:
             - "kona/bin/kona-host"
