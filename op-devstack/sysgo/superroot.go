@@ -233,14 +233,14 @@ func getInteropCannonAbsolutePrestate(t devtest.CommonT) common.Hash {
 }
 
 func getInteropCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t, "KONA_INTEROP_PRESTATE_HASH").InteropPrestateHash
+	return loadKonaVersions(t).InteropPrestateHash
 }
 
 func getCannonKonaAbsolutePrestate(t devtest.CommonT) common.Hash {
-	return loadKonaVersions(t, "KONA_PRESTATE_HASH").PrestateHash
+	return loadKonaVersions(t).PrestateHash
 }
 
-func loadKonaVersions(t devtest.CommonT, name string) konaVersions {
+func loadKonaVersions(t devtest.CommonT) konaVersions {
 	konaVersionPath := "kona/version.json"
 	root, err := findMonorepoRoot(konaVersionPath)
 	t.Require().NoError(err)
@@ -256,7 +256,7 @@ func loadKonaVersions(t devtest.CommonT, name string) konaVersions {
 type konaVersions struct {
 	Version             string      `json:"version"`
 	PrestateHash        common.Hash `json:"prestateHash"`
-	InteropPrestateHash common.Hash `json:"interPrestateHash"`
+	InteropPrestateHash common.Hash `json:"interopPrestateHash"`
 }
 
 func getAbsolutePrestate(t devtest.CommonT, prestatePath string) common.Hash {
