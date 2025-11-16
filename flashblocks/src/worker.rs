@@ -107,6 +107,7 @@ where
         // if the real state root should be computed
         let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
             if args.compute_state_root {
+                trace!(target: "flashblocks", "Computing block state root");
                 builder.finish(&state_provider)?
             } else {
                 builder.finish(NoopProvider::default())?

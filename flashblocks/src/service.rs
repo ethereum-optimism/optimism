@@ -1,5 +1,5 @@
 use crate::{
-    sequence::FlashBlockPendingSequence,
+    sequence::{FlashBlockPendingSequence, SequenceExecutionOutcome},
     worker::{BuildArgs, FlashBlockBuilder},
     FlashBlock, FlashBlockCompleteSequence, FlashBlockCompleteSequenceRx, InProgressFlashBlockRx,
     PendingFlashBlock,
@@ -30,7 +30,8 @@ use tokio::{
 };
 use tracing::{debug, trace, warn};
 
-pub(crate) const FB_STATE_ROOT_FROM_INDEX: usize = 9;
+/// 200 ms flashblock time.
+pub(crate) const FLASHBLOCK_BLOCK_TIME: u64 = 200;
 
 /// The `FlashBlockService` maintains an in-memory [`PendingFlashBlock`] built out of a sequence of
 /// [`FlashBlock`]s.
@@ -60,7 +61,7 @@ pub struct FlashBlockService<
     in_progress_tx: watch::Sender<Option<FlashBlockBuildInfo>>,
     /// `FlashBlock` service's metrics
     metrics: FlashBlockServiceMetrics,
-    /// Enable state root calculation from flashblock with index [`FB_STATE_ROOT_FROM_INDEX`]
+    /// Enable state root calculation
     compute_state_root: bool,
 }
 
@@ -177,10 +178,13 @@ where
             return None
         };
 
+        let Some(latest) = self.builder.provider().latest_header().ok().flatten() else {
+            trace!(target: "flashblocks", "No latest header found");
+            return None
+        };
+
         // attempt an initial consecutive check
-        if let Some(latest) = self.builder.provider().latest_header().ok().flatten() &&
-            latest.hash() != base.parent_hash
-        {
+        if latest.hash() != base.parent_hash {
             trace!(target: "flashblocks", flashblock_parent=?base.parent_hash, flashblock_number=base.block_number, local_latest=?latest.num_hash(), "Skipping non consecutive build attempt");
             return None
         }
@@ -190,9 +194,39 @@ where
             return None
         };
 
-        // Check if state root must be computed
-        let compute_state_root =
-            self.compute_state_root && self.blocks.index() >= Some(FB_STATE_ROOT_FROM_INDEX as u64);
+        // Auto-detect when to compute state root: only if the builder didn't provide it (sent
+        // B256::ZERO) and we're near the expected final flashblock index.
+        //
+        // Background: Each block period receives multiple flashblocks at regular intervals.
+        // The sequencer sends an initial "base" flashblock at index 0 when a new block starts,
+        // then subsequent flashblocks are produced every FLASHBLOCK_BLOCK_TIME intervals (200ms).
+        //
+        // Examples with different block times:
+        // - Base (2s blocks):    expect 2000ms / 200ms = 10 intervals → Flashblocks: index 0 (base)
+        //   + indices 1-10 = potentially 11 total
+        //
+        // - Unichain (1s blocks): expect 1000ms / 200ms = 5 intervals → Flashblocks: index 0 (base)
+        //   + indices 1-5 = potentially 6 total
+        //
+        // Why compute at N-1 instead of N:
+        // 1. Timing variance in flashblock producing time may mean only N flashblocks were produced
+        //    instead of N+1 (missing the final one). Computing at N-1 ensures we get the state root
+        //    for most common cases.
+        //
+        // 2. The +1 case (index 0 base + N intervals): If all N+1 flashblocks do arrive, we'll
+        //    still calculate state root for flashblock N, which sacrifices a little performance but
+        //    still ensures correctness for common cases.
+        //
+        // Note: Pathological cases may result in fewer flashblocks than expected (e.g., builder
+        // downtime, flashblock execution exceeding timing budget). When this occurs, we won't
+        // compute the state root, causing FlashblockConsensusClient to lack precomputed state for
+        // engine_newPayload. This is safe: we still have op-node as backstop to maintain
+        // chain progression.
+        let block_time_ms = (base.timestamp - latest.timestamp()) * 1000;
+        let expected_final_flashblock = block_time_ms / FLASHBLOCK_BLOCK_TIME;
+        let compute_state_root = self.compute_state_root &&
+            last_flashblock.diff.state_root.is_zero() &&
+            self.blocks.index() >= Some(expected_final_flashblock.saturating_sub(1));
 
         Some(BuildArgs {
             base,
@@ -268,8 +302,15 @@ where
             if let Some((now, result)) = result {
                 match result {
                     Ok(Some((new_pending, cached_reads))) => {
-                        // update state root of the current sequence
-                        this.blocks.set_state_root(new_pending.computed_state_root());
+                        // update execution outcome of the current sequence
+                        let execution_outcome =
+                            new_pending.computed_state_root().map(|state_root| {
+                                SequenceExecutionOutcome {
+                                    block_hash: new_pending.block().hash(),
+                                    state_root,
+                                }
+                            });
+                        this.blocks.set_execution_outcome(execution_outcome);
 
                         // built a new pending block
                         this.current = Some(new_pending.clone());
