@@ -86,6 +86,31 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 	}
 }
 
+// WaitUntilTransactionNotFound polls TransactionByHash until the client
+// returns ethereum.NotFound, indicating the EL has finished indexing and
+// the transaction is definitively absent.
+func WaitUntilTransactionNotFound(client *ethclient.Client, hash common.Hash, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		_, err := client.TransactionReceipt(ctx, hash)
+		switch {
+		case err == nil:
+			return fmt.Errorf("tx %s unexpectedly found", hash.Hex())
+		case errors.Is(err, ethereum.NotFound):
+			return nil
+		case strings.Contains(err.Error(), errStrTxIdxingInProgress):
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("timeout waiting for tx indexer to settle: %w", ctx.Err())
+			case <-time.After(100 * time.Millisecond):
+			}
+		default:
+			return fmt.Errorf("unexpected RPC error while waiting for tx not found: %w", err)
+		}
+	}
+}
+
 type waitForBlockOptions struct {
 	noChangeTimeout time.Duration
 	absoluteTimeout time.Duration
