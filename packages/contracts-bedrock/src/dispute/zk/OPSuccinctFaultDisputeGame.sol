@@ -45,6 +45,7 @@ import { AccessManager } from "src/dispute/zk/AccessManager.sol";
 
 /// @title OPSuccinctFaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
+/// @dev Derived from https://github.com/succinctlabs/op-succinct (at commit c13844a9bbc330cca69eef2538d8f8ec123e1653)
 contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     ////////////////////////////////////////////////////////////////
     //                         Enums                              //
