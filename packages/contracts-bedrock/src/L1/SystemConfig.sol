@@ -52,6 +52,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         address l1StandardBridge;
         address optimismPortal;
         address optimismMintableERC20Factory;
+        address delayedWETH;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -83,6 +84,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
     bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
         bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
+
+    /// @notice Storage slot that the DelayedWETH address is stored at.
+    bytes32 public constant DELAYED_WETH_SLOT = bytes32(uint256(keccak256("systemconfig.delayedweth")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
@@ -166,9 +170,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0
+    /// @custom:semver 3.12.0
     function version() public pure virtual returns (string memory) {
-        return "3.11.0";
+        return "3.12.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -228,7 +232,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
-
+        Storage.setAddress(DELAYED_WETH_SLOT, _addresses.delayedWETH);
         _setStartBlock();
 
         _setResourceConfig(_config);
@@ -294,6 +298,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
+    /// @notice Getter for the DelayedWETH address.
+    function delayedWETH() public view returns (address addr_) {
+        addr_ = Storage.getAddress(DELAYED_WETH_SLOT);
+    }
+
     /// @notice Consolidated getter for the Addresses struct.
     function getAddresses() external view returns (Addresses memory) {
         return Addresses({
@@ -301,7 +310,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
             l1ERC721Bridge: l1ERC721Bridge(),
             l1StandardBridge: l1StandardBridge(),
             optimismPortal: optimismPortal(),
-            optimismMintableERC20Factory: optimismMintableERC20Factory()
+            optimismMintableERC20Factory: optimismMintableERC20Factory(),
+            delayedWETH: delayedWETH()
         });
     }
 

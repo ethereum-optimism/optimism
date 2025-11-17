@@ -458,6 +458,13 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+  initialize:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
+    steps:
+      - run:
+          command: echo  "Initializing..."
 
   cannon-go-lint-and-test:
     docker:
@@ -762,6 +769,7 @@ jobs:
             fi
 
             # Let them cook!
+            KONA_VERSION=$(jq -r .version kona/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -967,7 +975,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
@@ -1987,13 +1995,13 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona to cache
           paths:
             - "kona/prestates/"
@@ -2010,7 +2018,7 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -2021,7 +2029,7 @@ jobs:
           command: just build-kona-host
           working_directory: kona
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona host to cache
           paths:
             - "kona/bin/kona-host"
@@ -2804,9 +2812,19 @@ workflows:
       not:
         equal: [scheduled_pipeline, << pipeline.trigger_source >>]
     jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+          filters:
+            tags:
+              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+            branches:
+              ignore: /.*/
       - contracts-bedrock-build:
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
           filters:
             tags:
               only: /^op-deployer.*/ # ensure contract artifacts are embedded in op-deployer binary
@@ -2846,6 +2864,7 @@ workflows:
           context:
             - oplabs-gcr-release
           requires:
+            - initialize
             - contracts-bedrock-build
       # Checks for cross-platform images go here
       - check-cross-platform:
@@ -2897,6 +2916,8 @@ workflows:
               ignore: /.*/
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - publish-cannon-prestates:
           context:
             - circleci-repo-readonly-authenticated-github-token
