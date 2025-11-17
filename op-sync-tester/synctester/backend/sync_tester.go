@@ -556,7 +556,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 			// Cannot validate since EL will fall back to prior eip1559 constants
 			return nil
 		}
-		if !bytes.Equal(block.Extra()[1:], (*attr.EIP1559Params)[:]) {
+		if !bytes.Equal(block.Extra()[1:1+8], (*attr.EIP1559Params)[:]) {
 			return fmt.Errorf("eip1559Params mismatch: %s != 0x%s", *attr.EIP1559Params, hex.EncodeToString(block.Extra()[1:]))
 		}
 	} else {
@@ -572,7 +572,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		if attr.MinBaseFee == nil {
 			return errors.New("jovian enabled but MinBaseFee nil")
 		}
-		minBaseFee := binary.BigEndian.Uint64(block.Extra()[9:])
+		minBaseFee := binary.BigEndian.Uint64(block.Extra()[1+8 : 1+8+8])
 		if minBaseFee != *attr.MinBaseFee {
 			return fmt.Errorf("MinBaseFee mismatch: %d != %d", *attr.MinBaseFee, minBaseFee)
 		}
@@ -580,7 +580,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		// https://github.com/ethereum-optimism/specs/blob/510377c586d0cbede2d40402d2371fcadd5656a0/specs/protocol/jovian/exec-engine.md#minimum-base-fee-in-payloadattributesv3
 		// Spec: The minBaseFee MUST be null prior to the Jovian fork, and MUST be non-null after the Jovian fork.
 		if attr.MinBaseFee != nil {
-			return fmt.Errorf("jovian disabled but MinBaseFee not nil. MinBaseFee: %s", attr.MinBaseFee)
+			return fmt.Errorf("jovian disabled but MinBaseFee not nil. MinBaseFee: %d", attr.MinBaseFee)
 		}
 	}
 	return nil
