@@ -237,6 +237,23 @@ func initAllocType(root string, allocType AllocType) {
 			}
 			if allocType == AllocTypeFastGame {
 				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
+				for _, chain := range intent.Chains {
+					chain.AdditionalDisputeGames = append(chain.AdditionalDisputeGames,
+						state.AdditionalDisputeGame{
+							ChainProofParams: state.ChainProofParams{
+								// Fast game
+								DisputeGameType: 254,
+								// Prestate doesn't matter as there's no time to play the game anyway.
+								DisputeAbsolutePrestate: common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
+								DisputeMaxGameDepth:     14 + 3 + 1,
+								DisputeSplitDepth:       14,
+								DisputeClockExtension:   0,
+								DisputeMaxClockDuration: 1,
+							},
+							VMType:        state.VMTypeAlphabet,
+							MakeRespected: true,
+						})
+				}
 			}
 
 			baseUpgradeSchedule := map[string]any{
@@ -402,19 +419,6 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 				UseRevenueShare:    true,
 				ChainFeesRecipient: common.HexToAddress("0xBcd4042DE499D14e55001CcbB24a551F3b954096"),
 				AdditionalDisputeGames: []state.AdditionalDisputeGame{
-					{
-						ChainProofParams: state.ChainProofParams{
-							// Fast game
-							DisputeGameType:         254,
-							DisputeAbsolutePrestate: defaultPrestate,
-							DisputeMaxGameDepth:     14 + 3 + 1,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 120,
-						},
-						VMType:        state.VMTypeAlphabet,
-						MakeRespected: true,
-					},
 					{
 						ChainProofParams: state.ChainProofParams{
 							// Alphabet game

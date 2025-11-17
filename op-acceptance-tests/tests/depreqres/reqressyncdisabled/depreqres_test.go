@@ -7,24 +7,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func TestUnsafeChainStalling_DisabledReqRespSync(gt *testing.T) {
+func TestUnsafeChainNotStalling_DisabledReqRespSync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNodeWithoutCheck(t)
 	require := t.Require()
 	l := t.Logger()
 
 	l.Info("Confirm that the CL nodes are progressing the unsafe chain")
-	target := uint64(10)
+	delta := uint64(3)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, target, 30),
-		sys.L2CLB.AdvancedFn(types.LocalUnsafe, target, 30),
+		sys.L2CL.AdvancedFn(types.LocalUnsafe, delta, 30),
+		sys.L2CLB.AdvancedFn(types.LocalUnsafe, delta, 30),
 	)
-
-	l.Info("Stop the L2 batcher")
-	sys.L2Batcher.Stop()
 
 	l.Info("Disconnect L2CL from L2CLB, and vice versa")
 	sys.L2CLB.DisconnectPeer(sys.L2CL)
@@ -51,6 +49,9 @@ func TestUnsafeChainStalling_DisabledReqRespSync(gt *testing.T) {
 	sys.L2CLB.ConnectPeer(sys.L2CL)
 	sys.L2CL.ConnectPeer(sys.L2CLB)
 
-	l.Info("Confirm that the unsafe chain for L2CLB is stalled")
-	sys.L2CLB.NotAdvanced(types.LocalUnsafe, 10)
+	l.Info("Confirm that the unsafe chain for L2CLB can advance")
+	dsl.CheckAll(t,
+		sys.L2CLB.AdvancedFn(types.LocalUnsafe, delta, 30),
+		sys.L2ELB.AdvancedFn(eth.Unsafe, delta),
+	)
 }

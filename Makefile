@@ -3,6 +3,8 @@ include ./justfiles/flags.mk
 
 BEDROCK_TAGS_REMOTE?=origin
 OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+KONA_VERSION = 1.2.2
+DOCKER_TARGETS = op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
 
 # Requires at least Python v3.9; specify a minor version below if needed
 PYTHON?=python3
@@ -34,11 +36,12 @@ golang-docker: ## Builds Docker images for Go components using buildx
 	GIT_COMMIT=$$(git rev-parse HEAD) \
 	GIT_DATE=$$(git show -s --format='%ct') \
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	KONA_VERSION=$$(jq -r .version kona/version.json) \
 	docker buildx bake \
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-			op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
+			$(DOCKER_TARGETS)
 .PHONY: golang-docker
 
 docker-builder-clean: ## Removes the Docker buildx builder

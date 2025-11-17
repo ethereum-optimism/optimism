@@ -219,6 +219,13 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  install-zstd:
+    description: "Install zstd compression utility"
+    steps:
+      - run:
+          name: Install zstd
+          command: sudo apt-get update && sudo apt-get install -y zstd=1.4.8*
+
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -290,12 +297,6 @@ commands:
           environment:
             FOUNDRY_PROFILE: ci
 
-  checkout-from-workspace:
-    steps:
-      - attach_workspace:
-          at: "."
-      - utils/install-mise
-
   go-restore-cache:
     parameters:
       # The go module to cache for. If the go module does not come with its own go.mod and go.sum,
@@ -357,16 +358,14 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-      use_circleci_runner:
-        description: Whether to use CircleCI runners (with Docker) instead of self-hosted runners
-        type: boolean
-        default: true
-    machine:
-      image: <<# parameters.use_circleci_runner >>ubuntu-2404:current<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>true<</ parameters.use_circleci_runner >>
-      docker_layer_caching: <<parameters.use_circleci_runner>>
-    resource_class: <<# parameters.use_circleci_runner >>xlarge<</ parameters.use_circleci_runner >><<^ parameters.use_circleci_runner >>ethereum-optimism/latitude-1<</ parameters.use_circleci_runner >>
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+          checkout-method: blobless
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -464,16 +463,13 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - utils/checkout-with-mise
-      - install-contracts-dependencies
-      - persist_to_workspace:
-          root: "."
-          paths:
-            - "."
+      - run:
+          command: echo  "Initializing..."
 
   cannon-go-lint-and-test:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     parameters:
       skip_slow_tests:
         type: boolean
@@ -487,7 +483,10 @@ jobs:
         type: boolean
         default: false
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - run:
@@ -532,10 +531,12 @@ jobs:
                 mentions: "@proofs-team"
 
   diff-asterisc-bytecode:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           name: Check `RISCV.sol` bytecode
           working_directory: packages/contracts-bedrock
@@ -584,7 +585,10 @@ jobs:
         type: string
         default: ci
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - install-zstd
+      - install-contracts-dependencies
       - run:
           name: Print forge version
           command: forge --version
@@ -618,7 +622,8 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
-      - attach_workspace: { at: "." }
+      - attach_workspace:
+          at: .
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
@@ -678,7 +683,8 @@ jobs:
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
@@ -763,6 +769,7 @@ jobs:
             fi
 
             # Let them cook!
+            KONA_VERSION=$(jq -r .version kona/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -903,7 +910,9 @@ jobs:
         type: string
         default: ""
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - install-zstd
       - run:
           name: Check if test list is empty
           command: |
@@ -966,9 +975,11 @@ jobs:
     circleci_ip_ranges: true
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - install-zstd
       - run:
           name: Print dependencies
           command: just dep-status
@@ -1014,7 +1025,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: medium
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           name: Check Python version
           command: python3 --version
@@ -1073,7 +1085,12 @@ jobs:
         type: string
         default: ""
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - install-contracts-dependencies
+      - install-zstd
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1166,7 +1183,11 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise
+      - install-contracts-dependencies
+      - install-zstd
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - install-solc-compilers
@@ -1237,10 +1258,14 @@ jobs:
       - notify-failures-on-develop
 
   contracts-bedrock-checks:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise
+      - install-contracts-dependencies
+      - attach_workspace:
+          at: .
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
@@ -1284,7 +1309,8 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Install ripgrep
           command: sudo apt-get install -y ripgrep
@@ -1309,7 +1335,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1340,7 +1367,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - restore_cache:
           key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
@@ -1388,7 +1416,10 @@ jobs:
     circleci_ip_ranges: true
     parallelism: <<parameters.parallelism>>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - attach_workspace:
+          at: .
       - restore_cache:
           key: go-tests-v2-{{ checksum "go.mod" }}
       - run:
@@ -1444,7 +1475,7 @@ jobs:
       resource_class:
         description: Machine resource class
         type: string
-        default: ethereum-optimism/latitude-1-go-e2e
+        default: 2xlarge
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1460,7 +1491,10 @@ jobs:
     machine: true
     resource_class: <<parameters.resource_class>>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - attach_workspace:
+          at: .
       - run:
           name: build op-program-client
           command: make op-program-client
@@ -1521,7 +1555,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     circleci_ip_ranges: true
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1616,9 +1651,12 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     circleci_ip_ranges: true
-    resource_class: 2xlarge
+    resource_class: 2xlarge+
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - attach_workspace:
+          at: .
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1709,7 +1747,8 @@ jobs:
     resource_class: xlarge
     parallelism: << pipeline.parameters.flake-shake-workers >>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
@@ -1755,7 +1794,8 @@ jobs:
       image: ubuntu-2404:current
     resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - attach_workspace:
           at: .
       - run:
@@ -1805,7 +1845,8 @@ jobs:
       image: ubuntu-2404:current
     resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           name: Lint/Vet/Build op-acceptance-tests/cmd
           working_directory: op-acceptance-tests
@@ -1883,7 +1924,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           name: Install tools
           command: |
@@ -1901,10 +1943,12 @@ jobs:
           working_directory: cannon
 
   cannon-prestate-quick:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
@@ -1931,7 +1975,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Build prestates
@@ -1946,16 +1991,17 @@ jobs:
     machine:
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona to cache
           paths:
             - "kona/prestates/"
@@ -1968,10 +2014,11 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -1982,7 +2029,7 @@ jobs:
           command: just build-kona-host
           working_directory: kona
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona host to cache
           paths:
             - "kona/bin/kona-host"
@@ -1996,7 +2043,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - attach_workspace:
           at: "."
       - gcp-cli/install
@@ -2056,7 +2104,8 @@ jobs:
     machine: true
     resource_class: large
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Verify reproducibility
           command: make -C op-program verify-reproducibility
@@ -2070,7 +2119,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Build cannon
@@ -2137,7 +2187,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - setup_remote_docker
       - run:
           name: Run Analyzer
@@ -2146,10 +2197,12 @@ jobs:
           working_directory: op-program
 
   op-program-compat:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           name: Verify Compatibility
           command: |
@@ -2157,10 +2210,12 @@ jobs:
           working_directory: op-program
 
   check-generated-mocks-op-node:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - check-changed:
           patterns: op-node
       - run:
@@ -2168,10 +2223,12 @@ jobs:
           command: make generate-mocks-op-node && git diff --exit-code
 
   check-generated-mocks-op-service:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - check-changed:
           patterns: op-service
       - run:
@@ -2182,7 +2239,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
       - run:
           command: just check-forge-version
           working_directory: op-deployer
@@ -2192,7 +2250,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
@@ -2220,8 +2279,9 @@ jobs:
       - notify-failures-on-develop
 
   publish-contract-artifacts:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: 2xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
@@ -2229,8 +2289,10 @@ jobs:
           oidc_token_file_path: /tmp/oidc_token.json
           project_id: GCP_TOOLS_ARTIFACTS_PROJECT_ID
           service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - install-contracts-dependencies
+      - install-zstd
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
@@ -2281,7 +2343,9 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: medium
     steps:
-      - checkout-from-workspace
+      - utils/checkout-with-mise:
+         checkout-method: blobless
+      - install-contracts-dependencies
       - run:
           name: Build contracts
           command: |
@@ -2344,7 +2408,8 @@ jobs:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Collect devnet metrics for op-acceptance-tests
           command: |
@@ -2367,7 +2432,8 @@ jobs:
     machine: true
     resource_class: medium
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          checkout-method: blobless
       - run:
           name: Generate flaky acceptance tests report
           command: |
@@ -2400,25 +2466,17 @@ workflows:
             - equal: [true, << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build: # needed for in-process tests that some suites may use
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-prestate-quick: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - op-acceptance-tests-kurtosis:
           name: kurtosis-simple-nightly
           devnet: simple
           gate: base
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2430,7 +2488,6 @@ workflows:
           name: kurtosis-jovian-nightly
           devnet: jovian
           gate: jovian
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2442,7 +2499,6 @@ workflows:
           name: kurtosis-interop-nightly
           devnet: interop
           gate: interop
-          use_circleci_runner: true
           no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2462,17 +2518,12 @@ workflows:
                   "__not_set__",
                 ] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           name: contracts-bedrock-build
           # Build with just core + script contracts.
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - check-kontrol-build:
           requires:
             - contracts-bedrock-build
@@ -2486,8 +2537,6 @@ workflows:
           test_profile: ciheavy
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - contracts-bedrock-tests:
           name: contracts-bedrock-tests <<matrix.dev_features>>
           test_list: find test -name "*.t.sol"
@@ -2500,8 +2549,6 @@ workflows:
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
           check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-coverage:
           # Generate coverage reports.
@@ -2514,8 +2561,6 @@ workflows:
               dev_features: *dev_features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.dev_features>>
           fork_op_chain: op
@@ -2527,8 +2572,6 @@ workflows:
               dev_features: *dev_features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade <<matrix.fork_op_chain>>-mainnet
           fork_op_chain: <<matrix.fork_op_chain>>
@@ -2539,8 +2582,6 @@ workflows:
               fork_op_chain: ["base", "ink", "unichain"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
@@ -2554,13 +2595,9 @@ workflows:
       - op-deployer-forge-version:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
@@ -2576,8 +2613,6 @@ workflows:
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
@@ -2590,8 +2625,6 @@ workflows:
                 - op-chain-ops
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
@@ -2643,13 +2676,9 @@ workflows:
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - op-program-compat:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -2693,13 +2722,10 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
-            - initialize
             - contracts-bedrock-build
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - sanitize-op-program:
           requires:
             - cannon-prestate-quick
@@ -2708,13 +2734,9 @@ workflows:
       - check-generated-mocks-op-node:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - check-generated-mocks-op-service:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2737,14 +2759,6 @@ workflows:
 
   go-release-op-deployer:
     jobs:
-      - initialize:
-          filters:
-            tags:
-              only: /^op-deployer.*/
-            branches:
-              ignore: /.*/
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-deployer
           filters:
@@ -2755,8 +2769,6 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - go-release:
           filters:
             tags:
@@ -2772,14 +2784,6 @@ workflows:
 
   go-release-op-up:
     jobs:
-      - initialize:
-          filters:
-            tags:
-              only: /^op-up.*/
-            branches:
-              ignore: /.*/
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-up
           filters:
@@ -2790,8 +2794,6 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - go-release:
           filters:
             tags:
@@ -2967,14 +2969,9 @@ workflows:
             - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-stf-verify:
           context:
             - slack
@@ -2984,15 +2981,13 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: ethereum-optimism/latitude-fps-1
+          resource_class: large
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -3030,15 +3025,10 @@ workflows:
         - equal: [build_four_hours, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.cannon_full_test_dispatch >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -3056,14 +3046,9 @@ workflows:
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.docker_publish_dispatch >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - docker-build:
           matrix:
             parameters:
@@ -3092,7 +3077,6 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
           requires:
-            - initialize
             - contracts-bedrock-build
       - check-cross-platform:
           matrix:
@@ -3127,20 +3111,13 @@ workflows:
             - equal: [true, << pipeline.parameters.flake-shake-dispatch >>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - op-acceptance-tests-flake-shake:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -3189,20 +3166,13 @@ workflows:
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.sync_test_op_node_dispatch >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build: # needed for sysgo tests
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-prestate-quick: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - op-acceptance-sync-tests-docker:
           name: "sync-test-<<matrix.network_preset>>-daily-<<matrix.l2_cl_syncmode>>"
           gate: sync-test-op-node
@@ -3224,15 +3194,10 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.heavy_fuzz_dispatch >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-heavy-fuzz-nightly:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
 
   # Acceptance tests
   acceptance-tests:
@@ -3244,30 +3209,19 @@ workflows:
             - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build: # needed for sysgo tests
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-prestate-quick: # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-kona-prestate: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       - cannon-kona-host: # needed for sysgo tests (if any package is in-memory)
           context:
             - circleci-repo-readonly-authenticated-github-token
-          requires:
-            - initialize
       # IN-MEMORY (all)
       - op-acceptance-tests:
           name: memory-all
@@ -3324,14 +3278,9 @@ workflows:
         - equal: [build_mon_thu, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.ai_contracts_test_dispatch >>]
     jobs:
-      - initialize:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - ai-contracts-test:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
             - devin-api
             - slack
-          requires:
-            - initialize

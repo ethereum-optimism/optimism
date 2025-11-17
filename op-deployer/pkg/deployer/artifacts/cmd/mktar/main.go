@@ -75,7 +75,7 @@ func main() {
 	}
 	defer f.Close()
 
-	gz, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	gz, err := zstd.NewWriter(f, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(22)))
 	if err != nil {
 		log.Fatalf("create zstd writer: %v", err)
 	}

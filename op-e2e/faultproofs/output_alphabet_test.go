@@ -9,7 +9,6 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -21,7 +20,7 @@ import (
 func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -78,7 +77,7 @@ func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -148,7 +147,7 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -185,7 +184,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()
-		sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+		sys, l1Client := StartFaultDisputeSystem(t)
 		t.Cleanup(sys.Close)
 
 		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
@@ -250,7 +249,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	freeloaderOpts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Mallory, sys.Cfg.L1ChainIDBig())
@@ -314,7 +313,7 @@ func TestOutputAlphabetGame_FreeloaderEarnsNothing(t *testing.T) {
 func TestHighestActedL1BlockMetric(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(config.AllocTypeFastGame))
+	sys, l1Client := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)

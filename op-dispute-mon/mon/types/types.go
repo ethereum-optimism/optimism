@@ -26,7 +26,7 @@ type EnrichedGameData struct {
 	LastUpdateTime        time.Time
 	L1Head                common.Hash
 	L1HeadNum             uint64
-	L2BlockNumber         uint64
+	L2SequenceNumber      uint64
 	RootClaim             common.Hash
 	Status                types.GameStatus
 	MaxClockDuration      uint64

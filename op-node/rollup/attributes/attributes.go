@@ -187,6 +187,7 @@ func (eq *AttributesHandler) onPendingSafeUpdate(ctx context.Context, x engine.P
 		} else {
 			// append to tip otherwise
 			eq.sentAttributes = true
+			eq.log.Debug("emitting build start event", "attributes", eq.attributes)
 			eq.emitter.Emit(ctx, engine.BuildStartEvent{Attributes: eq.attributes})
 		}
 	}

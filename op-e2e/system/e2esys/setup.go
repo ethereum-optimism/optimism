@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -925,12 +926,16 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	// L2Output Submitter
+	respectedGameType := faultTypes.PermissionedGameType
+	if cfg.AllocType == config.AllocTypeFastGame {
+		respectedGameType = faultTypes.FastGameType
+	}
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
 		RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 		DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
 		ProposalInterval:  6 * time.Second,
-		DisputeGameType:   254, // Fast game type
+		DisputeGameType:   uint32(respectedGameType),
 		PollInterval:      500 * time.Millisecond,
 		TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
