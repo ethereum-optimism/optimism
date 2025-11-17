@@ -238,36 +238,41 @@ func setupMockBlockscout(t *testing.T) string {
 	return server.URL
 }
 
-func parseVerifyOutput(output string) (verified, skipped, failed int, err error) {
-	re := regexp.MustCompile(`verified=(\d+)\s+skipped=(\d+)\s+failed=(\d+)`)
+func parseVerifyOutput(output string) (verified, skipped, partiallyVerified, failed int, err error) {
+	re := regexp.MustCompile(`(?:Results|Verification complete).*verified=(\d+).*skipped=(\d+).*partially_verified=(\d+).*failed=(\d+)`)
 	matches := re.FindStringSubmatch(output)
 
-	if len(matches) != 4 {
-		return 0, 0, 0, fmt.Errorf("could not parse verification output")
+	if len(matches) != 5 {
+		return 0, 0, 0, 0, fmt.Errorf("could not parse verification output: expected 'Results' or 'Verification complete' line with verified, skipped, partially_verified, and failed counts")
 	}
 
 	verified, err = strconv.Atoi(matches[1])
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse numVerified: %w", err)
+		return 0, 0, 0, 0, fmt.Errorf("failed to parse numVerified: %w", err)
 	}
 
 	skipped, err = strconv.Atoi(matches[2])
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse numSkipped: %w", err)
+		return 0, 0, 0, 0, fmt.Errorf("failed to parse numSkipped: %w", err)
 	}
 
-	failed, err = strconv.Atoi(matches[3])
+	partiallyVerified, err = strconv.Atoi(matches[3])
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to parse numFailed: %w", err)
+		return 0, 0, 0, 0, fmt.Errorf("failed to parse numPartiallyVerified: %w", err)
 	}
 
-	return verified, skipped, failed, nil
+	failed, err = strconv.Atoi(matches[4])
+	if err != nil {
+		return 0, 0, 0, 0, fmt.Errorf("failed to parse numFailed: %w", err)
+	}
+
+	return verified, skipped, partiallyVerified, failed, nil
 }
 
 func assertVerificationSuccess(t *testing.T, output string) {
-	verified, skipped, failed, err := parseVerifyOutput(output)
+	verified, skipped, partiallyVerified, failed, err := parseVerifyOutput(output)
 	require.NoError(t, err, "Failed to parse verification output")
-	require.GreaterOrEqual(t, verified+skipped, 1, "At least one contract should be verified or skipped")
+	require.GreaterOrEqual(t, verified+skipped+partiallyVerified, 1, "At least one contract should be verified, skipped, or partially verified")
 	require.Equal(t, 0, failed, "No contracts should fail verification")
 
 	lowerOutput := strings.ToLower(output)

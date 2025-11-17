@@ -27,7 +27,10 @@ func NewBlockscoutChecker(verifierUrl string, chainID uint64, logger log.Logger)
 			apiUrl = url
 		}
 	}
+	// Normalize to base URL (remove /api or /api/ if present)
+	apiUrl = strings.TrimSuffix(apiUrl, "/api/")
 	apiUrl = strings.TrimSuffix(apiUrl, "/api")
+	apiUrl = strings.TrimSuffix(apiUrl, "/")
 
 	return &BlockscoutChecker{
 		verifierUrl: verifierUrl,

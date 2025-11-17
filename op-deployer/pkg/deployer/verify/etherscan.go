@@ -75,32 +75,48 @@ func (e *EtherscanChecker) CheckStatus(ctx context.Context, address common.Addre
 		return &VerificationStatus{IsVerified: false, IsFullyVerified: false, IsPartiallyVerified: false}, nil
 	}
 
-	var result struct {
-		Status  string `json:"status"`
-		Message string `json:"message"`
-		Result  []struct {
-			SourceCode string `json:"SourceCode"`
-			ABI        string `json:"ABI"`
-		} `json:"result"`
+	var response struct {
+		Status  string      `json:"status"`
+		Message string      `json:"message"`
+		Result  interface{} `json:"result"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		e.logger.Warn("Failed to parse Etherscan API response", "error", err)
 		return nil, err
 	}
 
-	if result.Status == "0" && strings.Contains(result.Message, "deprecated") {
+	if response.Status == "0" && strings.Contains(response.Message, "deprecated") {
 		e.logger.Warn("Etherscan API returned deprecation message, cannot check verification status via API. Will rely on forge's own verification detection.")
 		return &VerificationStatus{IsVerified: false, IsFullyVerified: false, IsPartiallyVerified: false}, nil
 	}
 
 	isVerified := false
-	if len(result.Result) > 0 {
-		sourceCode := result.Result[0].SourceCode
-		abi := result.Result[0].ABI
+	// Marshal and unmarshal result to handle both string and array cases
+	resultBytes, err := json.Marshal(response.Result)
+	if err != nil {
+		e.logger.Warn("Failed to marshal Etherscan API result", "error", err)
+		return &VerificationStatus{IsVerified: false, IsFullyVerified: false, IsPartiallyVerified: false}, nil
+	}
+
+	var resultArray []struct {
+		SourceCode string `json:"SourceCode"`
+		ABI        string `json:"ABI"`
+	}
+	if err := json.Unmarshal(resultBytes, &resultArray); err == nil && len(resultArray) > 0 {
+		sourceCode := resultArray[0].SourceCode
+		abi := resultArray[0].ABI
 		isVerified = sourceCode != "" &&
 			sourceCode != "{{" &&
 			abi != "" &&
 			abi != "Contract source code not verified"
+	} else {
+		// If unmarshaling as array failed, result might be a string (error case)
+		var resultStr string
+		if err := json.Unmarshal(resultBytes, &resultStr); err == nil {
+			if resultStr == "" || resultStr == "Contract source code not verified" {
+				isVerified = false
+			}
+		}
 	}
 
 	e.logger.Info("Etherscan API verification status", "address", address.Hex(), "is_verified", isVerified)

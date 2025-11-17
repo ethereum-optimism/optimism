@@ -66,6 +66,7 @@ func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
 			}
 			opts.VerifierUrl = url
 		}
+		opts.VerifierUrl = strings.TrimSuffix(opts.VerifierUrl, "/")
 		apiChecker = NewBlockscoutChecker(opts.VerifierUrl, opts.ChainID, opts.Logger)
 	case "custom":
 		apiChecker = NewBlockscoutChecker(opts.VerifierUrl, opts.ChainID, opts.Logger)
@@ -98,16 +99,22 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		"artifactPath", artifactPath,
 		"verifier", v.verifierType)
 
+	var initialStatus *VerificationStatus
 	if v.apiChecker != nil && v.apiChecker.CanCheck() {
 		v.logger.Info("Checking verification status via API before attempting forge verify", "address", address.Hex())
 		status, err := v.apiChecker.CheckStatus(ctx, address)
 		if err != nil {
 			v.logger.Warn("Failed to check verification status via API, proceeding with forge verify", "address", address.Hex(), "error", err)
-		} else if status != nil && status.IsFullyVerified {
-			v.logger.Info("Contract already verified (confirmed via API), skipping forge verify", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
-			return ErrAlreadyVerified
-		} else {
-			v.logger.Info("Contract not verified according to API, proceeding with forge verify", "address", address.Hex())
+		} else if status != nil {
+			initialStatus = status
+			if status.IsFullyVerified {
+				v.logger.Info("Contract already verified (confirmed via API), skipping forge verify", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
+				return ErrAlreadyVerified
+			} else if status.IsPartiallyVerified {
+				v.logger.Info("Contract is partially verified, proceeding with forge verify to attempt full verification", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
+			} else {
+				v.logger.Info("Contract not verified according to API, proceeding with forge verify", "address", address.Hex())
+			}
 		}
 	}
 
@@ -220,6 +227,10 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		}
 
 		if isAlreadyVerified(verifyErr.Error(), output) {
+			// Forge says it's already verified, check API status to distinguish fully vs partially verified
+			if err := v.checkVerificationStatusAfterForgeReport(ctx, address, contractName, initialStatus); err != nil {
+				return err
+			}
 			v.logger.Info("Contract already verified", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
 			return ErrAlreadyVerified
 		}
@@ -252,6 +263,12 @@ func (v *ForgeVerifier) VerifyContractWithConstructorArgs(ctx context.Context, a
 		v.logger.Warn("Contract not yet indexed by block explorer, will retry", "address", address.Hex(), "attempt", attempt+1, "maxRetries", maxRetries)
 	}
 
+	if strings.Contains(output, "is already verified") || strings.Contains(output, "Skipping verification") {
+		if err := v.checkVerificationStatusAfterForgeReport(ctx, address, contractName, initialStatus); err != nil {
+			return err
+		}
+	}
+
 	v.logger.Info("Contract verified successfully", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
 	return nil
 }
@@ -260,6 +277,37 @@ var (
 	ErrAlreadyVerified   = fmt.Errorf("contract already verified")
 	ErrPartiallyVerified = fmt.Errorf("contract is partially verified but cannot be upgraded to full verification")
 )
+
+// checkVerificationStatusAfterForgeReport checks the API status after forge reports "already verified"
+// to distinguish between fully verified and partially verified contracts.
+// It re-checks the API status (as it might have changed) but falls back to initialStatus if the re-check fails.
+func (v *ForgeVerifier) checkVerificationStatusAfterForgeReport(ctx context.Context, address common.Address, contractName string, initialStatus *VerificationStatus) error {
+	var status *VerificationStatus
+	if initialStatus != nil && v.apiChecker != nil && v.apiChecker.CanCheck() {
+		var err error
+		status, err = v.apiChecker.CheckStatus(ctx, address)
+		if err != nil {
+			status = initialStatus
+		}
+	} else if v.apiChecker != nil && v.apiChecker.CanCheck() {
+		var err error
+		status, err = v.apiChecker.CheckStatus(ctx, address)
+		if err != nil {
+			v.logger.Warn("Failed to check verification status via API after forge reported already verified", "address", address.Hex(), "error", err)
+		}
+	}
+
+	if status != nil {
+		if status.IsFullyVerified {
+			v.logger.Info("Contract already verified (confirmed via API)", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
+			return ErrAlreadyVerified
+		} else if status.IsPartiallyVerified {
+			v.logger.Info("Contract is partially verified but forge cannot upgrade to full verification (this is expected behavior per foundry-rs/foundry#8638)", "name", contractName, "address", address.Hex(), "verifier", v.verifierType)
+			return ErrPartiallyVerified
+		}
+	}
+	return nil
+}
 
 func (v *ForgeVerifier) VerifyContracts(ctx context.Context, contracts map[string]common.Address) (verified, skipped, partiallyVerified, failed int, failedContracts, partiallyVerifiedContracts []string) {
 	for contractName, addr := range contracts {
