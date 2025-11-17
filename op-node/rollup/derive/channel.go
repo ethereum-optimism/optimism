@@ -91,8 +91,8 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 		for idx, prunedFrame := range ch.inputs {
 			if idx >= uint64(ch.endFrameNumber) {
 				delete(ch.inputs, idx)
+				ch.size -= frameSize(prunedFrame)
 			}
-			ch.size -= frameSize(prunedFrame)
 		}
 		ch.highestFrameNumber = ch.endFrameNumber
 	}

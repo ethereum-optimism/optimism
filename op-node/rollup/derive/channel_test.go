@@ -98,6 +98,17 @@ func TestFrameValidity(t *testing.T) {
 			sizes:     []uint64{207, 204},
 		},
 		{
+			name: "prune multiple frames after close",
+			frames: []Frame{
+				{ID: id, FrameNumber: 0, IsLast: false, Data: []byte("zero")},
+				{ID: id, FrameNumber: 5, IsLast: false, Data: []byte("five_")},
+				{ID: id, FrameNumber: 10, IsLast: false, Data: []byte("seven__")},
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
+			},
+			shouldErr: []bool{false, false, false, false},
+			sizes:     []uint64{204, 409, 616, 408}, // After pruning: frame0(204) + frame2(204) = 408
+		},
+		{
 			name: "multiple valid frames",
 			frames: []Frame{
 				{ID: id, FrameNumber: 10, Data: []byte("seven__")},
