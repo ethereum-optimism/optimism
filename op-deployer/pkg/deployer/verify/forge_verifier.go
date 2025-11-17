@@ -3,6 +3,7 @@ package verify
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -41,6 +42,13 @@ func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
 	}
 
 	forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
+	if _, err := os.Stat(forgeTomlPath); err != nil {
+		opts.Logger.Warn("foundry.toml not found, checking parent directory", "path", forgeTomlPath)
+		forgeTomlPath = filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "..", "foundry.toml")
+		if _, err := os.Stat(forgeTomlPath); err != nil {
+			return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
+		}
+	}
 	forgeClient, err := forge.NewStandardClient(forgeTomlPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create forge client: %w", err)
