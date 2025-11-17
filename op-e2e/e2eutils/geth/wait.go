@@ -108,7 +108,7 @@ func WaitUntilTransactionNotFound(client *ethclient.Client, hash common.Hash, ti
 			case <-ticker.C:
 			}
 		default:
-			return fmt.Errorf("unexpected RPC error while waiting for tx not found: %w", err)
+			return fmt.Errorf("unexpected error while waiting for tx not found: %w", err)
 		}
 	}
 }
