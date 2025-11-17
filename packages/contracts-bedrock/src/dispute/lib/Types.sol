@@ -130,8 +130,6 @@ library LocalPreimageKey {
 //            `OPSuccinctFaultDisputeGame` Types             //
 ////////////////////////////////////////////////////////////////
 
-/// The game type for the OP Succinct Fault Dispute Game.
-// Eventually will be enshrined in the game type enum.
 uint32 constant OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE = 42;
 
 /// @notice The public values committed to for an OP Succinct aggregation program.
