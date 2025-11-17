@@ -4,6 +4,7 @@ use alloy_primitives::B256;
 use reth_db::DatabaseError;
 use reth_trie::Nibbles;
 use thiserror::Error;
+use tokio::sync::TryLockError;
 
 /// Error type for storage operations
 #[derive(Debug, Error)]
@@ -69,9 +70,9 @@ pub enum OpProofsStorageError {
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(#[from] DatabaseError),
-    /// Other error
-    #[error("Other error: {0}")]
-    Other(eyre::Error),
+    /// Error occurred while trying to acquire a lock.
+    #[error(transparent)]
+    TryLockError(#[from] TryLockError),
 }
 
 impl From<OpProofsStorageError> for DatabaseError {

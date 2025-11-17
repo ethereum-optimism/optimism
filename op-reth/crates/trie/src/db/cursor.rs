@@ -5,7 +5,7 @@ use crate::{
         AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
         MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
     },
-    OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult, OpProofsTrieCursorRO,
+    OpProofsHashedCursorRO, OpProofsStorageResult, OpProofsTrieCursorRO,
 };
 use alloy_primitives::{B256, U256};
 use reth_db::{
@@ -52,35 +52,25 @@ where
         key: T::Key,
     ) -> OpProofsStorageResult<Option<(T::Key, T::Value)>> {
         // First dup with subkey >= max_block_number
-        let seek_res = self
-            .cursor
-            .seek_by_key_subkey(key.clone(), self.max_block_number)
-            .map_err(|e| OpProofsStorageError::Other(e.into()))?;
+        let seek_res = self.cursor.seek_by_key_subkey(key.clone(), self.max_block_number)?;
 
         if let Some(vv) = seek_res {
             if vv.block_number > self.max_block_number {
                 // step back to the last dup < max
-                return self.cursor.prev_dup().map_err(|e| OpProofsStorageError::Other(e.into()));
+                return Ok(self.cursor.prev_dup()?);
             }
             // already at the dup = max
             return Ok(Some((key, vv)))
         }
 
         // No dup >= max ⇒ either key absent or all dups < max. Check if key exists:
-        if self
-            .cursor
-            .seek_exact(key.clone())
-            .map_err(|e| OpProofsStorageError::Other(e.into()))?
-            .is_none()
-        {
+        if self.cursor.seek_exact(key.clone())?.is_none() {
             return Ok(None);
         }
 
         // Key exists ⇒ take last dup (< max).
-        if let Some(vv) =
-            self.cursor.last_dup().map_err(|e| OpProofsStorageError::Other(e.into()))?
-        {
-            return Ok(Some((key, vv)))
+        if let Some(vv) = self.cursor.last_dup()? {
+            return Ok(Some((key, vv)));
         }
         Ok(None)
     }
@@ -108,9 +98,7 @@ where
             }
 
             // Move to next distinct key, or EOF
-            let Some((next_key, _)) =
-                self.cursor.next_no_dup().map_err(|e| OpProofsStorageError::Other(e.into()))?
-            else {
+            let Some((next_key, _)) = self.cursor.next_no_dup()? else {
                 return Ok(None);
             };
 
@@ -124,10 +112,8 @@ where
     /// - Otherwise hop to next distinct key and repeat until we find a live version or hit EOF.
     fn seek(&mut self, start_key: T::Key) -> OpProofsStorageResult<Option<(T::Key, V)>> {
         // Position MDBX at first key >= start_key
-        if let Some((first_key, _)) =
-            self.cursor.seek(start_key).map_err(|e| OpProofsStorageError::Other(e.into()))?
-        {
-            return self.next_live_from(first_key)
+        if let Some((first_key, _)) = self.cursor.seek(start_key)? {
+            return self.next_live_from(first_key);
         }
         Ok(None)
     }
@@ -140,21 +126,15 @@ where
         T::Key: Default,
     {
         // If not positioned, start from the beginning (default key).
-        if self.cursor.current().map_err(|e| OpProofsStorageError::Other(e.into()))?.is_none() {
-            let Some((first_key, _)) = self
-                .cursor
-                .seek(T::Key::default())
-                .map_err(|e| OpProofsStorageError::Other(e.into()))?
-            else {
+        if self.cursor.current()?.is_none() {
+            let Some((first_key, _)) = self.cursor.seek(T::Key::default())? else {
                 return Ok(None);
             };
             return self.next_live_from(first_key);
         }
 
         // Otherwise advance to next distinct key and resume the walk.
-        let Some((next_key, _)) =
-            self.cursor.next_no_dup().map_err(|e| OpProofsStorageError::Other(e.into()))?
-        else {
+        let Some((next_key, _)) = self.cursor.next_no_dup()? else {
             return Ok(None);
         };
         self.next_live_from(next_key)
@@ -207,11 +187,7 @@ where
     }
 
     fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
-        self.inner
-            .cursor
-            .current()
-            .map_err(|e| OpProofsStorageError::Other(e.into()))
-            .map(|opt| opt.map(|(StoredNibbles(n), _)| n))
+        Ok(self.inner.cursor.current().map(|opt| opt.map(|(StoredNibbles(n), _)| n))?)
     }
 }
 
@@ -256,12 +232,9 @@ where
 
     fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
         if let Some(address) = self.hashed_address {
-            return self
-                .inner
-                .cursor
-                .current()
-                .map_err(|e| OpProofsStorageError::Other(e.into()))
-                .map(|opt| opt.and_then(|(k, _)| (k.hashed_address == address).then_some(k.path.0)))
+            return Ok(self.inner.cursor.current().map(|opt| {
+                opt.and_then(|(k, _)| (k.hashed_address == address).then_some(k.path.0))
+            })?);
         }
         Ok(None)
     }
