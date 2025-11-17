@@ -29,7 +29,6 @@ func TestExecuteStep_Cannon(gt *testing.T) {
 
 func TestExecuteStep_CannonKona(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	t.Skip("kona doesn't yet support ws URLs")
 	sys := presets.NewMinimal(t)
 
 	l1User := sys.FunderL1.NewFundedEOA(eth.ThousandEther)

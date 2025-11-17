@@ -91,7 +91,7 @@ func GetMipsVersionTestCases(t require.TestingT) []VersionedVMTestCase {
 			goTarget := testutil.Go1_23
 			features := versions.FeaturesForVersion(version)
 			if features.SupportWorkingSysGetRandom {
-				goTarget = testutil.Go1_24
+				goTarget = testutil.Go1_25
 			}
 			cases = append(cases, GetMultiThreadedTestCase(t, version, goTarget))
 		}

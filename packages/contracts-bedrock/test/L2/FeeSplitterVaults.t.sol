@@ -52,9 +52,8 @@ contract FeeSplitterVaults_Receive_Test is Test {
                 }
 
                 vm.prank(_selectedVault);
-                assembly {
-                    pop(call(gas(), sload(feeSplitter.slot), _amount, 0, 0, 0, 0))
-                }
+                (bool success,) = payable(address(feeSplitter)).call{ value: _amount }("");
+                require(success, "FeeSplitterVaults_Test: call failed");
             }
         }
     }
