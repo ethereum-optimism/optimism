@@ -100,7 +100,7 @@ type DriverSetup struct {
 type BatchSubmitter struct {
 	DriverSetup
 
-	wg                               *sync.WaitGroup
+	wg                               sync.WaitGroup
 	shutdownCtx, killCtx             context.Context
 	cancelShutdownCtx, cancelKillCtx context.CancelFunc
 
@@ -154,7 +154,6 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
 	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
 	l.clearState(l.shutdownCtx)
-	l.wg = &sync.WaitGroup{}
 
 	if err := l.waitForL2Genesis(); err != nil {
 		return fmt.Errorf("error waiting for L2 genesis: %w", err)
@@ -178,15 +177,15 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
 	if l.Config.ThrottleParams.LowerThreshold > 0 {
 		l.wg.Add(1)
-		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
+		go l.throttlingLoop(unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
 		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
-	go l.receiptsLoop(l.wg, receiptsCh)                            // ranges over receiptsCh channel
-	go l.publishingLoop(l.killCtx, l.wg, receiptsCh)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
-	go l.blockLoadingLoop(l.shutdownCtx, l.wg, unsafeBytesUpdated) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
+	go l.receiptsLoop(receiptsCh)                            // ranges over receiptsCh channel
+	go l.publishingLoop(l.killCtx, receiptsCh)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
+	go l.blockLoadingLoop(l.shutdownCtx, unsafeBytesUpdated) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
 
 	l.Log.Info("Batch Submitter started")
 	return nil
@@ -487,9 +486,9 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 // -  waits for a signal that blocks have been loaded
 // -  drives the creation of channels and frames
 // -  sends transactions to the DA layer
-func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef]) {
+func (l *BatchSubmitter) publishingLoop(ctx context.Context, receiptsCh chan txmgr.TxReceipt[txRef]) {
 	defer close(receiptsCh)
-	defer wg.Done()
+	defer l.wg.Done()
 
 	daGroup := &errgroup.Group{}
 	// errgroup with limit of 0 means no goroutine is able to run concurrently,
@@ -524,12 +523,12 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 // -  polls the sequencer,
 // -  prunes the channel manager state (i.e. safe blocks)
 // -  loads unsafe blocks from the sequencer
-func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
+func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, unsafeBytesUpdated chan int64) {
 	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
 	defer close(unsafeBytesUpdated)
 	defer close(l.publishSignal)
-	defer wg.Done()
+	defer l.wg.Done()
 	for {
 		select {
 		case <-ticker.C:
@@ -565,8 +564,8 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 }
 
 // receiptsLoop handles transaction receipts from the DA layer
-func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef]) {
-	defer wg.Done()
+func (l *BatchSubmitter) receiptsLoop(receiptsCh chan txmgr.TxReceipt[txRef]) {
+	defer l.wg.Done()
 	l.Log.Info("Starting receipts processing loop")
 	for r := range receiptsCh {
 
@@ -673,8 +672,8 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
 // and fans out the unsafe bytes updates to each endpoint
-func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
-	defer wg.Done()
+func (l *BatchSubmitter) throttlingLoop(unsafeBytesUpdated chan int64) {
+	defer l.wg.Done()
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
 		"lower_threshold", l.Config.ThrottleParams.LowerThreshold,

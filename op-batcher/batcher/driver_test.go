@@ -254,17 +254,17 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 
 			// Test the throttling loop
 			pendingBytesUpdated := make(chan int64, 1)
-			wg1 := sync.WaitGroup{}
-			wg1.Add(1)
 
 			// Start throttling loop in a goroutine
-			go bs.throttlingLoop(&wg1, pendingBytesUpdated)
+			bs.wg.Add(1)
+			go bs.throttlingLoop(pendingBytesUpdated)
 
 			// Simulate block loading by sending periodically on pendingBytesUpdated
-			wg2 := sync.WaitGroup{}
+			wg := sync.WaitGroup{}
+			wg.Add(1)
 			blockLoadingCtx, cancelBlockLoading := context.WithCancel(context.Background())
 			go func() {
-				defer wg2.Done()
+				defer wg.Done()
 				// Simulate block loading
 				for range time.NewTicker(100 * time.Millisecond).C {
 					select {
@@ -277,13 +277,12 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 				}
 
 			}()
-			wg2.Add(1)
 
 			t.Cleanup(func() {
 				cancelBlockLoading()
-				wg2.Wait()
+				wg.Wait()
 				close(pendingBytesUpdated)
-				wg1.Wait()
+				bs.wg.Wait()
 				cancel()
 			})
 
