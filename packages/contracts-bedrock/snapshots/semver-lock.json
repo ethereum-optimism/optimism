@@ -201,7 +201,7 @@
   },
   "src/dispute/zk/OPSuccinctFaultDisputeGame.sol:OPSuccinctFaultDisputeGame": {
     "initCodeHash": "0x3aaf0f66a7c43d382899278a5ad06d8dbe1011d6220c16fe62fe8cab116b772d",
-    "sourceCodeHash": "0x6bbebe75e30a77a94b4eb05fec3ad99b2f4a411e87d326a883bccaac477c46dd"
+    "sourceCodeHash": "0xfb27701509a019f09df3861e24ceffc760a7a7962937ba48af980714a51ce998"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x2e0ef4c341367eb59cc6c25190c64eff441d3fe130189da91d4d126f6bdbc9b5",
