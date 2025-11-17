@@ -17,6 +17,7 @@ type contractArtifact struct {
 	EVMVersion      string
 	Sources         map[string]SourceContent
 	ConstructorArgs abi.Arguments
+	InitBytecode    []byte
 }
 
 // Map state.json struct fields to forge artifact paths
@@ -97,5 +98,6 @@ func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
 		EVMVersion:      art.Metadata.Settings.EVMVersion,
 		Sources:         sources,
 		ConstructorArgs: art.ABI.Constructor.Inputs,
+		InitBytecode:    []byte(art.Bytecode.Object),
 	}, nil
 }

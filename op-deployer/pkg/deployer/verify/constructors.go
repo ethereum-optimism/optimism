@@ -11,15 +11,11 @@ import (
 )
 
 func (v *Verifier) getConstructorArgs(ctx context.Context, address common.Address, artifact *contractArtifact) (string, error) {
-	argSlots := 0
-	for _, arg := range artifact.ConstructorArgs {
-		argSlots += calculateTypeSlots(arg.Type)
-	}
-	if argSlots == 0 {
+	if len(artifact.ConstructorArgs) == 0 {
 		return "", nil
 	}
 
-	v.log.Info("Extracting constructor args from initcode", "address", address.Hex(), "argSlots", argSlots)
+	v.log.Info("Extracting constructor args from initcode", "address", address.Hex())
 	txHash, err := v.etherscan.getContractCreation(address)
 	if err != nil {
 		return "", fmt.Errorf("failed to get contract creation tx: %w", err)
@@ -35,10 +31,28 @@ func (v *Verifier) getConstructorArgs(ctx context.Context, address common.Addres
 		return "", fmt.Errorf("transaction is still pending")
 	}
 
-	// tx.Data contains bytecode + constructor args, so we strip the
-	// constructor args off of the end
-	txInput := hex.EncodeToString(tx.Data())
-	constructorArgs := txInput[len(txInput)-(argSlots*64):]
+	// tx.Data contains init bytecode + constructor args.
+	txInputHex := hex.EncodeToString(tx.Data())
+	initHex := hex.EncodeToString(artifact.InitBytecode)
+
+	if len(initHex) > len(txInputHex) {
+		return "", fmt.Errorf("transaction input shorter than init bytecode")
+	}
+	if !strings.HasPrefix(txInputHex, initHex) {
+		return "", fmt.Errorf("transaction input does not start with artifact init code; cannot extract constructor args")
+	}
+
+	constructorArgs := txInputHex[len(initHex):]
+
+	// Optional sanity check: attempt to decode the args; if it fails, surface error.
+	if _, err := abi.NewType("tuple", "", nil); err == nil { // keep import usage stable
+		if decoded, decErr := hex.DecodeString(constructorArgs); decErr == nil {
+			if _, unpackErr := artifact.ConstructorArgs.Unpack(decoded); unpackErr != nil {
+				return "", fmt.Errorf("failed to decode constructor args with ABI: %w", unpackErr)
+			}
+		}
+	}
+
 	v.log.Info("Successfully extracted constructor args", "address", address.Hex())
 
 	return constructorArgs, nil
