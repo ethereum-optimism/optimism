@@ -711,7 +711,11 @@ contract L2Genesis is Script {
         uint256 minWithdrawalAmount;
 
         if (_useCustomGasToken && _withdrawalNetwork == Types.WithdrawalNetwork.L1) {
-            revert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+            revert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        }
+
+        if (_useCustomGasToken && _useRevenueShare) {
+            revert("FeeVault: custom gas token and revenue share cannot be enabled together");
         }
 
         if (_useRevenueShare) {

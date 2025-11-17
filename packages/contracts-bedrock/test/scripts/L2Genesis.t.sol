@@ -398,7 +398,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_sequencerVault_reverts() external {
         _setInputCGTEnabled();
         input.sequencerFeeVaultWithdrawalNetwork = 0;
-        vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        vm.expectRevert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
     }
 
@@ -406,7 +406,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_baseFeeVault_reverts() external {
         _setInputCGTEnabled();
         input.baseFeeVaultWithdrawalNetwork = 0;
-        vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        vm.expectRevert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
     }
 
@@ -414,7 +414,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     function test_cgt_l1FeeVault_reverts() external {
         _setInputCGTEnabled();
         input.l1FeeVaultWithdrawalNetwork = 0;
-        vm.expectRevert("SequencerFeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        vm.expectRevert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
         genesis.run(input);
     }
 
@@ -423,6 +423,14 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         _setInputCGTEnabled();
         input.nativeAssetLiquidityAmount = uint256(type(uint248).max) + 1;
         vm.expectRevert("L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that enabling both CGT and revenue share reverts.
+    function test_cgt_and_revenueShare_reverts() external {
+        _setInputCGTEnabled();
+        input.useRevenueShare = true;
+        vm.expectRevert("FeeVault: custom gas token and revenue share cannot be enabled together");
         genesis.run(input);
     }
 }
