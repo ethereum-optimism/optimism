@@ -11,7 +11,46 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/log"
 )
+
+func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed int, partiallyVerifiedContracts, failedContracts map[string][]string) {
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	logger.Info("Verification Summary")
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	logger.Info("Results", "verified", verified, "skipped", skipped, "partially_verified", partiallyVerified, "failed", failed)
+
+	if len(partiallyVerifiedContracts) > 0 {
+		logger.Info("Partially verified contracts by verifier (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638):")
+		for verifier, contracts := range partiallyVerifiedContracts {
+			logger.Info(fmt.Sprintf("  %s:", verifier))
+			for _, contract := range contracts {
+				logger.Info(fmt.Sprintf("    - %s", contract))
+			}
+		}
+	}
+
+	if len(failedContracts) > 0 {
+		logger.Warn("Failed contracts by verifier:")
+		for verifier, contracts := range failedContracts {
+			logger.Warn(fmt.Sprintf("  %s:", verifier))
+			for _, contract := range contracts {
+				logger.Warn(fmt.Sprintf("    - %s", contract))
+			}
+		}
+	}
+
+	if failed > 0 {
+		logger.Warn(fmt.Sprintf("Failed to verify %d contracts", failed))
+	} else if partiallyVerified > 0 && verified == 0 && skipped == 0 {
+		logger.Info("All contracts are partially verified (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638)")
+	} else if skipped > 0 {
+		logger.Info("All contracts verified or already verified")
+	} else {
+		logger.Info("All contracts verified successfully")
+	}
+	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+}
 
 func VerifyCLI(cliCtx *cli.Context) error {
 	logCfg := oplog.ReadCLIConfig(cliCtx)
@@ -86,8 +125,10 @@ func VerifyCLI(cliCtx *cli.Context) error {
 
 	totalVerified := 0
 	totalSkipped := 0
+	totalPartiallyVerified := 0
 	totalFailed := 0
 	allFailedContracts := make(map[string][]string)
+	allPartiallyVerifiedContracts := make(map[string][]string)
 
 	for _, vt := range verifiers {
 		l.Info("Verifying contracts", "verifier", vt)
@@ -107,8 +148,8 @@ func VerifyCLI(cliCtx *cli.Context) error {
 			continue
 		}
 
-		var numVerified, numSkipped, numFailed int
-		var failedContracts []string
+		var numVerified, numSkipped, numPartiallyVerified, numFailed int
+		var failedContracts, partiallyVerifiedContracts []string
 
 		if contractName != "" {
 			addr, ok := bundle[contractName]
@@ -121,48 +162,36 @@ func VerifyCLI(cliCtx *cli.Context) error {
 				numVerified++
 			} else if err == ErrAlreadyVerified {
 				numSkipped++
+			} else if err == ErrPartiallyVerified {
+				numPartiallyVerified++
+				partiallyVerifiedContracts = append(partiallyVerifiedContracts, contractName)
 			} else {
 				numFailed++
 				failedContracts = append(failedContracts, contractName)
 			}
 		} else {
-			numVerified, numSkipped, numFailed, failedContracts = v.VerifyContracts(ctx, bundle)
+			numVerified, numSkipped, numPartiallyVerified, numFailed, failedContracts, partiallyVerifiedContracts = v.VerifyContracts(ctx, bundle)
 		}
 
-		l.Info("Verification complete", "verifier", vt, "verified", numVerified, "skipped", numSkipped, "failed", numFailed)
+		l.Info("Verification complete", "verifier", vt, "verified", numVerified, "skipped", numSkipped, "partially_verified", numPartiallyVerified, "failed", numFailed)
 
 		totalVerified += numVerified
 		totalSkipped += numSkipped
+		totalPartiallyVerified += numPartiallyVerified
 		totalFailed += numFailed
 
 		if numFailed > 0 {
 			allFailedContracts[vt] = failedContracts
 		}
-	}
-
-	l.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	l.Info("Verification Summary")
-	l.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	l.Info("Results", "verified", totalVerified, "skipped", totalSkipped, "failed", totalFailed)
-
-	if len(allFailedContracts) > 0 {
-		l.Warn("Failed contracts by verifier:")
-		for verifier, contracts := range allFailedContracts {
-			l.Warn(fmt.Sprintf("  %s:", verifier))
-			for _, contract := range contracts {
-				l.Warn(fmt.Sprintf("    - %s", contract))
-			}
+		if numPartiallyVerified > 0 {
+			allPartiallyVerifiedContracts[vt] = partiallyVerifiedContracts
 		}
 	}
 
+	printVerificationSummary(l, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, allPartiallyVerifiedContracts, allFailedContracts)
+
 	if totalFailed > 0 {
-		l.Warn(fmt.Sprintf("Failed to verify %d contracts", totalFailed))
 		return fmt.Errorf("failed to verify %d contracts", totalFailed)
-	} else if totalSkipped > 0 {
-		l.Info("All contracts verified or already verified")
-	} else {
-		l.Info("All contracts verified successfully")
 	}
-	l.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	return nil
 }

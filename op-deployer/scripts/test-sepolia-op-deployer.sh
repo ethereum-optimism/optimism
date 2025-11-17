@@ -311,7 +311,7 @@ case "$DEPLOY_TYPE" in
         INTENT_TYPE="standard"
         
         if [ -d "$OUTPUT_DIR" ]; then
-            IMPL_FILE=$(ls -t "$OUTPUT_DIR"/sepolia-implementations-*.json 2>/dev/null | head -n 1)
+            IMPL_FILE=$(find "$OUTPUT_DIR" -maxdepth 1 -name "sepolia-implementations-*.json" -type f -printf '%T@\t%p\n' 2>/dev/null | sort -rn | head -n 1 | cut -f2-)
             if [ -n "$IMPL_FILE" ] && [ -f "$IMPL_FILE" ]; then
                 OPCM_ADDRESS=$(jq -r '.opcmAddress // .OPCMAddress // empty' "$IMPL_FILE" 2>/dev/null)
                 if [ -n "$OPCM_ADDRESS" ] && [ "$OPCM_ADDRESS" != "null" ] && [ "$OPCM_ADDRESS" != "" ]; then

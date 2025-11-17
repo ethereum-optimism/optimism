@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -40,10 +39,6 @@ func cwd() string {
 		return ""
 	}
 	return dir
-}
-
-func DefaultCacheDir() string {
-	return flags.DefaultCacheDir()
 }
 
 func CreateCacheDir(cacheDir string) error {

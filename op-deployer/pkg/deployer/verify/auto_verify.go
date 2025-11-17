@@ -16,7 +16,6 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 		verifiers[i] = strings.TrimSpace(verifiers[i])
 	}
 
-	// Right now we only support one api key for all the verifiers, would need to change this in the future
 	needsAPIKey := false
 	for _, verifierType := range verifiers {
 		if verifierType == "etherscan" {
@@ -45,8 +44,10 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 
 	totalVerified := 0
 	totalSkipped := 0
+	totalPartiallyVerified := 0
 	totalFailed := 0
 	allFailedContracts := make(map[string][]string)
+	allPartiallyVerifiedContracts := make(map[string][]string)
 
 	for _, verifierType := range verifiers {
 		logger.Info("Verifying contracts", "verifier", verifierType)
@@ -66,39 +67,28 @@ func AutoVerify(ctx context.Context, logger log.Logger, rpcUrl string, chainID u
 			continue
 		}
 
-		numVerified, numSkipped, numFailed, failedContracts := v.VerifyContracts(ctx, bundle)
-		logger.Info("Verification complete", "verifier", verifierType, "verified", numVerified, "skipped", numSkipped, "failed", numFailed)
+		numVerified, numSkipped, numPartiallyVerified, numFailed, failedContracts, partiallyVerifiedContracts := v.VerifyContracts(ctx, bundle)
+		logger.Info("Verification complete", "verifier", verifierType, "verified", numVerified, "skipped", numSkipped, "partially_verified", numPartiallyVerified, "failed", numFailed)
 
 		totalVerified += numVerified
 		totalSkipped += numSkipped
+		totalPartiallyVerified += numPartiallyVerified
 		totalFailed += numFailed
 
 		if numFailed > 0 {
 			allFailedContracts[verifierType] = failedContracts
 		}
+		if numPartiallyVerified > 0 {
+			allPartiallyVerifiedContracts[verifierType] = partiallyVerifiedContracts
+		}
 	}
 
-	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	logger.Info("Verification Summary")
-	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	logger.Info("Results", "verified", totalVerified, "skipped", totalSkipped, "failed", totalFailed)
+	printVerificationSummary(logger, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, allPartiallyVerifiedContracts, allFailedContracts)
 
 	if len(allFailedContracts) > 0 {
-		logger.Warn("Failed contracts by verifier:")
-		for verifierType, contracts := range allFailedContracts {
-			logger.Warn(fmt.Sprintf("  %s:", verifierType))
-			for _, contract := range contracts {
-				logger.Warn(fmt.Sprintf("    - %s", contract))
-			}
-		}
 		logger.Warn("Deployment succeeded but verification incomplete")
 		logger.Warn("You can retry verification later using: op-deployer verify --input-file <state-file>")
-	} else if totalSkipped > 0 {
-		logger.Info("All contracts verified or already verified")
-	} else {
-		logger.Info("All contracts verified successfully")
 	}
-	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -145,8 +146,19 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		return nil
 	}
 
-	if outfile == "" {
-		return nil
+	verifyFile := outfile
+	if verifyFile == "" || verifyFile == "-" {
+		tmpFile, err := os.CreateTemp("", "op-deployer-superchain-*.json")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file for verification: %w", err)
+		}
+		tmpPath := tmpFile.Name()
+		tmpFile.Close()
+		defer os.Remove(tmpPath)
+		verifyFile = tmpPath
+		if err := jsonutil.WriteJSON(dso, ioutil.ToBasicFile(tmpPath, 0o644)); err != nil {
+			return fmt.Errorf("failed to write temp file for verification: %w", err)
+		}
 	}
 
 	chainID, err := deployer.ChainIDFromRPC(ctx, l1RPCUrl)
@@ -159,7 +171,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		l,
 		l1RPCUrl,
 		chainID.Uint64(),
-		outfile,
+		verifyFile,
 		cfg.ArtifactsLocator,
 		cliCtx.String(deployer.VerifierTypeFlagName),
 		cliCtx.String(deployer.VerifierUrlFlagName),
