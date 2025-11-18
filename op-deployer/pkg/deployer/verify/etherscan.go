@@ -55,7 +55,7 @@ func (e *EtherscanChecker) CheckStatus(ctx context.Context, address common.Addre
 	baseURL := "https://api.etherscan.io/v2/api"
 	checkUrl := fmt.Sprintf("%s?chainid=%d&module=contract&action=getsourcecode&address=%s&apikey=%s", baseURL, e.chainID, address.Hex(), e.apiKey)
 
-	e.logger.Info("Checking Etherscan verification status via V2 API", "url", checkUrl)
+	e.logger.Debug("Checking Etherscan verification status via V2 API", "url", checkUrl)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", checkUrl, nil)
 	if err != nil {

@@ -67,7 +67,7 @@ func getBlockscoutAPIEndpoint(l1ChainID uint64) (string, error) {
 func (b *BlockscoutChecker) CheckStatus(ctx context.Context, address common.Address) (*VerificationStatus, error) {
 	checkUrl := fmt.Sprintf("%s/api/v2/smart-contracts/%s", b.apiUrl, address.Hex())
 
-	b.logger.Info("Checking Blockscout verification status via API", "url", checkUrl)
+	b.logger.Debug("Checking Blockscout verification status via API", "url", checkUrl)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", checkUrl, nil)
 	if err != nil {
