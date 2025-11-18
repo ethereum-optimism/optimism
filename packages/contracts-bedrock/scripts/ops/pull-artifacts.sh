@@ -20,7 +20,7 @@ download_and_extract() {
   local archive_name=$1
 
   echoerr "> Downloading..."
-  curl -o "$archive_name" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name"
+  curl --fail --location --connect-timeout 30 --max-time 300 --tlsv1.2 -o "$archive_name" "https://storage.googleapis.com/oplabs-contract-artifacts/$archive_name"
   echoerr "> Done."
 
   echoerr "> Cleaning up existing artifacts..."
@@ -31,9 +31,9 @@ download_and_extract() {
 
   echoerr "> Extracting artifacts..."
   if [[ "$archive_name" == *.tar.zst ]]; then
-    zstd -dc "$archive_name" | tar -xf - --exclude='*../*'
+    zstd -dc "$archive_name" | tar -xf - --exclude='*..*'
   else
-    tar -xzvf "$archive_name" --exclude='*../*'
+    tar -xzvf "$archive_name" --exclude='*..*'
   fi
   echoerr "> Done."
 
