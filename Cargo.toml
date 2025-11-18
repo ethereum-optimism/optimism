@@ -26,7 +26,7 @@ sha2 = { version = "0.10", default-features = false }
 backoff = "0.4.0"
 
 # Reth deps
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.2" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.9.3" }
 
 # Alloy libraries
 alloy-rpc-types-engine = "1.0.41"
