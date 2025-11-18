@@ -45,8 +45,14 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          routeBasePath: '/',
+          path: 'user-docs',
+          routeBasePath: 'user-docs',
           sidebarPath: './sidebars.js',
+          versions: {
+            current: {
+              label: 'v1.0.0',
+            },
+          },
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           // editUrl:
@@ -86,18 +92,20 @@ const config = {
           src: 'img/boba_B.png',
         },
         items: [
-          {
-            type: 'docSidebar',
-            sidebarId: 'tutorialSidebar',
-            position: 'left',
-            label: 'Docs',
-          },
-          // {to: '/blog', label: 'Blog', position: 'left'},
-          {
-            href: 'https://github.com/bobanetwork',
-            label: 'GitHub',
-            position: 'right',
-          },
+          { to: 'user-docs/index', label: 'User', position: 'left' },
+          { to: 'dev-docs/index', label: 'Developer', position: 'left' },
+          // {
+          //   type: 'docSidebar',
+          //   sidebarId: 'tutorialSidebar',
+          //   position: 'left',
+          //   label: 'Docs',
+          // },
+          // // {to: '/blog', label: 'Blog', position: 'left'},
+          // {
+          //   href: 'https://github.com/bobanetwork',
+          //   label: 'GitHub',
+          //   position: 'right',
+          // },
         ],
       },
       footer: {
