@@ -45,9 +45,6 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", sys.L2Chain.String()))
 	defer span.End()
 
-	doneListening := make(chan struct{})
-	output := make(chan []byte, 100)
-
 	// Drive a couple blocks on the test sequencer so the faucet L2 funding tx has a chance to land before we rely on it.
 	driveViaTestSequencer(t, sys, 2)
 
@@ -55,11 +52,15 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	bob := sys.Wallet.NewEOA(sys.L2EL)
 	bobAddress := bob.Address().Hex()
 
-	// flashblocks listener
+	// flashblocks listener - start goroutine and wait for it to be running
 	flashblocksClient := sys.L2RollupBoost.FlashblocksClient()
+	output := make(chan []byte, 100)
+	doneListening := make(chan struct{})
 	go func() {
-		err := flashblocksClient.ListenFor(ctx, logger, 20*time.Second, output, doneListening)
-		t.Require().NoError(err, "failed to listen for flashblocks")
+		err := flashblocksClient.ReadAll(ctx, logger.With("stream_source", "rollup-boost"), 20*time.Second, output, doneListening)
+		if err != nil {
+			t.Require().NoError(err, "failed to listen for flashblocks")
+		}
 	}()
 
 	var executedTransaction *txplan.PlannedTx
