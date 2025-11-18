@@ -26,6 +26,10 @@ contract RevenueSharingIntegration_Test is CommonTest {
     event FundsReceived(address indexed sender, uint256 amount, uint256 newBalance);
 
     function setUp() public override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
@@ -135,8 +139,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
     // | 0/0/0/0          | 2.5          | 205.55       | Accumulating                   |
     // |__________________|______________|______________|________________________________|
     function test_revenueSharing_fullFlow_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         // Configure vaults to withdraw to FeeSplitter
         _configureVaultsForFeeSplitter();
 
@@ -256,8 +258,6 @@ contract RevenueSharingIntegration_Test is CommonTest {
     )
         public
     {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         // Bound inputs to prevent overflow and ensure reasonable test ranges
         _sequencerFees = bound(_sequencerFees, 0, 100 ether);
         _baseFees = bound(_baseFees, 0, 100 ether);

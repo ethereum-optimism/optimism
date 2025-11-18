@@ -215,10 +215,12 @@ contract FeeSplitter_Invariant is CommonTest {
 
     /// @notice Setup: enable the revenue share, deploy handlers and target them.
     function setUp() public override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         super.enableRevenueShare();
         super.setUp();
-
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
 
         disburser = new FeeSplitter_Disburser(vm, feeSplitter, l1Withdrawer);
         preconditions = new FeeSplitter_Preconditions();

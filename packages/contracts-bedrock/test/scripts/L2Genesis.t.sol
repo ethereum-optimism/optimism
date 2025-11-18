@@ -427,7 +427,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     }
 
     /// @notice Tests that enabling both CGT and revenue share reverts.
-    function test_cgt_and_revenueShare_reverts() external {
+    function test_cgt_revenueShare_reverts() external {
         _setInputCGTEnabled();
         input.useRevenueShare = true;
         vm.expectRevert("FeeVault: custom gas token and revenue share cannot be enabled together");

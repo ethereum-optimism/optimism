@@ -26,6 +26,10 @@ contract L1Withdrawer_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
@@ -76,8 +80,6 @@ contract L1Withdrawer_Receive_Test is L1Withdrawer_TestInit {
     }
 
     function testFuzz_receive_atOrAboveThreshold_succeeds(uint256 _sendAmount) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         _sendAmount = bound(_sendAmount, minWithdrawalAmount, type(uint256).max);
 
         vm.deal(address(this), _sendAmount);
@@ -105,8 +107,6 @@ contract L1Withdrawer_Receive_Test is L1Withdrawer_TestInit {
     }
 
     function testFuzz_receive_multipleDeposits_succeeds(uint256 _firstAmount, uint256 _secondAmount) external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
-
         // First amount should not exceed minWithdrawalAmount (so it doesn't trigger withdrawal)
         _firstAmount = bound(_firstAmount, 0, minWithdrawalAmount - 1);
 

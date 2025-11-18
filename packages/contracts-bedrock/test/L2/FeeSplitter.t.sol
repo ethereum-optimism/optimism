@@ -13,6 +13,7 @@ import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -41,6 +42,10 @@ contract FeeSplitter_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
