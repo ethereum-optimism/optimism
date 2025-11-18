@@ -33,3 +33,5 @@ contract OperatorFeeVault_Version_Test is CommonTest {
         SemverComp.parse(operatorFeeVault.version());
     }
 }
+
+// Test artifact fallback logic
