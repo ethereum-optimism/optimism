@@ -13,7 +13,6 @@ import (
 type GoTarget string
 
 const (
-	Go1_23 GoTarget = "go-1-23"
 	Go1_24 GoTarget = "go-1-24"
 	Go1_25 GoTarget = "go-1-25"
 )

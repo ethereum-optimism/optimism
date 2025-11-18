@@ -42,7 +42,7 @@ elf:
 	make -C ./testdata elf
 
 elf-go-current:
-	make -C ./testdata/go-1-23 elf
+	make -C ./testdata/go-1-24 elf
 
 sanitize-program:
 	mips-linux-gnu-objdump -d -j .text $$GUEST_PROGRAM > ./bin/dump.txt
@@ -64,8 +64,8 @@ diff-%-cannon: cannon elf-go-current
 	# Load an elf file to create a prestate, and check that both cannon versions generate the same prestate
 	@VM=$*; \
 	echo "Running diff for VM type $${VM}"; \
-	$$OTHER_CANNON load-elf --type $$VM --path ./testdata/go-1-23/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""; \
-	./bin/cannon   load-elf --type $$VM --path ./testdata/go-1-23/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta "";
+	$$OTHER_CANNON load-elf --type $$VM --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""; \
+	./bin/cannon   load-elf --type $$VM --path ./testdata/go-1-24/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta "";
 	@cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz;
 	@if [ $$? -eq 0 ]; then \
 		echo "Generated identical prestates"; \
