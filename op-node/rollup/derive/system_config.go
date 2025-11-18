@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -34,40 +33,29 @@ var (
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
+// Updates are applied individually, and any malformed or invalid updates are ignored.
+// Any errors encountered during the update process are returned as a multierror.
 func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
 	var result error
-
-	// copy sysConfig to an update accumulator
-	// to allow for pre-parsing of all updates prior to application
-	updated := eth.SystemConfig{
-		BatcherAddr:          sysCfg.BatcherAddr,
-		Overhead:             sysCfg.Overhead,
-		Scalar:               sysCfg.Scalar,
-		GasLimit:             sysCfg.GasLimit,
-		EIP1559Params:        sysCfg.EIP1559Params,
-		OperatorFeeParams:    sysCfg.OperatorFeeParams,
-		MinBaseFee:           sysCfg.MinBaseFee,
-		DAFootprintGasScalar: sysCfg.DAFootprintGasScalar,
-	}
-	for i, rec := range receipts {
+	for _, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
 			continue
 		}
-		for j, log := range rec.Logs {
+		for _, log := range rec.Logs {
+			// copy sysConfig to an update structure to preserve the original in case of error
+			updated := *sysCfg
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				if err := ProcessSystemConfigUpdateLogEvent(&updated, log, cfg, l1Time); err != nil {
-					if errors.Is(err, ErrParsingSystemConfig) {
-						// if the config can't be parsed, ignore the entire update
-						// an unparsable update should be treated as unusable and thus ignored, there are no other recovery mechanisms
-						return nil
-					}
-					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
+				err := ProcessSystemConfigUpdateLogEvent(&updated, log, cfg, l1Time)
+				if err == nil {
+					// apply the updated structure
+					*sysCfg = updated
+				} else {
+					// or append the error to the result
+					result = multierror.Append(result, err)
 				}
 			}
 		}
 	}
-	// apply the accumulated updates to the original sysCfg
-	*sysCfg = updated
 	return result
 }
 
@@ -95,8 +83,6 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	}
 	// indexed 1
 	updateType := ev.Topics[2]
-
-	// Create a reader of the unindexed data
 
 	// Attempt to read unindexed data
 	switch updateType {
