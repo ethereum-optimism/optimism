@@ -324,7 +324,7 @@ func (c *Constant) Run(t devtest.T, spammer Spammer) {
 
 func logOnError(t devtest.T, err error) {
 	if errors.Is(err, context.Canceled) {
-		// Context cancelation is typically caused by the test ending, which is not really a
+		// Context cancellation is typically caused by the test ending, which is not really a
 		// spammer error. Don't spam warnings in that case.
 		t.Logger().Debug("Spammer error", "err", err)
 	} else if err != nil {
