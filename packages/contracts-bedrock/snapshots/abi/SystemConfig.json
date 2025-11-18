@@ -757,6 +757,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_batcher",
+        "type": "address"
+      }
+    ],
+    "name": "setBatcherHash",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "_batcherHash",
         "type": "bytes32"

@@ -170,9 +170,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.12.0
+    /// @custom:semver 3.13.0
     function version() public pure virtual returns (string memory) {
-        return "3.12.0";
+        return "3.13.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -338,6 +338,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
+    }
+
+    /// @notice Updates the batcher hash by formatting a provided batcher address.
+    /// @param _batcher New batcher address.
+    function setBatcherHash(address _batcher) external onlyOwner {
+        _setBatcherHash(bytes32(uint256(uint160(_batcher))));
     }
 
     /// @notice Updates the batcher hash. Can only be called by the owner.

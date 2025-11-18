@@ -332,7 +332,7 @@ func WithInteropAtGenesis() DeployerOption {
 
 // WithHardforkSequentialActivation configures a deployment such that L2 chains
 // activate hardforks sequentially, starting from startFork and continuing
-// until (but not including) endFork. Each successive fork is scheduled at
+// until (including) endFork. Each successive fork is scheduled at
 // an increasing offset.
 func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
@@ -341,7 +341,7 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 			activateWithOffset := false
 			deactivate := false
 			for idx, refFork := range opforks.All {
-				if deactivate || refFork == endFork {
+				if deactivate {
 					l2Cfg.WithForkAtOffset(refFork, nil)
 					deactivate = true
 					continue
@@ -352,6 +352,9 @@ func WithHardforkSequentialActivation(startFork, endFork opforks.Name, delta *ui
 				}
 				if startFork == refFork {
 					activateWithOffset = true
+				}
+				if endFork == refFork {
+					deactivate = true
 				}
 			}
 		}

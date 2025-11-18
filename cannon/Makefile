@@ -30,7 +30,6 @@ cannon64-impl:
 # Each embed is suffixed with the latest `StateVersion` number corresponding to the target VM and architecture.
 cannon-embeds: cannon64-impl
 	# 64-bit multithreaded vm
-	@cp bin/cannon64-impl ./multicannon/embeds/cannon-7
 	@cp bin/cannon64-impl ./multicannon/embeds/cannon-8
 
 cannon: cannon-embeds
