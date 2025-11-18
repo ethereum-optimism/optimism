@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Features } from "src/libraries/Features.sol";
@@ -166,9 +165,6 @@ contract OPContractsManagerV2 {
 
     /// @notice Thrown when user attempts to downgrade a contract.
     error OPContractsManagerV2_DowngradeNotAllowed();
-
-    /// @notice Thrown when a development feature is enabled in production.
-    error OPContractsManagerV2_DevFeatureInProd();
 
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction();
@@ -605,6 +601,11 @@ contract OPContractsManagerV2 {
             if (_cfg.disputeGameConfigs[i].gameType.raw() != validGameTypes[i].raw()) {
                 revert OPContractsManagerV2_InvalidGameConfigs();
             }
+
+            // If the game is disabled, we must have a 0 init bond.
+            if (!_cfg.disputeGameConfigs[i].enabled && _cfg.disputeGameConfigs[i].initBond != 0) {
+                revert OPContractsManagerV2_InvalidGameConfigs();
+            }
         }
 
         // We currently REQUIRE that the PermissionedDisputeGame is enabled. We may be able to
@@ -770,13 +771,13 @@ contract OPContractsManagerV2 {
                 gameArgs = _makeGameArgs(_cfg, _cts, _cfg.disputeGameConfigs[i]);
             }
 
-            // Only actually set the game if the implementation or arguments have changed.
-            if (
-                _cts.disputeGameFactory.gameImpls(_cfg.disputeGameConfigs[i].gameType) != gameImpl
-                    || Bytes.equal(_cts.disputeGameFactory.gameArgs(_cfg.disputeGameConfigs[i].gameType), gameArgs)
-            ) {
-                _cts.disputeGameFactory.setImplementation(_cfg.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
-            }
+            // Set the game implementation and arguments.
+            // NOTE: If the game is disabled, we'll set the implementation to address(0) and the
+            // arguments to bytes(""), disabling the game.
+            _cts.disputeGameFactory.setImplementation(_cfg.disputeGameConfigs[i].gameType, gameImpl, gameArgs);
+            _cts.disputeGameFactory.setInitBond(
+                _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
+            );
         }
 
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and

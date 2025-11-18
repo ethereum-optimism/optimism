@@ -670,11 +670,6 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerV2_DevFeatureInProd",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "OPContractsManagerV2_DowngradeNotAllowed",
     "type": "error"
   },
