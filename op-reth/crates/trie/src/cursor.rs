@@ -7,7 +7,7 @@ use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
-    trie_cursor::TrieCursor,
+    trie_cursor::{TrieCursor, TrieStorageCursor},
     BranchNodeCompact, Nibbles,
 };
 
@@ -44,6 +44,21 @@ where
     fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
         self.0.current()
     }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.0.reset()
+    }
+}
+
+impl<C> TrieStorageCursor for OpProofsTrieCursor<C>
+where
+    C: OpProofsTrieCursorRO,
+{
+    #[inline]
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        // todo
+    }
 }
 
 /// Manages reading hashed account nodes from external storage.
@@ -64,6 +79,11 @@ where
     #[inline]
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         self.0.next()
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.0.reset()
     }
 }
 
@@ -86,6 +106,11 @@ where
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         self.0.next()
     }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.0.reset()
+    }
 }
 
 impl<C> HashedStorageCursor for OpProofsHashedStorageCursor<C>
@@ -95,5 +120,10 @@ where
     #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         self.0.is_storage_empty()
+    }
+
+    #[inline]
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        // todo
     }
 }

@@ -9,7 +9,9 @@ use reth_db::{
     DatabaseError,
 };
 use reth_primitives_traits::{Account, StorageEntry};
-use reth_trie::{BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles};
+use reth_trie::{
+    trie_cursor::TrieCursor, BranchNodeCompact, Nibbles, StorageTrieEntry, StoredNibbles,
+};
 use std::{collections::HashMap, time::Instant};
 use tracing::info;
 

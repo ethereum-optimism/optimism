@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
+    cursor,
     db::{
         AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
         MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
@@ -195,6 +196,10 @@ where
     fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
         self.inner.cursor.current().map(|opt| opt.map(|(StoredNibbles(n), _)| n))
     }
+
+    fn reset(&mut self) {
+        todo!()
+    }
 }
 
 impl<Cursor> TrieCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
@@ -243,6 +248,32 @@ where
             });
         }
         Ok(None)
+    }
+
+    fn reset(&mut self) {
+        // todo
+    }
+}
+
+impl<T, C> From<MdbxTrieCursor<T, C>> for cursor::OpProofsTrieCursor<MdbxTrieCursor<T, C>>
+where
+    T: Table + DupSort,
+{
+    fn from(cursor: MdbxTrieCursor<T, C>) -> Self {
+        cursor::OpProofsTrieCursor::new(cursor)
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<T, C> From<MdbxTrieCursor<T, C>>
+    for cursor::OpProofsTrieCursor<
+        crate::metrics::OpProofsTrieCursorWithMetrics<MdbxTrieCursor<T, C>>,
+    >
+where
+    T: Table + DupSort,
+{
+    fn from(cursor: MdbxTrieCursor<T, C>) -> Self {
+        cursor::OpProofsTrieCursor(crate::metrics::OpProofsTrieCursorWithMetrics::new(cursor))
     }
 }
 
@@ -308,6 +339,10 @@ where
 
         Ok(result)
     }
+
+    fn reset(&mut self) {
+        // todo
+    }
 }
 
 impl HashedStorageCursor for MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
@@ -345,6 +380,10 @@ where
 
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         Ok(self.inner.next()?)
+    }
+
+    fn reset(&mut self) {
+        // todo
     }
 }
 

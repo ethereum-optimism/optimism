@@ -282,6 +282,44 @@ impl<C: TrieCursor> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
     fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
         self.metrics.record_operation(StorageOperation::TrieCursorCurrent, || self.cursor.current())
     }
+
+    #[inline]
+    fn reset(&mut self) {
+        // todo
+    }
+}
+
+impl<C: OpProofsTrieCursorRO> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
+    #[inline]
+    fn seek(
+        &mut self,
+        key: Nibbles,
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        Ok(self.cursor.seek(key)?)
+    }
+
+    #[inline]
+    fn seek_exact(
+        &mut self,
+        key: Nibbles,
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, reth_db::DatabaseError> {
+        Ok(self.cursor.seek_exact(key)?)
+    }
+
+    #[inline]
+    fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        Ok(self.cursor.next()?)
+    }
+
+    #[inline]
+    fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
+        Ok(self.cursor.current()?)
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        self.cursor.reset()
+    }
 }
 
 /// Wrapper for [`HashedCursor`] type that records metrics.
@@ -302,6 +340,11 @@ impl<C: HashedCursor> HashedCursor for OpProofsHashedCursorWithMetrics<C> {
     #[inline]
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         self.metrics.record_operation(StorageOperation::HashedCursorNext, || self.cursor.next())
+    }
+
+    #[inline]
+    fn reset(&mut self) {
+        // todo
     }
 }
 
@@ -341,7 +384,7 @@ where
     S: OpProofsStore,
 {
     type StorageTrieCursor<'tx>
-        = OpProofsTrieCursorWithMetrics<S::StorageTrieCursor<'tx>>
+        = OpProofsTrieCursor<S::StorageTrieCursor<'tx>>
     where
         Self: 'tx;
     type AccountTrieCursor<'tx>

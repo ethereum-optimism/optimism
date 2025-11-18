@@ -1,6 +1,7 @@
 use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
 use crate::{
     api::WriteCounts,
+    cursor,
     db::{
         cursor::Dup,
         models::{
@@ -404,7 +405,7 @@ impl MdbxProofsStorage {
 
 impl OpProofsStore for MdbxProofsStorage {
     type StorageTrieCursor<'tx>
-        = MdbxTrieCursor<StorageTrieHistory, Dup<'tx, StorageTrieHistory>>
+        = OpProofsTrieCursor<MdbxTrieCursor<StorageTrieHistory, Dup<'tx, StorageTrieHistory>>>
     where
         Self: 'tx;
     type AccountTrieCursor<'tx>
@@ -520,7 +521,12 @@ impl OpProofsStore for MdbxProofsStorage {
         let tx = self.env.tx()?;
         let cursor = tx.cursor_dup_read::<StorageTrieHistory>()?;
 
-        Ok(MdbxTrieCursor::new(cursor, max_block_number, Some(hashed_address)))
+        let cursor = MdbxTrieCursor::new(cursor, max_block_number, Some(hashed_address));
+
+        #[cfg(feature = "metrics")]
+        let cursor = crate::metrics::OpProofsTrieCursorWithMetrics::new(cursor, Default::default());
+
+        Ok(cursor::OpProofsTrieCursor::new(cursor))
     }
 
     fn account_trie_cursor<'tx>(

@@ -267,6 +267,10 @@ impl TrieCursor for InMemoryTrieCursor {
             Ok(None)
         }
     }
+
+    fn reset(&mut self) {
+        // todo
+    }
 }
 
 /// In-memory implementation of [`HashedCursor`] for storage slots
@@ -336,6 +340,10 @@ impl HashedCursor for InMemoryStorageCursor {
             Ok(None)
         }
     }
+
+    fn reset(&mut self) {
+        // todo
+    }
 }
 
 impl HashedStorageCursor for InMemoryStorageCursor {
@@ -402,10 +410,14 @@ impl HashedCursor for InMemoryAccountCursor {
             Ok(None)
         }
     }
+
+    fn reset(&mut self) {
+        // todo
+    }
 }
 
 impl OpProofsStore for InMemoryProofsStorage {
-    type StorageTrieCursor<'tx> = InMemoryTrieCursor;
+    type StorageTrieCursor<'tx> = OpProofsTrieCursor<InMemoryTrieCursor>;
     type AccountTrieCursor<'tx> = InMemoryTrieCursor;
     type StorageCursor<'tx> = InMemoryStorageCursor;
     type AccountHashedCursor<'tx> = InMemoryAccountCursor;
