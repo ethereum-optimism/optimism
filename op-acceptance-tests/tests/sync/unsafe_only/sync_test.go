@@ -63,8 +63,6 @@ func TestUnsafeOnly_SequencerRestart(gt *testing.T) {
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	require := t.Require()
 
-	sys.L2Batcher.Stop() // temp
-
 	attempts := 10
 
 	sys.L2CL.AdvancedUnsafe(3, attempts)
