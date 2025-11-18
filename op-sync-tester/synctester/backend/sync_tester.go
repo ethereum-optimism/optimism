@@ -496,6 +496,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 //   - If Holocene is active: Extra data must be exactly 9 bytes, the version byte must equal to 0,
 //     the remaining 8 bytes must match the EIP-1559 parameters.
 //   - If Jovian is active: Extra data must be exactly 17 bytes, the version byte must equal to 1,
+//     the first 8 bytes must match the EIP-1559 parameters,
 //     the remaining 8 bytes must match the MinBaseFee parameter.
 //
 // Returns an error if any mismatch or invalid condition is found, otherwise nil.
