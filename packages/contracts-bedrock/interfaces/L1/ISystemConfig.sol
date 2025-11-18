@@ -86,6 +86,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function renounceOwnership() external;
     function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory);
     function scalar() external view returns (uint256);
+    function setBatcherHash(address _batcher) external;
     function setBatcherHash(bytes32 _batcherHash) external;
     function setGasConfig(uint256 _overhead, uint256 _scalar) external;
     function setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external;
