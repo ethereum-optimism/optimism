@@ -64,7 +64,9 @@ reth-db-common.workspace = true
 reth-ethereum-primitives.workspace = true
 reth-evm-ethereum.workspace = true
 reth-testing-utils.workspace = true
+reth-storage-errors.workspace = true
 secp256k1.workspace = true
+mockall.workspace = true
 
 # misc
 serial_test.workspace = true

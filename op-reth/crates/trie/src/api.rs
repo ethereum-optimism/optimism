@@ -57,6 +57,14 @@ pub struct BlockStateDiff {
     pub post_state: HashedPostState,
 }
 
+impl BlockStateDiff {
+    /// Extend the [` BlockStateDiff`] from other latest [`BlockStateDiff`]
+    pub fn extend(&mut self, other: Self) {
+        self.trie_updates.extend(other.trie_updates);
+        self.post_state.extend(other.post_state);
+    }
+}
+
 /// Counts of trie updates written to storage.
 #[derive(Debug, Clone, Default)]
 pub struct WriteCounts {

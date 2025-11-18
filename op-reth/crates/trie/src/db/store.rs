@@ -120,14 +120,17 @@ impl MdbxProofsStorage {
             }
             return Ok(keys);
         }
-        // Hard delete removed entries (vv.value == None) at this exact subkey; append the rest.
+        // We need hard deletions at the time of pruning where we need to perform these steps:
+        // - Hard delete all the tombstones
+        // - Update new state to block zero (not append)
         let (to_delete, to_append): (Vec<_>, Vec<_>) =
             pairs.into_iter().partition(|(_, vv)| vv.value.0.is_none());
 
         self.delete_dup_sorted::<T, _, V>(tx, block_number, to_delete.into_iter().map(|(k, _)| k))?;
 
         for (k, vv) in to_append {
-            cur.append_dup(k, vv)?;
+            // For block 0, we need to update the existing entries.
+            cur.upsert(k, &vv)?;
         }
 
         Ok(keys)
@@ -654,7 +657,7 @@ impl OpProofsStore for MdbxProofsStorage {
             return Ok(()); // Nothing to prune
         }
 
-        let _ = self.env.update(|tx| {
+        self.env.update(|tx| {
             // First, delete the old entries for the block range excluding block 0
             self.delete_history_ranged(
                 tx,
@@ -670,12 +673,8 @@ impl OpProofsStore for MdbxProofsStorage {
                 tx,
                 new_earliest_block_number,
                 new_earliest_block_ref.block.hash,
-            )?;
-
-            Ok::<(), DatabaseError>(())
-        })?;
-
-        Ok(())
+            )
+        })?
     }
 
     async fn replace_updates(
