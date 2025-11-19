@@ -189,6 +189,7 @@ mod tests {
                 withdrawals: Vec::new(),
                 logs_bloom: Default::default(),
                 withdrawals_root: Default::default(),
+                blob_gas_used: Default::default(),
             },
             metadata: serde_json::to_value(Metadata {
                 block_number: 1,

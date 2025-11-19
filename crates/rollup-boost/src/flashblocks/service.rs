@@ -114,7 +114,7 @@ impl FlashblockBuilder {
         let withdrawals_root = diff.withdrawals_root;
 
         let execution_payload = ExecutionPayloadV3 {
-            blob_gas_used: 0,
+            blob_gas_used: diff.blob_gas_used.unwrap_or(0),
             excess_blob_gas: 0,
             payload_inner: ExecutionPayloadV2 {
                 withdrawals,
