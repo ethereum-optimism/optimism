@@ -27,24 +27,6 @@ func NewApp(versionWithMeta string) *cli.App {
 		return nil
 	}
 
-	bootstrapImplementationsFlags := append(bootstrap.ImplementationsFlags, deployer.AutoVerifyFlag, deployer.VerifierFlag, deployer.VerifierUrlFlag, deployer.VerifierAPIKeyFlag)
-	bootstrapSuperchainFlags := append(bootstrap.SuperchainFlags, deployer.AutoVerifyFlag, deployer.VerifierFlag, deployer.VerifierUrlFlag, deployer.VerifierAPIKeyFlag)
-
-	bootstrapCommandsWithVerify := []*cli.Command{
-		{
-			Name:   "implementations",
-			Usage:  "Bootstraps implementations.",
-			Flags:  cliapp.ProtectFlags(bootstrapImplementationsFlags),
-			Action: bootstrap.ImplementationsCLI,
-		},
-		{
-			Name:   "superchain",
-			Usage:  "Bootstrap the Superchain configuration",
-			Flags:  cliapp.ProtectFlags(bootstrapSuperchainFlags),
-			Action: bootstrap.SuperchainCLI,
-		},
-	}
-
 	app.Commands = []*cli.Command{
 		{
 			Name:   "init",
@@ -67,7 +49,7 @@ func NewApp(versionWithMeta string) *cli.App {
 		{
 			Name:        "bootstrap",
 			Usage:       "bootstraps global contract instances",
-			Subcommands: bootstrapCommandsWithVerify,
+			Subcommands: bootstrap.Commands,
 		},
 		{
 			Name:        "inspect",
