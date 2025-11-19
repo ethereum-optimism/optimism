@@ -229,6 +229,14 @@ abstract contract Setup is FeatureFlags {
         }
     }
 
+    /// @dev Skips tests when not running against forked production network.
+    function skipIfNotForkTest(string memory message) public {
+        if (!isForkTest()) {
+            vm.skip(true);
+            console.log(string.concat("Skipping non-fork test: ", message));
+        }
+    }
+
     /// @dev Skips tests when running against a forked production network using the superchain ops repo.
     function skipIfOpsRepoTest(string memory message) public {
         if (forkLive.useOpsRepo()) {

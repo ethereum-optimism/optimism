@@ -23,8 +23,6 @@ import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -45,7 +43,6 @@ import {
     IOPContractsManagerUpgrader,
     IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
-import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
@@ -62,7 +59,6 @@ import {
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
-import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProxy } from "../../interfaces/universal/IProxy.sol";
@@ -118,16 +114,20 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     /// @notice Thrown when testing with an unsupported chain ID.
     error UnsupportedChainId();
 
+    struct PreUpgradeState {
+        Claim cannonAbsolutePrestate;
+        Claim permissionedAbsolutePrestate;
+        IDelayedWETH permissionlessWethProxy;
+        IDelayedWETH permissionedCannonWethProxy;
+    }
+
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim cannonPrestate;
     Claim cannonKonaPrestate;
     string public opChain = Config.forkOpChain();
-    IOPContractsManagerV2.UpgradeInput internal v2UpgradeInput;
-
-    /// @notice Special string constant used to indicate that we expect a revert without any data.
-    bytes public constant EXPECT_REVERT_WITHOUT_DATA = bytes("EXPECT_REVERT_WITHOUT_DATA");
+    PreUpgradeState preUpgradeState;
 
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -136,6 +136,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             // This test is only supported in forked tests, as we are testing the upgrade.
             vm.skip(true);
         }
+
+        // All V1 upgrade tests can safely be skipped for V2.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
 
         skipIfOpsRepoTest(
             "OPContractsManager_Upgrade_Harness: cannot test upgrade on superchain ops repo upgrade tests"
@@ -157,49 +160,27 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             })
         );
 
-        // Prepare V2 upgrade input with ordered game configs [CANNON, PERMISSIONED_CANNON].
-        address initialChallengerForV2 = permissionedGameChallenger(disputeGameFactory);
-        address initialProposerForV2 = permissionedGameProposer(disputeGameFactory);
-        v2UpgradeInput.systemConfig = systemConfig;
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerV2.DisputeGameConfig({
-                enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
-                gameType: GameTypes.CANNON,
-                gameArgs: abi.encode(OPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerV2.DisputeGameConfig({
-                enabled: true,
-                initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
-                gameType: GameTypes.PERMISSIONED_CANNON,
-                gameArgs: abi.encode(
-                    OPContractsManagerV2.PermissionedDisputeGameConfig({
-                        absolutePrestate: cannonPrestate,
-                        proposer: initialProposerForV2,
-                        challenger: initialChallengerForV2
-                    })
-                )
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs.push(
-            IOPContractsManagerV2.DisputeGameConfig({
-                enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
-                initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
-                gameType: GameTypes.CANNON_KONA,
-                gameArgs: abi.encode(OPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
-            })
-        );
-
-        // Allow the DelayedWETH proxy to be (re)deployed during upgrades if it is missing.
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") })
-        );
-
         // Retrieve the l2ChainId, which was read from the superchain-registry, and saved in
         // Artifacts encoded as an address.
         l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
+
+        delayedWETHPermissionedGameProxy =
+            IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
+        permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
+        IDisputeGameFactory dgf = IDisputeGameFactory(address(artifacts.mustGetAddress("DisputeGameFactoryProxy")));
+        faultDisputeGame = IFaultDisputeGame(address(dgf.gameImpls(GameTypes.CANNON)));
+        delayedWeth = faultDisputeGame.weth();
+
+        // grab the pre-upgrade state
+        preUpgradeState = PreUpgradeState({
+            cannonAbsolutePrestate: IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)))
+                .absolutePrestate(),
+            permissionedAbsolutePrestate: IPermissionedDisputeGame(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
+            ).absolutePrestate(),
+            permissionlessWethProxy: delayedWeth,
+            permissionedCannonWethProxy: delayedWETHPermissionedGameProxy
+        });
 
         // Since this superchainConfig is already at the expected reinitializer version...
         // We do this to pass the reinitializer check when trying to upgrade the superchainConfig contract.
@@ -358,165 +339,81 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
                 validationOverrides
             );
         }
+        _runPostUpgradeSmokeTests(_opcm, opChainConfigs[0], initialChallenger, initialProposer);
     }
 
-    /// @notice Helper function that runs an OPCM V2 upgrade, asserts that the upgrade was successful,
-    ///         and runs post-upgrade smoke tests.
-    /// @param _opcm The OPCM contract to reference for shared components.
-    /// @param _delegateCaller The address of the delegate caller to use for superchain upgrade.
-    /// @param _revertBytes The bytes of the revert to expect.
-    function _runOpcmV2UpgradeAndChecks(
-        IOPContractsManagerV2 _opcm,
-        address _delegateCaller,
-        bytes memory _revertBytes
+    /// @notice Runs some smoke tests after an upgrade
+    function _runPostUpgradeSmokeTests(
+        IOPContractsManager _opcm,
+        IOPContractsManager.OpChainConfig memory _opChainConfig,
+        address _challenger,
+        address _proposer
     )
         internal
     {
-        // Grab some values before we upgrade, to be checked later
-        address initialChallenger = permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = permissionedGameProposer(disputeGameFactory);
+        address expectedVm = address(_opcm.implementations().mipsImpl);
 
-        // Always start by upgrading the SuperchainConfig contract.
-        // Temporarily replace the superchainPAO with a DelegateCaller.
-        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-        bytes memory superchainPAOCode = address(superchainPAO).code;
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+        Claim claim = Claim.wrap(bytes32(uint256(1)));
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON);
+        vm.deal(address(_challenger), bondAmount);
+        (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
+        uint256 l2BlockNumber = rootBlockNumber + 1;
 
-        // Execute the SuperchainConfig upgrade.
-        // nosemgrep: sol-safety-trycatch-eip150
-        try DelegateCaller(superchainPAO).dcForward(
-            address(opcmV2),
-            abi.encodeCall(
-                IOPContractsManagerV2.upgradeSuperchain,
-                (
-                    IOPContractsManagerV2.SuperchainUpgradeInput({
-                        superchainConfig: superchainConfig,
-                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
-                    })
-                )
-            )
-        ) {
-            // Great, the upgrade succeeded.
-        } catch (bytes memory reason) {
-            // Only acceptable revert reason is the SuperchainConfig already being up to date. This
-            // try/catch is better than checking the version via the implementations struct because
-            // the implementations struct interface can change between OPCM versions which would
-            // cause the test to break and be a pain to resolve.
-            assertTrue(
-                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
-                "Revert reason other than DowngradeNotAllowed"
-            );
+        bool expectCannonKonaGameSet =
+            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
+
+        // Deploy live games and ensure they're configured correctly
+        GameType[] memory gameTypes = new GameType[](expectCannonKonaGameSet ? 3 : 2);
+        gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
+        gameTypes[1] = GameTypes.CANNON;
+        if (expectCannonKonaGameSet) {
+            gameTypes[2] = GameTypes.CANNON_KONA;
         }
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            GameType gt = gameTypes[i];
 
-        // Reset the superchainPAO to the original code.
-        vm.etch(superchainPAO, superchainPAOCode);
+            bytes32 expectedAbsolutePrestate = _opChainConfig.cannonPrestate.raw();
+            if (expectedAbsolutePrestate == bytes32(0)) {
+                expectedAbsolutePrestate = preUpgradeState.permissionedAbsolutePrestate.raw();
+            }
+            if (expectCannonKonaGameSet && gt.raw() == GameTypes.CANNON_KONA.raw()) {
+                expectedAbsolutePrestate = _opChainConfig.cannonKonaPrestate.raw();
+            }
+            assertEq(bondAmount, disputeGameFactory.initBonds(gt));
 
-        // Temporarily replace the upgrader with a DelegateCaller.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+            vm.prank(_proposer, _proposer);
+            IPermissionedDisputeGame game = IPermissionedDisputeGame(
+                address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
+            );
+            (,,,, Claim rootClaim,,) = game.claimData(0);
 
-        // Expect the revert if one is specified.
-        if (_revertBytes.length > 0) {
-            if (keccak256(_revertBytes) == keccak256(EXPECT_REVERT_WITHOUT_DATA)) {
-                // nosemgrep: sol-safety-expectrevert-no-args
-                vm.expectRevert();
+            vm.assertEq(gt.raw(), game.gameType().raw());
+            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
+            vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
+            vm.assertEq(l2ChainId, game.l2ChainId());
+            vm.assertEq(302400, game.maxClockDuration().raw());
+            vm.assertEq(10800, game.clockExtension().raw());
+            vm.assertEq(73, game.maxGameDepth());
+            vm.assertEq(30, game.splitDepth());
+            vm.assertEq(l2BlockNumber, game.l2BlockNumber());
+            vm.assertEq(expectedVm, address(game.vm()));
+            vm.assertEq(_proposer, game.gameCreator());
+            vm.assertEq(claim.raw(), rootClaim.raw());
+            vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
+
+            if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+                vm.assertEq(address(preUpgradeState.permissionedCannonWethProxy), address(game.weth()));
+                vm.assertEq(_challenger, game.challenger());
+                vm.assertEq(_proposer, game.proposer());
             } else {
-                vm.expectRevert(_revertBytes);
+                vm.assertEq(address(preUpgradeState.permissionlessWethProxy), address(game.weth()));
             }
         }
 
-        // Execute the V2 chain upgrade via delegate caller.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgrade, (v2UpgradeInput))
-        );
-
-        // Return early if a revert was expected. Otherwise we'll get errors below.
-        if (_revertBytes.length > 0) {
-            return;
-        }
-
-        // Reset the upgrader to the original code.
-        vm.etch(_delegateCaller, delegateCallerCode);
-
-        // Less than 90% of the gas target of 2**24 (EIP-7825) to account for the gas used by using Safe.
-        uint256 fusakaLimit = 2 ** 24;
-        VmSafe.Gas memory gas = vm.lastCallGas();
-        assertLt(gas.gasTotalUsed, fusakaLimit * 9 / 10, "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
-
-        // Reset the upgrader to the original code.
-        vm.etch(_delegateCaller, delegateCallerCode);
-
-        // We expect there to only be one chain config for these tests, you will have to rework
-        // this test if you add more.
-        assertEq(opChainConfigs.length, 1);
-
-        // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
-        // the standard validator in the coverage case, if the validator is failing in coverage
-        // then it will also fail in other CI tests (unless it's the expected issues, in which case
-        // we can safely skip).
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            return;
-        }
-
-        // Create validationOverrides
-        IOPContractsManagerStandardValidator.ValidationOverrides memory validationOverrides =
-        IOPContractsManagerStandardValidator.ValidationOverrides({
-            l1PAOMultisig: opChainConfigs[0].systemConfigProxy.proxyAdminOwner(),
-            challenger: initialChallenger
-        });
-
-        // Grab the validator before we do the error assertion because otherwise the assertion will
-        // try to apply to this function call instead.
-        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
-
-        // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
-        // standard validator. This happens because an absolute prestate of zero means that the
-        // user is requesting to use the existing prestate. We could avoid the error by grabbing
-        // the prestate from the actual contracts, but that doesn't actually give us any valuable
-        // checks. Easier to just expect the error in this case.
-        // We add the prefix of OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER because we use validationOverrides.
-        if (opChainConfigs[0].cannonPrestate.raw() == bytes32(0)) {
-            if (
-                opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-            ) {
-                vm.expectRevert(
-                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40,CKDG-10"
-                );
-            } else {
-                vm.expectRevert(
-                    "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PDDG-40,PLDG-40"
-                );
-            }
-        } else if (
-            opChainConfigs[0].cannonKonaPrestate.raw() == bytes32(0) && isDevFeatureEnabled(DevFeatures.CANNON_KONA)
-        ) {
-            vm.expectRevert("OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,CKDG-10");
-        }
-
-        // Run the StandardValidator checks.
-        if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInputDev({
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    cannonPrestate: opChainConfigs[0].cannonPrestate.raw(),
-                    cannonKonaPrestate: opChainConfigs[0].cannonKonaPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
-        } else {
-            validator.validateWithOverrides(
-                IOPContractsManagerStandardValidator.ValidationInput({
-                    sysCfg: opChainConfigs[0].systemConfigProxy,
-                    absolutePrestate: opChainConfigs[0].cannonPrestate.raw(),
-                    l2ChainID: l2ChainId,
-                    proposer: initialProposer
-                }),
-                false,
-                validationOverrides
-            );
+        if (!expectCannonKonaGameSet) {
+            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
+            assertEq(0, disputeGameFactory.initBonds(GameTypes.CANNON_KONA));
+            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
         }
     }
 
@@ -550,19 +447,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     function runCurrentUpgrade(address _delegateCaller, bytes memory _revertBytes) public {
         _runOpcmUpgradeAndChecks(opcm, _delegateCaller, _revertBytes);
     }
-
-    /// @notice Executes the current V2 upgrade and checks the results.
-    /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
-    function runCurrentUpgradeV2(address _delegateCaller) public {
-        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, bytes(""));
-    }
-
-    /// @notice Executes the current V2 upgrade and expects reverts.
-    /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
-    /// @param _revertBytes The bytes of the revert to expect.
-    function runCurrentUpgradeV2(address _delegateCaller, bytes memory _revertBytes) public {
-        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes);
-    }
 }
 
 /// @title OPContractsManager_TestInit
@@ -581,27 +465,22 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
-    IOPContractsManagerV2.ChainContracts internal chainContracts1;
-    IOPContractsManagerV2.ChainContracts internal chainContracts2;
-
     function setUp() public virtual override {
         super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         proposer = address(this);
         challenger = address(this);
         chain1L2ChainId = 100;
         chain2L2ChainId = 101;
 
-        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            chainDeployOutput1 = createChainContracts(chain1L2ChainId);
-            chainDeployOutput2 = createChainContracts(chain2L2ChainId);
-            vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
-            vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
-        } else {
-            chainContracts1 = createChainContractsV2(chain1L2ChainId);
-            chainContracts2 = createChainContractsV2(chain2L2ChainId);
-            vm.deal(address(chainContracts1.ethLockbox), 100 ether);
-            vm.deal(address(chainContracts2.ethLockbox), 100 ether);
-        }
+        chainDeployOutput1 = createChainContracts(chain1L2ChainId);
+        chainDeployOutput2 = createChainContracts(chain2L2ChainId);
+
+        vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
+        vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
@@ -644,66 +523,6 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
                 disputeClockExtension: Duration.wrap(10800),
                 disputeMaxClockDuration: Duration.wrap(302400),
                 useCustomGasToken: false
-            })
-        );
-    }
-
-    /// @notice Helper function to deploy a new set of L1 contracts via OPCM V2.
-    /// @param _l2ChainId The L2 chain ID to deploy the contracts for.
-    /// @return The deployed contracts.
-    function createChainContractsV2(uint256 _l2ChainId)
-        internal
-        returns (IOPContractsManagerV2.ChainContracts memory)
-    {
-        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
-            new IOPContractsManagerV2.DisputeGameConfig[](3);
-        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")) })
-            )
-        });
-        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: true,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerV2.PermissionedDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
-                    proposer: address(this),
-                    challenger: address(this)
-                })
-            )
-        });
-        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: abi.encode(
-                IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")) })
-            )
-        });
-        return opcmV2.deploy(
-            IOPContractsManagerV2.FullConfig({
-                saltMixer: "hello",
-                superchainConfig: superchainConfig,
-                proxyAdminOwner: address(this),
-                systemConfigOwner: address(this),
-                unsafeBlockSigner: address(this),
-                batcher: address(this),
-                startingAnchorRoot: Proposal({
-                    root: Hash.wrap(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef),
-                    l2SequenceNumber: 0
-                }),
-                startingRespectedGameType: GameType.wrap(1),
-                basefeeScalar: 1,
-                blobBasefeeScalar: 1,
-                gasLimit: 30_000_000,
-                l2ChainId: _l2ChainId,
-                resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-                disputeGameConfigs: disputeGameConfigs
             })
         );
     }
@@ -808,11 +627,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
 contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-    }
-
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
@@ -1178,7 +992,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     function setUp() public virtual override {
         super.setUp();
         prestateUpdater = opcm;
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Runs the OPCM updatePrestate function and checks the results.
@@ -1640,16 +1453,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 /// @title OPContractsManager_Upgrade_Test
 /// @notice Tests the `upgrade` function of the `OPContractsManager` contract.
 contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
-    struct PreUpgradeState {
-        bytes32 absolutePrestate;
-        address pdgWeth;
-        address fdgWeth;
-        address proposer;
-        address challenger;
-    }
-
-    bytes32 internal constant INITIALIZED_EVENT_SIG = keccak256("Initialized(uint8)");
-
     function setUp() public override {
         super.setUp();
 
@@ -1663,109 +1466,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         return Claim.wrap(gameArgs.absolutePrestate);
     }
 
-    function test_upgrade_v1_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
+    function test_upgradeOPChainOnly_succeeds() public {
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);
     }
 
-    function test_upgrade_v1WithPostChecks_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Capture pre-upgrade expectations locally
-        IOPContractsManager.OpChainConfig memory _opChainConfig = opChainConfigs[0];
-        PreUpgradeState memory pre;
-        pre.proposer = permissionedGameProposer(disputeGameFactory);
-        pre.challenger = permissionedGameChallenger(disputeGameFactory);
-        pre.absolutePrestate = IPermissionedDisputeGame(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
-        ).absolutePrestate().raw();
-        pre.pdgWeth = address(
-            IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))).weth()
-        );
-        pre.fdgWeth = address(IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON))).weth());
-
-        bool expectCannonKonaGameSet =
-            isDevFeatureEnabled(DevFeatures.CANNON_KONA) && _opChainConfig.cannonKonaPrestate.raw() != bytes32(0);
-
-        // Run the upgrade test and checks
-        runCurrentUpgrade(upgrader);
-
-        // Post-upgrade smoke checks (inlined from _runPostUpgradeSmokeTests)
-        address expectedVm = address(opcm.implementations().mipsImpl);
-
-        Claim claim = Claim.wrap(bytes32(uint256(1)));
-        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON);
-        vm.deal(address(pre.challenger), bondAmount);
-        (, uint256 rootBlockNumber) = optimismPortal2.anchorStateRegistry().getAnchorRoot();
-        uint256 l2BlockNumber = rootBlockNumber + 1;
-
-        // Deploy live games and ensure they're configured correctly
-        GameType[] memory gameTypes = new GameType[](expectCannonKonaGameSet ? 3 : 2);
-        gameTypes[0] = GameTypes.PERMISSIONED_CANNON;
-        gameTypes[1] = GameTypes.CANNON;
-        if (expectCannonKonaGameSet) {
-            gameTypes[2] = GameTypes.CANNON_KONA;
-        }
-        for (uint256 i = 0; i < gameTypes.length; i++) {
-            GameType gt = gameTypes[i];
-
-            bytes32 expectedAbsolutePrestate = _opChainConfig.cannonPrestate.raw();
-            if (expectedAbsolutePrestate == bytes32(0)) {
-                expectedAbsolutePrestate = pre.absolutePrestate;
-            }
-            if (expectCannonKonaGameSet && gt.raw() == GameTypes.CANNON_KONA.raw()) {
-                expectedAbsolutePrestate = _opChainConfig.cannonKonaPrestate.raw();
-            }
-            assertEq(bondAmount, disputeGameFactory.initBonds(gt));
-
-            vm.prank(pre.proposer, pre.proposer);
-            IPermissionedDisputeGame game = IPermissionedDisputeGame(
-                address(disputeGameFactory.create{ value: bondAmount }(gt, claim, abi.encode(l2BlockNumber)))
-            );
-            (,,,, Claim rootClaim,,) = game.claimData(0);
-
-            vm.assertEq(gt.raw(), game.gameType().raw());
-            vm.assertEq(expectedAbsolutePrestate, game.absolutePrestate().raw());
-            vm.assertEq(address(optimismPortal2.anchorStateRegistry()), address(game.anchorStateRegistry()));
-            vm.assertEq(l2ChainId, game.l2ChainId());
-            vm.assertEq(302400, game.maxClockDuration().raw());
-            vm.assertEq(10800, game.clockExtension().raw());
-            vm.assertEq(73, game.maxGameDepth());
-            vm.assertEq(30, game.splitDepth());
-            vm.assertEq(l2BlockNumber, game.l2BlockNumber());
-            vm.assertEq(expectedVm, address(game.vm()));
-            vm.assertEq(pre.proposer, game.gameCreator());
-            vm.assertEq(claim.raw(), rootClaim.raw());
-            vm.assertEq(blockhash(block.number - 1), game.l1Head().raw());
-
-            if (gt.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                vm.assertEq(pre.challenger, game.challenger());
-                vm.assertEq(pre.proposer, game.proposer());
-                vm.assertEq(pre.pdgWeth, address(game.weth()));
-            } else {
-                vm.assertEq(pre.fdgWeth, address(game.weth()));
-            }
-        }
-
-        if (!expectCannonKonaGameSet) {
-            assertEq(address(0), address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)));
-            assertEq(0, disputeGameFactory.initBonds(GameTypes.CANNON_KONA));
-            assertEq(0, disputeGameFactory.gameArgs(GameTypes.CANNON_KONA).length);
-        }
-    }
-
-    function test_upgrade_v2_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Run the upgrade test and checks
-        runCurrentUpgradeV2(upgrader);
-    }
-
-    function test_upgrade_withVerifyOPCM_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
+    function test_verifyOpcmCorrectness_succeeds() public {
         skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
 
         // Set up environment variables with the actual OPCM addresses for tests that need themqq
@@ -1783,24 +1489,19 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
-        // Upgrade the current chain.
-        runCurrentUpgrade(upgrader);
-
-        // Deploy a new chain with the same chain ID as the current chain.
-        // Should work without any issues because the salt mixer creates different addresses.
+        // Deploy a new OPChain with the same L2 chain ID as the current OPChain
         Deploy deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
         IOPContractsManager.DeployInput memory deployInput = deploy.getDeployInput();
         deployInput.l2ChainId = l2ChainId;
         deployInput.saltMixer = "v2.0.0";
         opcm.deploy(deployInput);
+
+        // Try to upgrade the current OPChain
+        runCurrentUpgrade(upgrader);
     }
 
     /// @notice Tests that the absolute prestate can be overridden using the upgrade config.
     function test_upgrade_absolutePrestateOverride_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1850,8 +1551,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that the old absolute prestate is used if the upgrade config does not set an
     ///         absolute prestate.
     function test_upgrade_absolutePrestateNotSet_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1896,8 +1595,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that the old absolute prestate is used and cannon kona is updated if the upgrade config does not
     ///         set a cannon prestate.
     function test_upgrade_cannonPrestateNotSet_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1948,8 +1645,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     /// @notice Tests that the cannon absolute prestate is updated even if the cannon kona prestate is not specified
     function test_upgrade_cannonKonaPrestateNotSet_succeeds() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1964,21 +1659,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Set the absolute prestate input to something non-zero.
         opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(uint256(1)));
         opChainConfigs[0].cannonKonaPrestate = Claim.wrap(bytes32(0));
-
-        // Same idea, but for V2 upgrades.
-        v2UpgradeInput.disputeGameConfigs[0].gameArgs = abi.encode(
-            OPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(uint256(1))) })
-        );
-        v2UpgradeInput.disputeGameConfigs[1].gameArgs = abi.encode(
-            OPContractsManagerV2.PermissionedDisputeGameConfig({
-                absolutePrestate: Claim.wrap(bytes32(uint256(1))),
-                challenger: address(1),
-                proposer: address(1)
-            })
-        );
-        v2UpgradeInput.disputeGameConfigs[2].gameArgs = abi.encode(
-            OPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(uint256(0))) })
-        );
 
         // Run the upgrade.
         runCurrentUpgrade(upgrader);
@@ -2006,8 +1686,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_notDelegateCalled_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         vm.prank(upgrader);
         vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
         opcm.upgrade(opChainConfigs);
@@ -2020,18 +1698,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            runCurrentUpgradeV2(delegateCaller, "Ownable: caller is not the owner");
-        } else {
-            runCurrentUpgrade(delegateCaller, "Ownable: caller is not the owner");
-        }
+        runCurrentUpgrade(delegateCaller, bytes("Ownable: caller is not the owner"));
     }
 
     /// @notice Tests that upgrade reverts when absolutePrestate is zero and the existing game also
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
 
@@ -2057,173 +1729,19 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            // nosemgrep: sol-style-use-abi-encodecall
-            runCurrentUpgradeV2(
-                upgrader,
-                abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_SuperchainConfigNeedsUpgrade.selector)
-            );
-        } else {
-            // nosemgrep: sol-style-use-abi-encodecall
-            runCurrentUpgrade(
-                upgrader,
-                abi.encodeWithSelector(
-                    IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, (0)
-                )
-            );
-        }
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the user does not provide a game
-    ///         config for each valid game type.
-    function test_upgrade_missingGameConfigs_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Delete the Permissionless game configuration.
-        delete v2UpgradeInput.disputeGameConfigs[1];
-
-        // Expect upgrade to revert.
         // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the user provides the game configs
-    ///         in the wrong order.
-    function test_upgrade_wrongGameConfigOrder_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Swap the game config order.
-        IOPContractsManagerV2.DisputeGameConfig memory temp = v2UpgradeInput.disputeGameConfigs[0];
-        v2UpgradeInput.disputeGameConfigs[0] = v2UpgradeInput.disputeGameConfigs[1];
-        v2UpgradeInput.disputeGameConfigs[1] = temp;
-
-        // Expect upgrade to revert due to invalid game config order.
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the user wants to disable the
-    ///         PermissionedDisputeGame.
-    function test_upgrade_disabledPermissionedGame_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Disable the PermissionedDisputeGame.
-        v2UpgradeInput.disputeGameConfigs[1].enabled = false;
-
-        // Expect upgrade to revert due to missing game config.
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_InvalidGameConfigs.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function rejects the ALL sentinel in permitted proxy deployments.
-    function test_upgrade_allPermittedProxyDeployments_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        delete v2UpgradeInput.extraInstructions;
-        v2UpgradeInput.extraInstructions.push(
-            IOPContractsManagerV2.ExtraInstruction({ key: "PermitProxyDeployment", data: abi.encode("ALL") })
-        );
-
-        // Expect upgrade to revert due to invalid upgrade input.
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
+        runCurrentUpgrade(
             upgrader,
-            abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInstruction.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts if a permitted proxy deployment is required but missing.
-    function test_upgrade_missingPermittedProxyDeployment_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        delete v2UpgradeInput.extraInstructions;
-
-        // Simulate a missing DelayedWETH proxy so the upgrade path would need to deploy it.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCallRevert(address(systemConfig), abi.encodeWithSelector(ISystemConfig.delayedWETH.selector), "");
-
-        // Expect the upgrade to revert because the DelayedWETH proxy must load but the user did not permit
-        // redeployment.
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the function that attempts to load
-    ///         an existing proxy returns data that isn't an abi-encoded address.
-    /// @param _len Length of the data to generate.
-    function testFuzz_upgrade_proxyLoadBadReturn_reverts(uint8 _len) public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Ensure we do not produce a 32-byte payload, which would be interpreted as a valid
-        // abi-encoded address and could change the revert reason.
-        vm.assume(_len != 32);
-
-        // Build an arbitrary bytes payload of length `_len`.
-        bytes memory bad = new bytes(_len);
-        for (uint256 i = 0; i < bad.length; i++) {
-            bad[i] = bytes1(uint8(0xAA));
-        }
-
-        // Mock the first proxy load source call to succeed but return a payload with a length
-        // not equal to 32 bytes, triggering OPContractsManagerV2_ProxyLoadMustLoad.
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), bad);
-
-        // Expect a revert without any data (due to abi decoding failure).
-        runCurrentUpgradeV2(upgrader, EXPECT_REVERT_WITHOUT_DATA);
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the function that attempts to load
-    ///         an existing proxy returns the zero address but we asked it to load.
-    function test_upgrade_proxyMustLoadButZeroAddress_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Mock the first proxy load to succeed and return address(0) with 32 bytes,
-        // which triggers OPContractsManagerV2_ProxyMustLoad since _mustLoad is true in upgrade.
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), abi.encode(address(0))
-        );
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
-        );
-    }
-
-    /// @notice Tests that the V2 upgrade function reverts when the function that attempts to load
-    ///         an existing proxy returns an error but we asked it to load.
-    function test_upgrade_proxyMustLoadButReverts_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
-
-        // Mock the first proxy load source to revert, which with _mustLoad=true triggers
-        // OPContractsManagerV2_ProxyMustLoad.
-        // nosemgrep: sol-style-use-abi-encodecall
-        vm.mockCallRevert(address(systemConfig), abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()), bytes(""));
-
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgradeV2(
-            upgrader, abi.encodeWithSelector(OPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
+            abi.encodeWithSelector(
+                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, (0)
+            )
         );
     }
 }
 
 contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_Upgrade_Harness {
-    /// @notice Input for the upgradeSuperchain function.
-    IOPContractsManagerV2.SuperchainUpgradeInput internal superchainUpgradeInput;
-
     function setUp() public override {
         super.setUp();
-
-        // Set the superchain config.
-        // No extra instructions, so don't set them.
-        superchainUpgradeInput.superchainConfig = superchainConfig;
 
         // The superchainConfig is already at the expected version so we mock this call here to bypass that check and
         // get our expected error.
@@ -2233,12 +1751,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
     /// @notice Tests that the upgradeSuperchainConfig function succeeds when the superchainConfig is at the expected
     ///         version and the delegate caller is the superchainProxyAdmin owner.
     function test_upgradeSuperchainConfig_succeeds() public {
-        address superchainConfigImpl;
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            superchainConfigImpl = opcmV2.implementations().superchainConfigImpl;
-        } else {
-            superchainConfigImpl = opcm.implementations().superchainConfigImpl;
-        }
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
 
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
@@ -2246,30 +1759,18 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         vm.expectEmit(address(superchainConfig));
-        emit Upgraded(superchainConfigImpl);
-
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            DelegateCaller(superchainPAO).dcForward(
-                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-            );
-        } else {
-            DelegateCaller(superchainPAO).dcForward(
-                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-            );
-        }
+        emit Upgraded(impls.superchainConfigImpl);
+        DelegateCaller(superchainPAO).dcForward(
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+        );
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when it is not called via delegatecall.
     function test_upgradeSuperchainConfig_notDelegateCalled_reverts() public {
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            vm.expectRevert("Ownable: caller is not the owner");
-            opcmV2.upgradeSuperchain(superchainUpgradeInput);
-        } else {
-            vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
-            opcm.upgradeSuperchainConfig(superchainConfig);
-        }
+        vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
+        opcm.upgradeSuperchainConfig(superchainConfig);
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
@@ -2284,15 +1785,9 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            DelegateCaller(delegateCaller).dcForward(
-                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-            );
-        } else {
-            DelegateCaller(delegateCaller).dcForward(
-                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-            );
-        }
+        DelegateCaller(delegateCaller).dcForward(
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+        );
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
@@ -2306,25 +1801,11 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Mock the SuperchainConfig to return a very large version.
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("99.99.99"));
 
-        // Exact revert message depends on OPCM being enabled.
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector);
-        } else {
-            vm.expectRevert(
-                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector
-            );
-        }
-
         // Try to upgrade the SuperchainConfig contract again, should fail.
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            DelegateCaller(upgrader).dcForward(
-                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
-            );
-        } else {
-            DelegateCaller(upgrader).dcForward(
-                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-            );
-        }
+        vm.expectRevert(IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigAlreadyUpToDate.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+        );
     }
 }
 
@@ -2341,7 +1822,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Helper function to create the default migration input.
@@ -2912,18 +2392,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
         vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
         emit Deployed(deployOPChainInput.l2ChainId, address(this), bytes(""));
         opcm.deploy(toOPCMDeployInput(deployOPChainInput));
-
-        // Try to keep the gas usage below 12m gas, under the EIP-7825 gas target of 2**24. We can
-        // technically go higher but this is a conservative bound, good signal that the gas usage
-        // is increasing. Only check this for the V2 OPCM since the V1 already exceeds this limit.
-        // Don't check for coverage or lite profile since they mess with gas usage.
-        VmSafe.Gas memory gas = vm.lastCallGas();
-        if (
-            isDevFeatureEnabled(DevFeatures.OPCM_V2) && !LibString.eq(Config.foundryProfile(), "lite")
-                && !vm.isContext(VmSafe.ForgeContext.Coverage)
-        ) {
-            assertLt(gas.gasTotalUsed, 12000000, "Deploy gas usage exceeds 12m gas");
-        }
     }
 
     /// @notice Test that deploy sets the permissioned dispute game implementation
@@ -3000,10 +2468,6 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
 /// @notice Tests the `version` function of the `OPContractsManager` contract.
 contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
     function test_semver_works() public view {
-        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
-            assertNotEq(abi.encode(opcmV2.version()), abi.encode(0));
-        } else {
-            assertNotEq(abi.encode(opcm.version()), abi.encode(0));
-        }
+        assertNotEq(abi.encode(opcm.version()), abi.encode(0));
     }
 }

@@ -237,6 +237,9 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 		if len(contractParts) == 2 && contractParts[1] == "TestInit" {
 			// Pattern: <ContractName>_TestInit
 			continue
+		} else if len(contractParts) == 3 && contractParts[2] == "TestInit" {
+			// Pattern: <ContractName>_<Subsystem>_TestInit
+			continue
 		} else if len(contractParts) == 2 && contractParts[1] == "Harness" {
 			// Pattern: <ContractName>_Harness
 			continue
@@ -250,7 +253,7 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 			errors = append(errors, checkTestMethodName(artifact, contractName, contractParts[1], contractParts[2])...)
 		} else {
 			// Invalid naming pattern
-			errors = append(errors, fmt.Errorf("contract '%s': invalid naming pattern. Expected patterns: <ContractName>_TestInit, <ContractName>_<FunctionName>_Test, or <ContractName>_Uncategorized_Test", contractName))
+			errors = append(errors, fmt.Errorf("contract '%s': invalid naming pattern. Expected patterns: <ContractName>_TestInit, <ContractName>_<Subsystem>_TestInit, <ContractName>_Harness, <ContractName>_<FunctionName>_Test, <ContractName>_<Descriptor>_Harness, or <ContractName>_Uncategorized_Test", contractName))
 		}
 	}
 

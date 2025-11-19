@@ -4,9 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
-// Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-
 // Contracts
 import { OPContractsManager, OPContractsManagerContractsContainer } from "src/L1/OPContractsManager.sol";
 
@@ -16,8 +13,6 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     /// @notice Tests that the constructor succeeds when the devFeatureBitmap is in dev.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function testFuzz_constructor_devBitmapInDev_succeeds(bytes32 _devFeatureBitmap) public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Etch into the magic testing address.
         vm.etch(address(0xbeefcafe), hex"01");
 
@@ -38,8 +33,6 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     /// @notice Tests that the constructor reverts when the devFeatureBitmap is in prod.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function testFuzz_constructor_devBitmapInProd_reverts(bytes32 _devFeatureBitmap) public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Anything but zero!
         _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
 
@@ -75,8 +68,6 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     ///         address having code.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function test_constructor_devBitmapMainnetButTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
-        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
-
         // Make sure magic address has code.
         vm.etch(address(0xbeefcafe), hex"01");
 
