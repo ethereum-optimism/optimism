@@ -106,7 +106,6 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_UnsupportedGameType();
     error OPContractsManagerV2_ProxyMustLoad();
     error OPContractsManagerV2_DowngradeNotAllowed();
-    error OPContractsManagerV2_DevFeatureInProd();
     error OPContractsManagerV2_InvalidUpgradeInstruction();
     error OPContractsManagerV2_ConfigLoadFailed(string _name);
     error IdentityPrecompileCallFailed();
