@@ -25,7 +25,7 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   usage
 fi
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
 DEPLOY_BUCKET="oplabs-contract-artifacts"
 BUCKET_URL="https://storage.googleapis.com/$DEPLOY_BUCKET"
@@ -39,7 +39,7 @@ if [ "${1:-}" = "--force" ] || [ "${1:-}" = "-f" ]; then
   echoerr "> Force mode enabled - will overwrite existing artifacts"
 fi
 
-if command -v zstd >/dev/null 2>&1; then
+if command -v zstd > /dev/null 2>&1; then
   HAS_ZSTD=true
   echoerr "> zstd found, will create both .tar.gz and .tar.zst files"
 else
@@ -106,7 +106,6 @@ else
   echoerr "> Cache directory not found, excluding from archive"
 fi
 
-
 if [ "$HAS_ZSTD" = true ]; then
   echoerr "> Compressing artifacts (.tar.gz and .tar.zst)..."
 
@@ -131,8 +130,8 @@ if [ "$HAS_ZSTD" = true ]; then
   echoerr "> Created .tar.zst archive"
 
   # Compare file sizes in MB
-  gz_size=$(stat -f%z "$archive_name_gz" 2>/dev/null || stat -c%s "$archive_name_gz" 2>/dev/null || echo "0")
-  zst_size=$(stat -f%z "$archive_name_zst" 2>/dev/null || stat -c%s "$archive_name_zst" 2>/dev/null || echo "0")
+  gz_size=$(stat -f%z "$archive_name_gz" 2> /dev/null || stat -c%s "$archive_name_gz" 2> /dev/null || echo "0")
+  zst_size=$(stat -f%z "$archive_name_zst" 2> /dev/null || stat -c%s "$archive_name_zst" 2> /dev/null || echo "0")
 
   if [ "$gz_size" -gt 0 ] && [ "$zst_size" -gt 0 ]; then
     gz_mb=$(awk "BEGIN {printf \"%.2f\", $gz_size / 1048576}")

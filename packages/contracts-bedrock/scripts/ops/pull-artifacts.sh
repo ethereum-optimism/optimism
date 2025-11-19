@@ -55,12 +55,12 @@ if [ "${1:-}" = "--fallback-to-latest" ]; then
   echoerr "> Fallback to latest enabled"
 fi
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 CONTRACTS_DIR="$SCRIPT_DIR/../.."
 
 cd "$CONTRACTS_DIR"
 
-if command -v zstd >/dev/null 2>&1; then
+if command -v zstd > /dev/null 2>&1; then
   HAS_ZSTD=true
   echoerr "> zstd found, will prefer .tar.zst files"
 else

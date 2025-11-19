@@ -27,7 +27,6 @@ versionFoundry() {
   fi
 }
 
-
 # Grab versions
 ver_git=$(version "$(git --version)")
 ver_go=$(version "$(go version)")

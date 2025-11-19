@@ -5,7 +5,7 @@ KONA_REPO_URL=https://github.com/op-rs/kona
 
 TMP_DIR=$(mktemp -d)
 function cleanup() {
-    rm -rf "${TMP_DIR}"
+  rm -rf "${TMP_DIR}"
 }
 trap cleanup EXIT
 echo "Using temp dir: ${TMP_DIR}"
@@ -26,116 +26,113 @@ mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 cd "${REPO_DIR}"
 
 function build_kona_prestate() {
-    local version=$1
-    if [[ -z "${version}" ]]; then
-        echo "Error: version is required"
-        exit 1
-    fi
-    local short_version
-    short_version=$(echo "${version}" | cut -c 14-)
-    local log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
-    echo "Building Version: ${version} Logs: ${log_file}"
+  local version=$1
+  if [[ -z "${version}" ]]; then
+    echo "Error: version is required"
+    exit 1
+  fi
+  local short_version
+  short_version=$(echo "${version}" | cut -c 14-)
+  local log_file="${LOGS_DIR}/build-kona-${short_version}.txt"
+  echo "Building Version: ${version} Logs: ${log_file}"
 
-    mkdir -p kona-prestate-build
-    cd kona-prestate-build
+  mkdir -p kona-prestate-build
+  cd kona-prestate-build
 
-    if [[ -d kona ]]; then
-        cd kona
-        git checkout --force "${version}" > "${log_file}" 2>&1
-    else
-        git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
-        cd kona
-    fi
-    # kona doesn't define a just dependency in its mise config.
-    # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
-    MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
+  if [[ -d kona ]]; then
+    cd kona
+    git checkout --force "${version}" > "${log_file}" 2>&1
+  else
+    git clone -b "${version}" "$KONA_REPO_URL" kona > "${log_file}" 2>&1
+    cd kona
+  fi
+  # kona doesn't define a just dependency in its mise config.
+  # but the monorepo does and it should be preinstalled by now. So let's setup the just shim.
+  MISE_DEFAULT_CONFIG_FILENAME="${REPO_DIR}"/mise.toml mise use just > "${log_file}" 2>&1
 
-    cd docker/fpvm-prestates
-    rm -rf ../../prestate-artifacts-cannon
-    just cannon kona-client "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
-    local prestate_hash
-    prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
-    cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona\"}]")
-    echo "Built kona ${version}: ${prestate_hash}"
+  cd docker/fpvm-prestates
+  rm -rf ../../prestate-artifacts-cannon
+  just cannon kona-client "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
+  local prestate_hash
+  prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
+  cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
+  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona\"}]")
+  echo "Built kona ${version}: ${prestate_hash}"
 
-    rm ../../prestate-artifacts-cannon/prestate-proof.json
-    just cannon kona-client-int "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
-    prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
-    cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona-interop\"}]")
-    echo "Built kona-interop ${version}: ${prestate_hash}"
+  rm ../../prestate-artifacts-cannon/prestate-proof.json
+  just cannon kona-client-int "${version}" "$(cat ../../.config/cannon_tag)" >> "${log_file}" 2>&1
+  prestate_hash=$(cat ../../prestate-artifacts-cannon/prestate-proof.json | jq -r .pre)
+  cp ../../prestate-artifacts-cannon/prestate.bin.gz "${STATES_DIR}/${prestate_hash}.bin.gz"
+  VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${short_version}\", \"hash\": \"${prestate_hash}\", \"type\": \"cannon64-kona-interop\"}]")
+  echo "Built kona-interop ${version}: ${prestate_hash}"
 }
 
 function build_op_program_prestate() {
-    local VERSION=$1
-    if [[ -z "${VERSION}" ]]; then
-        echo "Error: VERSION is required"
-        exit 1
-    fi
-    local SHORT_VERSION # declared separately from assignment to avoid masking failures
-    SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
-    local LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
-    echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
-    # use --force to overwrite any mise.toml changes
-    git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
-    if [ -f mise.toml ]
-    then
-      echo "Install dependencies with mise" >> "${LOG_FILE}"
-      # we rely only on go and jq for the reproducible-prestate build.
-      # The mise cache should already have jq preinstalled
-      # But we need to ensure that this ${VERSION} has the correct go version
-      # So we replace the mise.toml with a minimal one that only specifies go
-      # Otherwise, `mise install` fails as it conflicts with other preinstalled dependencies
-      GO_VERSION=$(mise config get tools.go)
-      cat >mise.toml <<EOF
+  local VERSION=$1
+  if [[ -z "${VERSION}" ]]; then
+    echo "Error: VERSION is required"
+    exit 1
+  fi
+  local SHORT_VERSION # declared separately from assignment to avoid masking failures
+  SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
+  local LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
+  echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
+  # use --force to overwrite any mise.toml changes
+  git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
+  if [ -f mise.toml ]; then
+    echo "Install dependencies with mise" >> "${LOG_FILE}"
+    # we rely only on go and jq for the reproducible-prestate build.
+    # The mise cache should already have jq preinstalled
+    # But we need to ensure that this ${VERSION} has the correct go version
+    # So we replace the mise.toml with a minimal one that only specifies go
+    # Otherwise, `mise install` fails as it conflicts with other preinstalled dependencies
+    GO_VERSION=$(mise config get tools.go)
+    cat > mise.toml << EOF
 [tools]
 go = "${GO_VERSION}"
 EOF
-      mise install -v -y >> "${LOG_FILE}" 2>&1
-    fi
-    rm -rf "${BIN_DIR}"
-    make reproducible-prestate >> "${LOG_FILE}" 2>&1
+    mise install -v -y >> "${LOG_FILE}" 2>&1
+  fi
+  rm -rf "${BIN_DIR}"
+  make reproducible-prestate >> "${LOG_FILE}" 2>&1
 
-    if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
-      local HASH
-      HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
-      if [ -f "${BIN_DIR}/prestate.bin.gz" ]
-      then
-        cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
-      else
-        cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
-      fi
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
-      echo "Built cannon32 ${VERSION}: ${HASH}"
+  if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
+    local HASH
+    HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
+    if [ -f "${BIN_DIR}/prestate.bin.gz" ]; then
+      cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
+    else
+      cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
     fi
+    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
+    echo "Built cannon32 ${VERSION}: ${HASH}"
+  fi
 
-    if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
-      local HASH
-      HASH=$(cat "${BIN_DIR}/prestate-proof-mt64.json" | jq -r .pre)
-      cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${HASH}.mt64.bin.gz"
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon64\"}]")
-      echo "Built cannon64 ${VERSION}: ${HASH}"
-    fi
+  if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
+    local HASH
+    HASH=$(cat "${BIN_DIR}/prestate-proof-mt64.json" | jq -r .pre)
+    cp "${BIN_DIR}/prestate-mt64.bin.gz" "${STATES_DIR}/${HASH}.mt64.bin.gz"
+    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon64\"}]")
+    echo "Built cannon64 ${VERSION}: ${HASH}"
+  fi
 
-    if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
-      local HASH
-      HASH=$(cat "${BIN_DIR}/prestate-proof-interop.json" | jq -r .pre)
-      cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${HASH}.interop.bin.gz"
-      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"interop\"}]")
-      echo "Built cannon-interop ${VERSION}: ${HASH}"
-    fi
+  if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
+    local HASH
+    HASH=$(cat "${BIN_DIR}/prestate-proof-interop.json" | jq -r .pre)
+    cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${HASH}.interop.bin.gz"
+    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"interop\"}]")
+    echo "Built cannon-interop ${VERSION}: ${HASH}"
+  fi
 }
 
 # this global is written to by build_op_program_prestate and build_kona_prestate
 VERSIONS_JSON="[]"
 readarray -t VERSIONS < <(git tag --list 'op-program/v*' --sort taggerdate)
 
-for VERSION in "${VERSIONS[@]}"
-do
-    pushd .
-    build_op_program_prestate "${VERSION}"
-    popd
+for VERSION in "${VERSIONS[@]}"; do
+  pushd .
+  build_op_program_prestate "${VERSION}"
+  popd
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
@@ -154,11 +151,10 @@ readarray -t KONA_VERSIONS < <(git ls-remote --tags "$KONA_REPO_URL" | grep kona
   | sed 's|.*refs/tags/||' | sed 's/\^{}//' | sort -u \
   | grep -v beta | grep -v alpha | grep -v -F -f excluded.txt)
 
-for VERSION in "${KONA_VERSIONS[@]}"
-do
-    pushd .
-    build_kona_prestate "${VERSION}"
-    popd
+for VERSION in "${KONA_VERSIONS[@]}"; do
+  pushd .
+  build_kona_prestate "${VERSION}"
+  popd
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 
