@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
 
 // Libraries
@@ -63,15 +62,13 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         skipIfNotForkTest("OPContractsManagerV2_Upgrade_TestInit: only runs in forked tests");
         skipIfOpsRepoTest("OPContractsManagerV2_Upgrade_TestInit: skipped in superchain-ops");
 
-        // Turn the chain PAO into a DelegateCaller.
+        // Set the chain PAO.
         chainPAO = proxyAdmin.owner();
         vm.label(chainPAO, "ProxyAdmin Owner");
-        vm.etch(chainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // Turn the SuperchainConfig PAO into a DelegateCaller.
+        // Set the SuperchainConfig PAO.
         superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
         vm.label(superchainPAO, "SuperchainConfig ProxyAdmin Owner");
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Grab and set the L2 chain ID.
         l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
@@ -135,8 +132,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
 
         // Execute the SuperchainConfig upgrade.
         // nosemgrep: sol-safety-trycatch-eip150
-        try DelegateCaller(superchainPAO).dcForward(
-            address(opcmV2),
+        prankDelegateCall(superchainPAO);
+        (bool success, bytes memory reason) = address(opcmV2).delegatecall(
             abi.encodeCall(
                 IOPContractsManagerV2.upgradeSuperchain,
                 (
@@ -146,9 +143,8 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
                     })
                 )
             )
-        ) {
-            // Great, the upgrade succeeded.
-        } catch (bytes memory reason) {
+        );
+        if (success == false) {
             // Only acceptable revert reason is the SuperchainConfig already being up to date. This
             // try/catch is better than checking the version via the implementations struct because
             // the implementations struct interface can change between OPCM versions which would
@@ -158,10 +154,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
                 "Revert reason other than DowngradeNotAllowed"
             );
         }
-
-        // Temporarily replace the chainPAO with a DelegateCaller.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Expect the revert if one is specified.
         if (_revertBytes.length > 0) {
@@ -174,25 +166,20 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         }
 
         // Execute the V2 chain upgrade via delegate caller.
-        DelegateCaller(_delegateCaller).dcForward(
-            address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgrade, (v2UpgradeInput))
-        );
+        prankDelegateCall(_delegateCaller);
+        (bool upgradeSuccess,) =
+            address(opcmV2).delegatecall(abi.encodeCall(IOPContractsManagerV2.upgrade, (v2UpgradeInput)));
+        assertTrue(upgradeSuccess, "upgrade failed");
 
         // Return early if a revert was expected. Otherwise we'll get errors below.
         if (_revertBytes.length > 0) {
             return;
         }
 
-        // Reset the chainPAO to the original code.
-        vm.etch(_delegateCaller, delegateCallerCode);
-
         // Less than 90% of the gas target of 2**24 (EIP-7825) to account for the gas used by using Safe.
         uint256 fusakaLimit = 2 ** 24;
         VmSafe.Gas memory gas = vm.lastCallGas();
         assertLt(gas.gasTotalUsed, fusakaLimit * 9 / 10, "Upgrade exceeds gas target of 90% of 2**24 (EIP-7825)");
-
-        // Reset the chainPAO to the original code.
-        vm.etch(_delegateCaller, delegateCallerCode);
 
         // Coverage changes bytecode, so we get various errors. We can safely ignore the result of
         // the standard validator in the coverage case, if the validator is failing in coverage
@@ -295,7 +282,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     ///         owner address.
     function test_upgrade_notProxyAdminOwner_reverts() public {
         address delegateCaller = makeAddr("delegateCaller");
-        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
@@ -474,9 +460,11 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
         emit Upgraded(superchainConfigImpl);
 
         // Do the upgrade.
-        DelegateCaller(superchainPAO).dcForward(
-            address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+        prankDelegateCall(superchainPAO);
+        (bool success,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
+        assertTrue(success, "upgradeSuperchain failed");
     }
 
     /// @notice Tests that the upgradeSuperchain function reverts when not delegatecalled.
@@ -488,9 +476,8 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
     /// @notice Tests that the upgradeSuperchain function reverts when the delegate caller is not
     ///         the superchainProxyAdmin owner.
     function test_upgradeSuperchain_notProxyAdminOwner_reverts() public {
-        // Make a new address and turn it into a DelegateCaller.
+        // Make a new address for testing.
         address delegateCaller = makeAddr("delegateCaller");
-        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Sanity check that the address we generated isn't the superchainPAO or chainPAO.
         assertNotEq(superchainPAO, delegateCaller);
@@ -498,9 +485,11 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
 
         // Should revert.
         vm.expectRevert("Ownable: caller is not the owner");
-        DelegateCaller(delegateCaller).dcForward(
-            address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+        prankDelegateCall(delegateCaller);
+        (bool success,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
+        assertTrue(success, "upgradeSuperchain failed");
     }
 
     /// @notice Tests that the upgradeSuperchain function reverts when the superchainConfig version
@@ -521,8 +510,10 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
                 IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector, address(superchainConfig)
             )
         );
-        DelegateCaller(superchainPAO).dcForward(
-            address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+        prankDelegateCall(superchainPAO);
+        (bool success,) = address(opcmV2).delegatecall(
+            abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
+        assertTrue(success, "upgradeSuperchain failed");
     }
 }

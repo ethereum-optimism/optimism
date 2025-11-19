@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
-import { DelegateCaller } from "test/mocks/Callers.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -207,9 +206,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                     addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
                 }
             } else {
-                // Set the ProxyAdmin owner to be a delegatecaller.
+                // Get the ProxyAdmin owner.
                 address owner = proxyAdmin.owner();
-                vm.etch(owner, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
                 // Prepare the upgrade input.
                 IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
@@ -242,8 +240,8 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 });
 
                 // Call upgrade to all games to be enabled.
-                DelegateCaller(owner).dcForward(
-                    address(opcmV2),
+                prankDelegateCall(owner);
+                (bool success,) = address(opcmV2).delegatecall(
                     abi.encodeCall(
                         IOPContractsManagerV2.upgrade,
                         (
@@ -255,6 +253,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                         )
                     )
                 );
+                assertTrue(success, "upgrade failed");
 
                 // Grab the FaultDisputeGame implementation.
                 fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));

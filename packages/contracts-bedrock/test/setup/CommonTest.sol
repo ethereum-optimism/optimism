@@ -237,4 +237,14 @@ abstract contract CommonTest is Test, Setup, Events {
 
         useUpgradedFork = false;
     }
+
+    /// @dev Helper function to setup a prank for delegatecall.
+    /// @param _caller The address to prank as the caller.
+    function prankDelegateCall(address _caller) internal {
+        // Foundry fails with "cannot `prank` delegate call from an EOA" if empty
+        if (_caller.code.length == 0) {
+            vm.etch(_caller, hex"00");
+        }
+        vm.prank(_caller, true);
+    }
 }
