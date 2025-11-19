@@ -933,8 +933,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
+          name: Pull artifacts with latest fallback
+          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
           working_directory: packages/contracts-bedrock
       - go-restore-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
@@ -1103,8 +1103,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
+          name: Pull artifacts with latest fallback
+          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
           working_directory: packages/contracts-bedrock
       - run:
           name: Install lcov
@@ -1200,8 +1200,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
+          name: Pull artifacts with latest fallback
+          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
           working_directory: packages/contracts-bedrock
       - run:
           name: Write pinned block number for cache key
