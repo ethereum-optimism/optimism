@@ -4,12 +4,12 @@ pragma solidity 0.8.15;
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
-/// @title OPContractsManagerContractsContainer
+/// @title OPContractsManagerContainer
 /// @notice Helper contract that sits alongside the OPContractsManagerV2 contract. This contract
 ///         MUST be used to store the blueprints and implementations for OPCM because the
 ///         blueprints and implementations can't be stored as immutables and wouldn't be returned
 ///         correctly when the OPCM is DELEGATECALLed.
-contract OPContractsManagerContractsContainer {
+contract OPContractsManagerContainer {
     /// @notice Addresses of the blueprint contracts.
     struct Blueprints {
         address addressManager;

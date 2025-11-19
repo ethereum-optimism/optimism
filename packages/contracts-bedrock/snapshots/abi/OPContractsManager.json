@@ -27,11 +27,6 @@
         "type": "address"
       },
       {
-        "internalType": "contract IOPContractsManagerV2",
-        "name": "_opcmV2",
-        "type": "address"
-      },
-      {
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
@@ -190,7 +185,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Blueprints",
+        "internalType": "struct OPContractsManager.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -525,14 +520,9 @@
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "storageSetterImpl",
-            "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Implementations",
+        "internalType": "struct OPContractsManager.Implementations",
         "name": "",
         "type": "tuple"
       }
@@ -718,19 +708,6 @@
     "outputs": [
       {
         "internalType": "contract OPContractsManagerUpgrader",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "opcmV2",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerV2",
         "name": "",
         "type": "address"
       }
@@ -1079,31 +1056,6 @@
     "type": "function"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "l2ChainId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "deployer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "deployOutput",
-        "type": "bytes"
-      }
-    ],
-    "name": "Deployed",
-    "type": "event"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -1170,11 +1122,6 @@
   {
     "inputs": [],
     "name": "LatestReleaseNotSet",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "MissingPermissionedDisputeGame",
     "type": "error"
   },
   {

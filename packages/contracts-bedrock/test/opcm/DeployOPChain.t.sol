@@ -15,7 +15,6 @@ import { Types } from "scripts/libraries/Types.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { Claim, Duration, GameType, GameTypes } from "src/dispute/lib/Types.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
 
 contract DeployOPChain_TestBase is Test, FeatureFlags {
     DeploySuperchain deploySuperchain;
@@ -195,7 +194,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Check dispute game deployments
         // Validate permissionedDisputeGame (PDG) address
         bool isDeployV2Games = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
-        IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
         address expectedPDGAddress =
             isDeployV2Games ? impls.permissionedDisputeGameV2Impl : address(doo.permissionedDisputeGame);
         address actualPDGAddress = address(doo.disputeGameFactoryProxy.gameImpls(GameTypes.PERMISSIONED_CANNON));

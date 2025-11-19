@@ -4,8 +4,11 @@ pragma solidity 0.8.15;
 // Testing
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
+// Libraries
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+
 // Contracts
-import { OPContractsManagerContractsContainer } from "src/L1/opcm/OPContractsManagerContractsContainer.sol";
+import { OPContractsManager, OPContractsManagerContractsContainer } from "src/L1/OPContractsManager.sol";
 
 /// @title OPContractsManagerContractsContainer_Constructor_Test
 /// @notice Tests the constructor of the `OPContractsManagerContractsContainer` contract.
@@ -13,17 +16,18 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     /// @notice Tests that the constructor succeeds when the devFeatureBitmap is in dev.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function testFuzz_constructor_devBitmapInDev_succeeds(bytes32 _devFeatureBitmap) public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Etch into the magic testing address.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Create empty blueprints and implementations.
-        OPContractsManagerContractsContainer.Blueprints memory blueprints;
-        OPContractsManagerContractsContainer.Implementations memory implementations;
+        // Convert to proper OPCM type for construction.
+        OPContractsManager opcm2 = OPContractsManager(address(opcm));
 
         // Should not revert.
         OPContractsManagerContractsContainer container = new OPContractsManagerContractsContainer({
-            _blueprints: blueprints,
-            _implementations: implementations,
+            _blueprints: opcm2.blueprints(),
+            _implementations: opcm2.implementations(),
             _devFeatureBitmap: _devFeatureBitmap
         });
 
@@ -34,18 +38,23 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     /// @notice Tests that the constructor reverts when the devFeatureBitmap is in prod.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function testFuzz_constructor_devBitmapInProd_reverts(bytes32 _devFeatureBitmap) public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Anything but zero!
         _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
 
         // Make sure magic address has no code.
         vm.etch(address(0xbeefcafe), bytes(""));
 
+        // Convert to proper OPCM type for construction.
+        OPContractsManager opcm2 = OPContractsManager(address(opcm));
+
         // Set the chain ID to 1.
         vm.chainId(1);
 
-        // Create empty blueprints and implementations.
-        OPContractsManagerContractsContainer.Blueprints memory blueprints;
-        OPContractsManagerContractsContainer.Implementations memory implementations;
+        // Fetch ahead of time to avoid expectRevert applying to these functions by accident.
+        OPContractsManager.Blueprints memory blueprints = opcm2.blueprints();
+        OPContractsManager.Implementations memory implementations = opcm2.implementations();
 
         // Should revert.
         vm.expectRevert(
@@ -66,20 +75,21 @@ contract OPContractsManagerContractsContainer_Constructor_Test is OPContractsMan
     ///         address having code.
     /// @param _devFeatureBitmap The devFeatureBitmap to use.
     function test_constructor_devBitmapMainnetButTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Make sure magic address has code.
         vm.etch(address(0xbeefcafe), hex"01");
 
-        // Create empty blueprints and implementations.
-        OPContractsManagerContractsContainer.Blueprints memory blueprints;
-        OPContractsManagerContractsContainer.Implementations memory implementations;
+        // Convert to proper OPCM type for construction.
+        OPContractsManager opcm2 = OPContractsManager(address(opcm));
 
         // Set the chain ID to 1.
         vm.chainId(1);
 
         // Should not revert.
         OPContractsManagerContractsContainer container = new OPContractsManagerContractsContainer({
-            _blueprints: blueprints,
-            _implementations: implementations,
+            _blueprints: opcm2.blueprints(),
+            _implementations: opcm2.implementations(),
             _devFeatureBitmap: _devFeatureBitmap
         });
 

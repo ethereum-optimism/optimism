@@ -19,7 +19,8 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 interface IOPContractsManagerV2 {
     /// @notice Configuration for the FaultDisputeGame.
@@ -97,36 +98,6 @@ interface IOPContractsManagerV2 {
         ExtraInstruction[] extraInstructions;
     }
 
-    struct Blueprints {
-        address addressManager;
-        address proxy;
-        address proxyAdmin;
-        address l1ChugSplashProxy;
-        address resolvedDelegateProxy;
-    }
-
-    struct Implementations {
-        address superchainConfigImpl;
-        address protocolVersionsImpl;
-        address l1ERC721BridgeImpl;
-        address optimismPortalImpl;
-        address optimismPortalInteropImpl;
-        address ethLockboxImpl;
-        address systemConfigImpl;
-        address optimismMintableERC20FactoryImpl;
-        address l1CrossDomainMessengerImpl;
-        address l1StandardBridgeImpl;
-        address disputeGameFactoryImpl;
-        address anchorStateRegistryImpl;
-        address delayedWETHImpl;
-        address mipsImpl;
-        address faultDisputeGameV2Impl;
-        address permissionedDisputeGameV2Impl;
-        address superFaultDisputeGameImpl;
-        address superPermissionedDisputeGameImpl;
-        address storageSetterImpl;
-    }
-
     event ProxyCreation(string name, address proxy);
 
     error OPContractsManagerV2_InvalidGameConfigs();
@@ -149,15 +120,20 @@ interface IOPContractsManagerV2 {
     error UnexpectedPreambleData(bytes data);
 
     function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
+        IOPContractsManagerContainer _contractsContainer,
+        IOPContractsManagerStandardValidator _standardValidator
     )
         external;
 
-    function blueprints() external view returns (IOPContractsManagerContractsContainer.Blueprints memory);
+    function blueprints() external view returns (IOPContractsManagerContainer.Blueprints memory);
 
-    function implementations() external view returns (IOPContractsManagerContractsContainer.Implementations memory);
+    function implementations() external view returns (IOPContractsManagerContainer.Implementations memory);
 
-    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
+    function contractsContainer() external view returns (IOPContractsManagerContainer);
+
+    function standardValidator() external view returns (IOPContractsManagerStandardValidator);
+
+    function version() external view returns (string memory);
 
     /// @notice Upgrades Superchain-wide contracts.
     function upgradeSuperchain(SuperchainUpgradeInput memory _inp)

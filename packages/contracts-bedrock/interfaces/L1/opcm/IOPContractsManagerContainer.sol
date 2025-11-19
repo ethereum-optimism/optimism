@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IOPContractsManagerContractsContainer {
+interface IOPContractsManagerContainer {
     struct Blueprints {
         address addressManager;
         address proxy;

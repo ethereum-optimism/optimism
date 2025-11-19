@@ -26,10 +26,11 @@ import {
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
     IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator
+    IOPContractsManagerStandardValidator,
+    IOPContractsManagerContractsContainer
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -71,6 +72,7 @@ contract DeployImplementations is Script {
     struct Output {
         IOPContractsManager opcm;
         IOPContractsManagerContractsContainer opcmContractsContainer;
+        IOPContractsManagerContainer opcmContainer;
         IOPContractsManagerGameTypeAdder opcmGameTypeAdder;
         IOPContractsManagerDeployer opcmDeployer;
         IOPContractsManagerUpgrader opcmUpgrader;
@@ -151,13 +153,34 @@ contract DeployImplementations is Script {
     function createOPCMContract(
         Input memory _input,
         Output memory _output,
-        IOPContractsManagerContractsContainer.Blueprints memory _blueprints
+        IOPContractsManager.Blueprints memory _blueprints
     )
         private
         returns (IOPContractsManager opcm_)
     {
-        IOPContractsManagerContractsContainer.Implementations memory implementations =
-        IOPContractsManagerContractsContainer.Implementations({
+        IOPContractsManager.Implementations memory implementations = IOPContractsManager.Implementations({
+            superchainConfigImpl: address(_output.superchainConfigImpl),
+            protocolVersionsImpl: address(_output.protocolVersionsImpl),
+            l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
+            optimismPortalImpl: address(_output.optimismPortalImpl),
+            optimismPortalInteropImpl: address(_output.optimismPortalInteropImpl),
+            ethLockboxImpl: address(_output.ethLockboxImpl),
+            systemConfigImpl: address(_output.systemConfigImpl),
+            optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
+            l1CrossDomainMessengerImpl: address(_output.l1CrossDomainMessengerImpl),
+            l1StandardBridgeImpl: address(_output.l1StandardBridgeImpl),
+            disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
+            anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
+            delayedWETHImpl: address(_output.delayedWETHImpl),
+            mipsImpl: address(_output.mipsSingleton),
+            faultDisputeGameV2Impl: address(_output.faultDisputeGameV2Impl),
+            permissionedDisputeGameV2Impl: address(_output.permissionedDisputeGameV2Impl),
+            superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
+            superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl)
+        });
+
+        IOPContractsManagerContainer.Implementations memory implementationsV2 = IOPContractsManagerContainer
+            .Implementations({
             superchainConfigImpl: address(_output.superchainConfigImpl),
             protocolVersionsImpl: address(_output.protocolVersionsImpl),
             l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
@@ -179,7 +202,21 @@ contract DeployImplementations is Script {
             storageSetterImpl: address(_output.storageSetterImpl)
         });
 
+        // Convert blueprints to V2 blueprints
+        IOPContractsManagerContainer.Blueprints memory blueprintsV2 = IOPContractsManagerContainer.Blueprints({
+            addressManager: _blueprints.addressManager,
+            proxy: _blueprints.proxy,
+            proxyAdmin: _blueprints.proxyAdmin,
+            l1ChugSplashProxy: _blueprints.l1ChugSplashProxy,
+            resolvedDelegateProxy: _blueprints.resolvedDelegateProxy,
+            permissionedDisputeGame1: _blueprints.permissionedDisputeGame1,
+            permissionedDisputeGame2: _blueprints.permissionedDisputeGame2,
+            permissionlessDisputeGame1: _blueprints.permissionlessDisputeGame1,
+            permissionlessDisputeGame2: _blueprints.permissionlessDisputeGame2
+        });
+
         deployOPCMBPImplsContainer(_input, _output, _blueprints, implementations);
+        deployOPCMContainer(_input, _output, blueprintsV2, implementationsV2);
         deployOPCMGameTypeAdder(_output);
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
@@ -223,7 +260,6 @@ contract DeployImplementations is Script {
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
                     _output.opcmStandardValidator,
-                    _output.opcmV2,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy
                 )
@@ -234,7 +270,7 @@ contract DeployImplementations is Script {
     function deployOPContractsManager(Input memory _input, Output memory _output) private {
         // First we deploy the blueprints for the singletons deployed by OPCM.
         // forgefmt: disable-start
-        IOPContractsManagerContractsContainer.Blueprints memory blueprints;
+        IOPContractsManager.Blueprints memory blueprints;
         vm.startBroadcast(msg.sender);
         address checkAddress;
         (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("AddressManager"), _salt);
@@ -581,14 +617,14 @@ contract DeployImplementations is Script {
     function deployOPCMBPImplsContainer(
         Input memory _input,
         Output memory _output,
-        IOPContractsManagerContractsContainer.Blueprints memory _blueprints,
-        IOPContractsManagerContractsContainer.Implementations memory _implementations
+        IOPContractsManager.Blueprints memory _blueprints,
+        IOPContractsManager.Implementations memory _implementations
     )
         private
     {
         IOPContractsManagerContractsContainer impl = IOPContractsManagerContractsContainer(
             DeployUtils.createDeterministic({
-                _name: "OPContractsManagerContractsContainer.sol:OPContractsManagerContractsContainer",
+                _name: "OPContractsManager.sol:OPContractsManagerContractsContainer",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IOPContractsManagerContractsContainer.__constructor__,
@@ -600,6 +636,30 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OPContractsManagerBPImplsContainerImpl");
         _output.opcmContractsContainer = impl;
+    }
+
+    function deployOPCMContainer(
+        Input memory _input,
+        Output memory _output,
+        IOPContractsManagerContainer.Blueprints memory _blueprints,
+        IOPContractsManagerContainer.Implementations memory _implementations
+    )
+        private
+    {
+        IOPContractsManagerContainer impl = IOPContractsManagerContainer(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerContainer.sol:OPContractsManagerContainer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManagerContainer.__constructor__,
+                        (_blueprints, _implementations, _input.devFeatureBitmap)
+                    )
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerContainerImpl");
+        _output.opcmContainer = impl;
     }
 
     function deployOPCMGameTypeAdder(Output memory _output) private {
@@ -661,7 +721,7 @@ contract DeployImplementations is Script {
     function deployOPCMStandardValidator(
         Input memory _input,
         Output memory _output,
-        IOPContractsManagerContractsContainer.Implementations memory _implementations
+        IOPContractsManager.Implementations memory _implementations
     )
         private
     {
@@ -707,7 +767,9 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerV2.sol:OPContractsManagerV2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerV2.__constructor__, (_output.opcmContractsContainer))
+                    abi.encodeCall(
+                        IOPContractsManagerV2.__constructor__, (_output.opcmContainer, _output.opcmStandardValidator)
+                    )
                 ),
                 _salt: _salt
             })

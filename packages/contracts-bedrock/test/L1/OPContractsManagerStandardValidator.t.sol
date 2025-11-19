@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
+import { DelegateCaller } from "test/mocks/Callers.sol";
 
 // Libraries
 import { GameType, Hash } from "src/dispute/lib/LibUDT.sol";
@@ -44,6 +45,7 @@ import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactor
 import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IStaticERC1967Proxy } from "interfaces/universal/IStaticERC1967Proxy.sol";
 import { IDelayedWETH } from "../../interfaces/dispute/IDelayedWETH.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the OPContractsManagerStandardValidator. Far easier
@@ -100,6 +102,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     /// @notice The proposer role set on the PermissionedDisputeGame instance.
     address proposer;
 
+    /// @notice The challenger role set on the PermissionedDisputeGame instance.
+    address challenger;
+
     /// @notice The DisputeGameFactory instance.
     IDisputeGameFactory dgf;
 
@@ -114,6 +119,9 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
 
     /// @notice The BadDisputeGameFactoryReturner instance.
     BadDisputeGameFactoryReturner badDisputeGameFactoryReturner;
+
+    /// @notice The OPContractsManagerStandardValidator instance.
+    IOPContractsManagerStandardValidator standardValidator;
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
@@ -131,6 +139,12 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
 
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            standardValidator = opcmV2.standardValidator();
+        } else {
+            standardValidator = opcm.opcmStandardValidator();
+        }
+
         // Values are slightly different for fork tests vs local tests. Most we can get from
         // reasonable sources, challenger we need to get from live system because there's no other
         // consistent way to get it right now. Means we're cheating a tiny bit for the challenger
@@ -139,55 +153,111 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             cannonPrestate = Claim.wrap(bytes32(keccak256("cannonPrestate")));
             proposer = address(123);
+            challenger = address(456);
 
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
-                abi.encode(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl())
+                abi.encode(standardValidator.optimismMintableERC20FactoryImpl())
             );
             DisputeGames.mockGameImplChallenger(
-                disputeGameFactory, GameTypes.PERMISSIONED_CANNON, opcm.opcmStandardValidator().challenger()
+                disputeGameFactory, GameTypes.PERMISSIONED_CANNON, standardValidator.challenger()
             );
             DisputeGames.mockGameImplProposer(disputeGameFactory, GameTypes.PERMISSIONED_CANNON, proposer);
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.owner, ()),
-                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+                abi.encode(standardValidator.l1PAOMultisig())
             );
             vm.mockCall(
                 address(delayedWeth),
                 abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+                abi.encode(standardValidator.l1PAOMultisig())
             );
             // Use vm.store so that the .setImplementation call below works.
             vm.store(
                 address(disputeGameFactory),
                 // this assumes that it is not packed with any other value
                 bytes32(ForgeArtifacts.getSlot("DisputeGameFactory", "_owner").slot),
-                bytes32(uint256(uint160(opcm.opcmStandardValidator().l1PAOMultisig())))
+                bytes32(uint256(uint160(standardValidator.l1PAOMultisig())))
             );
         } else {
             l2ChainId = deployInput.l2ChainId;
             cannonPrestate = deployInput.disputeAbsolutePrestate;
             proposer = deployInput.roles.proposer;
+            challenger = deployInput.roles.challenger;
         }
 
         // Deploy the BadDisputeGameFactoryReturner once.
         badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
-            opcm.opcmStandardValidator(), disputeGameFactory, IDisputeGameFactory(address(0xbad))
+            standardValidator, disputeGameFactory, IDisputeGameFactory(address(0xbad))
         );
 
         if (isForkTest()) {
             // Load the FaultDisputeGame once, we'll need it later.
             fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
         } else {
-            // Deploy a permissionless FaultDisputeGame.
-            IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);
-            fdgImpl = output.faultDisputeGame;
+            if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+                // Deploy a permissionless FaultDisputeGame.
+                IOPContractsManager.AddGameOutput memory output = addGameType(GameTypes.CANNON, cannonPrestate);
+                fdgImpl = output.faultDisputeGame;
 
-            // Deploy cannon-kona
-            if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-                addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
+                // Deploy cannon-kona
+                if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
+                    addGameType(GameTypes.CANNON_KONA, cannonKonaPrestate);
+                }
+            } else {
+                // Set the ProxyAdmin owner to be a delegatecaller.
+                address owner = proxyAdmin.owner();
+                vm.etch(owner, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+                // Prepare the upgrade input.
+                IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+                    new IOPContractsManagerV2.DisputeGameConfig[](3);
+                disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON),
+                    gameType: GameTypes.CANNON,
+                    gameArgs: abi.encode(IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonPrestate }))
+                });
+                disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: true,
+                    initBond: disputeGameFactory.initBonds(GameTypes.PERMISSIONED_CANNON),
+                    gameType: GameTypes.PERMISSIONED_CANNON,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                            absolutePrestate: cannonPrestate,
+                            proposer: proposer,
+                            challenger: challenger
+                        })
+                    )
+                });
+                disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+                    enabled: isDevFeatureEnabled(DevFeatures.CANNON_KONA),
+                    initBond: disputeGameFactory.initBonds(GameTypes.CANNON_KONA),
+                    gameType: GameTypes.CANNON_KONA,
+                    gameArgs: abi.encode(
+                        IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+                    )
+                });
+
+                // Call upgrade to all games to be enabled.
+                DelegateCaller(owner).dcForward(
+                    address(opcmV2),
+                    abi.encodeCall(
+                        IOPContractsManagerV2.upgrade,
+                        (
+                            IOPContractsManagerV2.UpgradeInput({
+                                systemConfig: systemConfig,
+                                disputeGameConfigs: disputeGameConfigs,
+                                extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                            })
+                        )
+                    )
+                );
+
+                // Grab the FaultDisputeGame implementation.
+                fdgImpl = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
             }
         }
     }
@@ -197,7 +267,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
     /// @return The error message(s) from the validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            return opcm.validate(
+            return standardValidator.validate(
                 IOPContractsManagerStandardValidator.ValidationInputDev({
                     sysCfg: systemConfig,
                     cannonPrestate: cannonPrestate.raw(),
@@ -208,7 +278,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 _allowFailure
             );
         } else {
-            return opcm.validate(
+            return standardValidator.validate(
                 IOPContractsManagerStandardValidator.ValidationInput({
                     sysCfg: systemConfig,
                     absolutePrestate: cannonPrestate.raw(),
@@ -232,7 +302,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
         returns (string memory)
     {
         if (isDevFeatureEnabled(DevFeatures.CANNON_KONA)) {
-            return opcm.validateWithOverrides(
+            return standardValidator.validateWithOverrides(
                 IOPContractsManagerStandardValidator.ValidationInputDev({
                     sysCfg: systemConfig,
                     cannonPrestate: cannonPrestate.raw(),
@@ -244,7 +314,7 @@ abstract contract OPContractsManagerStandardValidator_TestInit is CommonTest, Di
                 _overrides
             );
         } else {
-            return opcm.validateWithOverrides(
+            return standardValidator.validateWithOverrides(
                 IOPContractsManagerStandardValidator.ValidationInput({
                     sysCfg: systemConfig,
                     absolutePrestate: cannonPrestate.raw(),
@@ -1055,12 +1125,10 @@ contract OPContractsManagerStandardValidator_PermissionedDisputeGame_Test is
         vm.mockCall(
             badWeth,
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+            abi.encode(standardValidator.l1PAOMultisig())
         );
         vm.mockCall(
-            badWeth,
-            abi.encodeCall(IDelayedWETH.delay, ()),
-            abi.encode(opcm.opcmStandardValidator().withdrawalDelaySeconds())
+            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
@@ -1642,12 +1710,10 @@ contract OPContractsManagerStandardValidator_FaultDisputeGame_Test is OPContract
         vm.mockCall(
             badWeth,
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+            abi.encode(standardValidator.l1PAOMultisig())
         );
         vm.mockCall(
-            badWeth,
-            abi.encodeCall(IDelayedWETH.delay, ()),
-            abi.encode(opcm.opcmStandardValidator().withdrawalDelaySeconds())
+            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
         );
         vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(sysCfg));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(proxyAdmin));
@@ -1816,52 +1882,40 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
     ///         strings.
     function test_versions_succeeds() public view {
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().systemConfigImpl()).version()).length > 0,
-            "systemConfigVersion empty"
+            bytes(ISemver(standardValidator.systemConfigImpl()).version()).length > 0, "systemConfigVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().optimismPortalImpl()).version()).length > 0,
-            "optimismPortalVersion empty"
+            bytes(ISemver(standardValidator.optimismPortalImpl()).version()).length > 0, "optimismPortalVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1CrossDomainMessengerImpl()).version()).length > 0,
+            bytes(ISemver(standardValidator.l1CrossDomainMessengerImpl()).version()).length > 0,
             "l1CrossDomainMessengerVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1ERC721BridgeImpl()).version()).length > 0,
-            "l1ERC721BridgeVersion empty"
+            bytes(ISemver(standardValidator.l1ERC721BridgeImpl()).version()).length > 0, "l1ERC721BridgeVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().l1StandardBridgeImpl()).version()).length > 0,
+            bytes(ISemver(standardValidator.l1StandardBridgeImpl()).version()).length > 0,
             "l1StandardBridgeVersion empty"
         );
-        assertTrue(bytes(ISemver(opcm.opcmStandardValidator().mipsImpl()).version()).length > 0, "mipsVersion empty");
+        assertTrue(bytes(ISemver(standardValidator.mipsImpl()).version()).length > 0, "mipsVersion empty");
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl()).version()).length > 0,
+            bytes(ISemver(standardValidator.optimismMintableERC20FactoryImpl()).version()).length > 0,
             "optimismMintableERC20FactoryVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().disputeGameFactoryImpl()).version()).length > 0,
+            bytes(ISemver(standardValidator.disputeGameFactoryImpl()).version()).length > 0,
             "disputeGameFactoryVersion empty"
         );
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().anchorStateRegistryImpl()).version()).length > 0,
+            bytes(ISemver(standardValidator.anchorStateRegistryImpl()).version()).length > 0,
             "anchorStateRegistryVersion empty"
         );
+        assertTrue(bytes(ISemver(standardValidator.delayedWETHImpl()).version()).length > 0, "delayedWETHVersion empty");
         assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().delayedWETHImpl()).version()).length > 0,
-            "delayedWETHVersion empty"
+            bytes(standardValidator.permissionedDisputeGameVersion()).length > 0, "permissionedDisputeGameVersion empty"
         );
-        assertTrue(
-            bytes(opcm.opcmStandardValidator().permissionedDisputeGameVersion()).length > 0,
-            "permissionedDisputeGameVersion empty"
-        );
-        assertTrue(
-            bytes(opcm.opcmStandardValidator().preimageOracleVersion()).length > 0, "preimageOracleVersion empty"
-        );
-        assertTrue(
-            bytes(ISemver(opcm.opcmStandardValidator().ethLockboxImpl()).version()).length > 0,
-            "ethLockboxVersion empty"
-        );
+        assertTrue(bytes(standardValidator.preimageOracleVersion()).length > 0, "preimageOracleVersion empty");
+        assertTrue(bytes(ISemver(standardValidator.ethLockboxImpl()).version()).length > 0, "ethLockboxVersion empty");
     }
 }

@@ -7,7 +7,6 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
 
 contract ReadImplementationAddresses is Script {
     struct Input {
@@ -68,7 +67,7 @@ contract ReadImplementationAddresses is Script {
         output_.opcmInteropMigrator = address(opcm.opcmInteropMigrator());
         output_.opcmStandardValidator = address(opcm.opcmStandardValidator());
 
-        IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
         output_.mipsSingleton = impls.mipsImpl;
         output_.delayedWETH = impls.delayedWETHImpl;
         output_.ethLockbox = impls.ethLockboxImpl;

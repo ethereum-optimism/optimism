@@ -2,8 +2,13 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContractsContainer",
+        "internalType": "contract IOPContractsManagerContainer",
         "name": "_contractsContainer",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "_standardValidator",
         "type": "address"
       }
     ],
@@ -62,7 +67,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Blueprints",
+        "internalType": "struct IOPContractsManagerContainer.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -75,7 +80,7 @@
     "name": "contractsContainer",
     "outputs": [
       {
-        "internalType": "contract IOPContractsManagerContractsContainer",
+        "internalType": "contract IOPContractsManagerContainer",
         "name": "",
         "type": "address"
       }
@@ -404,7 +409,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Implementations",
+        "internalType": "struct IOPContractsManagerContainer.Implementations",
         "name": "",
         "type": "tuple"
       }
@@ -426,6 +431,19 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "standardValidator",
+    "outputs": [
+      {
+        "internalType": "contract IOPContractsManagerStandardValidator",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -611,6 +629,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

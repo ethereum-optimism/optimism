@@ -28,7 +28,8 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
+import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 /// @title OPContractsManagerV2
 /// @notice OPContractsManagerV2 is an enhanced version of OPContractsManager. OPContractsManagerV2
@@ -49,7 +50,7 @@ import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPCon
 ///      doesn't quite get there yet in an attempt to be a more incremental improvement over the V1
 ///      design. Look at _execute, squint, and imagine that it can output an upgrade plan rather
 ///      than actually executing the upgrade, and then you'll see how it can be improved.
-contract OPContractsManagerV2 {
+contract OPContractsManagerV2 is ISemver {
     /// @notice Configuration struct for the FaultDisputeGame.
     struct FaultDisputeGameConfig {
         Claim absolutePrestate;
@@ -173,11 +174,22 @@ contract OPContractsManagerV2 {
     error OPContractsManagerV2_ConfigLoadFailed(string _name);
 
     /// @notice Container of blueprint and implementation contract addresses.
-    IOPContractsManagerContractsContainer public immutable contractsContainer;
+    IOPContractsManagerContainer public immutable contractsContainer;
+
+    /// @notice Address of the Standard Validator for this OPCM release.
+    IOPContractsManagerStandardValidator public immutable standardValidator;
+
+    /// @notice The version of the OPCM contract.
+    string public constant version = "6.0.0";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
-    constructor(IOPContractsManagerContractsContainer _contractsContainer) {
+    /// @param _standardValidator The standard validator for this OPCM release.
+    constructor(
+        IOPContractsManagerContainer _contractsContainer,
+        IOPContractsManagerStandardValidator _standardValidator
+    ) {
         contractsContainer = _contractsContainer;
+        standardValidator = _standardValidator;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -633,7 +645,7 @@ contract OPContractsManagerV2 {
         _assertValidFullConfig(_cfg);
 
         // Load the implementations.
-        IOPContractsManagerContractsContainer.Implementations memory impls = implementations();
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
 
         // Make sure the provided SuperchainConfig is up to date.
         if (SemverComp.lt(_cfg.superchainConfig.version(), ISuperchainConfig(impls.superchainConfigImpl).version())) {
@@ -845,7 +857,7 @@ contract OPContractsManagerV2 {
     /// @param _gameType The game type to retrieve the implementation for.
     /// @return The dispute game implementation.
     function _getGameImpl(GameType _gameType) internal view returns (IDisputeGame) {
-        IOPContractsManagerContractsContainer.Implementations memory impls = implementations();
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
         if (_gameType.raw() == GameTypes.CANNON.raw()) {
             return IDisputeGame(impls.faultDisputeGameV2Impl);
         } else if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
@@ -873,7 +885,7 @@ contract OPContractsManagerV2 {
         view
         returns (bytes memory)
     {
-        IOPContractsManagerContractsContainer.Implementations memory impls = implementations();
+        IOPContractsManagerContainer.Implementations memory impls = implementations();
         if (_gcfg.gameType.raw() == GameTypes.CANNON.raw() || _gcfg.gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             FaultDisputeGameConfig memory parsedInputArgs = abi.decode(_gcfg.gameArgs, (FaultDisputeGameConfig));
             return abi.encodePacked(
@@ -907,12 +919,12 @@ contract OPContractsManagerV2 {
     ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Returns the blueprint contract addresses.
-    function blueprints() public view returns (IOPContractsManagerContractsContainer.Blueprints memory) {
+    function blueprints() public view returns (IOPContractsManagerContainer.Blueprints memory) {
         return contractsContainer.blueprints();
     }
 
     /// @notice Returns the implementation contract addresses.
-    function implementations() public view returns (IOPContractsManagerContractsContainer.Implementations memory) {
+    function implementations() public view returns (IOPContractsManagerContainer.Implementations memory) {
         return contractsContainer.implementations();
     }
 

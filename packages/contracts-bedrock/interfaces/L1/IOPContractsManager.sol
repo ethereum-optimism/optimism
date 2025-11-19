@@ -10,21 +10,36 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
-import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+
+interface IOPContractsManagerContractsContainer {
+    error OPContractsManagerContractsContainer_DevFeatureInProd();
+
+    function __constructor__(
+        IOPContractsManager.Blueprints memory _blueprints,
+        IOPContractsManager.Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
+    )
+        external;
+
+    function blueprints() external view returns (IOPContractsManager.Blueprints memory);
+    function implementations() external view returns (IOPContractsManager.Implementations memory);
+    function devFeatureBitmap() external view returns (bytes32);
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
+}
 
 interface IOPContractsManagerGameTypeAdder {
     error OPContractsManagerGameTypeAdder_UnsupportedGameType();
@@ -166,6 +181,45 @@ interface IOPContractsManager {
         IDelayedWETH delayedWETHPermissionlessGameProxy;
     }
 
+    /// @notice Addresses of ERC-5202 Blueprint contracts. There are used for deploying full size
+    /// contracts, to reduce the code size of this factory contract. If it deployed full contracts
+    /// using the `new Proxy()` syntax, the code size would get large fast, since this contract would
+    /// contain the bytecode of every contract it deploys. Therefore we instead use Blueprints to
+    /// reduce the code size of this contract.
+    struct Blueprints {
+        address addressManager;
+        address proxy;
+        address proxyAdmin;
+        address l1ChugSplashProxy;
+        address resolvedDelegateProxy;
+        address permissionedDisputeGame1;
+        address permissionedDisputeGame2;
+        address permissionlessDisputeGame1;
+        address permissionlessDisputeGame2;
+    }
+
+    /// @notice The latest implementation contracts for the OP Stack.
+    struct Implementations {
+        address superchainConfigImpl;
+        address protocolVersionsImpl;
+        address l1ERC721BridgeImpl;
+        address optimismPortalImpl;
+        address optimismPortalInteropImpl;
+        address ethLockboxImpl;
+        address systemConfigImpl;
+        address optimismMintableERC20FactoryImpl;
+        address l1CrossDomainMessengerImpl;
+        address l1StandardBridgeImpl;
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+        address faultDisputeGameV2Impl;
+        address permissionedDisputeGameV2Impl;
+        address superFaultDisputeGameImpl;
+        address superPermissionedDisputeGameImpl;
+    }
+
     /// @notice The input required to identify a chain for upgrading.
     struct OpChainConfig {
         ISystemConfig systemConfigProxy;
@@ -250,10 +304,6 @@ interface IOPContractsManager {
 
     error InvalidDevFeatureAccess(bytes32 devFeature);
 
-    error MissingPermissionedDisputeGame();
-
-    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
-
     // -------- Methods --------
 
     function __constructor__(
@@ -262,7 +312,6 @@ interface IOPContractsManager {
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         IOPContractsManagerStandardValidator _opcmStandardValidator,
-        IOPContractsManagerV2 _opcmV2,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions
     )
@@ -332,7 +381,7 @@ interface IOPContractsManager {
     function chainIdToBatchInboxAddress(uint256 _l2ChainId) external pure returns (address);
 
     /// @notice Returns the blueprint contract addresses.
-    function blueprints() external view returns (IOPContractsManagerContractsContainer.Blueprints memory);
+    function blueprints() external view returns (Blueprints memory);
 
     function opcmDeployer() external view returns (IOPContractsManagerDeployer);
 
@@ -344,8 +393,6 @@ interface IOPContractsManager {
 
     function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
 
-    function opcmV2() external view returns (IOPContractsManagerV2);
-
     /// @notice Retrieves the development feature bitmap stored in this OPCM contract
     /// @return The development feature bitmap.
     function devFeatureBitmap() external view returns (bytes32);
@@ -356,5 +403,5 @@ interface IOPContractsManager {
     function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
 
     /// @notice Returns the implementation contract addresses.
-    function implementations() external view returns (IOPContractsManagerContractsContainer.Implementations memory);
+    function implementations() external view returns (Implementations memory);
 }

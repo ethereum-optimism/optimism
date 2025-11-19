@@ -23,6 +23,7 @@ import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
@@ -45,7 +46,6 @@ import {
     IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
-import { IOPContractsManagerContractsContainer } from "interfaces/L1/opcm/IOPContractsManagerContractsContainer.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
@@ -58,11 +58,11 @@ import {
     OPContractsManagerGameTypeAdder,
     OPContractsManagerDeployer,
     OPContractsManagerUpgrader,
+    OPContractsManagerContractsContainer,
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
 import { OPContractsManagerV2 } from "src/L1/opcm/OPContractsManagerV2.sol";
-import { OPContractsManagerContractsContainer } from "src/L1/opcm/OPContractsManagerContractsContainer.sol";
 import { DisputeGames } from "../setup/DisputeGames.sol";
 import { IPermissionedDisputeGame } from "../../interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProxy } from "../../interfaces/universal/IProxy.sol";
@@ -77,7 +77,6 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
         OPContractsManagerStandardValidator _opcmStandardValidator,
-        IOPContractsManagerV2 _opcmV2,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions
     )
@@ -87,7 +86,6 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmUpgrader,
             _opcmInteropMigrator,
             _opcmStandardValidator,
-            _opcmV2,
             _superchainConfig,
             _protocolVersions
         )
@@ -368,7 +366,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     /// @param _delegateCaller The address of the delegate caller to use for superchain upgrade.
     /// @param _revertBytes The bytes of the revert to expect.
     function _runOpcmV2UpgradeAndChecks(
-        IOPContractsManager _opcm,
+        IOPContractsManagerV2 _opcm,
         address _delegateCaller,
         bytes memory _revertBytes
     )
@@ -385,15 +383,33 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         // Execute the SuperchainConfig upgrade.
-        DelegateCaller(superchainPAO).dcForward(
-            address(_opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        // nosemgrep: sol-safety-trycatch-eip150
+        try DelegateCaller(superchainPAO).dcForward(
+            address(opcmV2),
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                    })
+                )
+            )
+        ) {
+            // Great, the upgrade succeeded.
+        } catch (bytes memory reason) {
+            // Only acceptable revert reason is the SuperchainConfig already being up to date. This
+            // try/catch is better than checking the version via the implementations struct because
+            // the implementations struct interface can change between OPCM versions which would
+            // cause the test to break and be a pain to resolve.
+            assertTrue(
+                bytes4(reason) == IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector,
+                "Revert reason other than DowngradeNotAllowed"
+            );
+        }
 
         // Reset the superchainPAO to the original code.
         vm.etch(superchainPAO, superchainPAOCode);
-
-        // Get the OPCM V2 contract.
-        IOPContractsManagerV2 opcmV2 = IOPContractsManagerV2(address(_opcm.opcmV2()));
 
         // Temporarily replace the upgrader with a DelegateCaller.
         bytes memory delegateCallerCode = address(_delegateCaller).code;
@@ -451,7 +467,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
 
         // Grab the validator before we do the error assertion because otherwise the assertion will
         // try to apply to this function call instead.
-        IOPContractsManagerStandardValidator validator = _opcm.opcmStandardValidator();
+        IOPContractsManagerStandardValidator validator = _opcm.standardValidator();
 
         // If the absolute prestate is zero, we will always get a PDDG-40,PLDG-40 error here in the
         // standard validator. This happens because an absolute prestate of zero means that the
@@ -538,14 +554,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
     /// @notice Executes the current V2 upgrade and checks the results.
     /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
     function runCurrentUpgradeV2(address _delegateCaller) public {
-        _runOpcmV2UpgradeAndChecks(opcm, _delegateCaller, bytes(""));
+        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, bytes(""));
     }
 
     /// @notice Executes the current V2 upgrade and expects reverts.
     /// @param _delegateCaller The address of the delegate caller to use for the superchain upgrade.
     /// @param _revertBytes The bytes of the revert to expect.
     function runCurrentUpgradeV2(address _delegateCaller, bytes memory _revertBytes) public {
-        _runOpcmV2UpgradeAndChecks(opcm, _delegateCaller, _revertBytes);
+        _runOpcmV2UpgradeAndChecks(opcmV2, _delegateCaller, _revertBytes);
     }
 }
 
@@ -565,6 +581,9 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
     IOPContractsManager.DeployOutput internal chainDeployOutput1;
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
+    IOPContractsManagerV2.ChainContracts internal chainContracts1;
+    IOPContractsManagerV2.ChainContracts internal chainContracts2;
+
     function setUp() public virtual override {
         super.setUp();
         proposer = address(this);
@@ -572,11 +591,17 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
         chain1L2ChainId = 100;
         chain2L2ChainId = 101;
 
-        chainDeployOutput1 = createChainContracts(chain1L2ChainId);
-        chainDeployOutput2 = createChainContracts(chain2L2ChainId);
-
-        vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
-        vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+        if (!isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            chainDeployOutput1 = createChainContracts(chain1L2ChainId);
+            chainDeployOutput2 = createChainContracts(chain2L2ChainId);
+            vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
+            vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+        } else {
+            chainContracts1 = createChainContractsV2(chain1L2ChainId);
+            chainContracts2 = createChainContractsV2(chain2L2ChainId);
+            vm.deal(address(chainContracts1.ethLockbox), 100 ether);
+            vm.deal(address(chainContracts2.ethLockbox), 100 ether);
+        }
     }
 
     /// @notice Sets up the environment variables for the VerifyOPCM test.
@@ -619,6 +644,66 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
                 disputeClockExtension: Duration.wrap(10800),
                 disputeMaxClockDuration: Duration.wrap(302400),
                 useCustomGasToken: false
+            })
+        );
+    }
+
+    /// @notice Helper function to deploy a new set of L1 contracts via OPCM V2.
+    /// @param _l2ChainId The L2 chain ID to deploy the contracts for.
+    /// @return The deployed contracts.
+    function createChainContractsV2(uint256 _l2ChainId)
+        internal
+        returns (IOPContractsManagerV2.ChainContracts memory)
+    {
+        IOPContractsManagerV2.DisputeGameConfig[] memory disputeGameConfigs =
+            new IOPContractsManagerV2.DisputeGameConfig[](3);
+        disputeGameConfigs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")) })
+            )
+        });
+        disputeGameConfigs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: 0,
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.PermissionedDisputeGameConfig({
+                    absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")),
+                    proposer: address(this),
+                    challenger: address(this)
+                })
+            )
+        });
+        disputeGameConfigs[2] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: false,
+            initBond: 0,
+            gameType: GameTypes.CANNON_KONA,
+            gameArgs: abi.encode(
+                IOPContractsManagerV2.FaultDisputeGameConfig({ absolutePrestate: Claim.wrap(bytes32(hex"deadbeef1234")) })
+            )
+        });
+        return opcmV2.deploy(
+            IOPContractsManagerV2.FullConfig({
+                saltMixer: "hello",
+                superchainConfig: superchainConfig,
+                proxyAdminOwner: address(this),
+                systemConfigOwner: address(this),
+                unsafeBlockSigner: address(this),
+                batcher: address(this),
+                startingAnchorRoot: Proposal({
+                    root: Hash.wrap(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef),
+                    l2SequenceNumber: 0
+                }),
+                startingRespectedGameType: GameType.wrap(1),
+                basefeeScalar: 1,
+                blobBasefeeScalar: 1,
+                gasLimit: 30_000_000,
+                l2ChainId: _l2ChainId,
+                resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
+                disputeGameConfigs: disputeGameConfigs
             })
         );
     }
@@ -676,17 +761,16 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-        OPContractsManagerContractsContainer.Blueprints memory emptyBlueprints;
-        OPContractsManagerContractsContainer.Implementations memory emptyImpls;
+        OPContractsManager.Blueprints memory emptyBlueprints;
+        OPContractsManager.Implementations memory emptyImpls;
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         resolveFeaturesFromEnv();
-        IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
-            address(new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, devFeatureBitmap))
-        );
+        OPContractsManagerContractsContainer container =
+            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, devFeatureBitmap);
 
-        IOPContractsManagerContractsContainer.Implementations memory __opcmImplementations = container.implementations();
+        OPContractsManager.Implementations memory __opcmImplementations = container.implementations();
         OPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         assembly {
             opcmImplementations := __opcmImplementations
@@ -700,7 +784,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
             _opcmStandardValidator: new OPContractsManagerStandardValidator(
                 opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100, bytes32(0)
             ),
-            _opcmV2: IOPContractsManagerV2(address(new OPContractsManagerV2(container))),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy
         });
@@ -725,6 +808,11 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test, FeatureFlag
 /// @title OPContractsManager_AddGameType_Test
 /// @notice Tests the `addGameType` function of the `OPContractsManager` contract.
 contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
+
     /// @notice Tests that we can add a PermissionedDisputeGame implementation with addGameType.
     function test_addGameType_permissioned_succeeds() public {
         // Create the input for the Permissioned game type.
@@ -746,7 +834,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Get the v2 implementation address from OPCM
-            IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+            IOPContractsManager.Implementations memory impls = opcm.implementations();
 
             // Verify v2 implementation is registered in DisputeGameFactory
             address registeredImpl =
@@ -793,7 +881,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
         if (isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             // Get the v2 implementation address from OPCM
-            IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+            IOPContractsManager.Implementations memory impls = opcm.implementations();
 
             // Verify implementation address matches permissionedDisputeGameV2Impl
             assertEq(
@@ -1090,6 +1178,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     function setUp() public virtual override {
         super.setUp();
         prestateUpdater = opcm;
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Runs the OPCM updatePrestate function and checks the results.
@@ -1575,6 +1664,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_v1_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Run the upgrade test and checks
         runCurrentUpgrade(upgrader);
     }
@@ -1673,6 +1764,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_withVerifyOPCM_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
 
         // Set up environment variables with the actual OPCM addresses for tests that need themqq
@@ -1690,6 +1783,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Upgrade the current chain.
         runCurrentUpgrade(upgrader);
 
@@ -1704,6 +1799,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     /// @notice Tests that the absolute prestate can be overridden using the upgrade config.
     function test_upgrade_absolutePrestateOverride_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1753,6 +1850,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that the old absolute prestate is used if the upgrade config does not set an
     ///         absolute prestate.
     function test_upgrade_absolutePrestateNotSet_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1797,6 +1896,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests that the old absolute prestate is used and cannon kona is updated if the upgrade config does not
     ///         set a cannon prestate.
     function test_upgrade_cannonPrestateNotSet_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1847,6 +1948,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     /// @notice Tests that the cannon absolute prestate is updated even if the cannon kona prestate is not specified
     function test_upgrade_cannonKonaPrestateNotSet_succeeds() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Get the pdg and fdg before the upgrade
         Claim pdgPrestateBefore = IPermissionedDisputeGame(
             address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -1903,6 +2006,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_notDelegateCalled_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         vm.prank(upgrader);
         vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
         opcm.upgrade(opChainConfigs);
@@ -1915,12 +2020,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
-        runCurrentUpgrade(delegateCaller, "Ownable: caller is not the owner");
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            runCurrentUpgradeV2(delegateCaller, "Ownable: caller is not the owner");
+        } else {
+            runCurrentUpgrade(delegateCaller, "Ownable: caller is not the owner");
+        }
     }
 
     /// @notice Tests that upgrade reverts when absolutePrestate is zero and the existing game also
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].cannonPrestate = Claim.wrap(bytes32(0));
 
@@ -1945,17 +2056,22 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Force the SuperchainConfig to return an obviously outdated version.
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("0.0.0"));
 
-        // Error depends on if V1 or V2 is being used.
-        // nosemgrep: sol-style-use-abi-encodecall
-        bytes memory err = isDevFeatureEnabled(DevFeatures.OPCM_V2)
-            ? abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_SuperchainConfigNeedsUpgrade.selector)
-            : abi.encodeWithSelector(
-                IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, (0)
-            );
-
         // Try upgrading an OPChain without upgrading its superchainConfig.
-        // nosemgrep: sol-style-use-abi-encodecall
-        runCurrentUpgrade(upgrader, err);
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgradeV2(
+                upgrader,
+                abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_SuperchainConfigNeedsUpgrade.selector)
+            );
+        } else {
+            // nosemgrep: sol-style-use-abi-encodecall
+            runCurrentUpgrade(
+                upgrader,
+                abi.encodeWithSelector(
+                    IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigNeedsUpgrade.selector, (0)
+                )
+            );
+        }
     }
 
     /// @notice Tests that the V2 upgrade function reverts when the user does not provide a game
@@ -2099,8 +2215,15 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 }
 
 contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_Upgrade_Harness {
+    /// @notice Input for the upgradeSuperchain function.
+    IOPContractsManagerV2.SuperchainUpgradeInput internal superchainUpgradeInput;
+
     function setUp() public override {
         super.setUp();
+
+        // Set the superchain config.
+        // No extra instructions, so don't set them.
+        superchainUpgradeInput.superchainConfig = superchainConfig;
 
         // The superchainConfig is already at the expected version so we mock this call here to bypass that check and
         // get our expected error.
@@ -2110,7 +2233,12 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
     /// @notice Tests that the upgradeSuperchainConfig function succeeds when the superchainConfig is at the expected
     ///         version and the delegate caller is the superchainProxyAdmin owner.
     function test_upgradeSuperchainConfig_succeeds() public {
-        IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+        address superchainConfigImpl;
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            superchainConfigImpl = opcmV2.implementations().superchainConfigImpl;
+        } else {
+            superchainConfigImpl = opcm.implementations().superchainConfigImpl;
+        }
 
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
@@ -2118,18 +2246,30 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         vm.expectEmit(address(superchainConfig));
-        emit Upgraded(impls.superchainConfigImpl);
-        DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        emit Upgraded(superchainConfigImpl);
+
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            DelegateCaller(superchainPAO).dcForward(
+                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+            );
+        } else {
+            DelegateCaller(superchainPAO).dcForward(
+                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+            );
+        }
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when it is not called via delegatecall.
     function test_upgradeSuperchainConfig_notDelegateCalled_reverts() public {
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
-        vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
-        opcm.upgradeSuperchainConfig(superchainConfig);
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            vm.expectRevert("Ownable: caller is not the owner");
+            opcmV2.upgradeSuperchain(superchainUpgradeInput);
+        } else {
+            vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
+            opcm.upgradeSuperchainConfig(superchainConfig);
+        }
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
@@ -2144,9 +2284,15 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         assertNotEq(proxyAdmin.owner(), delegateCaller);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        DelegateCaller(delegateCaller).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            DelegateCaller(delegateCaller).dcForward(
+                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+            );
+        } else {
+            DelegateCaller(delegateCaller).dcForward(
+                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+            );
+        }
     }
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
@@ -2170,9 +2316,15 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         }
 
         // Try to upgrade the SuperchainConfig contract again, should fail.
-        DelegateCaller(upgrader).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
-        );
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            DelegateCaller(upgrader).dcForward(
+                address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
+            );
+        } else {
+            DelegateCaller(upgrader).dcForward(
+                address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig))
+            );
+        }
     }
 }
 
@@ -2189,6 +2341,7 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     function setUp() public override {
         super.setUp();
         skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
     }
 
     /// @notice Helper function to create the default migration input.
@@ -2778,7 +2931,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
         bool isV2 = isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES);
 
         // Sanity-check setup is consistent with devFeatures flag
-        IOPContractsManagerContractsContainer.Implementations memory impls = opcm.implementations();
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
         address pdgImpl = address(impls.permissionedDisputeGameV2Impl);
         address fdgImpl = address(impls.faultDisputeGameV2Impl);
         if (isV2) {
@@ -2847,6 +3000,10 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase, DisputeGames 
 /// @notice Tests the `version` function of the `OPContractsManager` contract.
 contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
     function test_semver_works() public view {
-        assertNotEq(abi.encode(opcm.version()), abi.encode(0));
+        if (isDevFeatureEnabled(DevFeatures.OPCM_V2)) {
+            assertNotEq(abi.encode(opcmV2.version()), abi.encode(0));
+        } else {
+            assertNotEq(abi.encode(opcm.version()), abi.encode(0));
+        }
     }
 }

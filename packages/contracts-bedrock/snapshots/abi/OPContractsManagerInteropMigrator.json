@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContractsContainer",
+        "internalType": "contract OPContractsManagerContractsContainer",
         "name": "_contractsContainer",
         "type": "address"
       }
@@ -75,7 +75,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Blueprints",
+        "internalType": "struct OPContractsManager.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -107,7 +107,7 @@
     "name": "contractsContainer",
     "outputs": [
       {
-        "internalType": "contract IOPContractsManagerContractsContainer",
+        "internalType": "contract OPContractsManagerContractsContainer",
         "name": "",
         "type": "address"
       }
@@ -223,14 +223,9 @@
             "internalType": "address",
             "name": "superPermissionedDisputeGameImpl",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "storageSetterImpl",
-            "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContractsContainer.Implementations",
+        "internalType": "struct OPContractsManager.Implementations",
         "name": "",
         "type": "tuple"
       }
