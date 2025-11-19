@@ -81,6 +81,18 @@ func TestUnsafeOnly_SequencerRestart(gt *testing.T) {
 	// Derivation did not happen at sequencer
 	sys.L2CL.SafeHead().IsGenesis()
 
+	// Stop the sequencer with API
+	sys.L2CL.StopSequencer()
+	sys.L2ELB.NotAdvancedUnsafe(3)
+
+	// Restart the sequencer with API
+	sys.L2CL.StartSequencer()
+	// Sequencer produces blocks again
+	sys.L2CL.AdvancedUnsafe(3, attempts)
+
+	// Derivation did not happen at sequencer
+	sys.L2CL.SafeHead().IsGenesis()
+
 	// Derivation happened at the second verifier
 	safeHeadNum := sys.L2CLC.SafeHead().BlockRef.Number
 	require.Greater(safeHeadNum, uint64(0))
