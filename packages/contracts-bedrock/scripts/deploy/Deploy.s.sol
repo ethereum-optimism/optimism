@@ -172,7 +172,11 @@ contract Deploy is Deployer {
         deployImplementations({ _isInterop: cfg.useInterop() });
 
         // Deploy Current OPChain Contracts
-        deployOpChain();
+        if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
+            deployOpChain();
+        } else {
+            deployOpChainV2();
+        }
 
         // Set the respected game type according to the deploy config
         vm.startPrank(ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")).guardian());
@@ -302,9 +306,6 @@ contract Deploy is Deployer {
         if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
         }
-        if (DevFeatures.isDevFeatureEnabled(dio.opcm.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameV2Impl));
-        }
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -346,81 +347,88 @@ contract Deploy is Deployer {
     function deployOpChain() public {
         console.log("Deploying OP Chain");
 
+        // Ensure that the requisite contracts are deployed
+        IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+
+        IOPContractsManager.DeployInput memory deployInput = getDeployInput();
+        IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
+
         // Store code in the Final system owner address so that it can be used for prank delegatecalls
         // Store "fe" opcode so that accidental calls to this address revert
         vm.etch(cfg.finalSystemOwner(), hex"fe");
 
-        if (!DevFeatures.isDevFeatureEnabled(cfg.devFeatureBitmap(), DevFeatures.OPCM_V2)) {
-            // Ensure that the requisite contracts are deployed
-            IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+        // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
+        artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
+        artifacts.save("AddressManager", address(deployOutput.addressManager));
+        artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
+        artifacts.save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
+        artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
+        artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
+        artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
+        artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockboxProxy));
 
-            IOPContractsManager.DeployInput memory deployInput = getDeployInput();
-            IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
-
-            // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
-            artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
-            artifacts.save("AddressManager", address(deployOutput.addressManager));
-            artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
-            artifacts.save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
-            artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
-            artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
-            artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
-            artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockboxProxy));
-
-            // Fault Proof contracts
-            artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
-            artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
-            artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
-            artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-            artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
-            artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
-            if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
-                artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
-            }
-
-            // Check if the permissionless game implementation is already set
-            IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-            address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
-
-            // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
-            // If the following require statement is hit, you can delete the block of code after it.
-            require(
-                permissionlessGameImpl == address(0),
-                "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
-            );
-            address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-            address delayedWETHPermissionlessGameProxy =
-                deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
-            vm.broadcast(address(deployOutput.opChainProxyAdmin));
-            IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
-                _implementation: delayedWETHImpl,
-                _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
-            });
-        } else {
-            // Ensure that the requisite contracts are deployed
-            IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
-
-            IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
-            IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
-
-            // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
-            artifacts.save("ProxyAdmin", address(deployOutput.proxyAdmin));
-            artifacts.save("AddressManager", address(deployOutput.addressManager));
-            artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721Bridge));
-            artifacts.save("SystemConfigProxy", address(deployOutput.systemConfig));
-            artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20Factory));
-            artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridge));
-            artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessenger));
-            artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockbox));
-
-            // Fault Proof contracts
-            artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactory));
-            artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETH));
-            artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETH));
-            artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistry));
-            artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortal));
-            artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortal));
+        // Fault Proof contracts
+        artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
+        artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
+        artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
+        artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
+        artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
+        artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+        if (!DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
+            artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         }
+
+        // Check if the permissionless game implementation is already set
+        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+        address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
+
+        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
+        // If the following require statement is hit, you can delete the block of code after it.
+        require(
+            permissionlessGameImpl == address(0),
+            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
+        );
+        address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
+        address delayedWETHPermissionlessGameProxy =
+            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
+        vm.broadcast(address(deployOutput.opChainProxyAdmin));
+        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
+            _implementation: delayedWETHImpl,
+            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
+        });
+    }
+
+    /// @notice Deploy all of the OP Chain specific contracts using OPCM v2
+    function deployOpChainV2() public {
+        console.log("Deploying OP Chain");
+
+        // Store code in the Final system owner address so that it can be used for prank delegatecalls
+        // Store "fe" opcode so that accidental calls to this address revert
+        vm.etch(cfg.finalSystemOwner(), hex"fe");
+
+        // Ensure that the requisite contracts are deployed
+        IOPContractsManagerV2 opcm = IOPContractsManagerV2(artifacts.mustGetAddress("OPContractsManagerV2"));
+
+        IOPContractsManagerV2.FullConfig memory deployInput = getDeployInputV2();
+        IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
+
+        // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
+        artifacts.save("ProxyAdmin", address(deployOutput.proxyAdmin));
+        artifacts.save("AddressManager", address(deployOutput.addressManager));
+        artifacts.save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721Bridge));
+        artifacts.save("SystemConfigProxy", address(deployOutput.systemConfig));
+        artifacts.save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20Factory));
+        artifacts.save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridge));
+        artifacts.save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessenger));
+        artifacts.save("ETHLockboxProxy", address(deployOutput.ethLockbox));
+
+        // Fault Proof contracts
+        artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactory));
+        artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETH));
+        artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETH));
+        artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistry));
+        artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortal));
+        artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortal));
     }
 
     ////////////////////////////////////////////////////////////////
