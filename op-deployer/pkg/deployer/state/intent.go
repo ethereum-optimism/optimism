@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum-optimism/superchain-registry/validation"
@@ -26,8 +27,10 @@ const (
 	IntentTypeStandardOverrides IntentType = "standard-overrides"
 )
 
-var emptyAddress common.Address
-var emptyHash common.Hash
+var (
+	emptyAddress common.Address
+	emptyHash    common.Hash
+)
 
 type SuperchainProofParams struct {
 	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
@@ -81,6 +84,7 @@ type L1DevGenesisParams struct {
 
 type Intent struct {
 	ConfigType            IntentType                 `json:"configType" toml:"configType"`
+	OpDeployerVersion     string                     `json:"opDeployerVersion" toml:"opDeployerVersion"`
 	L1ChainID             uint64                     `json:"l1ChainID" toml:"l1ChainID"`
 	OPCMAddress           *common.Address            `json:"opcmAddress" toml:"opcmAddress"`
 	SuperchainConfigProxy *common.Address            `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
@@ -96,8 +100,10 @@ type Intent struct {
 	L1DevGenesisParams *L1DevGenesisParams `json:"l1DevGenesisParams"`
 }
 
-var ErrL1ContractsLocatorUndefined = errors.New("L1ContractsLocator undefined")
-var ErrL2ContractsLocatorUndefined = errors.New("L2ContractsLocator undefined")
+var (
+	ErrL1ContractsLocatorUndefined = errors.New("L1ContractsLocator undefined")
+	ErrL2ContractsLocatorUndefined = errors.New("L2ContractsLocator undefined")
+)
 
 func (c *Intent) L1ChainIDBig() *big.Int {
 	return big.NewInt(int64(c.L1ChainID))
@@ -305,6 +311,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 		return
 	}
 	intent.ConfigType = configType
+	intent.OpDeployerVersion = version.VersionWithMeta
 	return
 }
 
@@ -313,6 +320,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
 	intent := Intent{
 		ConfigType:         IntentTypeCustom,
+		OpDeployerVersion:  version.VersionWithMeta,
 		L1ChainID:          l1ChainId,
 		L1ContractsLocator: &artifacts.Locator{URL: &url.URL{}},
 		L2ContractsLocator: &artifacts.Locator{URL: &url.URL{}},
@@ -336,6 +344,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 
 	intent := Intent{
 		ConfigType:         IntentTypeStandard,
+		OpDeployerVersion:  version.VersionWithMeta,
 		L1ChainID:          l1ChainId,
 		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
 		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
