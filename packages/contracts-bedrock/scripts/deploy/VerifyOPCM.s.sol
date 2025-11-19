@@ -137,6 +137,7 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
 
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.

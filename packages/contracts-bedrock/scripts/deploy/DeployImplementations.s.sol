@@ -25,9 +25,9 @@ import {
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
+    IOPContractsManagerContractsContainer,
     IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator,
-    IOPContractsManagerContractsContainer
+    IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
