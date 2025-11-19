@@ -63,6 +63,13 @@ func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint6
 	}
 	return m.output, nil
 }
+func (m *mockCC) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	if m.optimisticErr != nil {
+		return nil, m.optimisticErr
+	}
+	// Return minimal output response; tests only assert presence/count
+	return &eth.OutputResponse{}, nil
+}
 
 var _ cc.ChainContainer = (*mockCC)(nil)
 

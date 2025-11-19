@@ -10,8 +10,10 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/engine_controller"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container/virtual_node"
@@ -36,6 +38,8 @@ type ChainContainer interface {
 	VerifiedAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OptimisticAt(ctx context.Context, ts uint64) (l2, l1 eth.BlockID, err error)
 	OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error)
+	// OptimisticOutputAtTimestamp returns the full Output at the optimistic L2 block for the given timestamp.
+	OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error)
 }
 
 type virtualNodeFactory func(cfg *opnodecfg.Config, log gethlog.Logger, initOverrides *rollupNode.InitializationOverrides, appVersion string) virtual_node.VirtualNode
@@ -55,7 +59,8 @@ type simpleChainContainer struct {
 	setHandler         func(chainID string, h http.Handler) // Set the RPC handler on the router for the chain
 	setMetricsHandler  func(chainID string, h http.Handler) // Set the metrics handler on the router for the chain
 	appVersion         string
-	virtualNodeFactory virtualNodeFactory // Factory function to create virtual node (for testing)
+	virtualNodeFactory virtualNodeFactory    // Factory function to create virtual node (for testing)
+	rollupClient       *sources.RollupClient // In-proc rollup RPC client bound to rpcHandler
 }
 
 // Interface conformance assertions
@@ -86,6 +91,12 @@ func NewChainContainer(
 	}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
+	// Attach in-proc rollup client if an initial handler is provided
+	if c.rpcHandler != nil {
+		if err := c.attachInProcRollupClient(); err != nil {
+			log.Warn("failed to attach in-proc rollup client (initial)", "err", err)
+		}
+	}
 	// Initialize engine controller (separate connection, not an op-node override) with a short setup timeout
 	if vncfg.L2 != nil {
 		setupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -123,6 +134,10 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 		}
 		c.initOverload.RPCHandler = h
 		c.rpcHandler = h
+		// attach in-proc rollup client for this handler
+		if err := c.attachInProcRollupClient(); err != nil {
+			c.log.Warn("failed to attach in-proc rollup client", "err", err)
+		}
 
 		// Disable per-VN metrics server and provide metrics registry hook
 		c.vncfg.Metrics.Enabled = false
@@ -178,6 +193,11 @@ func (c *simpleChainContainer) Stop(ctx context.Context) error {
 	c.stop.Store(true)
 	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Close in-proc rollup RPC resources
+	if c.rollupClient != nil {
+		c.rollupClient.Close()
+	}
 
 	if c.vn != nil {
 		if err := c.vn.Stop(stopCtx); err != nil {
@@ -289,4 +309,41 @@ func (c *simpleChainContainer) OptimisticAt(ctx context.Context, ts uint64) (l2,
 	// if there were Verification Activities, we could check if there was a pre-verified block which was added to the denylist
 	// but there are currently no verification activities, so we just return the l2 and l1 blocks
 	return l2Block.ID(), l1Block, nil
+}
+
+// OptimisticOutputAtTimestamp returns the full Output for the optimistic L2 block at the given timestamp.
+// For now this simply calls the op-node's normal OutputAtBlock for the block number computed from the timestamp.
+func (c *simpleChainContainer) OptimisticOutputAtTimestamp(ctx context.Context, ts uint64) (*eth.OutputResponse, error) {
+	if c.rollupClient == nil {
+		return nil, fmt.Errorf("rollup client not initialized")
+	}
+	// Determine the optimistic L2 block at timestamp (currently same as safe block at ts)
+	l2Block, err := c.SafeBlockAtTimestamp(ctx, ts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve L2 block at timestamp: %w", err)
+	}
+	// Call the standard OutputAtBlock RPC
+	out, err := c.rollupClient.OutputAtBlock(ctx, l2Block.Number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get output at block %d: %w", l2Block.Number, err)
+	}
+	return out, nil
+}
+
+// attachInProcRollupClient creates a new in-proc rollup RPC client bound to the current rpcHandler.
+// It will close any existing client before replacing it.
+func (c *simpleChainContainer) attachInProcRollupClient() error {
+	if c.rpcHandler == nil {
+		return fmt.Errorf("rpc handler not initialized")
+	}
+	inproc, err := c.rpcHandler.DialInProc()
+	if err != nil {
+		return err
+	}
+	// Close previous rollup client if present
+	if c.rollupClient != nil {
+		c.rollupClient.Close()
+	}
+	c.rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(inproc))
+	return nil
 }

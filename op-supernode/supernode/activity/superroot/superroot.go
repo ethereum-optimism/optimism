@@ -30,9 +30,9 @@ func (s *Superroot) RPCService() interface{} { return &superrootAPI{s: s} }
 
 type superrootAPI struct{ s *Superroot }
 
-// L2WithSource is a L2 block and its source L1 block
-type L2WithSource struct {
-	L2       eth.BlockID
+// OutputWithSource is the full Output and its source L1 block
+type OutputWithSource struct {
+	Output   *eth.OutputResponse
 	SourceL1 eth.BlockID
 }
 
@@ -53,7 +53,7 @@ type atTimestampResponse struct {
 	CurrentL1Derived      map[eth.ChainID]eth.BlockID
 	CurrentL1Verified     map[string]eth.BlockID
 	VerifiedAtTimestamp   map[eth.ChainID]L2WithRequiredL1
-	OptimisticAtTimestamp map[eth.ChainID]L2WithSource
+	OptimisticAtTimestamp map[eth.ChainID]OutputWithSource
 	MinCurrentL1          eth.BlockID
 	MinVerifiedRequiredL1 eth.BlockID
 	SuperRoot             eth.Bytes32
@@ -70,7 +70,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 	// this will be replaced with a call to the Verification Activities when they are implemented
 	currentL1Verified := map[string]eth.BlockID{}
 	verified := map[eth.ChainID]L2WithRequiredL1{}
-	optimistic := map[eth.ChainID]L2WithSource{}
+	optimistic := map[eth.ChainID]OutputWithSource{}
 	minCurrentL1 := eth.BlockID{}
 	minVerifiedRequiredL1 := eth.BlockID{}
 	chainOutputs := make([]eth.ChainIDAndOutput, 0, len(s.chains))
@@ -112,15 +112,20 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 			return atTimestampResponse{}, err
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
-		// optimisticAt returns the L2 block which would apply if verification were successful at the given timestamp
-		// it will differ from the verified L2 block if the optimistic L2 block was invalid.
-		optimisticL2, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
+		// Optimistic output is the full output at the optimistic L2 block for the timestamp
+		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
 			return atTimestampResponse{}, err
 		}
-		optimistic[chainID] = L2WithSource{
-			L2:       optimisticL2,
+		// Also include the source L1 for context
+		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
+		if err != nil {
+			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
+			return atTimestampResponse{}, err
+		}
+		optimistic[chainID] = OutputWithSource{
+			Output:   optimisticOut,
 			SourceL1: optimisticL1,
 		}
 	}
