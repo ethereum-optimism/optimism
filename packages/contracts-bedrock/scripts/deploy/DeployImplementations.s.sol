@@ -72,13 +72,13 @@ contract DeployImplementations is Script {
     struct Output {
         IOPContractsManager opcm;
         IOPContractsManagerContractsContainer opcmContractsContainer;
-        IOPContractsManagerContainer opcmContainer;
         IOPContractsManagerGameTypeAdder opcmGameTypeAdder;
         IOPContractsManagerDeployer opcmDeployer;
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
         IOPContractsManagerStandardValidator opcmStandardValidator;
         IOPContractsManagerV2 opcmV2;
+        IOPContractsManagerContainer opcmContainer; // v2 container
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
         IOptimismPortalInterop optimismPortalInteropImpl;
