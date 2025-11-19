@@ -278,10 +278,16 @@ func (s *Driver) eventLoop() {
 
 		planSequencerAction()
 
-		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
-		// there is no need to request L2 blocks when we are syncing already.
-		if head := s.SyncDeriver.Engine.UnsafeL2Head(); head != lastUnsafeL2 || !s.SyncDeriver.Derivation.DerivationReady() {
-			s.log.Debug("altSyncTicker reset", "head", head, "lastUnsafeL2", lastUnsafeL2, "derivationReady", s.SyncDeriver.Derivation.DerivationReady())
+		// Reset the alt-sync ticker when either:
+		//   - The unsafe L2 head has changed, or
+		//   - Derivation is not yet ready (unless derivation is intentionally disabled via UnsafeOnly).
+		// This prevents requesting L2 blocks unnecessarily while we are already syncing.
+		//
+		// When UnsafeOnly is enabled, derivation will never become ready. Without the
+		// !UnsafeOnly guard, the alt-sync ticker would reset indefinitely, preventing
+		// normal alt-sync progress.
+		if head := s.SyncDeriver.Engine.UnsafeL2Head(); head != lastUnsafeL2 || (!s.SyncDeriver.Derivation.DerivationReady() && !s.SyncDeriver.SyncCfg.UnsafeOnly) {
+			s.log.Debug("altSyncTicker reset", "head", head, "lastUnsafeL2", lastUnsafeL2, "derivationReady", s.SyncDeriver.Derivation.DerivationReady(), "unsafeOnly", s.SyncDeriver.SyncCfg.UnsafeOnly)
 			lastUnsafeL2 = head
 			altSyncTicker.Reset(syncCheckInterval)
 		}
