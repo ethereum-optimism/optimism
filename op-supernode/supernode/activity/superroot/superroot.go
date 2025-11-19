@@ -2,9 +2,11 @@ package superroot
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
+	"github.com/ethereum/go-ethereum"
 	gethlog "github.com/ethereum/go-ethereum/log"
 )
 
@@ -96,7 +98,7 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 		verifiedL2, verifiedL1, err := chain.VerifiedAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get verified L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, err
+			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		verified[chainID] = L2WithRequiredL1{
 			L2:            verifiedL2,
@@ -109,20 +111,20 @@ func (s *Superroot) atTimestamp(ctx context.Context, timestamp uint64) (atTimest
 		outRoot, err := chain.OutputRootAtL2BlockNumber(ctx, verifiedL2.Number)
 		if err != nil {
 			s.log.Warn("failed to compute output root at L2 block", "chain_id", chainID.String(), "l2_number", verifiedL2.Number, "err", err)
-			return atTimestampResponse{}, err
+			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		chainOutputs = append(chainOutputs, eth.ChainIDAndOutput{ChainID: chainID, Output: outRoot})
 		// Optimistic output is the full output at the optimistic L2 block for the timestamp
 		optimisticOut, err := chain.OptimisticOutputAtTimestamp(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, err
+			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		// Also include the source L1 for context
 		_, optimisticL1, err := chain.OptimisticAt(ctx, timestamp)
 		if err != nil {
 			s.log.Warn("failed to get optimistic source L1", "chain_id", chainID.String(), "err", err)
-			return atTimestampResponse{}, err
+			return atTimestampResponse{}, fmt.Errorf("%w: %w", ethereum.NotFound, err)
 		}
 		optimistic[chainID] = OutputWithSource{
 			Output:   optimisticOut,
