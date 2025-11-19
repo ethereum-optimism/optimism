@@ -340,6 +340,19 @@ commands:
             - ~/go/pkg/mod
           key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
+  pull-artifacts-conditional:
+    description: "Pull artifacts with conditional fallback based on branch"
+    steps:
+      - run:
+          name: Pull artifacts
+          command: |
+            if [ "${CIRCLE_BRANCH}" != "develop" ]; then
+              bash scripts/ops/pull-artifacts.sh --fallback-to-latest
+            else
+              bash scripts/ops/pull-artifacts.sh
+            fi
+          working_directory: packages/contracts-bedrock
+
 jobs:
   # Kurtosis-based acceptance tests
   op-acceptance-tests-kurtosis:
@@ -932,10 +945,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts with latest fallback
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - go-restore-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
       - run:
@@ -1102,10 +1112,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts with latest fallback
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - run:
           name: Install lcov
           command: |
@@ -1199,10 +1206,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts with latest fallback
-          command: bash scripts/ops/pull-artifacts.sh --fallback-to-latest
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - run:
           name: Write pinned block number for cache key
           command: |
