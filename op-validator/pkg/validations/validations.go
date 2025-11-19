@@ -44,8 +44,8 @@ type BaseValidator struct {
 }
 
 type OPCMStandardValidator struct {
-	client        *rpc.Client
-	validatorAddr common.Address
+	client  *rpc.Client
+	release string
 }
 
 type BaseValidatorInput struct {
@@ -58,6 +58,13 @@ type BaseValidatorInput struct {
 
 func newBaseValidator(client *rpc.Client, release string) *BaseValidator {
 	return &BaseValidator{client: client, release: release}
+}
+
+func newOPCMStandardValidator(client *rpc.Client, release string) *OPCMStandardValidator {
+	return &OPCMStandardValidator{
+		client:  client,
+		release: release,
+	}
 }
 
 func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) ([]string, error) {
@@ -100,18 +107,24 @@ func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) 
 
 func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidatorInput) ([]string, error) {
 	if input.Proposer == (common.Address{}) {
-		return nil, fmt.Errorf("proposer address is required for OPCMStandardValidator")
+		return nil, fmt.Errorf("proposer address is required for OPCM validation")
 	}
 
-	if v.validatorAddr == (common.Address{}) {
-		return nil, fmt.Errorf("validator address is required for OPCMStandardValidator")
+	l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	validatorAddr, err := ValidatorAddress(l1ChainID.Uint64(), v.release)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get validator address: %w", err)
 	}
 
 	var rawOutput []byte
 	if err := w3.NewClient(v.client).CallCtx(
 		ctx,
 		eth.Call(&w3types.Message{
-			To:   &v.validatorAddr,
+			To:   &validatorAddr,
 			Func: validateFuncOpcmValidator,
 			Args: []any{
 				validateFuncArgsOpcmValidator{
@@ -134,13 +147,6 @@ func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidato
 	return parseErrors(output), nil
 }
 
-func NewOPCMStandardValidator(client *rpc.Client, validatorAddr common.Address) *OPCMStandardValidator {
-	return &OPCMStandardValidator{
-		client:        client,
-		validatorAddr: validatorAddr,
-	}
-}
-
 func NewV180Validator(client *rpc.Client) *BaseValidator {
 	return newBaseValidator(client, standard.ContractsV180Tag)
 }
@@ -161,8 +167,8 @@ func NewV410Validator(client *rpc.Client) *BaseValidator {
 	return newBaseValidator(client, standard.ContractsV410Tag)
 }
 
-func NewV500Validator(client *rpc.Client) *BaseValidator {
-	return newBaseValidator(client, standard.ContractsV500Tag)
+func NewV500Validator(client *rpc.Client) *OPCMStandardValidator {
+	return newOPCMStandardValidator(client, standard.ContractsV500Tag)
 }
 
 func parseErrors(output string) []string {

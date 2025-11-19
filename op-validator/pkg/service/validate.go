@@ -8,7 +8,6 @@ import (
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-validator/pkg/validations"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -48,34 +47,23 @@ func Validate(ctx context.Context, lgr log.Logger, release string, cfg *Config) 
 
 	var validator validations.Validator
 
-	useNewValidator := release == standard.ContractsV500Tag || cfg.ValidatorAddress != (common.Address{})
-
-	if useNewValidator {
-		if cfg.ValidatorAddress == (common.Address{}) {
-			return nil, fmt.Errorf("validator-address is required for OPCMStandardValidator (v5.0.0+ or custom deployments)")
-		}
-		if cfg.Proposer == (common.Address{}) {
-			return nil, fmt.Errorf("proposer address is required for OPCMStandardValidator")
-		}
-		validator = validations.NewOPCMStandardValidator(l1Client, cfg.ValidatorAddress)
-		lgr.Info("Using OPCMStandardValidator", "validator", cfg.ValidatorAddress.Hex(), "proposer", cfg.Proposer.Hex())
-	} else {
-		switch release {
-		case standard.ContractsV180Tag:
-			validator = validations.NewV180Validator(l1Client)
-		case standard.ContractsV200Tag:
-			validator = validations.NewV200Validator(l1Client)
-		case standard.ContractsV300Tag:
-			validator = validations.NewV300Validator(l1Client)
-		case standard.ContractsV400Tag:
-			validator = validations.NewV400Validator(l1Client)
-		case standard.ContractsV410Tag:
-			validator = validations.NewV410Validator(l1Client)
-		default:
-			return nil, fmt.Errorf("invalid release: %s", release)
-		}
-		lgr.Info("Using BaseValidator", "version", release)
+	switch release {
+	case standard.ContractsV180Tag:
+		validator = validations.NewV180Validator(l1Client)
+	case standard.ContractsV200Tag:
+		validator = validations.NewV200Validator(l1Client)
+	case standard.ContractsV300Tag:
+		validator = validations.NewV300Validator(l1Client)
+	case standard.ContractsV400Tag:
+		validator = validations.NewV400Validator(l1Client)
+	case standard.ContractsV410Tag:
+		validator = validations.NewV410Validator(l1Client)
+	case standard.ContractsV500Tag:
+		validator = validations.NewV500Validator(l1Client)
+	default:
+		return nil, fmt.Errorf("invalid release: %s", release)
 	}
+	lgr.Info("Using Validator", "version", release)
 
 	return validator.Validate(ctx, validations.BaseValidatorInput{
 		ProxyAdminAddress:   cfg.ProxyAdmin,
