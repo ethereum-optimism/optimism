@@ -179,15 +179,27 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
 	if l.Config.ThrottleParams.LowerThreshold > 0 {
 		l.wg.Add(1)
-		go l.throttlingLoop() // ranges over unsafeBytesUpdated channel
+		go func() {
+			l.throttlingLoop() // ranges over unsafeBytesUpdated channel
+			l.wg.Done()
+		}()
 	} else {
 		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
-	go l.receiptsLoop()                  // ranges over receipts channel
-	go l.publishingLoop(l.killCtx)       // ranges over publishSignal, spawns routines which send on receipts. Closes receipts when done.
-	go l.blockLoadingLoop(l.shutdownCtx) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done.
+	go func() {
+		l.receiptsLoop() // ranges over receipts channel
+		l.wg.Done()
+	}()
+	go func() {
+		l.publishingLoop(l.killCtx) // ranges over publishSignal, spawns routines which send on receipts. Closes receipts when done.
+		l.wg.Done()
+	}()
+	go func() {
+		l.blockLoadingLoop(l.shutdownCtx) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done.
+		l.wg.Done()
+	}()
 
 	l.Log.Info("Batch Submitter started")
 	return nil
@@ -490,7 +502,6 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 // -  sends transactions to the DA layer
 func (l *BatchSubmitter) publishingLoop(ctx context.Context) {
 	defer close(l.receipts)
-	defer l.wg.Done()
 
 	daGroup := &errgroup.Group{}
 	// errgroup with limit of 0 means no goroutine is able to run concurrently,
@@ -530,7 +541,6 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context) {
 	defer ticker.Stop()
 	defer close(l.unsafeBytesUpdatedSignal)
 	defer close(l.publishSignal)
-	defer l.wg.Done()
 	for {
 		select {
 		case <-ticker.C:
@@ -567,7 +577,6 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context) {
 
 // receiptsLoop handles transaction receipts from the DA layer
 func (l *BatchSubmitter) receiptsLoop() {
-	defer l.wg.Done()
 	l.Log.Info("Starting receipts processing loop")
 	for r := range l.receipts {
 		if errors.Is(r.Err, txpool.ErrAlreadyReserved) && l.txpoolState == TxpoolGood {
@@ -586,8 +595,7 @@ func (l *BatchSubmitter) receiptsLoop() {
 }
 
 // singleEndpointThrottler handles throttling for a specific endpoint
-func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string) {
-	defer wg.Done()
+func (l *BatchSubmitter) singleEndpointThrottler(throttleSignal chan struct{}, endpoint string) {
 	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
 
 	client, err := rpc.Dial(endpoint)
@@ -674,20 +682,21 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
 // and fans out the unsafe bytes updates to each endpoint
 func (l *BatchSubmitter) throttlingLoop() {
-	defer l.wg.Done()
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
 		"lower_threshold", l.Config.ThrottleParams.LowerThreshold,
 		"upper_threshold", l.Config.ThrottleParams.UpperThreshold,
 	)
+
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
-
-	innerWg := sync.WaitGroup{}
-
+	var wg sync.WaitGroup
 	for i, endpoint := range l.Config.ThrottleParams.Endpoints {
 		updateChans[i] = make(chan struct{}, 1)
-		innerWg.Add(1)
-		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
+		wg.Add(1)
+		go func() {
+			l.singleEndpointThrottler(updateChans[i], endpoint)
+			wg.Done()
+		}()
 	}
 
 	for unsafeBytes := range l.unsafeBytesUpdatedSignal {
@@ -723,7 +732,7 @@ func (l *BatchSubmitter) throttlingLoop() {
 	for _, updateChan := range updateChans {
 		close(updateChan)
 	}
-	innerWg.Wait()
+	wg.Wait()
 }
 
 func (l *BatchSubmitter) waitNodeSyncAndClearState() {
