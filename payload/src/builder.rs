@@ -386,6 +386,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let executed: BuiltPayloadExecutedBlock<N> = BuiltPayloadExecutedBlock {
             recovered_block: Arc::new(block),
             execution_output: Arc::new(execution_outcome),
+            // Keep unsorted; conversion to sorted happens when needed downstream
             hashed_state: either::Either::Left(Arc::new(hashed_state)),
             trie_updates: either::Either::Left(Arc::new(trie_updates)),
         };

@@ -125,7 +125,7 @@ where
             ExecutedBlock {
                 recovered_block: block.into(),
                 execution_output: Arc::new(execution_outcome),
-                hashed_state: Arc::new(hashed_state),
+                hashed_state: Arc::new(hashed_state.into_sorted()),
                 trie_updates: Arc::default(),
             },
         );
