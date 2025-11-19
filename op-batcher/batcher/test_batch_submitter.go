@@ -56,7 +56,7 @@ func (l *TestBatchSubmitter) JamTxPool(ctx context.Context) error {
 func (l *TestBatchSubmitter) WaitOnJammingTx(ctx context.Context) error {
 	err := l.ttm.WaitOnJammingTx(ctx)
 	if err == nil {
-		return errors.New("txpool blocking tx didn't block!")
+		return errors.New("txpool blocking tx didn't block")
 	}
 	if strings.Contains(err.Error(), txpool.ErrAlreadyReserved.Error()) {
 		return errors.New("txpool blocking tx failed because other tx in mempool is blocking it")

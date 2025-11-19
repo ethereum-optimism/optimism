@@ -164,8 +164,7 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 	bs.sendTx(txData,
 		false,
 		&candidate,
-		q,
-		make(chan txmgr.TxReceipt[txRef]))
+		q)
 
 	candidateOut := q.Load(txData.ID().String())
 
@@ -253,11 +252,11 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 				})
 
 			// Test the throttling loop
-			pendingBytesUpdated := make(chan int64, 1)
+			bs.unsafeBytesUpdatedSignal = make(chan int64, 1)
 
 			// Start throttling loop in a goroutine
 			bs.wg.Add(1)
-			go bs.throttlingLoop(pendingBytesUpdated)
+			go bs.throttlingLoop()
 
 			// Simulate block loading by sending periodically on pendingBytesUpdated
 			wg := sync.WaitGroup{}
@@ -272,7 +271,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 						return
 					default:
 						// Simulate block loading
-						pendingBytesUpdated <- 20000 // the value doesn't actually matter for this test
+						bs.unsafeBytesUpdatedSignal <- 20000 // the value doesn't actually matter for this test
 					}
 				}
 
@@ -281,7 +280,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			t.Cleanup(func() {
 				cancelBlockLoading()
 				wg.Wait()
-				close(pendingBytesUpdated)
+				close(bs.unsafeBytesUpdatedSignal)
 				bs.wg.Wait()
 				cancel()
 			})
