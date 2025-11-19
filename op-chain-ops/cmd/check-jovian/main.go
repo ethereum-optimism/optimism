@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -38,7 +39,7 @@ func main() {
 				makeCommand("l1block", checkL1Block),
 			},
 		},
-		makeCommand("block-header", checkBlockHeader),
+		makeCommand("block", checkBlock),
 		makeCommand("extra-data", checkExtraData),
 		makeCommand("all", checkAll),
 	}
@@ -136,26 +137,31 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 	return nil
 }
 
-// checkBlockHeader checks that the latest block header has a non-nil blobgasused field
-func checkBlockHeader(ctx context.Context, env *actionEnv) error {
-	latest, err := env.l2.HeaderByNumber(ctx, nil)
+// checkBlock checks that the latest block header has a non-nil blobgasused field
+func checkBlock(ctx context.Context, env *actionEnv) error {
+	latest, err := env.l2.BlockByNumber(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get latest block: %w", err)
 	}
-	if latest.BlobGasUsed == nil {
+	bgu := latest.BlobGasUsed()
+	if bgu == nil {
 		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number)
 	}
 
 	// A non-zero BlobGasUsed is hard evidence of Jovian being active
 	// A zero value is inconclusive (could be an empty block or pre-Jovian)
-	if *latest.BlobGasUsed == 0 {
+	if *bgu == 0 {
 		env.log.Warn("Block header BlobGasUsed is zero - inconclusive for Jovian activation",
 			"blockNumber", latest.Number,
 			"note", "Zero could indicate an empty block or pre-Jovian state")
+		txs := latest.Body().Transactions
+		if len(txs) > 1 && txs[len(txs)-1].Type() == types.DepositTxType {
+			return fmt.Errorf("User transactions in block but header.BlobGasUsed was zero, impossible if Jovian is active.")
+		}
 	} else {
 		env.log.Info("Block header test: success - non-zero BlobGasUsed is hard evidence of Jovian being active",
 			"blockNumber", latest.Number,
-			"blobGasUsed", *latest.BlobGasUsed)
+			"blobGasUsed", bgu)
 	}
 	return nil
 }
@@ -196,7 +202,7 @@ func checkAll(ctx context.Context, env *actionEnv) error {
 	if err := checkL1Block(ctx, env); err != nil {
 		return fmt.Errorf("failed: L1Block contract error: %w", err)
 	}
-	if err := checkBlockHeader(ctx, env); err != nil {
+	if err := checkBlock(ctx, env); err != nil {
 		return fmt.Errorf("failed: block header error: %w", err)
 	}
 	if err := checkExtraData(ctx, env); err != nil {
