@@ -13,7 +13,7 @@ use crate::{
     BlockStateDiff, OpProofsHashedCursorRO, OpProofsStorageError, OpProofsStorageResult,
     OpProofsStore, OpProofsTrieCursorRO,
 };
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{eip1898::BlockWithParent, NumHash};
 use alloy_primitives::{map::HashMap, B256, U256};
 use itertools::Itertools;
 use reth_db::{
@@ -31,6 +31,11 @@ use std::{cmp::max, ops::RangeBounds, path::Path};
 #[derive(Debug)]
 pub struct MdbxProofsStorage {
     env: DatabaseEnv,
+}
+
+struct ProofWindowValue {
+    earliest: NumHash,
+    latest: NumHash,
 }
 
 impl MdbxProofsStorage {
@@ -61,6 +66,25 @@ impl MdbxProofsStorage {
         let mut cursor = tx.cursor_read::<ProofWindow>()?;
         let value = cursor.seek_exact(key)?;
         Ok(value.map(|(_, val)| (val.number(), *val.hash())))
+    }
+
+    fn inner_get_proof_window(
+        &self,
+        tx: &impl DbTx,
+    ) -> OpProofsStorageResult<Option<ProofWindowValue>> {
+        let mut cursor = tx.cursor_read::<ProofWindow>()?;
+
+        let earliest = match cursor.seek_exact(ProofWindowKey::EarliestBlock)? {
+            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
+            None => return Ok(None),
+        };
+
+        let latest = match cursor.seek_exact(ProofWindowKey::LatestBlock)? {
+            Some((_, val)) => NumHash::new(val.number(), *val.hash()),
+            None => earliest,
+        };
+
+        Ok(Some(ProofWindowValue { earliest, latest }))
     }
 
     async fn set_earliest_block_number_hash(
@@ -674,6 +698,38 @@ impl OpProofsStore for MdbxProofsStorage {
                 new_earliest_block_number,
                 new_earliest_block_ref.block.hash,
             )
+        })?
+    }
+
+    /// Unwind the historical state to `unwind_upto_block` (inclusive), deleting all history
+    /// starting from provided block. Also updates the `ProofWindow::LatestBlock` to parent of
+    /// `unwind_upto_block`.
+    async fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
+        self.env.update(|tx| {
+            let proof_window = match self.inner_get_proof_window(tx)? {
+                Some(pw) => pw,
+                None => return Ok(()), // Nothing to unwind
+            };
+
+            if to.block.number > proof_window.latest.number {
+                return Ok(()); // Nothing to unwind
+            }
+
+            if to.block.number <= proof_window.earliest.number {
+                return Err(OpProofsStorageError::UnwindBeyondEarliest {
+                    unwind_block_number: to.block.number,
+                    earliest_block_number: proof_window.earliest.number,
+                });
+            }
+
+            self.delete_history_ranged(tx, (to.block.number)..)?;
+
+            let new_latest_block =
+                BlockNumberHash::new(to.block.number.saturating_sub(1), to.parent);
+            let mut proof_window_cursor = tx.new_cursor::<ProofWindow>()?;
+            proof_window_cursor.append(ProofWindowKey::LatestBlock, &new_latest_block)?;
+
+            Ok(())
         })?
     }
 
@@ -2665,5 +2721,394 @@ mod tests {
             let expected: std::collections::BTreeSet<u64> = [1u64, 2, 3, 4].into_iter().collect();
             assert_eq!(seen, expected, "BlockChangeSet should reflect pruned+new chain");
         }
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_basic() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::random();
+        let make_diff = |nonce: u64| {
+            let mut d = BlockStateDiff::default();
+            d.post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            d
+        };
+
+        // Build chain: blocks 1 -> 2 -> 3 -> 4
+        let b0 = NumHash::new(0, B256::random());
+        let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+        let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
+
+        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+        store.store_trie_updates(b4, make_diff(40)).await.expect("store b4");
+
+        // Unwind to block 2
+        store.unwind_history(b2).await.expect("unwind");
+
+        // Verify: blocks 1 and 2 remain, blocks 3 and 4 are removed
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+
+        assert!(cur.seek_by_key_subkey(addr, 1).unwrap().is_some(), "Block 1 should remain");
+        assert!(cur.seek_by_key_subkey(addr, 2).unwrap().is_none(), "Block 2 should be removed");
+        assert!(cur.seek_by_key_subkey(addr, 3).unwrap().is_none(), "Block 3 should be removed");
+        assert!(cur.seek_by_key_subkey(addr, 4).unwrap().is_none(), "Block 4 should be removed");
+
+        // Verify ProofWindow LatestBlock is updated
+        let mut proof_window_cur = tx.cursor_read::<ProofWindow>().expect("cursor");
+        let latest = proof_window_cur
+            .seek_exact(ProofWindowKey::LatestBlock)
+            .expect("seek")
+            .expect("latest exists");
+        assert_eq!(latest.1.number(), 1);
+        assert_eq!(*latest.1.hash(), b2.parent);
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_to_earliest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::random();
+        let make_diff = |nonce: u64| {
+            let mut d = BlockStateDiff::default();
+            d.post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            d
+        };
+
+        // Build chain: blocks 1 -> 2 -> 3
+        let b1 = BlockWithParent::new(B256::ZERO, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store
+            .set_earliest_block_number_hash(b1.block.number, b1.block.hash)
+            .await
+            .expect("set earliest");
+        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+
+        // Unwind to block b1
+        let res = store.unwind_history(b1).await;
+        // should fail as we cannot unwind past earliest block
+        assert!(res.is_err(), "unwind to earliest block should error");
+        assert!(matches!(res.unwrap_err(), OpProofsStorageError::UnwindBeyondEarliest { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_with_storage() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::random();
+        let slot = B256::random();
+
+        let make_diff = |nonce: u64, slot_value: u64| {
+            let mut d = BlockStateDiff::default();
+            d.post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            let mut storage = HashedStorage::default();
+            storage.storage.insert(slot, U256::from(slot_value));
+            d.post_state.storages.insert(addr, storage);
+            d
+        };
+
+        // Build chain with storage changes
+        let b0 = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::random()));
+        let b1 = BlockWithParent::new(b0.block.hash, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store
+            .set_earliest_block_number_hash(b0.block.number, b0.block.hash)
+            .await
+            .expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10, 100)).await.expect("store b1");
+        store.store_trie_updates(b2, make_diff(20, 200)).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(30, 300)).await.expect("store b3");
+
+        // Unwind to block 1
+        store.unwind_history(b2).await.expect("unwind");
+
+        // Verify account history
+        let tx = store.env.tx().expect("tx");
+        let mut acc_cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+        assert!(acc_cur.seek_by_key_subkey(addr, 1).unwrap().is_some(), "Block 1 should remain");
+        assert!(
+            acc_cur.seek_by_key_subkey(addr, 2).unwrap().is_none(),
+            "Block 2 should be removed"
+        );
+        assert!(
+            acc_cur.seek_by_key_subkey(addr, 3).unwrap().is_none(),
+            "Block 3 should be removed"
+        );
+
+        // Verify storage history
+        let mut storage_cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
+        let storage_key = HashedStorageKey::new(addr, slot);
+        assert!(
+            storage_cur.seek_by_key_subkey(storage_key.clone(), 1).unwrap().is_some(),
+            "Storage at block 1 should remain"
+        );
+        assert!(
+            storage_cur.seek_by_key_subkey(storage_key.clone(), 2).unwrap().is_none(),
+            "Storage at block 2 should be removed"
+        );
+        assert!(
+            storage_cur.seek_by_key_subkey(storage_key, 3).unwrap().is_none(),
+            "Storage at block 3 should be removed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_with_trie_nodes() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let path1 = Nibbles::from_nibbles_unchecked([0x01]);
+        let path2 = Nibbles::from_nibbles_unchecked([0x02]);
+        let node1 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
+        let node2 = BranchNodeCompact::new(0b10, 0, 0, vec![], Some(B256::random()));
+
+        let make_diff = |path: Nibbles, node: BranchNodeCompact| {
+            let mut d = BlockStateDiff::default();
+            d.trie_updates.account_nodes.insert(path, node);
+            d
+        };
+
+        // Build chain with trie updates
+        let b0 = NumHash::new(0, B256::random());
+        let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+        store.store_trie_updates(b1, make_diff(path1, node1.clone())).await.expect("store b1");
+        store.store_trie_updates(b2, make_diff(path2, node2.clone())).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(path1, node2.clone())).await.expect("store b3");
+
+        // Unwind to block 1
+        store.unwind_history(b2).await.expect("unwind");
+
+        // Verify trie node history
+        let tx = store.env.tx().expect("tx");
+        let mut trie_cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
+
+        assert!(
+            trie_cur.seek_by_key_subkey(StoredNibbles::from(path1), 1).unwrap().is_some(),
+            "Trie node at block 1 should remain"
+        );
+        assert!(
+            trie_cur.seek_by_key_subkey(StoredNibbles::from(path2), 2).unwrap().is_none(),
+            "Trie node at block 2 should be removed"
+        );
+        assert!(
+            trie_cur.seek_by_key_subkey(StoredNibbles::from(path1), 3).unwrap().is_none(),
+            "Trie node at block 3 should be removed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_comprehensive() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // Setup comprehensive scenario with accounts, storage, and trie nodes
+        let addr1 = B256::random();
+        let addr2 = B256::random();
+        let slot1 = B256::random();
+        let slot2 = B256::random();
+        let path1 = Nibbles::from_nibbles_unchecked([0x01]);
+        let path2 = Nibbles::from_nibbles_unchecked([0x02]);
+        let storage_path1 = Nibbles::from_nibbles_unchecked([0x03]);
+
+        let acc1 = Account { nonce: 1, balance: U256::from(100), ..Default::default() };
+        let acc2 = Account { nonce: 2, balance: U256::from(200), ..Default::default() };
+        let node1 = BranchNodeCompact::new(0b1, 0, 0, vec![], Some(B256::random()));
+        let node2 = BranchNodeCompact::new(0b10, 0, 0, vec![], Some(B256::random()));
+        let storage_node1 = BranchNodeCompact::new(0b100, 0, 0, vec![], Some(B256::random()));
+
+        // Block 0: Set earliest block
+        let b0 = NumHash::new(0, B256::random());
+        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+
+        // Block 1: Insert multiple types of data
+        let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
+        let mut diff1 = BlockStateDiff::default();
+        diff1.post_state.accounts.insert(addr1, Some(acc1));
+        diff1.trie_updates.account_nodes.insert(path1, node1.clone());
+        let mut storage1 = HashedStorage::default();
+        storage1.storage.insert(slot1, U256::from(1111));
+        diff1.post_state.storages.insert(addr1, storage1);
+        let mut storage_updates1 = StorageTrieUpdates::default();
+        storage_updates1.storage_nodes.insert(storage_path1, storage_node1.clone());
+        diff1.trie_updates.storage_tries.insert(addr1, storage_updates1);
+        store.store_trie_updates(b1, diff1).await.expect("store b1");
+
+        // Block 2: More updates
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let mut diff2 = BlockStateDiff::default();
+        diff2.post_state.accounts.insert(addr2, Some(acc2));
+        diff2.trie_updates.account_nodes.insert(path2, node2.clone());
+        let mut storage2 = HashedStorage::default();
+        storage2.storage.insert(slot2, U256::from(2222));
+        diff2.post_state.storages.insert(addr2, storage2);
+        store.store_trie_updates(b2, diff2).await.expect("store b2");
+
+        // Block 3: Additional updates
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+        let mut diff3 = BlockStateDiff::default();
+        diff3.post_state.accounts.insert(addr1, Some(acc2)); // update addr1
+        store.store_trie_updates(b3, diff3).await.expect("store b3");
+
+        // Unwind to block 1
+        store.unwind_history(b2).await.expect("unwind");
+
+        let tx = store.env.tx().expect("tx");
+
+        // Verify account history: block 1 remains, blocks 2 and 3 removed
+        let mut acc_cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+        assert!(acc_cur.seek_by_key_subkey(addr1, 1).unwrap().is_some());
+        assert!(acc_cur.seek_by_key_subkey(addr2, 2).unwrap().is_none());
+        assert!(acc_cur.seek_by_key_subkey(addr1, 3).unwrap().is_none());
+
+        // Verify trie history
+        let mut trie_cur = tx.cursor_dup_read::<AccountTrieHistory>().expect("cursor");
+        assert!(trie_cur.seek_by_key_subkey(StoredNibbles::from(path1), 1).unwrap().is_some());
+        assert!(trie_cur.seek_by_key_subkey(StoredNibbles::from(path2), 2).unwrap().is_none());
+
+        // Verify storage history
+        let mut storage_cur = tx.new_cursor::<HashedStorageHistory>().expect("cursor");
+        assert!(storage_cur
+            .seek_by_key_subkey(HashedStorageKey::new(addr1, slot1), 1)
+            .unwrap()
+            .is_some());
+        assert!(storage_cur
+            .seek_by_key_subkey(HashedStorageKey::new(addr2, slot2), 2)
+            .unwrap()
+            .is_none());
+
+        // Verify storage trie history
+        let mut storage_trie_cur = tx.cursor_dup_read::<StorageTrieHistory>().expect("cursor");
+        assert!(storage_trie_cur
+            .seek_by_key_subkey(StorageTrieKey::new(addr1, StoredNibbles::from(storage_path1)), 1)
+            .unwrap()
+            .is_some());
+
+        // Verify ProofWindow LatestBlock is updated
+        let mut proof_window_cur = tx.cursor_read::<ProofWindow>().expect("cursor");
+        let latest = proof_window_cur
+            .seek_exact(ProofWindowKey::LatestBlock)
+            .expect("seek")
+            .expect("latest exists");
+        assert_eq!(latest.1.number(), 1);
+        assert_eq!(*latest.1.hash(), b1.block.hash);
+
+        // Verify change sets are removed for blocks > 1
+        let mut change_cur = tx.new_cursor::<BlockChangeSet>().expect("cursor");
+        assert!(change_cur.seek_exact(1).unwrap().is_some(), "Block 1 changeset should remain");
+        assert!(change_cur.seek_exact(2).unwrap().is_none(), "Block 2 changeset should be removed");
+        assert!(change_cur.seek_exact(3).unwrap().is_none(), "Block 3 changeset should be removed");
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_empty_chain() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        // Try to unwind when there's nothing stored yet
+        let unwind_to = BlockWithParent::new(B256::ZERO, NumHash::new(0, B256::ZERO));
+        let result = store.unwind_history(unwind_to).await;
+
+        // Should succeed (no-op)
+        assert!(result.is_ok(), "Unwinding empty chain should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_idempotent() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::random();
+        let make_diff = |nonce: u64| {
+            let mut d = BlockStateDiff::default();
+            d.post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            d
+        };
+
+        // Build chain: blocks 1 -> 2 -> 3
+        let b0 = NumHash::new(0, B256::random());
+        let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+
+        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+
+        // Unwind to block 1
+        store.unwind_history(b2).await.expect("first unwind");
+
+        // Unwind again to the same block (should be idempotent)
+        store.unwind_history(b2).await.expect("second unwind");
+
+        // Verify state is still correct
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+
+        assert!(cur.seek_by_key_subkey(addr, 1).unwrap().is_some(), "Block 1 should remain");
+        assert!(cur.seek_by_key_subkey(addr, 2).unwrap().is_none(), "Block 2 should be removed");
+        assert!(cur.seek_by_key_subkey(addr, 3).unwrap().is_none(), "Block 3 should be removed");
+    }
+
+    #[tokio::test]
+    async fn test_unwind_history_beyond_latest() {
+        let dir = TempDir::new().unwrap();
+        let store = MdbxProofsStorage::new(dir.path()).expect("env");
+
+        let addr = B256::random();
+        let make_diff = |nonce: u64| {
+            let mut d = BlockStateDiff::default();
+            d.post_state.accounts.insert(addr, Some(Account { nonce, ..Default::default() }));
+            d
+        };
+
+        // Build chain: blocks 1 -> 2 -> 3
+        let b0 = NumHash::new(0, B256::random());
+        let b1 = BlockWithParent::new(b0.hash, NumHash::new(1, B256::random()));
+        let b2 = BlockWithParent::new(b1.block.hash, NumHash::new(2, B256::random()));
+        let b3 = BlockWithParent::new(b2.block.hash, NumHash::new(3, B256::random()));
+        let b4 = BlockWithParent::new(b3.block.hash, NumHash::new(4, B256::random()));
+        let b5 = BlockWithParent::new(b4.block.hash, NumHash::new(5, B256::random()));
+
+        store.set_earliest_block_number_hash(b0.number, b0.hash).await.expect("set earliest");
+        store.store_trie_updates(b1, make_diff(10)).await.expect("store b1");
+        store.store_trie_updates(b2, make_diff(20)).await.expect("store b2");
+        store.store_trie_updates(b3, make_diff(30)).await.expect("store b3");
+
+        // Unwind to block 1
+        store.unwind_history(b5).await.expect("first unwind");
+
+        // Verify state is still correct
+        let tx = store.env.tx().expect("tx");
+        let mut cur = tx.new_cursor::<HashedAccountHistory>().expect("cursor");
+
+        assert!(cur.seek_by_key_subkey(addr, 1).unwrap().is_some(), "Block 1 should remain");
+        assert!(cur.seek_by_key_subkey(addr, 2).unwrap().is_some(), "Block 2 should remain");
+        assert!(cur.seek_by_key_subkey(addr, 3).unwrap().is_some(), "Block 3 should remain");
+
+        let mut proof_window_cur = tx.cursor_read::<ProofWindow>().expect("cursor");
+        let latest = proof_window_cur
+            .seek_exact(ProofWindowKey::LatestBlock)
+            .expect("seek")
+            .expect("latest exists");
+        assert_eq!(latest.1.number(), b3.block.number);
+        assert_eq!(*latest.1.hash(), b3.block.hash);
     }
 }

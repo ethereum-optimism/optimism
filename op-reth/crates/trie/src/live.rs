@@ -201,4 +201,11 @@ where
         );
         Ok(())
     }
+
+    /// Remove account, storage and trie updates from historical storage for all blocks from
+    /// the specified block (inclusive).
+    pub async fn unwind_history(&self, to: BlockWithParent) -> eyre::Result<()> {
+        self.storage.unwind_history(to).await?;
+        Ok(())
+    }
 }

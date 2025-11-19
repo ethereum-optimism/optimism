@@ -67,6 +67,14 @@ pub enum OpProofsStorageError {
         /// The block number
         block_number: u64,
     },
+    /// Attempted to unwind to a block beyond the earliest stored block
+    #[error("Attempted to unwind to block {unwind_block_number} beyond earliest stored block {earliest_block_number}")]
+    UnwindBeyondEarliest {
+        /// The block number being unwound to
+        unwind_block_number: u64,
+        /// The earliest stored block number
+        earliest_block_number: u64,
+    },
     /// Error occurred while interacting with the database.
     #[error(transparent)]
     DatabaseError(#[from] DatabaseError),

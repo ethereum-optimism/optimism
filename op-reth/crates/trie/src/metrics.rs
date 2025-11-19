@@ -511,6 +511,11 @@ where
     }
 
     #[inline]
+    async fn unwind_history(&self, to: BlockWithParent) -> OpProofsStorageResult<()> {
+        self.storage.unwind_history(to).await
+    }
+
+    #[inline]
     async fn replace_updates(
         &self,
         latest_common_block_number: u64,

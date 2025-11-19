@@ -207,6 +207,13 @@ pub trait OpProofsStore: Send + Sync + Debug {
         diff: BlockStateDiff,
     ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
 
+    /// Remove account, storage and trie updates from historical storage for all blocks till
+    /// the specified block (inclusive).
+    fn unwind_history(
+        &self,
+        to: BlockWithParent,
+    ) -> impl Future<Output = OpProofsStorageResult<()>> + Send;
+
     /// Deletes all updates > `latest_common_block_number` and replaces them with the new updates.
     fn replace_updates(
         &self,

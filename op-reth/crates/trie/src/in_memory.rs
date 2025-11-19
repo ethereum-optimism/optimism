@@ -595,6 +595,24 @@ impl OpProofsStore for InMemoryProofsStorage {
         Ok(())
     }
 
+    async fn unwind_history(
+        &self,
+        unwind_upto_block: BlockWithParent,
+    ) -> OpProofsStorageResult<()> {
+        let mut inner = self.inner.write().await;
+        let unwind_upto_block_number = unwind_upto_block.block.number - 1;
+
+        // Remove all updates after unwind_upto_block_number
+        inner.trie_updates.retain(|block, _| *block <= unwind_upto_block_number);
+        inner.post_states.retain(|block, _| *block <= unwind_upto_block_number);
+        inner.account_branches.retain(|(block, _), _| *block <= unwind_upto_block_number);
+        inner.storage_branches.retain(|(block, _, _), _| *block <= unwind_upto_block_number);
+        inner.hashed_accounts.retain(|(block, _), _| *block <= unwind_upto_block_number);
+        inner.hashed_storages.retain(|(block, _, _), _| *block <= unwind_upto_block_number);
+
+        Ok(())
+    }
+
     async fn replace_updates(
         &self,
         latest_common_block_number: u64,

@@ -223,13 +223,38 @@ where
                     collector.unwind_and_store_block_updates(new_blocks).await?;
                 }
                 ExExNotification::ChainReverted { old } => {
-                    debug!(
+                    info!(
                         target: "optimism::exex",
                         old_block_number = old.tip().number(),
                         old_block_hash = ?old.tip().hash(),
                         "ChainReverted notification received",
                     );
-                    unimplemented!("Chain revert handling not yet implemented");
+
+                    // Get latest stored number
+                    let latest_stored_block_number =
+                        match self.storage.get_latest_block_number().await? {
+                            Some((n, _)) => n,
+                            None => {
+                                info!(
+                                    target: "optimism::exex",
+                                    "No blocks stored yet, skipping ChainReverted handling"
+                                );
+                                continue;
+                            }
+                        };
+
+                    let first_block = old.first();
+                    if first_block.number() > latest_stored_block_number {
+                        info!(
+                            target: "optimism::exex",
+                            first_block_number = first_block.number(),
+                            latest_stored = latest_stored_block_number,
+                            "Fork block number is greater than latest stored, skipping",
+                        );
+                        continue;
+                    }
+
+                    collector.unwind_history(first_block.block_with_parent()).await?;
                 }
             };
 
