@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -52,8 +57,9 @@ func main() {
 }
 
 type actionEnv struct {
-	log log.Logger
-	l2  *ethclient.Client
+	log       log.Logger
+	l2        *ethclient.Client
+	secretKey string
 }
 
 type CheckAction func(ctx context.Context, env *actionEnv) error
@@ -66,11 +72,18 @@ var (
 		EnvVars: op_service.PrefixEnvVar(prefix, "L2"),
 		Value:   "http://localhost:9545",
 	}
+	SecretKeyFlag = &cli.StringFlag{
+		Name:    "secret-key",
+		Usage:   "hex encoded secret key for sending a test tx (optional)",
+		EnvVars: op_service.PrefixEnvVar(prefix, "SECRET_KEY"),
+		Value:   "",
+	}
 )
 
 func makeFlags() []cli.Flag {
 	flags := []cli.Flag{
 		EndpointL2,
+		SecretKeyFlag,
 	}
 	return append(flags, oplog.CLIFlags(prefix)...)
 }
@@ -93,9 +106,15 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
+		secretKey := c.String(SecretKeyFlag.Name)
+		if secretKey != "" {
+			// Normalize possible 0x prefix
+			secretKey = strings.TrimPrefix(secretKey, "0x")
+		}
 		if err := fn(c.Context, &actionEnv{
-			log: logger,
-			l2:  l2Cl,
+			log:       logger,
+			l2:        l2Cl,
+			secretKey: secretKey,
 		}); err != nil {
 			return fmt.Errorf("command error: %w", err)
 		}
@@ -138,11 +157,87 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 }
 
 // checkBlock checks that the latest block header has a non-nil blobgasused field
+// If a secret key is provided, it will attempt to send a tx-to-self on L2, wait for it to be mined,
+// then use the block containing that tx as the block to check.
 func checkBlock(ctx context.Context, env *actionEnv) error {
-	latest, err := env.l2.BlockByNumber(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get latest block: %w", err)
+	var latest *types.Block
+	var err error
+
+	// If a secret key was provided, attempt to send a tx-to-self and wait for it to be mined.
+	if env.secretKey != "" {
+		env.log.Info("secret key provided - attempting to send tx-to-self and wait for inclusion")
+
+		// Parse private key
+		priv, err := crypto.HexToECDSA(env.secretKey)
+		if err != nil {
+			return fmt.Errorf("failed to parse secret key: %w", err)
+		}
+		fromAddr := crypto.PubkeyToAddress(priv.PublicKey)
+
+		// Get nonce
+		nonce, err := env.l2.PendingNonceAt(ctx, fromAddr)
+		if err != nil {
+			return fmt.Errorf("failed to get pending nonce: %w", err)
+		}
+
+		// Gas price
+		gasPrice, err := env.l2.SuggestGasPrice(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to suggest gas price: %w", err)
+		}
+
+		// Simple to-self transfer with zero value (no data). Use a minimal gas limit.
+		toAddr := fromAddr
+		value := big.NewInt(0)
+		gasLimit := uint64(21000)
+
+		// Determine chain ID for signing
+		chainID, err := env.l2.NetworkID(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get network id: %w", err)
+		}
+
+		tx := types.NewTransaction(nonce, toAddr, value, gasLimit, gasPrice, nil)
+
+		// Sign tx
+		signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), priv)
+		if err != nil {
+			return fmt.Errorf("failed to sign tx: %w", err)
+		}
+
+		// Send tx
+		if err := env.l2.SendTransaction(ctx, signedTx); err != nil {
+			return fmt.Errorf("failed to send tx: %w", err)
+		}
+		env.log.Info("tx sent", "txHash", signedTx.Hash().Hex(), "from", fromAddr.Hex())
+
+		// Wait for mined receipt (with a reasonable timeout)
+		// Use a context with timeout to avoid waiting forever.
+		waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer cancel()
+
+		receipt, err := bind.WaitMined(waitCtx, env.l2, signedTx)
+		if err != nil {
+			return fmt.Errorf("error waiting for tx to be mined: %w", err)
+		}
+		if receipt == nil {
+			return fmt.Errorf("tx mined receipt was nil")
+		}
+		env.log.Info("tx mined", "txHash", signedTx.Hash().Hex(), "blockNumber", receipt.BlockNumber)
+
+		// Fetch the block that contained the receipt
+		blk, err := env.l2.BlockByNumber(ctx, receipt.BlockNumber)
+		if err != nil {
+			return fmt.Errorf("failed to fetch block containing tx: %w", err)
+		}
+		latest = blk
+	} else {
+		latest, err = env.l2.BlockByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get latest block: %w", err)
+		}
 	}
+
 	bgu := latest.BlobGasUsed()
 	if bgu == nil {
 		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number)
