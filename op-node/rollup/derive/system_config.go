@@ -37,11 +37,11 @@ var (
 // Any errors encountered during the update process are returned as a multierror.
 func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
 	var result error
-	for _, rec := range receipts {
+	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
 			continue
 		}
-		for _, log := range rec.Logs {
+		for j, log := range rec.Logs {
 			// copy sysConfig to an update structure to preserve the original in case of error
 			updated := *sysCfg
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
@@ -51,7 +51,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 					*sysCfg = updated
 				} else {
 					// or append the error to the result
-					result = multierror.Append(result, err)
+					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
 				}
 			}
 		}
