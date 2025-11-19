@@ -240,14 +240,14 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 
 	bgu := latest.BlobGasUsed()
 	if bgu == nil {
-		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number)
+		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number())
 	}
 
 	// A non-zero BlobGasUsed is hard evidence of Jovian being active
 	// A zero value is inconclusive (could be an empty block or pre-Jovian)
 	if *bgu == 0 {
 		env.log.Warn("Block header BlobGasUsed is zero - inconclusive for Jovian activation",
-			"blockNumber", latest.Number,
+			"blockNumber", latest.Number(),
 			"note", "Zero could indicate an empty block or pre-Jovian state")
 		txs := latest.Body().Transactions
 		if len(txs) > 1 && txs[len(txs)-1].Type() == types.DepositTxType {
