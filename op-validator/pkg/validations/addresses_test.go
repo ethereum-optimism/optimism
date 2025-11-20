@@ -137,7 +137,7 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 
 	w3c := w3.NewClient(rpcClient)
 
-	if semverTag == standard.ContractsV500Tag {
+	if semverTag >= standard.ContractsV500Tag {
 		// For v5.0.0+
 		type implFieldDef struct {
 			implGetter string

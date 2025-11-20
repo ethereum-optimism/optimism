@@ -16,10 +16,13 @@ import (
 	"github.com/lmittmann/w3/w3types"
 )
 
+// validateFunc is used for 1.8.0-4.1.0 validation contracts
 var validateFunc = w3.MustNewFunc("validate((address proxyAdminAddress,address systemConfigAddress,bytes32 absolutePrestate,uint256 chainID) input,bool allowFailure)", "string")
 
-var validateFuncOpcmValidator = w3.MustNewFunc("validate((address sysCfg,bytes32 absolutePrestate,uint256 l2ChainID,address proposer) input,bool allowFailure)", "string")
+// validateFunc500Validator is used for 5.0.0+ validation contracts
+var validateFunc500Validator = w3.MustNewFunc("validate((address sysCfg,bytes32 absolutePrestate,uint256 l2ChainID,address proposer) input,bool allowFailure)", "string")
 
+// validateFuncArgs is used for 1.8.0-4.1.0 validation contracts
 type validateFuncArgs struct {
 	ProxyAdminAddress   common.Address
 	SystemConfigAddress common.Address
@@ -27,27 +30,32 @@ type validateFuncArgs struct {
 	ChainID             *big.Int
 }
 
-type validateFuncArgsOpcmValidator struct {
+// validateFuncArgs500Validator is used for 5.0.0+ validation contracts
+type validateFuncArgs500Validator struct {
 	SysCfg           common.Address `w3:"sysCfg"`
 	AbsolutePrestate common.Hash    `w3:"absolutePrestate"`
 	L2ChainID        *big.Int       `w3:"l2ChainID"`
 	Proposer         common.Address `w3:"proposer"`
 }
 
+// Validator is used for all validation contracts
 type Validator interface {
 	Validate(ctx context.Context, input BaseValidatorInput) ([]string, error)
 }
 
+// BaseValidator is used for 1.8.0-4.1.0 validation contracts
 type BaseValidator struct {
 	client  *rpc.Client
 	release string
 }
 
+// OPCMStandardValidator is used for 5.0.0+ validation contracts
 type OPCMStandardValidator struct {
 	client  *rpc.Client
 	release string
 }
 
+// BaseValidatorInput is used for all validation contracts
 type BaseValidatorInput struct {
 	ProxyAdminAddress   common.Address
 	SystemConfigAddress common.Address
@@ -56,10 +64,12 @@ type BaseValidatorInput struct {
 	Proposer            common.Address
 }
 
+// newBaseValidator is used for 1.8.0-4.1.0 validation contracts
 func newBaseValidator(client *rpc.Client, release string) *BaseValidator {
 	return &BaseValidator{client: client, release: release}
 }
 
+// newOPCMStandardValidator is used for 5.0.0+ validation contracts
 func newOPCMStandardValidator(client *rpc.Client, release string) *OPCMStandardValidator {
 	return &OPCMStandardValidator{
 		client:  client,
@@ -67,6 +77,7 @@ func newOPCMStandardValidator(client *rpc.Client, release string) *OPCMStandardV
 	}
 }
 
+// Validate (BaseValidator) is used for 1.8.0-4.1.0 validation contracts
 func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) ([]string, error) {
 	l1ChainID, err := ethclient.NewClient(v.client).ChainID(ctx)
 	if err != nil {
@@ -105,6 +116,7 @@ func (v *BaseValidator) Validate(ctx context.Context, input BaseValidatorInput) 
 	return parseErrors(output), nil
 }
 
+// Validate (OPCMStandardValidator) is used for 5.0.0+ validation contracts
 func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidatorInput) ([]string, error) {
 	if input.Proposer == (common.Address{}) {
 		return nil, fmt.Errorf("proposer address is required for OPCM validation")
@@ -125,9 +137,9 @@ func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidato
 		ctx,
 		eth.Call(&w3types.Message{
 			To:   &validatorAddr,
-			Func: validateFuncOpcmValidator,
+			Func: validateFunc500Validator,
 			Args: []any{
-				validateFuncArgsOpcmValidator{
+				validateFuncArgs500Validator{
 					SysCfg:           input.SystemConfigAddress,
 					AbsolutePrestate: input.AbsolutePrestate,
 					L2ChainID:        input.L2ChainID,
@@ -141,7 +153,7 @@ func (v *OPCMStandardValidator) Validate(ctx context.Context, input BaseValidato
 	}
 
 	var output string
-	if err := validateFuncOpcmValidator.DecodeReturns(rawOutput, &output); err != nil {
+	if err := validateFunc500Validator.DecodeReturns(rawOutput, &output); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal output: %w", err)
 	}
 	return parseErrors(output), nil
