@@ -4,7 +4,7 @@ pragma solidity ^0.8.25;
 import { TestBase } from "forge-std/Base.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 
-import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
+import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
 import { OptimismSuperchainERC20ForToBProperties } from "../helpers/OptimismSuperchainERC20ForToBProperties.t.sol";
@@ -46,6 +46,12 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
     constructor() {
         vm.etch(address(MESSENGER), address(new MockL2ToL2CrossDomainMessenger()).code);
         superchainERC20Impl = new OptimismSuperchainERC20ForToBProperties();
+
+        // Deploy the OptimismSuperchainERC20Beacon at the predeploy address
+        // and set it to return our implementation
+        address beacon = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        vm.etch(beacon, vm.getDeployedCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"));
+        vm.mockCall(beacon, abi.encodeWithSignature("implementation()"), abi.encode(address(superchainERC20Impl)));
         for (uint256 remoteTokenIndex; remoteTokenIndex < INITIAL_TOKENS; remoteTokenIndex++) {
             _deployRemoteToken();
             for (uint256 supertokenChainId; supertokenChainId < INITIAL_SUPERTOKENS; supertokenChainId++) {
@@ -166,9 +172,8 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         bytes32 hackySalt = keccak256(abi.encode(remoteToken, name, symbol, decimals, chainId));
         supertoken_ = OptimismSuperchainERC20(
             address(
-                // TODO: Use the OptimismSuperchainERC20 Beacon Proxy
-                new ERC1967Proxy{ salt: hackySalt }(
-                    address(superchainERC20Impl),
+                new BeaconProxy{ salt: hackySalt }(
+                    Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON,
                     abi.encodeCall(OptimismSuperchainERC20.initialize, (remoteToken, name, symbol, decimals))
                 )
             )
