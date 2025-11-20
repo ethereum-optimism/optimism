@@ -54,7 +54,7 @@ func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, t
 		// Check the path has forge-artifacts directory
 		forgeArtifactsDir := path.Join(u.Path, "forge-artifacts")
 		if _, err := os.Stat(forgeArtifactsDir); err != nil {
-			// Accept this for now but in the future we should error
+			// TODO(#18346): Accept this for now but in the future we should error
 			artifactsFS = os.DirFS(u.Path)
 		} else {
 			artifactsFS = os.DirFS(forgeArtifactsDir)
@@ -96,6 +96,7 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor,
 			return nil, fmt.Errorf("failed to extract tarball: %w", err)
 		}
 	}
+	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
 	return os.DirFS(path.Join(tmpDir, "forge-artifacts")), nil
 }
 
