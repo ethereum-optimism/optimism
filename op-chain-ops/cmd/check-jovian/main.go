@@ -215,11 +215,14 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 	bgu := *bguPtr
 
 	txs := latest.Body().Transactions
-	if len(txs) == 1 {
+	switch len(txs) {
+	case 0:
+		return fmt.Errorf("block %d has no transactions at all", latest.Number())
+	case 1:
 		env.log.Warn("Block has no user txs - inconclusive for Jovian activation",
 			"blockNumber", latest.Number(),
 			"note", "Zero could indicate an empty block or pre-Jovian state")
-	} else {
+	default:
 		expectedDAFootprint, err := types.CalcDAFootprint(txs)
 		if err != nil {
 			return fmt.Errorf("failed to calculate DA footprint for block %d: %w", latest.Number(), err)
