@@ -179,7 +179,7 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 		}
 		defer t.Close()
 
-		receipt, err := t.Send(context.TODO(), txmgr.TxCandidate{
+		receipt, err := t.Send(ctx, txmgr.TxCandidate{
 			To:    &fromAddr, // Send to self
 			Value: big.NewInt(0),
 		})
