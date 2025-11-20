@@ -21,7 +21,7 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
     PR_DATA=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
       "https://api.github.com/repos/ethereum-optimism/optimism/pulls/${PR_NUMBER}")
 
-    if echo "$PR_DATA" | grep -q '"name"[[:space:]]*:[[:space:]]*"force-use-fresh-artifacts"'; then
+    if echo "$PR_DATA" | jq -e 'any(.labels[]; .name == "force-use-fresh-artifacts")' >/dev/null; then
       echo "Force use fresh artifacts label detected, skipping fallback"
       USE_FALLBACK=false
     fi
