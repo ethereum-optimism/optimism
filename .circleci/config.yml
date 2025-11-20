@@ -345,34 +345,7 @@ commands:
     steps:
       - run:
           name: Pull artifacts
-          command: |
-            USE_FALLBACK=false
-
-            # Check if we're on a PR (not develop branch)
-            if [ "${CIRCLE_BRANCH}" != "develop" ]; then
-              USE_FALLBACK=true
-
-              # Check if PR has force-use-fresh-artifacts label (override fallback)
-              if [ -n "${CIRCLE_PULL_REQUEST}" ]; then
-                # Extract PR number from URL
-                PR_NUMBER=$(echo "${CIRCLE_PULL_REQUEST}" | grep -o '[0-9]*$')
-
-                # Query GitHub API for PR details
-                PR_DATA=$(curl -s -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
-                  "https://api.github.com/repos/ethereum-optimism/optimism/pulls/${PR_NUMBER}")
-
-                if echo "$PR_DATA" | grep -q '"name"[[:space:]]*:[[:space:]]*"force-use-fresh-artifacts"'; then
-                  echo "Force use fresh artifacts label detected, skipping fallback"
-                  USE_FALLBACK=false
-                fi
-              fi
-            fi
-
-            if [ "$USE_FALLBACK" = "true" ]; then
-              bash scripts/ops/pull-artifacts.sh --fallback-to-latest
-            else
-              bash scripts/ops/pull-artifacts.sh
-            fi
+          command: bash scripts/ops/use-latest-fallback.sh
           working_directory: packages/contracts-bedrock
 
 jobs:
