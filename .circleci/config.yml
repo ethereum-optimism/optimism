@@ -1181,7 +1181,7 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
