@@ -18,7 +18,7 @@ if [ "${CIRCLE_BRANCH:-}" != "develop" ]; then
     PR_NUMBER=$(echo "${CIRCLE_PULL_REQUEST}" | grep -o '[0-9]*$')
 
     # Query GitHub API for PR details
-    PR_DATA=$(curl -s -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
+    PR_DATA=$(curl -sS --fail --connect-timeout 10 --max-time 30 -H "Authorization: token ${MISE_GITHUB_TOKEN}" \
       "https://api.github.com/repos/ethereum-optimism/optimism/pulls/${PR_NUMBER}")
 
     if echo "$PR_DATA" | grep -q '"name"[[:space:]]*:[[:space:]]*"force-use-fresh-artifacts"'; then
