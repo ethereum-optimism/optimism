@@ -171,7 +171,7 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 
 		cfg := txmgr.NewCLIConfig(env.l2endpoint, txmgr.DefaultBatcherFlagValues)
 		cfg.PrivateKey = env.secretKey
-		t, err := txmgr.NewSimpleTxManager("check-jovian", env.log, new(metrics.NoopTxMetrics), cfg)
+		t, err := txmgr.NewSimpleTxManager("check-jovian", env.log.With("component", "txmgr"), new(metrics.NoopTxMetrics), cfg)
 		if err != nil {
 			return fmt.Errorf("failed to create tx manager: %w", err)
 		}
