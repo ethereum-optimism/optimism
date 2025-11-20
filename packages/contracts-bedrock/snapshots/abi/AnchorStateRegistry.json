@@ -421,6 +421,24 @@
   },
   {
     "inputs": [],
+    "name": "startingAnchorRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "l2SequenceNumber",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {

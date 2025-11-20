@@ -25,8 +25,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.6.0
-    string public constant version = "3.6.0";
+    /// @custom:semver 3.7.0
+    string public constant version = "3.7.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -41,7 +41,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     IFaultDisputeGame public anchorGame;
 
     /// @notice The starting anchor root.
-    Proposal internal startingAnchorRoot;
+    Proposal public startingAnchorRoot;
 
     /// @notice Mapping of blacklisted dispute games.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;

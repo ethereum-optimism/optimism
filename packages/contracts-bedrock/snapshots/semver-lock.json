@@ -164,8 +164,8 @@
     "sourceCodeHash": "0x03c160168986ffc8d26a90c37366e7ad6da03f49d83449e1f8b3de0f4b590f6f"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0xb761ca2d38cb744cd3cb8a571ea543a74a6e79ffa16316609d6ca78e949b87fb",
-    "sourceCodeHash": "0x7e1810270aaa863f782b830920ebc2f914d6d12b535f7cdf8b58d2c46aaf01d0"
+    "initCodeHash": "0x9a4206f5952acde111cd6ae909e587c91b0f6f0dc118ac2db208b9f716e062ca",
+    "sourceCodeHash": "0xefe8de8c70fed698ccba922732f6601d27a87ee2e1d88eaac67a00d8cb3dfd4b"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0xa8f60e142108b33675a8f6b6979c73b96eea247884842d796f9f878904c0a906",
