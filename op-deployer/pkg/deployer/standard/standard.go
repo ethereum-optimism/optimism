@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -163,11 +162,8 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 	}
 }
 
-// DefaultHardforkScheduleForTag is used to determine which hardforks should be activated by default given a
-// contract tag. For example, passing in v1.6.0 will return all hardforks up to and including Granite. This allows
-// OP Deployer to set sane defaults for hardforks. This is not an ideal solution, but it will have to work until we get
-// to MCP L2.
-func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployConfig {
+// DefaultHardforkSchedule is used to determine which hardforks should be activated by default.
+func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
 	sched := &genesis.UpgradeScheduleDeployConfig{
 		L2GenesisRegolithTimeOffset: op_service.U64UtilPtr(0),
 		L2GenesisCanyonTimeOffset:   op_service.U64UtilPtr(0),
@@ -175,19 +171,9 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 		L2GenesisEcotoneTimeOffset:  op_service.U64UtilPtr(0),
 		L2GenesisFjordTimeOffset:    op_service.U64UtilPtr(0),
 		L2GenesisGraniteTimeOffset:  op_service.U64UtilPtr(0),
-	}
-
-	switch tag {
-	case ContractsV160Tag, ContractsV170Beta1L2Tag:
-		return sched
-	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-	case ContractsV400Tag, ContractsV410Tag:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
-	default:
-		sched.ActivateForkAtGenesis(rollup.Holocene)
-		sched.ActivateForkAtGenesis(rollup.Isthmus)
+		L2GenesisHoloceneTimeOffset: op_service.U64UtilPtr(0),
+		L2GenesisIsthmusTimeOffset:  op_service.U64UtilPtr(0),
+		L2GenesisJovianTimeOffset:   op_service.U64UtilPtr(0),
 	}
 
 	return sched
