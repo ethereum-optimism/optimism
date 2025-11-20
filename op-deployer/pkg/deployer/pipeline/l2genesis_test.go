@@ -32,7 +32,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectError:       false,
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				return standard.DefaultHardforkScheduleForTag("")
+				return standard.DefaultHardforkSchedule()
 			},
 		},
 		{
@@ -49,7 +49,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				return defaults
 			}(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				return standard.DefaultHardforkScheduleForTag("")
+				return standard.DefaultHardforkSchedule()
 			},
 		},
 		{
@@ -88,7 +88,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				sched := standard.DefaultHardforkScheduleForTag("")
+				sched := standard.DefaultHardforkSchedule()
 				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
@@ -131,7 +131,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				sched := standard.DefaultHardforkScheduleForTag("")
+				sched := standard.DefaultHardforkSchedule()
 				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
@@ -148,7 +148,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectError:       false,
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				schedule := standard.DefaultHardforkScheduleForTag("")
+				schedule := standard.DefaultHardforkSchedule()
 				schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
 				return schedule
 			},
