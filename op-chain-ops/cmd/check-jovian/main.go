@@ -215,9 +215,6 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 	}
 
 	txs := latest.Body().Transactions
-
-	// A non-zero BlobGasUsed is hard evidence of Jovian being active
-	// A zero value is inconclusive (could be an empty block or pre-Jovian)
 	if len(txs) == 1 {
 		env.log.Warn("Block has no user txs - inconclusive for Jovian activation",
 			"blockNumber", latest.Number(),
