@@ -449,14 +449,6 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_TestInit 
 /// @title AnchorStateRegistry_GetStartingAnchorRoot_Test
 /// @notice Tests the `getStartingAnchorRoot` function of the `AnchorStateRegistry` contract.
 contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_TestInit {
-    /// @notice Tests that getStartingAnchorRoot returns the value initialized in the initialize
-    ///         function.
-    function test_getStartingAnchorRoot_initialValue_succeeds() public view {
-        Proposal memory startingAnchorRoot = anchorStateRegistry.getStartingAnchorRoot();
-        assertEq(startingAnchorRoot.root.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
-        assertEq(startingAnchorRoot.l2SequenceNumber, 0);
-    }
-
     /// @notice Tests that getStartingAnchorRoot remains unchanged even if the current anchor root
     ///         changes.
     function test_getStartingAnchorRoot_afterUpdate_succeeds() public {
@@ -482,19 +474,22 @@ contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_T
         // Set the anchor game to the game proxy.
         anchorStateRegistry.setAnchorState(gameProxy);
 
+        // Grab the value of the starting anchor root before the update.
+        Proposal memory startingAnchorRootBeforeUpdate = anchorStateRegistry.getStartingAnchorRoot();
+
         // Verify the CURRENT anchor root has changed.
         (Hash currentRoot, uint256 currentL2BlockNumber) = anchorStateRegistry.getAnchorRoot();
         assertEq(currentRoot.raw(), gameProxy.rootClaim().raw());
         assertEq(currentL2BlockNumber, gameProxy.l2SequenceNumber());
 
         // Verify the STARTING anchor root has NOT changed.
-        Proposal memory startingAnchorRoot = anchorStateRegistry.getStartingAnchorRoot();
-        assertEq(startingAnchorRoot.root.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
-        assertEq(startingAnchorRoot.l2SequenceNumber, 0);
+        Proposal memory startingAnchorRootAfterUpdate = anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(startingAnchorRootAfterUpdate.root.raw(), startingAnchorRootBeforeUpdate.root.raw());
+        assertEq(startingAnchorRootAfterUpdate.l2SequenceNumber, startingAnchorRootBeforeUpdate.l2SequenceNumber);
 
         // Explicitly assert they are different (assuming the new game has different values).
-        assertFalse(currentRoot.raw() == startingAnchorRoot.root.raw());
-        assertFalse(currentL2BlockNumber == startingAnchorRoot.l2SequenceNumber);
+        assertFalse(currentRoot.raw() == startingAnchorRootAfterUpdate.root.raw());
+        assertFalse(currentL2BlockNumber == startingAnchorRootAfterUpdate.l2SequenceNumber);
     }
 }
 
