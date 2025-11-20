@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
@@ -137,7 +138,10 @@ func testStandardVersion(t *testing.T, address common.Address, rpcClient *rpc.Cl
 
 	w3c := w3.NewClient(rpcClient)
 
-	if semverTag >= standard.ContractsV500Tag {
+	ver, err := semver.NewVersion(version.SystemConfig.Version)
+	require.NoError(t, err)
+
+	if ver.Major() >= 5 {
 		// For v5.0.0+
 		type implFieldDef struct {
 			implGetter string
