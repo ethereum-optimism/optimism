@@ -151,18 +151,18 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to get DA footprint gas scalar from L1Block contract: %w", err)
 	}
 	if daFootprintGasScalar == 0 {
-		env.log.Warn("DA footprint gas scalar is set to 0. SystemConfig needs to emit scalar change to update.")
+		return fmt.Errorf("DA footprint gas scalar is set to 0 in L1Block contract, which should not be possible with Jovian.")
 	}
 	env.log.Info("L1Block test: success", "daFootprintGasScalar", daFootprintGasScalar)
 	return nil
 }
 
-// checkBlock checks that the latest block header has a non-nil blobgasused field
+// checkBlock checks that a block for correct use of a the blobgasused field. It can be inconclusive if
+// there are no user transactions in the block.
 // If a secret key is provided, it will attempt to send a tx-to-self on L2, wait for it to be mined,
 // then use the block containing that tx as the block to check.
 func checkBlock(ctx context.Context, env *actionEnv) error {
 	var err error
-
 	var latest *types.Block
 
 	// If a secret key was provided, attempt to send a tx-to-self and wait for it to be mined.
@@ -172,12 +172,11 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 		cfg := txmgr.NewCLIConfig(env.l2endpoint, txmgr.DefaultBatcherFlagValues)
 		cfg.PrivateKey = env.secretKey
 		t, err := txmgr.NewSimpleTxManager("check-jovian", env.log, new(metrics.NoopTxMetrics), cfg)
-		fromAddr := t.From()
-
 		if err != nil {
 			return fmt.Errorf("failed to create tx manager: %w", err)
 		}
 		defer t.Close()
+		fromAddr := t.From()
 
 		receipt, err := t.Send(ctx, txmgr.TxCandidate{
 			To:    &fromAddr, // Send to self
@@ -209,10 +208,11 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 		}
 	}
 
-	bgu := latest.BlobGasUsed()
-	if bgu == nil {
+	bguPtr := latest.BlobGasUsed()
+	if bguPtr == nil {
 		return fmt.Errorf("block %d has nil BlobGasUsed field", latest.Number())
 	}
+	bgu := *bguPtr
 
 	txs := latest.Body().Transactions
 	if len(txs) == 1 {
@@ -224,12 +224,12 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 		if err != nil {
 			return fmt.Errorf("failed to calculate DA footprint for block %d: %w", latest.Number(), err)
 		}
-		if expectedDAFootprint != *bgu {
-			return fmt.Errorf("expected DA footprint %d stored in header.blobGasUsed but got %d", expectedDAFootprint, *bgu)
+		if expectedDAFootprint != bgu {
+			return fmt.Errorf("expected DA footprint %d stored in header.blobGasUsed but got %d", expectedDAFootprint, bgu)
 		}
 		env.log.Info("Block header test: success - non-zero BlobGasUsed is hard evidence of Jovian being active",
 			"blockNumber", latest.Number,
-			"blobGasUsed", *bgu,
+			"blobGasUsed", bgu,
 			"expectedDAFootprint", expectedDAFootprint)
 	}
 	return nil
