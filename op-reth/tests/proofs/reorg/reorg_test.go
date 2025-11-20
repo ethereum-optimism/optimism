@@ -1,6 +1,7 @@
 package reorg
 
 import (
+	"math/big"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestReorgUnsafeHead(gt *testing.T) {
+func TestReorgUsingAccountProof(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
@@ -31,17 +32,18 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
 
-	// sys.L1Network.WaitForBlock()
+	user := sys.FunderL2.NewFundedEOA(eth.OneEther)
+	contract, deployBlock := utils.DeploySimpleStorage(t, user)
+	t.Logf("SimpleStorage deployed at %s block=%d", contract.Address().Hex(), deployBlock.BlockNumber.Uint64())
+
 	time.Sleep(12 * time.Second)
-
-	sys.L2Chain.WaitForBlock()
-
 	divergenceHead := sys.L2Chain.WaitForBlock()
 	// build up some blocks that will be reorged away
 
 	type caseEntry struct {
 		Block uint64
 		addr  common.Address
+		slots []common.Hash
 	}
 	var cases []caseEntry
 	for i := 0; i < 3; i++ {
@@ -53,10 +55,34 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		cases = append(cases, caseEntry{
 			Block: receipt.BlockNumber.Uint64(),
 			addr:  alice.Address(),
+			slots: []common.Hash{},
 		})
 		cases = append(cases, caseEntry{
 			Block: receipt.BlockNumber.Uint64(),
 			addr:  bob.Address(),
+			slots: []common.Hash{},
+		})
+
+		// also include the contract account in the proofs to verify
+		val := big.NewInt(int64(i * 10))
+		callRes := contract.SetValue(user, val)
+
+		cases = append(cases, caseEntry{
+			Block: callRes.BlockNumber.Uint64(),
+			addr:  contract.Address(),
+			slots: []common.Hash{common.HexToHash("0x0")},
+		})
+	}
+
+	// deploy another contract in the reorged blocks
+	{
+		rContract, rDeployBlock := utils.DeploySimpleStorage(t, user)
+		t.Logf("Reorg SimpleStorage deployed at %s block=%d", rContract.Address().Hex(), rDeployBlock.BlockNumber.Uint64())
+
+		cases = append(cases, caseEntry{
+			Block: rDeployBlock.BlockNumber.Uint64(),
+			addr:  rContract.Address(),
+			slots: []common.Hash{common.HexToHash("0x0")},
 		})
 	}
 
@@ -100,10 +126,12 @@ func TestReorgUnsafeHead(gt *testing.T) {
 				cases = append(cases, caseEntry{
 					Block: divergenceHead.Number,
 					addr:  alice.Address(),
+					slots: []common.Hash{},
 				})
 				cases = append(cases, caseEntry{
 					Block: divergenceHead.Number,
 					addr:  bob.Address(),
+					slots: []common.Hash{},
 				})
 			}
 
@@ -151,6 +179,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	// verify that the accounts involved in the conflicting blocks
 	for _, c := range cases {
-		utils.FetchAndVerifyProofs(t, &sys.SingleChainMultiNode, c.addr, []common.Hash{}, c.Block)
+		utils.FetchAndVerifyProofs(t, &sys.SingleChainMultiNode, c.addr, c.slots, c.Block)
 	}
 }
