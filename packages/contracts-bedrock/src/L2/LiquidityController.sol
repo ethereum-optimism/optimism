@@ -98,13 +98,13 @@ contract LiquidityController is ISemver, Initializable, OwnableUpgradeable {
         if (!minters[msg.sender]) revert LiquidityController_Unauthorized();
         INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY).withdraw(_amount);
 
-        // This is a forced ETH send to the recipient, the recipient should NOT expect to be called
+        // This is a forced native asset send to the recipient, the recipient should NOT expect to be called
         new SafeSend{ value: _amount }(payable(_to));
 
         emit LiquidityMinted(msg.sender, _to, _amount);
     }
 
-    /// @notice Burns native asset liquidity by sending ETH to the contract
+    /// @notice Burns native asset liquidity by sending that native asset to the NativeAssetLiquidity contract
     function burn() external payable {
         if (!minters[msg.sender]) revert LiquidityController_Unauthorized();
         INativeAssetLiquidity(Predeploys.NATIVE_ASSET_LIQUIDITY).deposit{ value: msg.value }();
