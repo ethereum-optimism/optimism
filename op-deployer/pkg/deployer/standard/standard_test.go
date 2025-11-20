@@ -13,8 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefaultHardforkScheduleForTag(t *testing.T) {
+func TestDefaultHardforkSchedule(t *testing.T) {
 	sched := DefaultHardforkSchedule()
+	require.NotNil(t, sched.RegolithTime(0))
+	require.NotNil(t, sched.CanyonTime(0))
+	require.NotNil(t, sched.DeltaTime(0))
+	require.NotNil(t, sched.EcotoneTime(0))
+	require.NotNil(t, sched.FjordTime(0))
+	require.NotNil(t, sched.GraniteTime(0))
 	require.NotNil(t, sched.HoloceneTime(0))
 	require.NotNil(t, sched.IsthmusTime(0))
 	require.NotNil(t, sched.JovianTime(0))

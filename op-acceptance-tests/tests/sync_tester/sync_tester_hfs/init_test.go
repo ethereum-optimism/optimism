@@ -15,7 +15,7 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleWithSyncTester(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithHardforkSequentialActivation(rollup.Bedrock, rollup.Jovian, 15),
+		presets.WithHardforkSequentialActivation(rollup.Bedrock, rollup.Interop, 15),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
 			// For supporting pre-delta batches
 			cfg.BatchType = derive.SingularBatchType

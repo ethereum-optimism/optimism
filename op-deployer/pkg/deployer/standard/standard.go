@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -164,17 +164,8 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 
 // DefaultHardforkSchedule is used to determine which hardforks should be activated by default.
 func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
-	sched := &genesis.UpgradeScheduleDeployConfig{
-		L2GenesisRegolithTimeOffset: op_service.U64UtilPtr(0),
-		L2GenesisCanyonTimeOffset:   op_service.U64UtilPtr(0),
-		L2GenesisDeltaTimeOffset:    op_service.U64UtilPtr(0),
-		L2GenesisEcotoneTimeOffset:  op_service.U64UtilPtr(0),
-		L2GenesisFjordTimeOffset:    op_service.U64UtilPtr(0),
-		L2GenesisGraniteTimeOffset:  op_service.U64UtilPtr(0),
-		L2GenesisHoloceneTimeOffset: op_service.U64UtilPtr(0),
-		L2GenesisIsthmusTimeOffset:  op_service.U64UtilPtr(0),
-		L2GenesisJovianTimeOffset:   op_service.U64UtilPtr(0),
-	}
+	sched := &genesis.UpgradeScheduleDeployConfig{}
+	sched.ActivateForkAtGenesis(rollup.Jovian)
 
 	return sched
 }
