@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title OPContractsManagerContainer
 /// @notice Helper contract that sits alongside the OPContractsManagerV2 contract. This contract
@@ -105,6 +106,6 @@ contract OPContractsManagerContainer {
     ///         have any code in production environments but can be made to have code in tests.
     /// @return True if the contract is running in a testing environment, false otherwise.
     function _isTestingEnvironment() internal view returns (bool) {
-        return address(0xbeefcafe).code.length > 0;
+        return Constants.TESTING_ENVIRONMENT_ADDRESS.code.length > 0;
     }
 }

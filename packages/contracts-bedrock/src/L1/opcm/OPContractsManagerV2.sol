@@ -92,6 +92,14 @@ contract OPContractsManagerV2 is ISemver {
         IDelayedWETH delayedWETH;
     }
 
+    /// @notice Struct that represents an additional instruction for an upgrade. Each upgrade has
+    ///         its own set of extra upgrade instructions that may or may not be required. We use
+    ///         this struct to keep the upgrade interface the same each time.
+    struct ExtraInstruction {
+        string key;
+        bytes data;
+    }
+
     /// @notice Full chain management configuration.
     struct FullConfig {
         // Basic deployment configuration.
@@ -113,14 +121,8 @@ contract OPContractsManagerV2 is ISemver {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
-    }
-
-    /// @notice Struct that represents an additional instruction for an upgrade. Each upgrade has
-    ///         its own set of extra upgrade instructions that may or may not be required. We use
-    ///         this struct to keep the upgrade interface the same each time.
-    struct ExtraInstruction {
-        string key;
-        bytes data;
+        // Extra deployment instructions.
+        ExtraInstruction[] extraInstructions;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -588,7 +590,8 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
+            extraInstructions: _upgradeInput.extraInstructions
         });
     }
 
@@ -1150,6 +1153,9 @@ contract OPContractsManagerV2 is ISemver {
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
         // dangerous or not. It's easier to just revert instead.
+        // NOTE: We DO allow upgrades to the same version, which makes it possible to use this
+        //       function to both upgrade and then later perform management actions like changing
+        //       the prestate for the fault dispute games.
         if (
             _proxyAdmin.getProxyImplementation(payable(_target)) != address(0)
                 && SemverComp.gt(ISemver(_target).version(), ISemver(_implementation).version())
