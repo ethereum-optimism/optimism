@@ -20,7 +20,8 @@ pub mod transaction;
 pub use transaction::*;
 
 mod receipt;
-pub use receipt::{DepositReceipt, OpReceipt};
+pub use op_alloy_consensus::OpReceipt;
+pub use receipt::DepositReceipt;
 
 /// Optimism-specific block type.
 pub type OpBlock = alloy_consensus::Block<OpTransactionSigned>;
@@ -44,6 +45,6 @@ impl reth_primitives_traits::NodePrimitives for OpPrimitives {
 /// Bincode-compatible serde implementations.
 #[cfg(feature = "serde-bincode-compat")]
 pub mod serde_bincode_compat {
-    pub use super::receipt::serde_bincode_compat::*;
-    pub use op_alloy_consensus::serde_bincode_compat::*;
+    pub use super::receipt::serde_bincode_compat::OpReceipt as LocalOpReceipt;
+    pub use op_alloy_consensus::serde_bincode_compat::OpReceipt;
 }

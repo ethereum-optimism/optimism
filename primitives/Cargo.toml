@@ -14,8 +14,6 @@ workspace = true
 [dependencies]
 # reth
 reth-primitives-traits = { workspace = true, features = ["op"] }
-reth-codecs = { workspace = true, optional = true, features = ["op"] }
-reth-zstd-compressors = { workspace = true, optional = true }
 
 # ethereum
 alloy-primitives.workspace = true
@@ -27,17 +25,15 @@ alloy-rlp.workspace = true
 op-alloy-consensus.workspace = true
 
 # codec
-bytes = { workspace = true, optional = true }
-modular-bitfield = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
-
-# test
-arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils", "op"] }
 
+bytes.workspace = true
+modular-bitfield.workspace = true
+reth-zstd-compressors.workspace = true
 rand.workspace = true
 arbitrary.workspace = true
 rstest.workspace = true
@@ -53,41 +49,35 @@ secp256k1 = { workspace = true, features = ["rand"] }
 default = ["std"]
 std = [
     "reth-primitives-traits/std",
-    "reth-codecs?/std",
     "alloy-consensus/std",
     "alloy-primitives/std",
     "serde?/std",
-    "bytes?/std",
     "alloy-rlp/std",
-    "reth-zstd-compressors?/std",
     "op-alloy-consensus/std",
     "serde_json/std",
     "serde_with?/std",
     "alloy-eips/std",
     "secp256k1/std",
+    "bytes/std",
+    "reth-zstd-compressors/std",
 ]
 alloy-compat = ["op-alloy-consensus/alloy-compat"]
 reth-codec = [
-    "dep:reth-codecs",
     "std",
     "reth-primitives-traits/reth-codec",
-    "reth-codecs?/op",
-    "dep:bytes",
-    "dep:modular-bitfield",
-    "dep:reth-zstd-compressors",
 ]
 serde = [
     "dep:serde",
     "reth-primitives-traits/serde",
     "alloy-primitives/serde",
     "alloy-consensus/serde",
-    "bytes?/serde",
-    "reth-codecs?/serde",
     "op-alloy-consensus/serde",
     "alloy-eips/serde",
     "rand/serde",
     "rand_08/serde",
     "secp256k1/serde",
+    "bytes/serde",
+    "reth-codecs/serde",
 ]
 serde-bincode-compat = [
     "serde",
@@ -99,11 +89,10 @@ serde-bincode-compat = [
 ]
 arbitrary = [
     "std",
-    "dep:arbitrary",
     "reth-primitives-traits/arbitrary",
-    "reth-codecs?/arbitrary",
     "op-alloy-consensus/arbitrary",
     "alloy-consensus/arbitrary",
     "alloy-primitives/arbitrary",
     "alloy-eips/arbitrary",
+    "reth-codecs/arbitrary",
 ]
