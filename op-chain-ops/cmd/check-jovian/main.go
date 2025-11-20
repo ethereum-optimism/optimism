@@ -218,14 +218,10 @@ func checkBlock(ctx context.Context, env *actionEnv) error {
 
 	// A non-zero BlobGasUsed is hard evidence of Jovian being active
 	// A zero value is inconclusive (could be an empty block or pre-Jovian)
-	if *bgu == 0 {
-		env.log.Warn("Block header BlobGasUsed is zero - inconclusive for Jovian activation",
+	if len(txs) == 1 {
+		env.log.Warn("Block has no user txs - inconclusive for Jovian activation",
 			"blockNumber", latest.Number(),
 			"note", "Zero could indicate an empty block or pre-Jovian state")
-
-		if len(txs) > 1 && txs[len(txs)-1].Type() == types.DepositTxType {
-			return fmt.Errorf("User transactions in block but header.BlobGasUsed was zero, impossible if Jovian is active.")
-		}
 	} else {
 		expectedDAFootprint, err := types.CalcDAFootprint(txs)
 		if err != nil {
