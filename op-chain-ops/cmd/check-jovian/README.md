@@ -25,6 +25,17 @@ Or use the command-line flag:
 --l2 http://localhost:9545
 ```
 
+To execute the most thorough checks, you may pass a secret key via the `CHECK_JOVIAN_SECRET` environment variable:
+```bash
+export CHECK_JOVIAN_SECRET=your-secret-key
+```
+
+
+Similarly, you can pass the secret key using the `--secret` flag:
+```bash
+--secret your-secret-key
+```
+
 ### Commands
 
 #### Check all Jovian features
@@ -78,4 +89,3 @@ The tool uses the `op-e2e/bindings` package to interact with the L2 contracts an
 ## Pattern
 
 This tool follows the same pattern as `check-ecotone` and `check-fjord`, providing a systematic way to verify upgrade completion.
-
