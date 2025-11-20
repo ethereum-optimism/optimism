@@ -57,24 +57,6 @@ func deployDisputeGame(
 ) error {
 	lgr := env.Logger.New("gameType", game.DisputeGameType)
 
-	var oracleAddr common.Address
-	if game.UseCustomOracle {
-		lgr.Info("deploying custom oracle")
-
-		out, err := opcm.DeployPreimageOracle(env.L1ScriptHost, opcm.DeployPreimageOracleInput{
-			MinProposalSize: new(big.Int).SetUint64(game.OracleMinProposalSize),
-			ChallengePeriod: new(big.Int).SetUint64(game.OracleChallengePeriodSeconds),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to deploy preimage oracle: %w", err)
-		}
-		oracleAddr = out.PreimageOracle
-		lgr.Info("oracle deployed", "oracleAddr", oracleAddr)
-	} else {
-		lgr.Info("using existing preimage oracle")
-		oracleAddr = st.ImplementationsDeployment.PreimageOracleImpl
-	}
-
 	lgr.Info("deploying VM", "vmType", game.VMType)
 	var vmAddr common.Address
 	switch game.VMType {
@@ -86,7 +68,7 @@ func deployDisputeGame(
 
 		out, err := deployAlphabetVM.Run(opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: game.DisputeAbsolutePrestate,
-			PreimageOracle:   oracleAddr,
+			PreimageOracle:   st.ImplementationsDeployment.PreimageOracleImpl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
@@ -95,7 +77,7 @@ func deployDisputeGame(
 	case state.VMTypeCannon, state.VMTypeCannonNext:
 		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{
 			MipsVersion:    game.VMType.MipsVersion(),
-			PreimageOracle: oracleAddr,
+			PreimageOracle: st.ImplementationsDeployment.PreimageOracleImpl,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to deploy MIPS VM: %w", err)
@@ -175,7 +157,7 @@ func deployDisputeGame(
 		GameType:      game.DisputeGameType,
 		VMType:        game.VMType,
 		GameAddress:   out.DisputeGameImpl,
-		OracleAddress: oracleAddr,
+		OracleAddress: st.ImplementationsDeployment.PreimageOracleImpl,
 		VMAddress:     vmAddr,
 	})
 

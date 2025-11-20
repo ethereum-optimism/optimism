@@ -1,26 +1,5 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_recipient",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_minWithdrawalAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "enum Types.WithdrawalNetwork",
-        "name": "_withdrawalNetwork",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
     "stateMutability": "payable",
     "type": "receive"
   },
@@ -64,6 +43,29 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_recipient",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minWithdrawalAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "_withdrawalNetwork",
+        "type": "uint8"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "l1FeeWallet",
     "outputs": [
@@ -82,7 +84,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "amount_",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -95,11 +97,50 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "recipient_",
+        "name": "",
         "type": "address"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_newMinWithdrawalAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinWithdrawalAmount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "setRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "_newWithdrawalNetwork",
+        "type": "uint8"
+      }
+    ],
+    "name": "setWithdrawalNetwork",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -131,7 +172,13 @@
   {
     "inputs": [],
     "name": "withdraw",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "value_",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -141,12 +188,63 @@
     "outputs": [
       {
         "internalType": "enum Types.WithdrawalNetwork",
-        "name": "network_",
+        "name": "",
         "type": "uint8"
       }
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldWithdrawalAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newWithdrawalAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinWithdrawalAmountUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "oldRecipient",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "newRecipient",
+        "type": "address"
+      }
+    ],
+    "name": "RecipientUpdated",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -203,5 +301,39 @@
     ],
     "name": "Withdrawal",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "oldWithdrawalNetwork",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "newWithdrawalNetwork",
+        "type": "uint8"
+      }
+    ],
+    "name": "WithdrawalNetworkUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "FeeVault_OnlyProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
   }
 ]

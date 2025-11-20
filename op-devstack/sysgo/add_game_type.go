@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -26,12 +27,26 @@ func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) sta
 		FinallyFn: func(o *Orchestrator) {
 			// TODO(#17867): Rebuild the op-program prestate using the newly minted L2 chain configs before using it.
 			absolutePrestate := getAbsolutePrestate(o.P(), "op-program/bin/prestate-proof-mt64.json")
-			addGameType(o, absolutePrestate, 0 /* CANNON */, l1ELID, l2ChainID)
+			addGameType(o, absolutePrestate, types.CannonGameType, l1ELID, l2ChainID)
 		},
 	}
 }
 
-func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.l2ChallengerOpts.useCannonKonaConfig = true
+		},
+		FinallyFn: func(o *Orchestrator) {
+			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
+			for _, l2ChainID := range o.l2Nets.Keys() {
+				addGameType(o, absolutePrestate, types.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+			}
+		},
+	}
+}
+
+func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType types.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
@@ -58,7 +73,7 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType uint32,
 		OPCMImpl:                opcmAddr,
 		SystemConfigProxy:       o.wb.outL2Deployment[l2ChainID].SystemConfigProxyAddr(),
 		DelayedWETHProxy:        o.wb.outL2Deployment[l2ChainID].PermissionlessDelayedWETHProxyAddr(),
-		DisputeGameType:         gameType,
+		DisputeGameType:         uint32(gameType),
 		DisputeAbsolutePrestate: absolutePrestate,
 		DisputeMaxGameDepth:     big.NewInt(73),
 		DisputeSplitDepth:       big.NewInt(30),

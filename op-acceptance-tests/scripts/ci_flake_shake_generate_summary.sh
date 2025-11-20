@@ -37,33 +37,33 @@ mkdir -p "$OUT_DIR"
 
 # Print a short human-readable summary to the job logs
 echo "=== Flake-Shake Results ==="
-STABLE=$(jq '[.tests[] | select(.recommendation == "STABLE")] | length' "$REPORT_JSON")
-UNSTABLE=$(jq '[.tests[] | select(.recommendation == "UNSTABLE")] | length' "$REPORT_JSON")
+STABLE=$(jq '[(.tests // [])[] | select(.recommendation == "STABLE")] | length' "$REPORT_JSON")
+UNSTABLE=$(jq '[(.tests // [])[] | select(.recommendation == "UNSTABLE")] | length' "$REPORT_JSON")
 echo "✅ STABLE: $STABLE tests"
 echo "⚠️ UNSTABLE: $UNSTABLE tests"
 if [ "$UNSTABLE" -gt 0 ]; then
   echo "Unstable tests:"
-  jq -r '.tests[] | select(.recommendation == "UNSTABLE") | "  - \(.test_name) (\(.pass_rate)%)"' "$REPORT_JSON"
+  jq -r '(.tests // [])[] | select(.recommendation == "UNSTABLE") | "  - \(.test_name) (\(.pass_rate)%)"' "$REPORT_JSON"
 fi
 
 # Write daily summary JSON (compact per-day snapshot)
 jq '{date, gate, total_runs, iterations,
      totals: {
-       stable: ([.tests[] | select(.recommendation=="STABLE")] | length),
-       unstable: ([.tests[] | select(.recommendation=="UNSTABLE")] | length)
+       stable: ([(.tests // [])[] | select(.recommendation=="STABLE")] | length),
+       unstable: ([(.tests // [])[] | select(.recommendation=="UNSTABLE")] | length)
      },
      stable_tests: [
-       .tests[] | select(.recommendation=="STABLE") |
+       (.tests // [])[] | select(.recommendation=="STABLE") |
        {test_name, package, total_runs, pass_rate}
      ],
      unstable_tests: [
-       .tests[] | select(.recommendation=="UNSTABLE") |
+       (.tests // [])[] | select(.recommendation=="UNSTABLE") |
        {test_name, package, total_runs, passes, failures, pass_rate}
      ]
    }' "$REPORT_JSON" > "$OUT_DIR/daily-summary.json"
 
 # Write promotion readiness (100% pass) JSON
-jq '{ready: [.tests[] | select(.recommendation=="STABLE") | {test_name, package, total_runs, pass_rate, avg_duration, min_duration, max_duration}]}' "$REPORT_JSON" > "$OUT_DIR/promotion-ready.json"
+jq '{ready: [(.tests // [])[] | select(.recommendation=="STABLE") | {test_name, package, total_runs, pass_rate, avg_duration, min_duration, max_duration}]}' "$REPORT_JSON" > "$OUT_DIR/promotion-ready.json"
 
 # Export UNSTABLE_COUNT for later CI steps (if BASH_ENV is present)
 if [ -n "${BASH_ENV:-}" ]; then

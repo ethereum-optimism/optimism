@@ -165,6 +165,8 @@ abstract contract LivenessModule2 {
     /// @notice Configures the module for a Safe that has already enabled it.
     /// @param _config The configuration parameters for the module containing the response
     ///                period and fallback owner.
+    /// @dev It is strongly recommended that the fallback owner is also a Safe or at least a
+    ///      contract that is capable of building and executing transaction batches.
     function configureLivenessModule(ModuleConfig memory _config) external {
         Safe callingSafe = Safe(payable(msg.sender));
 
@@ -173,8 +175,8 @@ abstract contract LivenessModule2 {
         if (_config.livenessResponsePeriod == 0) {
             revert LivenessModule2_InvalidResponsePeriod();
         }
-        // fallbackOwner must not be zero address to have a valid ownership recipient.
-        if (_config.fallbackOwner == address(0)) {
+        // fallbackOwner must not be zero address or the safe itself to be able to become an owner.
+        if (_config.fallbackOwner == address(0) || _config.fallbackOwner == address(callingSafe)) {
             revert LivenessModule2_InvalidFallbackOwner();
         }
 
@@ -334,6 +336,9 @@ abstract contract LivenessModule2 {
         }
 
         // Now swap the remaining single owner with the fallback owner
+        // Note: If the fallback owner would be the only or the last owner in the owners list,
+        // swapOwner would internally revert in OwnerManager, but we ignore it because the final
+        // owners list would still be what we want.
         _safe.execTransactionFromModule({
             to: address(_safe),
             value: 0,
@@ -354,6 +359,13 @@ abstract contract LivenessModule2 {
         // even if it is not the SaferSafes guard. This is intentional, as it is possible that the
         // guard was the cause of the liveness failure which resulted in the transfer of ownership to
         // the fallback owner.
+        // WARNING: Removing the TimelockGuard from a Safe will make all Scheduled and Cancelled
+        // transactions at or below the Safe nonce immediately executable by anyone. To avoid this,
+        // particularly in an adversarial environment, it is recommended that the fallback owner is
+        // also a Safe, and that the call to `changeOwnershipToFallback` is the first transaction
+        // in a batch that also includes as many nonce-bumping no-op transactions through the Safe
+        // with the TimelockGuard as needed to increase its nonce above that of all Scheduled and
+        // Cancelled transactions.
         _safe.execTransactionFromModule({
             to: address(_safe),
             value: 0,

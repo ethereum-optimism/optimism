@@ -50,6 +50,7 @@ func TestCLIApplyNoOp(t *testing.T) {
 		chain.BaseFeeVaultRecipient = shared.AddrFor(t, dk, devkeys.BaseFeeVaultRecipientRole.Key(l1ChainIDBig))
 		chain.L1FeeVaultRecipient = shared.AddrFor(t, dk, devkeys.L1FeeVaultRecipientRole.Key(l1ChainIDBig))
 		chain.SequencerFeeVaultRecipient = shared.AddrFor(t, dk, devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainIDBig))
+		chain.OperatorFeeVaultRecipient = shared.AddrFor(t, dk, devkeys.OperatorFeeVaultRecipientRole.Key(l1ChainIDBig))
 
 		chain.Eip1559DenominatorCanyon = standard.Eip1559DenominatorCanyon
 		chain.Eip1559Denominator = standard.Eip1559Denominator

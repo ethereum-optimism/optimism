@@ -91,11 +91,24 @@ const (
 	TraceTypeAsteriscKona      TraceType = "asterisc-kona"
 	TraceTypePermissioned      TraceType = "permissioned"
 	TraceTypeSuperCannon       TraceType = "super-cannon"
+	TraceTypeSuperCannonKona   TraceType = "super-cannon-kona"
 	TraceTypeSuperPermissioned TraceType = "super-permissioned"
 	TraceTypeSuperAsteriscKona TraceType = "super-asterisc-kona"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeCannonKona, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon, TraceTypeSuperPermissioned, TraceTypeSuperAsteriscKona}
+var TraceTypes = []TraceType{
+	TraceTypeAlphabet,
+	TraceTypeCannon,
+	TraceTypeCannonKona,
+	TraceTypePermissioned,
+	TraceTypeAsterisc,
+	TraceTypeAsteriscKona,
+	TraceTypeFast,
+	TraceTypeSuperCannon,
+	TraceTypeSuperCannonKona,
+	TraceTypeSuperPermissioned,
+	TraceTypeSuperAsteriscKona,
+}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -137,6 +150,8 @@ func (t TraceType) GameType() GameType {
 		return AlphabetGameType
 	case TraceTypeSuperCannon:
 		return SuperCannonGameType
+	case TraceTypeSuperCannonKona:
+		return SuperCannonKonaGameType
 	case TraceTypeSuperPermissioned:
 		return SuperPermissionedGameType
 	case TraceTypeSuperAsteriscKona:

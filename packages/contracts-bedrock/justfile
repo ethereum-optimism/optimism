@@ -352,6 +352,7 @@ pre-commit *ARGS:
 # Cleans, builds, lints, and runs all checks.
 pre-pr *ARGS:
   #!/bin/bash
+  set -e
   # Optionally clean the previous build.
   # --clean is typically not needed but can force a clean build if you suspect cache issues.
   if [[ "{{ARGS}}" == *"--clean"* ]]; then

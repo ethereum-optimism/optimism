@@ -107,7 +107,7 @@ func NewEVMEnv(t testing.TB, contracts *ContractMetadata) (*vm.EVM, *state.State
 
 	env := vm.NewEVM(blockContext, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object, tracing.CodeChangeUnspecified)
 
 	var ctorArgs []byte
 	if contracts.Version == 0 { // Old MIPS.sol doesn't specify the state version in the constructor

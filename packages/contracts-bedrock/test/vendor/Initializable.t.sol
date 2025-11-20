@@ -191,7 +191,8 @@ contract Initializer_Test is CommonTest {
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            delayedWETH: address(0)
                         }),
                         0,
                         ISuperchainConfig(address(0))
@@ -227,7 +228,8 @@ contract Initializer_Test is CommonTest {
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
                             optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
+                            optimismMintableERC20Factory: address(0),
+                            delayedWETH: address(0)
                         }),
                         0,
                         ISuperchainConfig(address(0))
@@ -378,7 +380,7 @@ contract Initializer_Test is CommonTest {
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
         uint256 j;
-        string[] memory excludes = new string[](11);
+        string[] memory excludes = new string[](12);
         // Contract is currently not being deployed as part of the standard deployment script.
         excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
@@ -400,6 +402,7 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/L1/OptimismPortalInterop.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
+        excludes[j++] = "src/L1/FeesDepositor.sol";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

@@ -25,12 +25,15 @@
   "baseFeeVaultRecipient": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
+  "operatorFeeVaultRecipient": "0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec",
+  "operatorFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
+  "operatorFeeVaultWithdrawalNetwork": 0,
   "enableGovernance": true,
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
@@ -62,5 +65,7 @@
   "daChallengeWindow": 100,
   "daResolveWindow": 100,
   "daBondSize": 1000,
-  "daResolverRefundPercentage": 50
+  "daResolverRefundPercentage": 50,
+  "useRevenueShare": false,
+  "chainFeesRecipient": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
 }

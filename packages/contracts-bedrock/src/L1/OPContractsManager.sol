@@ -960,6 +960,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             upgradeTo(proxyAdmin, address(optimismPortal), _impls.optimismPortalImpl);
         }
 
+        // Upgrade the AnchorStateRegistry contract. No upgrade/initializer needed, just updating
+        // the implementation to latest.
+        upgradeTo(proxyAdmin, address(optimismPortal.anchorStateRegistry()), _impls.anchorStateRegistryImpl);
+
         // Upgrade the OptimismMintableERC20Factory contract.
         upgradeTo(
             proxyAdmin,
@@ -1573,8 +1577,9 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
             optimismPortal: address(_output.optimismPortalProxy),
-            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy)
-        });
+            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
+            delayedWETH: address(0) // Will be used in OPCMv2.
+         });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
         assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
@@ -2208,9 +2213,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 5.6.0
+    /// @custom:semver 5.7.0
     function version() public pure virtual returns (string memory) {
-        return "5.6.0";
+        return "5.7.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

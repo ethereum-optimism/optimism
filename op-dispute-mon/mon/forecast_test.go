@@ -109,14 +109,14 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		expectedGame := monTypes.EnrichedGameData{
 			Status:                types.GameStatusInProgress,
 			BlockNumberChallenged: true,
-			L2BlockNumber:         6,
+			L2SequenceNumber:      6,
 			AgreeWithClaim:        false,
 		}
 		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
 		l := logs.FindLog(testlog.NewLevelFilter(log.LevelDebug), testlog.NewMessageFilter("Found game with challenged block number"))
 		require.NotNil(t, l)
 		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
-		require.Equal(t, expectedGame.L2BlockNumber, l.AttrValue("blockNum"))
+		require.Equal(t, expectedGame.L2SequenceNumber, l.AttrValue("l2SequenceNumber"))
 		require.Equal(t, false, l.AttrValue("agreement"))
 
 		expectedMetrics := zeroGameAgreement()
@@ -130,14 +130,14 @@ func TestForecast_Forecast_EndLogs(t *testing.T) {
 		expectedGame := monTypes.EnrichedGameData{
 			Status:                types.GameStatusInProgress,
 			BlockNumberChallenged: true,
-			L2BlockNumber:         6,
+			L2SequenceNumber:      6,
 			AgreeWithClaim:        true,
 		}
 		forecast.Forecast([]*monTypes.EnrichedGameData{&expectedGame}, 0, 0)
 		l := logs.FindLog(testlog.NewLevelFilter(log.LevelDebug), testlog.NewMessageFilter("Found game with challenged block number"))
 		require.NotNil(t, l)
 		require.Equal(t, expectedGame.Proxy, l.AttrValue("game"))
-		require.Equal(t, expectedGame.L2BlockNumber, l.AttrValue("blockNum"))
+		require.Equal(t, expectedGame.L2SequenceNumber, l.AttrValue("l2SequenceNumber"))
 		require.Equal(t, true, l.AttrValue("agreement"))
 
 		expectedMetrics := zeroGameAgreement()
@@ -269,10 +269,10 @@ func TestForecast_Forecast_MultipleGames(t *testing.T) {
 	games := make([]*monTypes.EnrichedGameData, 9)
 	for i := range games {
 		games[i] = &monTypes.EnrichedGameData{
-			Status:        gameStatus[i],
-			Claims:        claims[i],
-			RootClaim:     rootClaims[i],
-			L2BlockNumber: uint64(i),
+			Status:           gameStatus[i],
+			Claims:           claims[i],
+			RootClaim:        rootClaims[i],
+			L2SequenceNumber: uint64(i),
 			GameMetadata: types.GameMetadata{
 				Timestamp: uint64(i),
 			},

@@ -80,15 +80,6 @@ type ProvenWithdrawalParametersSuperRoots struct {
 	WithdrawalProof  [][]byte // List of trie nodes to prove L2 storage
 }
 
-// ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the given header.
-func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, txHash common.Hash, l2Header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller) (ProvenWithdrawalParameters, error) {
-	l2OutputIndex, err := l2OutputOracleContract.GetL2OutputIndexAfter(&bind.CallOpts{}, l2Header.Number)
-	if err != nil {
-		return ProvenWithdrawalParameters{}, fmt.Errorf("failed to get l2OutputIndex: %w", err)
-	}
-	return ProveWithdrawalParametersForBlock(ctx, proofCl, l2ReceiptCl, txHash, l2Header, l2OutputIndex)
-}
-
 // ProveWithdrawalParametersFaultProofs calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
 func ProveWithdrawalParametersFaultProofs(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, l2HeaderCl HeaderClient, txHash common.Hash, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller) (ProvenWithdrawalParameters, error) {
 	latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)

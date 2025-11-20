@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -24,7 +25,17 @@ func GetP2PClient(ctx context.Context, logger log.Logger, l2CLNode L2CLNode) (*s
 
 func GetPeerInfo(ctx context.Context, p2pClient *sources.P2PClient) (*apis.PeerInfo, error) {
 	peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
-		return p2pClient.Self(ctx)
+		self, err := p2pClient.Self(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(self.Addresses) == 0 {
+			return nil, fmt.Errorf("no address found for peer")
+		}
+		if strings.HasPrefix(self.Addresses[0], "/p2p/") {
+			return nil, fmt.Errorf("malformed multiaddr which starts with /p2p/")
+		}
+		return self, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get peer info: %w", err)
@@ -92,9 +103,7 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 			err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
 				return p2pClient.ConnectPeer(ctx, multiAddress)
 			})
-			if err != nil {
-				l.Error("failed to connect L2CL peer", "l2CL", l2CL, "rpc", l2CL.UserRPC(), "multiAddress", multiAddress, "error", err)
-			}
+			l.Info("connecting to L2CL peer", "l2CL", l2CL, "rpc", l2CL.UserRPC(), "multiAddress", multiAddress, "error", err)
 			require.NoError(err, "failed to connect L2CL peer")
 		}
 

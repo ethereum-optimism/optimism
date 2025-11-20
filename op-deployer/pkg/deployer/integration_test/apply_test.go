@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -33,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	opbindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -46,6 +48,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -315,6 +318,7 @@ func TestGlobalOverrides(t *testing.T) {
 	expectedBaseFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	expectedL1FeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000002")
 	expectedSequencerFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000003")
+	expectedOperatorFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000004")
 	expectedBaseFeeVaultMinimumWithdrawalAmount := strings.ToLower("0x1BC16D674EC80000")
 	expectedBaseFeeVaultWithdrawalNetwork := genesis.FromUint8(0)
 	expectedEnableGovernance := false
@@ -326,6 +330,7 @@ func TestGlobalOverrides(t *testing.T) {
 		"baseFeeVaultRecipient":               expectedBaseFeeVaultRecipient,
 		"l1FeeVaultRecipient":                 expectedL1FeeVaultRecipient,
 		"sequencerFeeVaultRecipient":          expectedSequencerFeeVaultRecipient,
+		"operatorFeeVaultRecipient":           expectedOperatorFeeVaultRecipient,
 		"baseFeeVaultMinimumWithdrawalAmount": expectedBaseFeeVaultMinimumWithdrawalAmount,
 		"baseFeeVaultWithdrawalNetwork":       expectedBaseFeeVaultWithdrawalNetwork,
 		"enableGovernance":                    expectedEnableGovernance,
@@ -580,6 +585,12 @@ func TestInvalidL2Genesis(t *testing.T) {
 			},
 		},
 		{
+			name: "operator fee vault recipient not set",
+			overrides: map[string]any{
+				"operatorFeeVaultRecipient": nil,
+			},
+		},
+		{
 			name: "l1 chain ID not set",
 			overrides: map[string]any{
 				"l1ChainID": nil,
@@ -619,7 +630,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	(&intent.Chains[0].Roles).L1ProxyAdminOwner = deployerAddr
 	intent.SuperchainRoles.SuperchainGuardian = deployerAddr
 	intent.GlobalDeployOverrides = map[string]any{
-		"challengePeriodSeconds": 1,
+		"preimageOracleChallengePeriod": 1,
 	}
 	intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
 		{
@@ -628,15 +639,12 @@ func TestAdditionalDisputeGames(t *testing.T) {
 				DisputeAbsolutePrestate:                 standard.DisputeAbsolutePrestate,
 				DisputeMaxGameDepth:                     50,
 				DisputeSplitDepth:                       14,
-				DisputeClockExtension:                   0,
-				DisputeMaxClockDuration:                 1200,
+				DisputeClockExtension:                   1,
+				DisputeMaxClockDuration:                 10,
 				DangerouslyAllowCustomDisputeParameters: true,
 			},
-			UseCustomOracle:              true,
-			OracleMinProposalSize:        10000,
-			OracleChallengePeriodSeconds: 120,
-			MakeRespected:                true,
-			VMType:                       state.VMTypeAlphabet,
+			MakeRespected: true,
+			VMType:        state.VMTypeAlphabet,
 		},
 	}
 
@@ -649,7 +657,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	require.NotEmpty(t, gameInfo.VMAddress)
 	require.NotEmpty(t, gameInfo.GameAddress)
 	require.NotEmpty(t, gameInfo.OracleAddress)
-	require.NotEqual(t, st.ImplementationsDeployment.PreimageOracleImpl, gameInfo.OracleAddress)
+	require.Equal(t, st.ImplementationsDeployment.PreimageOracleImpl, gameInfo.OracleAddress)
 }
 
 func TestIntentConfiguration(t *testing.T) {
@@ -717,6 +725,18 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 	impls, err := bootstrap.Implementations(ctx, implementationsConfig)
 	require.NoError(t, err)
 
+	versionClient, err := ethclient.Dial(implementationsConfig.L1RPCUrl)
+	require.NoError(t, err)
+	defer versionClient.Close()
+
+	shouldUpgradeSuperchainConfig, err := needsSuperchainConfigUpgrade(
+		ctx,
+		versionClient,
+		implementationsConfig.SuperchainConfigProxy,
+		impls.SuperchainConfigImpl,
+	)
+	require.NoError(t, err)
+
 	// Now test the OPCM upgrade using the deployed impls.Opcm
 	t.Run("opcm upgrade test", func(t *testing.T) {
 		// Create script host for the upgrade
@@ -733,18 +753,22 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 		)
 		require.NoError(t, err)
 
-		// First run upgradeSuperchainConfig because the version on the fork is < than that
-		// of the contracts-bedrock folder so upgrading directly would revert.
-		t.Run("upgrade superchain config", func(t *testing.T) {
-			upgradeConfig := embedded.UpgradeSuperchainConfigInput{
-				Prank:            superchainProxyAdminOwner,
-				Opcm:             impls.Opcm,
-				SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
-			}
+		// Only run the superchain config upgrade if the live superchain config is behind the freshly deployed
+		// implementation. Running the script when versions match will revert and panic the test harness.
+		if shouldUpgradeSuperchainConfig {
+			t.Run("upgrade superchain config", func(t *testing.T) {
+				upgradeConfig := embedded.UpgradeSuperchainConfigInput{
+					Prank:            superchainProxyAdminOwner,
+					Opcm:             impls.Opcm,
+					SuperchainConfig: implementationsConfig.SuperchainConfigProxy,
+				}
 
-			err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
-			require.NoError(t, err, "Superchain config upgrade should succeed")
-		})
+				err = embedded.UpgradeSuperchainConfig(host, upgradeConfig)
+				require.NoError(t, err, "Superchain config upgrade should succeed")
+			})
+		} else {
+			t.Log("Skipping superchain config upgrade; onchain version is already up to date")
+		}
 
 		// Then run the OPCM upgrade
 		var cannonKonaPrestate common.Hash
@@ -770,6 +794,44 @@ func runEndToEndBootstrapAndApplyUpgradeTest(t *testing.T, afactsFS foundry.Stat
 			require.NoError(t, err, "OPCM upgrade should succeed")
 		})
 	})
+}
+
+func needsSuperchainConfigUpgrade(
+	ctx context.Context,
+	client *ethclient.Client,
+	currentProxy, targetImpl common.Address,
+) (bool, error) {
+	currentVersion, err := superchainConfigVersion(ctx, client, currentProxy)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch proxy superchain config version: %w", err)
+	}
+
+	targetVersion, err := superchainConfigVersion(ctx, client, targetImpl)
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch implementation superchain config version: %w", err)
+	}
+
+	return currentVersion.LessThan(targetVersion), nil
+}
+
+func superchainConfigVersion(
+	ctx context.Context,
+	client *ethclient.Client,
+	addr common.Address,
+) (*semver.Version, error) {
+	contract, err := opbindings.NewSuperchainConfig(addr, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to bind superchain config at %s: %w", addr.Hex(), err)
+	}
+	versionStr, err := contract.Version(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read version from %s: %w", addr.Hex(), err)
+	}
+	version, err := semver.NewVersion(versionStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse version %q from %s: %w", versionStr, addr.Hex(), err)
+	}
+	return version, nil
 }
 
 func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOpts, *state.Intent, *state.State) {
@@ -908,9 +970,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		alloc := chainState.Allocs.Data.Accounts
 
 		chainIntent := intent.Chains[i]
-		checkImmutableBehindProxy(t, alloc, predeploys.BaseFeeVaultAddr, chainIntent.BaseFeeVaultRecipient)
-		checkImmutableBehindProxy(t, alloc, predeploys.L1FeeVaultAddr, chainIntent.L1FeeVaultRecipient)
-		checkImmutableBehindProxy(t, alloc, predeploys.SequencerFeeVaultAddr, chainIntent.SequencerFeeVaultRecipient)
 		checkImmutableBehindProxy(t, alloc, predeploys.OptimismMintableERC721FactoryAddr, common.BigToHash(new(big.Int).SetUint64(intent.L1ChainID)))
 
 		// ownership slots

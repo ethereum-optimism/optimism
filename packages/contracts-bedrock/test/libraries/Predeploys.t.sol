@@ -28,17 +28,25 @@ abstract contract Predeploys_TestInit is CommonTest {
         return _addr == Predeploys.L1_MESSAGE_SENDER;
     }
 
-    /// @notice Returns true if the predeploy is initializable.
-    function _isInitializable(address _addr) internal pure returns (bool) {
+    /// @notice Returns true if the predeploy is initializable and uses OpenZeppelin v4 storage pattern.
+    ///         These contracts have _initialized in the regular storage layout.
+    function _isInitializableV4(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.L2_CROSS_DOMAIN_MESSENGER || _addr == Predeploys.L2_STANDARD_BRIDGE
-            || _addr == Predeploys.L2_ERC721_BRIDGE || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY;
+            || _addr == Predeploys.L2_ERC721_BRIDGE || _addr == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
+            || _addr == Predeploys.FEE_SPLITTER;
+    }
+
+    /// @notice Returns true if the predeploy is initializable and uses OpenZeppelin v5 namespaced storage (EIP-7201).
+    ///         These contracts store _initialized in a namespaced slot, not in the regular storage layout.
+    function _isInitializableV5(address _addr) internal pure returns (bool) {
+        return _addr == Predeploys.SEQUENCER_FEE_WALLET || _addr == Predeploys.BASE_FEE_VAULT
+            || _addr == Predeploys.L1_FEE_VAULT || _addr == Predeploys.OPERATOR_FEE_VAULT;
     }
 
     /// @notice Returns true if the predeploy uses immutables.
     function _usesImmutables(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.SEQUENCER_FEE_WALLET
-            || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT
-            || _addr == Predeploys.OPERATOR_FEE_VAULT || _addr == Predeploys.EAS || _addr == Predeploys.GOVERNANCE_TOKEN;
+        return _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.EAS
+            || _addr == Predeploys.GOVERNANCE_TOKEN;
     }
 
     /// @notice Internal test function for predeploys validation across different forks.
@@ -98,9 +106,19 @@ abstract contract Predeploys_TestInit is CommonTest {
                 assertEq(implAddr.code, supposedCode, "proxy implementation contract should match contract source");
             }
 
-            if (_isInitializable(addr)) {
+            if (_isInitializableV4(addr)) {
                 assertTrue(ForgeArtifacts.isInitialized({ _name: cname, _address: addr }));
                 assertTrue(ForgeArtifacts.isInitialized({ _name: cname, _address: implAddr }));
+            }
+
+            if (_isInitializableV5(addr)) {
+                assertTrue(
+                    ForgeArtifacts.isInitializedV5(addr), string.concat("V5 proxy not initialized: ", vm.toString(addr))
+                );
+                assertTrue(
+                    ForgeArtifacts.isInitializedV5(implAddr),
+                    string.concat("V5 implementation not initialized: ", vm.toString(implAddr))
+                );
             }
         }
     }

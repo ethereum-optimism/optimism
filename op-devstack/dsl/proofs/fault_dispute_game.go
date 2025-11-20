@@ -82,6 +82,10 @@ func (g *FaultDisputeGame) ClaimAtIndex(claimIndex uint64) *Claim {
 	return g.newClaim(claimIndex, claim)
 }
 
+func (g *FaultDisputeGame) absolutePrestate() common.Hash {
+	return contract.Read(g.game.AbsolutePrestate())
+}
+
 func (g *FaultDisputeGame) L1Head() common.Hash {
 	return contract.Read(g.game.L1Head())
 }

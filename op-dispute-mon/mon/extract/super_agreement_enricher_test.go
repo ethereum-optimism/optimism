@@ -30,9 +30,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrSupervisorRpcRequired)
@@ -49,9 +49,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:     200,
-					L2BlockNumber: 0,
-					RootClaim:     mockRootClaim,
+					L1HeadNum:        200,
+					L2SequenceNumber: 0,
+					RootClaim:        mockRootClaim,
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -70,9 +70,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
-					L1HeadNum:     200,
-					L2BlockNumber: 0,
-					RootClaim:     mockRootClaim,
+					L1HeadNum:        200,
+					L2SequenceNumber: 0,
+					RootClaim:        mockRootClaim,
 				}
 				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 				require.NoError(t, err)
@@ -88,9 +88,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.ErrorIs(t, err, ErrAllSupervisorNodesUnavailable)
@@ -105,9 +105,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     common.Hash{},
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        common.Hash{},
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -123,9 +123,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -141,9 +141,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -159,9 +159,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     common.Hash{},
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        common.Hash{},
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -177,9 +177,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 100,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 100,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -196,9 +196,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 42984924,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 42984924,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -216,9 +216,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
@@ -237,9 +237,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        100,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -257,9 +257,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -278,9 +278,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -298,9 +298,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 0,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -321,9 +321,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 50,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 50,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -344,9 +344,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 50,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 50,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -367,9 +367,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 50,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 50,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
@@ -391,9 +391,9 @@ func TestDetector_CheckSuperRootAgreement(t *testing.T) {
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 999,
 			},
-			L1HeadNum:     200,
-			L2BlockNumber: 50,
-			RootClaim:     mockRootClaim,
+			L1HeadNum:        200,
+			L2SequenceNumber: 50,
+			RootClaim:        mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)

@@ -26,7 +26,7 @@ type EnrichedGameData struct {
 	LastUpdateTime        time.Time
 	L1Head                common.Hash
 	L1HeadNum             uint64
-	L2BlockNumber         uint64
+	L2SequenceNumber      uint64
 	RootClaim             common.Hash
 	Status                types.GameStatus
 	MaxClockDuration      uint64
@@ -68,6 +68,9 @@ type EnrichedGameData struct {
 
 	// RollupEndpointNotFoundCount tracks the number of endpoints that returned "not found" for this game.
 	RollupEndpointNotFoundCount int
+
+	// RollupEndpointOutOfSyncCount tracks the number of endpoints that were out of sync for this game.
+	RollupEndpointOutOfSyncCount int
 
 	// RollupEndpointTotalCount tracks the total number of rollup endpoints attempted for this game.
 	RollupEndpointTotalCount int

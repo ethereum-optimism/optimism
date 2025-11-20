@@ -9,7 +9,6 @@ import (
 
 	opnodecfg "github.com/ethereum-optimism/optimism/op-node/config"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
-	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supernode/config"
@@ -70,8 +69,6 @@ func NewChainContainer(
 		appVersion:         virtualNodeVersion,
 		virtualNodeFactory: defaultVirtualNodeFactory,
 	}
-	// Disable P2P and inherit paths from supernode base config
-	vncfg.P2P = &p2p.Config{DisableP2P: true}
 	vncfg.SafeDBPath = c.subPath("safe_db")
 	vncfg.RPC = cfg.RPCConfig
 	return c
@@ -90,7 +87,6 @@ func (c *simpleChainContainer) Start(ctx context.Context) error {
 	defer func() { c.stopped <- struct{}{} }()
 	for {
 		// Refresh per-start derived fields
-		c.vncfg.P2P = &p2p.Config{DisableP2P: true}
 		c.vncfg.SafeDBPath = c.subPath("safe_db")
 		c.vncfg.RPC = c.cfg.RPCConfig
 		// create a fresh handler per (re)start, swap it into the router, and inject into overload

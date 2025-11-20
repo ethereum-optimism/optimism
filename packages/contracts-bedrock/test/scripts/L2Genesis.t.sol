@@ -6,15 +6,20 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { L2Genesis } from "scripts/L2Genesis.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { LATEST_FORK } from "scripts/libraries/Config.sol";
-
+import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
+import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
+import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
+import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
+import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @title L2Genesis_TestInit
 /// @notice Reusable test initialization for `L2Genesis` tests.
@@ -23,7 +28,7 @@ abstract contract L2Genesis_TestInit is Test {
 
     L2Genesis internal genesis;
 
-    function setUp() public {
+    function setUp() public virtual {
         genesis = new L2Genesis();
     }
 
@@ -61,22 +66,74 @@ abstract contract L2Genesis_TestInit is Test {
         assertGt(Predeploys.GOVERNANCE_TOKEN.code.length, 0);
     }
 
-    function testVaults() internal view {
+    function testVaultsWithoutRevenueShare() internal view {
         IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
         IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
         ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+        IOperatorFeeVault operatorFeeVault = IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
 
+        assertEq(baseFeeVault.RECIPIENT(), input.baseFeeVaultRecipient);
         assertEq(baseFeeVault.recipient(), input.baseFeeVaultRecipient);
         assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.baseFeeVaultMinimumWithdrawalAmount);
+        assertEq(baseFeeVault.minWithdrawalAmount(), input.baseFeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(input.baseFeeVaultWithdrawalNetwork));
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(input.baseFeeVaultWithdrawalNetwork));
 
+        assertEq(l1FeeVault.RECIPIENT(), input.l1FeeVaultRecipient);
         assertEq(l1FeeVault.recipient(), input.l1FeeVaultRecipient);
         assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), input.l1FeeVaultMinimumWithdrawalAmount);
+        assertEq(l1FeeVault.minWithdrawalAmount(), input.l1FeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(input.l1FeeVaultWithdrawalNetwork));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(input.l1FeeVaultWithdrawalNetwork));
 
+        assertEq(sequencerFeeVault.RECIPIENT(), input.sequencerFeeVaultRecipient);
         assertEq(sequencerFeeVault.recipient(), input.sequencerFeeVaultRecipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.sequencerFeeVaultMinimumWithdrawalAmount);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), input.sequencerFeeVaultMinimumWithdrawalAmount);
         assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(input.sequencerFeeVaultWithdrawalNetwork));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(input.sequencerFeeVaultWithdrawalNetwork));
+
+        assertEq(operatorFeeVault.RECIPIENT(), input.operatorFeeVaultRecipient);
+        assertEq(operatorFeeVault.recipient(), input.operatorFeeVaultRecipient);
+        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.operatorFeeVaultMinimumWithdrawalAmount);
+        assertEq(operatorFeeVault.minWithdrawalAmount(), input.operatorFeeVaultMinimumWithdrawalAmount);
+        assertEq(uint8(operatorFeeVault.WITHDRAWAL_NETWORK()), uint8(input.operatorFeeVaultWithdrawalNetwork));
+        assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(input.operatorFeeVaultWithdrawalNetwork));
+    }
+
+    function testVaultsWithRevenueShare() internal view {
+        IFeeVault baseFeeVault = IFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+        IFeeVault l1FeeVault = IFeeVault(payable(Predeploys.L1_FEE_VAULT));
+        IFeeVault sequencerFeeVault = IFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+        IFeeVault operatorFeeVault = IFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
+
+        assertEq(baseFeeVault.recipient(), Predeploys.FEE_SPLITTER);
+        assertEq(baseFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
+        assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(baseFeeVault.minWithdrawalAmount(), 0);
+        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
+
+        assertEq(l1FeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
+        assertEq(l1FeeVault.recipient(), Predeploys.FEE_SPLITTER);
+        assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(l1FeeVault.minWithdrawalAmount(), 0);
+        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
+
+        assertEq(sequencerFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
+        assertEq(sequencerFeeVault.recipient(), Predeploys.FEE_SPLITTER);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), 0);
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
+
+        assertEq(operatorFeeVault.RECIPIENT(), Predeploys.FEE_SPLITTER);
+        assertEq(operatorFeeVault.recipient(), Predeploys.FEE_SPLITTER);
+        assertEq(operatorFeeVault.MIN_WITHDRAWAL_AMOUNT(), 0);
+        assertEq(operatorFeeVault.minWithdrawalAmount(), 0);
+        assertEq(uint8(operatorFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L2));
+        assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
     }
 
     function testGovernance() internal view {
@@ -102,12 +159,33 @@ abstract contract L2Genesis_TestInit is Test {
         assertEq(gasPriceOracle.isFjord(), true);
         assertEq(gasPriceOracle.isIsthmus(), true);
     }
+
+    function testFeeSplitter() internal view {
+        // Only test if revenue share is enabled
+        if (!input.useRevenueShare) return;
+
+        // Check that the shares calculator and fee disbursement interval are set on the fee splitter
+        IFeeSplitter feeSplitter = IFeeSplitter(payable(Predeploys.FEE_SPLITTER));
+        assertEq(feeSplitter.feeDisbursementInterval(), 1 days);
+
+        ISuperchainRevSharesCalculator superchainRevSharesCalculator =
+            ISuperchainRevSharesCalculator(address(feeSplitter.sharesCalculator()));
+        // Check that the superchain rev shares calculator is properly set
+        assertEq(superchainRevSharesCalculator.remainderRecipient(), input.chainFeesRecipient);
+
+        // Check the L1Withdrawer is properly set
+        IL1Withdrawer l1Withdrawer = IL1Withdrawer(superchainRevSharesCalculator.shareRecipient());
+        assertEq(l1Withdrawer.minWithdrawalAmount(), 10 ether);
+        assertEq(l1Withdrawer.recipient(), input.l1FeesDepositor);
+        assertEq(l1Withdrawer.withdrawalGasLimit(), 1_000_000);
+    }
 }
 
 /// @title L2Genesis_Run_Test
 /// @notice Tests the `run` function of the `L2Genesis` contract.
 contract L2Genesis_Run_Test is L2Genesis_TestInit {
-    function test_run_succeeds() external {
+    function setUp() public override {
+        super.setUp();
         input = L2Genesis.Input({
             l1ChainID: 1,
             l2ChainID: 2,
@@ -124,19 +202,131 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             l1FeeVaultRecipient: address(0x0000000000000000000000000000000000000007),
             l1FeeVaultMinimumWithdrawalAmount: 1,
             l1FeeVaultWithdrawalNetwork: 1,
-            governanceTokenOwner: address(0x0000000000000000000000000000000000000008),
+            operatorFeeVaultRecipient: address(0x0000000000000000000000000000000000000008),
+            operatorFeeVaultMinimumWithdrawalAmount: 1,
+            operatorFeeVaultWithdrawalNetwork: 1,
+            governanceTokenOwner: address(0x0000000000000000000000000000000000000009),
             fork: uint256(LATEST_FORK),
             deployCrossL2Inbox: true,
             enableGovernance: true,
-            fundDevAccounts: true
+            fundDevAccounts: true,
+            useRevenueShare: true,
+            chainFeesRecipient: address(0x000000000000000000000000000000000000000b),
+            l1FeesDepositor: address(0x000000000000000000000000000000000000000C)
         });
+    }
+
+    function test_run_succeeds() external {
         genesis.run(input);
 
         testProxyAdmin();
         testPredeploys();
-        testVaults();
+        testVaultsWithRevenueShare();
         testGovernance();
         testFactories();
         testForks();
+        testFeeSplitter();
+    }
+
+    function test_run_withoutRevenueShare_succeeds() external {
+        input.useRevenueShare = false;
+        genesis.run(input);
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaultsWithoutRevenueShare();
+        testGovernance();
+        testFactories();
+        testForks();
+
+        // Test that FeeSplitter is initialized with address(0) when revenue share is disabled
+        IFeeSplitter feeSplitter = IFeeSplitter(payable(Predeploys.FEE_SPLITTER));
+        assertEq(address(feeSplitter.sharesCalculator()), address(0), "sharesCalculator should be zero address");
+        assertEq(feeSplitter.feeDisbursementInterval(), 1 days, "feeDisbursementInterval should be 1 day");
+    }
+
+    function test_runWithRevenueShare_zeroChainFeesRecipient_reverts() external {
+        input.useRevenueShare = true;
+        input.chainFeesRecipient = address(0);
+
+        vm.expectRevert(L2Genesis.L2Genesis_ChainFeesRecipientCannotBeZero.selector);
+        genesis.run(input);
+    }
+
+    function test_runWithRevenueShare_zeroL1FeesDepositor_reverts() external {
+        input.useRevenueShare = true;
+        input.l1FeesDepositor = address(0);
+
+        vm.expectRevert(L2Genesis.L2Genesis_L1FeesDepositorCannotBeZero.selector);
+        genesis.run(input);
+    }
+
+    function test_runWithRevenueShare_misconfiguredVaults_reverts() external {
+        // Misconfigured base fee vault
+        vm.mockCall(Predeploys.BASE_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredBaseFeeVault.selector);
+        genesis.run(input);
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            Predeploys.BASE_FEE_VAULT,
+            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
+            abi.encode(Types.WithdrawalNetwork.L1)
+        );
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredBaseFeeVault.selector);
+        genesis.run(input);
+
+        // Misconfigured l1 fee vault
+        vm.clearMockedCalls();
+        vm.mockCall(Predeploys.L1_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredL1FeeVault.selector);
+        genesis.run(input);
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            Predeploys.L1_FEE_VAULT,
+            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
+            abi.encode(Types.WithdrawalNetwork.L1)
+        );
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredL1FeeVault.selector);
+        genesis.run(input);
+
+        // Misconfigured sequencer fee vault
+        vm.clearMockedCalls();
+        vm.mockCall(Predeploys.SEQUENCER_FEE_WALLET, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredSequencerFeeVault.selector);
+        genesis.run(input);
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            Predeploys.SEQUENCER_FEE_WALLET,
+            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
+            abi.encode(Types.WithdrawalNetwork.L1)
+        );
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredSequencerFeeVault.selector);
+        genesis.run(input);
+
+        // Misconfigured operator fee vault
+        vm.clearMockedCalls();
+        vm.mockCall(Predeploys.OPERATOR_FEE_VAULT, abi.encodeCall(IFeeVault.recipient, ()), abi.encode(address(0)));
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredOperatorFeeVault.selector);
+        genesis.run(input);
+
+        vm.clearMockedCalls();
+        vm.mockCall(
+            Predeploys.OPERATOR_FEE_VAULT,
+            abi.encodeCall(IFeeVault.withdrawalNetwork, ()),
+            abi.encode(Types.WithdrawalNetwork.L1)
+        );
+
+        vm.expectRevert(L2Genesis.L2Genesis_MisconfiguredOperatorFeeVault.selector);
+        genesis.run(input);
     }
 }

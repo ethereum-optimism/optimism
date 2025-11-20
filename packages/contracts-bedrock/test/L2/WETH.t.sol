@@ -4,6 +4,21 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
+
+/// @title WETH_Version_Test
+/// @notice Tests the `version` function of the `WETH` contract.
+contract WETH_Version_Test is CommonTest {
+    /// @notice Tests that the version returns a valid semver string.
+    function test_version_succeeds() external view {
+        SemverComp.parse(ISemver(address(weth)).version());
+    }
+}
+
 /// @title WETH_Name_Test
 /// @notice Tests the `name` function of the `WETH` contract.
 contract WETH_Name_Test is CommonTest {

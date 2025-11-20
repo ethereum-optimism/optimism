@@ -48,6 +48,9 @@ contract DeployConfig is Script {
     address public sequencerFeeVaultRecipient;
     uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
     uint256 public sequencerFeeVaultWithdrawalNetwork;
+    address public operatorFeeVaultRecipient;
+    uint256 public operatorFeeVaultMinimumWithdrawalAmount;
+    uint256 public operatorFeeVaultWithdrawalNetwork;
     address public governanceTokenOwner;
     uint256 public l2GenesisBlockGasLimit;
     uint32 public basefeeScalar;
@@ -85,6 +88,12 @@ contract DeployConfig is Script {
     bool public useInterop;
     bool public useUpgradedFork;
     bytes32 public devFeatureBitmap;
+
+    bool public useRevenueShare;
+    address public chainFeesRecipient;
+    /// @notice This is not read from JSON because it is hardcoded in the deployer. It is overwritten with its setter
+    ///         for testing.
+    address public l1FeesDepositor;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -124,6 +133,9 @@ contract DeployConfig is Script {
         sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
         sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
         sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
+        operatorFeeVaultRecipient = stdJson.readAddress(_json, "$.operatorFeeVaultRecipient");
+        operatorFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.operatorFeeVaultMinimumWithdrawalAmount");
+        operatorFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.operatorFeeVaultWithdrawalNetwork");
         governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
@@ -160,6 +172,8 @@ contract DeployConfig is Script {
         useInterop = _readOr(_json, "$.useInterop", false);
         devFeatureBitmap = bytes32(_readOr(_json, "$.devFeatureBitmap", 0));
         useUpgradedFork;
+        useRevenueShare = _readOr(_json, "$.useRevenueShare", false);
+        chainFeesRecipient = _readOr(_json, "$.chainFeesRecipient", address(0));
         faultGameV2MaxGameDepth = _readOr(_json, "$.faultGameV2MaxGameDepth", 73);
         faultGameV2SplitDepth = _readOr(_json, "$.faultGameV2SplitDepth", 30);
         faultGameV2ClockExtension = _readOr(_json, "$.faultGameV2ClockExtension", 10800);
@@ -213,6 +227,21 @@ contract DeployConfig is Script {
     /// @notice Allow the `useInterop` config to be overridden in testing environments
     function setUseInterop(bool _useInterop) public {
         useInterop = _useInterop;
+    }
+
+    /// @notice Allow the `useRevenueShare` config to be overridden in testing environments
+    function setUseRevenueShare(bool _useRevenueShare) public {
+        useRevenueShare = _useRevenueShare;
+    }
+
+    /// @notice Allow the `l1FeesDepositor` config to be overridden in testing environments
+    function setL1FeesDepositor(address _l1FeesDepositor) public {
+        l1FeesDepositor = _l1FeesDepositor;
+    }
+
+    /// @notice Allow the `chainFeesRecipient` config to be overridden in testing environments
+    function setChainFeesRecipient(address _chainFeesRecipient) public {
+        chainFeesRecipient = _chainFeesRecipient;
     }
 
     /// @notice Allow the `fundDevAccounts` config to be overridden.

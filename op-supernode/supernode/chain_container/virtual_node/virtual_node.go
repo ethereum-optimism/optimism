@@ -98,9 +98,9 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	v.cancel = cancel
 
 	// Capture inner node errors via cancel callback
-	var innerErr error
+	var cancelErr error
 	v.cfg.Cancel = func(err error) {
-		innerErr = err
+		cancelErr = err
 		cancel() // Cancel the run context when inner node fails
 	}
 
@@ -120,6 +120,7 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 
 	// Run inner node in goroutine
 	// and await any signal to exit (Stop(), parent ctx, or inner error)
+	var innerErr error = nil
 	go func() {
 		innerErr = v.inner.Start(runCtx)
 	}()
@@ -140,6 +141,10 @@ func (v *simpleVirtualNode) Start(ctx context.Context) error {
 	}
 
 	// Return inner error if that's what caused the cancellation, otherwise context error
+	if cancelErr != nil {
+		v.log.Warn("virtual node stopped due to inner cancel error", "err", cancelErr)
+		return cancelErr
+	}
 	if innerErr != nil {
 		v.log.Warn("virtual node stopped due to inner error", "err", innerErr)
 		return innerErr

@@ -174,12 +174,9 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	var afterForceIncludeTxs []hexutil.Bytes
-
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(afterForceIncludeTxs)+len(upgradeTxs))
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
-	txs = append(txs, afterForceIncludeTxs...)
 	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals

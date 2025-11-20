@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { FeeVault } from "src/L2/FeeVault.sol";
-
-// Libraries
-import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -16,18 +13,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @notice The L1FeeVault accumulates the L1 portion of the transaction fees.
 contract L1FeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
-
-    /// @notice Constructs the L1FeeVault contract.
-    /// @param _recipient           Wallet that will receive the fees.
-    /// @param _minWithdrawalAmount Minimum balance for withdrawals.
-    /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
-    constructor(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        Types.WithdrawalNetwork _withdrawalNetwork
-    )
-        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
-    { }
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 }

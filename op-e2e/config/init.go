@@ -54,6 +54,7 @@ const (
 	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
+	AllocTypeFastGame     AllocType = "fast-game"
 
 	DefaultAllocType = AllocTypeMTCannon
 )
@@ -65,16 +66,7 @@ func (a AllocType) Check() error {
 	return nil
 }
 
-func (a AllocType) UsesProofs() bool {
-	switch a {
-	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
-		return true
-	default:
-		return false
-	}
-}
-
-var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeFastGame}
 
 var (
 	// All of the following variables are set in the init function
@@ -243,6 +235,26 @@ func initAllocType(root string, allocType AllocType) {
 					DAResolverRefundPercentage: 0,
 				}
 			}
+			if allocType == AllocTypeFastGame {
+				intent.GlobalDeployOverrides["preimageOracleChallengePeriod"] = 1
+				for _, chain := range intent.Chains {
+					chain.AdditionalDisputeGames = append(chain.AdditionalDisputeGames,
+						state.AdditionalDisputeGame{
+							ChainProofParams: state.ChainProofParams{
+								// Fast game
+								DisputeGameType: 254,
+								// Prestate doesn't matter as there's no time to play the game anyway.
+								DisputeAbsolutePrestate: common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
+								DisputeMaxGameDepth:     14 + 3 + 1,
+								DisputeSplitDepth:       14,
+								DisputeClockExtension:   0,
+								DisputeMaxClockDuration: 1,
+							},
+							VMType:        state.VMTypeAlphabet,
+							MakeRespected: true,
+						})
+				}
+			}
 
 			baseUpgradeSchedule := map[string]any{
 				"l2GenesisRegolithTimeOffset": nil,
@@ -355,9 +367,11 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"baseFeeVaultMinimumWithdrawalAmount":      "0x8ac7230489e80000",
 			"l1FeeVaultMinimumWithdrawalAmount":        "0x8ac7230489e80000",
 			"sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+			"operatorFeeVaultMinimumWithdrawalAmount":  "0x8ac7230489e80000",
 			"baseFeeVaultWithdrawalNetwork":            0,
 			"l1FeeVaultWithdrawalNetwork":              0,
 			"sequencerFeeVaultWithdrawalNetwork":       0,
+			"operatorFeeVaultWithdrawalNetwork":        0,
 			"finalizationPeriodSeconds":                2,
 			"l2GenesisBlockBaseFeePerGas":              "0x1",
 			"gasPriceOracleOverhead":                   2100,
@@ -387,6 +401,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 				BaseFeeVaultRecipient:      common.HexToAddress("0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"),
 				L1FeeVaultRecipient:        common.HexToAddress("0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f"),
 				SequencerFeeVaultRecipient: common.HexToAddress("0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"),
+				OperatorFeeVaultRecipient:  common.HexToAddress("0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec"),
 				Eip1559Denominator:         250,
 				Eip1559DenominatorCanyon:   250,
 				Eip1559Elasticity:          6,
@@ -401,23 +416,9 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 					Proposer:          addrs.Proposer,
 					Challenger:        common.HexToAddress("0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"),
 				},
+				UseRevenueShare:    true,
+				ChainFeesRecipient: common.HexToAddress("0xBcd4042DE499D14e55001CcbB24a551F3b954096"),
 				AdditionalDisputeGames: []state.AdditionalDisputeGame{
-					{
-						ChainProofParams: state.ChainProofParams{
-							// Fast game
-							DisputeGameType:         254,
-							DisputeAbsolutePrestate: defaultPrestate,
-							DisputeMaxGameDepth:     14 + 3 + 1,
-							DisputeSplitDepth:       14,
-							DisputeClockExtension:   0,
-							DisputeMaxClockDuration: 0,
-						},
-						VMType:                       state.VMTypeAlphabet,
-						UseCustomOracle:              true,
-						OracleMinProposalSize:        10000,
-						OracleChallengePeriodSeconds: 0,
-						MakeRespected:                true,
-					},
 					{
 						ChainProofParams: state.ChainProofParams{
 							// Alphabet game

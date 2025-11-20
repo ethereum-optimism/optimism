@@ -23,7 +23,8 @@ func TestValidateStandardValues(t *testing.T) {
 
 	setFeeAddresses(&intent)
 	err = intent.Check()
-	require.NoError(t, err)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrRevenueShareZeroAddress)
 
 	tests := []struct {
 		name    string
@@ -87,6 +88,14 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrIncompatibleValue,
 		},
+		{
+			"RevenueShare",
+			func(intent *Intent) {
+				intent.Chains[0].UseRevenueShare = true
+				intent.Chains[0].ChainFeesRecipient = common.Address{}
+			},
+			ErrRevenueShareZeroAddress,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +103,7 @@ func TestValidateStandardValues(t *testing.T) {
 			require.NoError(t, err)
 			setChainRoles(&intent)
 			setFeeAddresses(&intent)
+			setRevenueShare(&intent)
 
 			tt.mutator(&intent)
 
@@ -131,6 +141,10 @@ func TestValidateCustomValues(t *testing.T) {
 	err = intent.Check()
 	require.NoError(t, err)
 
+	setRevenueShare(&intent)
+	err = intent.Check()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		mutator func(intent *Intent)
@@ -154,6 +168,14 @@ func TestValidateCustomValues(t *testing.T) {
 				intent.SuperchainRoles = nil
 			},
 			ErrIncompatibleValue,
+		},
+		{
+			"zero address for revenue share chain fees recipient when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].UseRevenueShare = true
+				intent.Chains[0].ChainFeesRecipient = common.Address{}
+			},
+			ErrRevenueShareZeroAddress,
 		},
 	}
 	for _, tt := range tests {
@@ -210,4 +232,10 @@ func setFeeAddresses(intent *Intent) {
 	intent.Chains[0].BaseFeeVaultRecipient = common.HexToAddress("0x08")
 	intent.Chains[0].L1FeeVaultRecipient = common.HexToAddress("0x09")
 	intent.Chains[0].SequencerFeeVaultRecipient = common.HexToAddress("0x0A")
+	intent.Chains[0].OperatorFeeVaultRecipient = common.HexToAddress("0x0B")
+}
+
+func setRevenueShare(intent *Intent) {
+	intent.Chains[0].UseRevenueShare = true
+	intent.Chains[0].ChainFeesRecipient = common.HexToAddress("0x0C")
 }

@@ -48,7 +48,7 @@ interface ITimelockGuard {
     event GuardConfigured(address indexed safe, uint256 timelockDelay);
     event TransactionCancelled(address indexed safe, bytes32 indexed txHash);
     event TransactionScheduled(address indexed safe, bytes32 indexed txHash, uint256 executionTime);
-    event TransactionExecuted(address indexed safe, bytes32 txHash);
+    event TransactionExecuted(address indexed safe, bytes32 indexed txHash);
     event Message(string message);
     event TransactionsNotCancelled(address indexed safe, uint256 uncancelledCount);
 

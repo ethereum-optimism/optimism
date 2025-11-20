@@ -34,12 +34,17 @@ abstract contract CommonTest is Test, Setup, Events {
 
     bool useAltDAOverride;
     bool useInteropOverride;
+    bool useRevenueShareOverride;
 
     /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
     ///      running the tests.
     ///      This value should only be set to false in forked tests which are specifically testing the upgrade path
     ///      itself, rather than simply ensuring that the tests pass after the upgrade.
     bool useUpgradedFork = true;
+
+    // Needed for testing purposes to check the contracts were properly deployed and setup.
+    address chainFeesRecipient = makeAddr("chainFeesRecipient");
+    address l1FeesDepositor = makeAddr("l1FeesDepositor");
 
     ERC20 L1Token;
     ERC20 BadL1Token;
@@ -70,6 +75,11 @@ abstract contract CommonTest is Test, Setup, Events {
         }
         if (useInteropOverride) {
             deploy.cfg().setUseInterop(true);
+        }
+        if (useRevenueShareOverride) {
+            deploy.cfg().setUseRevenueShare(true);
+            deploy.cfg().setChainFeesRecipient(chainFeesRecipient);
+            deploy.cfg().setL1FeesDepositor(l1FeesDepositor);
         }
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
@@ -198,6 +208,12 @@ abstract contract CommonTest is Test, Setup, Events {
     function enableInterop() public {
         _checkNotDeployed("interop");
         useInteropOverride = true;
+    }
+
+    /// @dev Enables revenue sharing mode for testing
+    function enableRevenueShare() public {
+        _checkNotDeployed("revenue share");
+        useRevenueShareOverride = true;
     }
 
     /// @dev Disables upgrade mode for testing. By default the fork testing env will be upgraded to the latest

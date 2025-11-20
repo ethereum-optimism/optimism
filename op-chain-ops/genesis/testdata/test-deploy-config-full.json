@@ -40,12 +40,15 @@
   "baseFeeVaultRecipient": "0x42000000000000000000000000000000000000f5",
   "l1FeeVaultRecipient": "0x42000000000000000000000000000000000000f6",
   "sequencerFeeVaultRecipient": "0x42000000000000000000000000000000000000f7",
+  "operatorFeeVaultRecipient": "0x4200000000000000000000000000000000000063",
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "operatorFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 1,
   "sequencerFeeVaultWithdrawalNetwork": 1,
+  "operatorFeeVaultWithdrawalNetwork": 1,
   "l1StandardBridgeProxy": "0x42000000000000000000000000000000000000f8",
   "l1CrossDomainMessengerProxy": "0x42000000000000000000000000000000000000f9",
   "l1ERC721BridgeProxy": "0x4200000000000000000000000000000000000060",
@@ -94,5 +97,7 @@
   "daChallengeProxy": "0x0000000000000000000000000000000000000000",
   "daChallengeWindow": 0,
   "daResolveWindow": 0,
-  "daResolverRefundPercentage": 0
+  "daResolverRefundPercentage": 0,
+  "useRevenueShare": true,
+  "chainFeesRecipient": "0x0000000000000000000000000000000000000444"
 }
