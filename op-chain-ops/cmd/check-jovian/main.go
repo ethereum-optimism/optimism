@@ -7,14 +7,11 @@ import (
 	"math/big"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -24,6 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 func main() {
@@ -57,9 +56,10 @@ func main() {
 }
 
 type actionEnv struct {
-	log       log.Logger
-	l2        *ethclient.Client
-	secretKey string
+	log        log.Logger
+	l2         *ethclient.Client
+	l2endpoint string
+	secretKey  string
 }
 
 type CheckAction func(ctx context.Context, env *actionEnv) error
@@ -112,9 +112,10 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 			secretKey = strings.TrimPrefix(secretKey, "0x")
 		}
 		if err := fn(c.Context, &actionEnv{
-			log:       logger,
-			l2:        l2Cl,
-			secretKey: secretKey,
+			log:        logger,
+			l2:         l2Cl,
+			l2endpoint: c.String(EndpointL2.Name),
+			secretKey:  secretKey,
 		}); err != nil {
 			return fmt.Errorf("command error: %w", err)
 		}
@@ -160,70 +161,36 @@ func checkL1Block(ctx context.Context, env *actionEnv) error {
 // If a secret key is provided, it will attempt to send a tx-to-self on L2, wait for it to be mined,
 // then use the block containing that tx as the block to check.
 func checkBlock(ctx context.Context, env *actionEnv) error {
-	var latest *types.Block
 	var err error
+
+	var latest *types.Block
 
 	// If a secret key was provided, attempt to send a tx-to-self and wait for it to be mined.
 	if env.secretKey != "" {
 		env.log.Info("secret key provided - attempting to send tx-to-self and wait for inclusion")
 
-		// Parse private key
-		priv, err := crypto.HexToECDSA(env.secretKey)
+		cfg := txmgr.NewCLIConfig(env.l2endpoint, txmgr.DefaultBatcherFlagValues)
+		cfg.PrivateKey = env.secretKey
+		t, err := txmgr.NewSimpleTxManager("check-jovian", env.log, new(metrics.NoopTxMetrics), cfg)
+		fromAddr := t.From()
+
 		if err != nil {
-			return fmt.Errorf("failed to parse secret key: %w", err)
+			return fmt.Errorf("failed to create tx manager: %w", err)
 		}
-		fromAddr := crypto.PubkeyToAddress(priv.PublicKey)
+		defer t.Close()
 
-		// Get nonce
-		nonce, err := env.l2.PendingNonceAt(ctx, fromAddr)
-		if err != nil {
-			return fmt.Errorf("failed to get pending nonce: %w", err)
-		}
-
-		// Gas price
-		gasPrice, err := env.l2.SuggestGasPrice(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to suggest gas price: %w", err)
-		}
-
-		// Simple to-self transfer with zero value (no data). Use a minimal gas limit.
-		toAddr := fromAddr
-		value := big.NewInt(0)
-		gasLimit := uint64(21000)
-
-		// Determine chain ID for signing
-		chainID, err := env.l2.NetworkID(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get network id: %w", err)
-		}
-
-		tx := types.NewTransaction(nonce, toAddr, value, gasLimit, gasPrice, nil)
-
-		// Sign tx
-		signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), priv)
-		if err != nil {
-			return fmt.Errorf("failed to sign tx: %w", err)
-		}
-
-		// Send tx
-		if err := env.l2.SendTransaction(ctx, signedTx); err != nil {
-			return fmt.Errorf("failed to send tx: %w", err)
-		}
-		env.log.Info("tx sent", "txHash", signedTx.Hash().Hex(), "from", fromAddr.Hex())
-
-		// Wait for mined receipt (with a reasonable timeout)
-		// Use a context with timeout to avoid waiting forever.
-		waitCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-
-		receipt, err := bind.WaitMined(waitCtx, env.l2, signedTx)
+		receipt, err := t.Send(context.TODO(), txmgr.TxCandidate{
+			To:    &fromAddr, // Send to self
+			Value: big.NewInt(0),
+		})
 		if err != nil {
 			return fmt.Errorf("error waiting for tx to be mined: %w", err)
 		}
 		if receipt == nil {
 			return fmt.Errorf("tx mined receipt was nil")
 		}
-		env.log.Info("tx mined", "txHash", signedTx.Hash().Hex(), "blockNumber", receipt.BlockNumber.Uint64(), "blobGasUsed", receipt.BlobGasUsed)
+
+		env.log.Info("tx mined", "txHash", receipt.TxHash.Hex(), "blockNumber", receipt.BlockNumber.Uint64(), "blobGasUsed", receipt.BlobGasUsed)
 
 		if receipt.BlobGasUsed == 0 {
 			return fmt.Errorf("receipt.BlobGasUsed was zero (required with Jovian)")
