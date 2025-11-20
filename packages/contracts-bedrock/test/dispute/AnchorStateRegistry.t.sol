@@ -446,20 +446,20 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_TestInit 
     }
 }
 
-/// @title AnchorStateRegistry_StartingAnchorRoot_Test
-/// @notice Tests the `startingAnchorRoot` public variable of the `AnchorStateRegistry` contract.
-contract AnchorStateRegistry_StartingAnchorRoot_Test is AnchorStateRegistry_TestInit {
-    /// @notice Tests that startingAnchorRoot returns the value initialized in the initialize
+/// @title AnchorStateRegistry_GetStartingAnchorRoot_Test
+/// @notice Tests the `getStartingAnchorRoot` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_GetStartingAnchorRoot_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that getStartingAnchorRoot returns the value initialized in the initialize
     ///         function.
-    function test_startingAnchorRoot_initialValue_succeeds() public view {
-        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.startingAnchorRoot();
-        assertEq(root.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
-        assertEq(l2BlockNumber, 0);
+    function test_getStartingAnchorRoot_initialValue_succeeds() public view {
+        Proposal memory startingAnchorRoot = anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(startingAnchorRoot.root.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
+        assertEq(startingAnchorRoot.l2SequenceNumber, 0);
     }
 
-    /// @notice Tests that startingAnchorRoot remains unchanged even if the current anchor root
+    /// @notice Tests that getStartingAnchorRoot remains unchanged even if the current anchor root
     ///         changes.
-    function test_startingAnchorRoot_afterUpdate_succeeds() public {
+    function test_getStartingAnchorRoot_afterUpdate_succeeds() public {
         // Mock the game to be resolved.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
@@ -488,13 +488,13 @@ contract AnchorStateRegistry_StartingAnchorRoot_Test is AnchorStateRegistry_Test
         assertEq(currentL2BlockNumber, gameProxy.l2SequenceNumber());
 
         // Verify the STARTING anchor root has NOT changed.
-        (Hash startingRoot, uint256 startingL2BlockNumber) = anchorStateRegistry.startingAnchorRoot();
-        assertEq(startingRoot.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
-        assertEq(startingL2BlockNumber, 0);
+        Proposal memory startingAnchorRoot = anchorStateRegistry.getStartingAnchorRoot();
+        assertEq(startingAnchorRoot.root.raw(), 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF);
+        assertEq(startingAnchorRoot.l2SequenceNumber, 0);
 
         // Explicitly assert they are different (assuming the new game has different values).
-        assertFalse(currentRoot.raw() == startingRoot.raw());
-        assertFalse(currentL2BlockNumber == startingL2BlockNumber);
+        assertFalse(currentRoot.raw() == startingAnchorRoot.root.raw());
+        assertFalse(currentL2BlockNumber == startingAnchorRoot.l2SequenceNumber);
     }
 }
 

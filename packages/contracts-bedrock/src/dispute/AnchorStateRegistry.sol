@@ -41,7 +41,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     IFaultDisputeGame public anchorGame;
 
     /// @notice The starting anchor root.
-    Proposal public startingAnchorRoot;
+    Proposal internal startingAnchorRoot;
 
     /// @notice Mapping of blacklisted dispute games.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;
@@ -129,6 +129,11 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice Returns the dispute game finality delay in seconds.
     function disputeGameFinalityDelaySeconds() external view returns (uint256) {
         return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+    }
+
+    /// @notice Returns the starting anchor root.
+    function getStartingAnchorRoot() external view returns (Proposal memory) {
+        return startingAnchorRoot;
     }
 
     /// @notice Allows the Guardian to set the respected game type.
