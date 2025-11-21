@@ -297,6 +297,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SupportsPostFinalizationELSync: false,
 				UnsafeOnly:                     unsafeOnly,
 				L2FollowSourceEndpoint:         "",
+				NeedInitialResetEngine:         cfg.IsSequencer && unsafeOnly,
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
