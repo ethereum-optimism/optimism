@@ -269,7 +269,22 @@ func (s *Driver) eventLoop() {
 	syncCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
+
 	lastUnsafeL2 := s.SyncDeriver.Engine.UnsafeL2Head()
+
+	unsafeOnly := s.SyncDeriver.SyncCfg.UnsafeOnly
+
+	resetAltSync := func(newHead eth.L2BlockRef, derivationReady bool) {
+		s.log.Debug(
+			"altSyncTicker reset",
+			"head", newHead,
+			"lastUnsafeL2", lastUnsafeL2,
+			"derivationReady", derivationReady,
+			"unsafeOnly", unsafeOnly,
+		)
+		lastUnsafeL2 = newHead
+		altSyncTicker.Reset(syncCheckInterval)
+	}
 
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
@@ -278,18 +293,15 @@ func (s *Driver) eventLoop() {
 
 		planSequencerAction()
 
-		// Reset the alt-sync ticker when either:
-		//   - The unsafe L2 head has changed, or
-		//   - Derivation is not yet ready (unless derivation is intentionally disabled via UnsafeOnly).
-		// This prevents requesting L2 blocks unnecessarily while we are already syncing.
-		//
-		// When UnsafeOnly is enabled, derivation will never become ready. Without the
-		// !UnsafeOnly guard, the alt-sync ticker would reset indefinitely, preventing
-		// normal alt-sync progress.
-		if head := s.SyncDeriver.Engine.UnsafeL2Head(); head != lastUnsafeL2 || (!s.SyncDeriver.Derivation.DerivationReady() && !s.SyncDeriver.SyncCfg.UnsafeOnly) {
-			s.log.Debug("altSyncTicker reset", "head", head, "lastUnsafeL2", lastUnsafeL2, "derivationReady", s.SyncDeriver.Derivation.DerivationReady(), "unsafeOnly", s.SyncDeriver.SyncCfg.UnsafeOnly)
-			lastUnsafeL2 = head
-			altSyncTicker.Reset(syncCheckInterval)
+		head := s.SyncDeriver.Engine.UnsafeL2Head()
+		derivationReady := s.SyncDeriver.Derivation.DerivationReady()
+
+		if lastUnsafeL2 != head {
+			// Unsafe head changed: reset alt-sync to avoid redundant L2 requests while syncing.
+			resetAltSync(head, derivationReady)
+		} else if !unsafeOnly && !derivationReady {
+			// Derivation enabled but not yet ready: reset alt-sync while it catches up.
+			resetAltSync(head, derivationReady)
 		}
 
 		select {
