@@ -54,7 +54,7 @@ metrics-derive.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 
-jsonrpsee = { version = "0.26.0" }
+jsonrpsee.workspace = true
 futures-util = "0.3.31"
 brotli = "8.0.1"
 arc-swap = "1.7.1"

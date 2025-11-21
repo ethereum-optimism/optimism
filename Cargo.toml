@@ -46,4 +46,5 @@ op-alloy-consensus = "0.22.0"
 op-alloy-rpc-types = "0.22.0"
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
 testcontainers = "0.23"
+jsonrpsee = "0.26.0"
 testcontainers-modules = { version = "0.11", features = ["redis"] }

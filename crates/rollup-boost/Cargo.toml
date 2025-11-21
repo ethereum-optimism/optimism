@@ -28,13 +28,7 @@ alloy-serde.workspace = true
 tokio-tungstenite.workspace = true
 metrics-derive.workspace = true
 
-# TODO: update to latest release when it is published
-# jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
-jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = [
-    "server",
-    "http-client",
-    "macros",
-] }
+jsonrpsee = { workspace = true, features = ["server", "http-client", "macros"] }
 moka = { version = "0.12.10", features = ["future"] }
 http = "1.1.0"
 dotenvy = "0.15.7"
