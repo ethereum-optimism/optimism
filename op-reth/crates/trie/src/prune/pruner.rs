@@ -111,13 +111,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::MdbxProofsStorage, OpProofsHashedCursorRO, OpProofsTrieCursorRO};
+    use crate::db::MdbxProofsStorage;
     use alloy_eips::{BlockHashOrNumber, NumHash};
     use alloy_primitives::{BlockNumber, B256, U256};
     use mockall::mock;
     use reth_primitives_traits::Account;
     use reth_storage_errors::provider::ProviderResult;
-    use reth_trie::{updates::StorageTrieUpdates, BranchNodeCompact, HashedStorage, Nibbles};
+    use reth_trie::{
+        hashed_cursor::HashedCursor, trie_cursor::TrieCursor, updates::StorageTrieUpdates,
+        BranchNodeCompact, HashedStorage, Nibbles,
+    };
     use std::sync::Arc;
     use tempfile::TempDir;
 

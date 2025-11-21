@@ -1,7 +1,6 @@
 //! Implementation of [`HashedCursor`] and [`TrieCursor`] for
 //! [`OpProofsStorage`](crate::OpProofsStorage).
 
-use crate::{OpProofsHashedCursorRO, OpProofsTrieCursorRO};
 use alloy_primitives::{B256, U256};
 use derive_more::{Constructor, From};
 use reth_db::DatabaseError;
@@ -12,20 +11,20 @@ use reth_trie::{
     BranchNodeCompact, Nibbles,
 };
 
-/// Manages reading storage or account trie nodes from [`OpProofsTrieCursorRO`].
+/// Manages reading storage or account trie nodes from [`TrieCursor`].
 #[derive(Debug, Clone, Constructor, From)]
-pub struct OpProofsTrieCursor<C: OpProofsTrieCursorRO>(pub C);
+pub struct OpProofsTrieCursor<C: TrieCursor>(pub C);
 
 impl<C> TrieCursor for OpProofsTrieCursor<C>
 where
-    C: OpProofsTrieCursorRO,
+    C: TrieCursor,
 {
     #[inline]
     fn seek_exact(
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
-        Ok(self.0.seek_exact(key)?)
+        self.0.seek_exact(key)
     }
 
     #[inline]
@@ -33,17 +32,17 @@ where
         &mut self,
         key: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
-        Ok(self.0.seek(key)?)
+        self.0.seek(key)
     }
 
     #[inline]
     fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
-        Ok(self.0.next()?)
+        self.0.next()
     }
 
     #[inline]
     fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
-        Ok(self.0.current()?)
+        self.0.current()
     }
 }
 
@@ -53,18 +52,18 @@ pub struct OpProofsHashedAccountCursor<C>(pub C);
 
 impl<C> HashedCursor for OpProofsHashedAccountCursor<C>
 where
-    C: OpProofsHashedCursorRO<Value = Account> + Send + Sync,
+    C: HashedCursor<Value = Account> + Send + Sync,
 {
     type Value = Account;
 
     #[inline]
     fn seek(&mut self, key: B256) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
-        Ok(self.0.seek(key)?)
+        self.0.seek(key)
     }
 
     #[inline]
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
-        Ok(self.0.next()?)
+        self.0.next()
     }
 }
 
@@ -74,27 +73,27 @@ pub struct OpProofsHashedStorageCursor<C>(pub C);
 
 impl<C> HashedCursor for OpProofsHashedStorageCursor<C>
 where
-    C: OpProofsHashedCursorRO<Value = U256> + Send + Sync,
+    C: HashedCursor<Value = U256> + Send + Sync,
 {
     type Value = U256;
 
     #[inline]
     fn seek(&mut self, key: B256) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
-        Ok(self.0.seek(key)?)
+        self.0.seek(key)
     }
 
     #[inline]
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
-        Ok(self.0.next()?)
+        self.0.next()
     }
 }
 
 impl<C> HashedStorageCursor for OpProofsHashedStorageCursor<C>
 where
-    C: OpProofsHashedCursorRO<Value = U256> + Send + Sync,
+    C: HashedStorageCursor<Value = U256> + Send + Sync,
 {
     #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
-        Ok(self.0.is_storage_empty()?)
+        self.0.is_storage_empty()
     }
 }

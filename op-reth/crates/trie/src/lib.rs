@@ -13,7 +13,7 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 pub mod api;
-pub use api::{BlockStateDiff, OpProofsHashedCursorRO, OpProofsStore, OpProofsTrieCursorRO};
+pub use api::{BlockStateDiff, OpProofsStore};
 
 pub mod backfill;
 pub use backfill::BackfillJob;

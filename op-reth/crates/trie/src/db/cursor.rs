@@ -5,17 +5,21 @@ use crate::{
         AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
         MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
     },
-    OpProofsHashedCursorRO, OpProofsStorageResult, OpProofsTrieCursorRO,
+    OpProofsStorageResult,
 };
 use alloy_primitives::{B256, U256};
 use reth_db::{
     cursor::{DbCursorRO, DbDupCursorRO},
     table::{DupSort, Table},
     transaction::DbTx,
-    Database, DatabaseEnv,
+    Database, DatabaseEnv, DatabaseError,
 };
 use reth_primitives_traits::Account;
-use reth_trie::{BranchNodeCompact, Nibbles, StoredNibbles};
+use reth_trie::{
+    hashed_cursor::{HashedCursor, HashedStorageCursor},
+    trie_cursor::TrieCursor,
+    BranchNodeCompact, Nibbles, StoredNibbles,
+};
 
 /// Generic alias for dup cursor for T
 pub(crate) type Dup<'tx, T> = <<DatabaseEnv as Database>::TX as DbTx>::DupCursor<T>;
@@ -141,7 +145,7 @@ where
     }
 }
 
-/// MDBX implementation of [`OpProofsTrieCursorRO`].
+/// MDBX implementation of [`TrieCursor`].
 #[derive(Debug)]
 pub struct MdbxTrieCursor<T: Table + DupSort, Cursor> {
     inner: BlockNumberVersionedCursor<T, Cursor>,
@@ -160,50 +164,52 @@ impl<
     }
 }
 
-impl<Cursor> OpProofsTrieCursorRO for MdbxTrieCursor<AccountTrieHistory, Cursor>
+impl<Cursor> TrieCursor for MdbxTrieCursor<AccountTrieHistory, Cursor>
 where
     Cursor: DbCursorRO<AccountTrieHistory> + DbDupCursorRO<AccountTrieHistory> + Send + Sync,
 {
     fn seek_exact(
         &mut self,
         path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.inner
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        Ok(self
+            .inner
             .seek_exact(StoredNibbles(path))
-            .map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))
+            .map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))?)
     }
 
     fn seek(
         &mut self,
         path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.inner
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        Ok(self
+            .inner
             .seek(StoredNibbles(path))
-            .map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))
+            .map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))?)
     }
 
-    fn next(&mut self) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
-        self.inner.next().map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))
+    fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        Ok(self.inner.next().map(|opt| opt.map(|(StoredNibbles(n), node)| (n, node)))?)
     }
 
-    fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
-        Ok(self.inner.cursor.current().map(|opt| opt.map(|(StoredNibbles(n), _)| n))?)
+    fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
+        self.inner.cursor.current().map(|opt| opt.map(|(StoredNibbles(n), _)| n))
     }
 }
 
-impl<Cursor> OpProofsTrieCursorRO for MdbxTrieCursor<StorageTrieHistory, Cursor>
+impl<Cursor> TrieCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
     Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
 {
     fn seek_exact(
         &mut self,
         path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
         if let Some(address) = self.hashed_address {
             let key = StorageTrieKey::new(address, StoredNibbles(path));
-            return self.inner.seek_exact(key).map(|opt| {
+            return Ok(self.inner.seek_exact(key).map(|opt| {
                 opt.and_then(|(k, node)| (k.hashed_address == address).then_some((k.path.0, node)))
-            })
+            })?)
         }
         Ok(None)
     }
@@ -211,36 +217,36 @@ where
     fn seek(
         &mut self,
         path: Nibbles,
-    ) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
         if let Some(address) = self.hashed_address {
             let key = StorageTrieKey::new(address, StoredNibbles(path));
-            return self.inner.seek(key).map(|opt| {
+            return Ok(self.inner.seek(key).map(|opt| {
                 opt.and_then(|(k, node)| (k.hashed_address == address).then_some((k.path.0, node)))
-            })
+            })?)
         }
         Ok(None)
     }
 
-    fn next(&mut self) -> OpProofsStorageResult<Option<(Nibbles, BranchNodeCompact)>> {
+    fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
         if let Some(address) = self.hashed_address {
-            return self.inner.next().map(|opt| {
+            return Ok(self.inner.next().map(|opt| {
                 opt.and_then(|(k, node)| (k.hashed_address == address).then_some((k.path.0, node)))
-            })
+            })?)
         }
         Ok(None)
     }
 
-    fn current(&mut self) -> OpProofsStorageResult<Option<Nibbles>> {
+    fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
         if let Some(address) = self.hashed_address {
-            return Ok(self.inner.cursor.current().map(|opt| {
+            return self.inner.cursor.current().map(|opt| {
                 opt.and_then(|(k, _)| (k.hashed_address == address).then_some(k.path.0))
-            })?);
+            });
         }
         Ok(None)
     }
 }
 
-/// MDBX implementation of [`OpProofsHashedCursorRO`] for storage state.
+/// MDBX implementation of [`HashedCursor`] for storage state.
 #[derive(Debug)]
 pub struct MdbxStorageCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedStorageHistory, Cursor>,
@@ -257,13 +263,13 @@ where
     }
 }
 
-impl<Cursor> OpProofsHashedCursorRO for MdbxStorageCursor<Cursor>
+impl<Cursor> HashedCursor for MdbxStorageCursor<Cursor>
 where
     Cursor: DbCursorRO<HashedStorageHistory> + DbDupCursorRO<HashedStorageHistory> + Send + Sync,
 {
     type Value = U256;
 
-    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+    fn seek(&mut self, key: B256) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         let storage_key = HashedStorageKey::new(self.hashed_address, key);
 
         // hashed storage values can be zero, which means the storage slot is deleted, so we should
@@ -284,7 +290,7 @@ where
         Ok(result)
     }
 
-    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
+    fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
         let result = self.inner.next().map(|opt| {
             opt.and_then(|(k, v)| {
                 // Only return entries that belong to the bound address
@@ -304,7 +310,14 @@ where
     }
 }
 
-/// MDBX implementation of [`OpProofsHashedCursorRO`] for account state.
+impl HashedStorageCursor for MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
+    #[inline]
+    fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
+        Ok(self.seek(B256::ZERO)?.is_none())
+    }
+}
+
+/// MDBX implementation of [`HashedCursor`] for account state.
 #[derive(Debug)]
 pub struct MdbxAccountCursor<Cursor> {
     inner: BlockNumberVersionedCursor<HashedAccountHistory, Cursor>,
@@ -320,18 +333,18 @@ where
     }
 }
 
-impl<Cursor> OpProofsHashedCursorRO for MdbxAccountCursor<Cursor>
+impl<Cursor> HashedCursor for MdbxAccountCursor<Cursor>
 where
     Cursor: DbCursorRO<HashedAccountHistory> + DbDupCursorRO<HashedAccountHistory> + Send + Sync,
 {
     type Value = Account;
 
-    fn seek(&mut self, key: B256) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        self.inner.seek(key)
+    fn seek(&mut self, key: B256) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
+        Ok(self.inner.seek(key)?)
     }
 
-    fn next(&mut self) -> OpProofsStorageResult<Option<(B256, Self::Value)>> {
-        self.inner.next()
+    fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
+        Ok(self.inner.next()?)
     }
 }
 
@@ -930,7 +943,7 @@ mod tests {
         let mut cur = account_trie_cursor(&tx, 100);
 
         // Wrapper should return (Nibbles, BranchNodeCompact)
-        let out = OpProofsTrieCursorRO::seek_exact(&mut cur, k).expect("ok").expect("some");
+        let out = TrieCursor::seek_exact(&mut cur, k).expect("ok").expect("some");
         assert_eq!(out.0, k);
     }
 
@@ -949,7 +962,7 @@ mod tests {
         let tx = db.tx().expect("ro tx");
         let mut cur = account_trie_cursor(&tx, 10);
 
-        let out = OpProofsTrieCursorRO::seek_exact(&mut cur, k).expect("ok");
+        let out = TrieCursor::seek_exact(&mut cur, k).expect("ok");
         assert!(out.is_none(), "account seek_exact must filter tombstone");
     }
 
@@ -970,15 +983,15 @@ mod tests {
         let mut cur = account_trie_cursor(&tx, 100);
 
         // seek at k1
-        let out1 = OpProofsTrieCursorRO::seek(&mut cur, k1).expect("ok").expect("some");
+        let out1 = TrieCursor::seek(&mut cur, k1).expect("ok").expect("some");
         assert_eq!(out1.0, k1);
 
         // current should be k1
-        let cur_k = OpProofsTrieCursorRO::current(&mut cur).expect("ok").expect("some");
+        let cur_k = TrieCursor::current(&mut cur).expect("ok").expect("some");
         assert_eq!(cur_k, k1);
 
         // next should move to k2
-        let out2 = OpProofsTrieCursorRO::next(&mut cur).expect("ok").expect("some");
+        let out2 = TrieCursor::next(&mut cur).expect("ok").expect("some");
         assert_eq!(out2.0, k2);
     }
 
@@ -1004,12 +1017,12 @@ mod tests {
 
         // Cursor bound to A must not see B’s data
         let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
-        let out_a = OpProofsTrieCursorRO::seek_exact(&mut cur_a, path).expect("ok");
+        let out_a = TrieCursor::seek_exact(&mut cur_a, path).expect("ok");
         assert!(out_a.is_none(), "no data for addr A");
 
         // Cursor bound to B should see it
         let mut cur_b = storage_trie_cursor(&tx, 100, addr_b);
-        let out_b = OpProofsTrieCursorRO::seek_exact(&mut cur_b, path).expect("ok").expect("some");
+        let out_b = TrieCursor::seek_exact(&mut cur_b, path).expect("ok").expect("some");
         assert_eq!(out_b.0, path);
     }
 
@@ -1039,15 +1052,15 @@ mod tests {
             let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
             // seek at p1: for A there is no p1; the next key >= p1 under A is p2
-            let out = OpProofsTrieCursorRO::seek(&mut cur_a, p1).expect("ok").expect("some");
+            let out = TrieCursor::seek(&mut cur_a, p1).expect("ok").expect("some");
             assert_eq!(out.0, p2);
 
             // seek at p2: exact match
-            let out = OpProofsTrieCursorRO::seek(&mut cur_a, p2).expect("ok").expect("some");
+            let out = TrieCursor::seek(&mut cur_a, p2).expect("ok").expect("some");
             assert_eq!(out.0, p2);
 
             // seek at p3: no p3 under A; no next key ≥ p3 under A → None
-            let out = OpProofsTrieCursorRO::seek(&mut cur_a, p3).expect("ok");
+            let out = TrieCursor::seek(&mut cur_a, p3).expect("ok");
             assert!(out.is_none(), "no key ≥ p3 under A");
         }
 
@@ -1056,15 +1069,15 @@ mod tests {
             let tx = db.tx().expect("ro tx");
             let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
-            let out = OpProofsTrieCursorRO::next(&mut cur_a).expect("ok").expect("some");
+            let out = TrieCursor::next(&mut cur_a).expect("ok").expect("some");
             assert_eq!(out.0, p2);
 
             // next should yield None as there is no further key under A
-            let out = OpProofsTrieCursorRO::next(&mut cur_a).expect("ok");
+            let out = TrieCursor::next(&mut cur_a).expect("ok");
             assert!(out.is_none(), "no more keys under A");
 
             // current should return None
-            let out = OpProofsTrieCursorRO::current(&mut cur_a).expect("ok");
+            let out = TrieCursor::current(&mut cur_a).expect("ok");
             assert!(out.is_none(), "no current key after EOF");
         }
 
@@ -1074,15 +1087,15 @@ mod tests {
             let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
             // seek_exact at p1: no exact match
-            let out = OpProofsTrieCursorRO::seek_exact(&mut cur_a, p1).expect("ok");
+            let out = TrieCursor::seek_exact(&mut cur_a, p1).expect("ok");
             assert!(out.is_none(), "no exact p1 under A");
 
             // seek_exact at p2: exact match
-            let out = OpProofsTrieCursorRO::seek_exact(&mut cur_a, p2).expect("ok").expect("some");
+            let out = TrieCursor::seek_exact(&mut cur_a, p2).expect("ok").expect("some");
             assert_eq!(out.0, p2);
 
             // seek_exact at p3: no exact match
-            let out = OpProofsTrieCursorRO::seek_exact(&mut cur_a, p3).expect("ok");
+            let out = TrieCursor::seek_exact(&mut cur_a, p3).expect("ok");
             assert!(out.is_none(), "no exact p3 under A");
         }
     }
@@ -1108,10 +1121,10 @@ mod tests {
         let mut cur_a = storage_trie_cursor(&tx, 100, addr_a);
 
         // position at p1 (A)
-        let _ = OpProofsTrieCursorRO::seek_exact(&mut cur_a, p1).expect("ok").expect("some");
+        let _ = TrieCursor::seek_exact(&mut cur_a, p1).expect("ok").expect("some");
 
         // next should reach boundary; impl filters different address and returns None
-        let out = OpProofsTrieCursorRO::next(&mut cur_a).expect("ok");
+        let out = TrieCursor::next(&mut cur_a).expect("ok");
         assert!(out.is_none(), "next() should stop when next key is a different address");
     }
 
@@ -1131,9 +1144,9 @@ mod tests {
         let tx = db.tx().expect("ro tx");
         let mut cur = storage_trie_cursor(&tx, 100, addr);
 
-        let _ = OpProofsTrieCursorRO::seek_exact(&mut cur, p).expect("ok").expect("some");
+        let _ = TrieCursor::seek_exact(&mut cur, p).expect("ok").expect("some");
 
-        let now = OpProofsTrieCursorRO::current(&mut cur).expect("ok").expect("some");
+        let now = TrieCursor::current(&mut cur).expect("ok").expect("some");
         assert_eq!(now, p);
     }
 
@@ -1152,8 +1165,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 100, addr);
 
-        let (got_slot, got_val) =
-            OpProofsHashedCursorRO::seek(&mut cur, slot).expect("ok").expect("some");
+        let (got_slot, got_val) = cur.seek(slot).expect("ok").expect("some");
         assert_eq!(got_slot, slot);
         assert_eq!(got_val, U256::from(7));
     }
@@ -1174,7 +1186,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 10, addr);
 
-        let out = OpProofsHashedCursorRO::seek(&mut cur, slot).expect("ok");
+        let out = cur.seek(slot).expect("ok");
         assert!(out.is_none(), "wrapper must filter tombstoned latest");
     }
 
@@ -1195,10 +1207,10 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 100, addr);
 
-        let (k1, v1) = OpProofsHashedCursorRO::seek(&mut cur, s1).expect("ok").expect("some");
+        let (k1, v1) = cur.seek(s1).expect("ok").expect("some");
         assert_eq!((k1, v1), (s1, U256::from(11)));
 
-        let (k2, v2) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
+        let (k2, v2) = cur.next().expect("ok").expect("some");
         assert_eq!((k2, v2), (s2, U256::from(22)));
     }
 
@@ -1228,22 +1240,22 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = storage_cursor(&tx, 100, addr1);
 
-        let (k1, v1) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
+        let (k1, v1) = cur.next().expect("ok").expect("some");
         assert_eq!((k1, v1), (s1, U256::from(11)));
 
-        let (k2, v2) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
+        let (k2, v2) = cur.next().expect("ok").expect("some");
         assert_eq!((k2, v2), (s2, U256::from(22)));
 
-        let out = OpProofsHashedCursorRO::next(&mut cur).expect("ok");
+        let out = cur.next().expect("ok");
         assert!(out.is_none(), "should stop at address boundary");
 
-        let (k1, v1) = OpProofsHashedCursorRO::seek(&mut cur, s1).expect("ok").expect("some");
+        let (k1, v1) = cur.seek(s1).expect("ok").expect("some");
         assert_eq!((k1, v1), (s1, U256::from(11)));
 
-        let (k2, v2) = OpProofsHashedCursorRO::seek(&mut cur, s2).expect("ok").expect("some");
+        let (k2, v2) = cur.seek(s2).expect("ok").expect("some");
         assert_eq!((k2, v2), (s2, U256::from(22)));
 
-        let out = OpProofsHashedCursorRO::seek(&mut cur, s3).expect("ok");
+        let out = cur.seek(s3).expect("ok");
         assert!(out.is_none(), "should not see keys from other address");
     }
 
@@ -1261,8 +1273,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 100);
 
-        let (got_key, _acc) =
-            OpProofsHashedCursorRO::seek(&mut cur, key).expect("ok").expect("some");
+        let (got_key, _acc) = cur.seek(key).expect("ok").expect("some");
         assert_eq!(got_key, key);
     }
 
@@ -1281,7 +1292,7 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 10);
 
-        let out = OpProofsHashedCursorRO::seek(&mut cur, key).expect("ok");
+        let out = cur.seek(key).expect("ok");
         assert!(out.is_none(), "wrapper must filter tombstoned latest");
     }
 
@@ -1301,10 +1312,10 @@ mod tests {
         let tx = db.tx().expect("ro");
         let mut cur = account_cursor(&tx, 100);
 
-        let (got1, _) = OpProofsHashedCursorRO::seek(&mut cur, k1).expect("ok").expect("some");
+        let (got1, _) = cur.seek(k1).expect("ok").expect("some");
         assert_eq!(got1, k1);
 
-        let (got2, _) = OpProofsHashedCursorRO::next(&mut cur).expect("ok").expect("some");
+        let (got2, _) = cur.next().expect("ok").expect("some");
         assert_eq!(got2, k2);
     }
 }

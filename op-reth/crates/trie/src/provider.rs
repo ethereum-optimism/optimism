@@ -5,7 +5,7 @@ use crate::{
         DatabaseProof, DatabaseStateRoot, DatabaseStorageProof, DatabaseStorageRoot,
         DatabaseTrieWitness,
     },
-    OpProofsHashedCursorRO, OpProofsStorage, OpProofsStorageError, OpProofsStore,
+    OpProofsStorage, OpProofsStorageError, OpProofsStore,
 };
 use alloy_primitives::keccak256;
 use derive_more::Constructor;
@@ -19,6 +19,7 @@ use reth_revm::{
     primitives::{alloy_primitives::BlockNumber, Address, Bytes, StorageValue, B256},
 };
 use reth_trie::{
+    hashed_cursor::HashedCursor,
     proof::{Proof, StorageProof},
     updates::TrieUpdates,
     witness::TrieWitness,

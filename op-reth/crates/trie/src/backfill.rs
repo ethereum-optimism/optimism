@@ -348,13 +348,16 @@ impl<'a, Tx: DbTx, S: OpProofsStore + Send> BackfillJob<'a, Tx, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InMemoryProofsStorage, OpProofsHashedCursorRO, OpProofsTrieCursorRO};
+    use crate::InMemoryProofsStorage;
     use alloy_primitives::{keccak256, Address, U256};
     use reth_db::{
         cursor::DbCursorRW, test_utils::create_test_rw_db, transaction::DbTxMut, Database,
     };
     use reth_primitives_traits::Account;
-    use reth_trie::{BranchNodeCompact, StorageTrieEntry, StoredNibbles, StoredNibblesSubKey};
+    use reth_trie::{
+        hashed_cursor::HashedCursor, trie_cursor::TrieCursor, BranchNodeCompact, StorageTrieEntry,
+        StoredNibbles, StoredNibblesSubKey,
+    };
     use std::sync::Arc;
 
     /// Helper function to create a test branch node

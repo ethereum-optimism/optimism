@@ -8,7 +8,7 @@ use std::{
 use strum::Display;
 use thiserror::Error;
 
-/// Result of [`OpProofStoragePruner::run`] execution.
+/// Result of [`OpProofStoragePruner::run`](crate::OpProofStoragePruner::run) execution.
 pub type OpProofStoragePrunerResult = Result<PrunerOutput, PrunerError>;
 
 /// Successful prune summary.
