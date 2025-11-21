@@ -98,8 +98,7 @@ acceptance-test devnet="" gate="base":
             "--validators" "./acceptance-tests.yaml"
             "--exclude-gates" "flake-shake"
             "--allow-skips"
-            "--timeout" "90m"
-            "--default-timeout" "30m"
+            "--timeout" "60m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )
