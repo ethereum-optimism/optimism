@@ -227,14 +227,7 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.tryBackupUnsafeReorg()
 
-	if s.Engine.UnsafeL2HeadInitialized() {
-		// Only send an FCU once UnsafeHead has been initialized.
-		// This prevents side effects such as snap sync being terminated
-		// prematurely with an empty EL.
-		s.Engine.TryUpdateEngine(s.Ctx)
-	} else {
-		s.Log.Warn("Skipping TryUpdateEngine because unsafe-head is not initialized yet")
-	}
+	s.Engine.TryUpdateEngine(s.Ctx)
 
 	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing initial EL sync.

@@ -188,12 +188,6 @@ func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
 
-func (e *EngineController) UnsafeL2HeadInitialized() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.unsafeHead != eth.L2BlockRef{}
-}
-
 func (e *EngineController) PendingSafeL2Head() eth.L2BlockRef {
 	return e.pendingSafeHead
 }
