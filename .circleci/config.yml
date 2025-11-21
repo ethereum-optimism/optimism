@@ -984,6 +984,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - install-contracts-dependencies
       - install-zstd
       - run:
           name: Print dependencies
