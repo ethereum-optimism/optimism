@@ -236,7 +236,7 @@ func (s *SyncDeriver) SyncStep() {
 
 	if s.Engine.IsEngineInitialELSyncing() {
 		// The pipeline cannot move forwards if doing initial EL sync.
-		s.Log.Debug("Rollup driver is backing off because execution engine is initial EL syncing.",
+		s.Log.Debug("Rollup driver is backing off because execution engine is performing initial EL sync.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
 		s.StepDeriver.ResetStepBackoff(s.Ctx)
 		return
