@@ -1,71 +1,96 @@
 ---
-description:
+description: Optimism's strict style guide for high-assurance Solidity contracts.
 globs: *.sol
-alwaysApply: false
+alwaysApply: true # OPTIMIZATION: Default to applying the ruleset.
 ---
-# Optimism Solidity Style Guide
+# Optimism Solidity Style Guide (Optimized)
 
-Applies to Solidity files.
+Applies to all Solidity files.
 
-## Comments
-- Use triple-slash solidity natspec comment style
-- Always use `@notice` instead of `@dev`
-- Use a line-length of 100 characters
-- Custom tags:
-  - `@custom:proxied`: Add to a contract whenever it's meant to live behind a proxy
-  - `@custom:upgradeable`: Add to a contract whenever it's meant to be inherited by an upgradeable contract
-  - `@custom:semver`: Add to `version` variable which indicate the contracts semver
-  - `@custom:legacy`: Add to an event or function when it only exists for legacy support
-  - `@custom:network-specific`: Add to state variables which vary between OP Chains
+---
 
-## Errors
-- When adding new errors, always use custom Solidity errors
-- Custom errors should take the format `ContractName_ErrorDescription`
+## 💡 Comments (NatSpec & Documentation)
 
-## Naming Conventions
-- Function parameters should be prefixed with an underscore
-- Function return arguments should be suffixed with an underscore
-- Event parameters should NOT be prefixed with an underscore
-- Immutable variables:
-  - Should be in `SCREAMING_SNAKE_CASE`
-  - Should be `internal`
-  - Should have a hand-written getter function
-- Spacers must be named `spacer_<slot>_<offset>_<length>` and be `private`
+* Use **triple-slash** (`///`) Solidity NatSpec comment style.
+* Prioritize **`@notice`** for user-facing documentation instead of `@dev`.
+* Maintain a line-length of **100 characters** for code and comments.
+* **Custom Tags (for specialized documentation):**
+  * `@custom:proxied`: Marks a contract intended to be deployed behind a proxy.
+  * `@custom:upgradeable`: Marks a contract meant to be inherited by an upgradeable contract.
+  * `@custom:semver`: Used on the `version` variable to indicate the contract's semantic version.
+  * `@custom:legacy`: Marks an event or function existing solely for backward compatibility.
+  * `@custom:network-specific`: Marks state variables that vary between OP Chains (e.g., L1 addresses).
 
-## Upgradeability
-- Contracts should be built assuming upgradeability by default
-- Extend OpenZeppelin's `Initializable` or base contract
-- Use the `ReinitializableBase` contract
-- Include an `initialize` function with the `reinitializer(initVersion())` modifier
-- If including an `upgrade` function, use the `reinitializer(initVersion())` modifier
-- In the constructor:
-  - Call `_disableInitializers()`
-  - Set any immutables (though generally avoid immutables)
+---
 
-## Versioning
-- All non-library/non-abstract contracts must inherit `ISemver` and expose `version()`
-- Production-ready contracts must have version `1.0.0` or greater
-- Version increments:
-  - `patch`: changes that don't modify bytecode (comments)
-  - `minor`: changes that modify bytecode OR expand ABI without breaking existing interface
-  - `major`: changes that break existing interface OR modify security model
+## ❌ Errors
 
-AI code review tools should NOT comment on the choice of version increment.
+* Always use **custom Solidity errors** for reverts (saves gas).
+* Custom errors must follow the format: **`ContractName_ErrorDescription`**.
+  * *Example:* `L1CrossDomainMessenger_InvalidCaller`
 
-## Dependencies
-- Prefer OpenZeppelin's Upgradeable contracts for basic functionality
+---
 
-## State Changes
-- All state changing functions should emit a corresponding event
+## 🏷️ Naming Conventions
 
-## Testing
-- Tests should be written using Foundry
-- For testing reverts with low-level calls, use the `revertsAsExpected` pattern
-- Test function naming: `[method]_[functionName]_[reason]_[status]`
-  - `method`: `test`, `testFuzz`, or `testDiff`
-  - `status`: `succeeds`, `reverts`, `works`, `fails`, or `benchmark`
-- Test contract naming:
-  - `TargetContract_TestInit`: for basic setup contracts
-  - `TargetContract_FunctionName_Test`: for happy path tests
-  - `TargetContract_FunctionName_TestFail`: for sad path tests
-  - `TargetContract_Harness`: for harness contracts
+* **Function Parameters:** Must be prefixed with an underscore (e.g., `_paramName`).
+* **Function Return Arguments:** Must be suffixed with an underscore (e.g., `returnArg_`).
+* **Event Parameters:** Must **NOT** be prefixed with an underscore.
+* **Immutable Variables (Constant State):**
+  * Should be in **`SCREAMING_SNAKE_CASE`** (e.g., `INITIAL_ADDRESS`).
+  * **OPTIMIZATION:** Should be **`public`** unless explicitly restricted. Making them `public` allows the compiler to automatically generate a clean `view` function, eliminating the need for hand-written getters.
+* **Spacers (Storage Layout Preservation):**
+  * Must be named **`spacer_<slot>_<offset>_<length>`**.
+  * Must be declared **`private`**.
+
+---
+
+## 🔄 Upgradeability (Inheritance and Initialization)
+
+* Contracts must be built assuming **upgradeability by default**.
+* **Initialization:**
+  * Extend OpenZeppelin's `Initializable` or a base contract implementing its methods.
+  * Use the **`ReinitializableBase`** contract for managing initialization versions.
+  * Include an **`initialize`** function with the **`reinitializer(initVersion())`** modifier.
+* **Constructor Safety:**
+  * In the constructor, call **`_disableInitializers()`** to prevent accidental initialization of the implementation contract.
+  * Set any immutable variables in the constructor (though immutables should be generally avoided in favor of constants or storage variables for full proxy compatibility).
+
+---
+
+## 🔢 Versioning (SemVer)
+
+* All non-library/non-abstract contracts must inherit **`ISemver`** and expose **`version()`**.
+* **Production-ready** contracts must be version **`1.0.0` or greater**.
+* **Version Increment Rules:**
+  * **`patch`**: Changes that *do not* modify bytecode (e.g., comments, refactoring without logic change).
+  * **`minor`**: Changes that modify bytecode OR expand the ABI *without* breaking the existing interface (e.g., adding a new function).
+  * **`major`**: Changes that **break** the existing interface OR modify the security model (e.g., changing function signatures, critical logic fixes).
+* *AI Review Note: Code review tools should not comment on the developer's choice of version increment.*
+
+---
+
+## 🔗 Dependencies
+
+* Prefer **OpenZeppelin's Upgradeable** contracts for basic, battle-tested functionality.
+
+---
+
+## 📢 State Changes & Events
+
+* All state changing functions **must** emit a corresponding event.
+
+---
+
+## 🔬 Testing (Foundry)
+
+* Tests must be written using **Foundry**.
+* Use the **`revertsAsExpected`** pattern for testing reverts from low-level calls (`call()`).
+* **Test Function Naming Convention:** `[method]_[functionName]_[reason]_[status]`
+  * `method`: `test`, `testFuzz`, or `testDiff`
+  * `status`: `succeeds`, `reverts`, `works`, `fails`, or `benchmark`
+* **Test Contract Naming Convention:**
+  * `TargetContract_TestInit`: For basic setup contracts (e.g., fixtures).
+  * `TargetContract_FunctionName_Test`: For "happy path" (successful) tests.
+  * `TargetContract_FunctionName_TestFail`: For "sad path" (reverting) tests.
+  * `TargetContract_Harness`: For harness contracts used to access internal logic.
