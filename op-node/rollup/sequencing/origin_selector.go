@@ -122,8 +122,6 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 }
 
 func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
-	los.mu.Lock()
-	defer los.mu.Unlock()
 
 	if los.recoverMode.Load() {
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
@@ -131,16 +129,21 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
 		}
-		los.currentOrigin = currentOrigin
 		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 		if err != nil {
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
 		}
+		los.mu.Lock()
+		los.currentOrigin = currentOrigin
 		los.nextOrigin = nextOrigin
-		los.log.Info("origin selector in recover mode", "current_origin", los.currentOrigin, "next_origin", los.nextOrigin, "l2_head", l2Head)
-		return los.currentOrigin, los.nextOrigin, nil
+		los.mu.Unlock()
+		los.log.Info("origin selector in recover mode", "current_origin", currentOrigin, "next_origin", nextOrigin, "l2_head", l2Head)
+		return currentOrigin, nextOrigin, nil
 	}
+
+	los.mu.Lock()
+	defer los.mu.Unlock()
 
 	if l2Head.L1Origin == los.currentOrigin.ID() {
 		// Most likely outcome: the L2 head is still on the current origin.
