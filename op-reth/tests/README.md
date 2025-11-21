@@ -22,7 +22,8 @@ Start the Optimism devnet (default: `simple-historical-proof`):
 
 ```sh
 # uses the Makefile's DEVNET variable (devnets/<DEVNET>.yaml)
-make run
+# OPTIONAL. Default: opgeth-seq-opreth-val
+make run DEVNET=<name_of_YAML_without_file_extension>
 
 # or with a custom devnet YAML path
 make run DEVNET_CUSTOM_PATH=/absolute/path/to/devnet.yaml

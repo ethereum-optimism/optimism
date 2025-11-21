@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/op-rs/op-geth/proofs/utils"
 )
 
 func TestExecutePayloadSuccess(gt *testing.T) {
@@ -15,6 +16,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	ctx := t.Ctx()
 	sys := presets.NewSingleChainMultiNode(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
+	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -28,7 +30,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 		gt.Fatal(err)
 	}
 
-	lastBlock, err := sys.L2ELB.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
+	lastBlock, err := opRethELNode.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		gt.Fatal(err)
 	}
@@ -54,7 +56,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 		MinBaseFee:            nil,
 	}
 
-	witness, err := sys.L2ELB.Escape().L2EthClient().PayloadExecutionWitness(ctx, lastBlock.Hash(), attrs)
+	witness, err := opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, lastBlock.Hash(), attrs)
 	if err != nil {
 		gt.Fatal(err)
 	}
@@ -68,6 +70,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	ctx := t.Ctx()
 	sys := presets.NewSingleChainMultiNode(t)
 	user := sys.FunderL2.NewFundedEOA(eth.OneHundredthEther)
+	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -81,7 +84,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 		gt.Fatal(err)
 	}
 
-	lastBlock, err := sys.L2ELB.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
+	lastBlock, err := opRethELNode.Escape().L2EthClient().InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		gt.Fatal(err)
 	}
@@ -107,7 +110,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 		MinBaseFee:            nil,
 	}
 
-	_, err = sys.L2ELB.Escape().L2EthClient().PayloadExecutionWitness(ctx, common.Hash{}, attrs)
+	_, err = opRethELNode.Escape().L2EthClient().PayloadExecutionWitness(ctx, common.Hash{}, attrs)
 	if err == nil {
 		gt.Fatal("expected error")
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/op-rs/op-geth/proofs/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,15 +27,16 @@ type ExecutionWitness struct {
 // and that the response contains valid state, codes, keys, and headers data.
 func TestDebugExecutionWitness(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	preset := presets.NewSingleChainMultiNode(t)
+	sys := presets.NewSingleChainMultiNode(t)
+	opRethELNode, _ := utils.IdentifyELNodes(sys.L2EL, sys.L2ELB)
 
 	// Create a funded account and recipient
-	account := preset.FunderL2.NewFundedEOA(eth.Ether(10))
-	recipient := preset.FunderL2.NewFundedEOA(eth.Ether(1))
+	account := sys.FunderL2.NewFundedEOA(eth.Ether(10))
+	recipient := sys.FunderL2.NewFundedEOA(eth.Ether(1))
 	recipientAddr := recipient.Address()
 
 	// Wait for current block
-	currentBlock := preset.L2EL.WaitForBlock()
+	currentBlock := sys.L2EL.WaitForBlock()
 	t.Logf("Current L2 block number: %d", currentBlock.Number)
 
 	// Send a transaction to create some state changes
@@ -47,7 +49,7 @@ func TestDebugExecutionWitness(gt *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 	t.Logf("Transaction included in block: %d", receipt.BlockNumber.Uint64())
 
-	l2RethClient := preset.L2ELB.Escape().L2EthClient()
+	l2RethClient := opRethELNode.Escape().L2EthClient()
 
 	// Get the block to inspect the state changes
 	block, err := l2RethClient.InfoByNumber(t.Ctx(), receipt.BlockNumber.Uint64())

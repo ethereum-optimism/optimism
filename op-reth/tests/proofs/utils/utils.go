@@ -64,3 +64,19 @@ func DeployContract(t devtest.T, user *dsl.EOA, bin []byte) (common.Address, *ty
 
 	return res.ContractAddress, res
 }
+
+// IdentifyELNodes returns the reth and geth EL nodes based on their IDs.
+func IdentifyELNodes(el *dsl.L2ELNode, elB *dsl.L2ELNode) (opRethELNode *dsl.L2ELNode, opGethELNode *dsl.L2ELNode) {
+	if strings.Contains(el.ID().Key(), "op-reth") {
+		return el, elB
+	}
+	return elB, el
+}
+
+// IdentifyCLNodes returns the reth and geth CL nodes based on their IDs.
+func IdentifyCLNodes(cl *dsl.L2CLNode, clB *dsl.L2CLNode) (opRethCLNode *dsl.L2CLNode, opGethCLNode *dsl.L2CLNode) {
+	if strings.Contains(cl.ID().Key(), "op-reth") {
+		return cl, clB
+	}
+	return clB, cl
+}

@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  e2e:
-    name: e2e-testsuite
+  op-reth-as-verifier:
+    name: op-reth as verifier e2e tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -51,14 +51,84 @@ jobs:
       - name: Run DEVNET
         working-directory: op-reth/tests
         run: |
-          make all
+          make all DEVNET=opgeth-seq-opreth-val
 
       - name: Run core e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/core
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/core DEVNET=opgeth-seq-opreth-val
 
       - name: Run reorg e2e tests
         working-directory: op-reth/tests
         run: |
-          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg DEVNET=opgeth-seq-opreth-val
+
+  op-reth-as-sequencer:
+    name: op-reth as sequencer e2e tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Verify tools
+        run: |
+          echo "forge: $(command -v forge || true)"
+          go version
+
+      - name: Build contract artifacts with forge
+        working-directory: crates/optimism/tests/proofs/contracts
+        run: |
+          forge build
+
+      - uses: jdx/mise-action@v3
+
+      - name: Run kurtosis
+        run: |
+          kurtosis engine start
+
+      - name: Run DEVNET
+        working-directory: crates/optimism/tests
+        run: |
+          make all DEVNET=opreth-seq-opgeth-val
+
+      - name: Run core e2e tests
+        working-directory: crates/optimism/tests
+        run: |
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/core DEVNET=opreth-seq-opgeth-val
+
+      - name: Run reorg e2e tests
+        working-directory: crates/optimism/tests
+        run: |
+          make test-e2e-kurtosis GO_PKG_NAME=proofs/reorg DEVNET=opreth-seq-opgeth-val
+
+  e2e-op-historical-proof-success:
+    name: e2e-op-historical-proof-success
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - op-reth-as-verifier
+      - op-reth-as-sequencer
+    timeout-minutes: 60
+    steps:
+      - name: E2E tests for Proof History ExEx succeeded
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

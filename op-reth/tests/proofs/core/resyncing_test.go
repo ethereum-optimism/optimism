@@ -28,9 +28,10 @@ func TestResyncing(gt *testing.T) {
 	require.NoError(gt, err)
 	require.Equal(gt, types.ReceiptStatusSuccessful, receipt.Status)
 
-	t.Logf("Stopping L2 CLB and ELB to simulate downtime")
-	sys.L2CLB.Stop()
+	t.Logf("Stopping validator L2 CL and EL to simulate downtime")
+	// According to devnet config, `B` will be the validator node.
 	sys.L2ELB.Stop()
+	sys.L2CLB.Stop()
 
 	var blockNumbers []uint64
 	// produce some transactions while the node is down
@@ -43,7 +44,7 @@ func TestResyncing(gt *testing.T) {
 	}
 
 	// restart the node and ensure it can sync the missing blocks
-	t.Logf("Restarting L2 CLB and ELB to resync")
+	t.Logf("Restarting validator L2 CL and EL to resync")
 	sys.L2ELB.Start()
 	sys.L2CLB.Start()
 
@@ -53,7 +54,7 @@ func TestResyncing(gt *testing.T) {
 		status := sys.L2CLB.SyncStatus()
 		return status.UnsafeL2.Number > blockNumbers[len(blockNumbers)-1], nil
 	})
-	require.NoError(gt, err, "L2 CLB failed to resync to latest block")
+	require.NoError(gt, err, "Validator L2 CL failed to resync to latest block")
 
 	t.Logf("Fetching and verifying proofs for transactions produced while node was down")
 	// verify the proofs for the transactions produced while the node was down
