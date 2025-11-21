@@ -9,6 +9,7 @@ import (
 
 type ELNode interface {
 	Common
+	ID() ComponentID
 	ChainID() eth.ChainID
 	EthClient() apis.EthClient
 	TransactionTimeout() time.Duration

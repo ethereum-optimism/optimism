@@ -1,15 +1,17 @@
 package stack
 
-type Identifiable[I comparable] interface {
-	ID() I
+import "github.com/ethereum-optimism/optimism/op-service/eth"
+
+type ComponentIdentifiable interface {
+	ID() ComponentID
 }
 
-// Matcher abstracts what can be used as getter-method argument.
+// ComponentIDMatcher abstracts what can be used as getter-method argument.
 // All ID types implement this interface, and lookup functions check
 // if the argument is an ID before searching for a match.
 // This enables lookups such as getting a component by labels,
 // by its state, by its relation to other components, etc.
-type Matcher[I comparable, E Identifiable[I]] interface {
+type ComponentIDMatcher[E ComponentIdentifiable] interface {
 	// Match finds the elements that pass the matcher.
 	// If no element passes, it returns an empty slice.
 	// Callers should guarantee a stable order of ids, to ensure a deterministic match.
@@ -20,7 +22,27 @@ type Matcher[I comparable, E Identifiable[I]] interface {
 	String() string
 }
 
-func findByID[I comparable, E Identifiable[I]](id I, elems []E) []E {
+type ChainIdentifiable interface {
+	ID() eth.ChainID
+}
+
+// Matcher abstracts what can be used as getter-method argument.
+// All ID types implement this interface, and lookup functions check
+// if the argument is an ID before searching for a match.
+// This enables lookups such as getting a component by labels,
+// by its state, by its relation to other components, etc.
+type ChainIDMatcher[E ChainIdentifiable] interface {
+	// Match finds the elements that pass the matcher.
+	// If no element passes, it returns an empty slice.
+	// Callers should guarantee a stable order of ids, to ensure a deterministic match.
+	Match(elems []E) []E
+
+	// String must describe the matcher for debugging purposes.
+	// This does not get used for matching.
+	String() string
+}
+
+func findByChainID[E ChainIdentifiable](id eth.ChainID, elems []E) []E {
 	for i, elem := range elems {
 		if elem.ID() == id {
 			return elems[i : i+1]
@@ -29,38 +51,36 @@ func findByID[I comparable, E Identifiable[I]](id I, elems []E) []E {
 	return nil
 }
 
-type ClusterMatcher = Matcher[ClusterID, Cluster]
+type L1CLMatcher = ComponentIDMatcher[L1CLNode]
 
-type L1CLMatcher = Matcher[L1CLNodeID, L1CLNode]
+type L1ELMatcher = ComponentIDMatcher[L1ELNode]
 
-type L1ELMatcher = Matcher[L1ELNodeID, L1ELNode]
+type L1NetworkMatcher = ChainIDMatcher[L1Network]
 
-type L1NetworkMatcher = Matcher[L1NetworkID, L1Network]
+type L2NetworkMatcher = ChainIDMatcher[L2Network]
 
-type L2NetworkMatcher = Matcher[L2NetworkID, L2Network]
+type SuperchainMatcher = ComponentIDMatcher[Superchain]
 
-type SuperchainMatcher = Matcher[SuperchainID, Superchain]
+type L2BatcherMatcher = ComponentIDMatcher[L2Batcher]
 
-type L2BatcherMatcher = Matcher[L2BatcherID, L2Batcher]
+type L2ChallengerMatcher = ComponentIDMatcher[L2Challenger]
 
-type L2ChallengerMatcher = Matcher[L2ChallengerID, L2Challenger]
+type L2ProposerMatcher = ComponentIDMatcher[L2Proposer]
 
-type L2ProposerMatcher = Matcher[L2ProposerID, L2Proposer]
+type L2CLMatcher = ComponentIDMatcher[L2CLNode]
 
-type L2CLMatcher = Matcher[L2CLNodeID, L2CLNode]
+type SupervisorMatcher = ComponentIDMatcher[Supervisor]
 
-type SupervisorMatcher = Matcher[SupervisorID, Supervisor]
+type TestSequencerMatcher = ComponentIDMatcher[TestSequencer]
 
-type TestSequencerMatcher = Matcher[TestSequencerID, TestSequencer]
+type ConductorMatcher = ComponentIDMatcher[Conductor]
 
-type ConductorMatcher = Matcher[ConductorID, Conductor]
+type L2ELMatcher = ComponentIDMatcher[L2ELNode]
 
-type L2ELMatcher = Matcher[L2ELNodeID, L2ELNode]
+type FaucetMatcher = ComponentIDMatcher[Faucet]
 
-type FaucetMatcher = Matcher[FaucetID, Faucet]
+type SyncTesterMatcher = ComponentIDMatcher[SyncTester]
 
-type SyncTesterMatcher = Matcher[SyncTesterID, SyncTester]
+type RollupBoostNodeMatcher = ComponentIDMatcher[RollupBoostNode]
 
-type RollupBoostNodeMatcher = Matcher[RollupBoostNodeID, RollupBoostNode]
-
-type OPRBuilderNodeMatcher = Matcher[OPRBuilderNodeID, OPRBuilderNode]
+type OPRBuilderNodeMatcher = ComponentIDMatcher[OPRBuilderNode]

@@ -18,7 +18,7 @@ import (
 type SyncTesterEL struct {
 	mu sync.Mutex
 
-	id      stack.L2ELNodeID
+	id      stack.ComponentID
 	l2Net   *L2Network
 	jwtPath string
 
@@ -56,7 +56,7 @@ func DefaultSyncTesterELConfig() *SyncTesterELConfig {
 }
 
 type SyncTesterELOption interface {
-	Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig)
+	Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig)
 }
 
 // WithGlobalSyncTesterELOption applies the SyncTesterELOption to all SyncTesterEL instances in this orchestrator
@@ -66,20 +66,20 @@ func WithGlobalSyncTesterELOption(opt SyncTesterELOption) stack.Option[*Orchestr
 	})
 }
 
-type SyncTesterELOptionFn func(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig)
+type SyncTesterELOptionFn func(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig)
 
 var _ SyncTesterELOption = SyncTesterELOptionFn(nil)
 
-func (fn SyncTesterELOptionFn) Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig) {
+func (fn SyncTesterELOptionFn) Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig) {
 	fn(p, id, cfg)
 }
 
 // SyncTesterELOptionBundle a list of multiple SyncTesterELOption, to all be applied in order.
 type SyncTesterELOptionBundle []SyncTesterELOption
 
-var _ SyncTesterELOptionBundle = SyncTesterELOptionBundle(nil)
+var _ SyncTesterELOption = SyncTesterELOptionBundle(nil)
 
-func (l SyncTesterELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *SyncTesterELConfig) {
+func (l SyncTesterELOptionBundle) Apply(p devtest.P, id stack.ComponentID, cfg *SyncTesterELConfig) {
 	for _, opt := range l {
 		p.Require().NotNil(opt, "cannot Apply nil SyncTesterELOption")
 		opt.Apply(p, id, cfg)
@@ -99,13 +99,13 @@ func (n *SyncTesterEL) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(engineCl.Close)
 
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+	l2Net := system.L2Network(stack.ComponentID(n.id.ChainID))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
+			ChainID:      n.id.ChainID,
 		},
 		EngineClient: engineCl,
 		ID:           n.id,
@@ -126,7 +126,7 @@ func (n *SyncTesterEL) Start() {
 	}
 
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
-	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID(), true)
+	endpoint := n.orch.syncTester.service.SyncTesterRPCPath(n.id.ChainID, true)
 
 	path := endpoint + n.config.Path()
 
@@ -175,9 +175,9 @@ func (n *SyncTesterEL) JWTPath() string {
 
 // WithSyncTesterL2ELNode creates a SyncTesterEL that satisfies the L2ELNode interface
 // The sync tester acts as an EL node that can be used by CL nodes for testing sync.
-func WithSyncTesterL2ELNode(id, readonlyEL stack.L2ELNodeID, opts ...SyncTesterELOption) stack.Option[*Orchestrator] {
+func WithSyncTesterL2ELNode(id, readonlyEL stack.ComponentID, opts ...SyncTesterELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), id))
 		require := p.Require()
 
 		l2Net, ok := orch.l2Nets.Get(readonlyEL.ChainID())

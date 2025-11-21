@@ -24,7 +24,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			CommonConfig: commonConfig,
 			ChainConfig:  env.Env.L1.Config,
 		},
-		ID: stack.L1NetworkID(l1ID),
+		ID: stack.NewL1NetworkID(l1ID.String()),
 	})
 
 	opts := []client.RPCOption{}
@@ -66,7 +66,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
 				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String()), opts...),
-				ID:           stack.NewFaucetID(instance.Name, l1ID),
+				ID:           stack.ComponentID(instance.Name, l1ID),
 			}))
 		}
 	}

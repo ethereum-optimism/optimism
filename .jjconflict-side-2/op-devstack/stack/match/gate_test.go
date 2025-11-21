@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -36,11 +37,11 @@ func (f *fakeTesting) Gate() *testreq.Assertions {
 }
 
 func TestAssume(t *testing.T) {
-	a := &testObject{id: "a"}
-	b := &testObject{id: "b"}
+	a := &testObject{id: stack.ComponentID{Kind: "testObject", Key: "a"}}
+	b := &testObject{id: stack.ComponentID{Kind: "testObject", Key: "b"}}
 	fT := &fakeTesting{T: nil, g: &gateTesting{log: t.Logf}}
 
-	m := Assume(fT, First[testID, *testObject]())
+	m := AssumeComponent(fT, FirstComponent[*testObject]())
 	require.Equal(t, m.String(), "Assume(ByIndex(0))")
 	require.Equal(t, []*testObject{a}, m.Match([]*testObject{a}))
 	require.Equal(t, []*testObject{a}, m.Match([]*testObject{a, b}))

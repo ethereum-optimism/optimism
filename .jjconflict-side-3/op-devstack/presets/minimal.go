@@ -74,9 +74,9 @@ func NewMinimal(t devtest.T) *Minimal {
 
 func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Orchestrator) *Minimal {
 	l1Net := system.L1Network(match.FirstL1Network)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
-	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
+	l2 := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
+	sequencerCL := l2.L2CLNode(match.AssumeComponent(t, match.WithSequencerActive(t.Ctx())))
+	sequencerEL := l2.L2ELNode(match.AssumeComponent(t, match.EngineFor(sequencerCL)))
 	var challengerCfg *challengerConfig.Config
 	if len(l2.L2Challengers()) > 0 {
 		challengerCfg = l2.L2Challengers()[0].Config()
@@ -88,16 +88,16 @@ func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Or
 		ControlPlane:     orch.ControlPlane(),
 		system:           system,
 		L1Network:        dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
-		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L1EL:             dsl.NewL1ELNode(l1Net.L1ELNode(match.AssumeComponent(t, match.FirstL1EL))),
 		L2Chain:          dsl.NewL2Network(l2, orch.ControlPlane()),
-		L2Batcher:        dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2Batcher:        dsl.NewL2Batcher(l2.L2Batcher(match.AssumeComponent(t, match.FirstL2Batcher))),
 		L2EL:             dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
 		L2CL:             dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
 		Wallet:           dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetL2:         dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		FaucetL2:         dsl.NewFaucet(l2.Faucet(match.AssumeComponent(t, match.FirstFaucet))),
 		challengerConfig: challengerCfg,
 	}
-	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.AssumeComponent(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out

@@ -6,13 +6,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 )
 
 type SyncTesterConfig struct {
 	CommonConfig
-	ID     stack.SyncTesterID
+	ID     stack.ComponentID
 	Addr   string
 	Client client.RPC
 }
@@ -20,7 +21,8 @@ type SyncTesterConfig struct {
 // presetSyncTester wraps around a syncTester-service,
 type presetSyncTester struct {
 	commonImpl
-	id stack.SyncTesterID
+	chainID eth.ChainID
+	id      stack.ComponentID
 	// Endpoint for initializing RPC Client per session
 	addr string
 	// RPC Client initialized without session
@@ -30,7 +32,7 @@ type presetSyncTester struct {
 var _ stack.SyncTester = (*presetSyncTester)(nil)
 
 func NewSyncTester(cfg SyncTesterConfig) stack.SyncTester {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	return &presetSyncTester{
 		id:               cfg.ID,
 		commonImpl:       newCommon(cfg.CommonConfig),
@@ -39,7 +41,7 @@ func NewSyncTester(cfg SyncTesterConfig) stack.SyncTester {
 	}
 }
 
-func (p *presetSyncTester) ID() stack.SyncTesterID {
+func (p *presetSyncTester) ID() stack.ComponentID {
 	return p.id
 }
 
@@ -53,4 +55,8 @@ func (p *presetSyncTester) APIWithSession(sessionID string) apis.SyncTester {
 	rpcCl, err := client.NewRPC(p.T().Ctx(), p.Logger(), p.addr+fmt.Sprintf("/%s", sessionID), client.WithLazyDial())
 	require.NoError(err, "sync tester failed to initialize rpc per session")
 	return sources.NewSyncTesterClient(rpcCl)
+}
+
+func (p *presetSyncTester) ChainID() eth.ChainID {
+	return p.chainID
 }

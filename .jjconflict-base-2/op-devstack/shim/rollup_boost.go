@@ -13,7 +13,7 @@ import (
 type RollupBoostNodeConfig struct {
 	ELNodeConfig
 	RollupCfg         *rollup.Config
-	ID                stack.RollupBoostNodeID
+	ID                stack.ComponentID
 	FlashblocksClient *opclient.WSClient
 }
 
@@ -21,7 +21,7 @@ type RollupBoostNode struct {
 	rpcELNode
 	engineClient *sources.EngineClient
 
-	id stack.RollupBoostNodeID
+	id stack.ComponentID
 
 	flashblocksClient *opclient.WSClient
 }
@@ -29,8 +29,7 @@ type RollupBoostNode struct {
 var _ stack.RollupBoostNode = (*RollupBoostNode)(nil)
 
 func NewRollupBoostNode(cfg RollupBoostNodeConfig) *RollupBoostNode {
-	require.Equal(cfg.T, cfg.ID.ChainID(), cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	l2EngineClient, err := sources.NewEngineClient(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.EngineClientDefaultConfig(cfg.RollupCfg))
 
 	require.NoError(cfg.T, err)
@@ -43,7 +42,7 @@ func NewRollupBoostNode(cfg RollupBoostNodeConfig) *RollupBoostNode {
 	}
 }
 
-func (r *RollupBoostNode) ID() stack.RollupBoostNodeID {
+func (r *RollupBoostNode) ID() stack.ComponentID {
 	return r.id
 }
 

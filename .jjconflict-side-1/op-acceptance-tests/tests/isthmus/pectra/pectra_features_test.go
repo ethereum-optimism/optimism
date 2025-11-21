@@ -39,7 +39,7 @@ func newSystem(t devtest.T) *testSystem {
 	orch := presets.Orchestrator()
 	orch.Hydrate(system)
 
-	l2 := dsl.NewL2Network(system.L2Network(match.Assume(t, match.L2ChainA)), orch.ControlPlane())
+	l2 := dsl.NewL2Network(system.L2Network(match.AssumeComponent(t, match.L2ChainA)), orch.ControlPlane())
 	t.Require().True(l2.IsForkActive(forks.Isthmus), "Isthmus fork must be active for Pectra features")
 
 	l2EL := dsl.NewL2ELNode(l2.Escape().L2ELNode(match.WithArchive(t.Ctx())), orch.ControlPlane())

@@ -46,7 +46,7 @@ func getEthClientsFromL2Network(network *L2Network) ([]HeaderProvider, error) {
 	hps := make([]HeaderProvider, 0, len(stackNetwork.L2ELNodes()))
 	for _, n := range stackNetwork.L2ELNodes() {
 		ethClient := n.L2EthClient()
-		if !regexp.MustCompile(`snapsync-\d+$`).MatchString(n.ID().Key()) {
+		if !regexp.MustCompile(`snapsync-\d+$`).MatchString(n.ID().Key) {
 			hps = append(hps, ethClient)
 		}
 	}

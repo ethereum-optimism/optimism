@@ -5,12 +5,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L1Network struct {
-	id        stack.L1NetworkID
+	id        stack.ComponentID
 	genesis   *core.Genesis
 	blockTime uint64
+	chainID   eth.ChainID
 }
 
 func (n *L1Network) hydrate(system stack.ExtensibleSystem) {

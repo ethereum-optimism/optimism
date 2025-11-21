@@ -22,7 +22,7 @@ func (d *SuperchainDeployment) ProtocolVersionsAddr() common.Address {
 }
 
 type Superchain struct {
-	id         stack.SuperchainID
+	id         stack.ComponentID
 	deployment *SuperchainDeployment
 }
 

@@ -10,7 +10,7 @@ import (
 func WithSyncTesterELInitialState(fcu eth.FCUState) stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalSyncTesterELOption(sysgo.SyncTesterELOptionFn(
-			func(_ devtest.P, id stack.L2ELNodeID, cfg *sysgo.SyncTesterELConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.SyncTesterELConfig) {
 				cfg.FCUState = fcu
 			})))
 }
@@ -18,7 +18,7 @@ func WithSyncTesterELInitialState(fcu eth.FCUState) stack.CommonOption {
 func WithELSyncActive() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalSyncTesterELOption(sysgo.SyncTesterELOptionFn(
-			func(_ devtest.P, id stack.L2ELNodeID, cfg *sysgo.SyncTesterELConfig) {
+			func(_ devtest.P, id stack.ComponentID, cfg *sysgo.SyncTesterELConfig) {
 				cfg.ELSyncActive = true
 			})))
 }

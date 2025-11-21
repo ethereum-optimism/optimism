@@ -24,8 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
-	return stack.L2NetworkID(eth.ChainIDFromBig(net.Config.ChainID))
+func getL2ID(net *descriptors.L2Chain) stack.ComponentID {
+	return stack.ComponentID(eth.ChainIDFromBig(net.Config.ChainID))
 }
 
 func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
@@ -35,7 +35,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	env := o.env
 	l2ID := getL2ID(net)
 
-	l1 := system.L1Network(stack.L1NetworkID(eth.ChainIDFromBig(env.Env.L1.Config.ChainID)))
+	l1 := system.L1Network(stack.ComponentID(eth.ChainIDFromBig(env.Env.L1.Config.ChainID)))
 
 	cfg := shim.L2NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
@@ -46,11 +46,11 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		RollupConfig: net.RollupConfig,
 		Deployment:   newL2AddressBook(net.Addresses),
 		Keys:         o.defineSystemKeys(t, net),
-		Superchain:   system.Superchain(stack.SuperchainID(env.Env.Name)),
+		Superchain:   system.Superchain(stack.ComponentID(env.Env.Name)),
 		L1:           l1,
 	}
 	if o.isInterop() {
-		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
+		cfg.Cluster = system.Cluster(stack.ComponentID(env.Env.Name))
 	}
 
 	opts := []client.RPCOption{}
@@ -78,7 +78,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 			l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
 				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String()), opts...),
-				ID:           stack.NewFaucetID(instance.Name, l2.ChainID()),
+				ID:           stack.ComponentID(instance.Name, l2.ChainID()),
 			}))
 		}
 	}
@@ -187,7 +187,7 @@ func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.Ext
 	conductor := shim.NewConductor(shim.ConductorConfig{
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       conductorClient,
-		ID:           stack.ConductorID(conductorService.Name),
+		ID:           stack.ComponentID(conductorService.Name),
 	})
 
 	l2Net.AddConductor(conductor)
@@ -214,7 +214,7 @@ func (o *Orchestrator) hydrateRollupBoostNodeMaybe(node *descriptors.Node, l2Net
 	require.NoError(err, "failed to create rollup-boost websocket client")
 
 	rollupBoost := shim.NewRollupBoostNode(shim.RollupBoostNodeConfig{
-		ID: stack.NewRollupBoostNodeID(rollupBoostService.Name, l2ID.ChainID()),
+		ID: stack.ComponentID(rollupBoostService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			Client:       o.rpcClient(l2Net.T(), rollupBoostService, RPCProtocol, "/", opts...),
@@ -274,7 +274,7 @@ func (o *Orchestrator) hydrateOPRBuilderMaybe(node *descriptors.Node, l2Net stac
 	require.NoError(err, "failed to create rbuilder websocket client")
 
 	flashblocksBuilder := shim.NewOPRBuilderNode(shim.OPRBuilderNodeConfig{
-		ID: stack.NewOPRBuilderNodeID(rbuilderService.Name, l2ID.ChainID()),
+		ID: stack.ComponentID(rbuilderService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),

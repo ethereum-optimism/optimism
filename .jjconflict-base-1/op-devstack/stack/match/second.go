@@ -2,7 +2,16 @@ package match
 
 import "github.com/ethereum-optimism/optimism/op-devstack/stack"
 
-var SecondL2EL = Second[stack.L2ELNodeID, stack.L2ELNode]()
-var SecondL2CL = Second[stack.L2CLNodeID, stack.L2CLNode]()
+func SecondComponent[E stack.ComponentIdentifiable]() stack.ComponentIDMatcher[E] {
+	return ByComponentIndex[E](1)
+}
 
-var SecondSupervisor = Second[stack.SupervisorID, stack.Supervisor]()
+func SecondChain[E stack.ChainIdentifiable]() stack.ChainIDMatcher[E] {
+	return ByChainIndex[E](1)
+}
+
+var SecondL2EL = SecondComponent[stack.L2ELNode]()
+var SecondL2CL = SecondComponent[stack.L2CLNode]()
+
+var SecondSupervisor = SecondComponent[stack.Supervisor]()
+var SecondL2Network = SecondChain[stack.L2Network]()

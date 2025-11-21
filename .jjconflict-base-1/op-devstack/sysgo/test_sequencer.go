@@ -39,7 +39,7 @@ import (
 )
 
 type TestSequencer struct {
-	id         stack.TestSequencerID
+	id         stack.ComponentID
 	userRPC    string
 	jwtSecret  [32]byte
 	sequencers map[eth.ChainID]seqtypes.SequencerID
@@ -74,9 +74,9 @@ func (s *TestSequencer) hydrate(sys stack.ExtensibleSystem) {
 	}))
 }
 
-func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLNodeID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithTestSequencer(testSequencerID stack.ComponentID, l1CLID stack.ComponentID, l2CLID stack.ComponentID, l1ELID stack.ComponentID, l2ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), testSequencerID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), testSequencerID))
 		require := p.Require()
 
 		logger := p.Logger()

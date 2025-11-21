@@ -14,6 +14,7 @@ import (
 
 type ELNodeConfig struct {
 	CommonConfig
+	ID                 stack.ComponentID
 	Client             client.RPC
 	ChainID            eth.ChainID
 	TransactionTimeout time.Duration
@@ -21,7 +22,7 @@ type ELNodeConfig struct {
 
 type rpcELNode struct {
 	commonImpl
-
+	id        stack.ComponentID
 	client    client.RPC
 	ethClient *sources.EthClient
 	chainID   eth.ChainID
@@ -40,12 +41,17 @@ func newRpcELNode(cfg ELNodeConfig) rpcELNode {
 	}
 
 	return rpcELNode{
+		id:         cfg.ID,
 		commonImpl: newCommon(cfg.CommonConfig),
 		client:     cfg.Client,
 		ethClient:  ethCl,
 		chainID:    cfg.ChainID,
 		txTimeout:  cfg.TransactionTimeout,
 	}
+}
+
+func (r *rpcELNode) ID() stack.ComponentID {
+	return r.id
 }
 
 func (r *rpcELNode) ChainID() eth.ChainID {

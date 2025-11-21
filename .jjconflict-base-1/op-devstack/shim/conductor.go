@@ -9,13 +9,13 @@ import (
 
 type ConductorConfig struct {
 	CommonConfig
-	ID     stack.ConductorID
+	ID     stack.ComponentID
 	Client *rpc.Client
 }
 
 type rpcConductor struct {
 	commonImpl
-	id stack.ConductorID
+	id stack.ComponentID
 
 	client *rpc.Client
 	api    conductorRpc.API
@@ -32,7 +32,7 @@ func NewConductor(cfg ConductorConfig) stack.Conductor {
 	}
 }
 
-func (r *rpcConductor) ID() stack.ConductorID {
+func (r *rpcConductor) ID() stack.ComponentID {
 	return r.id
 }
 

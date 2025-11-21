@@ -11,8 +11,9 @@ import (
 
 type L2CLNodeConfig struct {
 	CommonConfig
-	ID     stack.L2CLNodeID
-	Client client.RPC
+	ID      stack.ComponentID
+	ChainID eth.ChainID
+	Client  client.RPC
 
 	UserRPC string
 
@@ -22,13 +23,14 @@ type L2CLNodeConfig struct {
 
 type rpcL2CLNode struct {
 	commonImpl
-	id               stack.L2CLNodeID
+	id               stack.ComponentID
+	chainID          eth.ChainID
 	client           client.RPC
 	rollupClient     apis.RollupClient
 	p2pClient        apis.P2PClient
-	els              locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
-	rollupBoostNodes locks.RWMap[stack.RollupBoostNodeID, stack.RollupBoostNode]
-	oprbuilderNodes  locks.RWMap[stack.OPRBuilderNodeID, stack.OPRBuilderNode]
+	els              locks.RWMap[stack.ComponentID, stack.L2ELNode]
+	rollupBoostNodes locks.RWMap[stack.ComponentID, stack.RollupBoostNode]
+	oprbuilderNodes  locks.RWMap[stack.ComponentID, stack.OPRBuilderNode]
 
 	userRPC string
 
@@ -43,9 +45,10 @@ var _ stack.L2CLNode = (*rpcL2CLNode)(nil)
 var _ stack.LinkableL2CLNode = (*rpcL2CLNode)(nil)
 
 func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	return &rpcL2CLNode{
 		commonImpl:       newCommon(cfg.CommonConfig),
+		chainID:          cfg.ChainID,
 		id:               cfg.ID,
 		client:           cfg.Client,
 		rollupClient:     sources.NewRollupClient(cfg.Client),
@@ -56,11 +59,15 @@ func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
 	}
 }
 
+func (r *rpcL2CLNode) ChainID() eth.ChainID {
+	return r.chainID
+}
+
 func (r *rpcL2CLNode) ClientRPC() client.RPC {
 	return r.client
 }
 
-func (r *rpcL2CLNode) ID() stack.L2CLNodeID {
+func (r *rpcL2CLNode) ID() stack.ComponentID {
 	return r.id
 }
 

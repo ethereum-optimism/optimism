@@ -33,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
+func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.ComponentID, l2CLID stack.ComponentID, supervisorID stack.ComponentID, primaryL2 eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			t := o.P()
@@ -204,7 +204,7 @@ func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts,
 	return deployAddress, proxyContract
 }
 
-func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.SupervisorID) eth.Bytes32 {
+func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervisorID stack.ComponentID) eth.Bytes32 {
 	supervisor, ok := o.supervisors.Get(supervisorID)
 	t.Require().True(ok, "must have supervisor")
 

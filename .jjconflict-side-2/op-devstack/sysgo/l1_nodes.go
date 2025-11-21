@@ -6,11 +6,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L1ELNode interface {
@@ -21,7 +23,8 @@ type L1ELNode interface {
 }
 
 type L1Geth struct {
-	id       stack.L1ELNodeID
+	id       stack.ComponentID
+	chainID  eth.ChainID
 	userRPC  string
 	authRPC  string
 	l1Geth   *geth.GethInstance
@@ -44,19 +47,19 @@ func (n *L1Geth) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 
 	frontend := shim.NewL1ELNode(shim.L1ELNodeConfig{
-		ID: n.id,
 		ELNodeConfig: shim.ELNodeConfig{
+			ID:           n.id,
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
+			ChainID:      n.ChainID,
 		},
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
+	l1Net := system.L1Network(match.MatchIDL1Network(n.id))
 	l1Net.(stack.ExtensibleL1Network).AddL1ELNode(frontend)
 }
 
 type L1CLNode struct {
-	id             stack.L1CLNodeID
+	id             stack.ComponentID
 	beaconHTTPAddr string
 	beacon         *fakebeacon.FakeBeacon
 	fakepos        *FakePoS
@@ -69,13 +72,13 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 		ID:           n.id,
 		Client:       beaconCl,
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
+	l1Net := system.L1Network(match.MatchIDL1Network(n.id))
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 
 const DevstackL1ELKindEnvVar = "DEVSTACK_L1EL_KIND"
 
-func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
+func WithL1Nodes(l1ELID stack.ComponentID, l1CLID stack.ComponentID) stack.Option[*Orchestrator] {
 	switch os.Getenv(DevstackL1ELKindEnvVar) {
 	case "geth":
 		return WithL1NodesSubprocess(l1ELID, l1CLID)
@@ -84,10 +87,10 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 	}
 }
 
-func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
+func WithL1NodesInProcess(l1ELID stack.ComponentID, l1CLID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		clP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1CLID))
-		elP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1ELID))
+		clP := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l1CLID))
+		elP := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l1ELID))
 		require := orch.P().Require()
 
 		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
@@ -150,7 +153,7 @@ func WithL1NodesInProcess(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stac
 }
 
 // WithExtL1Nodes initializes L1 EL and CL nodes that connect to external RPC endpoints
-func WithExtL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID, elRPCEndpoint string, clRPCEndpoint string) stack.Option[*Orchestrator] {
+func WithExtL1Nodes(l1ELID stack.ComponentID, l1CLID stack.ComponentID, elRPCEndpoint string, clRPCEndpoint string) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 

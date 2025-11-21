@@ -1,0 +1,42 @@
+# Artifacts and Cache
+artifacts
+forge-artifacts
+cache
+broadcast
+kout-proofs
+test/kontrol/logs
+
+# Metrics
+coverage.out
+.resource-metering.csv
+
+# Testing State
+.testdata
+kontrol_prove_report.xml
+
+# Scripts
+scripts/go-ffi/go-ffi
+scripts/go-ffi/go-ffi-cannon64
+
+# Environment Variables
+.envrc
+!.envrc.example
+
+# Deployments
+deployments/900
+deployments/901
+deployments/hardhat
+deployments/getting-started
+deployments/*/.deploy
+deployments/1337
+deployments/31337-deploy.json
+deployments/kontrol.json
+deployments/kontrol.jsonReversed
+deployments/kontrol-fp.json
+deployments/kontrol-fp.jsonReversed
+deployments/1-deploy.json
+
+
+
+# Getting Started guide deploy config
+deploy-config/getting-started.json

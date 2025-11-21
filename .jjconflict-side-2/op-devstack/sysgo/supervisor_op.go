@@ -24,7 +24,7 @@ import (
 type OpSupervisor struct {
 	mu sync.Mutex
 
-	id      stack.SupervisorID
+	id      stack.ComponentID
 	userRPC string
 
 	cfg    *supervisorConfig.Config
@@ -99,9 +99,9 @@ func (s *OpSupervisor) Stop() {
 	s.service = nil
 }
 
-func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+func WithOPSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)

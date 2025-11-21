@@ -4,25 +4,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L1CLNodeConfig struct {
 	CommonConfig
-	ID     stack.L1CLNodeID
+	ID     stack.ComponentID
 	Client client.HTTP
 }
 
 type rpcL1CLNode struct {
 	commonImpl
-	id     stack.L1CLNodeID
-	client apis.BeaconClient
+	id      stack.ComponentID
+	client  apis.BeaconClient
+	chainID eth.ChainID
 }
 
 var _ stack.L1CLNode = (*rpcL1CLNode)(nil)
 
 func NewL1CLNode(cfg L1CLNodeConfig) stack.L1CLNode {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	return &rpcL1CLNode{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
@@ -30,8 +32,12 @@ func NewL1CLNode(cfg L1CLNodeConfig) stack.L1CLNode {
 	}
 }
 
-func (r *rpcL1CLNode) ID() stack.L1CLNodeID {
+func (r *rpcL1CLNode) ID() stack.ComponentID {
 	return r.id
+}
+
+func (r *rpcL1CLNode) ChainID() eth.ChainID {
+	return r.chainID
 }
 
 func (r *rpcL1CLNode) BeaconClient() apis.BeaconClient {

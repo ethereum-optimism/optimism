@@ -75,7 +75,7 @@ func RequireRespectedGameType(gameType gameTypes.GameType) stack.CommonOption {
 func WithProposerGameType(gameType gameTypes.GameType) stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(
-			sysgo.WithProposerOption(func(id stack.L2ProposerID, cfg *ps.CLIConfig) {
+			sysgo.WithProposerOption(func(id stack.ComponentID, cfg *ps.CLIConfig) {
 				cfg.DisputeGameType = uint32(gameType)
 			})))
 }

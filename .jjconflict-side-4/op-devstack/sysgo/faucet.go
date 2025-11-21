@@ -35,7 +35,7 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
 
-		id := stack.NewFaucetID(faucetID.String(), chainID)
+		id := stack.ComponentID(faucetID.String(), chainID)
 		front := shim.NewFaucet(shim.FaucetConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			ID:           id,
@@ -47,16 +47,16 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 
 	// Label the default faucets, in case we have multiple
 	for chainID, faucetID := range n.service.Defaults() {
-		id := stack.NewFaucetID(faucetID.String(), chainID)
+		id := stack.ComponentID(faucetID.String(), chainID)
 		net := system.Network(chainID).(stack.ExtensibleNetwork)
 		net.Faucet(id).SetLabel("default", "true")
 	}
 }
 
-func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithFaucets(l1ELs []stack.ComponentID, l2ELs []stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		faucetID := stack.NewFaucetID("dev-faucet", l2ELs[0].ChainID())
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), faucetID))
+		faucetID := stack.ComponentID("dev-faucet", l2ELs[0].ChainID())
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), faucetID))
 
 		require := p.Require()
 

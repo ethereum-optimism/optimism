@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // once kurtosis and sysgo supports conductors, we can merge this with minimal
 type MinimalWithConductors struct {
 	*Minimal
 
-	ConductorSets map[stack.L2NetworkID]dsl.ConductorSet
+	ConductorSets map[eth.ChainID]dsl.ConductorSet
 }
 
 // TODO(#16418): shift this to a different sysgo constructor once the sysgo implementation supports conductors
@@ -34,10 +35,10 @@ func NewMinimalWithConductors(t devtest.T) *MinimalWithConductors {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	chains := system.L2Networks()
-	conductorSets := make(map[stack.L2NetworkID]dsl.ConductorSet)
+	conductorSets := make(map[eth.ChainID]dsl.ConductorSet)
 	for _, chain := range chains {
-		chainMatcher := match.L2ChainById(chain.ID())
-		l2 := system.L2Network(match.Assume(t, chainMatcher))
+		chainMatcher := match.MatchIDL2Network(chain.ID())
+		l2 := system.L2Network(match.AssumeChain(t, chainMatcher))
 
 		conductorSets[chain.ID()] = dsl.NewConductorSet(l2.Conductors())
 	}

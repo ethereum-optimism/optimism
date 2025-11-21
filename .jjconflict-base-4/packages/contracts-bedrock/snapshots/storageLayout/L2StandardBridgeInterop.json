@@ -1,0 +1,58 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "30",
+    "label": "spacer_0_2_30",
+    "offset": 2,
+    "slot": "0",
+    "type": "bytes30"
+  },
+  {
+    "bytes": "20",
+    "label": "spacer_1_0_20",
+    "offset": 0,
+    "slot": "1",
+    "type": "address"
+  },
+  {
+    "bytes": "32",
+    "label": "deposits",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(address => mapping(address => uint256))"
+  },
+  {
+    "bytes": "20",
+    "label": "messenger",
+    "offset": 0,
+    "slot": "3",
+    "type": "contract ICrossDomainMessenger"
+  },
+  {
+    "bytes": "20",
+    "label": "otherBridge",
+    "offset": 0,
+    "slot": "4",
+    "type": "contract StandardBridge"
+  },
+  {
+    "bytes": "1440",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "5",
+    "type": "uint256[45]"
+  }
+]

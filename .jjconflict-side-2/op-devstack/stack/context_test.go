@@ -27,23 +27,20 @@ func TestContext(t *testing.T) {
 		require.Equal(t, L2ProposerKind, KindFromContext(ContextWithKind(ContextWithKind(ctx, L2BatcherKind), L2ProposerKind)), "priority")
 	})
 	t.Run("id", func(t *testing.T) {
-		require.Equal(t, L2BatcherID{}, IDFromContext[L2BatcherID](ctx), "none")
-		require.Equal(t, SuperchainID(""), IDFromContext[SuperchainID](ctx), "none")
-		id1 := L2BatcherID{
-			key:     "batcherA",
-			chainID: chainA,
-		}
-		ctx1 := ContextWithID(ctx, id1)
+		require.Equal(t, ComponentID{}, ComponentIDFromContext(ctx), "none")
+		require.Equal(t, NewSuperchainID(""), ComponentIDFromContext(ctx), "none")
+		id1 := NewL2BatcherID("batcherA", chainA)
+		ctx1 := ContextWithComponentID(ctx, id1)
 		require.Equal(t, L2BatcherKind, KindFromContext(ctx1), "lookup kind")
 		require.Equal(t, chainA, ChainIDFromContext(ctx1), "lookup chainID")
-		require.Equal(t, id1, IDFromContext[L2BatcherID](ctx1), "lookup ID")
+		require.Equal(t, id1, ComponentIDFromContext(ctx1), "lookup ID")
 		// now overlay another different kind of ID on top
-		id2 := SuperchainID("foobar")
-		ctx2 := ContextWithID(ctx1, id2)
+		id2 := NewSuperchainID("foobar")
+		ctx2 := ContextWithComponentID(ctx1, id2)
 		require.Equal(t, SuperchainKind, KindFromContext(ctx2), "lookup kind")
 		require.Equal(t, chainA, ChainIDFromContext(ctx2), "chainID still preserved")
-		require.Equal(t, id2, IDFromContext[SuperchainID](ctx2), "lookup ID")
-		require.Equal(t, L2BatcherID{}, IDFromContext[L2BatcherID](ctx2), "batcher ID not available")
+		require.Equal(t, id2, ComponentIDFromContext(ctx2), "lookup ID")
+		require.Equal(t, ComponentID{}, ComponentIDFromContext(ctx2), "batcher ID not available")
 	})
 }
 
@@ -64,14 +61,11 @@ func TestLogFilter(t *testing.T) {
 		require.Equal(t, tri.Undefined, fn(ContextWithKind(ctx, L2ProposerKind), log.LevelDebug), "different kind should be shown")
 	})
 	t.Run("id", func(t *testing.T) {
-		id1 := L2BatcherID{
-			key:     "batcherA",
-			chainID: chainA,
-		}
+		id1 := NewL2BatcherID("batcherA", chainA)
 		fn := IDSelector(id1).Mute()
 		require.Equal(t, tri.Undefined, fn(ctx, log.LevelDebug), "regular context should be false")
-		require.Equal(t, tri.False, fn(ContextWithID(ctx, id1), log.LevelDebug), "detected id should be muted")
-		id2 := SuperchainID("foobar")
-		require.Equal(t, tri.Undefined, fn(ContextWithID(ctx, id2), log.LevelDebug), "different id should be shown")
+		require.Equal(t, tri.False, fn(ContextWithComponentID(ctx, id1), log.LevelDebug), "detected id should be muted")
+		id2 := NewSuperchainID("foobar")
+		require.Equal(t, tri.Undefined, fn(ContextWithComponentID(ctx, id2), log.LevelDebug), "different id should be shown")
 	})
 }

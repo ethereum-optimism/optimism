@@ -14,7 +14,7 @@ type L2ELNodeConfig struct {
 	ELNodeConfig
 	EngineClient client.RPC
 	RollupCfg    *rollup.Config
-	ID           stack.L2ELNodeID
+	ID           stack.ComponentID
 }
 
 type rpcL2ELNode struct {
@@ -22,14 +22,13 @@ type rpcL2ELNode struct {
 	l2Client       *sources.L2Client
 	l2EngineClient *sources.EngineClient
 
-	id stack.L2ELNodeID
+	id stack.ComponentID
 }
 
 var _ stack.L2ELNode = (*rpcL2ELNode)(nil)
 
 func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
-	require.Equal(cfg.T, cfg.ID.ChainID(), cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	require.NotNil(cfg.T, cfg.RollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10))
 	require.NoError(cfg.T, err)
@@ -47,7 +46,7 @@ func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
 	}
 }
 
-func (r *rpcL2ELNode) ID() stack.L2ELNodeID {
+func (r *rpcL2ELNode) ID() stack.ComponentID {
 	return r.id
 }
 

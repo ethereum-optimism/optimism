@@ -22,9 +22,9 @@ type l2ChallengerOpts struct {
 }
 
 type L2Challenger struct {
-	id       stack.L2ChallengerID
+	id       stack.ComponentID
 	service  cliapp.Lifecycle
-	l2NetIDs []stack.L2NetworkID
+	l2NetIDs []stack.ComponentID
 	config   *config.Config
 }
 
@@ -41,27 +41,27 @@ func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
-	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
+func WithL2Challenger(challengerID stack.ComponentID, l1ELID stack.ComponentID, l1CLID stack.ComponentID,
+	supervisorID *stack.ComponentID, clusterID *stack.ComponentID, l2CLID *stack.ComponentID, l2ELIDs []stack.ComponentID,
 ) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, l2CLID, l2ELIDs)
 	})
 }
 
-func WithSuperL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
-	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2ELIDs []stack.L2ELNodeID,
+func WithSuperL2Challenger(challengerID stack.ComponentID, l1ELID stack.ComponentID, l1CLID stack.ComponentID,
+	supervisorID *stack.ComponentID, clusterID *stack.ComponentID, l2ELIDs []stack.ComponentID,
 ) stack.Option[*Orchestrator] {
 	return stack.Finally(func(orch *Orchestrator) {
 		WithL2ChallengerPostDeploy(orch, challengerID, l1ELID, l1CLID, supervisorID, clusterID, nil, l2ELIDs)
 	})
 }
 
-func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
-	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
+func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.ComponentID, l1ELID stack.ComponentID, l1CLID stack.ComponentID,
+	supervisorID *stack.ComponentID, clusterID *stack.ComponentID, l2CLID *stack.ComponentID, l2ELIDs []stack.ComponentID,
 ) {
 	ctx := orch.P().Ctx()
-	ctx = stack.ContextWithID(ctx, challengerID)
+	ctx = stack.ContextWithComponentID(ctx, challengerID)
 	p := orch.P().WithCtx(ctx)
 
 	require := p.Require()
@@ -80,7 +80,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 
 	l2Geneses := make([]*core.Genesis, 0, len(l2ELIDs))
 	rollupCfgs := make([]*rollup.Config, 0, len(l2ELIDs))
-	l2NetIDs := make([]stack.L2NetworkID, 0, len(l2ELIDs))
+	l2NetIDs := make([]stack.ComponentID, 0, len(l2ELIDs))
 	var disputeGameFactoryAddr common.Address
 	var interopScheduled bool
 
@@ -153,9 +153,9 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	} else {
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 		// In a post-interop infra setup, with unscheduled interop, we may see multiple EL nodes.
-		var l2ELID stack.L2ELNodeID
+		var l2ELID stack.ComponentID
 		for _, id := range l2ELIDs {
-			if id.ChainID() == l2CLID.ChainID() {
+			if id.ChainID == l2CLID.ChainID() {
 				l2ELID = id
 				break
 			}

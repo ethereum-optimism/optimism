@@ -44,7 +44,7 @@ func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
 }
 
-func (el *L2ELNode) ID() stack.L2ELNodeID {
+func (el *L2ELNode) ID() stack.ComponentID {
 	return el.inner.ID()
 }
 
@@ -129,20 +129,20 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckFunc {
 	return func() error {
-		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID(), "target", target)
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ChainID(), "target", target)
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
 				if err != nil {
 					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "error", err)
+						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "error", err)
 						return err
 					}
 					return err
 				}
 
 				if target.Hash == reorged.Hash { // want not equal
-					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "ref", reorged)
+					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ChainID(), "ref", reorged)
 					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
 				}
 
@@ -150,8 +150,8 @@ func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckF
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 
-				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "pre_blockref", target)
-				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "post_blockref", reorged)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "pre_blockref", target)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ChainID(), "post_blockref", reorged)
 
 				return nil
 			})
@@ -330,7 +330,7 @@ func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized ui
 }
 
 func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
-	el.require.Equal(chainID, el.inner.ID().ChainID(), "chain ID mismatch")
+	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
 	case types.Finalized:

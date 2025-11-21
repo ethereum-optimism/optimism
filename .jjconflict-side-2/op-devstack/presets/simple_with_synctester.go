@@ -27,7 +27,7 @@ func NewSimpleWithSyncTester(t devtest.T) *SimpleWithSyncTester {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.L2ChainA)
+	l2 := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
 	syncTester := l2.SyncTester(match.FirstSyncTester)
 
 	// L2CL connected to L2EL initialized by sync tester

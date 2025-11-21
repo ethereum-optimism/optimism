@@ -24,7 +24,7 @@ import (
 type RollupBoostNode struct {
 	mu sync.Mutex
 
-	id         stack.RollupBoostNodeID
+	id         stack.ComponentID
 	wsProxyURL string
 	wsProxy    *tcpproxy.Proxy
 
@@ -63,12 +63,12 @@ func (r *RollupBoostNode) hydrate(system stack.ExtensibleSystem) {
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       elRPC,
-			ChainID:      r.id.ChainID(),
+			ChainID:      r.id.ChainID,
 		},
-		RollupCfg:         system.L2Network(stack.L2NetworkID(r.id.ChainID())).RollupConfig(),
+		RollupCfg:         system.L2Network(stack.ComponentID(r.id.ChainID)).RollupConfig(),
 		FlashblocksClient: wsClient,
 	})
-	system.L2Network(stack.L2NetworkID(r.id.ChainID())).(stack.ExtensibleL2Network).AddRollupBoostNode(node)
+	system.L2Network(stack.ComponentID(r.id.ChainID)).(stack.ExtensibleL2Network).AddRollupBoostNode(node)
 }
 
 func (r *RollupBoostNode) Start() {
@@ -177,9 +177,9 @@ func (r *RollupBoostNode) Stop() {
 // WithRollupBoost starts a rollup-boost process using the provided options
 // and registers a WSClient on the target L2 chain.
 // l2ELID is required to link the proxy to the L2 EL it serves.
-func WithRollupBoost(id stack.RollupBoostNodeID, l2ELID stack.L2ELNodeID, opts ...RollupBoostOption) stack.Option[*Orchestrator] {
+func WithRollupBoost(id stack.ComponentID, l2ELID stack.ComponentID, opts ...RollupBoostOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), id))
 		logger := p.Logger()
 
 		// Build config from options and derive sensible defaults
@@ -209,7 +209,7 @@ func WithRollupBoost(id stack.RollupBoostNodeID, l2ELID stack.L2ELNodeID, opts .
 		// Apply any node-level link options
 		for _, opt := range opts {
 			if linkOpt, ok := opt.(interface {
-				applyNode(p devtest.P, id stack.RollupBoostNodeID, r *RollupBoostNode)
+				applyNode(p devtest.P, id stack.ComponentID, r *RollupBoostNode)
 			}); ok {
 				linkOpt.applyNode(p, id, r)
 			}
@@ -355,14 +355,14 @@ func (cfg *RollupBoostConfig) LaunchSpec(p devtest.P) (args []string, env []stri
 }
 
 type RollupBoostOption interface {
-	Apply(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig)
+	Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig)
 }
 
-type RollupBoostOptionFn func(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig)
+type RollupBoostOptionFn func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig)
 
 var _ RollupBoostOption = RollupBoostOptionFn(nil)
 
-func (fn RollupBoostOptionFn) Apply(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+func (fn RollupBoostOptionFn) Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 	fn(orch, id, cfg)
 }
 
@@ -370,7 +370,7 @@ type RollupBoostOptionBundle []RollupBoostOption
 
 var _ RollupBoostOption = RollupBoostOptionBundle(nil)
 
-func (b RollupBoostOptionBundle) Apply(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+func (b RollupBoostOptionBundle) Apply(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 	for _, opt := range b {
 		orch.P().Require().NotNil(opt, "cannot Apply nil RollupBoostOption")
 		opt.Apply(orch, id, cfg)
@@ -379,25 +379,25 @@ func (b RollupBoostOptionBundle) Apply(orch *Orchestrator, id stack.RollupBoostN
 
 // Convenience options
 func RollupBoostWithExecutionMode(mode string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 		cfg.ExecutionMode = mode
 	})
 }
 
 func RollupBoostWithEnv(env ...string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 		cfg.Env = append(cfg.Env, env...)
 	})
 }
 
 func RollupBoostWithExtraArgs(args ...string) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 		cfg.ExtraArgs = append(cfg.ExtraArgs, args...)
 	})
 }
 
-func RollupBoostWithBuilderNode(id stack.OPRBuilderNodeID) RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, rbID stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+func RollupBoostWithBuilderNode(id stack.ComponentID) RollupBoostOption {
+	return RollupBoostOptionFn(func(orch *Orchestrator, rbID stack.ComponentID, cfg *RollupBoostConfig) {
 		builderNode, ok := orch.oprbuilderNodes.Get(id)
 		if !ok {
 			orch.P().Require().FailNow("builder node not found")
@@ -409,7 +409,7 @@ func RollupBoostWithBuilderNode(id stack.OPRBuilderNodeID) RollupBoostOption {
 }
 
 func RollupBoostWithFlashblocksDisabled() RollupBoostOption {
-	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.RollupBoostNodeID, cfg *RollupBoostConfig) {
+	return RollupBoostOptionFn(func(orch *Orchestrator, id stack.ComponentID, cfg *RollupBoostConfig) {
 		cfg.EnableFlashblocks = false
 	})
 }

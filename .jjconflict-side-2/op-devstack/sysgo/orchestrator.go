@@ -37,21 +37,21 @@ type Orchestrator struct {
 	SyncTesterELOptions     SyncTesterELOptionBundle
 	deployerPipelineOptions []DeployerPipelineOption
 
-	superchains     locks.RWMap[stack.SuperchainID, *Superchain]
-	clusters        locks.RWMap[stack.ClusterID, *Cluster]
+	superchains     locks.RWMap[stack.ComponentID, *Superchain]
+	clusters        locks.RWMap[stack.ComponentID, *Cluster]
 	l1Nets          locks.RWMap[eth.ChainID, *L1Network]
 	l2Nets          locks.RWMap[eth.ChainID, *L2Network]
-	l1ELs           locks.RWMap[stack.L1ELNodeID, L1ELNode]
-	l1CLs           locks.RWMap[stack.L1CLNodeID, *L1CLNode]
-	l2ELs           locks.RWMap[stack.L2ELNodeID, L2ELNode]
-	l2CLs           locks.RWMap[stack.L2CLNodeID, L2CLNode]
-	supervisors     locks.RWMap[stack.SupervisorID, Supervisor]
-	testSequencers  locks.RWMap[stack.TestSequencerID, *TestSequencer]
-	batchers        locks.RWMap[stack.L2BatcherID, *L2Batcher]
-	challengers     locks.RWMap[stack.L2ChallengerID, *L2Challenger]
-	proposers       locks.RWMap[stack.L2ProposerID, *L2Proposer]
-	rollupBoosts    locks.RWMap[stack.RollupBoostNodeID, *RollupBoostNode]
-	oprbuilderNodes locks.RWMap[stack.OPRBuilderNodeID, *OPRBuilderNode]
+	l1ELs           locks.RWMap[stack.ComponentID, L1ELNode]
+	l1CLs           locks.RWMap[stack.ComponentID, *L1CLNode]
+	l2ELs           locks.RWMap[stack.ComponentID, L2ELNode]
+	l2CLs           locks.RWMap[stack.ComponentID, L2CLNode]
+	supervisors     locks.RWMap[stack.ComponentID, Supervisor]
+	testSequencers  locks.RWMap[stack.ComponentID, *TestSequencer]
+	batchers        locks.RWMap[stack.ComponentID, *L2Batcher]
+	challengers     locks.RWMap[stack.ComponentID, *L2Challenger]
+	proposers       locks.RWMap[stack.ComponentID, *L2Proposer]
+	rollupBoosts    locks.RWMap[stack.ComponentID, *RollupBoostNode]
+	oprbuilderNodes locks.RWMap[stack.ComponentID, *OPRBuilderNode]
 
 	// service name => prometheus endpoints to scrape
 	l2MetricsEndpoints locks.RWMap[string, []PrometheusMetricsTarget]
@@ -96,23 +96,15 @@ func (o *Orchestrator) EnableTimeTravel() {
 // GetL2EL attempts to find an L2 EL node by checking various collections of EL-like nodes.
 // It returns the L2ELNode interface if found in the standard L2ELs collection,
 // or the raw node object if found in other collections (e.g. RollupBoostNode).
-func (o *Orchestrator) GetL2EL(id stack.L2ELNodeID) (L2ELNode, bool) {
-	if el, ok := o.l2ELs.Get(id); ok {
-		return el, true
+func (o *Orchestrator) GetL2EL(id stack.ComponentID) (L2ELNode, bool) {
+	switch id.Kind {
+	case stack.L2ELNodeKind:
+		return o.l2ELs.Get(id)
+	case stack.RollupBoostNodeKind:
+		return o.rollupBoosts.Get(id)
+	case stack.OPRBuilderNodeKind:
+		return o.oprbuilderNodes.Get(id)
 	}
-
-	// Check RollupBoost
-	rbID := stack.NewRollupBoostNodeID(id.Key(), id.ChainID())
-	if rb, ok := o.rollupBoosts.Get(rbID); ok {
-		return rb, true
-	}
-
-	// Check op-rbuilder
-	oprbID := stack.NewOPRBuilderNodeID(id.Key(), id.ChainID())
-	if oprbuilder, ok := o.oprbuilderNodes.Get(oprbID); ok {
-		return oprbuilder, true
-	}
-
 	return nil, false
 }
 
@@ -147,21 +139,21 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 			ttSys.SetTimeTravelClock(o.timeTravelClock)
 		}
 	}
-	o.superchains.Range(rangeHydrateFn[stack.SuperchainID, *Superchain](sys))
-	o.clusters.Range(rangeHydrateFn[stack.ClusterID, *Cluster](sys))
+	o.superchains.Range(rangeHydrateFn[stack.ComponentID, *Superchain](sys))
+	o.clusters.Range(rangeHydrateFn[stack.ComponentID, *Cluster](sys))
 	o.l1Nets.Range(rangeHydrateFn[eth.ChainID, *L1Network](sys))
 	o.l2Nets.Range(rangeHydrateFn[eth.ChainID, *L2Network](sys))
-	o.l1ELs.Range(rangeHydrateFn[stack.L1ELNodeID, L1ELNode](sys))
-	o.l1CLs.Range(rangeHydrateFn[stack.L1CLNodeID, *L1CLNode](sys))
-	o.l2ELs.Range(rangeHydrateFn[stack.L2ELNodeID, L2ELNode](sys))
-	o.oprbuilderNodes.Range(rangeHydrateFn[stack.OPRBuilderNodeID, *OPRBuilderNode](sys))
-	o.rollupBoosts.Range(rangeHydrateFn[stack.RollupBoostNodeID, *RollupBoostNode](sys))
-	o.l2CLs.Range(rangeHydrateFn[stack.L2CLNodeID, L2CLNode](sys))
-	o.supervisors.Range(rangeHydrateFn[stack.SupervisorID, Supervisor](sys))
-	o.testSequencers.Range(rangeHydrateFn[stack.TestSequencerID, *TestSequencer](sys))
-	o.batchers.Range(rangeHydrateFn[stack.L2BatcherID, *L2Batcher](sys))
-	o.challengers.Range(rangeHydrateFn[stack.L2ChallengerID, *L2Challenger](sys))
-	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))
+	o.l1ELs.Range(rangeHydrateFn[stack.ComponentID, L1ELNode](sys))
+	o.l1CLs.Range(rangeHydrateFn[stack.ComponentID, *L1CLNode](sys))
+	o.l2ELs.Range(rangeHydrateFn[stack.ComponentID, L2ELNode](sys))
+	o.oprbuilderNodes.Range(rangeHydrateFn[stack.ComponentID, *OPRBuilderNode](sys))
+	o.rollupBoosts.Range(rangeHydrateFn[stack.ComponentID, *RollupBoostNode](sys))
+	o.l2CLs.Range(rangeHydrateFn[stack.ComponentID, L2CLNode](sys))
+	o.supervisors.Range(rangeHydrateFn[stack.ComponentID, Supervisor](sys))
+	o.testSequencers.Range(rangeHydrateFn[stack.ComponentID, *TestSequencer](sys))
+	o.batchers.Range(rangeHydrateFn[stack.ComponentID, *L2Batcher](sys))
+	o.challengers.Range(rangeHydrateFn[stack.ComponentID, *L2Challenger](sys))
+	o.proposers.Range(rangeHydrateFn[stack.ComponentID, *L2Proposer](sys))
 	if o.syncTester != nil {
 		o.syncTester.hydrate(sys)
 	}
@@ -169,11 +161,11 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.sysHook.PostHydrate(sys)
 }
 
-func (o *Orchestrator) RegisterL2MetricsTargets(id stack.IDWithChain, endpoints ...PrometheusMetricsTarget) {
-	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key(), endpoints)
+func (o *Orchestrator) RegisterL2MetricsTargets(id stack.ComponentID, endpoints ...PrometheusMetricsTarget) {
+	wasSet := o.l2MetricsEndpoints.SetIfMissing(id.Key, endpoints)
 	if !wasSet {
-		existing, _ := o.l2MetricsEndpoints.Get(id.Key())
-		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key(), "existing", existing, "new", endpoints)
+		existing, _ := o.l2MetricsEndpoints.Get(id.Key)
+		o.p.Logger().Warn("multiple endpoints registered with the same key", "key", id.Key, "existing", existing, "new", endpoints)
 	}
 }
 

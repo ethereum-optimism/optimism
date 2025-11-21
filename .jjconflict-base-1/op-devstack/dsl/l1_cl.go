@@ -16,10 +16,6 @@ func NewL1CLNode(inner stack.L1CLNode) *L1CLNode {
 	}
 }
 
-func (cl *L1CLNode) String() string {
-	return cl.inner.ID().String()
-}
-
 // Escape returns the underlying stack.L1CLNode
 func (cl *L1CLNode) Escape() stack.L1CLNode {
 	return cl.inner

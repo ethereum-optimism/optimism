@@ -2,25 +2,32 @@ package match
 
 import "github.com/ethereum-optimism/optimism/op-devstack/stack"
 
-var FirstL2EL = First[stack.L2ELNodeID, stack.L2ELNode]()
-var FirstL2CL = First[stack.L2CLNodeID, stack.L2CLNode]()
-var FirstL2Batcher = First[stack.L2BatcherID, stack.L2Batcher]()
-var FirstL2Proposer = First[stack.L2ProposerID, stack.L2Proposer]()
-var FirstL2Challenger = First[stack.L2ChallengerID, stack.L2Challenger]()
+func FirstComponent[E stack.ComponentIdentifiable]() stack.ComponentIDMatcher[E] {
+	return ByComponentIndex[E](0)
+}
 
-var FirstTestSequencer = First[stack.TestSequencerID, stack.TestSequencer]()
-var FirstSupervisor = First[stack.SupervisorID, stack.Supervisor]()
+func FirstChain[E stack.ChainIdentifiable]() stack.ChainIDMatcher[E] {
+	return ByChainIndex[E](0)
+}
 
-var FirstL1EL = First[stack.L1ELNodeID, stack.L1ELNode]()
-var FirstL1CL = First[stack.L1CLNodeID, stack.L1CLNode]()
+var FirstL2EL = FirstComponent[stack.L2ELNode]()
+var FirstL2CL = FirstComponent[stack.L2CLNode]()
+var FirstL2Batcher = FirstComponent[stack.L2Batcher]()
+var FirstL2Proposer = FirstComponent[stack.L2Proposer]()
+var FirstL2Challenger = FirstComponent[stack.L2Challenger]()
 
-var FirstL1Network = First[stack.L1NetworkID, stack.L1Network]()
-var FirstL2Network = First[stack.L2NetworkID, stack.L2Network]()
-var FirstSuperchain = First[stack.SuperchainID, stack.Superchain]()
-var FirstCluster = First[stack.ClusterID, stack.Cluster]()
+var FirstTestSequencer = FirstComponent[stack.TestSequencer]()
+var FirstSupervisor = FirstComponent[stack.Supervisor]()
 
-var FirstFaucet = First[stack.FaucetID, stack.Faucet]()
-var FirstSyncTester = First[stack.SyncTesterID, stack.SyncTester]()
+var FirstL1EL = FirstComponent[stack.L1ELNode]()
+var FirstL1CL = FirstComponent[stack.L1CLNode]()
 
-var FirstOPRBuilderNode = First[stack.OPRBuilderNodeID, stack.OPRBuilderNode]()
-var FirstRollupBoostNode = First[stack.RollupBoostNodeID, stack.RollupBoostNode]()
+var FirstL1Network = FirstChain[stack.L1Network]()
+var FirstL2Network = FirstChain[stack.L2Network]()
+var FirstSuperchain = FirstComponent[stack.Superchain]()
+
+var FirstFaucet = FirstComponent[stack.Faucet]()
+var FirstSyncTester = FirstComponent[stack.SyncTester]()
+
+var FirstOPRBuilderNode = FirstComponent[stack.OPRBuilderNode]()
+var FirstRollupBoostNode = FirstComponent[stack.RollupBoostNode]()

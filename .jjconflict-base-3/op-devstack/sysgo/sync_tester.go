@@ -20,7 +20,7 @@ import (
 
 // Caveat: id is binded by a single EL(chainID), but service can support multiple ELs
 type SyncTesterService struct {
-	id      stack.SyncTesterID
+	id      stack.ComponentID
 	service *synctester.Service
 }
 
@@ -32,7 +32,7 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
-		id := stack.NewSyncTesterID(syncTesterID.String(), chainID)
+		id := stack.ComponentID(syncTesterID.String(), chainID)
 		front := shim.NewSyncTester(shim.SyncTesterConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			ID:           id,
@@ -44,9 +44,9 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithSyncTester(syncTesterID stack.ComponentID, l2ELs []stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), syncTesterID))
 
 		require := p.Require()
 
@@ -90,9 +90,9 @@ func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) s
 	})
 }
 
-func WithSyncTesterWithExternalEndpoint(syncTesterID stack.SyncTesterID, endpointRPC string, chainID eth.ChainID) stack.Option[*Orchestrator] {
+func WithSyncTesterWithExternalEndpoint(syncTesterID stack.ComponentID, endpointRPC string, chainID eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), syncTesterID))
 
 		require := p.Require()
 

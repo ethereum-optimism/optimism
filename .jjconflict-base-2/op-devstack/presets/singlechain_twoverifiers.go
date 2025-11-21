@@ -23,17 +23,17 @@ func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T) *SingleChainTwoVerifier
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	singleChainMultiNode := NewSingleChainMultiNodeWithoutCheck(t)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	verifierCL := l2.L2CLNode(match.Assume(t,
+	l2 := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
+	verifierCL := l2.L2CLNode(match.AssumeComponent(t,
 		match.And(
 			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](singleChainMultiNode.L2CL.ID()),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](singleChainMultiNode.L2CLB.ID()),
+			match.Not(match.MatchComponentID[stack.L2CLNode](singleChainMultiNode.L2CL.ID())),
+			match.Not(match.MatchComponentID[stack.L2CLNode](singleChainMultiNode.L2CLB.ID())),
 		)))
-	verifierEL := l2.L2ELNode(match.Assume(t,
+	verifierEL := l2.L2ELNode(match.AssumeComponent(t,
 		match.And(
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](singleChainMultiNode.L2EL.ID()),
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](singleChainMultiNode.L2ELB.ID()),
+			match.Not(match.MatchComponentID[stack.L2ELNode](singleChainMultiNode.L2EL.ID())),
+			match.Not(match.MatchComponentID[stack.L2ELNode](singleChainMultiNode.L2ELB.ID())),
 		)))
 	preset := &SingleChainTwoVerifiers{
 		SingleChainMultiNode: *singleChainMultiNode,

@@ -36,16 +36,16 @@ func NewSingleChainMultiNodeWithoutCheck(t devtest.T) *SingleChainMultiNode {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	verifierCL := l2.L2CLNode(match.Assume(t,
+	l2 := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
+	verifierCL := l2.L2CLNode(match.AssumeComponent(t,
 		match.And(
 			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](minimal.L2CL.ID()),
+			match.Not(match.MatchComponentID[stack.L2CLNode](minimal.L2CL.ID())),
 		)))
-	verifierEL := l2.L2ELNode(match.Assume(t,
+	verifierEL := l2.L2ELNode(match.AssumeComponent(t,
 		match.And(
 			match.EngineFor(verifierCL),
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](minimal.L2EL.ID()))))
+			match.Not(match.MatchComponentID[stack.L2ELNode](minimal.L2EL.ID())))))
 	preset := &SingleChainMultiNode{
 		Minimal: *minimal,
 		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
@@ -69,16 +69,16 @@ func NewSingleChainMultiNodeWithTestSeq(t devtest.T) *SingleChainMultiNodeWithTe
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	minimal := minimalFromSystem(t, system, orch)
-	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	verifierCL := l2.L2CLNode(match.Assume(t,
+	l2 := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
+	verifierCL := l2.L2CLNode(match.AssumeComponent(t,
 		match.And(
 			match.Not(match.WithSequencerActive(t.Ctx())),
-			match.Not[stack.L2CLNodeID, stack.L2CLNode](minimal.L2CL.ID()),
+			match.Not(match.MatchComponentID[stack.L2CLNode](minimal.L2CL.ID())),
 		)))
-	verifierEL := l2.L2ELNode(match.Assume(t,
+	verifierEL := l2.L2ELNode(match.AssumeComponent(t,
 		match.And(
 			match.EngineFor(verifierCL),
-			match.Not[stack.L2ELNodeID, stack.L2ELNode](minimal.L2EL.ID()))))
+			match.Not(match.MatchComponentID[stack.L2ELNode](minimal.L2EL.ID())))))
 	preset := &SingleChainMultiNode{
 		Minimal: *minimal,
 		L2ELB:   dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
@@ -86,7 +86,7 @@ func NewSingleChainMultiNodeWithTestSeq(t devtest.T) *SingleChainMultiNodeWithTe
 	}
 	out := &SingleChainMultiNodeWithTestSeq{
 		SingleChainMultiNode: *preset,
-		TestSequencer:        dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+		TestSequencer:        dsl.NewTestSequencer(system.TestSequencer(match.AssumeComponent(t, match.FirstTestSequencer))),
 	}
 	return out
 }

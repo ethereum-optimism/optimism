@@ -17,7 +17,7 @@ import (
 type KonaSupervisor struct {
 	mu sync.Mutex
 
-	id      stack.SupervisorID
+	id      stack.ComponentID
 	userRPC string
 
 	userProxy *tcpproxy.Proxy
@@ -114,9 +114,9 @@ func (s *KonaSupervisor) Stop() {
 	s.sub = nil
 }
 
-func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+func WithKonaSupervisor(supervisorID stack.ComponentID, clusterID stack.ComponentID, l1ELID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -139,7 +139,7 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 
 		rollupCfgPath := cfgDir + "/rollup-config-*.json"
 		for _, l2Net := range orch.l2Nets.Values() {
-			chainID := l2Net.id.ChainID()
+			chainID := l2Net.id.ChainID
 			rollupData, err := json.Marshal(l2Net.rollupCfg)
 			require.NoError(err, "failed to marshal rollup config")
 			p.Require().NoError(err, os.WriteFile(cfgDir+"/rollup-config-"+chainID.String()+".json", rollupData, 0o644))

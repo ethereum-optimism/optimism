@@ -94,7 +94,7 @@ func testSystem(ids DefaultInteropSystemIDs, system stack.System) {
 		require.Equal("", netB.Label("nickname"))
 		netB.SetLabel("nickname", "Network B")
 		require.Equal("Network B", netB.Label("nickname"))
-		v := system.L2Network(match.WithLabel[stack.L2NetworkID, stack.L2Network](
+		v := system.L2Network(match.WithLabel[stack.ComponentID, stack.L2Network](
 			"nickname", "Network B"))
 		require.Equal(ids.L2B, v.ID())
 	})

@@ -5,10 +5,10 @@ import (
 )
 
 func WithLabel[I comparable, E interface {
-	stack.Identifiable[I]
+	stack.ComponentIdentifiable
 	Label(key string) string
-}](key, value string) stack.Matcher[I, E] {
-	return MatchElemFn[I, E](func(elem E) bool {
+}](key, value string) stack.ComponentIDMatcher[E] {
+	return ComponentMatchElemFn[E](func(elem E) bool {
 		return elem.Label(key) == value
 	})
 }
@@ -30,7 +30,7 @@ const (
 )
 
 func (v Vendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {
-	return WithLabel[stack.L2ELNodeID, stack.L2ELNode](LabelVendor, string(v)).Match(elems)
+	return WithLabel[stack.ComponentID, stack.L2ELNode](LabelVendor, string(v)).Match(elems)
 }
 
 func (v Vendor) String() string {

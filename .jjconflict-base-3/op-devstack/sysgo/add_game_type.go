@@ -36,9 +36,10 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 	}
 	opts := stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
+			l1ChainID := o.l1Nets.Keys()[0]
 			absolutePrestate := PrestateForGameType(o.P(), gameType)
 			for _, l2ChainID := range o.l2Nets.Keys() {
-				addGameType(o, absolutePrestate, gameType, o.l1ELs.Keys()[0], l2ChainID)
+				addGameType(o, absolutePrestate, gameType, l1ChainID, o.l1ELs.Keys()[0], l2ChainID)
 			}
 		},
 	}
@@ -48,19 +49,20 @@ func WithGameTypeAdded(gameType gameTypes.GameType) stack.Option[*Orchestrator] 
 func WithRespectedGameType(gameType gameTypes.GameType) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
-			for _, l2ChainID := range o.l2Nets.Keys() {
-				setRespectedGameType(o, gameType, o.l1ELs.Keys()[0], l2ChainID)
+			l1ComponentID := o.l1Nets.Keys()[0]
+			for _, l2ComponentID := range o.l2Nets.Keys() {
+				setRespectedGameType(o, gameType, l1ComponentID, o.l1ELs.Keys()[0], l2ComponentID)
 			}
 		},
 	}
 }
 
-func WithCannonGameTypeAdded(l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) stack.Option[*Orchestrator] {
+func WithCannonGameTypeAdded(l1ChainID eth.ChainID, l1ELID stack.ComponentID, l2ChainID eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		FinallyFn: func(o *Orchestrator) {
 			// TODO(#17867): Rebuild the op-program prestate using the newly minted L2 chain configs before using it.
 			absolutePrestate := getAbsolutePrestate(o.P(), "op-program/bin/prestate-proof-mt64.json")
-			addGameType(o, absolutePrestate, gameTypes.CannonGameType, l1ELID, l2ChainID)
+			addGameType(o, absolutePrestate, gameTypes.CannonGameType, l1ChainID, l1ELID, l2ChainID)
 		},
 	}
 }
@@ -72,8 +74,9 @@ func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 		},
 		FinallyFn: func(o *Orchestrator) {
 			absolutePrestate := getCannonKonaAbsolutePrestate(o.P())
+			l1ChainID := o.l1Nets.Keys()[0]
 			for _, l2ChainID := range o.l2Nets.Keys() {
-				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, o.l1ELs.Keys()[0], l2ChainID)
+				addGameType(o, absolutePrestate, gameTypes.CannonKonaGameType, l1ChainID, o.l1ELs.Keys()[0], l2ChainID)
 			}
 		},
 	}
@@ -87,11 +90,10 @@ func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
 	}
 }
 
-func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ChainID eth.ChainID, l1ELID stack.ComponentID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
-	l1ChainID := l1ELID.ChainID()
 
 	l2Network, ok := o.l2Nets.Get(l2ChainID)
 	require.True(ok, "l2Net must exist")
@@ -139,11 +141,10 @@ func setRespectedGameType(o *Orchestrator, gameType gameTypes.GameType, l1ELID s
 	require.Equal(rcpt.Status, gethTypes.ReceiptStatusSuccessful, "set respected game type tx did not execute correctly")
 }
 
-func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTypes.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
+func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType gameTypes.GameType, l1ChainID eth.ChainID, l1ELID stack.ComponentID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
 	require.NotNil(o.wb, "must have a world builder")
-	l1ChainID := l1ELID.ChainID()
 
 	opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 

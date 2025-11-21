@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
@@ -44,27 +43,22 @@ func ChainIDSelector(chainID eth.ChainID) logfilter.Selector {
 	return logfilter.Select("chainID", chainID)
 }
 
-// ContextWithID attaches a component ID to the context.
+// ContextWithComponentID attaches a component ID to the context.
 // This also automatically attaches the chain ID and component kind to the context, if available from the ID.
-func ContextWithID(ctx context.Context, id slog.LogValuer) context.Context {
-	if idWithChainID, ok := id.(ChainIDProvider); ok {
-		ctx = ContextWithChainID(ctx, idWithChainID.ChainID())
-	}
-	if idWithKind, ok := id.(KindProvider); ok {
-		ctx = ContextWithKind(ctx, idWithKind.Kind())
-	}
+func ContextWithComponentID(ctx context.Context, id ComponentID) context.Context {
+	ctx = ContextWithKind(ctx, id.Kind)
 	ctx = logfilter.AddLogAttrToContext(ctx, "id", id)
 	return ctx
 }
 
-func IDFromContext[T slog.LogValuer](ctx context.Context) T {
-	v, _ := logfilter.ValueFromContext[T](ctx, "id")
+func ComponentIDFromContext(ctx context.Context) ComponentID {
+	v, _ := logfilter.ValueFromContext[ComponentID](ctx, "id")
 	return v
 }
 
 // IDSelector creates a log-filter that applies the given inner log-filter only if it matches the given ID.
 // This can be composed with logfilter package utils like logfilter.MuteAll or logfilter.Level
 // to adjust logging for a specific chain ID.
-func IDSelector(id slog.LogValuer) logfilter.Selector {
+func IDSelector(id ComponentID) logfilter.Selector {
 	return logfilter.Select("id", id)
 }

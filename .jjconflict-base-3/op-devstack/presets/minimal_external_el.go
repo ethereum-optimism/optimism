@@ -42,7 +42,7 @@ func NewMinimalExternalEL(t devtest.T) *MinimalExternalEL {
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
-	l2 := system.L2Network(match.L2ChainA)
+	l2 := system.L2Network(match.FirstL2Network)
 	verifierCL := l2.L2CLNode(match.FirstL2CL)
 	syncTester := l2.SyncTester(match.FirstSyncTester)
 

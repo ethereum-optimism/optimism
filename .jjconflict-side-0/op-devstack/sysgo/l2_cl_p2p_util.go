@@ -83,7 +83,7 @@ func getP2PClientsAndPeers(ctx context.Context, logger log.Logger,
 }
 
 // WithL2CLP2PConnection connects P2P between two L2CLs
-func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orchestrator] {
+func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.ComponentID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 		l := orch.P().Logger()
@@ -92,7 +92,7 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 		require.True(ok, "looking for L2 CL node 1 to connect p2p")
 		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
 		require.True(ok, "looking for L2 CL node 2 to connect p2p")
-		require.Equal(l2CL1ID.ChainID(), l2CL2ID.ChainID(), "must be same l2 chain")
+		require.Equal(l2CL1ID.ChainID, l2CL2ID.ChainID, "must be same l2 chain")
 
 		ctx := orch.P().Ctx()
 		logger := orch.P().Logger()

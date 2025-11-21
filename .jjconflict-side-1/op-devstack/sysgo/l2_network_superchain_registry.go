@@ -13,9 +13,9 @@ import (
 )
 
 // WithL2NetworkFromSuperchainRegistry creates an L2 network using the rollup config from the superchain registry
-func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkName string) stack.Option[*Orchestrator] {
+func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.ComponentID, networkName string) stack.Option[*Orchestrator] {
 	return stack.BeforeDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2NetworkID))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l2NetworkID))
 		require := p.Require()
 
 		// Load the rollup config from the superchain registry
@@ -50,11 +50,11 @@ func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkN
 }
 
 // WithEmptyDepSet creates an L2 network using the rollup config from the superchain registry
-func WithEmptyDepSet(l2NetworkID stack.L2NetworkID, networkName string) stack.Option[*Orchestrator] {
+func WithEmptyDepSet(l2NetworkID stack.ComponentID, networkName string) stack.Option[*Orchestrator] {
 	return stack.Combine(
 		WithL2NetworkFromSuperchainRegistry(l2NetworkID, networkName),
 		stack.BeforeDeploy(func(orch *Orchestrator) {
-			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2NetworkID))
+			p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), l2NetworkID))
 			require := p.Require()
 
 			// Check that chain config is available in registry
@@ -62,7 +62,7 @@ func WithEmptyDepSet(l2NetworkID stack.L2NetworkID, networkName string) stack.Op
 			require.NotNil(chainCfg, "chain config not found for network %s", networkName)
 
 			// Create a minimal cluster with empty dependency set
-			clusterID := stack.ClusterID(networkName)
+			clusterID := stack.ComponentID(networkName)
 			cluster := &Cluster{
 				id:     clusterID,
 				cfgset: depset.FullConfigSetMerged{},

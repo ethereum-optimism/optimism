@@ -16,7 +16,7 @@ type L2ELNode interface {
 }
 
 type L2ELConfig struct {
-	SupervisorID  *stack.SupervisorID
+	SupervisorID  *stack.ComponentID
 	P2PAddr       string
 	P2PPort       int
 	P2PNodeKeyHex string
@@ -24,15 +24,15 @@ type L2ELConfig struct {
 	TrustedPeers  []string
 }
 
-func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
-	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+func L2ELWithSupervisor(supervisorID stack.ComponentID) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.ComponentID, cfg *L2ELConfig) {
 		cfg.SupervisorID = &supervisorID
 	})
 }
 
 // L2ELWithP2PConfig sets deterministic P2P identity and static peers for the L2 EL.
 func L2ELWithP2PConfig(addr string, port int, nodeKeyHex string, staticPeers, trustedPeers []string) L2ELOption {
-	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+	return L2ELOptionFn(func(p devtest.P, id stack.ComponentID, cfg *L2ELConfig) {
 		cfg.P2PAddr = addr
 		cfg.P2PPort = port
 		cfg.P2PNodeKeyHex = nodeKeyHex
@@ -53,7 +53,7 @@ func DefaultL2ELConfig() *L2ELConfig {
 }
 
 type L2ELOption interface {
-	Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig)
+	Apply(p devtest.P, id stack.ComponentID, cfg *L2ELConfig)
 }
 
 // WithGlobalL2ELOption applies the L2ELOption to all L2ELNode instances in this orchestrator
@@ -63,11 +63,11 @@ func WithGlobalL2ELOption(opt L2ELOption) stack.Option[*Orchestrator] {
 	})
 }
 
-type L2ELOptionFn func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig)
+type L2ELOptionFn func(p devtest.P, id stack.ComponentID, cfg *L2ELConfig)
 
 var _ L2ELOption = L2ELOptionFn(nil)
 
-func (fn L2ELOptionFn) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+func (fn L2ELOptionFn) Apply(p devtest.P, id stack.ComponentID, cfg *L2ELConfig) {
 	fn(p, id, cfg)
 }
 
@@ -76,7 +76,7 @@ type L2ELOptionBundle []L2ELOption
 
 var _ L2ELOption = L2ELOptionBundle(nil)
 
-func (l L2ELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+func (l L2ELOptionBundle) Apply(p devtest.P, id stack.ComponentID, cfg *L2ELConfig) {
 	for _, opt := range l {
 		p.Require().NotNil(opt, "cannot Apply nil L2ELOption")
 		opt.Apply(p, id, cfg)
@@ -86,7 +86,7 @@ func (l L2ELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfi
 // WithL2ELNode adds the default type of L2 CL node.
 // The default can be configured with DEVSTACK_L2EL_KIND.
 // Tests that depend on specific types can use options like WithKonaNode and WithOpNode directly.
-func WithL2ELNode(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithL2ELNode(id stack.ComponentID, opts ...L2ELOption) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_L2EL_KIND") {
 	case "op-reth":
 		return WithOpReth(id, opts...)
@@ -95,7 +95,7 @@ func WithL2ELNode(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchest
 	}
 }
 
-func WithExtL2Node(id stack.L2ELNodeID, elRPCEndpoint string) stack.Option[*Orchestrator] {
+func WithExtL2Node(id stack.ComponentID, elRPCEndpoint string) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 

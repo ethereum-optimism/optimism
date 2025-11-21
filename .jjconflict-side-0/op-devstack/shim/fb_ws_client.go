@@ -24,7 +24,7 @@ type flashblocksWSClient struct {
 var _ stack.FlashblocksWSClient = (*flashblocksWSClient)(nil)
 
 func NewFlashblocksWSClient(cfg FlashblocksWSClientConfig) stack.FlashblocksWSClient {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	return &flashblocksWSClient{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

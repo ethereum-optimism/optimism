@@ -13,13 +13,13 @@ import (
 type OPRBuilderNodeConfig struct {
 	ELNodeConfig
 	RollupCfg         *rollup.Config
-	ID                stack.OPRBuilderNodeID
+	ID                stack.ComponentID
 	FlashblocksClient *opclient.WSClient
 }
 
 type OPRBuilderNode struct {
 	rpcELNode
-	id                stack.OPRBuilderNodeID
+	id                stack.ComponentID
 	engineClient      *sources.EngineClient
 	flashblocksClient *opclient.WSClient
 }
@@ -27,8 +27,7 @@ type OPRBuilderNode struct {
 var _ stack.OPRBuilderNode = (*OPRBuilderNode)(nil)
 
 func NewOPRBuilderNode(cfg OPRBuilderNodeConfig) *OPRBuilderNode {
-	require.Equal(cfg.T, cfg.ID.ChainID(), cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
-	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	cfg.T = cfg.T.WithCtx(stack.ContextWithComponentID(cfg.T.Ctx(), cfg.ID))
 	l2EngineClient, err := sources.NewEngineClient(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.EngineClientDefaultConfig(cfg.RollupCfg))
 
 	require.NoError(cfg.T, err)
@@ -41,7 +40,7 @@ func NewOPRBuilderNode(cfg OPRBuilderNodeConfig) *OPRBuilderNode {
 	}
 }
 
-func (r *OPRBuilderNode) ID() stack.OPRBuilderNodeID {
+func (r *OPRBuilderNode) ID() stack.ComponentID {
 	return r.id
 }
 

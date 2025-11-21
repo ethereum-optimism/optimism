@@ -27,7 +27,7 @@ type OpGeth struct {
 
 	p             devtest.P
 	logger        log.Logger
-	id            stack.L2ELNodeID
+	id            stack.ComponentID
 	l2Net         *L2Network
 	jwtPath       string
 	jwtSecret     [32]byte
@@ -72,13 +72,13 @@ func (n *OpGeth) hydrate(system stack.ExtensibleSystem) {
 		system.T().Cleanup(engineCl.Close)
 	}
 
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
+	l2Net := system.L2Network(stack.ComponentID(n.id.ChainID))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
+			ChainID:      n.id.ChainID,
 		},
 		EngineClient: engineCl,
 		ID:           n.id,
@@ -179,12 +179,12 @@ func (n *OpGeth) Stop() {
 	n.l2Geth = nil
 }
 
-func WithOpGeth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithOpGeth(id stack.ComponentID, opts ...L2ELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
+		p := orch.P().WithCtx(stack.ContextWithComponentID(orch.P().Ctx(), id))
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(id.ChainID())
+		l2Net, ok := orch.l2Nets.Get(id.ChainID)
 		require.True(ok, "L2 network required")
 
 		cfg := DefaultL2ELConfig()

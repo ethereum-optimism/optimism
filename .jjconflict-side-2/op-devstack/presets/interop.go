@@ -55,24 +55,24 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
 	l1Net := system.L1Network(match.FirstL1Network)
-	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2A := system.L2Network(match.FirstL2Network)
 	out := &SingleChainInterop{
 		Log:           t.Logger(),
 		T:             t,
 		system:        system,
-		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-		Supervisor:    dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
+		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.AssumeComponent(t, match.FirstTestSequencer))),
+		Supervisor:    dsl.NewSupervisor(system.Supervisor(match.AssumeComponent(t, match.FirstSupervisor)), orch.ControlPlane()),
 		ControlPlane:  orch.ControlPlane(),
 		L1Network:     dsl.NewL1Network(l1Net),
-		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.AssumeComponent(t, match.FirstL1EL))),
 		L2ChainA:      dsl.NewL2Network(l2A, orch.ControlPlane()),
-		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
-		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.AssumeComponent(t, match.FirstL2EL)), orch.ControlPlane()),
+		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.AssumeComponent(t, match.FirstL2CL)), orch.ControlPlane()),
 		Wallet:        dsl.NewRandomHDWallet(t, 30), // Random for test isolation
-		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.AssumeComponent(t, match.FirstFaucet))),
+		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.AssumeComponent(t, match.FirstL2Batcher))),
 	}
-	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.AssumeComponent(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	return out
@@ -156,14 +156,14 @@ func WithUnscheduledInterop() stack.CommonOption {
 func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	singleChain := NewSingleChainInterop(t)
 	orch := Orchestrator()
-	l2B := singleChain.system.L2Network(match.Assume(t, match.L2ChainB))
+	l2B := singleChain.system.L2Network(match.SecondL2Network)
 	out := &SimpleInterop{
 		SingleChainInterop: *singleChain,
 		L2ChainB:           dsl.NewL2Network(l2B, orch.ControlPlane()),
-		L2ELB:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
-		L2CLB:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
-		FaucetB:            dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherB:         dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2ELB:              dsl.NewL2ELNode(l2B.L2ELNode(match.AssumeComponent(t, match.FirstL2EL)), orch.ControlPlane()),
+		L2CLB:              dsl.NewL2CLNode(l2B.L2CLNode(match.AssumeComponent(t, match.FirstL2CL)), orch.ControlPlane()),
+		FaucetB:            dsl.NewFaucet(l2B.Faucet(match.AssumeComponent(t, match.FirstFaucet))),
+		L2BatcherB:         dsl.NewL2Batcher(l2B.L2Batcher(match.AssumeComponent(t, match.FirstL2Batcher))),
 	}
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
 	return out
@@ -244,15 +244,15 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 	simpleInterop := NewSimpleInterop(t)
 	orch := Orchestrator()
 
-	l2A := simpleInterop.system.L2Network(match.Assume(t, match.L2ChainA))
-	l2B := simpleInterop.system.L2Network(match.Assume(t, match.L2ChainB))
+	l2A := simpleInterop.system.L2Network(match.FirstL2Network)
+	l2B := simpleInterop.system.L2Network(match.SecondL2Network)
 	out := &MultiSupervisorInterop{
 		SimpleInterop:       *simpleInterop,
-		SupervisorSecondary: dsl.NewSupervisor(simpleInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
-		L2ELA2:              dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
-		L2CLA2:              dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
-		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
-		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
+		SupervisorSecondary: dsl.NewSupervisor(simpleInterop.system.Supervisor(match.AssumeComponent(t, match.SecondSupervisor)), orch.ControlPlane()),
+		L2ELA2:              dsl.NewL2ELNode(l2A.L2ELNode(match.AssumeComponent(t, match.SecondL2EL)), orch.ControlPlane()),
+		L2CLA2:              dsl.NewL2CLNode(l2A.L2CLNode(match.AssumeComponent(t, match.SecondL2CL)), orch.ControlPlane()),
+		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.AssumeComponent(t, match.SecondL2EL)), orch.ControlPlane()),
+		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.AssumeComponent(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
 	return out
 }

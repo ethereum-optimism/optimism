@@ -61,7 +61,7 @@ func AddLogAttrToContext(ctx context.Context, name string, value any) context.Co
 	return context.WithValue(ctx, contextLogAttrIndexCtxKey, nextIndex)
 }
 
-func ValueFromContext[T slog.LogValuer](ctx context.Context, name string) (T, bool) {
+func ValueFromContext[T any](ctx context.Context, name string) (T, bool) {
 	v, ok := ctx.Value(contextKey{name}).(T)
 	return v, ok
 }

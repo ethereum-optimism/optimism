@@ -42,10 +42,10 @@ func NewTwoL2(t devtest.T) *TwoL2 {
 	orch.Hydrate(system)
 
 	l1Net := system.L1Network(match.FirstL1Network)
-	l2a := system.L2Network(match.Assume(t, match.L2ChainA))
-	l2b := system.L2Network(match.Assume(t, match.L2ChainB))
-	l2aCL := l2a.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
-	l2bCL := l2b.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	l2a := system.L2Network(match.AssumeChain(t, match.FirstL2Network))
+	l2b := system.L2Network(match.AssumeChain(t, match.SecondL2Network))
+	l2aCL := l2a.L2CLNode(match.AssumeComponent(t, match.WithSequencerActive(t.Ctx())))
+	l2bCL := l2b.L2CLNode(match.AssumeComponent(t, match.WithSequencerActive(t.Ctx())))
 
 	require.NotEqual(t, l2a.ChainID(), l2b.ChainID())
 
@@ -54,7 +54,7 @@ func NewTwoL2(t devtest.T) *TwoL2 {
 		T:            t,
 		ControlPlane: orch.ControlPlane(),
 		L1Network:    dsl.NewL1Network(l1Net),
-		L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.AssumeComponent(t, match.FirstL1EL))),
 		L2A:          dsl.NewL2Network(l2a, orch.ControlPlane()),
 		L2B:          dsl.NewL2Network(l2b, orch.ControlPlane()),
 		L2ACL:        dsl.NewL2CLNode(l2aCL, orch.ControlPlane()),
