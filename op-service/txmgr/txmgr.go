@@ -612,8 +612,23 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	bumpFeeTicker := time.NewTicker(bumpFeeTimeout)
 	defer bumpFeeTicker.Stop()
 
+	var retryTicker *time.Ticker
+	var retryCh <-chan time.Time
+	resetRetryTicker := func(interval time.Duration) {
+		if retryTicker != nil {
+			retryTicker.Stop()
+			retryTicker = nil
+		}
+		if interval <= 0 {
+			retryCh = nil
+			return
+		}
+		retryTicker = time.NewTicker(interval)
+		retryCh = retryTicker.C
+	}
+	defer resetRetryTicker(0)
+
 	for {
-		retryTicker := &time.Ticker{}
 		if !sendState.IsWaitingForConfirmation() {
 			if m.closed.Load() {
 				// the tx manager closed and no txs are waiting to be confirmed, give up
@@ -631,7 +646,9 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				}()
 				rebroadcastInterval := m.GetRebroadcastInterval()
 				if rebroadcastInterval > 0 {
-					retryTicker = time.NewTicker(rebroadcastInterval)
+					resetRetryTicker(rebroadcastInterval)
+				} else {
+					resetRetryTicker(0)
 				}
 			} else if err != nil {
 				if retryCount >= m.cfg.MaxRetries {
@@ -640,7 +657,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				}
 				retryCount++
 				// retry immediately if RetryInterval <= 0:
-				retryTicker = time.NewTicker(max(1, m.cfg.RetryInterval))
+				resetRetryTicker(max(1, m.cfg.RetryInterval))
 			}
 		}
 		if err := sendState.CriticalError(); err != nil {
@@ -653,7 +670,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		}
 
 		select {
-		case <-retryTicker.C:
+		case <-retryCh:
 
 		case <-bumpFeeTicker.C:
 			// Enough time has passed, so bump the fees on the next publish attempt in order to avoid delays.
@@ -667,6 +684,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 			m.metr.TxConfirmed(receipt)
 			return receipt, nil
 		}
+		resetRetryTicker(0)
 	}
 }
 
