@@ -7,7 +7,7 @@ use auto_impl::auto_impl;
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
-    trie_cursor::TrieCursor,
+    trie_cursor::{TrieCursor, TrieStorageCursor},
     updates::TrieUpdates,
     BranchNodeCompact, HashedPostState, Nibbles,
 };
@@ -63,7 +63,7 @@ pub struct OperationDurations {
 #[auto_impl(Arc)]
 pub trait OpProofsStore: Send + Sync + Debug {
     /// Cursor for iterating over trie branches.
-    type StorageTrieCursor<'tx>: TrieCursor + 'tx
+    type StorageTrieCursor<'tx>: TrieStorageCursor + 'tx
     where
         Self: 'tx;
 

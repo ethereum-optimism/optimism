@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use crate::{
-    cursor,
     db::{
         AccountTrieHistory, HashedAccountHistory, HashedStorageHistory, HashedStorageKey,
         MaybeDeleted, StorageTrieHistory, StorageTrieKey, VersionedValue,
@@ -18,7 +17,7 @@ use reth_db::{
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
-    trie_cursor::TrieCursor,
+    trie_cursor::{TrieCursor, TrieStorageCursor},
     BranchNodeCompact, Nibbles, StoredNibbles,
 };
 
@@ -251,16 +250,17 @@ where
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
-impl<T, C> From<MdbxTrieCursor<T, C>> for cursor::OpProofsTrieCursor<MdbxTrieCursor<T, C>>
+impl<Cursor> TrieStorageCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
-    T: Table + DupSort,
+    Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
 {
-    fn from(cursor: MdbxTrieCursor<T, C>) -> Self {
-        cursor::OpProofsTrieCursor::new(cursor)
+    #[inline]
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.hashed_address = Some(hashed_address);
     }
 }
 
@@ -328,7 +328,7 @@ where
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
@@ -375,7 +375,7 @@ where
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 

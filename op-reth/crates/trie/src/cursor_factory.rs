@@ -6,10 +6,7 @@ use crate::{
 };
 use alloy_primitives::B256;
 use reth_db::DatabaseError;
-use reth_trie::{
-    hashed_cursor::HashedCursorFactory,
-    trie_cursor::{TrieCursorFactory, TrieStorageCursor},
-};
+use reth_trie::{hashed_cursor::HashedCursorFactory, trie_cursor::TrieCursorFactory};
 use std::marker::PhantomData;
 
 /// Factory for creating trie cursors for [`OpProofsStore`].
@@ -29,7 +26,7 @@ impl<'tx, S: OpProofsStore> OpProofsTrieCursorFactory<'tx, S> {
 
 impl<'tx, S> TrieCursorFactory for OpProofsTrieCursorFactory<'tx, S>
 where
-    for<'a> S: OpProofsStore<StorageTrieCursor<'a>: TrieStorageCursor> + 'tx,
+    for<'a> S: OpProofsStore + 'tx,
 {
     type AccountTrieCursor<'a>
         = OpProofsTrieCursor<S::AccountTrieCursor<'a>>

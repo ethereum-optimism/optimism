@@ -285,14 +285,14 @@ impl<C: TrieCursor> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
 impl<C: TrieStorageCursor> TrieStorageCursor for OpProofsTrieCursorWithMetrics<C> {
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
-        // todo
+        todo!()
     }
 }
 
@@ -318,7 +318,7 @@ impl<C: HashedCursor> HashedCursor for OpProofsHashedCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
@@ -329,7 +329,7 @@ impl<C: HashedStorageCursor> HashedStorageCursor for OpProofsHashedCursorWithMet
     }
 
     #[inline]
-    fn set_hashed_address(&mut self, hashed_address: B256) {
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
         todo!()
     }
 }
@@ -363,7 +363,7 @@ where
     S: OpProofsStore,
 {
     type StorageTrieCursor<'tx>
-        = OpProofsTrieCursor<S::StorageTrieCursor<'tx>>
+        = OpProofsTrieCursorWithMetrics<S::StorageTrieCursor<'tx>>
     where
         Self: 'tx;
     type AccountTrieCursor<'tx>
@@ -486,10 +486,7 @@ where
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         let cursor = self.storage.storage_trie_cursor(hashed_address, max_block_number)?;
-        Ok(cursor::OpProofsTrieCursor(OpProofsTrieCursorWithMetrics::new(
-            cursor,
-            self.metrics.clone(),
-        )))
+        Ok(OpProofsTrieCursorWithMetrics::new(cursor, self.metrics.clone()))
     }
 
     #[inline]

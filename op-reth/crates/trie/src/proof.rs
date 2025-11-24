@@ -128,7 +128,7 @@ pub trait DatabaseStorageProof<'tx, S> {
 
 impl<'tx, S> DatabaseStorageProof<'tx, S>
     for StorageProof<
-        '_,
+        'static,
         OpProofsTrieCursorFactory<'tx, S>,
         OpProofsHashedAccountCursorFactory<'tx, S>,
     >

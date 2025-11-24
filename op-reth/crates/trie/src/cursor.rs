@@ -56,8 +56,8 @@ where
     C: TrieStorageCursor,
 {
     #[inline]
-    fn set_hashed_address(&mut self, _hashed_address: B256) {
-        // todo
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.0.set_hashed_address(hashed_address)
     }
 }
 
@@ -123,7 +123,7 @@ where
     }
 
     #[inline]
-    fn set_hashed_address(&mut self, _hashed_address: B256) {
-        // todo
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.0.set_hashed_address(hashed_address)
     }
 }

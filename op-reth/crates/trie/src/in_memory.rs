@@ -1,15 +1,13 @@
 //! In-memory implementation of [`OpProofsStore`] for testing purposes
 
-use crate::{
-    api::WriteCounts, BlockStateDiff, OpProofsStorageResult, OpProofsStore,
-};
+use crate::{api::WriteCounts, BlockStateDiff, OpProofsStorageResult, OpProofsStore};
 use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
-    trie_cursor::TrieCursor,
+    trie_cursor::{TrieCursor, TrieStorageCursor},
     updates::TrieUpdates,
     BranchNodeCompact, HashedPostState, Nibbles,
 };
@@ -271,7 +269,14 @@ impl TrieCursor for InMemoryTrieCursor {
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
+    }
+}
+
+impl TrieStorageCursor for InMemoryTrieCursor {
+    #[inline]
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        todo!()
     }
 }
 
@@ -344,7 +349,7 @@ impl HashedCursor for InMemoryStorageCursor {
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
@@ -419,7 +424,7 @@ impl HashedCursor for InMemoryAccountCursor {
     }
 
     fn reset(&mut self) {
-        // todo
+        todo!()
     }
 }
 
@@ -678,7 +683,7 @@ impl OpProofsStore for InMemoryProofsStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{OpProofsStorageError, OpProofsTrieCursor};
+    use crate::OpProofsStorageError;
     use alloy_eips::NumHash;
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;
