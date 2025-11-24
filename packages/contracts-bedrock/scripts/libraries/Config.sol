@@ -141,17 +141,23 @@ library Config {
             return envUrl;
         }
 
-        if (block.chainid == 1) { // Ethereum
+        if (block.chainid == 1) {
+            // Ethereum
             return "https://eth.blockscout.com";
-        } else if (block.chainid == 10) { // OP Mainnet
+        } else if (block.chainid == 10) {
+            // OP Mainnet
             return "https://explorer.optimism.io";
-        } else if (block.chainid == 11155111) { // Sepolia
+        } else if (block.chainid == 11155111) {
+            // Sepolia
             return "https://eth-sepolia.blockscout.com";
-        } else if (block.chainid == 8453) { // Base
+        } else if (block.chainid == 8453) {
+            // Base
             return "https://base.blockscout.com";
-        } else if (block.chainid == 84532) { // Base Sepolia
+        } else if (block.chainid == 84532) {
+            // Base Sepolia
             return "https://base-sepolia.blockscout.com";
-        } else if (block.chainid == 11155420) { // OP Sepolia
+        } else if (block.chainid == 11155420) {
+            // OP Sepolia
             return "https://optimism-sepolia.blockscout.com";
         } else {
             return "";
