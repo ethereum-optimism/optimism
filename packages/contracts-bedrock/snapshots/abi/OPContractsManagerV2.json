@@ -227,23 +227,6 @@
             "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
-          },
-          {
-            "components": [
-              {
-                "internalType": "string",
-                "name": "key",
-                "type": "string"
-              },
-              {
-                "internalType": "bytes",
-                "name": "data",
-                "type": "bytes"
-              }
-            ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
-            "name": "extraInstructions",
-            "type": "tuple[]"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -717,7 +700,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_contract",
+        "type": "address"
+      }
+    ],
     "name": "OPContractsManagerV2_DowngradeNotAllowed",
     "type": "error"
   },
@@ -737,7 +726,13 @@
     "type": "error"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_name",
+        "type": "string"
+      }
+    ],
     "name": "OPContractsManagerV2_ProxyMustLoad",
     "type": "error"
   },

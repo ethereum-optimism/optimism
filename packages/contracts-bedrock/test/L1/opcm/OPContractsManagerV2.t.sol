@@ -515,7 +515,12 @@ contract OPContractsManagerV2_UpgradeSuperchain_Test is OPContractsManagerV2_Upg
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("99.99.99"));
 
         // Should revert.
-        vm.expectRevert(IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector);
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_DowngradeNotAllowed.selector, address(superchainConfig)
+            )
+        );
         DelegateCaller(superchainPAO).dcForward(
             address(opcmV2), abi.encodeCall(IOPContractsManagerV2.upgradeSuperchain, (superchainUpgradeInput))
         );
