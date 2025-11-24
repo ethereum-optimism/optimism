@@ -103,9 +103,9 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 
 	require.NoError(t, m.AddL2Block(a))
 
-	_, err := m.TxData(eth.BlockID{}, false, false, false)
+	_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.NoError(t, err)
-	_, err = m.TxData(eth.BlockID{}, false, false, false)
+	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.ErrorIs(t, err, io.EOF)
 
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
@@ -207,7 +207,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 
 	require.NoError(m.AddL2Block(a))
 
-	txdata0, err := m.TxData(eth.BlockID{}, false, false, false)
+	txdata0, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.NoError(err)
 	txdata0bytes := txdata0.CallData()
 	data0 := make([]byte, len(txdata0bytes))
@@ -215,13 +215,13 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	copy(data0, txdata0bytes)
 
 	// ensure channel is drained
-	_, err = m.TxData(eth.BlockID{}, false, false, false)
+	_, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.ErrorIs(err, io.EOF)
 
 	// requeue frame
 	m.TxFailed(txdata0.ID())
 
-	txdata1, err := m.TxData(eth.BlockID{}, false, false, false)
+	txdata1, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.NoError(err)
 
 	data1 := txdata1.CallData()
@@ -364,7 +364,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
-			_, err := m.TxData(eth.BlockID{}, false, false, false)
+			_, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 			require.ErrorIs(t, err, io.EOF)
 
 			// The test requires us to have something in the channel queue
@@ -383,7 +383,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			var data txData
 			for {
 				m.blocks.Enqueue(SizedBlock{Block: blockA})
-				data, err = m.TxData(eth.BlockID{}, false, false, false)
+				data, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 				if err == nil && data.Len() > 0 {
 					break
 				}
@@ -607,11 +607,12 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 
 func TestChannelManager_PruneChannels(t *testing.T) {
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
-	A, err := newChannelWithChannelOut(nil, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
+	l := testlog.Logger(t, log.LevelCrit)
+	A, err := newChannelWithChannelOut(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
 	require.NoError(t, err)
-	B, err := newChannelWithChannelOut(nil, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
+	B, err := newChannelWithChannelOut(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
 	require.NoError(t, err)
-	C, err := newChannelWithChannelOut(nil, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
+	C, err := newChannelWithChannelOut(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig, 0)
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -710,7 +711,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 	// Call TxData a first time to trigger blocks->channels pipeline
-	txData, err := m.TxData(eth.BlockID{}, false, false, false)
+	txData, err := m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: false, moreComing: false})
 	require.ErrorIs(t, err, io.EOF)
 	require.Zero(t, txData.Len(), 0)
 
@@ -720,7 +721,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	require.False(t, m.channelQueue[0].IsFull())
 
 	// Call TxData with force publish enabled
-	txData, err = m.TxData(eth.BlockID{}, false, false, true)
+	txData, err = m.TxData(eth.BlockID{}, false, false, pubInfo{forcePublish: true, moreComing: false})
 
 	// Despite no additional blocks being added, we should have tx data:
 	require.NoError(t, err)
@@ -827,7 +828,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			_, err = manager.TxData(eth.BlockID{
 				Hash:   common.Hash{},
 				Number: 0,
-			}, true, false, false)
+			}, true, false, pubInfo{forcePublish: false, moreComing: false})
 		}
 
 		assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())

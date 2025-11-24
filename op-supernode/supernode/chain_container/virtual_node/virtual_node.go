@@ -18,7 +18,7 @@ func defaultInnerNodeFactory(ctx context.Context, cfg *opnodecfg.Config, log get
 	if initOverload != nil {
 		overrides = *initOverload
 	}
-	return rollupNode.NewWithOverride(ctx, cfg, log, appVersion, m, overrides)
+	return rollupNode.NewWithOverride(ctx, cfg, log, appVersion, m, nil, overrides)
 }
 
 var (
