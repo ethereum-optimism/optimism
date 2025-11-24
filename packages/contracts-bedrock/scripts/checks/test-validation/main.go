@@ -124,7 +124,10 @@ func testContractExistsInFile(testFilePath, contractName string) bool {
 		return false
 	}
 
-	return strings.Contains(string(content), "contract "+contractName)
+	contentStr := string(content)
+	return strings.Contains(contentStr, "contract "+contractName) ||
+		strings.Contains(contentStr, "interface "+contractName) ||
+		strings.Contains(contentStr, "library "+contractName)
 }
 
 // Test name validation
