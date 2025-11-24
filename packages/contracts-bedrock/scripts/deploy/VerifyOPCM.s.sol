@@ -495,20 +495,8 @@ contract VerifyOPCM is Script {
 
         // If requested and this is not a blueprint, we also need to check the creation code.
         if (!_target.blueprint && !_skipConstructorVerification) {
-            // Use the Etherscan API to get the creation code.
-            bytes memory actualCreationCode = bytes(
-                Process.bash(
-                    string.concat(
-                        "curl -s 'https://api.etherscan.io/v2/api?chainid=",
-                        vm.toString(block.chainid),
-                        "&module=contract&action=getcontractcreation&contractaddresses=",
-                        vm.toString(_target.addr),
-                        "&apikey=",
-                        Config.etherscanApiKey(),
-                        "' | jq -r '.result[0].creationBytecode'"
-                    )
-                )
-            );
+            // Get the creation code from the selected block explorer.
+            bytes memory actualCreationCode = _getCreationCode(_target.addr);
 
             // Verify that the artifact bytecode is a prefix of the actual creation code and
             // extract any remaining bytes so we can verify the constructor arguments.
@@ -544,6 +532,40 @@ contract VerifyOPCM is Script {
         }
 
         return success;
+    }
+
+    /// @notice Gets the creation code for a given contract address from the configured block explorer.
+    /// @param _addr The address of the contract to get the creation code for.
+    /// @return The creation code of the contract.
+    function _getCreationCode(address _addr) internal returns (bytes memory) {
+        // Prepare the command to execute.
+        string memory cmd;
+
+        // Check which block explorer to use.
+        if (LibString.eq(Config.blockExplorer(), "blockscout")) {
+            console.log("  Fetching creation code from Blockscout...");
+            cmd = string.concat(
+                "curl -s '",
+                Config.blockscoutApiUrl(),
+                "/api?module=contract&action=getcontractcreation&contractaddresses=",
+                vm.toString(_addr),
+                "' | jq -r '.result[0].creationBytecode'"
+            );
+        } else {
+            console.log("  Fetching creation code from Etherscan...");
+            cmd = string.concat(
+                "curl -s 'https://api.etherscan.io/v2/api?chainid=",
+                vm.toString(block.chainid),
+                "&module=contract&action=getcontractcreation&contractaddresses=",
+                vm.toString(_addr),
+                "&apikey=",
+                Config.etherscanApiKey(),
+                "' | jq -r '.result[0].creationBytecode'"
+            );
+        }
+
+        // Execute the command.
+        return bytes(Process.bash(cmd));
     }
 
     /// @notice Checks if V2 dispute games feature is enabled in the dev feature bitmap.

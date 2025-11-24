@@ -129,6 +129,35 @@ library Config {
         env_ = vm.envString("ETHERSCAN_API_KEY");
     }
 
+    /// @notice Returns the block explorer to use for fetching creation code.
+    function blockExplorer() internal view returns (string memory env_) {
+        env_ = vm.envOr("BLOCK_EXPLORER", string("blockscout"));
+    }
+
+    /// @notice Returns the base URL for the Blockscout API.
+    function blockscoutApiUrl() internal view returns (string memory) {
+        string memory envUrl = vm.envOr("BLOCKSCOUT_API_URL", string(""));
+        if (bytes(envUrl).length > 0) {
+            return envUrl;
+        }
+
+        if (block.chainid == 1) { // Ethereum
+            return "https://eth.blockscout.com";
+        } else if (block.chainid == 10) { // OP Mainnet
+            return "https://explorer.optimism.io";
+        } else if (block.chainid == 11155111) { // Sepolia
+            return "https://eth-sepolia.blockscout.com";
+        } else if (block.chainid == 8453) { // Base
+            return "https://base.blockscout.com";
+        } else if (block.chainid == 84532) { // Base Sepolia
+            return "https://base-sepolia.blockscout.com";
+        } else if (block.chainid == 11155420) { // OP Sepolia
+            return "https://optimism-sepolia.blockscout.com";
+        } else {
+            return "";
+        }
+    }
+
     /// @notice Returns the OutputMode for genesis allocs generation.
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.
