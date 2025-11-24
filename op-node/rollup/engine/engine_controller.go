@@ -1123,7 +1123,38 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 	}
 }
 
-func (e *EngineController) FollowSource(eSafe, eFinalized eth.L2BlockRef) {
+func (e *EngineController) FollowSource(eSafePayloadEnv *eth.ExecutionPayloadEnvelope) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	eSafeBlockRef, err := derive.PayloadToBlockRef(e.rollupCfg, eSafePayloadEnv.ExecutionPayload)
+	if err != nil {
+		e.log.Error("Failed to turn execution payload into a block ref while following safe", "ref", eSafeBlockRef, "err", err)
+		return
+	}
+	if e.unsafeHead.Number >= eSafeBlockRef.Number {
+		_, err := e.engine.L2BlockRefByHash(e.ctx, eSafeBlockRef.Hash)
+		if errors.Is(err, ethereum.NotFound) {
+			e.log.Info("Follow Source: Reorg", "target", eSafeBlockRef)
+			// Reorg unsafe head to to external safe head
+			// Ref) payload_success.go
+			e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
+			// Always conclude
+			e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		} else if err == nil {
+			e.log.Info("Follow Source: Consolidation", "safe", eSafeBlockRef)
+			// Consolidation
+			// Ref) attributes.go
+			e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		} else {
+			e.log.Info("Follow Source: Failed to fetch external safe from local EL", "safe", eSafeBlockRef)
+			return
+		}
+	} else {
+		// Local unsafe is before the external safe. Need to fill in the gap using EL Sync
+		e.log.Info("Inserting external safe payload to drive EL Sync", "ref", eSafeBlockRef)
+
+		// Need to error handle this
+		e.insertUnsafePayload(e.ctx, eSafePayloadEnv, eSafeBlockRef)
+	}
 }
