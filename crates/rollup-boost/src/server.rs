@@ -424,6 +424,7 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
                     debug!(
                         message = "received new state root payload from l2",
                         payload = ?new_payload,
+                        builder_payload = ?builder_payload,
                     );
                     return Ok(Some(new_payload));
                 }
