@@ -37,6 +37,7 @@ func NewDriver(
 	depSet derive.DependencySet,
 	l2 L2Chain,
 	l1 L1Chain,
+	followTracker FollowTracker,
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -143,6 +144,7 @@ func NewDriver(
 		sequencer:     sequencer,
 		metrics:       metrics,
 		altSync:       altSync,
+		followTracker: followTracker,
 	}
 
 	return driver
@@ -184,6 +186,8 @@ type Driver struct {
 
 	driverCtx    context.Context
 	driverCancel context.CancelFunc
+
+	followTracker FollowTracker
 }
 
 // Start starts up the state loop.
@@ -286,6 +290,14 @@ func (s *Driver) eventLoop() {
 		altSyncTicker.Reset(syncCheckInterval)
 	}
 
+	var followSourceTickerC <-chan time.Time
+	if s.followTracker != nil {
+		followSourceCheckInterval := time.Duration(s.SyncDeriver.Config.BlockTime) * time.Second * 2
+		followSourceTicker := time.NewTicker(followSourceCheckInterval)
+		followSourceTickerC = followSourceTicker.C
+		defer followSourceTicker.Stop()
+	}
+
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
 			return
@@ -315,6 +327,8 @@ func (s *Driver) eventLoop() {
 			if err != nil {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
+		case <-followSourceTickerC:
+			s.followSource()
 		case <-s.sched.NextDelayedStep():
 			s.sched.AttemptStep(s.driverCtx)
 		case <-s.sched.NextStep():
@@ -444,4 +458,28 @@ func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 
 func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
 	s.SyncDeriver.OnUnsafeL2Payload(ctx, payload)
+}
+
+func (s *Driver) followSource() {
+	if !s.syncConfig.UnsafeOnly || s.followTracker == nil {
+		return
+	}
+	if s.SyncDeriver.Engine.IsEngineInitialELSyncing() {
+		return
+	}
+	eFinalized, err := s.followTracker.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
+	if err != nil {
+		s.log.Warn("Following failed: Finalized", "err", err)
+		return
+	}
+	eSafe, err := s.followTracker.L2BlockRefByLabel(s.driverCtx, eth.Safe)
+	if err != nil {
+		s.log.Warn("Following failed: Safe", "err", err)
+		return
+	}
+	if eFinalized.Number < eSafe.Number {
+		s.log.Warn("Invalid Following state, finalized is behind safe", "safe", eSafe, "finalized", eFinalized)
+		return
+	}
+	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
 }

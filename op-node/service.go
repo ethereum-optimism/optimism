@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -117,6 +118,7 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		ConfigPersistence:           configPersistence,
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,
+		L2FollowSource:              NewL2FollowSourceConfig(ctx),
 		RollupHalt:                  haltOption,
 
 		ConductorEnabled: ctx.Bool(flags.ConductorEnabledFlag.Name),
@@ -192,6 +194,15 @@ func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2End
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
 	}, nil
+}
+
+func NewL2FollowSourceConfig(ctx cliiface.Context) *config.L2FollowSourceConfig {
+	l2Addr := ctx.String(flags.L2FollowSource.Name)
+	l2RpcTimeout := time.Second * 10
+	return &config.L2FollowSourceConfig{
+		L2RPCAddr:        l2Addr,
+		L2RPCCallTimeout: l2RpcTimeout,
+	}
 }
 
 func NewConfigPersistence(ctx cliiface.Context) config.ConfigPersistence {
