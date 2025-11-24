@@ -2987,7 +2987,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: large
+          resource_class: xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
