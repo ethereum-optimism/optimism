@@ -3,6 +3,8 @@ package release
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -52,6 +54,78 @@ func TestGithubReleaseDownloader_Forge(t *testing.T) {
 				require.NotEmpty(t, binPath)
 			})
 		}
+	})
+
+	t.Run("version check", func(t *testing.T) {
+		var checksums map[string]string
+		err := json.Unmarshal(versionJSON, &checksums)
+		require.NoError(t, err)
+
+		cacheDir := t.TempDir()
+
+		t.Run("should fail if the command fails", func(t *testing.T) {
+			provider := NewGithubReleaseDownloader(
+				"foundry-rs",
+				"foundry",
+				"forge",
+				WithChecksummerFactory(NewStaticChecksummerFactory(checksums)),
+				WithCachePather(NewStaticCachePather(cacheDir)),
+				WithOSGetter(NewDefaultOSGetter()),
+				WithURLGetter(newForgeURLGetter()),
+				WithVersionCheckerFactory(NewStaticCommandVersionCheckerFactory([]string{"-idontexist"}, parseForgeVersionOutput, NewSemverEqualityComparator())),
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			binPath, err := provider.Get(ctx, "v1.1.0")
+			require.ErrorContains(t, err, "version check failed for binary forge of version v1.1.0: version check failed")
+			require.Empty(t, binPath)
+		})
+
+		t.Run("should fail if the versions do not match", func(t *testing.T) {
+			returnStaticUnmatchingForgeVersion := func(out string) (string, error) {
+				return "4.0.0", nil
+			}
+
+			provider := NewGithubReleaseDownloader(
+				"foundry-rs",
+				"foundry",
+				"forge",
+				WithChecksummerFactory(NewStaticChecksummerFactory(checksums)),
+				WithCachePather(NewStaticCachePather(cacheDir)),
+				WithOSGetter(NewDefaultOSGetter()),
+				WithURLGetter(newForgeURLGetter()),
+				WithVersionCheckerFactory(NewStaticCommandVersionCheckerFactory([]string{"-V"}, returnStaticUnmatchingForgeVersion, NewSemverEqualityComparator())),
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			binPath, err := provider.Get(ctx, "v1.1.0")
+			require.ErrorContains(t, err, "version check failed for binary forge of version v1.1.0: requested version v1.1.0 does not match the actual one 4.0.0")
+			require.Empty(t, binPath)
+		})
+
+		t.Run("should succeed if the versions match", func(t *testing.T) {
+			provider := NewGithubReleaseDownloader(
+				"foundry-rs",
+				"foundry",
+				"forge",
+				WithChecksummerFactory(NewStaticChecksummerFactory(checksums)),
+				WithCachePather(NewStaticCachePather(cacheDir)),
+				WithOSGetter(NewDefaultOSGetter()),
+				WithURLGetter(newForgeURLGetter()),
+				WithVersionCheckerFactory(NewStaticCommandVersionCheckerFactory([]string{"-V"}, parseForgeVersionOutput, NewSemverEqualityComparator())),
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			binPath, err := provider.Get(ctx, "v1.1.0")
+			require.NoError(t, err)
+			require.NotEmpty(t, binPath)
+		})
 	})
 
 	t.Run("invalid checksum", func(t *testing.T) {
@@ -134,4 +208,13 @@ func newForgeURLGetter() GithubReleaseURLGetter {
 
 		return defaultURLGetter(owner, repo, "foundry", version, os, arch)
 	}
+}
+
+func parseForgeVersionOutput(out string) (string, error) {
+	re := regexp.MustCompile(`(\d+\.\d+\.\d+)`)
+	m := re.FindStringSubmatch(out)
+	if len(m) < 2 {
+		return "", fmt.Errorf("could not parse version tag from: %q", out)
+	}
+	return "v" + m[1], nil
 }
