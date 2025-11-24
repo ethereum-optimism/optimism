@@ -274,7 +274,6 @@ impl TrieCursor for InMemoryTrieCursor {
 }
 
 impl TrieStorageCursor for InMemoryTrieCursor {
-    #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
         todo!()
     }
@@ -358,7 +357,6 @@ impl HashedStorageCursor for InMemoryStorageCursor {
         Ok(self.seek(B256::ZERO)?.is_none())
     }
 
-    #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
         todo!()
     }

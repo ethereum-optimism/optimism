@@ -197,7 +197,7 @@ where
     }
 
     fn reset(&mut self) {
-        todo!()
+        // Database cursors are stateless, no reset needed
     }
 }
 
@@ -250,7 +250,7 @@ where
     }
 
     fn reset(&mut self) {
-        todo!()
+        // Database cursors are stateless, no reset needed
     }
 }
 
@@ -258,7 +258,6 @@ impl<Cursor> TrieStorageCursor for MdbxTrieCursor<StorageTrieHistory, Cursor>
 where
     Cursor: DbCursorRO<StorageTrieHistory> + DbDupCursorRO<StorageTrieHistory> + Send + Sync,
 {
-    #[inline]
     fn set_hashed_address(&mut self, hashed_address: B256) {
         self.hashed_address = Some(hashed_address);
     }
@@ -328,19 +327,17 @@ where
     }
 
     fn reset(&mut self) {
-        todo!()
+        // Database cursors are stateless, no reset needed
     }
 }
 
 impl HashedStorageCursor for MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
-    #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         Ok(self.seek(B256::ZERO)?.is_none())
     }
 
-    #[inline]
-    fn set_hashed_address(&mut self, _hashed_address: B256) {
-        todo!()
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.hashed_address = hashed_address
     }
 }
 
@@ -375,7 +372,7 @@ where
     }
 
     fn reset(&mut self) {
-        todo!()
+        // Database cursors are stateless, no reset needed
     }
 }
 

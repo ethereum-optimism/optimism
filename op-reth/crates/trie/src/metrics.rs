@@ -285,14 +285,14 @@ impl<C: TrieCursor> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        todo!()
+        self.cursor.reset()
     }
 }
 
 impl<C: TrieStorageCursor> TrieStorageCursor for OpProofsTrieCursorWithMetrics<C> {
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
-        todo!()
+        self.cursor.set_hashed_address(_hashed_address)
     }
 }
 
@@ -318,7 +318,7 @@ impl<C: HashedCursor> HashedCursor for OpProofsHashedCursorWithMetrics<C> {
 
     #[inline]
     fn reset(&mut self) {
-        todo!()
+        self.cursor.reset()
     }
 }
 
@@ -330,7 +330,7 @@ impl<C: HashedStorageCursor> HashedStorageCursor for OpProofsHashedCursorWithMet
 
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
-        todo!()
+        self.cursor.set_hashed_address(_hashed_address)
     }
 }
 
