@@ -1122,3 +1122,8 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 		return eth.PayloadID{}, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
 }
+
+func (e *EngineController) FollowSource(eSafe, eFinalized eth.L2BlockRef) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+}

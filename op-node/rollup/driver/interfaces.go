@@ -53,6 +53,20 @@ type L2Chain interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 }
 
+type L2FollowSource interface {
+	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayloadEnvelope, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+}
+
+type FollowTracker interface {
+	L2FollowSource
+	SetPrevExternalSafe(safe eth.L2BlockRef)
+	GetPrevExternalSafe() eth.L2BlockRef
+}
+
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context, pendingSafeHead eth.L2BlockRef) (*derive.AttributesWithParent, error)
