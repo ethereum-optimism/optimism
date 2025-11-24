@@ -15,7 +15,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "10.3.3"
+      "version": "11.5.0"
     },
     {
       "type": "datasource",
@@ -58,7 +58,6 @@
   "graphTooltip": 0,
   "id": null,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -106,19 +105,26 @@
       },
       "id": 101,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": ""
+          "fields": "",
+          "values": false
         },
+        "showPercentChange": false,
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.3.3",
+      "pluginVersion": "11.5.0",
       "targets": [
         {
           "datasource": {
@@ -168,19 +174,26 @@
       },
       "id": 102,
       "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "values": false,
           "calcs": [
             "lastNotNull"
           ],
-          "fields": ""
+          "fields": "",
+          "values": false
         },
+        "showPercentChange": false,
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
-        "text": {}
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "10.3.3",
+      "pluginVersion": "11.5.0",
       "targets": [
         {
           "datasource": {
@@ -205,41 +218,41 @@
       "description": "Latency histogram for forwarding a transaction to the Sequencer",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
-            "lineWidth": 1,
+            "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
-            "spanNulls": false,
-            "insertNulls": false,
-            "showPoints": "auto",
-            "pointSize": 5,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             },
-            "axisPlacement": "auto",
-            "axisLabel": "",
-            "axisColorMode": "text",
-            "axisBorderShow": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "axisCenteredZero": false,
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
             }
-          },
-          "color": {
-            "mode": "palette-classic"
           },
           "mappings": [],
           "thresholds": {
@@ -267,17 +280,19 @@
       },
       "id": 210,
       "options": {
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        },
         "legend": {
-          "showLegend": true,
+          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
-          "calcs": []
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0",
       "targets": [
         {
           "datasource": {
@@ -363,12 +378,344 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "API metric for rate of failed requests per min",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "op-reth"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 9
+      },
+      "id": 302,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "rate(reth_optimism_rpc_eth_api_ext_get_proof_failures{instance=~\"$instance\"}[$__rate_interval])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": false,
+          "legendFormat": "{{client_name}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "eth_getProof - Rate of Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "API metric for rate of successful requests per min.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "id": 303,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "rate(reth_optimism_rpc_eth_api_ext_get_proof_successful_responses{instance=~\"$instance\"}[$__rate_interval])",
+          "fullMetaSearch": false,
+          "includeNullMetadata": false,
+          "legendFormat": "{{client_name}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "eth_getProof - Rate of Success",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "A time series on the latency of the API request",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 304,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "reth_optimism_rpc_eth_api_ext_get_proof_latency{quantile=\"0.99\", instance=~\"$instance\"}",
+          "format": "time_series",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "interval": "",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "eth_getProof - Latency (p99)",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 16
       },
       "id": 300,
       "panels": [],
@@ -383,41 +730,41 @@
       "description": "Number of conditional transactions removed from the pool per second due to exceeded block attributes",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
             "barAlignment": 0,
             "barWidthFactor": 0.6,
-            "lineWidth": 1,
+            "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "spanNulls": false,
-            "insertNulls": false,
-            "showPoints": "auto",
-            "pointSize": 5,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
             },
-            "axisPlacement": "auto",
-            "axisLabel": "",
-            "axisColorMode": "text",
-            "axisBorderShow": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "axisCenteredZero": false,
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
             }
-          },
-          "color": {
-            "mode": "palette-classic"
           },
           "mappings": [],
           "thresholds": {
@@ -441,21 +788,23 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 17
       },
       "id": 301,
       "options": {
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        },
         "legend": {
-          "showLegend": true,
+          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
-          "calcs": []
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0",
       "targets": [
         {
           "datasource": {
@@ -474,8 +823,15 @@
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 39,
-  "tags": ["optimism", "rpc", "sequencer", "miner", "transactions", "txpool"],
+  "schemaVersion": 40,
+  "tags": [
+    "optimism",
+    "rpc",
+    "sequencer",
+    "miner",
+    "transactions",
+    "txpool"
+  ],
   "templating": {
     "list": [
       {
@@ -485,9 +841,7 @@
           "uid": "${DS_PROMETHEUS}"
         },
         "definition": "query_result(reth_info)",
-        "hide": 0,
         "includeAll": false,
-        "multi": false,
         "name": "instance",
         "options": [],
         "query": {
@@ -496,20 +850,18 @@
         },
         "refresh": 1,
         "regex": "/.*instance=\\\"([^\\\"]*).*/",
-        "skipUrlSync": false,
-        "sort": 0,
         "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "OP-Reth",
   "uid": "8438c957-55f5-44df-869d-a9a30a3c9a97",
-  "version": 2,
+  "version": 4,
   "weekStart": ""
 }
