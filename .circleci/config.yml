@@ -2535,15 +2535,10 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.dev_features>>
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-      - contracts-bedrock-tests:
-          name: contracts-bedrock-tests <<matrix.dev_features>>
-          test_list: find test -name "*.t.sol"
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
@@ -2552,6 +2547,15 @@ workflows:
                 - OPTIMISM_PORTAL_INTEROP
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
                 - CUSTOM_GAS_TOKEN
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests <<matrix.dev_features>>
+          test_list: find test -name "*.t.sol"
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: *dev_features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
           check_changed_patterns: contracts-bedrock,op-node
