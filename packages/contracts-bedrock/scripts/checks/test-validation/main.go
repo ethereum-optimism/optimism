@@ -58,6 +58,13 @@ func processFile(path string) (*common.Void, []error) {
 		return nil, []error{err}
 	}
 
+	// Skip validation for artifacts where the contract doesn't exist in the source file
+	testFilePath, contractName, _ := getCompilationTarget(artifact)
+	if !testContractExistsInFile(testFilePath, contractName) {
+		fmt.Printf("Skipping validation for %s (contract %s not found in source file)\n", testFileName, contractName)
+		return nil, nil
+	}
+
 	var errors []error
 
 	// Validate test function naming conventions
@@ -92,7 +99,7 @@ func testFileExists(testFileName string) bool {
 
 	// Search recursively in test directory for the file
 	found := false
-	filepath.Walk("test", func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk("test", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -103,6 +110,21 @@ func testFileExists(testFileName string) bool {
 		return nil
 	})
 	return found
+}
+
+// Checks if test contract exists in the specified test source file
+func testContractExistsInFile(testFilePath, contractName string) bool {
+	if testFilePath == "" || contractName == "" {
+		return false
+	}
+
+	// Read file and check if contract name exists
+	content, err := os.ReadFile(testFilePath)
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(string(content), "contract "+contractName)
 }
 
 // Test name validation

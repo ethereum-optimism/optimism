@@ -17,8 +17,8 @@ func setupTestDir(t *testing.T) (tmpDir string, cleanup func()) {
 	t.Helper()
 	tmpDir = t.TempDir()
 	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	return tmpDir, func() { os.Chdir(oldWd) }
+	_ = os.Chdir(tmpDir)
+	return tmpDir, func() { _ = os.Chdir(oldWd) }
 }
 
 // createTestArtifact creates a ForgeArtifact with the given compilation target.
@@ -36,11 +36,11 @@ func TestProcessFile(t *testing.T) {
 	tmpDir, cleanup := setupTestDir(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join(tmpDir, "test"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "test", "Test.t.sol"), []byte(""), 0644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "test"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test", "Test.t.sol"), []byte(""), 0644)
 
 	tmpFile := filepath.Join(tmpDir, "forge-artifacts", "Test.t.sol", "Test.json")
-	os.MkdirAll(filepath.Dir(tmpFile), 0755)
+	_ = os.MkdirAll(filepath.Dir(tmpFile), 0755)
 	if err := os.WriteFile(tmpFile, []byte(`{"abi":[{"name":"IS_TEST"}],"metadata":{"settings":{"compilationTarget":{"Test.t.sol":"Test"}}}}`), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -63,8 +63,8 @@ func TestTestFileExists(t *testing.T) {
 	_, cleanup := setupTestDir(t)
 	defer cleanup()
 
-	os.MkdirAll(filepath.Join("test", "safe"), 0755)
-	os.WriteFile(filepath.Join("test", "safe", "Existing.t.sol"), []byte(""), 0644)
+	_ = os.MkdirAll(filepath.Join("test", "safe"), 0755)
+	_ = os.WriteFile(filepath.Join("test", "safe", "Existing.t.sol"), []byte(""), 0644)
 
 	if testFileExists("") {
 		t.Error("empty filename should return false")
@@ -73,6 +73,30 @@ func TestTestFileExists(t *testing.T) {
 		t.Error("should find existing file in subdirectory")
 	}
 	if testFileExists("NonExistent.t.sol") {
+		t.Error("should return false for non-existent file")
+	}
+}
+
+func TestTestContractExistsInFile(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	_ = os.MkdirAll("test", 0755)
+	_ = os.WriteFile("test/Contract.t.sol", []byte("contract MyContract_Test {}\ncontract OtherContract {}"), 0644)
+
+	if testContractExistsInFile("", "MyContract_Test") {
+		t.Error("empty path should return false")
+	}
+	if testContractExistsInFile("test/Contract.t.sol", "") {
+		t.Error("empty contract name should return false")
+	}
+	if !testContractExistsInFile("test/Contract.t.sol", "MyContract_Test") {
+		t.Error("should find existing contract")
+	}
+	if testContractExistsInFile("test/Contract.t.sol", "NonExistent_Test") {
+		t.Error("should return false for non-existent contract")
+	}
+	if testContractExistsInFile("test/NonExistent.t.sol", "MyContract_Test") {
 		t.Error("should return false for non-existent file")
 	}
 }
