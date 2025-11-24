@@ -34,7 +34,7 @@ alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 alloy-consensus.workspace = true
 
 # op-alloy
-op-alloy-rpc-types-engine.workspace = true
+op-alloy-rpc-types-engine = { workspace = true, features = ["k256"] }
 
 # io
 tokio.workspace = true
@@ -57,3 +57,4 @@ derive_more.workspace = true
 [dev-dependencies]
 test-case.workspace = true
 alloy-consensus.workspace = true
+op-alloy-consensus.workspace = true
