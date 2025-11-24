@@ -147,6 +147,12 @@ func NewHomeDirCachePather(namespace string) GithubReleaseCachePather {
 	}
 }
 
+func NewStaticCachePather(cacheDir string) GithubReleaseCachePather {
+	return func() (string, error) {
+		return cacheDir, nil
+	}
+}
+
 func WithOSGetter(c GithubReleaseOSGetter) GithubReleaseDownloaderOption {
 	return func(d *GithubReleaseDownloader) {
 		d.osGetter = c

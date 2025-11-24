@@ -39,7 +39,7 @@ func TestGithubReleaseDownloader_Forge(t *testing.T) {
 					"foundry",
 					"forge",
 					WithChecksummerFactory(NewStaticChecksummerFactory(checksums)),
-					WithCachePather(newStaticCachePather(cacheDir)),
+					WithCachePather(NewStaticCachePather(cacheDir)),
 					WithOSGetter(newStaticOSGetter(tgtOS, tgtArch)),
 					WithURLGetter(newForgeURLGetter()),
 				)
@@ -63,7 +63,7 @@ func TestGithubReleaseDownloader_Forge(t *testing.T) {
 			WithChecksummerFactory(NewStaticChecksummerFactory(map[string]string{
 				"darwin_amd64": "invalidchecksum",
 			})),
-			WithCachePather(newStaticCachePather(cacheDir)),
+			WithCachePather(NewStaticCachePather(cacheDir)),
 			WithOSGetter(newStaticOSGetter("darwin", "amd64")),
 			WithURLGetter(newForgeURLGetter()),
 		)
@@ -83,7 +83,7 @@ func TestGithubReleaseDownloader_Forge(t *testing.T) {
 			"foundry",
 			"forge",
 			WithChecksummerFactory(NewStaticChecksummerFactory(map[string]string{})),
-			WithCachePather(newStaticCachePather(cacheDir)),
+			WithCachePather(NewStaticCachePather(cacheDir)),
 			WithOSGetter(newStaticOSGetter("linux", "amd64")),
 			WithURLGetter(newForgeURLGetter()),
 		)
@@ -107,7 +107,7 @@ func TestGithubReleaseDownloader_OpDeployer(t *testing.T) {
 		"ethereum-optimism",
 		"optimism",
 		"op-deployer",
-		WithCachePather(newStaticCachePather(cacheDir)),
+		WithCachePather(NewStaticCachePather(cacheDir)),
 		WithURLGetter(NewOPStackURLGetter()),
 		WithBinaryLocator(NewOPStackBinaryLocator()),
 	)
@@ -121,12 +121,6 @@ func TestGithubReleaseDownloader_OpDeployer(t *testing.T) {
 func newStaticOSGetter(os, arch string) GithubReleaseOSGetter {
 	return func() (string, string, error) {
 		return os, arch, nil
-	}
-}
-
-func newStaticCachePather(cachePath string) GithubReleaseCachePather {
-	return func() (string, error) {
-		return cachePath, nil
 	}
 }
 
