@@ -264,19 +264,6 @@ where
     }
 }
 
-#[cfg(feature = "metrics")]
-impl<T, C> From<MdbxTrieCursor<T, C>>
-    for cursor::OpProofsTrieCursor<
-        crate::metrics::OpProofsTrieCursorWithMetrics<MdbxTrieCursor<T, C>>,
-    >
-where
-    T: Table + DupSort,
-{
-    fn from(cursor: MdbxTrieCursor<T, C>) -> Self {
-        cursor::OpProofsTrieCursor(crate::metrics::OpProofsTrieCursorWithMetrics::new(cursor))
-    }
-}
-
 /// MDBX implementation of [`HashedCursor`] for storage state.
 #[derive(Debug)]
 pub struct MdbxStorageCursor<Cursor> {
@@ -349,6 +336,11 @@ impl HashedStorageCursor for MdbxStorageCursor<Dup<'_, HashedStorageHistory>> {
     #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         Ok(self.seek(B256::ZERO)?.is_none())
+    }
+
+    #[inline]
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        todo!()
     }
 }
 

@@ -1,6 +1,8 @@
 //! In-memory implementation of [`OpProofsStore`] for testing purposes
 
-use crate::{api::WriteCounts, BlockStateDiff, OpProofsStorageResult, OpProofsStore};
+use crate::{
+    api::WriteCounts, BlockStateDiff, OpProofsStorageResult, OpProofsStore,
+};
 use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_db::DatabaseError;
@@ -350,6 +352,11 @@ impl HashedStorageCursor for InMemoryStorageCursor {
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         Ok(self.seek(B256::ZERO)?.is_none())
     }
+
+    #[inline]
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        todo!()
+    }
 }
 
 /// In-memory implementation of [`HashedCursor`] for accounts
@@ -417,7 +424,7 @@ impl HashedCursor for InMemoryAccountCursor {
 }
 
 impl OpProofsStore for InMemoryProofsStorage {
-    type StorageTrieCursor<'tx> = OpProofsTrieCursor<InMemoryTrieCursor>;
+    type StorageTrieCursor<'tx> = InMemoryTrieCursor;
     type AccountTrieCursor<'tx> = InMemoryTrieCursor;
     type StorageCursor<'tx> = InMemoryStorageCursor;
     type AccountHashedCursor<'tx> = InMemoryAccountCursor;
@@ -501,6 +508,7 @@ impl OpProofsStore for InMemoryProofsStorage {
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         // For synchronous methods, we need to try_read() and handle potential blocking
         let inner = self.inner.try_read()?;
+
         Ok(InMemoryTrieCursor::new(&inner, Some(hashed_address), max_block_number))
     }
 
@@ -669,9 +677,8 @@ impl OpProofsStore for InMemoryProofsStorage {
 
 #[cfg(test)]
 mod tests {
-    use crate::OpProofsStorageError;
-
     use super::*;
+    use crate::{OpProofsStorageError, OpProofsTrieCursor};
     use alloy_eips::NumHash;
     use alloy_primitives::U256;
     use reth_primitives_traits::Account;

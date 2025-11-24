@@ -13,7 +13,7 @@ use reth_metrics::Metrics;
 use reth_primitives_traits::Account;
 use reth_trie::{
     hashed_cursor::{HashedCursor, HashedStorageCursor},
-    trie_cursor::TrieCursor,
+    trie_cursor::{TrieCursor, TrieStorageCursor},
     BranchNodeCompact, Nibbles,
 };
 use std::{
@@ -289,36 +289,10 @@ impl<C: TrieCursor> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
     }
 }
 
-impl<C: OpProofsTrieCursorRO> TrieCursor for OpProofsTrieCursorWithMetrics<C> {
+impl<C: TrieStorageCursor> TrieStorageCursor for OpProofsTrieCursorWithMetrics<C> {
     #[inline]
-    fn seek(
-        &mut self,
-        key: Nibbles,
-    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
-        Ok(self.cursor.seek(key)?)
-    }
-
-    #[inline]
-    fn seek_exact(
-        &mut self,
-        key: Nibbles,
-    ) -> Result<Option<(Nibbles, BranchNodeCompact)>, reth_db::DatabaseError> {
-        Ok(self.cursor.seek_exact(key)?)
-    }
-
-    #[inline]
-    fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
-        Ok(self.cursor.next()?)
-    }
-
-    #[inline]
-    fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
-        Ok(self.cursor.current()?)
-    }
-
-    #[inline]
-    fn reset(&mut self) {
-        self.cursor.reset()
+    fn set_hashed_address(&mut self, _hashed_address: B256) {
+        // todo
     }
 }
 
@@ -352,6 +326,11 @@ impl<C: HashedStorageCursor> HashedStorageCursor for OpProofsHashedCursorWithMet
     #[inline]
     fn is_storage_empty(&mut self) -> Result<bool, DatabaseError> {
         self.cursor.is_storage_empty()
+    }
+
+    #[inline]
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        todo!()
     }
 }
 
@@ -507,7 +486,10 @@ where
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
         let cursor = self.storage.storage_trie_cursor(hashed_address, max_block_number)?;
-        Ok(OpProofsTrieCursorWithMetrics::new(cursor, self.metrics.clone()))
+        Ok(cursor::OpProofsTrieCursor(OpProofsTrieCursorWithMetrics::new(
+            cursor,
+            self.metrics.clone(),
+        )))
     }
 
     #[inline]

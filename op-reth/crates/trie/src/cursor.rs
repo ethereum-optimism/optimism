@@ -2,7 +2,7 @@
 //! [`OpProofsStorage`](crate::OpProofsStorage).
 
 use alloy_primitives::{B256, U256};
-use derive_more::{Constructor, From};
+use derive_more::Constructor;
 use reth_db::DatabaseError;
 use reth_primitives_traits::Account;
 use reth_trie::{
@@ -12,8 +12,8 @@ use reth_trie::{
 };
 
 /// Manages reading storage or account trie nodes from [`TrieCursor`].
-#[derive(Debug, Clone, Constructor, From)]
-pub struct OpProofsTrieCursor<C: TrieCursor>(pub C);
+#[derive(Debug, Clone, Constructor)]
+pub struct OpProofsTrieCursor<C>(pub C);
 
 impl<C> TrieCursor for OpProofsTrieCursor<C>
 where
@@ -53,7 +53,7 @@ where
 
 impl<C> TrieStorageCursor for OpProofsTrieCursor<C>
 where
-    C: OpProofsTrieCursorRO,
+    C: TrieStorageCursor,
 {
     #[inline]
     fn set_hashed_address(&mut self, _hashed_address: B256) {
