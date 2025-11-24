@@ -876,12 +876,6 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
 
         vm.stopPrank();
 
-        // Skip features that are enabled in this deploy config (e.g., ETH_LOCKBOX on mainnet).
-        // Such features are not "unset" by definition.
-        if (systemConfig.isFeatureEnabled(_feature)) {
-            return;
-        }
-
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
 
