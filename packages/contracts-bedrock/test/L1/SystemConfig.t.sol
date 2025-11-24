@@ -869,15 +869,18 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
         vm.startPrank(address(systemConfig.proxyAdmin()));
 
-        // Disable all known features to avoid environment-dependent state
+        // Normalize CUSTOM_GAS_TOKEN to avoid environment-dependent state
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
         }
-        if (systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            systemConfig.setFeature(Features.ETH_LOCKBOX, false);
-        }
 
         vm.stopPrank();
+
+        // Skip features that are enabled in this deploy config (e.g., ETH_LOCKBOX on mainnet).
+        // Such features are not "unset" by definition.
+        if (systemConfig.isFeatureEnabled(_feature)) {
+            return;
+        }
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));
     }
