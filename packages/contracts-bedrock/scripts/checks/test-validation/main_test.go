@@ -11,14 +11,69 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
+// setupTestDir creates a temporary directory and changes to it for testing.
+// Returns a cleanup function that should be deferred.
+func setupTestDir(t *testing.T) (tmpDir string, cleanup func()) {
+	t.Helper()
+	tmpDir = t.TempDir()
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	return tmpDir, func() { os.Chdir(oldWd) }
+}
+
+// createTestArtifact creates a ForgeArtifact with the given compilation target.
+func createTestArtifact(srcPath, contractName string) *solc.ForgeArtifact {
+	return &solc.ForgeArtifact{
+		Metadata: solc.ForgeCompilerMetadata{
+			Settings: solc.CompilerSettings{
+				CompilationTarget: map[string]string{srcPath: contractName},
+			},
+		},
+	}
+}
+
 func TestProcessFile(t *testing.T) {
-	tmpFile := filepath.Join(t.TempDir(), "test.json")
-	if err := os.WriteFile(tmpFile, []byte(`{"abi":[{"name":"IS_TEST"}],"metadata":{"settings":{"compilationTarget":{"test.sol":"Test"}}}}`), 0644); err != nil {
+	tmpDir, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	os.MkdirAll(filepath.Join(tmpDir, "test"), 0755)
+	os.WriteFile(filepath.Join(tmpDir, "test", "Test.t.sol"), []byte(""), 0644)
+
+	tmpFile := filepath.Join(tmpDir, "forge-artifacts", "Test.t.sol", "Test.json")
+	os.MkdirAll(filepath.Dir(tmpFile), 0755)
+	if err := os.WriteFile(tmpFile, []byte(`{"abi":[{"name":"IS_TEST"}],"metadata":{"settings":{"compilationTarget":{"Test.t.sol":"Test"}}}}`), 0644); err != nil {
 		t.Fatal(err)
 	}
 	_, errors := processFile(tmpFile)
 	if len(errors) == 0 {
 		t.Error("expected error for invalid test name")
+	}
+}
+
+func TestExtractTestFileName(t *testing.T) {
+	if got := extractTestFileName("forge-artifacts/Contract.t.sol/Contract_Test.json"); got != "Contract.t.sol" {
+		t.Errorf("extractTestFileName() = %q, want %q", got, "Contract.t.sol")
+	}
+	if got := extractTestFileName("forge-artifacts/Contract.sol/Contract.json"); got != "" {
+		t.Errorf("extractTestFileName() = %q, want empty", got)
+	}
+}
+
+func TestTestFileExists(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	os.MkdirAll(filepath.Join("test", "safe"), 0755)
+	os.WriteFile(filepath.Join("test", "safe", "Existing.t.sol"), []byte(""), 0644)
+
+	if testFileExists("") {
+		t.Error("empty filename should return false")
+	}
+	if !testFileExists("Existing.t.sol") {
+		t.Error("should find existing file in subdirectory")
+	}
+	if testFileExists("NonExistent.t.sol") {
+		t.Error("should return false for non-existent file")
 	}
 }
 
@@ -210,15 +265,15 @@ func TestCheckTestName(t *testing.T) {
 func TestValidateTestStructure(t *testing.T) {
 	excludedPaths = []string{"test/excluded/"}
 	defer func() { excludedPaths = nil }()
-	artifact := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test/excluded/Contract.t.sol": "Contract_Test"}}}}
+	artifact := createTestArtifact("test/excluded/Contract.t.sol", "Contract_Test")
 	if errors := validateTestStructure(artifact); len(errors) != 0 {
 		t.Errorf("expected no errors for excluded path, got %d", len(errors))
 	}
 }
 
 func TestCheckTestStructure(t *testing.T) {
-	valid := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test.sol": "Contract_TestInit"}}}}
-	invalid := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test.sol": "Invalid_Pattern"}}}}
+	valid := createTestArtifact("test.sol", "Contract_TestInit")
+	invalid := createTestArtifact("test.sol", "Invalid_Pattern")
 	if len(checkTestStructure(valid)) > 0 {
 		t.Error("valid pattern should not error")
 	}
@@ -276,25 +331,18 @@ func TestGetCompilationTarget(t *testing.T) {
 }
 
 func TestCheckSrcPath(t *testing.T) {
-	tmpDir := t.TempDir()
+	tmpDir, cleanup := setupTestDir(t)
+	defer cleanup()
+
 	if err := os.MkdirAll(filepath.Join(tmpDir, "src"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "src", "Contract.sol"), []byte(""), 0644); err != nil {
 		t.Fatal(err)
 	}
-	oldWd, _ := os.Getwd()
-	defer func() {
-		if err := os.Chdir(oldWd); err != nil {
-			t.Error(err)
-		}
-	}()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
 
-	valid := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test/Contract.t.sol": "Contract_Test"}}}}
-	invalid := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test/Missing.t.sol": "Missing_Test"}}}}
+	valid := createTestArtifact("test/Contract.t.sol", "Contract_Test")
+	invalid := createTestArtifact("test/Missing.t.sol", "Missing_Test")
 
 	if !checkSrcPath(valid) {
 		t.Error("valid src path should return true")
@@ -344,20 +392,13 @@ func TestCheckContractNameFilePath(t *testing.T) {
 }
 
 func TestFindArtifactPath(t *testing.T) {
-	tmpDir := t.TempDir()
+	tmpDir, cleanup := setupTestDir(t)
+	defer cleanup()
+
 	if err := os.MkdirAll(filepath.Join(tmpDir, "forge-artifacts", "Contract.sol"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "forge-artifacts", "Contract.sol", "Contract.json"), []byte("{}"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	oldWd, _ := os.Getwd()
-	defer func() {
-		if err := os.Chdir(oldWd); err != nil {
-			t.Error(err)
-		}
-	}()
-	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,7 +458,7 @@ func TestExtractFunctionsFromAST(t *testing.T) {
 }
 
 func TestCheckFunctionExists(t *testing.T) {
-	artifact := &solc.ForgeArtifact{Metadata: solc.ForgeCompilerMetadata{Settings: solc.CompilerSettings{CompilationTarget: map[string]string{"test/Contract.t.sol": "Contract_Test"}}}}
+	artifact := createTestArtifact("test/Contract.t.sol", "Contract_Test")
 	if !checkFunctionExists(artifact, "constructor") {
 		t.Error("constructor should always exist")
 	}
