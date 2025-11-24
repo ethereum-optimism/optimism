@@ -42,7 +42,15 @@ func L1(globalState *state.State, chainID common.Hash) (*addresses.L1Contracts, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chain state for ID %s: %w", chainID.String(), err)
 	}
-
+	if globalState.AppliedIntent == nil {
+		return nil, fmt.Errorf("can only run this command following a full apply")
+	}
+	if globalState.SuperchainDeployment == nil {
+		return nil, fmt.Errorf("superchain contracts not available - run op-deployer apply")
+	}
+	if globalState.ImplementationsDeployment == nil {
+		return nil, fmt.Errorf("implementations contracts not available - run op-deployer apply")
+	}
 	l1Contracts := addresses.L1Contracts{
 		SuperchainContracts:      *globalState.SuperchainDeployment,
 		ImplementationsContracts: *globalState.ImplementationsDeployment,
