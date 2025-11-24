@@ -387,7 +387,8 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         // redeployment.
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
+            chainPAO,
+            abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "DelayedWETH")
         );
     }
 
@@ -424,7 +425,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "L1CrossDomainMessenger"
+            )
         );
     }
 
@@ -438,7 +442,10 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // nosemgrep: sol-style-use-abi-encodecall
         runCurrentUpgradeV2(
-            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector)
+            chainPAO,
+            abi.encodeWithSelector(
+                IOPContractsManagerV2.OPContractsManagerV2_ProxyMustLoad.selector, "L1CrossDomainMessenger"
+            )
         );
     }
 }

@@ -48,8 +48,8 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 /// @dev If you were going to build a V3 of OPCM, you probably want to make this look a lot more
 ///      like Terraform. The V2 design is trending in the direction of being Terraform-like, but it
 ///      doesn't quite get there yet in an attempt to be a more incremental improvement over the V1
-///      design. Look at _execute, squint, and imagine that it can output an upgrade plan rather
-///      than actually executing the upgrade, and then you'll see how it can be improved.
+///      design. Look at _apply, squint, and imagine that it can output an upgrade plan rather than
+///      actually executing the upgrade, and then you'll see how it can be improved.
 contract OPContractsManagerV2 is ISemver {
     /// @notice Configuration struct for the FaultDisputeGame.
     struct FaultDisputeGameConfig {
@@ -121,8 +121,6 @@ contract OPContractsManagerV2 is ISemver {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
-        // Extra deployment instructions.
-        ExtraInstruction[] extraInstructions;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -164,10 +162,10 @@ contract OPContractsManagerV2 is ISemver {
     error OPContractsManagerV2_InvalidUpgradeInput();
 
     /// @notice Thrown when a proxy must be loaded but couldn't be.
-    error OPContractsManagerV2_ProxyMustLoad();
+    error OPContractsManagerV2_ProxyMustLoad(string _name);
 
     /// @notice Thrown when user attempts to downgrade a contract.
-    error OPContractsManagerV2_DowngradeNotAllowed();
+    error OPContractsManagerV2_DowngradeNotAllowed(address _contract);
 
     /// @notice Thrown when an invalid upgrade instruction is provided.
     error OPContractsManagerV2_InvalidUpgradeInstruction();
@@ -183,6 +181,13 @@ contract OPContractsManagerV2 is ISemver {
 
     /// @notice The version of the OPCM contract.
     string public constant version = "6.0.0";
+
+    /// @notice Special constant key for the PermittedProxyDeployment instruction.
+    string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
+
+    /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
+    ///         contracts to be deployed. Only to be used for deployments.
+    bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -226,14 +231,15 @@ contract OPContractsManagerV2 is ISemver {
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory) {
         // Deploy is the ONLY place where we allow the "ALL" permission for proxy deployment.
         ExtraInstruction[] memory instructions = new ExtraInstruction[](1);
-        instructions[0] = ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("ALL") });
+        instructions[0] =
+            ExtraInstruction({ key: PERMITTED_PROXY_DEPLOYMENT_KEY, data: PERMIT_ALL_CONTRACTS_INSTRUCTION });
 
         // Load the chain contracts.
         ChainContracts memory cts =
             _loadChainContracts(ISystemConfig(address(0)), _cfg.l2ChainId, _cfg.saltMixer, instructions);
 
         // Execute the deployment.
-        return _execute(_cfg, cts, true);
+        return _apply(_cfg, cts, true);
     }
 
     /// @notice Upgrades a chain based on the upgrade input.
@@ -261,7 +267,7 @@ contract OPContractsManagerV2 is ISemver {
         FullConfig memory cfg = _loadFullConfig(_inp, cts);
 
         // Execute the upgrade.
-        return _execute(cfg, cts, false);
+        return _apply(cfg, cts, false);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -273,7 +279,7 @@ contract OPContractsManagerV2 is ISemver {
     function _assertValidUpgradeInstructions(ExtraInstruction[] memory _extraInstructions) internal pure {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
             if (
-                LibString.eq(_extraInstructions[i].key, "PermittedProxyDeployment")
+                LibString.eq(_extraInstructions[i].key, PERMITTED_PROXY_DEPLOYMENT_KEY)
                     && LibString.eq(string(_extraInstructions[i].data), "DelayedWETH")
             ) {
                 // Unified DelayedWETH is being deployed for the first time.
@@ -340,7 +346,9 @@ contract OPContractsManagerV2 is ISemver {
                 )
             );
         } else {
-            // Special case handling, don't bother with the standard flow.
+            // Load-or-deploy pattern just generally doesn't make a lot of sense here. You could
+            // theoretically do it, but not worth the complexity. Having this special handling for
+            // how we load these three contracts is just cleaner/simpler.
             proxyAdmin = _systemConfig.proxyAdmin();
             addressManager = proxyAdmin.addressManager();
             systemConfig = _systemConfig;
@@ -590,8 +598,7 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
-            extraInstructions: _upgradeInput.extraInstructions
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs
         });
     }
 
@@ -636,7 +643,7 @@ contract OPContractsManagerV2 is ISemver {
     /// @param _cts The chain contracts.
     /// @param _isInitialDeployment Whether or not this is an initial deployment.
     /// @return The chain contracts.
-    function _execute(
+    function _apply(
         FullConfig memory _cfg,
         ChainContracts memory _cts,
         bool _isInitialDeployment
@@ -976,21 +983,21 @@ contract OPContractsManagerV2 is ISemver {
     /// @notice Helper function to check if a given instruction is present in a list of extra
     ///         upgrade instructions.
     /// @param _instructions The list of extra upgrade instructions.
-    /// @param _instruction The instruction to check for.
+    /// @param _key The key of the instruction to check for.
+    /// @param _data The data of the instruction to check for.
     /// @return True if the instruction is present, false otherwise.
     function _hasInstruction(
         ExtraInstruction[] memory _instructions,
-        ExtraInstruction memory _instruction
+        string memory _key,
+        bytes memory _data
     )
         internal
         pure
         returns (bool)
     {
         for (uint256 i = 0; i < _instructions.length; i++) {
-            if (
-                LibString.eq(_instructions[i].key, _instruction.key)
-                    && LibString.eq(string(_instructions[i].data), string(_instruction.data))
-            ) {
+            if (LibString.eq(_instructions[i].key, _key) && LibString.eq(string(_instructions[i].data), string(_data)))
+            {
                 return true;
             }
         }
@@ -1020,6 +1027,7 @@ contract OPContractsManagerV2 is ISemver {
     /// @notice Helper function to load data from a source contract as bytes.
     /// @param _source The source contract to load the data from.
     /// @param _selector The selector of the function to call on the source contract.
+    /// @param _name The name of the field to load.
     /// @param _instructions The extra upgrade instructions for the data load.
     /// @return Data retrieved from the source contract.
     function _loadBytes(
@@ -1068,9 +1076,10 @@ contract OPContractsManagerV2 is ISemver {
         internal
         returns (address payable)
     {
-        bool loadCanFail = _hasInstruction(
-            _instructions, ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes(_contractName) })
-        ) || _hasInstruction(_instructions, ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("ALL") }));
+        // Loads are allowed to fail ONLY if the user explicitly permitted it (or if this is a
+        // deployment and the "ALL" permission is set).
+        bool loadCanFail = _hasInstruction(_instructions, PERMITTED_PROXY_DEPLOYMENT_KEY, bytes(_contractName))
+            || _hasInstruction(_instructions, PERMITTED_PROXY_DEPLOYMENT_KEY, PERMIT_ALL_CONTRACTS_INSTRUCTION);
 
         // Try to load the proxy from the source.
         (bool success, bytes memory result) = address(_source).staticcall(abi.encodePacked(_selector));
@@ -1080,7 +1089,7 @@ contract OPContractsManagerV2 is ISemver {
             return payable(abi.decode(result, (address)));
         } else if (!loadCanFail) {
             // Load not permitted to fail but did, revert.
-            revert OPContractsManagerV2_ProxyMustLoad();
+            revert OPContractsManagerV2_ProxyMustLoad(_contractName);
         }
 
         // We've failed to load, but we allowed that failure.
@@ -1160,7 +1169,7 @@ contract OPContractsManagerV2 is ISemver {
             _proxyAdmin.getProxyImplementation(payable(_target)) != address(0)
                 && SemverComp.gt(ISemver(_target).version(), ISemver(_implementation).version())
         ) {
-            revert OPContractsManagerV2_DowngradeNotAllowed();
+            revert OPContractsManagerV2_DowngradeNotAllowed(address(_target));
         }
 
         // Upgrade to StorageSetter.
@@ -1174,13 +1183,5 @@ contract OPContractsManagerV2 is ISemver {
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
-    }
-
-    /// @notice Returns true if the contract is running in a testing environment. Checks that the
-    ///         code for the address 0xbeefcafe is not zero, which is an address that should never
-    ///         have any code in production environments but can be made to have code in tests.
-    /// @return True if the contract is running in a testing environment, false otherwise.
-    function _isTestingEnvironment() internal view returns (bool) {
-        return address(0xbeefcafe).code.length > 0;
     }
 }

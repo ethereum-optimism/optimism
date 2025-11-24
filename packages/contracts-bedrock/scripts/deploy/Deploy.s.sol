@@ -542,8 +542,7 @@ contract Deploy is Deployer {
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-            disputeGameConfigs: disputeGameConfigs,
-            extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+            disputeGameConfigs: disputeGameConfigs
         });
     }
 }
