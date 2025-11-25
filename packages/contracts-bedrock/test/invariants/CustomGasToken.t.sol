@@ -8,7 +8,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { SafeSend } from "src/universal/SafeSend.sol";
 
 // Contracts
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
@@ -103,7 +103,7 @@ contract NativeAssetLiquidity_Fundooor is StdUtils {
         _amount = bound(_amount, 0, address(this).balance);
 
         // action: fund _amount
-        vm.deal(address(nativeAssetLiquidity), _amount);
+        new SafeSend{ value: _amount }(payable(address(nativeAssetLiquidity)));
 
         // postcondition: nil here (in the invariant tests)
         // update ghost variables
@@ -190,7 +190,7 @@ contract CustomGasToken_Invariants_Test is CommonTest {
 
     /// @notice Test setup.
     function setUp() public override {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        super.enableCustomGasToken();
         super.setUp();
 
         randomActor = new RandomActor();

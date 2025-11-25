@@ -98,5 +98,12 @@ contracts = [
     "TransactionBuilder",                       # Transaction builder helper library in TimelockGuard test file
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
     "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
-    "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
+    "L1BlockCGT_TestInit",                      # Test initialization contract for L1BlockCGT tests
+    "L1BlockCGT_GasPayingToken_Test",           # Custom gas token tests hosted in the L1Block test file
+    "L1BlockCGT_GasPayingTokenName_Test",       # Custom gas token tests hosted in the L1Block test file
+    "L1BlockCGT_GasPayingTokenSymbol_Test",     # Custom gas token tests hosted in the L1Block test file
+    "L1BlockCGT_IsCustomGasToken_Test",         # Custom gas token tests hosted in the L1Block test file
+    "L1BlockCGT_SetCustomGasToken_Test",        # Custom gas token tests hosted in the L1Block test file
+    "L2ToL1MessagePasserCGT_TestInit",              # Test initialization contract for L2ToL1MessagePasserCGT tests
+    "L2ToL1MessagePasserCGT_InitiateWithdrawal_Test", # Custom gas token tests hosted in the L2ToL1MessagePasser test file
 ]

@@ -44,10 +44,6 @@ abstract contract FeatureFlags {
             console.log("Setup: DEV_FEATURE__DEPLOY_V2_DISPUTE_GAMES is enabled");
             devFeatureBitmap |= DevFeatures.DEPLOY_V2_DISPUTE_GAMES;
         }
-        if (Config.devFeatureCustomGasToken()) {
-            console.log("Setup: DEV_FEATURE__CUSTOM_GAS_TOKEN is enabled");
-            devFeatureBitmap |= DevFeatures.CUSTOM_GAS_TOKEN;
-        }
     }
 
     /// @notice Enables a feature.

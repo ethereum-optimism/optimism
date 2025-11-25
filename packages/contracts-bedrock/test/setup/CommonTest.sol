@@ -14,7 +14,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Libraries
 import { console } from "forge-std/console.sol";
@@ -36,7 +35,7 @@ abstract contract CommonTest is Test, Setup, Events {
     bool useAltDAOverride;
     bool useInteropOverride;
     bool useRevenueShareOverride;
-    bool useCustomGasToken;
+    bool useCustomGasTokenOverride;
 
     /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
     ///      running the tests.
@@ -86,7 +85,7 @@ abstract contract CommonTest is Test, Setup, Events {
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
         }
-        if (isDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN)) {
+        if (useCustomGasTokenOverride) {
             console.log("CommonTest: enabling custom gas token");
             deploy.cfg().setUseCustomGasToken(true);
             deploy.cfg().setGasPayingTokenName("Custom Gas Token");
@@ -227,6 +226,12 @@ abstract contract CommonTest is Test, Setup, Events {
     function enableRevenueShare() public {
         _checkNotDeployed("revenue share");
         useRevenueShareOverride = true;
+    }
+
+    /// @dev Enables custom gas token mode for testing
+    function enableCustomGasToken() public {
+        _checkNotDeployed("custom gas token");
+        useCustomGasTokenOverride = true;
     }
 
     /// @dev Disables upgrade mode for testing. By default the fork testing env will be upgraded to the latest

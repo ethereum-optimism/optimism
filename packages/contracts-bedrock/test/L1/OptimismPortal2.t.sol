@@ -242,12 +242,6 @@ contract OptimismPortal2_Initialize_Test is OptimismPortal2_TestInit {
             assertEq(address(optimismPortal2.ethLockbox()), address(0));
         }
 
-        if (isUsingCustomGasToken()) {
-            assertTrue(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
-        } else if (!isUsingLockbox()) {
-            assertFalse(optimismPortal2.systemConfig().isFeatureEnabled(Features.CUSTOM_GAS_TOKEN));
-        }
-
         returnIfForkTest(
             "OptimismPortal2_Initialize_Test: Do not check guardian and respectedGameType on forked networks"
         );
@@ -721,7 +715,7 @@ contract OptimismPortal2_Receive_Test is OptimismPortal2_TestInit {
 
     /// @notice Tests that `receive` reverts when custom gas token is enabled
     function testFuzz_receive_customGasToken_reverts(uint256 _value) external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        setUseCustomGasToken(true);
 
         _value = bound(_value, 1, type(uint128).max);
         vm.deal(alice, _value);
@@ -1408,7 +1402,8 @@ contract OptimismPortal2_ProveWithdrawalTransaction_Test is OptimismPortal2_Test
     /// @notice Tests that `proveWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_proveWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        setUseCustomGasToken(true);
+
         // Set the withdrawal transaction value to a non-zero value.
         _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
 
@@ -1910,7 +1905,8 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
     /// @notice Tests that `finalizeWithdrawalTransaction` reverts when the custom gas token mode
     ///         is enabled and the withdrawal transaction has a value.
     function test_finalizeWithdrawalTransaction_withValueAndCustomGasToken_reverts() external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        setUseCustomGasToken(true);
+
         // Set the withdrawal transaction value to a non-zero value.
         _defaultTx.value = bound(uint256(1), 1, type(uint256).max);
 
@@ -1930,9 +1926,6 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         external
     {
         skipIfForkTest("Skipping on forked tests because of the L2ToL1MessageParser call below");
-        if (isUsingCustomGasToken()) {
-            _value = 0;
-        }
 
         vm.assume(
             _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
@@ -2001,6 +1994,77 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
     }
 
+    /// @notice Differential test for `finalizeWithdrawalTransaction` when custom gas token mode is enabled.
+    function testDiff_finalizeWithdrawalTransaction_withCustomGasToken_succeeds(
+        address _sender,
+        address _target,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
+        setUseCustomGasToken(true);
+
+        vm.assume(
+            _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
+                && _target.code.length == 0 // No accounts with code
+                && _target != CONSOLE // The console has no code but behaves like a contract
+                && uint160(_target) > 9 // No precompiles (or zero address)
+        );
+
+        uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
+        uint256 nonce = l2ToL1MessagePasser.messageNonce();
+
+        // Get a withdrawal transaction and mock proof from the differential testing script.
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: nonce,
+            sender: _sender,
+            target: _target,
+            value: 0,
+            gasLimit: gasLimit,
+            data: _data
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes[] memory withdrawalProof
+        ) = ffi.getProveWithdrawalTransactionInputs(_tx);
+
+        // Create the output root proof
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            messagePasserStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+
+        // Ensure the values returned from ffi are correct
+        assertEq(outputRoot, Hashing.hashOutputRootProof(proof));
+        assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
+
+        // Setup the dispute game to return the output root
+        vm.mockCall(address(game), abi.encodeCall(game.rootClaim, ()), abi.encode(outputRoot));
+
+        // Prove the withdrawal transaction
+        optimismPortal2.proveWithdrawalTransaction(_tx, _proposedGameIndex, proof, withdrawalProof);
+        (IDisputeGame _game,) = optimismPortal2.provenWithdrawals(withdrawalHash, address(this));
+        assertTrue(_game.rootClaim().raw() != bytes32(0));
+
+        // Resolve the dispute game
+        game.resolveClaim(0, 0);
+        game.resolve();
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+
+        // Finalize the withdrawal transaction
+        vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
+        optimismPortal2.finalizeWithdrawalTransaction(_tx);
+        assertTrue(optimismPortal2.finalizedWithdrawals(withdrawalHash));
+    }
+
     /// @notice Tests that `finalizeWithdrawalTransaction` succeeds even if the respected game type
     ///         is changed.
     function test_finalizeWithdrawalTransaction_wasRespectedGameType_succeeds(
@@ -2014,9 +2078,6 @@ contract OptimismPortal2_FinalizeWithdrawalTransaction_Test is OptimismPortal2_T
         external
     {
         skipIfForkTest("Skipping on forked tests because of the L2ToL1MessageParser call below");
-        if (isUsingCustomGasToken()) {
-            _value = 0;
-        }
 
         vm.assume(
             _target != address(optimismPortal2) // Cannot call the optimism portal or a contract
@@ -2513,7 +2574,7 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `depositTransaction` reverts when the value is greater than 0 and the
     ///         custom gas token is active.
     function test_depositTransaction_withCustomGasTokenAndValue_reverts(bytes memory _data, uint256 _value) external {
-        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        setUseCustomGasToken(true);
 
         // Prevent overflow on an upgrade context
         _value = bound(_value, 1, type(uint256).max - address(optimismPortal2).balance);
@@ -2567,10 +2628,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
             _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
         }
 
-        if (isUsingCustomGasToken()) {
-            _mint = 0;
-        }
-
         _gasLimit = uint64(
             bound(
                 _gasLimit,
@@ -2618,6 +2675,59 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         }
     }
 
+    /// @notice Tests that `depositTransaction` succeeds for an EOA with custom gas token.
+    function testFuzz_depositTransaction_eoaWithCustomGasToken_succeeds(
+        address _to,
+        uint64 _gasLimit,
+        uint256 _value,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        setUseCustomGasToken(true);
+
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        if (_isCreation) _to = address(0);
+
+        uint256 balanceBefore = address(optimismPortal2).balance;
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+
+        // EOA emulation
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited({
+            _from: depositor,
+            _to: _to,
+            _value: _value,
+            _mint: 0,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        vm.prank(depositor, depositor);
+        optimismPortal2.depositTransaction({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, balanceBefore);
+            assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
+        } else {
+            assertEq(address(optimismPortal2).balance, balanceBefore);
+        }
+    }
+
     /// @notice Tests that `depositTransaction` succeeds for an EOA using 7702 delegation.
     function testFuzz_depositTransaction_eoa7702_succeeds(
         address _to,
@@ -2634,10 +2744,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
 
         // Prevent overflow on an upgrade context
         _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
-
-        if (isUsingCustomGasToken()) {
-            _mint = 0;
-        }
 
         _gasLimit = uint64(
             bound(
@@ -2685,6 +2791,58 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         }
     }
 
+    /// @notice Tests that `depositTransaction` succeeds for an EOA using 7702 delegation with custom gas token.
+    function testFuzz_depositTransaction_eoa7702WithCustomGasToken_succeeds(
+        address _to,
+        uint64 _gasLimit,
+        uint256 _value,
+        bool _isCreation,
+        bytes memory _data,
+        address _7702Target
+    )
+        external
+    {
+        setUseCustomGasToken(true);
+        assumeNotForgeAddress(_7702Target);
+
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        if (_isCreation) _to = address(0);
+
+        uint256 portalBalanceBefore = address(optimismPortal2).balance;
+
+        // EOA emulation
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited({
+            _from: depositor,
+            _to: _to,
+            _value: _value,
+            _mint: 0,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        // 7702 delegation using the 7702 prefix
+        vm.etch(depositor, abi.encodePacked(hex"EF0100", _7702Target));
+
+        vm.prank(depositor, address(0x0420));
+        optimismPortal2.depositTransaction({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+    }
+
     /// @notice Tests that `depositTransaction` succeeds for a contract.
     function testFuzz_depositTransaction_contract_succeeds(
         address _to,
@@ -2698,9 +2856,6 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
     {
         // Prevent overflow on an upgrade context
         _mint = bound(_mint, 0, type(uint256).max - address(ethLockbox).balance);
-        if (isUsingCustomGasToken()) {
-            _mint = 0;
-        }
         _gasLimit = uint64(
             bound(
                 _gasLimit,
@@ -2746,6 +2901,52 @@ contract OptimismPortal2_DepositTransaction_Test is OptimismPortal2_TestInit {
         } else {
             assertEq(address(optimismPortal2).balance, balanceBefore + _mint);
         }
+    }
+
+    /// @notice Tests that `depositTransaction` succeeds for a contract with custom gas token.
+    function testFuzz_depositTransaction_contractWithCustomGasToken_succeeds(
+        address _to,
+        uint64 _gasLimit,
+        uint256 _value,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        setUseCustomGasToken(true);
+
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal2.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
+        if (_isCreation) _to = address(0);
+
+        uint256 balanceBefore = address(optimismPortal2).balance;
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited({
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            _to: _to,
+            _value: _value,
+            _mint: 0,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        vm.prank(address(this));
+        optimismPortal2.depositTransaction({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+
+        assertEq(address(optimismPortal2).balance, balanceBefore);
     }
 }
 

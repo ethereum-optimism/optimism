@@ -2546,7 +2546,6 @@ workflows:
                 - main
                 - OPTIMISM_PORTAL_INTEROP
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
-                - CUSTOM_GAS_TOKEN
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:

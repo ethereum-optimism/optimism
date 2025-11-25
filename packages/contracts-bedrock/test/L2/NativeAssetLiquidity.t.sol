@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 
 /// @title NativeAssetLiquidity_TestInit
@@ -22,8 +21,8 @@ contract NativeAssetLiquidity_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        super.enableCustomGasToken();
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
     }
 }
 

@@ -9,7 +9,6 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import "src/libraries/L1BlockErrors.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
@@ -38,6 +37,13 @@ abstract contract L1Block_TestInit is CommonTest {
     }
 }
 
+abstract contract L1BlockCGT_TestInit is L1Block_TestInit {
+    function setUp() public virtual override {
+        super.enableCustomGasToken();
+        super.setUp();
+    }
+}
+
 /// @title L1Block_Version_Test
 /// @notice Test contract for L1Block `version` function.
 contract L1Block_Version_Test is L1Block_TestInit {
@@ -53,16 +59,18 @@ contract L1Block_Version_Test is L1Block_TestInit {
 contract L1Block_GasPayingToken_Test is L1Block_TestInit {
     /// @notice Tests that the `gasPayingToken` function returns the correct token address and
     ///         decimals.
-    function test_gasPayingToken_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_gasPayingToken_succeeds() external view {
         (address token, uint8 decimals) = l1Block.gasPayingToken();
         assertEq(token, Constants.ETHER);
         assertEq(uint256(decimals), uint256(18));
     }
+}
 
+/// @title L1BlockCGT_GasPayingToken_Test
+/// @notice Tests the `gasPayingToken` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_GasPayingToken_Test is L1BlockCGT_TestInit {
     /// @notice Tests that the `gasPayingToken` function reverts when custom gas token is enabled.
     function test_gasPayingToken_customGasToken_reverts() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         vm.expectRevert("L1BlockCGT: deprecated");
         l1Block.gasPayingToken();
     }
@@ -72,15 +80,17 @@ contract L1Block_GasPayingToken_Test is L1Block_TestInit {
 /// @notice Tests the `gasPayingTokenName` function of the `L1Block` contract.
 contract L1Block_GasPayingTokenName_Test is L1Block_TestInit {
     /// @notice Tests that the `gasPayingTokenName` function returns the correct token name.
-    function test_gasPayingTokenName_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_gasPayingTokenName_succeeds() external view {
         assertEq("Ether", l1Block.gasPayingTokenName());
     }
+}
 
+/// @title L1BlockCGT_GasPayingTokenName_Test
+/// @notice Tests the `gasPayingTokenName` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_GasPayingTokenName_Test is L1BlockCGT_TestInit {
     /// @notice Tests that the `gasPayingTokenName` function returns the correct token name when custom gas token is
     /// enabled.
-    function test_gasPayingTokenName_customGasToken_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_gasPayingTokenName_customGasToken_succeeds() external view {
         assertEq(liquidityController.gasPayingTokenName(), l1Block.gasPayingTokenName());
     }
 }
@@ -89,15 +99,17 @@ contract L1Block_GasPayingTokenName_Test is L1Block_TestInit {
 /// @notice Tests the `gasPayingTokenSymbol` function of the `L1Block` contract.
 contract L1Block_GasPayingTokenSymbol_Test is L1Block_TestInit {
     /// @notice Tests that the `gasPayingTokenSymbol` function returns the correct token symbol.
-    function test_gasPayingTokenSymbol_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_gasPayingTokenSymbol_succeeds() external view {
         assertEq("ETH", l1Block.gasPayingTokenSymbol());
     }
+}
 
+/// @title L1BlockCGT_GasPayingTokenSymbol_Test
+/// @notice Tests the `gasPayingTokenSymbol` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_GasPayingTokenSymbol_Test is L1BlockCGT_TestInit {
     /// @notice Tests that the `gasPayingTokenSymbol` function returns the correct token symbol when custom gas token is
     /// enabled.
-    function test_gasPayingTokenSymbol_customGasToken_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_gasPayingTokenSymbol_customGasToken_succeeds() external view {
         assertEq(liquidityController.gasPayingTokenSymbol(), l1Block.gasPayingTokenSymbol());
     }
 }
@@ -107,15 +119,17 @@ contract L1Block_GasPayingTokenSymbol_Test is L1Block_TestInit {
 contract L1Block_IsCustomGasToken_Test is L1Block_TestInit {
     /// @notice Tests that the `isCustomGasToken` function returns false when no custom gas token
     ///         is used.
-    function test_isCustomGasToken_succeeds() external {
-        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_isCustomGasToken_succeeds() external view {
         assertFalse(l1Block.isCustomGasToken());
     }
+}
 
+/// @title L1BlockCGT_IsCustomGasToken_Test
+/// @notice Tests the `isCustomGasToken` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_IsCustomGasToken_Test is L1BlockCGT_TestInit {
     /// @notice Tests that the `isCustomGasToken` function returns true when custom gas token
     ///         is used.
-    function test_isCustomGasToken_customGasToken_succeeds() external {
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+    function test_isCustomGasToken_customGasToken_succeeds() external view {
         assertTrue(l1Block.isCustomGasToken());
     }
 }
@@ -458,16 +472,15 @@ contract L1Block_SetL1BlockValuesJovian_Test is L1Block_TestInit {
     }
 }
 
-/// @title L1Block_SetCustomGasToken_Test
-/// @notice Tests the `setCustomGasToken` function of the `L1Block` contract.
-contract L1Block_SetCustomGasToken_Test is L1Block_TestInit {
+/// @title L1BlockCGT_SetCustomGasToken_Test
+/// @notice Tests the `setCustomGasToken` function of the `L1BlockCGT` contract.
+contract L1BlockCGT_SetCustomGasToken_Test is L1BlockCGT_TestInit {
     using stdStorage for StdStorage;
 
     IL1BlockCGT l1BlockCGT;
 
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
         l1BlockCGT = IL1BlockCGT(address(l1Block));
     }
 
