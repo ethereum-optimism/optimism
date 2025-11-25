@@ -7,14 +7,16 @@ use futures::StreamExt;
 use op_alloy_consensus::{transaction::OpTransactionInfo, OpTransaction};
 use reth_chain_state::CanonStateSubscriptions;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{BlockBody, Recovered, SignedTransaction, WithEncoded};
+use reth_primitives_traits::{
+    BlockBody, Recovered, SignedTransaction, SignerRecoverable, WithEncoded,
+};
 use reth_rpc_eth_api::{
-    helpers::{spec::SignersForRpc, EthTransactions, LoadReceipt, LoadTransaction},
+    helpers::{spec::SignersForRpc, EthTransactions, LoadReceipt, LoadTransaction, SpawnBlocking},
     try_into_op_tx_info, EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore,
     RpcReceipt, TxInfoMapper,
 };
-use reth_rpc_eth_types::EthApiError;
-use reth_storage_api::{errors::ProviderError, ReceiptProvider};
+use reth_rpc_eth_types::{EthApiError, TransactionSource};
+use reth_storage_api::{errors::ProviderError, ProviderTx, ReceiptProvider, TransactionsProvider};
 use reth_transaction_pool::{
     AddedTransactionOutcome, PoolPooledTx, PoolTransaction, TransactionOrigin, TransactionPool,
 };
@@ -179,6 +181,53 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
+    async fn transaction_by_hash(
+        &self,
+        hash: B256,
+    ) -> Result<Option<TransactionSource<ProviderTx<Self::Provider>>>, Self::Error> {
+        // 1. Try to find the transaction on disk (historical blocks)
+        if let Some((tx, meta)) = self
+            .spawn_blocking_io(move |this| {
+                this.provider()
+                    .transaction_by_hash_with_meta(hash)
+                    .map_err(Self::Error::from_eth_err)
+            })
+            .await?
+        {
+            let transaction = tx
+                .try_into_recovered_unchecked()
+                .map_err(|_| EthApiError::InvalidTransactionSignature)?;
+
+            return Ok(Some(TransactionSource::Block {
+                transaction,
+                index: meta.index,
+                block_hash: meta.block_hash,
+                block_number: meta.block_number,
+                base_fee: meta.base_fee,
+            }));
+        }
+
+        // 2. check flashblocks (sequencer preconfirmations)
+        if let Ok(Some(pending_block)) = self.pending_flashblock().await &&
+            let Some(indexed_tx) = pending_block.block().find_indexed(hash)
+        {
+            let meta = indexed_tx.meta();
+            return Ok(Some(TransactionSource::Block {
+                transaction: indexed_tx.recovered_tx().cloned(),
+                index: meta.index,
+                block_hash: meta.block_hash,
+                block_number: meta.block_number,
+                base_fee: meta.base_fee,
+            }));
+        }
+
+        // 3. check local pool
+        if let Some(tx) = self.pool().get(&hash).map(|tx| tx.transaction.clone_into_consensus()) {
+            return Ok(Some(TransactionSource::Pool(tx)));
+        }
+
+        Ok(None)
+    }
 }
 
 impl<N, Rpc> OpEthApi<N, Rpc>
