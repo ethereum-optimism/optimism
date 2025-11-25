@@ -283,7 +283,7 @@ contract OPContractsManagerV2 is ISemver {
                     && LibString.eq(string(_extraInstructions[i].data), "DelayedWETH")
             ) {
                 // Unified DelayedWETH is being deployed for the first time.
-                // TODO:(#?????): Remove this allowance after unified DelayedWETH is deployed.
+                // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
             } else {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction();
             }
@@ -580,6 +580,7 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (IResourceMetering.ResourceConfig)
             ),
+            // TODO:(#18381): Use getStartingAnchorRoot once U18 is deployed.
             startingAnchorRoot: abi.decode(
                 _loadBytes(
                     address(_chainContracts.anchorStateRegistry),
