@@ -308,22 +308,24 @@ where
     }
 
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
-        let result = self.inner.next().map(|opt| {
-            opt.and_then(|(k, v)| {
-                // Only return entries that belong to the bound address
-                (k.hashed_address == self.hashed_address).then_some((k.hashed_storage_key, v.0))
-            })
-        })?;
+        loop {
+            let result = self.inner.next().map(|opt| {
+                opt.and_then(|(k, v)| {
+                    // Only return entries that belong to the bound address
+                    (k.hashed_address == self.hashed_address).then_some((k.hashed_storage_key, v.0))
+                })
+            })?;
 
-        // hashed storage values can be zero, which means the storage slot is deleted, so we should
-        // skip those
-        if let Some((_, v)) = result &&
-            v.is_zero()
-        {
-            return self.next();
+            // hashed storage values can be zero, which means the storage slot is deleted, so we
+            // should skip those
+            if let Some((_, v)) = result &&
+                v.is_zero()
+            {
+                continue;
+            }
+
+            return Ok(result);
         }
-
-        Ok(result)
     }
 
     fn reset(&mut self) {
