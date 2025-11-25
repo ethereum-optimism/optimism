@@ -18,12 +18,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-var (
-	l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
-)
+var l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
-	upgradeSchedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
+	upgradeSchedule := standard.DefaultHardforkSchedule()
 
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
@@ -78,6 +76,14 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				ChainFeesRecipient: chainIntent.ChainFeesRecipient,
 			},
 
+			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
+				UseCustomGasToken:          chainIntent.IsCustomGasTokenEnabled(),
+				GasPayingTokenName:         chainIntent.CustomGasToken.Name,
+				GasPayingTokenSymbol:       chainIntent.CustomGasToken.Symbol,
+				NativeAssetLiquidityAmount: (*hexutil.Big)(chainIntent.GetInitialLiquidity()),
+				LiquidityControllerOwner:   chainIntent.GetLiquidityControllerOwner(),
+			},
+
 			// STOP! This struct sets the _default_ upgrade schedule for all chains.
 			// Any upgrades you enable here will be enabled for all new deployments.
 			// In-development hardforks should never be activated here. Instead, they
@@ -119,15 +125,11 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 
 	if chainState.StartBlock == nil {
 		// These are dummy variables - see below for rationale.
-		num := rpc.LatestBlockNumber
-		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
-			BlockNumber: &num,
-		}
+		blockNumOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	} else {
-		startHash := chainState.StartBlock.Hash
-		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
-			BlockHash: &startHash,
-		}
+		blockNumOrHash := rpc.BlockNumberOrHashWithHash(chainState.StartBlock.Hash, false)
+		cfg.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&blockNumOrHash)
 	}
 
 	if chainIntent.DangerousAltDAConfig.UseAltDA {
@@ -159,7 +161,6 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		cfg, err = jsonutil.MergeJSON(cfg, intent.GlobalDeployOverrides)
 		if err != nil {
 			return genesis.DeployConfig{}, fmt.Errorf("error merging global L2 overrides: %w", err)
-
 		}
 	}
 

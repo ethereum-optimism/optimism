@@ -14,6 +14,9 @@ jovian:
 interop:
     @just acceptance-test "" interop
 
+cgt:
+    @just acceptance-test "" cgt
+
 
 # Run acceptance tests with mise-managed binary
 # Usage: just acceptance-test [devnet] [gate]
@@ -98,8 +101,7 @@ acceptance-test devnet="" gate="base":
             "--validators" "./acceptance-tests.yaml"
             "--exclude-gates" "flake-shake"
             "--allow-skips"
-            "--timeout" "90m"
-            "--default-timeout" "30m"
+            "--timeout" "60m"
             "--orchestrator" "$ORCHESTRATOR"
             "--show-progress"
         )

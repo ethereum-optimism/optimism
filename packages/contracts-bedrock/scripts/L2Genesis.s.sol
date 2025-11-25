@@ -26,6 +26,8 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IL1BlockCGT } from "interfaces/L2/IL1BlockCGT.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { ISharesCalculator } from "interfaces/L2/ISharesCalculator.sol";
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
@@ -74,6 +76,11 @@ contract L2Genesis is Script {
         bool useRevenueShare;
         address chainFeesRecipient;
         address l1FeesDepositor;
+        bool useCustomGasToken;
+        string gasPayingTokenName;
+        string gasPayingTokenSymbol;
+        uint256 nativeAssetLiquidityAmount;
+        address liquidityControllerOwner;
     }
 
     using ForkUtils for Fork;
@@ -134,6 +141,7 @@ contract L2Genesis is Script {
         if (_input.fundDevAccounts) {
             fundDevAccounts();
         }
+
         vm.stopPrank();
         vm.deal(deployer, 0);
         vm.resetNonce(deployer);
@@ -213,7 +221,8 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.deployCrossL2Inbox)) {
+            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.deployCrossL2Inbox, _input.useCustomGasToken))
+            {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -237,8 +246,8 @@ contract L2Genesis is Script {
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
         setL2ERC721Bridge(_input.l1ERC721BridgeProxy); // 14
-        setL1Block(); // 15
-        setL2ToL1MessagePasser(); // 16
+        setL1Block(_input.useCustomGasToken); // 15
+        setL2ToL1MessagePasser(_input.useCustomGasToken); // 16
         setOptimismMintableERC721Factory(_input); // 17
         setProxyAdmin(_input); // 18
         setBaseFeeVault(_input); // 19
@@ -254,6 +263,10 @@ contract L2Genesis is Script {
                 setCrossL2Inbox(); // 22
             }
             setL2ToL2CrossDomainMessenger(); // 23
+        }
+        if (_input.useCustomGasToken) {
+            setLiquidityController(_input); // 29
+            setNativeAssetLiquidity(_input); // 2A
         }
     }
 
@@ -271,8 +284,14 @@ contract L2Genesis is Script {
         vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
-    function setL2ToL1MessagePasser() internal {
-        _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+    function setL2ToL1MessagePasser(bool _useCustomGasToken) internal {
+        if (_useCustomGasToken) {
+            string memory cname = "L2ToL1MessagePasserCGT";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        } else {
+            _setImplementationCode(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        }
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -311,6 +330,7 @@ contract L2Genesis is Script {
         _setFeeVault({
             _vaultAddr: Predeploys.SEQUENCER_FEE_WALLET,
             _useRevenueShare: _input.useRevenueShare,
+            _useCustomGasToken: _input.useCustomGasToken,
             _recipient: _input.sequencerFeeVaultRecipient,
             _minWithdrawalAmount: _input.sequencerFeeVaultMinimumWithdrawalAmount,
             _withdrawalNetwork: Types.WithdrawalNetwork(_input.sequencerFeeVaultWithdrawalNetwork)
@@ -350,10 +370,20 @@ contract L2Genesis is Script {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL1Block() internal {
-        // Note: L1 block attributes are set to 0.
-        // Before the first user-tx the state is overwritten with actual L1 attributes.
-        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+    function setL1Block(bool _useCustomGasToken) internal {
+        if (_useCustomGasToken) {
+            // Set the implementation code for L1BlockCGT
+            string memory cname = "L1BlockCGT";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+
+            // Set the custom gas token flag
+            vm.startPrank(IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+            IL1BlockCGT(Predeploys.L1_BLOCK_ATTRIBUTES).setCustomGasToken();
+            vm.stopPrank();
+        } else {
+            _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
+        }
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -388,6 +418,7 @@ contract L2Genesis is Script {
         _setFeeVault({
             _vaultAddr: Predeploys.BASE_FEE_VAULT,
             _useRevenueShare: _input.useRevenueShare,
+            _useCustomGasToken: _input.useCustomGasToken,
             _recipient: _input.baseFeeVaultRecipient,
             _minWithdrawalAmount: _input.baseFeeVaultMinimumWithdrawalAmount,
             _withdrawalNetwork: Types.WithdrawalNetwork(_input.baseFeeVaultWithdrawalNetwork)
@@ -399,6 +430,7 @@ contract L2Genesis is Script {
         _setFeeVault({
             _vaultAddr: Predeploys.L1_FEE_VAULT,
             _useRevenueShare: _input.useRevenueShare,
+            _useCustomGasToken: _input.useCustomGasToken,
             _recipient: _input.l1FeeVaultRecipient,
             _minWithdrawalAmount: _input.l1FeeVaultMinimumWithdrawalAmount,
             _withdrawalNetwork: Types.WithdrawalNetwork(_input.l1FeeVaultWithdrawalNetwork)
@@ -410,6 +442,7 @@ contract L2Genesis is Script {
         _setFeeVault({
             _vaultAddr: Predeploys.OPERATOR_FEE_VAULT,
             _useRevenueShare: _input.useRevenueShare,
+            _useCustomGasToken: _input.useCustomGasToken,
             _recipient: _input.operatorFeeVaultRecipient,
             _minWithdrawalAmount: _input.operatorFeeVaultMinimumWithdrawalAmount,
             _withdrawalNetwork: Types.WithdrawalNetwork(_input.operatorFeeVaultWithdrawalNetwork)
@@ -512,6 +545,37 @@ contract L2Genesis is Script {
     ///         This contract has no initializer.
     function setSuperchainTokenBridge() internal {
         _setImplementationCode(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    function setLiquidityController(Input memory _input) internal {
+        address impl = _setImplementationCode(Predeploys.LIQUIDITY_CONTROLLER);
+
+        ILiquidityController(impl).initialize({
+            _owner: _input.liquidityControllerOwner,
+            _gasPayingTokenName: "",
+            _gasPayingTokenSymbol: ""
+        });
+
+        ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).initialize({
+            _owner: _input.liquidityControllerOwner,
+            _gasPayingTokenName: _input.gasPayingTokenName,
+            _gasPayingTokenSymbol: _input.gasPayingTokenSymbol
+        });
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setNativeAssetLiquidity(Input memory _input) internal {
+        _setImplementationCode(Predeploys.NATIVE_ASSET_LIQUIDITY);
+
+        require(
+            _input.nativeAssetLiquidityAmount <= type(uint248).max,
+            "L2Genesis: native asset liquidity amount must be less than or equal to type(uint248).max"
+        );
+
+        // Pre-fund the liquidity contract with the specified amount
+        vm.deal(Predeploys.NATIVE_ASSET_LIQUIDITY, _input.nativeAssetLiquidityAmount);
     }
 
     /// @notice Sets all the preinstalls.
@@ -635,6 +699,7 @@ contract L2Genesis is Script {
     function _setFeeVault(
         address _vaultAddr,
         bool _useRevenueShare,
+        bool _useCustomGasToken,
         address _recipient,
         uint256 _minWithdrawalAmount,
         Types.WithdrawalNetwork _withdrawalNetwork
@@ -644,6 +709,14 @@ contract L2Genesis is Script {
         address recipient;
         Types.WithdrawalNetwork network;
         uint256 minWithdrawalAmount;
+
+        if (_useCustomGasToken && _withdrawalNetwork == Types.WithdrawalNetwork.L1) {
+            revert("FeeVault: withdrawalNetwork type cannot be L1 when custom gas token is enabled");
+        }
+
+        if (_useCustomGasToken && _useRevenueShare) {
+            revert("FeeVault: custom gas token and revenue share cannot be enabled together");
+        }
 
         if (_useRevenueShare) {
             recipient = Predeploys.FEE_SPLITTER;

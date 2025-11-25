@@ -96,6 +96,8 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		}
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bq.l1Blocks, parent)
+		// bq.deriveNextBatch above will already have performed full span batch validation
+		// so an error performing singular batch extraction here is treated as a critical logic error.
 		if err != nil {
 			return nil, false, NewCriticalError(err)
 		}

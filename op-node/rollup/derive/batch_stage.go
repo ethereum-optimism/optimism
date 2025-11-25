@@ -145,7 +145,7 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 			// NotEnoughData to read in next batch until we're through all past batches
 			return nil, NotEnoughData
 		case BatchDrop: // drop, try next
-			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel")
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (span batch prefix checks)")
 			bs.FlushChannel()
 			return nil, NotEnoughData
 		case BatchUndecided: // l2 fetcher error, try again
@@ -157,8 +157,12 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
+		// Errors can happen here because the span batch prefix checks are not exhaustive (unlike the full span batch
+		// checks) so an error must be handled like an invalid span batch (DROP).
 		if err != nil {
-			return nil, NewCriticalError(err)
+			spanBatch.LogContext(bs.Log()).Warn("Dropping invalid span batch, flushing channel (singular batch extraction)", "error", err)
+			bs.FlushChannel()
+			return nil, NotEnoughData
 		}
 		bs.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.

@@ -6,6 +6,7 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title L1Withdrawer_TestInit
 /// @notice Base test contract with initialization for `L1Withdrawer` tests.
@@ -25,6 +26,10 @@ contract L1Withdrawer_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();

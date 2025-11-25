@@ -19,3 +19,12 @@ indent_style = tab
 [Makefile]
 indent_size = 2
 indent_style = tab
+
+# shell scripts
+[*.sh]
+shell_variant      = bash
+indent_style       = space
+indent_size        = 2
+binary_next_line   = true
+switch_case_indent = true
+space_redirects    = true

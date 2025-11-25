@@ -327,6 +327,12 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
         systemConfig.setBatcherHash(bytes32(hex""));
     }
 
+    /// @notice Tests that the address overload reverts if the caller is not the owner.
+    function test_setBatcherHashFromAddress_notOwner_reverts(address batcher) external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setBatcherHash(batcher);
+    }
+
     /// @notice Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(address(systemConfig));
@@ -335,6 +341,18 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
         vm.prank(systemConfig.owner());
         systemConfig.setBatcherHash(newBatcherHash);
         assertEq(systemConfig.batcherHash(), newBatcherHash);
+    }
+
+    /// @notice Tests that the address overload formats the hash correctly.
+    function testFuzz_setBatcherHashFromAddress_succeeds(address newBatcher) external {
+        bytes32 formatted = bytes32(uint256(uint160(newBatcher)));
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.BATCHER, abi.encode(formatted));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setBatcherHash(newBatcher);
+        assertEq(systemConfig.batcherHash(), formatted);
     }
 }
 
@@ -930,5 +948,21 @@ contract SystemConfig_SetDAFootprintGasScalar_Test is SystemConfig_TestInit {
         vm.prank(systemConfig.owner());
         systemConfig.setDAFootprintGasScalar(newScalar);
         assertEq(systemConfig.daFootprintGasScalar(), newScalar);
+    }
+}
+
+/// @title SystemConfig_IsCustomGasToken_Test
+/// @notice Test contract for SystemConfig `isCustomGasToken` function.
+contract SystemConfig_IsCustomGasToken_Test is SystemConfig_TestInit {
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_enabled_succeeds() external {
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
+        assertTrue(systemConfig.isCustomGasToken());
+    }
+
+    /// @notice Tests that `isCustomGasToken` returns the correct value.
+    function test_isCustomGasToken_disabled_succeeds() external {
+        skipIfSysFeatureEnabled(Features.CUSTOM_GAS_TOKEN);
+        assertFalse(systemConfig.isCustomGasToken());
     }
 }

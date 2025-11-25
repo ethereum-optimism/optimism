@@ -1,7 +1,7 @@
 [tools]
 
 # Core dependencies
-go = "1.23.8"
+go = "1.24.10"
 golangci-lint = "1.64.8"
 gotestsum = "1.12.3"
 mockery = "2.53.3"
@@ -11,6 +11,7 @@ uv = "0.5.5"
 jq = "1.7.1"
 yq = "4.44.5"
 shellcheck = "0.10.0"
+shfmt = "3.11.0"
 direnv = "2.35.0"
 just = "1.37.0"
 
@@ -30,9 +31,9 @@ svm-rs = "0.5.19"
 # GitHub release, so we need to use the aliasing trick to get mise to not error
 # The git ref here should be on the `stable` branch.
 # Updated to use the specific nightly build
-forge = "1.1.0"
-cast = "1.1.0"
-anvil = "1.1.0"
+forge = "1.2.3"
+cast = "1.2.3"
+anvil = "1.2.3"
 
 # Other dependencies
 codecov-uploader = "0.8.0"

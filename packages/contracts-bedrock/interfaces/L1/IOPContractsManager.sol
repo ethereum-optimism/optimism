@@ -157,6 +157,8 @@ interface IOPContractsManager {
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
         Duration disputeMaxClockDuration;
+        // Whether to use the custom gas token.
+        bool useCustomGasToken;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -337,17 +339,17 @@ interface IOPContractsManager {
         bool _allowFailure,
         IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
     )
-    external
-    view
-    returns (string memory);
+        external
+        view
+        returns (string memory);
 
     function validate(
         IOPContractsManagerStandardValidator.ValidationInputDev calldata _input,
         bool _allowFailure
     )
-    external
-    view
-    returns (string memory);
+        external
+        view
+        returns (string memory);
 
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 

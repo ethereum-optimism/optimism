@@ -76,6 +76,7 @@ abstract contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
         setupEnvVars();
     }
 

@@ -9,6 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Fork } from "scripts/libraries/Config.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title Predeploys_TestInit
 /// @notice Reusable test initialization for `Predeploys` tests.
@@ -21,6 +22,12 @@ abstract contract Predeploys_TestInit is CommonTest {
     ///         interop mode.
     function _interopCodeDiffer(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_STANDARD_BRIDGE;
+    }
+
+    /// @notice Returns true if the address is a predeploy that has a different code in the
+    ///         custom gas token mode.
+    function _customGasTokenCodeDiffer(address _addr) internal pure returns (bool) {
+        return _addr == Predeploys.L1_BLOCK_ATTRIBUTES || _addr == Predeploys.L2_TO_L1_MESSAGE_PASSER;
     }
 
     /// @notice Returns true if the account is not meant to be in the L2 genesis anymore.
@@ -50,7 +57,7 @@ abstract contract Predeploys_TestInit is CommonTest {
     }
 
     /// @notice Internal test function for predeploys validation across different forks.
-    function _test_predeploys(Fork _fork, bool _enableCrossL2Inbox) internal {
+    function _test_predeploys(Fork _fork, bool _enableCrossL2Inbox, bool _isCustomGasToken) internal {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
@@ -65,7 +72,8 @@ abstract contract Predeploys_TestInit is CommonTest {
                 continue;
             }
 
-            bool isPredeploy = Predeploys.isSupportedPredeploy(addr, uint256(_fork), _enableCrossL2Inbox);
+            bool isPredeploy =
+                Predeploys.isSupportedPredeploy(addr, uint256(_fork), _enableCrossL2Inbox, _isCustomGasToken);
 
             bytes memory code = addr.code;
             if (isPredeploy) assertTrue(code.length > 0);
@@ -101,7 +109,7 @@ abstract contract Predeploys_TestInit is CommonTest {
                 string.concat("Implementation mismatch for ", vm.toString(addr))
             );
             assertNotEq(implAddr.code.length, 0, "predeploy implementation account must have code");
-            if (!_usesImmutables(addr) && !_interopCodeDiffer(addr)) {
+            if (!_usesImmutables(addr) && !_interopCodeDiffer(addr) && !_customGasTokenCodeDiffer(addr)) {
                 // can't check bytecode if it's modified with immutables in genesis.
                 assertEq(implAddr.code, supposedCode, "proxy implementation contract should match contract source");
             }
@@ -151,7 +159,14 @@ contract Predeploys_Uncategorized_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code
     ///         and the proxied accounts have the correct admin.
     function test_predeploys_succeeds() external {
-        _test_predeploys(Fork.ISTHMUS, false);
+        _test_predeploys(Fork.ISTHMUS, false, false);
+    }
+
+    /// @notice Tests that the predeploy addresses are set correctly. They have code
+    ///         and the proxied accounts have the correct admin. Using custom gas token.
+    function test_predeploys_customGasToken_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        _test_predeploys(Fork.ISTHMUS, false, true);
     }
 }
 
@@ -168,12 +183,12 @@ contract Predeploys_UncategorizedInterop_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
     ///         proxied accounts have the correct admin. Using interop with inbox.
     function test_predeploysWithInbox_succeeds() external {
-        _test_predeploys(Fork.INTEROP, true);
+        _test_predeploys(Fork.INTEROP, true, false);
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
     ///         proxied accounts have the correct admin. Using interop without inbox.
     function test_predeploysWithoutInbox_succeeds() external {
-        _test_predeploys(Fork.INTEROP, false);
+        _test_predeploys(Fork.INTEROP, false, false);
     }
 }

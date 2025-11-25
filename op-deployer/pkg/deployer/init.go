@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
@@ -85,12 +86,13 @@ func Init(cfg InitConfig) error {
 	}
 
 	st := &state.State{
-		Version: 1,
+		Version:           1,
+		OpDeployerVersion: version.VersionWithMeta,
 	}
 
 	stat, err := os.Stat(cfg.Outdir)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(cfg.Outdir, 0755); err != nil {
+		if err := os.MkdirAll(cfg.Outdir, 0o755); err != nil {
 			return fmt.Errorf("failed to create outdir: %w", err)
 		}
 	} else if err != nil {

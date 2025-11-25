@@ -45,6 +45,8 @@ func NewChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 		},
 		UseRevenueShare:    false,
 		ChainFeesRecipient: common.Address{},
+		// CustomGasToken defaults to disabled (all fields nil/empty)
+		CustomGasToken: state.CustomGasToken{},
 	}
 }
 

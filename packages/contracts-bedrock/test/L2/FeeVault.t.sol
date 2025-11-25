@@ -14,6 +14,7 @@ import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title FeeVault_Uncategorized_Test
 /// @notice Abstract test contract for fee feeVault testing.
@@ -83,6 +84,8 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
 
     /// @notice Tests that `withdraw` successfully initiates a withdrawal to L1.
     function test_withdraw_toL1_succeeds() external {
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Setup L1 withdrawal
         vm.prank(IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
         feeVault.setWithdrawalNetwork(Types.WithdrawalNetwork.L1);

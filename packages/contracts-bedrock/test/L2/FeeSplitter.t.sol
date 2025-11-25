@@ -13,6 +13,7 @@ import { ReentrantMockFeeVault } from "test/mocks/ReentrantMockFeeVault.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "src/libraries/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
@@ -41,6 +42,10 @@ contract FeeSplitter_TestInit is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        // Resolve features and skip whole test suite if custom gas token is enabled
+        resolveFeaturesFromEnv();
+        skipIfDevFeatureEnabled(DevFeatures.CUSTOM_GAS_TOKEN);
+
         // Enable revenue sharing before calling parent setUp
         super.enableRevenueShare();
         super.setUp();
@@ -153,6 +158,7 @@ contract FeeSplitter_Initialize_Test is FeeSplitter_TestInit {
 contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
     /// @notice Test that receive function reverts when sender is not an approved vault
     function testFuzz_feeSplitterReceive_whenNotApprovedVault_reverts(address _caller, uint256 _amount) public {
+        vm.assume(_caller != address(0));
         vm.assume(_caller != Predeploys.SEQUENCER_FEE_WALLET);
         vm.assume(_caller != Predeploys.BASE_FEE_VAULT);
         vm.assume(_caller != Predeploys.OPERATOR_FEE_VAULT);
@@ -161,11 +167,13 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
 
         vm.prank(_caller);
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _amount }("");
+        (bool revertsAsExpected,) = payable(address(feeSplitter)).call{ value: _amount }("");
+        assertTrue(revertsAsExpected, "FeeSplitter_Test: call did not revert");
     }
 
     /// @notice Test receive function from non-approved vault reverts even during disbursement
     function testFuzz_feeSplitterReceive_whenNonFeeVault_reverts(address _caller, uint256 _amount) public {
+        vm.assume(_caller != address(0));
         vm.assume(_caller != Predeploys.SEQUENCER_FEE_WALLET);
         vm.assume(_caller != Predeploys.BASE_FEE_VAULT);
         vm.assume(_caller != Predeploys.OPERATOR_FEE_VAULT);
@@ -177,7 +185,8 @@ contract FeeSplitter_Receive_Test is FeeSplitter_TestInit {
 
         // Now we test the actual sender validation
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _amount }("");
+        (bool revertsAsExpected,) = payable(address(feeSplitter)).call{ value: _amount }("");
+        assertTrue(revertsAsExpected, "FeeSplitter_Test: call did not revert");
     }
 
     /// @notice Test receive function works during disbursement from SequencerFeeVault
@@ -659,7 +668,8 @@ contract FeeSplitter_DisburseFees_Test is FeeSplitter_TestInit {
         // Attempt to send ETH from the vault - should revert because transient storage was cleared
         vm.prank(_vault);
         vm.expectRevert(IFeeSplitter.FeeSplitter_SenderNotCurrentVault.selector);
-        payable(address(feeSplitter)).call{ value: _attemptAmount }("");
+        (bool revertsAsExpected,) = payable(address(feeSplitter)).call{ value: _attemptAmount }("");
+        assertTrue(revertsAsExpected, "FeeSplitter_Test: call did not revert");
     }
 }
 

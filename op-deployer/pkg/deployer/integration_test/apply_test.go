@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -43,6 +45,7 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/holiman/uint256"
+	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -305,6 +308,58 @@ func TestEndToEndApply(t *testing.T) {
 			_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
 			require.NoError(t, err)
 		}
+	})
+
+	t.Run("with custom gas token", func(t *testing.T) {
+		intent, st := shared.NewIntent(t, l1ChainID, dk, l2ChainID1, loc, loc, testCustomGasLimit)
+
+		// CGT config for L2 genesis
+		amount := new(big.Int)
+		amount.SetString("1000000000000000000000", 10)
+		intent.Chains[0].CustomGasToken = state.CustomGasToken{
+			Name:             "Custom Gas Token",
+			Symbol:           "CGT",
+			InitialLiquidity: (*hexutil.Big)(amount),
+		}
+		// CGT config for OPCM
+		intent.GlobalDeployOverrides = map[string]interface{}{
+			"devFeatureBitmap": deployer.CustomGasTokenDevFlag,
+		}
+
+		require.NoError(t, deployer.ApplyPipeline(ctx, deployer.ApplyPipelineOpts{
+			DeploymentTarget:   deployer.DeploymentTargetLive,
+			L1RPCUrl:           l1RPC,
+			DeployerPrivateKey: pk,
+			Intent:             intent,
+			State:              st,
+			Logger:             lgr,
+			StateWriter:        pipeline.NoopStateWriter(),
+			CacheDir:           testCacheDir,
+		}))
+
+		systemConfig := st.Chains[0].SystemConfigProxy
+		fn := w3.MustNewFunc("isFeatureEnabled(bytes32)", "bool")
+		// bytes32("CUSTOM_GAS_TOKEN")
+		data, err := fn.EncodeArgs(w3.H("0x435553544f4d5f4741535f544f4b454e00000000000000000000000000000000"))
+		require.NoError(t, err)
+
+		res, err := l1Client.CallContract(ctx, ethereum.CallMsg{
+			To:   &systemConfig,
+			Data: data,
+		}, nil)
+		require.NoError(t, err)
+
+		var response bool
+		err = fn.DecodeReturns(res, &response)
+		require.NoError(t, err)
+		require.Equal(t, true, response)
+
+		// Check that the native asset liquidity predeploy has the configured amount in L2 genesis
+		nativeAssetLiquidityAddr := common.HexToAddress("0x4200000000000000000000000000000000000029")
+		l2Genesis := st.Chains[0].Allocs.Data.Accounts
+		account, exists := l2Genesis[nativeAssetLiquidityAddr]
+		require.True(t, exists, "Native asset liquidity predeploy should exist in L2 genesis")
+		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
 }
 

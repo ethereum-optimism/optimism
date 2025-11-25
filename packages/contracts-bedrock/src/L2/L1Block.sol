@@ -64,13 +64,13 @@ contract L1Block is ISemver {
     /// @notice The DA footprint gas scalar.
     uint16 public daFootprintGasScalar;
 
-    /// @custom:semver 1.7.0
+    /// @custom:semver 1.8.0
     function version() public pure virtual returns (string memory) {
-        return "1.7.0";
+        return "1.8.0";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
-    function gasPayingToken() public pure returns (address addr_, uint8 decimals_) {
+    function gasPayingToken() public pure virtual returns (address addr_, uint8 decimals_) {
         addr_ = Constants.ETHER;
         decimals_ = 18;
     }
@@ -78,20 +78,20 @@ contract L1Block is ISemver {
     /// @notice Returns the gas paying token name.
     ///         If nothing is set in state, then it means ether is used.
     ///         This function cannot be removed because WETH depends on it.
-    function gasPayingTokenName() public pure returns (string memory name_) {
+    function gasPayingTokenName() public view virtual returns (string memory name_) {
         name_ = "Ether";
     }
 
     /// @notice Returns the gas paying token symbol.
     ///         If nothing is set in state, then it means ether is used.
     ///         This function cannot be removed because WETH depends on it.
-    function gasPayingTokenSymbol() public pure returns (string memory symbol_) {
+    function gasPayingTokenSymbol() public view virtual returns (string memory symbol_) {
         symbol_ = "ETH";
     }
 
     /// @notice Getter for custom gas token paying networks. Returns true if the
     ///         network uses a custom gas token.
-    function isCustomGasToken() public pure returns (bool is_) {
+    function isCustomGasToken() public view virtual returns (bool is_) {
         is_ = false;
     }
 

@@ -1,4 +1,4 @@
-  # Test validation exclusions configuration
+# Test validation exclusions configuration
 # This file contains lists of paths and test names that should be excluded
 # from various validation checks in the test validation script.
 
@@ -97,5 +97,6 @@ contracts = [
     "OptimismPortal2_UpgradeInterop_Test",      # Interop tests hosted in the OptimismPortal2 test file
     "TransactionBuilder",                       # Transaction builder helper library in TimelockGuard test file
     "Constants_Test",                           # Invalid naming pattern - doesn't specify function or Uncategorized
-    "LivenessModule2_TestUtils",                 # Test utils library in LivenessModule2 test file
+    "LivenessModule2_TestUtils",                # Test utils library in LivenessModule2 test file
+    "L1Block_SetCustomGasToken_Test",           # Custom gas token tests hosted in the L1Block test file
 ]

@@ -230,7 +230,7 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		log.Trace("received out-of-order batch for future processing after next batch", "next_timestamp", nextTimestamp)
 		return BatchFuture, eth.L2BlockRef{}
 	}
-	if batch.GetBlockTimestamp(batch.GetBlockCount()-1) < nextTimestamp {
+	if batch.GetLastTimestamp() < nextTimestamp {
 		log.Warn("span batch has no new blocks after safe head")
 		if cfg.IsHolocene(l1InclusionBlock.Time) {
 			return BatchPast, eth.L2BlockRef{}
@@ -277,9 +277,9 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		return BatchDrop, parentBlock
 	}
 
-	endEpochNum := batch.GetBlockEpochNum(batch.GetBlockCount() - 1)
+	endEpochNum := uint64(batch.GetLastEpochNum())
 	originChecked := false
-	// l1Blocks is supplied from batch queue and its length is limited to SequencerWindowSize.
+	// l1Blocks is supplied from the batch queue/stage and its length is limited to SequencerWindowSize.
 	for _, l1Block := range l1Blocks {
 		if l1Block.Number == endEpochNum {
 			if !batch.CheckOriginHash(l1Block.Hash) {
@@ -317,24 +317,36 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	originAdvanced := startEpochNum == parentBlock.L1Origin.Number+1
 
 	for i := 0; i < batch.GetBlockCount(); i++ {
-		if batch.GetBlockTimestamp(i) <= l2SafeHead.Time {
+		blockTimestamp := batch.GetBlockTimestamp(i)
+		blockEpoch := batch.GetBlockEpochNum(i)
+
+		if blockTimestamp <= l2SafeHead.Time {
 			continue
 		}
+		if blockEpoch < l2SafeHead.L1Origin.Number {
+			log.Warn("block epoch is too old", "minimum", l2SafeHead.ID(), "have", blockEpoch)
+			return BatchDrop
+		}
 		var l1Origin eth.L1BlockRef
+		var originFound bool
 		for j := originIdx; j < len(l1Blocks); j++ {
-			if batch.GetBlockEpochNum(i) == l1Blocks[j].Number {
+			if blockEpoch == l1Blocks[j].Number {
 				l1Origin = l1Blocks[j]
 				originIdx = j
+				originFound = true
 				break
 			}
 		}
+		if !originFound {
+			log.Info("unable to find L1 origin for batch", "epoch", blockEpoch, "timestamp", blockTimestamp)
+			return BatchDrop
+		}
 		if i > 0 {
 			originAdvanced = false
-			if batch.GetBlockEpochNum(i) > batch.GetBlockEpochNum(i-1) {
+			if blockEpoch > batch.GetBlockEpochNum(i-1) {
 				originAdvanced = true
 			}
 		}
-		blockTimestamp := batch.GetBlockTimestamp(i)
 		if blockTimestamp < l1Origin.Time {
 			log.Warn("block timestamp is less than L1 origin timestamp", "l2_timestamp", blockTimestamp, "l1_timestamp", l1Origin.Time, "origin", l1Origin.ID())
 			return BatchDrop
@@ -387,7 +399,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			safeBlockNum := parentNum + i + 1
 			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
 			if err != nil {
-				log.Warn("failed to fetch L2 block payload", "number", parentNum, "err", err)
+				log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
 				// unable to validate the batch for now. retry later.
 				return BatchUndecided
 			}

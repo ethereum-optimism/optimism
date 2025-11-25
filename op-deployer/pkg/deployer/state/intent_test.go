@@ -1,10 +1,12 @@
 package state
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,6 +61,17 @@ func TestValidateStandardValues(t *testing.T) {
 					{
 						VMType: VMTypeAlphabet,
 					},
+				}
+			},
+			ErrNonStandardValue,
+		},
+		{
+			"CustomGasToken",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = CustomGasToken{
+					Name:             "Custom Gas Token",
+					Symbol:           "CGT",
+					InitialLiquidity: (*hexutil.Big)(big.NewInt(1000)),
 				}
 			},
 			ErrNonStandardValue,
@@ -145,6 +158,10 @@ func TestValidateCustomValues(t *testing.T) {
 	err = intent.Check()
 	require.NoError(t, err)
 
+	setCustomGasToken(&intent)
+	err = intent.Check()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		mutator func(intent *Intent)
@@ -176,6 +193,26 @@ func TestValidateCustomValues(t *testing.T) {
 				intent.Chains[0].ChainFeesRecipient = common.Address{}
 			},
 			ErrRevenueShareZeroAddress,
+		},
+		{
+			"empty custom gas token name when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = CustomGasToken{
+					Name:   "",
+					Symbol: "CGT",
+				}
+			},
+			ErrIncompatibleValue,
+		},
+		{
+			"empty custom gas token symbol when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = CustomGasToken{
+					Name:   "Custom Gas Token",
+					Symbol: "",
+				}
+			},
+			ErrIncompatibleValue,
 		},
 	}
 	for _, tt := range tests {
@@ -238,4 +275,16 @@ func setFeeAddresses(intent *Intent) {
 func setRevenueShare(intent *Intent) {
 	intent.Chains[0].UseRevenueShare = true
 	intent.Chains[0].ChainFeesRecipient = common.HexToAddress("0x0C")
+}
+
+func setCustomGasToken(intent *Intent) {
+	// 1000 ETH in wei (1000 * 10^18)
+	amount := new(big.Int)
+	amount.SetString("1000000000000000000000", 10)
+
+	intent.Chains[0].CustomGasToken = CustomGasToken{
+		Name:             "Custom Gas Token",
+		Symbol:           "CGT",
+		InitialLiquidity: (*hexutil.Big)(amount),
+	}
 }

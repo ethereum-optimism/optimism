@@ -340,6 +340,14 @@ commands:
             - ~/go/pkg/mod
           key: go-<<parameters.namespace>>-<<parameters.version>>-<<parameters.module>>-{{ checksum "<<parameters.module>>/go.mod" }}-{{ checksum "<<parameters.module>>/go.sum" }}
 
+  pull-artifacts-conditional:
+    description: "Pull artifacts with conditional fallback based on branch and PR labels"
+    steps:
+      - run:
+          name: Pull artifacts
+          command: bash scripts/ops/use-latest-fallback.sh
+          working_directory: packages/contracts-bedrock
+
 jobs:
   # Kurtosis-based acceptance tests
   op-acceptance-tests-kurtosis:
@@ -769,6 +777,7 @@ jobs:
             fi
 
             # Let them cook!
+            KONA_VERSION=$(jq -r .version kona/version.json) \
             docker buildx bake \
               --progress plain \
               --builder=buildx-build \
@@ -931,10 +940,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - go-restore-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
       - run:
@@ -978,6 +984,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
          checkout-method: blobless
+      - install-contracts-dependencies
       - install-zstd
       - run:
           name: Print dependencies
@@ -1101,10 +1108,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - run:
           name: Install lcov
           command: |
@@ -1180,7 +1184,7 @@ jobs:
         default: ""
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
@@ -1198,10 +1202,7 @@ jobs:
           name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+      - pull-artifacts-conditional
       - run:
           name: Write pinned block number for cache key
           command: |
@@ -1912,7 +1913,7 @@ jobs:
             jq -c '{blocks: .}' /tmp/blocks.json > /tmp/slack_template.json
             echo 'export SLACK_TEMPLATE=$(cat /tmp/slack_template.json)' >> $BASH_ENV
       - slack/notify:
-          channel: C03N11M0BBN  # "notify-ci" channel
+          channel: C03N11M0BBN # "notify-ci" channel
           event: always
           retries: 1
           retry_delay: 3
@@ -1994,13 +1995,13 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona cache
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run:
           name: Build kona prestates
           command: just build-prestates
           working_directory: kona
       - save_cache:
-          key: kona-prestate-{{ checksum "./kona/justfile" }}
+          key: kona-prestate-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona to cache
           paths:
             - "kona/prestates/"
@@ -2017,7 +2018,7 @@ jobs:
          checkout-method: blobless
       - restore_cache:
           name: Restore kona host cache
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
       - run: # The mise plugin for clang is broken so install via apt-get
           name: Install clang
           command: |
@@ -2028,7 +2029,7 @@ jobs:
           command: just build-kona-host
           working_directory: kona
       - save_cache:
-          key: kona-host-{{ checksum "./kona/justfile" }}
+          key: kona-host-{{ checksum "./kona/justfile" }}-{{ checksum "./kona/version.json" }}
           name: Save Kona host to cache
           paths:
             - "kona/bin/kona-host"
@@ -2462,7 +2463,11 @@ workflows:
       or:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         - and:
-            - equal: [true, << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>]
+            - equal:
+                [
+                  true,
+                  << pipeline.parameters.kurtosis_acceptance_tests_dispatch >>,
+                ]
             - equal: ["api", << pipeline.trigger_source >>]
     jobs:
       - contracts-bedrock-build: # needed for in-process tests that some suites may use
@@ -2530,10 +2535,19 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.dev_features>>
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
+          dev_features: <<matrix.dev_features>>
+          matrix:
+            parameters:
+              dev_features: &dev_features_matrix
+                - main
+                - OPTIMISM_PORTAL_INTEROP
+                - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
+                - CUSTOM_GAS_TOKEN
+                - OPCM_V2
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
@@ -2542,10 +2556,7 @@ workflows:
           dev_features: <<matrix.dev_features>>
           matrix:
             parameters:
-              dev_features: &dev_features_matrix
-                - main
-                - OPTIMISM_PORTAL_INTEROP
-                - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
+              dev_features: *dev_features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
           check_changed_patterns: contracts-bedrock,op-node
@@ -2986,7 +2997,7 @@ workflows:
           mentions: "@proofs-team"
           no_output_timeout: 90m
           test_timeout: 480m
-          resource_class: large
+          resource_class: xlarge
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -3178,13 +3189,20 @@ workflows:
           no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
+            - slack
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
           matrix:
             parameters:
-              network_preset: ["op-sepolia", "base-sepolia", "unichain-sepolia", "op-mainnet", "base-mainnet"]
+              network_preset:
+                [
+                  "op-sepolia",
+                  "base-sepolia",
+                  "unichain-sepolia",
+                  "op-mainnet",
+                  "base-mainnet",
+                ]
               l2_cl_syncmode: ["consensus-layer", "execution-layer"]
 
   scheduled-heavy-fuzz-tests:
@@ -3225,7 +3243,7 @@ workflows:
       - op-acceptance-tests:
           name: memory-all
           gate: "" # Empty gate = gateless mode
-          no_output_timeout: 90m
+          no_output_timeout: 80m  # Keep this less than 90m to avoid CircleCI timeout
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack

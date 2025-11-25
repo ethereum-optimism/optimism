@@ -34,6 +34,8 @@ type ImplementationsContracts struct {
 	OpcmUpgraderImpl                 common.Address
 	OpcmInteropMigratorImpl          common.Address
 	OpcmStandardValidatorImpl        common.Address
+	OpcmV2Impl                       common.Address
+	OpcmContainerImpl                common.Address
 	DelayedWethImpl                  common.Address
 	OptimismPortalImpl               common.Address
 	OptimismPortalInteropImpl        common.Address
@@ -49,6 +51,7 @@ type ImplementationsContracts struct {
 	AnchorStateRegistryImpl          common.Address
 	FaultDisputeGameV2Impl           common.Address
 	PermissionedDisputeGameV2Impl    common.Address
+	StorageSetterImpl                common.Address
 }
 
 // OpChainContracts struct contains all the contracts for a specific L2 OpChain

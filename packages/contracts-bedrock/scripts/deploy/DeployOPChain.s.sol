@@ -78,7 +78,8 @@ contract DeployOPChain is Script {
             disputeMaxGameDepth: _input.disputeMaxGameDepth,
             disputeSplitDepth: _input.disputeSplitDepth,
             disputeClockExtension: _input.disputeClockExtension,
-            disputeMaxClockDuration: _input.disputeMaxClockDuration
+            disputeMaxClockDuration: _input.disputeMaxClockDuration,
+            useCustomGasToken: _input.useCustomGasToken
         });
 
         vm.broadcast(msg.sender);

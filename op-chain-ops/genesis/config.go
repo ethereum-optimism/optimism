@@ -304,18 +304,33 @@ func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
 type GasTokenDeployConfig struct {
 	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
 	UseCustomGasToken bool `json:"useCustomGasToken"`
-	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
-	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
+	// GasPayingTokenName represents the custom gas token name.
+	GasPayingTokenName string `json:"gasPayingTokenName"`
+	// GasPayingTokenSymbol represents the custom gas token symbol.
+	GasPayingTokenSymbol string `json:"gasPayingTokenSymbol"`
+	// NativeAssetLiquidityAmount represents the amount of liquidity to pre-fund the NativeAssetLiquidity contract with.
+	NativeAssetLiquidityAmount *hexutil.Big `json:"nativeAssetLiquidityAmount"`
+	// LiquidityControllerOwner represents the owner of the LiquidityController.
+	LiquidityControllerOwner common.Address `json:"liquidityControllerOwner"`
 }
 
 var _ ConfigChecker = (*GasTokenDeployConfig)(nil)
 
 func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 	if d.UseCustomGasToken {
-		if d.CustomGasTokenAddress == (common.Address{}) {
-			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
+		if d.GasPayingTokenName == "" {
+			return fmt.Errorf("%w: GasPayingTokenName cannot be empty", ErrInvalidDeployConfig)
 		}
-		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
+		if d.GasPayingTokenSymbol == "" {
+			return fmt.Errorf("%w: GasPayingTokenSymbol cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.NativeAssetLiquidityAmount == nil || d.NativeAssetLiquidityAmount.ToInt().Sign() < 0 {
+			return fmt.Errorf("%w: NativeAssetLiquidityAmount cannot be nil or negative", ErrInvalidDeployConfig)
+		}
+		if d.LiquidityControllerOwner == (common.Address{}) {
+			return fmt.Errorf("%w: LiquidityControllerOwner cannot be address(0)", ErrInvalidDeployConfig)
+		}
+		log.Info("Using custom gas token", "name", d.GasPayingTokenName, "symbol", d.GasPayingTokenSymbol, "nativeAssetLiquidityAmount", d.NativeAssetLiquidityAmount.ToInt())
 	}
 	return nil
 }
