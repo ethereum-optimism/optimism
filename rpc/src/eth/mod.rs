@@ -188,7 +188,7 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
 impl<N, Rpc> EthApiTypes for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
-    Rpc: RpcConvert<Primitives = N::Primitives>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     type Error = OpEthApiError;
     type NetworkTypes = Rpc::Network;
@@ -245,7 +245,7 @@ where
 impl<N, Rpc> EthApiSpec for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
-    Rpc: RpcConvert<Primitives = N::Primitives>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     #[inline]
     fn starting_block(&self) -> U256 {
@@ -256,7 +256,7 @@ where
 impl<N, Rpc> SpawnBlocking for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
-    Rpc: RpcConvert<Primitives = N::Primitives>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
     #[inline]
     fn io_task_spawner(&self) -> impl TaskSpawner {
@@ -311,7 +311,7 @@ where
 impl<N, Rpc> EthState for OpEthApi<N, Rpc>
 where
     N: RpcNodeCore,
-    Rpc: RpcConvert<Primitives = N::Primitives>,
+    Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
     Self: LoadPendingBlock,
 {
     #[inline]
