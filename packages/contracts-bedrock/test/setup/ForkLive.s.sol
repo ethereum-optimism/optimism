@@ -7,7 +7,6 @@ import { StdAssertions } from "forge-std/StdAssertions.sol";
 // Testing
 import { stdToml } from "forge-std/StdToml.sol";
 import { DisputeGames } from "test/setup/DisputeGames.sol";
-import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
