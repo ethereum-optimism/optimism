@@ -1,6 +1,8 @@
 //! In-memory implementation of [`OpProofsStore`] for testing purposes
 
-use crate::{api::WriteCounts, BlockStateDiff, OpProofsStorageResult, OpProofsStore};
+use crate::{
+    api::WriteCounts, BlockStateDiff, OpProofsStorageError, OpProofsStorageResult, OpProofsStore,
+};
 use alloy_eips::eip1898::BlockWithParent;
 use alloy_primitives::{map::HashMap, B256, U256};
 use reth_db::DatabaseError;
@@ -162,18 +164,45 @@ impl InMemoryProofsStorage {
 /// In-memory implementation of [`TrieCursor`].
 #[derive(Debug)]
 pub struct InMemoryTrieCursor {
+    /// inner storage reference
+    inner: Arc<RwLock<InMemoryStorageInner>>,
+    /// Hashed address being queried
+    hashed_address: Option<B256>,
+    /// max block number for the cursor
+    max_block_number: u64,
     /// Current position in the iteration (-1 means not positioned yet)
     position: isize,
+
+    /// Whether the entries have been populated
+    is_populated: bool,
     /// Sorted entries that match the query parameters
     entries: Vec<(Nibbles, BranchNodeCompact)>,
 }
 
 impl InMemoryTrieCursor {
-    fn new(
-        storage: &InMemoryStorageInner,
+    const fn new(
+        inner: Arc<RwLock<InMemoryStorageInner>>,
         hashed_address: Option<B256>,
         max_block_number: u64,
     ) -> Self {
+        Self {
+            inner,
+            hashed_address,
+            max_block_number,
+            position: -1,
+
+            is_populated: false,
+            entries: Vec::new(),
+        }
+    }
+
+    fn ensure_entries_populated(&mut self) -> Result<(), DatabaseError> {
+        if self.is_populated {
+            return Ok(());
+        }
+
+        let storage = self.inner.try_read().map_err(OpProofsStorageError::from)?;
+
         // Common logic: collect latest values for each path
         let mut path_to_latest: std::collections::BTreeMap<
             Nibbles,
@@ -181,10 +210,10 @@ impl InMemoryTrieCursor {
         > = std::collections::BTreeMap::new();
 
         let mut collected_entries: Vec<(Nibbles, BranchNodeCompact)> =
-            if let Some(addr) = hashed_address {
+            if let Some(addr) = self.hashed_address {
                 // Storage trie cursor
                 for ((block, address, path), branch) in &storage.storage_branches {
-                    if *block <= max_block_number && *address == addr {
+                    if *block <= self.max_block_number && *address == addr {
                         if let Some((existing_block, _)) = path_to_latest.get(path) {
                             if *block > *existing_block {
                                 path_to_latest.insert(*path, (*block, branch.clone()));
@@ -202,7 +231,7 @@ impl InMemoryTrieCursor {
             } else {
                 // Account trie cursor
                 for ((block, path), branch) in &storage.account_branches {
-                    if *block <= max_block_number {
+                    if *block <= self.max_block_number {
                         if let Some((existing_block, _)) = path_to_latest.get(path) {
                             if *block > *existing_block {
                                 path_to_latest.insert(*path, (*block, branch.clone()));
@@ -221,8 +250,9 @@ impl InMemoryTrieCursor {
 
         // Sort by path for consistent ordering
         collected_entries.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        Self { position: -1, entries: collected_entries }
+        self.entries = collected_entries;
+        self.is_populated = true;
+        Ok(())
     }
 }
 
@@ -231,6 +261,8 @@ impl TrieCursor for InMemoryTrieCursor {
         &mut self,
         path: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         if let Some(pos) = self.entries.iter().position(|(p, _)| *p == path) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos].clone()))
@@ -243,6 +275,8 @@ impl TrieCursor for InMemoryTrieCursor {
         &mut self,
         path: Nibbles,
     ) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         if let Some(pos) = self.entries.iter().position(|(p, _)| *p >= path) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos].clone()))
@@ -252,6 +286,8 @@ impl TrieCursor for InMemoryTrieCursor {
     }
 
     fn next(&mut self) -> Result<Option<(Nibbles, BranchNodeCompact)>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         self.position += 1;
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize].clone()))
@@ -261,6 +297,8 @@ impl TrieCursor for InMemoryTrieCursor {
     }
 
     fn current(&mut self) -> Result<Option<Nibbles>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize].0))
         } else {
@@ -269,33 +307,67 @@ impl TrieCursor for InMemoryTrieCursor {
     }
 
     fn reset(&mut self) {
-        todo!()
+        self.position = -1;
     }
 }
 
 impl TrieStorageCursor for InMemoryTrieCursor {
-    fn set_hashed_address(&mut self, _hashed_address: B256) {
-        todo!()
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.hashed_address = Some(hashed_address);
+        self.is_populated = false;
+        self.entries.clear();
+        self.reset();
     }
 }
 
 /// In-memory implementation of [`HashedCursor`] for storage slots
 #[derive(Debug)]
 pub struct InMemoryStorageCursor {
+    /// inner storage reference
+    inner: Arc<RwLock<InMemoryStorageInner>>,
+    /// hashed address for which the cursor is iterating
+    hashed_address: B256,
+    /// max block number for the cursor
+    max_block_number: u64,
     /// Current position in the iteration (-1 means not positioned yet)
     position: isize,
+
+    /// Whether the entries have been populated
+    is_populated: bool,
     /// Sorted entries that match the query parameters
     entries: Vec<(B256, U256)>,
 }
 
 impl InMemoryStorageCursor {
-    fn new(storage: &InMemoryStorageInner, hashed_address: B256, max_block_number: u64) -> Self {
+    const fn new(
+        storage: Arc<RwLock<InMemoryStorageInner>>,
+        hashed_address: B256,
+        max_block_number: u64,
+    ) -> Self {
+        Self {
+            inner: storage,
+            hashed_address,
+            max_block_number,
+            position: -1,
+
+            is_populated: false,
+            entries: Vec::new(),
+        }
+    }
+
+    fn ensure_entries_populated(&mut self) -> Result<(), DatabaseError> {
+        if self.is_populated {
+            return Ok(());
+        }
+
+        let storage = self.inner.try_read().map_err(OpProofsStorageError::from)?;
+
         // Collect latest values for each slot
         let mut slot_to_latest: std::collections::BTreeMap<B256, (u64, U256)> =
             std::collections::BTreeMap::new();
 
         for ((block, address, slot), value) in &storage.hashed_storages {
-            if *block <= max_block_number && *address == hashed_address {
+            if *block <= self.max_block_number && *address == self.hashed_address {
                 if let Some((existing_block, _)) = slot_to_latest.get(slot) {
                     if *block > *existing_block {
                         slot_to_latest.insert(*slot, (*block, *value));
@@ -321,8 +393,9 @@ impl InMemoryStorageCursor {
             .collect();
 
         entries.sort_by_key(|(slot, _)| *slot);
-
-        Self { position: -1, entries }
+        self.entries = entries;
+        self.is_populated = true;
+        Ok(())
     }
 }
 
@@ -330,6 +403,8 @@ impl HashedCursor for InMemoryStorageCursor {
     type Value = U256;
 
     fn seek(&mut self, key: B256) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         if let Some(pos) = self.entries.iter().position(|(k, _)| *k >= key) {
             self.position = pos as isize;
             Ok(Some(self.entries[pos]))
@@ -339,6 +414,8 @@ impl HashedCursor for InMemoryStorageCursor {
     }
 
     fn next(&mut self) -> Result<Option<(B256, Self::Value)>, DatabaseError> {
+        self.ensure_entries_populated()?;
+
         self.position += 1;
         if self.position >= 0 && (self.position as usize) < self.entries.len() {
             Ok(Some(self.entries[self.position as usize]))
@@ -348,7 +425,7 @@ impl HashedCursor for InMemoryStorageCursor {
     }
 
     fn reset(&mut self) {
-        todo!()
+        self.position = -1;
     }
 }
 
@@ -357,8 +434,11 @@ impl HashedStorageCursor for InMemoryStorageCursor {
         Ok(self.seek(B256::ZERO)?.is_none())
     }
 
-    fn set_hashed_address(&mut self, _hashed_address: B256) {
-        todo!()
+    fn set_hashed_address(&mut self, hashed_address: B256) {
+        self.hashed_address = hashed_address;
+        self.is_populated = false;
+        self.entries.clear();
+        self.reset();
     }
 }
 
@@ -422,7 +502,7 @@ impl HashedCursor for InMemoryAccountCursor {
     }
 
     fn reset(&mut self) {
-        todo!()
+        // no reset needed
     }
 }
 
@@ -509,18 +589,14 @@ impl OpProofsStore for InMemoryProofsStorage {
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageTrieCursor<'tx>> {
-        // For synchronous methods, we need to try_read() and handle potential blocking
-        let inner = self.inner.try_read()?;
-
-        Ok(InMemoryTrieCursor::new(&inner, Some(hashed_address), max_block_number))
+        Ok(InMemoryTrieCursor::new(self.inner.clone(), Some(hashed_address), max_block_number))
     }
 
     fn account_trie_cursor<'tx>(
         &self,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::AccountTrieCursor<'tx>> {
-        let inner = self.inner.try_read()?;
-        Ok(InMemoryTrieCursor::new(&inner, None, max_block_number))
+        Ok(InMemoryTrieCursor::new(self.inner.clone(), None, max_block_number))
     }
 
     fn storage_hashed_cursor<'tx>(
@@ -528,8 +604,7 @@ impl OpProofsStore for InMemoryProofsStorage {
         hashed_address: B256,
         max_block_number: u64,
     ) -> OpProofsStorageResult<Self::StorageCursor<'tx>> {
-        let inner = self.inner.try_read()?;
-        Ok(InMemoryStorageCursor::new(&inner, hashed_address, max_block_number))
+        Ok(InMemoryStorageCursor::new(self.inner.clone(), hashed_address, max_block_number))
     }
 
     fn account_hashed_cursor<'tx>(
