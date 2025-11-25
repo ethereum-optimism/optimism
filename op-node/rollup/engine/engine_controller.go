@@ -1129,7 +1129,9 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 	defer e.mu.Unlock()
 
 	followExternalRefs := func(updateUnsafe bool) {
+		// Assume the sanity of external safe and finalized are checked
 		if updateUnsafe {
+			// May interrupt ongoing EL Sync to update the target, or trigger EL Sync
 			e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
 		}
 		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
