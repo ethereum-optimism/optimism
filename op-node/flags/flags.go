@@ -231,6 +231,13 @@ var (
 		Category: RollupCategory,
 		Required: false,
 	}
+	L2FollowSourceRpcTimeout = &cli.DurationFlag{
+		Name:     "l2.follow.source.rpc-timeout",
+		Usage:    "L2 follow source client rpc timeout",
+		EnvVars:  prefixEnvVars("L2_FOLLOW_SOURCE_RPC_TIMEOUT"),
+		Value:    time.Second * 10,
+		Category: RollupCategory,
+	}
 	VerifierL1Confs = &cli.Uint64Flag{
 		Name:     "verifier.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",

@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -198,7 +197,7 @@ func NewL2EndpointConfig(ctx cliiface.Context, logger log.Logger) (*config.L2End
 
 func NewL2FollowSourceConfig(ctx cliiface.Context) *config.L2FollowSourceConfig {
 	l2Addr := ctx.String(flags.L2FollowSource.Name)
-	l2RpcTimeout := time.Second * 10
+	l2RpcTimeout := ctx.Duration(flags.L2FollowSourceRpcTimeout.Name)
 	return &config.L2FollowSourceConfig{
 		L2RPCAddr:        l2Addr,
 		L2RPCCallTimeout: l2RpcTimeout,
