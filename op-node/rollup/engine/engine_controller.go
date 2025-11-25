@@ -1136,7 +1136,9 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 		}
 		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
 		// Directly update the Engine Controller state, bypassing finalizer
-		e.promoteFinalized(e.ctx, eFinalizedRef)
+		if e.finalizedHead.Number <= eFinalizedRef.Number {
+			e.promoteFinalized(e.ctx, eFinalizedRef)
+		}
 	}
 
 	logger := e.log.With(
