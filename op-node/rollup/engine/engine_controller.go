@@ -1152,7 +1152,7 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 
 	if e.unsafeHead.Number < eSafeBlockRef.Number {
 		// EL Sync target may be updated
-		logger.Info("Follow Source: EL Sync: External safe ahead of current unsafe")
+		logger.Debug("Follow Source: EL Sync: External safe ahead of current unsafe")
 		followExternalRefs(true)
 		return
 	}
@@ -1164,24 +1164,24 @@ func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2Block
 		// We do not know if the current EL sync is targeting a chain that will
 		// eventually reorg out this target. So we do not interrupt EL sync;
 		// we only update the local safe head.
-		logger.Info("Follow Source: EL Sync in progress")
+		logger.Debug("Follow Source: EL Sync in progress")
 		followExternalRefs(false)
 		return
 	}
 	if err != nil {
-		logger.Info("Follow Source: Failed to fetch external safe from local EL", "err", err)
+		logger.Debug("Follow Source: Failed to fetch external safe from local EL", "err", err)
 		return
 	}
 
 	if fetchedSafe == eSafeBlockRef {
 		// External safe is found locally and matches.
-		logger.Info("Follow Source: Consolidation")
+		logger.Debug("Follow Source: Consolidation")
 		followExternalRefs(false)
 		return
 	}
 
 	// External safe is found locally but they differ so trigger reorg.
 	// Reorging may trigger EL Sync, or updating the EL Sync target.
-	logger.Info("Follow Source: Reorg. May Trigger EL sync")
+	logger.Warn("Follow Source: Reorg. May Trigger EL sync")
 	followExternalRefs(true)
 }
