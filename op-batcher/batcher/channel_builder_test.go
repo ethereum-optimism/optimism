@@ -29,6 +29,26 @@ var defaultTestRollupConfig = &rollup.Config{
 	L2ChainID: big.NewInt(1234),
 }
 
+func TestChannelBuilder_OldestL1Origin_MixedSequence(t *testing.T) {
+	cb, err := newChannelBuilder(defaultTestChannelConfig(), defaultTestRollupConfig, latestL1BlockOrigin)
+	require.NoError(t, err)
+	require.Equal(t, eth.BlockID{}, cb.OldestL1Origin())
+
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(1), common.Hash{}, 5, 100)})
+	require.NoError(t, err)
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(2), common.Hash{}, 6, 100)})
+	require.NoError(t, err)
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(3), common.Hash{}, 10, 100)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), cb.OldestL1Origin().Number)
+	require.Equal(t, uint64(10), cb.LatestL1Origin().Number)
+
+	_, err = cb.AddBlock(SizedBlock{Block: newMiniL2BlockWithNumberParentAndL1Information(0, big.NewInt(4), common.Hash{}, 8, 100)})
+	require.NoError(t, err)
+	require.Equal(t, uint64(5), cb.OldestL1Origin().Number)
+	require.Equal(t, uint64(10), cb.LatestL1Origin().Number)
+}
+
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
