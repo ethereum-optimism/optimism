@@ -122,6 +122,7 @@ func (b *TxBuilder) BuildTx(options ...TxOption) (Transaction, error) {
 			tx, err = b.buildBlobTx(opts)
 		} else {
 			// If blob tx type is forced but no blobs provided, fall back to dynamic fee tx
+			txType = types.DynamicFeeTxType
 			tx, err = b.buildDynamicFeeTx(opts)
 		}
 	case types.AccessListTxType:
