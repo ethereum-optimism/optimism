@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 env:
   REGISTRY_IMAGE: flashbots/flashblocks-websocket-proxy
