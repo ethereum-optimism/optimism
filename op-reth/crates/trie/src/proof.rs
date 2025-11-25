@@ -346,7 +346,7 @@ where
             ),
             address,
             prefix_set,
-            TrieRootMetrics::new(TrieType::Storage),
+            TrieRootMetrics::new(TrieType::Custom("op_historical_proofs_storage")),
         )
         .root()
     }
