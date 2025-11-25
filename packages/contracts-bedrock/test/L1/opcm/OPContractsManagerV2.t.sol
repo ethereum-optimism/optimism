@@ -131,7 +131,6 @@ contract OPContractsManagerV2_Upgrade_TestInit is CommonTest, DisputeGames {
         address initialProposer = permissionedGameProposer(disputeGameFactory);
 
         // Execute the SuperchainConfig upgrade.
-        // nosemgrep: sol-safety-trycatch-eip150
         prankDelegateCall(superchainPAO);
         (bool success, bytes memory reason) = address(opcmV2).delegatecall(
             abi.encodeCall(

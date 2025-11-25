@@ -211,7 +211,6 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         });
 
         // Execute the SuperchainConfig upgrade.
-        // nosemgrep: sol-safety-trycatch-eip150
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));

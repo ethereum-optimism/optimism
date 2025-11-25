@@ -1070,7 +1070,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             vm.expectRevert(_revertBytes);
         }
 
-        // Foundry fails with "cannot `prank` delegate call from an EOA" if empty
         // Trigger the updatePrestate function.
         prankDelegateCall(proxyAdminOwner);
         (bool success,) =
@@ -1756,7 +1755,6 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
 
         address delegateCaller = makeAddr("delegateCaller");
-        vm.etch(delegateCaller, hex"00"); // Foundry fails with "cannot `prank` delegate call from an EOA" if empty
 
         assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
         assertNotEq(proxyAdmin.owner(), delegateCaller);
