@@ -13,6 +13,8 @@ import { FeesDepositor } from "src/L1/FeesDepositor.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
+/// @title DeployFeesDepositor_Test
+/// @notice This test is used to test the DeployFeesDepositor script.
 contract DeployFeesDepositor_Test is Test {
     DeployFeesDepositor deployFeesDepositor;
 
@@ -23,10 +25,12 @@ contract DeployFeesDepositor_Test is Test {
     uint96 defaultMinDepositAmount = 1 ether;
     uint32 defaultGasLimit = 200_000;
 
+    /// @notice Sets up the test suite.
     function setUp() public {
         deployFeesDepositor = new DeployFeesDepositor();
     }
 
+    /// @notice Tests that the DeployFeesDepositor script succeeds with valid fuzzed input values.
     function testFuzz_run_succeeds(
         address _proxyAdmin,
         uint96 _minDepositAmount,
@@ -72,6 +76,7 @@ contract DeployFeesDepositor_Test is Test {
         assertEq(feesDepositor.gasLimit(), _gasLimit, "GasLimit mismatch");
     }
 
+    /// @notice Tests that the DeployFeesDepositor script reverts when called with zero input values.
     function test_run_nullInput_reverts() public {
         // Test zero proxyAdmin
         vm.expectRevert("DeployFeesDepositor: proxyAdmin cannot be zero address");
@@ -102,6 +107,7 @@ contract DeployFeesDepositor_Test is Test {
         );
     }
 
+    /// @notice Tests that the DeployFeesDepositor script succeeds when called with default input values.
     function test_run_defaultInput_succeeds() public {
         (IFeesDepositor feesDepositorImpl, IProxy feesDepositorProxy) = deployFeesDepositor.run(
             defaultProxyAdmin, defaultMinDepositAmount, defaultL2Recipient, address(defaultMessenger), defaultGasLimit
