@@ -465,20 +465,21 @@ func (s *Driver) followSource() {
 		return
 	}
 	if s.SyncDeriver.Engine.IsEngineInitialELSyncing() {
+		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
 	eFinalized, err := s.followTracker.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
 	if err != nil {
-		s.log.Warn("Following failed: Finalized Ref", "err", err)
+		s.log.Warn("Follow Source: Failed to fetch finalizedRef", "err", err)
 		return
 	}
 	eSafe, err := s.followTracker.L2BlockRefByLabel(s.driverCtx, eth.Safe)
 	if err != nil {
-		s.log.Warn("Following failed: Safe Ref", "err", err)
+		s.log.Warn("Follow Source: Failed to fetch safeRef", "err", err)
 		return
 	}
 	if eFinalized.Number > eSafe.Number {
-		s.log.Warn("Invalid Following state, finalized is ahead safe", "safe", eSafe, "finalized", eFinalized)
+		s.log.Warn("Follow Source: Invalid external state, finalized is ahead of safe", "safe", eSafe, "finalized", eFinalized)
 		return
 	}
 	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
