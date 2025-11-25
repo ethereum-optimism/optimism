@@ -63,8 +63,6 @@ type L2FollowSource interface {
 
 type FollowTracker interface {
 	L2FollowSource
-	SetPrevExternalSafe(safe eth.L2BlockRef)
-	GetPrevExternalSafe() eth.L2BlockRef
 }
 
 type DerivationPipeline interface {
