@@ -1128,10 +1128,11 @@ func (e *EngineController) FollowSource(eSafeBlockRef eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.log.Info("Follow Source", "currentUnsafe", e.unsafeHead, "currentSafe", e.safeHead, "target", eSafeBlockRef)
+	e.log.Info("Follow Source", "currentUnsafe", e.unsafeHead, "currentSafe", e.safeHead, "externalSafe", eSafeBlockRef)
 
 	if e.unsafeHead.Number < eSafeBlockRef.Number {
-		e.log.Info("Follow Source: EL Sync: Target ahead of current unsafe", "target", eSafeBlockRef, "current", e.unsafeHead)
+		// EL Sync target may be updated
+		e.log.Info("Follow Source: EL Sync: External safe ahead of current unsafe", "externalSafe", eSafeBlockRef, "currentUnsafe", e.unsafeHead)
 		e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
 		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
 		return
@@ -1139,23 +1140,30 @@ func (e *EngineController) FollowSource(eSafeBlockRef eth.L2BlockRef) {
 
 	fetchedSafe, err := e.engine.L2BlockRefByNumber(e.ctx, eSafeBlockRef.Number)
 	if errors.Is(err, ethereum.NotFound) {
-		e.log.Info("Follow Source: EL Sync: In progress", "target", eSafeBlockRef)
-		e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
+		// We queried a block before the EngineController unsafe head number,
+		// but it is not found. This indicates the underlying EL is still syncing.
+		// We do not know if the current EL sync is targeting a chain that will
+		// eventually reorg out this target. So we do not interrupt EL sync;
+		// we only update the local safe head.
+		e.log.Info("Follow Source: EL Sync in progress", "currentUnsafe", e.unsafeHead)
 		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
 		return
 	}
 	if err != nil {
-		e.log.Info("Follow Source: Failed to fetch external safe from local EL", "target", eSafeBlockRef, "err", err)
+		e.log.Info("Follow Source: Failed to fetch external safe from local EL", "externalSafe", eSafeBlockRef, "err", err)
 		return
 	}
 
 	if fetchedSafe == eSafeBlockRef {
-		e.log.Info("Follow Source: Consolidation", "safe", eSafeBlockRef)
+		// External safe is found locally and matches.
+		e.log.Info("Follow Source: Consolidation", "externalSafe", eSafeBlockRef)
 		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
 		return
 	}
 
-	e.log.Info("Follow Source: Reorg", "target", eSafeBlockRef)
+	// External safe is found locally but they differ so trigger reorg.
+	// Reorging may trigger EL Sync, or updating the EL Sync target.
+	e.log.Info("Follow Source: Reorg. May Trigger EL sync", "externalSafe", eSafeBlockRef)
 	e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
 	e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
 }
