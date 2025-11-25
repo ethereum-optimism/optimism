@@ -15,7 +15,7 @@ import (
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleWithSyncTester(),
 		presets.WithCompatibleTypes(compat.SysGo),
-		presets.WithHardforkSequentialActivation(forks.Bedrock, forks.Interop, 6),
+		presets.WithHardforkSequentialActivation(forks.Bedrock, forks.Jovian, 6),
 		presets.WithNoDiscovery(),
 		stack.MakeCommon(sysgo.WithBatcherOption(func(id stack.L2BatcherID, cfg *bss.CLIConfig) {
 			// For supporting pre-delta batches
