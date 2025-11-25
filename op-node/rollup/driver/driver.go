@@ -477,14 +477,10 @@ func (s *Driver) followSource() {
 		s.log.Warn("Following failed: Safe Ref", "err", err)
 		return
 	}
-	if eFinalized.Number < eSafe.Number {
-		s.log.Warn("Invalid Following state, finalized is behind safe", "safe", eSafe, "finalized", eFinalized)
+	if eFinalized.Number > eSafe.Number {
+		s.log.Warn("Invalid Following state, finalized is ahead safe", "safe", eSafe, "finalized", eFinalized)
 		return
 	}
-	eSafePayloadEnv, err := s.followTracker.PayloadByHash(s.driverCtx, eSafe.Hash)
-	if err != nil {
-		s.log.Warn("Following failed: Safe Payload", "err", err)
-	}
-	s.SyncDeriver.Engine.FollowSource(eSafePayloadEnv)
+	s.SyncDeriver.Engine.FollowSource(eSafe)
 	// Need to handle finalized too
 }
