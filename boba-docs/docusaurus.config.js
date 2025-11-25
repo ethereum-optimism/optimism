@@ -86,7 +86,7 @@ const config = {
       {
         id: 'dev',
         path: 'dev-docs',
-        routeBasePath: 'dev-docs',
+        routeBasePath: '/', // when implementing landing page, change this back to dev-docs
         sidebarPath: undefined, //require.resolve('./sidebarsSDK.js'),
         lastVersion: 'current',
           versions: {
@@ -110,8 +110,8 @@ const config = {
           src: 'img/boba_B.png',
         },
         items: [
-          { to: 'user-docs', label: 'User', position: 'left' },
-          { to: 'dev-docs', label: 'Developer', position: 'left' },
+          { to: '/', label: 'Developer', position: 'left' }, //if implementing landing page, change back to dev-docs/index
+          { to: 'user-docs/index', label: 'User', position: 'left' },
           // {
           //   type: 'docSidebar',
           //   sidebarId: 'tutorialSidebar',
