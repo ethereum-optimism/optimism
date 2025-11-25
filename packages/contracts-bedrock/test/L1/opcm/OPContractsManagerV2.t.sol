@@ -317,6 +317,16 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         );
     }
 
+    /// @notice Tests that the V2 upgrade function reverts when the SystemConfig address is zero.
+    function test_upgrade_zeroSystemConfig_reverts() public {
+        v2UpgradeInput.systemConfig = ISystemConfig(address(0));
+
+        // nosemgrep: sol-style-use-abi-encodecall
+        runCurrentUpgradeV2(
+            chainPAO, abi.encodeWithSelector(IOPContractsManagerV2.OPContractsManagerV2_InvalidUpgradeInput.selector)
+        );
+    }
+
     /// @notice Tests that the V2 upgrade function reverts when the user does not provide a game
     ///         config for each valid game type.
     function test_upgrade_missingGameConfigs_reverts() public {

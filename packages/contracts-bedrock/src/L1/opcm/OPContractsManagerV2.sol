@@ -180,7 +180,8 @@ contract OPContractsManagerV2 is ISemver {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-    string public constant version = "6.0.0";
+    /// @custom:semver 6.1.0
+    string public constant version = "6.1.0";
 
     /// @notice Special constant key for the PermittedProxyDeployment instruction.
     string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
@@ -246,6 +247,13 @@ contract OPContractsManagerV2 is ISemver {
     /// @param _inp The chain upgrade input.
     /// @return The upgraded chain contracts.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory) {
+        // Sanity check that the SystemConfig isn't address(0). We use address(0) as a special
+        // value to indicate that this is an initial deployment, so we definitely don't want to
+        // allow it here.
+        if (address(_inp.systemConfig) == address(0)) {
+            revert OPContractsManagerV2_InvalidUpgradeInput();
+        }
+
         // Assert that the upgrade instructions are valid.
         // NOTE for developers: We use the concept of upgrade instructions to help maintain the
         // principle that OPCM should be updated at the time that the feature is being developed
