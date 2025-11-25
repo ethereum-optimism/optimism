@@ -369,10 +369,10 @@ func WithSequencingWindow(n uint64) DeployerOption {
 }
 
 // WithAdditionalDisputeGames adds additional dispute games to all L2s.
-func WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) DeployerOption {
+func WithAdditionalDisputeGames(gameFn func(p devtest.P) []state.AdditionalDisputeGame) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithAdditionalDisputeGames(games)
+			l2Cfg.WithAdditionalDisputeGames(gameFn(p))
 		}
 	}
 }

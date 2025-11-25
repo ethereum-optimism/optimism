@@ -2,10 +2,50 @@ package presets
 
 import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 )
+
+func WithRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
+	opts := WithProposerGameType(gameType)
+	// Only the permissioned game type is deployed by default.
+	if gameType != faultTypes.PermissionedGameType {
+		opts = stack.Combine(
+			opts,
+			WithDeployerMatchL1PAO(),
+			WithGuardianMatchL1PAO(),
+			WithProposerGameType(gameType),
+			stack.MakeCommon(
+				sysgo.WithDeployerOptions(sysgo.WithAdditionalDisputeGames(func(p devtest.P) []state.AdditionalDisputeGame {
+					return []state.AdditionalDisputeGame{
+						{
+							ChainProofParams: state.ChainProofParams{
+								DisputeGameType:                         uint32(gameType),
+								DisputeAbsolutePrestate:                 sysgo.PrestateForGameType(p, gameType),
+								DisputeMaxGameDepth:                     standard.DisputeMaxGameDepth,
+								DisputeSplitDepth:                       standard.DisputeSplitDepth,
+								DisputeClockExtension:                   standard.DisputeClockExtension,
+								DisputeMaxClockDuration:                 standard.DisputeMaxClockDuration,
+								DangerouslyAllowCustomDisputeParameters: true,
+							},
+							VMType:        state.VMTypeCannon,
+							MakeRespected: true,
+						},
+					}
+				})),
+			),
+		)
+	}
+
+	if gameType == faultTypes.CannonKonaGameType {
+		opts = stack.Combine(opts, stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()))
+	}
+	return opts
+}
 
 func WithProposerGameType(gameType faultTypes.GameType) stack.CommonOption {
 	return stack.Combine(

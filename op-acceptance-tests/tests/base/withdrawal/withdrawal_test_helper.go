@@ -4,18 +4,33 @@ import (
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func TestWithdrawal(gt *testing.T) {
+func InitWithGameType(m *testing.M, gameType faultTypes.GameType) {
+	presets.DoMain(m,
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithMinimal(),
+		presets.WithTimeTravel(),
+		presets.WithFinalizationPeriodSeconds(1),
+		// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
+		presets.WithProofMaturityDelaySeconds(2),
+		// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
+		presets.WithDisputeGameFinalityDelaySeconds(2),
+		presets.WithRespectedGameType(gameType),
+	)
+}
+
+func TestWithdrawal(gt *testing.T, gameType faultTypes.GameType) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 	require := sys.T.Require()
 
 	bridge := sys.StandardBridge()
-	require.EqualValues(faultTypes.PermissionedGameType, bridge.RespectedGameType(), "Respected game type must be PermissionedGameType")
+	require.EqualValuesf(gameType, bridge.RespectedGameType(), "Respected game type must be %s", gameType)
 
 	initialL1Balance := eth.OneThirdEther
 

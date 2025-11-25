@@ -46,6 +46,14 @@ func WithCannonKonaGameTypeAdded() stack.Option[*Orchestrator] {
 	}
 }
 
+func WithChallengerCannonKonaEnabled() stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.l2ChallengerOpts.useCannonKonaConfig = true
+		},
+	}
+}
+
 func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType types.GameType, l1ELID stack.L1ELNodeID, l2ChainID eth.ChainID) {
 	t := o.P()
 	require := t.Require()
@@ -114,6 +122,18 @@ func addGameType(o *Orchestrator, absolutePrestate common.Hash, gameType types.G
 	// reset ProxyAdmin ownership transfers
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, OPChainProxyAdmin, l1PAO)
 	transferOwnershipForDelegateCallProxy(t, l1ChainID.ToBig(), l1PAOKey, client, delegateCallProxy, dgf, l1PAO)
+}
+
+func PrestateForGameType(t devtest.CommonT, gameType types.GameType) common.Hash {
+	switch gameType {
+	case types.CannonGameType:
+		return getAbsolutePrestate(t, "op-program/bin/prestate-proof-mt64.json")
+	case types.CannonKonaGameType:
+		return getCannonKonaAbsolutePrestate(t)
+	default:
+		t.Require().Fail("no prestate available for game type", gameType)
+		return common.Hash{}
+	}
 }
 
 func LocalArtifacts(t devtest.P) *artifacts.Locator {
