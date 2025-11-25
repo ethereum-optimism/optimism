@@ -5100,7 +5100,11 @@ dependencies = [
  "cfg-if",
  "proc-macro2",
  "quote",
+<<<<<<< HEAD
  "syn 2.0.114",
+=======
+ "syn 2.0.110",
+>>>>>>> 84d48e2681 (Update lockfile)
 ]
 
 [[package]]
