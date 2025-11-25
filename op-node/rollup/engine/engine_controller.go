@@ -1124,17 +1124,32 @@ func (e *EngineController) startPayload(ctx context.Context, fc eth.ForkchoiceSt
 	}
 }
 
-func (e *EngineController) FollowSource(eSafeBlockRef eth.L2BlockRef) {
+func (e *EngineController) FollowSource(eSafeBlockRef, eFinalizedRef eth.L2BlockRef) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.log.Info("Follow Source", "currentUnsafe", e.unsafeHead, "currentSafe", e.safeHead, "externalSafe", eSafeBlockRef)
+	followExternalRefs := func(updateUnsafe bool) {
+		if updateUnsafe {
+			e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
+		}
+		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		// Directly update the Engine Controller state, bypassing finalizer
+		e.promoteFinalized(e.ctx, eFinalizedRef)
+	}
+
+	logger := e.log.With(
+		"currentUnsafe", e.unsafeHead,
+		"currentSafe", e.safeHead,
+		"externalSafe", eSafeBlockRef,
+		"externalFinalized", eFinalizedRef,
+	)
+
+	logger.Info("Follow Source: Process external refs")
 
 	if e.unsafeHead.Number < eSafeBlockRef.Number {
 		// EL Sync target may be updated
-		e.log.Info("Follow Source: EL Sync: External safe ahead of current unsafe", "externalSafe", eSafeBlockRef, "currentUnsafe", e.unsafeHead)
-		e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
-		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		logger.Info("Follow Source: EL Sync: External safe ahead of current unsafe")
+		followExternalRefs(true)
 		return
 	}
 
@@ -1145,25 +1160,24 @@ func (e *EngineController) FollowSource(eSafeBlockRef eth.L2BlockRef) {
 		// We do not know if the current EL sync is targeting a chain that will
 		// eventually reorg out this target. So we do not interrupt EL sync;
 		// we only update the local safe head.
-		e.log.Info("Follow Source: EL Sync in progress", "currentUnsafe", e.unsafeHead)
-		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		logger.Info("Follow Source: EL Sync in progress")
+		followExternalRefs(false)
 		return
 	}
 	if err != nil {
-		e.log.Info("Follow Source: Failed to fetch external safe from local EL", "externalSafe", eSafeBlockRef, "err", err)
+		logger.Info("Follow Source: Failed to fetch external safe from local EL", "err", err)
 		return
 	}
 
 	if fetchedSafe == eSafeBlockRef {
 		// External safe is found locally and matches.
-		e.log.Info("Follow Source: Consolidation", "externalSafe", eSafeBlockRef)
-		e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+		logger.Info("Follow Source: Consolidation")
+		followExternalRefs(false)
 		return
 	}
 
 	// External safe is found locally but they differ so trigger reorg.
 	// Reorging may trigger EL Sync, or updating the EL Sync target.
-	e.log.Info("Follow Source: Reorg. May Trigger EL sync", "externalSafe", eSafeBlockRef)
-	e.tryUpdateUnsafe(e.ctx, eSafeBlockRef)
-	e.tryUpdateLocalSafe(e.ctx, eSafeBlockRef, true, eth.L1BlockRef{})
+	logger.Info("Follow Source: Reorg. May Trigger EL sync")
+	followExternalRefs(true)
 }

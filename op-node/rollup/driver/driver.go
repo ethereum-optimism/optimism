@@ -481,6 +481,5 @@ func (s *Driver) followSource() {
 		s.log.Warn("Invalid Following state, finalized is ahead safe", "safe", eSafe, "finalized", eFinalized)
 		return
 	}
-	s.SyncDeriver.Engine.FollowSource(eSafe)
-	// Need to handle finalized too
+	s.SyncDeriver.Engine.FollowSource(eSafe, eFinalized)
 }
