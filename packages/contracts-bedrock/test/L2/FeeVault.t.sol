@@ -184,7 +184,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         assertEq(feeVault.totalProcessed(), 0);
 
         // Ensure the RECIPIENT reverts
-        vm.mockCallRevert(feeVault.RECIPIENT(), bytes(hex"aabbccdd"), hex"");
+        vm.mockCallRevert(feeVault.RECIPIENT(), bytes(hex""), hex"");
 
         // The entire feeVault's balance is withdrawn
         vm.expectCall(recipient, address(feeVault).balance, bytes(""));
