@@ -470,7 +470,7 @@ func (s *Driver) followSource() {
 		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
-	// erify that the L1 origin of the current safe L2 head is still canonical.
+	// Verify that the L1 origin of the current safe L2 head is still canonical.
 	// We do not check the unsafe head because we only reorged while reading the L1 at derivation pipeline, preserving the behavior
 	localSafe := s.SyncDeriver.Engine.SafeL2Head()
 	if localSafe.Number != 0 {
