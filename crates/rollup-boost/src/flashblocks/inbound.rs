@@ -178,8 +178,8 @@ impl FlashblocksReceiverService {
                                             tracing::warn!("Failed to parse pong: {e}");
                                         }
                                     }
-
                                 }
+                                Message::Ping(_) => {},
                                 msg => {
                                     tracing::warn!("Received unexpected message: {:?}", msg);
                                 }
