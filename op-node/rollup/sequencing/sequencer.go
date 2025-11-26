@@ -30,6 +30,7 @@ var (
 )
 
 type L1OriginSelectorIface interface {
+	// FindL1Origin finds the L1 origin for the next block, building on l2Head.
 	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 	SetRecoverMode(bool)
 }
@@ -482,7 +483,7 @@ func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
 	}
 }
 
-// StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
+// StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks.
 func (d *Sequencer) startBuildingBlock() {
 	ctx := d.ctx
 	l2Head := d.latestHead
