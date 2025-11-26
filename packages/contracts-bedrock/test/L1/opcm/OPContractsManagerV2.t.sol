@@ -548,11 +548,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
 
         // Run the upgrade again and ensure prestates updated.
         runCurrentUpgradeV2(chainPAO);
-        assertEq(
-            _gameArgsAbsolutePrestate(GameTypes.CANNON),
-            Claim.unwrap(newPrestate),
-            "cannon prestate not updated"
-        );
+        assertEq(_gameArgsAbsolutePrestate(GameTypes.CANNON), Claim.unwrap(newPrestate), "cannon prestate not updated");
         assertEq(
             _gameArgsAbsolutePrestate(GameTypes.PERMISSIONED_CANNON),
             Claim.unwrap(newPrestate),
