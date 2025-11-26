@@ -940,7 +940,6 @@ func (l *BatchSubmitter) publishToAltDA(txdata txData, daGroup *errgroup.Group, 
 		// to exit, which would wait on this DA call to finish, which would take a long time.
 		// So we prefer to mimic the behavior of txmgr and cancel all pending DA/txmgr requests when the batcher is stopped.
 		defer close(altDaCommitmentChannel)
-		l.Log.Info("AltDA.SetInput", "tx", txdata.ID())
 		comm, err := l.AltDA.SetInput(l.shutdownCtx, txdata.CallData())
 		if err != nil {
 			// Don't log context cancelled events because they are expected,
@@ -955,9 +954,8 @@ func (l *BatchSubmitter) publishToAltDA(txdata txData, daGroup *errgroup.Group, 
 			}
 			return nil
 		}
-		l.Log.Info("AltDa input done", "commitment", comm, "tx", txdata.ID())
+		l.Log.Info("Set altda input", "commitment", comm, "tx", txdata.ID())
 		altDaCommitmentChannel <- commitmentPayload{comm: comm, txdata: txdata}
-		l.Log.Info("Sent to channel", "commitment", comm)
 		return nil
 	})
 	if !goroutineSpawned {
