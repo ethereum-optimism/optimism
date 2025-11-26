@@ -2,49 +2,75 @@ package presets
 
 import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
 func WithRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
 	opts := WithProposerGameType(gameType)
-	// Only the permissioned game type is deployed by default.
-	if gameType != faultTypes.PermissionedGameType {
-		opts = stack.Combine(
-			opts,
-			WithDeployerMatchL1PAO(),
-			WithGuardianMatchL1PAO(),
-			WithProposerGameType(gameType),
-			stack.MakeCommon(
-				sysgo.WithDeployerOptions(sysgo.WithAdditionalDisputeGames(func(p devtest.P) []state.AdditionalDisputeGame {
-					return []state.AdditionalDisputeGame{
-						{
-							ChainProofParams: state.ChainProofParams{
-								DisputeGameType:                         uint32(gameType),
-								DisputeAbsolutePrestate:                 sysgo.PrestateForGameType(p, gameType),
-								DisputeMaxGameDepth:                     standard.DisputeMaxGameDepth,
-								DisputeSplitDepth:                       standard.DisputeSplitDepth,
-								DisputeClockExtension:                   standard.DisputeClockExtension,
-								DisputeMaxClockDuration:                 standard.DisputeMaxClockDuration,
-								DangerouslyAllowCustomDisputeParameters: true,
-							},
-							VMType:        state.VMTypeCannon,
-							MakeRespected: true,
-						},
-					}
-				})),
-			),
-		)
-	}
+	opts = stack.Combine(opts,
+		stack.MakeCommon(sysgo.WithRespectedGameType(gameType)), // Set if sysgo is in use
+		RequireRespectedGameType(gameType),
+	)
+	return opts
+}
+
+func WithAddedGameType(gameType faultTypes.GameType) stack.CommonOption {
+	opts := stack.Combine(
+		stack.MakeCommon(sysgo.WithGameTypeAdded(gameType)), // Add if sysgo is in use
+		RequireGameTypePresent(gameType),                    // Verify present for other chains
+	)
 
 	if gameType == faultTypes.CannonKonaGameType {
-		opts = stack.Combine(opts, stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()))
+		opts = stack.Combine(
+			opts,
+			WithCannonKonaFeatureEnabled(),
+			stack.MakeCommon(sysgo.WithChallengerCannonKonaEnabled()),
+		)
 	}
 	return opts
+}
+
+func RequireGameTypePresent(gameType faultTypes.GameType) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		PostHydrateFn: func(sys stack.System) {
+			elNode := sys.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)
+			for _, l2Network := range sys.L2Networks() {
+				dgf := bindings.NewBindings[bindings.DisputeGameFactory](
+					bindings.WithClient(elNode.EthClient()),
+					bindings.WithTo(l2Network.Deployment().DisputeGameFactoryProxyAddr()),
+					bindings.WithTest(sys.T()),
+				)
+				gameImpl := contract.Read(dgf.GameImpls(uint32(gameType)))
+				sys.T().Gate().NotZerof(gameImpl, "Dispute game factory must have a game implementation for %s", gameType)
+			}
+		},
+	}
+}
+
+func RequireRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		PostHydrateFn: func(sys stack.System) {
+
+			elNode := sys.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)
+			for _, l2Network := range sys.L2Networks() {
+				l1PortalAddr := l2Network.RollupConfig().DepositContractAddress
+				l1Portal := bindings.NewBindings[bindings.OptimismPortal2](
+					bindings.WithClient(elNode.EthClient()),
+					bindings.WithTo(l1PortalAddr),
+					bindings.WithTest(sys.T()))
+
+				respectedGameType, err := contractio.Read(l1Portal.RespectedGameType(), sys.T().Ctx())
+				sys.T().Require().NoError(err, "Failed to read respected game type")
+				sys.T().Gate().EqualValuesf(gameType, respectedGameType, "Respected game type must be %s", gameType)
+			}
+		},
+	}
 }
 
 func WithProposerGameType(gameType faultTypes.GameType) stack.CommonOption {

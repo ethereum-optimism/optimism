@@ -20,6 +20,7 @@ func InitWithGameType(m *testing.M, gameType faultTypes.GameType) {
 		presets.WithProofMaturityDelaySeconds(2),
 		// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
 		presets.WithDisputeGameFinalityDelaySeconds(2),
+		presets.WithAddedGameType(gameType),
 		presets.WithRespectedGameType(gameType),
 	)
 }
