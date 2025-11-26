@@ -2389,6 +2389,7 @@ contract OPContractsManager is ISemver {
     /// @param _input The deploy input parameters for the deployment.
     /// @return The deploy output values of the deployment.
     function deploy(DeployInput calldata _input) external virtual returns (DeployOutput memory) {
+        revert("OPCMv1 is broken, use v2");
         return opcmDeployer.deploy(_input, superchainConfig, msg.sender);
     }
 
@@ -2398,6 +2399,7 @@ contract OPContractsManager is ISemver {
     ///      `_opChainConfigs`'s ProxyAdmin.
     /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
+        revert("OPCMv1 is broken, use v2");
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgrade, (_opChainConfigs));
@@ -2409,6 +2411,7 @@ contract OPContractsManager is ISemver {
     /// @dev This function is intended to be DELEGATECALLed by the superchainConfig's ProxyAdminOwner.
     /// @dev This function will revert if the SuperchainConfig is already at or above the target version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig) external {
+        revert("OPCMv1 is broken, use v2");
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgradeSuperchainConfig, (_superchainConfig));
@@ -2418,6 +2421,7 @@ contract OPContractsManager is ISemver {
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.
     function addGameType(AddGameInput[] memory _gameConfigs) public virtual returns (AddGameOutput[] memory) {
+        revert("OPCMv1 is broken, use v2");
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.addGameType, (_gameConfigs));
@@ -2439,6 +2443,7 @@ contract OPContractsManager is ISemver {
     /// @notice Migrates the Optimism contracts to the latest version.
     /// @param _input Input parameters for the migration.
     function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
+        revert("OPCMv1 is broken, use v2");
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
         bytes memory data = abi.encodeCall(OPContractsManagerInteropMigrator.migrate, (_input));
