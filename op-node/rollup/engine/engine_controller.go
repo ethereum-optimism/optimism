@@ -255,7 +255,6 @@ func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
 func (e *EngineController) SetSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
 	e.safeHead = r
-	e.needFCUCall = true
 	// Instead of immediately calling FCU, buffer this update
 	e.needSafeHeadUpdate = true
 }
