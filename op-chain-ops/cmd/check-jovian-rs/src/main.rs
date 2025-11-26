@@ -1,5 +1,7 @@
+use alloy::providers::ProviderBuilder;
 use clap::Parser;
 use env_logger;
+use log::info;
 mod gpo;
 
 #[derive(Parser, Debug)]
@@ -18,13 +20,15 @@ async fn main() {
     let args = Args::parse();
     println!("l2: {}", args.l2);
     println!("secret_key: {:?}", args.secret_key);
-    
-    info!("Constructing provider for {l2_url}...");
-    // Initialize the provider.
-    let provider = ProviderBuilder::new().connect(l2_url).await?;
 
-
-    match gpo::check_gpo(&args.l2).await {
+    info!("Constructing provider for {}...", args.l2);
+    let url = args.l2;
+    let provider = ProviderBuilder::new().connect(&url).await;
+    let provider = match provider {
+        Ok(provider) => provider,
+        Err(error) => panic!("Could not construct provider: {error:?}"),
+    };
+    match gpo::check_gpo(&provider).await {
         Ok(()) => (),
         Err(error) => panic!("Could not check GPO: {error:?}"),
     };
