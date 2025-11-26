@@ -754,6 +754,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_errors",
+        "type": "string"
+      }
+    ],
+    "name": "OPContractsManagerV2_StandardValidationFailed",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
     "type": "error"
