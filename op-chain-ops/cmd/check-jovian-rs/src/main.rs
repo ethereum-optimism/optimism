@@ -12,11 +12,15 @@ struct Args {
     secret_key: Option<String>,
 }
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     env_logger::init();
     let args = Args::parse();
     println!("l2: {}", args.l2);
     println!("secret_key: {:?}", args.secret_key);
 
-    gpo::check_gpo();
+    match gpo::check_gpo(&args.l2).await {
+        Ok(()) => (),
+        Err(error) => panic!("Problem opening the file: {error:?}"),
+    };
 }

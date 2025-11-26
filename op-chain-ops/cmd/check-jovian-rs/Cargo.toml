@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+alloy = "1.1.2"
 clap = { version = "4.5.53", features = ["derive"] }
 env_logger = "0.11.8"
 log = "0.4.28"
+tokio = "1.48.0"
