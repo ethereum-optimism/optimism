@@ -3,6 +3,7 @@ use clap::Parser;
 use env_logger;
 use log::info;
 mod gpo;
+mod l1block;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -28,7 +29,13 @@ async fn main() {
         Ok(provider) => provider,
         Err(error) => panic!("Could not construct provider: {error:?}"),
     };
-    match gpo::check_gpo(&provider).await {
+
+    match gpo::check(&provider).await {
+        Ok(()) => (),
+        Err(error) => panic!("Could not check GPO: {error:?}"),
+    };
+
+    match l1block::check(&provider).await {
         Ok(()) => (),
         Err(error) => panic!("Could not check GPO: {error:?}"),
     };

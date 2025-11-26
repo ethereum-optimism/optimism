@@ -11,7 +11,7 @@ sol! {
    }
 }
 
-pub async fn check_gpo<T: Provider<Ethereum>>(provider: &T) -> Result<(), Box<dyn Error>> {
+pub async fn check<T: Provider<Ethereum>>(provider: &T) -> Result<(), Box<dyn Error>> {
     // Instantiate the contract instance.
     let gas_price_oracle_address = address!("0x420000000000000000000000000000000000000F");
     let gpo = GasPriceOracle::new(gas_price_oracle_address, provider);
