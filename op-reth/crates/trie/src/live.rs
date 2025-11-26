@@ -110,7 +110,8 @@ where
 
         operation_durations.total_duration_seconds = start.elapsed();
         operation_durations.write_duration_seconds = operation_durations.total_duration_seconds -
-            operation_durations.state_root_duration_seconds;
+            operation_durations.state_root_duration_seconds -
+            operation_durations.execution_duration_seconds;
 
         #[cfg(feature = "metrics")]
         {
@@ -122,6 +123,7 @@ where
         info!(
             block_number = block.number(),
             ?operation_durations,
+            ?update_result,
             "Trie updates stored successfully",
         );
 
