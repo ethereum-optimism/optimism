@@ -163,6 +163,10 @@ impl<T: EngineApiExt> RollupBoostServer<T> {
         }
     }
 
+    pub fn probes(&self) -> Arc<Probes> {
+        self.probes.clone()
+    }
+
     pub fn spawn_health_check(
         &self,
         health_check_interval: u64,
