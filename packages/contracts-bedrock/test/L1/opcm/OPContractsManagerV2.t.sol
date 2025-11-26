@@ -474,7 +474,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 
     /// @notice Tests that repeatedly upgrading can enable a previously disabled game type.
-    function test_upgrade_enableGameType_setsImplementation() public {
+    function test_upgrade_enableGameType_succeeds() public {
         uint256 originalBond = disputeGameFactory.initBonds(GameTypes.CANNON);
 
         // First, disable Cannon and clear its bond so the factory entry is removed.
@@ -496,7 +496,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 
     /// @notice Tests that disabling a game type removes it from the factory.
-    function test_upgrade_disableGameType_unsetsImplementation() public {
+    function test_upgrade_disableGameType_succeeds() public {
         // Establish the baseline where Cannon is enabled.
         runCurrentUpgradeV2(chainPAO);
         assertEq(
@@ -515,7 +515,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     }
 
     /// @notice Tests that the upgrade flow can update the Cannon and Permissioned prestate.
-    function test_upgrade_updatesCannonPrestate_succeeds() public {
+    function test_upgrade_updatePrestate_succeeds() public {
         skipIfDevFeatureDisabled(DevFeatures.OPCM_V2);
 
         // Run baseline upgrade and capture the current prestates.
