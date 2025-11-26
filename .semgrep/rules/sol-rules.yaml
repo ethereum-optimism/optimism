@@ -320,6 +320,8 @@ rules:
         - packages/contracts-bedrock/src
       exclude:
         - packages/contracts-bedrock/src/L1/OPContractsManager.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol
+        - packages/contracts-bedrock/src/L1/opcm/OPContractsManagerContainer.sol
         - packages/contracts-bedrock/src/L1/OptimismPortal2.sol
         - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
         - packages/contracts-bedrock/src/L2/FeeVault.sol

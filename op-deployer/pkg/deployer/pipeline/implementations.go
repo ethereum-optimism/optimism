@@ -89,6 +89,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
 		FaultDisputeGameV2Impl:           dio.FaultDisputeGameV2Impl,
 		PermissionedDisputeGameV2Impl:    dio.PermissionedDisputeGameV2Impl,
+		StorageSetterImpl:                dio.StorageSetterImpl,
 	}
 
 	return nil

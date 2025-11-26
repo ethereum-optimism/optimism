@@ -86,7 +86,7 @@ contract DisputeGames is FeatureFlags {
         revert DisputeGames_UnsupportedGameArg(_gameArg);
     }
 
-    function permissionedGameChallenger(IDisputeGameFactory _dgf) internal returns (address challenger_) {
+    function permissionedGameChallenger(IDisputeGameFactory _dgf) internal view returns (address challenger_) {
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
         if (gameArgsExist) {
@@ -97,7 +97,7 @@ contract DisputeGames is FeatureFlags {
         }
     }
 
-    function permissionedGameProposer(IDisputeGameFactory _dgf) internal returns (address proposer_) {
+    function permissionedGameProposer(IDisputeGameFactory _dgf) internal view returns (address proposer_) {
         GameType gameType = GameTypes.PERMISSIONED_CANNON;
         (bool gameArgsExist, bytes memory gameArgsData) = _getGameArgs(_dgf, gameType);
         if (gameArgsExist) {
@@ -183,17 +183,22 @@ contract DisputeGames is FeatureFlags {
         GameType _gameType
     )
         private
+        view
         returns (bool gameArgsExist_, bytes memory gameArgs_)
     {
         if (!isDevFeatureEnabled(DevFeatures.DEPLOY_V2_DISPUTE_GAMES)) {
             return (false, gameArgs_);
         }
 
-        bytes memory gameArgsCallData = abi.encodeCall(IDisputeGameFactory.gameArgs, (_gameType));
-        (bool success, bytes memory gameArgs) = address(_dgf).call(gameArgsCallData);
-
-        gameArgsExist_ = success && gameArgs.length > 0;
-        gameArgs_ = gameArgsExist_ ? gameArgs : bytes("");
+        // Safe from issues with EIP150 since this is only used in the testing environment.
+        // eip150-safe
+        try _dgf.gameArgs(_gameType) returns (bytes memory gameArgsRet_) {
+            gameArgsExist_ = gameArgsRet_.length > 0;
+            gameArgs_ = gameArgsRet_;
+        } catch {
+            gameArgsExist_ = false;
+            gameArgs_ = bytes("");
+        }
     }
 
     function _mockGameArg(
