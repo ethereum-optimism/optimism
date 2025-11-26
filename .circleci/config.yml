@@ -1297,6 +1297,8 @@ jobs:
       - run-contracts-check:
           command: unused-imports-check-no-build
       - run-contracts-check:
+          command: strict-pragma-check-no-build
+      - run-contracts-check:
           command: validate-spacers-no-build
       - run-contracts-check:
           command: opcm-upgrade-checks-no-build
