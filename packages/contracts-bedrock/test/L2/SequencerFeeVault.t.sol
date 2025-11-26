@@ -3,6 +3,11 @@ pragma solidity 0.8.15;
 
 // Interfaces
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
+// Testing
+import { CommonTest } from "test/setup/CommonTest.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Contracts
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 
 // Libraries

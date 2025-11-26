@@ -6,7 +6,6 @@ import { Safe } from "safe-contracts/Safe.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ITransactionGuard } from "interfaces/safe/ITransactionGuard.sol";
 import "test/safe-tools/SafeTestTools.sol";
-import { Reverter } from "test/mocks/Callers.sol";
 
 import { TimelockGuard } from "src/safe/TimelockGuard.sol";
 import { SaferSafes } from "src/safe/SaferSafes.sol";
@@ -703,9 +702,10 @@ contract TimelockGuard_CheckTransaction_Test is TimelockGuard_TestInit {
     function test_checkTransaction_failedTransaction_succeeds() external {
         // Build a transaction that will revert (call a contract that always reverts)
         TransactionBuilder.Transaction memory dummyTx = _createEmptyTransaction(safeInstance);
-        Reverter reverter = new Reverter();
-        dummyTx.params.to = address(reverter);
-        // empty data triggers fallback, which reverts
+        address target = address(0x1234);
+        dummyTx.params.to = target;
+        // Make the target revert
+        vm.mockCallRevert(target, bytes(hex""), bytes(hex""));
         dummyTx.updateTransaction();
         dummyTx.scheduleTransaction(timelockGuard);
 

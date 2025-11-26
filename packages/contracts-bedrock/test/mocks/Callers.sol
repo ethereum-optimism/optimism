@@ -22,17 +22,6 @@ contract CallRecorder {
     }
 }
 
-/// @dev Any call will revert
-contract Reverter {
-    function doRevert() public pure {
-        revert("Reverter: Reverter reverted");
-    }
-
-    fallback() external {
-        revert();
-    }
-}
-
 /// @title GasBurner
 /// @notice Contract that burns a specified amount of gas on receive or fallback.
 contract GasBurner {
