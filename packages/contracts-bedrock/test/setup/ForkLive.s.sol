@@ -307,11 +307,12 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
             )
         });
 
-        // Add extra instructions to allow the DelayedWETH proxy to be deployed.
+        // Add extra instructions to allow the DelayedWETH proxy to be deployed and skip standard validator.
         IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
-            new IOPContractsManagerV2.ExtraInstruction[](1);
+            new IOPContractsManagerV2.ExtraInstruction[](2);
         extraInstructions[0] =
             IOPContractsManagerV2.ExtraInstruction({ key: "PermittedProxyDeployment", data: bytes("DelayedWETH") });
+        extraInstructions[1] = IOPContractsManagerV2.ExtraInstruction({ key: "SkipStandardValidator", data: bytes("") });
 
         vm.prank(_delegateCaller, true);
         (bool upgradeSuccess,) = address(_opcm).delegatecall(
