@@ -175,6 +175,9 @@ contract OPContractsManagerV2 is ISemver {
     /// @notice Thrown when a config load fails.
     error OPContractsManagerV2_ConfigLoadFailed(string _name);
 
+    /// @notice Thrown when standard validation fails and exceptions don't match.
+    error OPContractsManagerV2_StandardValidationFailed(string _errors);
+
     /// @notice Container of blueprint and implementation contract addresses.
     IOPContractsManagerContainer public immutable contractsContainer;
 
@@ -853,20 +856,20 @@ contract OPContractsManagerV2 is ISemver {
             return;
         }
 
-        // Extract validation overrides from the exceptions instruction if present.
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides;
+        // Extract expected exceptions string from the extra instruction if present.
+        string memory expectedExceptions;
         ExtraInstruction memory exceptionsInstruction =
             _getInstructionByKey(_cfg.extraInstructions, STANDARD_VALIDATOR_EXCEPTIONS_KEY);
         if (bytes(exceptionsInstruction.key).length > 0) {
-            overrides =
-                abi.decode(exceptionsInstruction.data, (IOPContractsManagerStandardValidator.ValidationOverrides));
+            expectedExceptions = abi.decode(exceptionsInstruction.data, (string));
         }
 
-        // Extract prestates and proposer from dispute game configs.
+        // Extract prestates, proposer, and challenger from dispute game configs.
         // Config order is: CANNON (0), PERMISSIONED_CANNON (1), CANNON_KONA (2)
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
         address proposer;
+        address challenger;
 
         // Extract CANNON prestate (index 0)
         if (_cfg.disputeGameConfigs[0].enabled) {
@@ -875,11 +878,12 @@ contract OPContractsManagerV2 is ISemver {
             cannonPrestate = Claim.unwrap(cannonConfig.absolutePrestate);
         }
 
-        // Extract PERMISSIONED_CANNON prestate and proposer (index 1)
+        // Extract PERMISSIONED_CANNON prestate, proposer, and challenger (index 1)
         if (_cfg.disputeGameConfigs[1].enabled) {
             PermissionedDisputeGameConfig memory permissionedConfig =
                 abi.decode(_cfg.disputeGameConfigs[1].gameArgs, (PermissionedDisputeGameConfig));
             proposer = permissionedConfig.proposer;
+            challenger = permissionedConfig.challenger;
             // Use permissioned prestate as cannon prestate if cannon is disabled
             if (cannonPrestate == bytes32(0)) {
                 cannonPrestate = Claim.unwrap(permissionedConfig.absolutePrestate);
@@ -893,6 +897,10 @@ contract OPContractsManagerV2 is ISemver {
             cannonKonaPrestate = Claim.unwrap(konaConfig.absolutePrestate);
         }
 
+        // Build ValidationOverrides from chain config.
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: _cfg.proxyAdminOwner, challenger: challenger });
+
         // Construct the validation input.
         IOPContractsManagerStandardValidator.ValidationInputDev memory validationInput =
         IOPContractsManagerStandardValidator.ValidationInputDev({
@@ -904,7 +912,26 @@ contract OPContractsManagerV2 is ISemver {
         });
 
         // Call the standard validator with allowFail=true since we allow exceptions.
-        standardValidator.validateWithOverrides(validationInput, true, overrides);
+        string memory result = standardValidator.validateWithOverrides(validationInput, true, overrides);
+
+        // Compare the result with the expected exceptions string.
+        bool resultEmpty = bytes(result).length == 0;
+        bool expectedEmpty = bytes(expectedExceptions).length == 0;
+
+        // Case 1: both empty -> OK
+        if (resultEmpty && expectedEmpty) {
+            return;
+        }
+
+        // Case 2: non-empty result must match expected exceptions string exactly
+        if (!resultEmpty && !expectedEmpty) {
+            if (keccak256(bytes(result)) == keccak256(bytes(expectedExceptions))) {
+                return;
+            }
+        }
+
+        // Anything else: mismatch -> revert with the validator's error string
+        revert OPContractsManagerV2_StandardValidationFailed(result);
     }
 
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only

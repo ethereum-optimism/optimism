@@ -109,6 +109,7 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_DowngradeNotAllowed(address _contract);
     error OPContractsManagerV2_InvalidUpgradeInstruction();
     error OPContractsManagerV2_ConfigLoadFailed(string _name);
+    error OPContractsManagerV2_StandardValidationFailed(string _errors);
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
