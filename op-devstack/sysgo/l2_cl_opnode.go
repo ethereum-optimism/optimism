@@ -162,8 +162,26 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNodeFollowSource(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		followSource := func(orch *Orchestrator) string {
+			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
+			require := p.Require()
+			l2ELFollowSource, ok := orch.l2ELs.Get(l2ELFollowSourceID)
+			require.True(ok, "l2 EL Follow Source required")
+			return l2ELFollowSource.UserRPC()
+		}(orch)
+		opts = append(opts, L2CLFollowSource(followSource))
+		withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)(orch)
+	})
+}
+
+func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(withOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...))
+}
+
+func withOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) func(orch *Orchestrator) {
+	return func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
@@ -286,6 +304,9 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				L2EngineAddr:      l2EL.EngineRPC(),
 				L2EngineJWTSecret: jwtSecret,
 			},
+			L2FollowSource: &config.L2FollowSourceConfig{
+				L2RPCAddr: cfg.FollowSource,
+			},
 			Beacon: &config.L1BeaconEndpointConfig{
 				BeaconAddr: l1CL.beaconHTTPAddr,
 			},
@@ -314,7 +335,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
 				UnsafeOnly:                     unsafeOnly,
-				L2FollowSourceEndpoint:         "",
+				L2FollowSourceEndpoint:         cfg.FollowSource,
 				NeedInitialResetEngine:         cfg.IsSequencer && unsafeOnly,
 			},
 			ConfigPersistence:               config.DisabledConfigPersistence{},
@@ -350,5 +371,5 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), fmt.Sprintf("must not already exist: %s", l2CLID))
 		l2CLNode.Start()
 		p.Cleanup(l2CLNode.Stop)
-	})
+	}
 }
