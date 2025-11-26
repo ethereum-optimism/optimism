@@ -137,6 +137,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest, DisputeGames {
             vm.skip(true);
         }
 
+        // All V1 upgrade tests can safely be skipped for V2.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         skipIfOpsRepoTest(
             "OPContractsManager_Upgrade_Harness: cannot test upgrade on superchain ops repo upgrade tests"
         );
@@ -464,6 +467,10 @@ abstract contract OPContractsManager_TestInit is CommonTest, DisputeGames {
 
     function setUp() public virtual override {
         super.setUp();
+
+        // TODO(#18332): Remove this once we support all existing OPCM functions.
+        skipIfDevFeatureEnabled(DevFeatures.OPCM_V2);
+
         proposer = address(this);
         challenger = address(this);
         chain1L2ChainId = 100;

@@ -35,6 +35,8 @@ type DeployImplementationsOutput struct {
 	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
 	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
+	OpcmV2                           common.Address `json:"opcmV2Address"`
+	OpcmContainer                    common.Address `json:"opcmContainerAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
 	OptimismPortalInteropImpl        common.Address `json:"optimismPortalInteropImplAddress"`
@@ -54,6 +56,7 @@ type DeployImplementationsOutput struct {
 	PermissionedDisputeGameV2Impl    common.Address `json:"permissionedDisputeGameV2ImplAddress"`
 	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`
 	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
+	StorageSetterImpl                common.Address `json:"storageSetterImplAddress"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

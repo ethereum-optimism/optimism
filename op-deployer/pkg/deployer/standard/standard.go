@@ -5,13 +5,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
+	"github.com/ethereum/go-ethereum/superchain"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/superchain"
 )
 
 const (
@@ -166,32 +166,10 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 	}
 }
 
-// DefaultHardforkScheduleForTag is used to determine which hardforks should be activated by default given a
-// contract tag. For example, passing in v1.6.0 will return all hardforks up to and including Granite. This allows
-// OP Deployer to set sane defaults for hardforks. This is not an ideal solution, but it will have to work until we get
-// to MCP L2.
-func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployConfig {
-	sched := &genesis.UpgradeScheduleDeployConfig{
-		L2GenesisRegolithTimeOffset: op_service.U64UtilPtr(0),
-		L2GenesisCanyonTimeOffset:   op_service.U64UtilPtr(0),
-		L2GenesisDeltaTimeOffset:    op_service.U64UtilPtr(0),
-		L2GenesisEcotoneTimeOffset:  op_service.U64UtilPtr(0),
-		L2GenesisFjordTimeOffset:    op_service.U64UtilPtr(0),
-		L2GenesisGraniteTimeOffset:  op_service.U64UtilPtr(0),
-	}
-
-	switch tag {
-	case ContractsV160Tag, ContractsV170Beta1L2Tag:
-		return sched
-	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
-		sched.ActivateForkAtGenesis(forks.Holocene)
-	case ContractsV400Tag, ContractsV410Tag, ContractsV500Tag:
-		sched.ActivateForkAtGenesis(forks.Holocene)
-		sched.ActivateForkAtGenesis(forks.Isthmus)
-	default:
-		sched.ActivateForkAtGenesis(forks.Holocene)
-		sched.ActivateForkAtGenesis(forks.Isthmus)
-	}
+// DefaultHardforkSchedule is used to determine which hardforks should be activated by default.
+func DefaultHardforkSchedule() *genesis.UpgradeScheduleDeployConfig {
+	sched := &genesis.UpgradeScheduleDeployConfig{}
+	sched.ActivateForkAtGenesis(forks.Jovian)
 
 	return sched
 }

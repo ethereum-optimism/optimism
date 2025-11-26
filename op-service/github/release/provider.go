@@ -14,9 +14,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"runtime"
+	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
@@ -27,6 +30,21 @@ import (
 type BinaryProvider interface {
 	Get(ctx context.Context, version string) (string, error)
 }
+
+// BinaryVersionCheckerFactory is a factory function that creates a BinaryVersionChecker for a
+// specific requested version and OS/architecture pair. This allows for customizable version
+// checking logic that may vary based on the target platform or version.
+type BinaryVersionCheckerFactory func(requestedVersion string, os string, arch string) (BinaryVersionChecker, error)
+
+// BinaryVersionChecker is a function that verifies the version of a downloaded binary matches
+// the requested version. It takes a context and the path to the binary as input and returns
+// an error if the version check fails (e.g., version mismatch or command execution error).
+type BinaryVersionChecker func(ctx context.Context, binary string) error
+
+// BinaryVersionComparator is a function that compares a requested version with the actual
+// version extracted from a binary. It returns an error if the versions do not match according
+// to the comparison logic (e.g., semver equality check).
+type BinaryVersionComparator func(requestedVersion string, actualVersion string) error
 
 // GithubReleaseChecksummer reads the downloaded archive data and validates its
 // checksum. It should return an error if the checksum does not match.
@@ -94,11 +112,62 @@ type GithubReleaseDownloader struct {
 	// logger is optional and used for informational logging during the
 	// download/extract process. The `WithLogger` option sets this field.
 	logger *log.Logger
+
+	// versionCheckerFactory is optional and used to verify that the downloaded
+	// binary matches the requested version. If set, it will be invoked after
+	// successful download and extraction. The `WithVersionCheckerFactory` option
+	// sets this field.
+	versionCheckerFactory BinaryVersionCheckerFactory
 }
 
 var _ BinaryProvider = (*GithubReleaseDownloader)(nil)
 
 type GithubReleaseDownloaderOption func(*GithubReleaseDownloader)
+
+func WithVersionCheckerFactory(f BinaryVersionCheckerFactory) GithubReleaseDownloaderOption {
+	return func(d *GithubReleaseDownloader) {
+		d.versionCheckerFactory = f
+	}
+}
+
+func NewStaticCommandVersionCheckerFactory(args []string, outputParser func(stdout string) (string, error), comparator BinaryVersionComparator) BinaryVersionCheckerFactory {
+	return func(requestedVersion string, os string, arch string) (BinaryVersionChecker, error) {
+		return func(ctx context.Context, binary string) error {
+			cmd := exec.CommandContext(ctx, binary, args...)
+			out, err := cmd.Output()
+			if err != nil {
+				return fmt.Errorf("version check failed: command '%s %s' returned an error: %w", binary, strings.Join(args, " "), err)
+			}
+
+			actualVersion, err := outputParser(string(out))
+			if err != nil {
+				return fmt.Errorf("version check failed: could not parse version from output '%s': %w", string(out), err)
+			}
+
+			return comparator(requestedVersion, actualVersion)
+		}, nil
+	}
+}
+
+func NewSemverEqualityComparator() BinaryVersionComparator {
+	return func(requestedVersion string, actualVersion string) error {
+		requestedVersionSemver, err := semver.NewVersion(requestedVersion)
+		if err != nil {
+			return fmt.Errorf("failed to convert version %s to semver: %w", requestedVersion, err)
+		}
+
+		actualVersionSemver, err := semver.NewVersion(actualVersion)
+		if err != nil {
+			return fmt.Errorf("failed to convert version %s to semver: %w", actualVersion, err)
+		}
+
+		if requestedVersionSemver.Compare(actualVersionSemver) != 0 {
+			return fmt.Errorf("requested version %s does not match the actual one %s", requestedVersion, actualVersion)
+		}
+
+		return nil
+	}
+}
 
 func WithChecksummerFactory(c GithubReleaseChecksummerFactory) GithubReleaseDownloaderOption {
 	return func(d *GithubReleaseDownloader) {
@@ -144,6 +213,12 @@ func NewHomeDirCachePather(namespace string) GithubReleaseCachePather {
 			return "", fmt.Errorf("could not find home directory: %w", err)
 		}
 		return path.Join(homeDir, namespace, "cache"), nil
+	}
+}
+
+func NewStaticCachePather(cacheDir string) GithubReleaseCachePather {
+	return func() (string, error) {
+		return cacheDir, nil
 	}
 }
 
@@ -232,15 +307,30 @@ func (d *GithubReleaseDownloader) Get(ctx context.Context, version string) (stri
 		return "", fmt.Errorf("failed to get destination path: %w", err)
 	}
 
-	cached, err := d.getCached(ctx, version, destinationPath)
-	if err == nil {
-		// getCached returning an error indicates the name is not available
-		// (or not valid) in the cache; return the empty cached path and let
-		// the caller proceed to perform the download step.
-		return cached, nil
+	var binary string
+
+	binary, err = d.getCached(ctx, version, destinationPath)
+	if err != nil {
+		binary, err = d.download(ctx, version, releaseOS, releaseArch, destinationPath)
 	}
 
-	return d.download(ctx, version, releaseOS, releaseArch, destinationPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get binary %s of version %s: %w", d.name, version, err)
+	}
+
+	if d.versionCheckerFactory != nil {
+		versionChecker, err := d.versionCheckerFactory(version, releaseOS, releaseArch)
+		if err != nil {
+			return "", fmt.Errorf("failed to create version checker for binary %s of version %s: %w", d.name, version, err)
+		}
+
+		err = versionChecker(ctx, binary)
+		if err != nil {
+			return "", fmt.Errorf("version check failed for binary %s of version %s: %w", d.name, version, err)
+		}
+	}
+
+	return binary, nil
 }
 
 func (d *GithubReleaseDownloader) getDestinationPath(version string, os string, arch string) (string, error) {

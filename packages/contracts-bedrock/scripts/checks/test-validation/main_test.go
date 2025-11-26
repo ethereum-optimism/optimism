@@ -82,7 +82,7 @@ func TestTestContractExistsInFile(t *testing.T) {
 	defer cleanup()
 
 	_ = os.MkdirAll("test", 0755)
-	_ = os.WriteFile("test/Contract.t.sol", []byte("contract MyContract_Test {}\ncontract OtherContract {}"), 0644)
+	_ = os.WriteFile("test/Contract.t.sol", []byte("contract MyContract_Test {}\ninterface IHelper {}\nlibrary LibHelper {}"), 0644)
 
 	if testContractExistsInFile("", "MyContract_Test") {
 		t.Error("empty path should return false")
@@ -92,6 +92,12 @@ func TestTestContractExistsInFile(t *testing.T) {
 	}
 	if !testContractExistsInFile("test/Contract.t.sol", "MyContract_Test") {
 		t.Error("should find existing contract")
+	}
+	if !testContractExistsInFile("test/Contract.t.sol", "IHelper") {
+		t.Error("should find existing interface")
+	}
+	if !testContractExistsInFile("test/Contract.t.sol", "LibHelper") {
+		t.Error("should find existing library")
 	}
 	if testContractExistsInFile("test/Contract.t.sol", "NonExistent_Test") {
 		t.Error("should return false for non-existent contract")

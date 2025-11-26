@@ -17,6 +17,9 @@ func TestFees(gt *testing.T) {
 	require := t.Require()
 
 	require.True(sys.L2Chain.IsForkActive(forks.Ecotone), "Ecotone fork must be active for this test")
+	if sys.L2Chain.IsForkActive(forks.Isthmus) {
+		t.Skip("skipping since an Isthmus network may have an incompatible fee calculation")
+	}
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	bob := sys.Wallet.NewEOA(sys.L2EL)
