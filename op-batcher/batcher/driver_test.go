@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -22,10 +21,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -151,49 +150,6 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 	return c.(txmgr.TxCandidate)
 }
 
-type stubTxManager struct {
-	mu   sync.Mutex
-	sent []txmgr.TxCandidate
-}
-
-func (s *stubTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*types.Receipt, error) {
-	s.mu.Lock()
-	s.sent = append(s.sent, candidate)
-	s.mu.Unlock()
-	return &types.Receipt{}, nil
-}
-
-func (s *stubTxManager) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
-	s.mu.Lock()
-	s.sent = append(s.sent, candidate)
-	s.mu.Unlock()
-	ch <- txmgr.SendResponse{Receipt: &types.Receipt{}, Err: nil}
-}
-
-func (s *stubTxManager) ChainID() eth.ChainID { return eth.ChainID{} }
-func (s *stubTxManager) From() common.Address { return common.Address{} }
-func (s *stubTxManager) BlockNumber(context.Context) (uint64, error) {
-	return 0, nil
-}
-
-func (s *stubTxManager) API() rpc.API { return rpc.API{} }
-func (s *stubTxManager) Close()       {}
-func (s *stubTxManager) IsClosed() bool {
-	return false
-}
-
-func (s *stubTxManager) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
-	return nil, nil, nil, nil
-}
-
-func (s *stubTxManager) sentCandidates() []txmgr.TxCandidate {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]txmgr.TxCandidate, len(s.sent))
-	copy(out, s.sent)
-	return out
-}
-
 func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 	bs, _ := setup(t)
 
@@ -260,10 +216,24 @@ func TestBatchSubmitter_AltDACommitsSentInOrder(t *testing.T) {
 
 	bs.AltDA = altda.NewDAClient(server.URL, false, false)
 
-	txMgr := &stubTxManager{}
+	var (
+		mu   sync.Mutex
+		sent []txmgr.TxCandidate
+	)
+	txMgr := mocks.NewTxManager(t)
+	txMgr.On("SendAsync", mock.Anything, mock.AnythingOfType("txmgr.TxCandidate"), mock.AnythingOfType("chan txmgr.SendResponse")).
+		Run(func(args mock.Arguments) {
+			candidate := args.Get(1).(txmgr.TxCandidate)
+			mu.Lock()
+			sent = append(sent, candidate)
+			mu.Unlock()
+			respCh := args.Get(2).(chan txmgr.SendResponse)
+			respCh <- txmgr.SendResponse{Receipt: &types.Receipt{}}
+		}).Return()
+
 	txQueue := txmgr.NewQueue[txRef](context.Background(), txMgr, 0)
 	receiptsCh := make(chan txmgr.TxReceipt[txRef], 2)
-	commitmentsCh := make(chan chan CommitmentData, bs.Config.MaxConcurrentDARequests)
+	commitmentsCh := make(chan chan commitmentPayload, bs.Config.MaxConcurrentDARequests)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -283,7 +253,8 @@ func TestBatchSubmitter_AltDACommitsSentInOrder(t *testing.T) {
 	wg.Wait()
 	require.NoError(t, txQueue.Wait())
 
-	sent := txMgr.sentCandidates()
+	mu.Lock()
+	defer mu.Unlock()
 	require.Len(t, sent, 2)
 	require.Equal(t, commitments["first"].TxData(), sent[0].TxData)
 	require.Equal(t, commitments["second"].TxData(), sent[1].TxData)
