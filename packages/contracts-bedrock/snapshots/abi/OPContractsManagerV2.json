@@ -2,18 +2,26 @@
   {
     "inputs": [
       {
-        "internalType": "contract IOPContractsManagerContainer",
-        "name": "_contractsContainer",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IOPContractsManagerStandardValidator",
-        "name": "_standardValidator",
+        "internalType": "contract OPContractsManagerContractsContainer",
+        "name": "_container",
         "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_who",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidContractAddress",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [],
@@ -67,7 +75,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContainer.Blueprints",
+        "internalType": "struct OPContractsManager.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -76,11 +84,58 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "chainIdToBatchInboxAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_proxyAdmin",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_implementation",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_data",
+        "type": "bytes"
+      }
+    ],
+    "name": "checkContractChanged",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "contractsContainer",
     "outputs": [
       {
-        "internalType": "contract IOPContractsManagerContainer",
+        "internalType": "contract OPContractsManagerContractsContainer",
         "name": "",
         "type": "address"
       }
@@ -202,6 +257,26 @@
             "type": "tuple"
           },
           {
+            "internalType": "uint256",
+            "name": "disputeMaxGameDepth",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "disputeSplitDepth",
+            "type": "uint256"
+          },
+          {
+            "internalType": "Duration",
+            "name": "disputeClockExtension",
+            "type": "uint64"
+          },
+          {
+            "internalType": "Duration",
+            "name": "disputeMaxClockDuration",
+            "type": "uint64"
+          },
+          {
             "components": [
               {
                 "internalType": "bool",
@@ -309,6 +384,19 @@
   },
   {
     "inputs": [],
+    "name": "devFeatureBitmap",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "implementations",
     "outputs": [
       {
@@ -409,7 +497,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct IOPContractsManagerContainer.Implementations",
+        "internalType": "struct OPContractsManager.Implementations",
         "name": "",
         "type": "tuple"
       }
@@ -431,19 +519,6 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "standardValidator",
-    "outputs": [
-      {
-        "internalType": "contract IOPContractsManagerStandardValidator",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -489,18 +564,23 @@
             "components": [
               {
                 "internalType": "string",
-                "name": "key",
+                "name": "fieldName",
                 "type": "string"
               },
               {
                 "internalType": "bytes",
-                "name": "data",
+                "name": "value",
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
-            "name": "extraInstructions",
+            "internalType": "struct LoadConfig.ConfigOverride[]",
+            "name": "configOverrides",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "string[]",
+            "name": "permittedProxyDeployments",
+            "type": "string[]"
           }
         ],
         "internalType": "struct OPContractsManagerV2.UpgradeInput",
@@ -594,18 +674,23 @@
             "components": [
               {
                 "internalType": "string",
-                "name": "key",
+                "name": "fieldName",
                 "type": "string"
               },
               {
                 "internalType": "bytes",
-                "name": "data",
+                "name": "value",
                 "type": "bytes"
               }
             ],
-            "internalType": "struct OPContractsManagerV2.ExtraInstruction[]",
-            "name": "extraInstructions",
+            "internalType": "struct LoadConfig.ConfigOverride[]",
+            "name": "configOverrides",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "string[]",
+            "name": "permittedProxyDeployments",
+            "type": "string[]"
           }
         ],
         "internalType": "struct OPContractsManagerV2.SuperchainUpgradeInput",
@@ -632,19 +717,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "version",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "anonymous": false,
     "inputs": [
       {
@@ -662,6 +734,17 @@
     ],
     "name": "ProxyCreation",
     "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "who",
+        "type": "address"
+      }
+    ],
+    "name": "AddressHasNoCode",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -684,29 +767,48 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_fieldName",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "_source",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "_selector",
+        "type": "bytes4"
+      }
+    ],
+    "name": "LoadConfig_LoadFailed",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "NotABlueprint",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_name",
-        "type": "string"
-      }
-    ],
-    "name": "OPContractsManagerV2_ConfigLoadFailed",
+    "inputs": [],
+    "name": "OPContractsManagerV2_BadContractCheck",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_contract",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
+    "name": "OPContractsManagerV2_ContractChanged",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_ContractDidNotChange",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_DowngradeNotAllowed",
     "type": "error"
   },
@@ -722,18 +824,12 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerV2_InvalidUpgradeInstruction",
+    "name": "OPContractsManagerV2_ProxyMustLoad",
     "type": "error"
   },
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_name",
-        "type": "string"
-      }
-    ],
-    "name": "OPContractsManagerV2_ProxyMustLoad",
+    "inputs": [],
+    "name": "OPContractsManagerV2_SuperchainConfigAlreadyUpToDate",
     "type": "error"
   },
   {
@@ -744,6 +840,11 @@
   {
     "inputs": [],
     "name": "OPContractsManagerV2_UnsupportedGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
   {

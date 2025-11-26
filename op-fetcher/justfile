@@ -9,5 +9,5 @@ build-contracts:
   mkdir -p ./pkg/fetcher/fetch/forge-artifacts
   cd ../packages/contracts-bedrock
   just clean
-  just build-dev --deny-warnings --skip test
+  just build-dev --skip test
   cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/fetch/forge-artifacts
