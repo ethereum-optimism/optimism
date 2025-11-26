@@ -40,6 +40,8 @@ type L2CLConfig struct {
 	// UnsafeOnly is the flag to disable derivation
 	SequencerUnsafeOnly bool
 	VerifierUnsafeOnly  bool
+
+	FollowSource string
 }
 
 func L2CLSequencer() L2CLOption {
@@ -60,6 +62,12 @@ func L2CLVerifierDisableUnsafeOnly() L2CLOption {
 	})
 }
 
+func L2CLFollowSource(source string) L2CLOption {
+	return L2CLOptionFn(func(p devtest.P, id stack.L2CLNodeID, cfg *L2CLConfig) {
+		cfg.FollowSource = source
+	})
+}
+
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
 		SequencerSyncMode:   nodeSync.CLSync,
@@ -72,6 +80,7 @@ func DefaultL2CLConfig() *L2CLConfig {
 		NoDiscovery:         false,
 		SequencerUnsafeOnly: false,
 		VerifierUnsafeOnly:  false,
+		FollowSource:        "",
 	}
 }
 
@@ -117,5 +126,16 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		return WithSuperNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	default:
 		return WithOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
+	}
+}
+
+func WithL2CLNodeFollowSource(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	switch os.Getenv("DEVSTACK_L2CL_KIND") {
+	case "kona":
+		panic("kona does not support follow source")
+	case "supernode":
+		panic("supernode does not support follow source")
+	default:
+		return WithOpNodeFollowSource(l2CLID, l1CLID, l1ELID, l2ELID, l2ELFollowSourceID, opts...)
 	}
 }

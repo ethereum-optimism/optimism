@@ -14,6 +14,8 @@ type SingleChainTwoVerifiers struct {
 
 	L2ELC *dsl.L2ELNode
 	L2CLC *dsl.L2CLNode
+
+	TestSequencer *dsl.TestSequencer
 }
 
 func WithSingleChainTwoVerifiers() stack.CommonOption {
@@ -41,6 +43,11 @@ func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T) *SingleChainTwoVerifier
 		SingleChainMultiNode: *singleChainMultiNode,
 		L2ELC:                dsl.NewL2ELNode(verifierEL, orch.ControlPlane()),
 		L2CLC:                dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
+		TestSequencer:        dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
 	}
 	return preset
+}
+
+func WithSingleChainTwoVerifiersFollowSource() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainTwoVerifiersFollowSourceSystem(&sysgo.DefaultSingleChainTwoVerifiersSystemIDs{}))
 }
