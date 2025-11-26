@@ -2,9 +2,11 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -468,6 +470,37 @@ func (s *Driver) followSource() {
 		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
+	// erify that the L1 origin of the current safe L2 head is still canonical.
+	// We do not check the unsafe head because we only reorged while reading the L1 at derivation pipeline, preserving the behavior
+	localSafe := s.SyncDeriver.Engine.SafeL2Head()
+	if localSafe.Number != 0 {
+		s.log.Debug("Follow Source: Checking L1 origin of safe L2 head",
+			"safeL2Head", localSafe,
+			"l1Origin", localSafe.L1Origin,
+		)
+		l1Ref, err := s.followTracker.L1BlockRefByNumber(s.driverCtx, localSafe.L1Origin.Number)
+		if errors.Is(err, ethereum.NotFound) {
+			s.log.Warn("Follow Source: Reset: L1 origin of safe L2 head not found (L1 reorg)")
+			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
+				Err: errors.New("follow Source: L1 reorg detected: origin block not found"),
+			})
+			return
+		} else if err != nil {
+			s.log.Warn("Follow Source: Failed to look up L1 origin of safe L2 head", "err", err)
+			return
+		} else if l1Ref.Hash != localSafe.L1Origin.Hash {
+			s.log.Warn("Follow Source: Reset: L1 origin hash mismatch for safe L2 head (L1 reorg)",
+				"expectedOriginHash", localSafe.L1Origin.Hash,
+				"actualOriginHash", l1Ref.Hash,
+				"remoteL1Ref", l1Ref,
+			)
+			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
+				Err: errors.New("follow Source: L1 reorg detected: origin hash mismatch"),
+			})
+			return
+		}
+	}
+
 	eFinalized, err := s.followTracker.L2BlockRefByLabel(s.driverCtx, eth.Finalized)
 	if err != nil {
 		s.log.Warn("Follow Source: Failed to fetch finalizedRef", "err", err)
