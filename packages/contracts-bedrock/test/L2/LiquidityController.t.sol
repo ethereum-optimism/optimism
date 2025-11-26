@@ -9,6 +9,9 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { LiquidityController } from "src/L2/LiquidityController.sol";
 import { NativeAssetLiquidity } from "src/L2/NativeAssetLiquidity.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
 /// @title LiquidityController_TestInit
 /// @notice Reusable test initialization for `LiquidityController` tests.
 contract LiquidityController_TestInit is CommonTest {
@@ -212,6 +215,8 @@ contract LiquidityController_Mint_Test is LiquidityController_TestInit {
 contract LiquidityController_Burn_Test is LiquidityController_TestInit {
     /// @notice Tests that the burn function can be called by an authorized minter.
     function testFuzz_burn_fromAuthorizedMinter_succeeds(uint256 _amount, address _minter) public {
+        vm.assume(_minter != Predeploys.NATIVE_ASSET_LIQUIDITY);
+
         _authorizeMinter(_minter);
         _amount = bound(_amount, 0, address(nativeAssetLiquidity).balance);
 
