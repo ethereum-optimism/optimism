@@ -4,24 +4,6 @@ pragma solidity ^0.8.0;
 // Libraries
 import { Burn } from "src/libraries/Burn.sol";
 
-contract CallRecorder {
-    struct CallInfo {
-        address sender;
-        bytes data;
-        uint256 gas;
-        uint256 value;
-    }
-
-    CallInfo public lastCall;
-
-    function record() public payable {
-        lastCall.sender = msg.sender;
-        lastCall.data = msg.data;
-        lastCall.gas = gasleft();
-        lastCall.value = msg.value;
-    }
-}
-
 /// @title GasBurner
 /// @notice Contract that burns a specified amount of gas on receive or fallback.
 contract GasBurner {
