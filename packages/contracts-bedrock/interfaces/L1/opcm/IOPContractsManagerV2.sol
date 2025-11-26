@@ -80,6 +80,7 @@ interface IOPContractsManagerV2 {
         uint256 l2ChainId;
         IResourceMetering.ResourceConfig resourceConfig;
         DisputeGameConfig[] disputeGameConfigs;
+        ExtraInstruction[] extraInstructions;
     }
 
     struct ExtraInstruction {

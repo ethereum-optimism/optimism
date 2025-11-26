@@ -121,6 +121,8 @@ contract OPContractsManagerV2 is ISemver {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
+        // Extra instructions for the deployment/upgrade.
+        ExtraInstruction[] extraInstructions;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -189,6 +191,12 @@ contract OPContractsManagerV2 is ISemver {
     /// @notice Special constant value for the PermittedProxyDeployment instruction to permit all
     ///         contracts to be deployed. Only to be used for deployments.
     bytes internal constant PERMIT_ALL_CONTRACTS_INSTRUCTION = bytes("ALL");
+
+    /// @notice Special constant key for the SkipStandardValidator instruction.
+    string internal constant SKIP_STANDARD_VALIDATOR_KEY = "SkipStandardValidator";
+
+    /// @notice Special constant key for the StandardValidatorExceptions instruction.
+    string internal constant STANDARD_VALIDATOR_EXCEPTIONS_KEY = "StandardValidatorExceptions";
 
     /// @param _contractsContainer The container of blueprint and implementation contract addresses.
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -606,7 +614,8 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
+            extraInstructions: _upgradeInput.extraInstructions
         });
     }
 
@@ -825,8 +834,77 @@ contract OPContractsManagerV2 is ISemver {
             _cts.proxyAdmin.transferOwnership(_cfg.proxyAdminOwner);
         }
 
+        // Run the standard validator unless explicitly skipped.
+        _runStandardValidator(_cfg, _cts);
+
         // Return contracts as the execution output.
         return _cts;
+    }
+
+    /// @notice Runs the standard validator on the chain contracts.
+    /// @param _cfg The full config.
+    /// @param _cts The chain contracts.
+    function _runStandardValidator(FullConfig memory _cfg, ChainContracts memory _cts) internal view {
+        // Check if the standard validator should be skipped.
+        ExtraInstruction memory skipInstruction =
+            _getInstructionByKey(_cfg.extraInstructions, SKIP_STANDARD_VALIDATOR_KEY);
+        if (bytes(skipInstruction.key).length > 0) {
+            // Skip the standard validator.
+            return;
+        }
+
+        // Extract validation overrides from the exceptions instruction if present.
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides;
+        ExtraInstruction memory exceptionsInstruction =
+            _getInstructionByKey(_cfg.extraInstructions, STANDARD_VALIDATOR_EXCEPTIONS_KEY);
+        if (bytes(exceptionsInstruction.key).length > 0) {
+            overrides =
+                abi.decode(exceptionsInstruction.data, (IOPContractsManagerStandardValidator.ValidationOverrides));
+        }
+
+        // Extract prestates and proposer from dispute game configs.
+        // Config order is: CANNON (0), PERMISSIONED_CANNON (1), CANNON_KONA (2)
+        bytes32 cannonPrestate;
+        bytes32 cannonKonaPrestate;
+        address proposer;
+
+        // Extract CANNON prestate (index 0)
+        if (_cfg.disputeGameConfigs[0].enabled) {
+            FaultDisputeGameConfig memory cannonConfig =
+                abi.decode(_cfg.disputeGameConfigs[0].gameArgs, (FaultDisputeGameConfig));
+            cannonPrestate = Claim.unwrap(cannonConfig.absolutePrestate);
+        }
+
+        // Extract PERMISSIONED_CANNON prestate and proposer (index 1)
+        if (_cfg.disputeGameConfigs[1].enabled) {
+            PermissionedDisputeGameConfig memory permissionedConfig =
+                abi.decode(_cfg.disputeGameConfigs[1].gameArgs, (PermissionedDisputeGameConfig));
+            proposer = permissionedConfig.proposer;
+            // Use permissioned prestate as cannon prestate if cannon is disabled
+            if (cannonPrestate == bytes32(0)) {
+                cannonPrestate = Claim.unwrap(permissionedConfig.absolutePrestate);
+            }
+        }
+
+        // Extract CANNON_KONA prestate (index 2)
+        if (_cfg.disputeGameConfigs[2].enabled) {
+            FaultDisputeGameConfig memory konaConfig =
+                abi.decode(_cfg.disputeGameConfigs[2].gameArgs, (FaultDisputeGameConfig));
+            cannonKonaPrestate = Claim.unwrap(konaConfig.absolutePrestate);
+        }
+
+        // Construct the validation input.
+        IOPContractsManagerStandardValidator.ValidationInputDev memory validationInput =
+        IOPContractsManagerStandardValidator.ValidationInputDev({
+            sysCfg: _cts.systemConfig,
+            cannonPrestate: cannonPrestate,
+            cannonKonaPrestate: cannonKonaPrestate,
+            l2ChainID: _cfg.l2ChainId,
+            proposer: proposer
+        });
+
+        // Call the standard validator with allowFail=true since we allow exceptions.
+        standardValidator.validateWithOverrides(validationInput, true, overrides);
     }
 
     /// @notice Helper for making the SystemConfig initializer arguments. This is the only

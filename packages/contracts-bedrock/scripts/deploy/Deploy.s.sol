@@ -525,6 +525,9 @@ contract Deploy is Deployer {
             )
         });
 
+        IOPContractsManagerV2.ExtraInstruction[] memory extraInstructions =
+            new IOPContractsManagerV2.ExtraInstruction[](0);
+
         return IOPContractsManagerV2.FullConfig({
             saltMixer: "salt mixer",
             superchainConfig: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
@@ -542,7 +545,8 @@ contract Deploy is Deployer {
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
-            disputeGameConfigs: disputeGameConfigs
+            disputeGameConfigs: disputeGameConfigs,
+            extraInstructions: extraInstructions
         });
     }
 }
