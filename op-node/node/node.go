@@ -604,7 +604,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 
 	var followTracker driver.FollowTracker
 	if node.l2FollowSource != nil {
-		followTracker = driver.NewL2RPCFollowTracker(node.l2FollowSource)
+		followTracker = driver.NewELFollowTracker(node.l2FollowSource, node.l1Source)
 	}
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, followTracker,
 		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)

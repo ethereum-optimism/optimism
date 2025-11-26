@@ -60,6 +60,7 @@ type L2FollowSource interface {
 
 type FollowTracker interface {
 	L2FollowSource
+	L1SourceForL2FollowTracker
 }
 
 type DerivationPipeline interface {
