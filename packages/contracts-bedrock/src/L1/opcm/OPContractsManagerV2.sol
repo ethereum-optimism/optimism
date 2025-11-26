@@ -182,8 +182,8 @@ contract OPContractsManagerV2 is ISemver {
     IOPContractsManagerStandardValidator public immutable standardValidator;
 
     /// @notice The version of the OPCM contract.
-    /// @custom:semver 6.1.0
-    string public constant version = "6.1.0";
+    /// @custom:semver 6.2.0
+    string public constant version = "6.2.0";
 
     /// @notice Special constant key for the PermittedProxyDeployment instruction.
     string internal constant PERMITTED_PROXY_DEPLOYMENT_KEY = "PermittedProxyDeployment";
