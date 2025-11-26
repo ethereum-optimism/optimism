@@ -17,8 +17,8 @@ func TestFollowSourceSafeAndFinalized(gt *testing.T) {
 	attempts := 70
 	target := uint64(3)
 
-	// L2CL is the verifier without follow source, derivation enabled
-	// L2CLB is the sequencer with follow source, derivation disabled
+	// L2CL is the sequencer with follow source, derivation disabled
+	// L2CLB is the verifier without follow source, derivation enabled
 	// L2CLC is the verifier with follow source, derivation disabled
 	// All verifiers must eventually advance unsafe, safe, finalized
 	checkMatchedAll := func(lvl types.SafetyLevel) {
@@ -52,7 +52,10 @@ func TestFollowSourceWithoutCLP2P(gt *testing.T) {
 	attempts := 20
 	target := uint64(3)
 
-	sys.L2CLC.Advanced(types.LocalUnsafe, target, attempts)
+	// L2CLB is the verifier without follow source, derivation enabled
+	sys.L2CLB.Advanced(types.LocalUnsafe, target, attempts)
+
+	// The test's primary target is the L2CLC, with follow source and derivation disabled
 	// Normally there should be delta between safe head between unsafe head
 	status := sys.L2CLC.SyncStatus()
 	require.NotEqual(status.LocalSafeL2, status.UnsafeL2)
@@ -66,24 +69,24 @@ func TestFollowSourceWithoutCLP2P(gt *testing.T) {
 	sys.L2CL.DisconnectPeer(sys.L2CLC)
 
 	// Advance few safe blocks
-	sys.L2CL.Advanced(types.LocalSafe, target, attempts)
-	sys.L2CLC.Matched(sys.L2CL, types.LocalSafe, attempts)
+	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Matched(sys.L2CLB, types.LocalSafe, attempts)
 
 	// Make sure the safe head reaches non-moving unsafe head
-	sys.L2CLC.Reached(types.LocalSafe, sys.L2CL.UnsafeHead().BlockRef.Number, attempts)
+	sys.L2CLC.Reached(types.LocalSafe, sys.L2CLC.UnsafeHead().BlockRef.Number, attempts)
 	// The only data source for L2CLC is the safe source.
 	// L2CLC unsafe head will only be advancing with safe head together
 	status = sys.L2CLC.SyncStatus()
 	require.Equal(status.LocalSafeL2, status.UnsafeL2)
-	sys.L2CL.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
 
 	// Advance few safe blocks
-	sys.L2CL.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
 
 	// Check once again that the unsafe head is moving together with safe head
 	status = sys.L2CLC.SyncStatus()
 	require.Equal(status.LocalSafeL2, status.UnsafeL2)
-	sys.L2CL.Advanced(types.LocalSafe, target, attempts)
+	sys.L2CLC.Advanced(types.LocalSafe, target, attempts)
 
 	// Recover CLP2P
 	logger.Info("Recover CLP2P")
@@ -94,10 +97,10 @@ func TestFollowSourceWithoutCLP2P(gt *testing.T) {
 
 	// Sequencer unsafe payload will arrive to the verifier, triggering EL sync and filling in the unsafe gap
 	dsl.CheckAll(t,
-		// Match with other verifier with derivation enabled
+		// Match with sequencer with derivation disabled
 		sys.L2CLC.MatchedFn(sys.L2CL, types.LocalSafe, attempts),
 		sys.L2CLC.MatchedFn(sys.L2CL, types.LocalUnsafe, attempts),
-		// Match with sequencer
+		// Match with other verifier with derivation enabled
 		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalSafe, attempts),
 		sys.L2CLC.MatchedFn(sys.L2CLB, types.LocalUnsafe, attempts),
 	)

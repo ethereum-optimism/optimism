@@ -49,11 +49,6 @@ func DefaultSingleChainTwoVerifiersSystem(dest *DefaultSingleChainTwoVerifiersSy
 
 func DefaultSingleChainTwoVerifiersFollowSourceSystem(dest *DefaultSingleChainTwoVerifiersSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultSingleChainTwoVerifiersSystemIDs(DefaultL1ID, DefaultL2AID)
-	// rewrite ids because L2CLB will be the sequencer
-	ids.L2CL = stack.NewL2CLNodeID("a", DefaultL2AID)
-	ids.L2EL = stack.NewL2ELNodeID("a", DefaultL2AID)
-	ids.L2CLB = stack.NewL2CLNodeID("sequencer", DefaultL2AID)
-	ids.L2ELB = stack.NewL2ELNodeID("sequencer", DefaultL2AID)
 
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
@@ -72,16 +67,16 @@ func DefaultSingleChainTwoVerifiersFollowSourceSystem(dest *DefaultSingleChainTw
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2EL))
+	opt.Add(WithL2ELNode(ids.L2ELB))
 	// Specific options are applied after global options
 	// this means unsafeOnly is always disabled for the first verifier
-	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLVerifierDisableUnsafeOnly()))
+	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, L2CLVerifierDisableUnsafeOnly()))
 
-	opt.Add(WithL2ELNode(ids.L2ELB))
-	opt.Add(WithL2CLNodeFollowSource(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, ids.L2EL, L2CLSequencer()))
+	opt.Add(WithL2ELNode(ids.L2EL))
+	opt.Add(WithL2CLNodeFollowSource(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, ids.L2ELB, L2CLSequencer()))
 
 	opt.Add(WithL2ELNode(ids.L2ELC))
-	opt.Add(WithL2CLNodeFollowSource(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2EL))
+	opt.Add(WithL2CLNodeFollowSource(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2ELB))
 
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
 	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB))
