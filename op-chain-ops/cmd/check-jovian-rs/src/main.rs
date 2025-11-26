@@ -18,9 +18,14 @@ async fn main() {
     let args = Args::parse();
     println!("l2: {}", args.l2);
     println!("secret_key: {:?}", args.secret_key);
+    
+    info!("Constructing provider for {l2_url}...");
+    // Initialize the provider.
+    let provider = ProviderBuilder::new().connect(l2_url).await?;
+
 
     match gpo::check_gpo(&args.l2).await {
         Ok(()) => (),
-        Err(error) => panic!("Problem opening the file: {error:?}"),
+        Err(error) => panic!("Could not check GPO: {error:?}"),
     };
 }
