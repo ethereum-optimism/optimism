@@ -53,6 +53,8 @@ contract OPContractsManagerContainer_TestInit is Test {
     }
 
     /// @notice Deploys a new OPContractsManagerContainer with the given dev feature bitmap.
+    /// @param _devFeatureBitmap The dev feature bitmap to use.
+    /// @return The deployed OPContractsManagerContainer.
     function _deploy(bytes32 _devFeatureBitmap) internal returns (OPContractsManagerContainer) {
         return new OPContractsManagerContainer(blueprints, implementations, _devFeatureBitmap);
     }
@@ -62,6 +64,7 @@ contract OPContractsManagerContainer_TestInit is Test {
 /// @notice Tests the constructor of OPContractsManagerContainer.
 contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that the constructor succeeds with any dev bitmap when in a test environment.
+    /// @param _devFeatureBitmap The dev feature bitmap to use.
     function testFuzz_constructor_devBitmapInTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
@@ -71,7 +74,9 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
         assertEq(container.devFeatureBitmap(), _devFeatureBitmap);
     }
 
-    /// @notice Tests that the constructor reverts when dev features are enabled on mainnet without test env.
+    /// @notice Tests that the constructor reverts when dev features are enabled on mainnet without
+    ///         test env.
+    /// @param _devFeatureBitmap The dev feature bitmap to use.
     function testFuzz_constructor_devBitmapOnMainnet_reverts(bytes32 _devFeatureBitmap) public {
         // Ensure at least one dev feature is enabled.
         _devFeatureBitmap = bytes32(bound(uint256(_devFeatureBitmap), 1, type(uint256).max));
@@ -87,6 +92,7 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
     }
 
     /// @notice Tests that the constructor succeeds on mainnet when the test env flag is set.
+    /// @param _devFeatureBitmap The dev feature bitmap to use.
     function testFuzz_constructor_devBitmapOnMainnetButTestEnv_succeeds(bytes32 _devFeatureBitmap) public {
         // Etch code into the magic testing address.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
@@ -117,7 +123,7 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
 /// @notice Tests the blueprints() getter.
 contract OPContractsManagerContainer_Blueprints_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that blueprints() returns the struct provided at construction.
-    function test_blueprints_returnsCorrectStruct() public {
+    function test_blueprints_succeeds() public {
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertEq(abi.encode(container.blueprints()), abi.encode(blueprints));
@@ -128,7 +134,7 @@ contract OPContractsManagerContainer_Blueprints_Test is OPContractsManagerContai
 /// @notice Tests the implementations() getter.
 contract OPContractsManagerContainer_Implementations_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that implementations() returns the struct provided at construction.
-    function test_implementations_returnsCorrectStruct() public {
+    function test_implementations_succeeds() public {
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertEq(abi.encode(container.implementations()), abi.encode(implementations));
@@ -139,7 +145,8 @@ contract OPContractsManagerContainer_Implementations_Test is OPContractsManagerC
 /// @notice Tests the isDevFeatureEnabled() function.
 contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that isDevFeatureEnabled returns true when the feature bit is set.
-    function testFuzz_isDevFeatureEnabled_bitSet_returnsTrue(uint8 _bitIndex) public {
+    /// @param _bitIndex The bit index to test.
+    function testFuzz_isDevFeatureEnabled_bitSet_succeeds(uint8 _bitIndex) public {
         bytes32 bitmap = bytes32(uint256(1) << _bitIndex);
         bytes32 feature = bytes32(uint256(1) << _bitIndex);
 
@@ -149,7 +156,8 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     }
 
     /// @notice Tests that isDevFeatureEnabled returns false when the feature bit is not set.
-    function testFuzz_isDevFeatureEnabled_bitNotSet_returnsFalse(uint8 _bitIndex) public {
+    /// @param _bitIndex The bit index to test.
+    function testFuzz_isDevFeatureEnabled_bitNotSet_succeeds(uint8 _bitIndex) public {
         // Create a bitmap with all bits set except the one we're testing.
         bytes32 bitmap = bytes32(type(uint256).max ^ (uint256(1) << _bitIndex));
         bytes32 feature = bytes32(uint256(1) << _bitIndex);
@@ -160,7 +168,8 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
     }
 
     /// @notice Tests that isDevFeatureEnabled returns false when the bitmap is zero.
-    function testFuzz_isDevFeatureEnabled_zeroBitmap_returnsFalse(bytes32 _feature) public {
+    /// @param _feature The feature to check.
+    function testFuzz_isDevFeatureEnabled_zeroBitmap_succeeds(bytes32 _feature) public {
         OPContractsManagerContainer container = _deploy(bytes32(0));
 
         assertFalse(container.isDevFeatureEnabled(_feature));
@@ -171,7 +180,8 @@ contract OPContractsManagerContainer_IsDevFeatureEnabled_Test is OPContractsMana
 /// @notice Tests the devFeatureBitmap() getter.
 contract OPContractsManagerContainer_DevFeatureBitmap_Test is OPContractsManagerContainer_TestInit {
     /// @notice Tests that devFeatureBitmap() returns the value provided at construction.
-    function testFuzz_devFeatureBitmap_returnsCorrectValue(bytes32 _devFeatureBitmap) public {
+    /// @param _devFeatureBitmap The dev feature bitmap to use.
+    function testFuzz_devFeatureBitmap_succeeds(bytes32 _devFeatureBitmap) public {
         OPContractsManagerContainer container = _deploy(_devFeatureBitmap);
 
         assertEq(container.devFeatureBitmap(), _devFeatureBitmap);
