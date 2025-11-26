@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/throttler"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -19,8 +22,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 type mockL2EndpointProvider struct {
@@ -144,6 +151,49 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 	return c.(txmgr.TxCandidate)
 }
 
+type stubTxManager struct {
+	mu   sync.Mutex
+	sent []txmgr.TxCandidate
+}
+
+func (s *stubTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*types.Receipt, error) {
+	s.mu.Lock()
+	s.sent = append(s.sent, candidate)
+	s.mu.Unlock()
+	return &types.Receipt{}, nil
+}
+
+func (s *stubTxManager) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	s.mu.Lock()
+	s.sent = append(s.sent, candidate)
+	s.mu.Unlock()
+	ch <- txmgr.SendResponse{Receipt: &types.Receipt{}, Err: nil}
+}
+
+func (s *stubTxManager) ChainID() eth.ChainID { return eth.ChainID{} }
+func (s *stubTxManager) From() common.Address { return common.Address{} }
+func (s *stubTxManager) BlockNumber(context.Context) (uint64, error) {
+	return 0, nil
+}
+
+func (s *stubTxManager) API() rpc.API { return rpc.API{} }
+func (s *stubTxManager) Close()       {}
+func (s *stubTxManager) IsClosed() bool {
+	return false
+}
+
+func (s *stubTxManager) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
+	return nil, nil, nil, nil
+}
+
+func (s *stubTxManager) sentCandidates() []txmgr.TxCandidate {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]txmgr.TxCandidate, len(s.sent))
+	copy(out, s.sent)
+	return out
+}
+
 func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 	bs, _ := setup(t)
 
@@ -171,6 +221,72 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 
 	expectedFloorDataGas := uint64(21_000 + 12*10)
 	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
+}
+
+func TestBatchSubmitter_AltDACommitsSentInOrder(t *testing.T) {
+	bs, _ := setup(t)
+	bs.Config.UseAltDA = true
+	bs.Config.MaxConcurrentDARequests = 2
+	bs.shutdownCtx = context.Background()
+
+	commitments := map[string]altda.CommitmentData{
+		"first":  altda.NewGenericCommitment([]byte("commit-first")),
+		"second": altda.NewGenericCommitment([]byte("commit-second")),
+	}
+	delay := map[string]time.Duration{
+		"first":  50 * time.Millisecond,
+		"second": 5 * time.Millisecond,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/put", r.URL.Path)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Greater(t, len(body), 1)
+
+		// Skip derivation version byte
+		key := string(body[1:])
+		commitment, ok := commitments[key]
+		require.True(t, ok, "unexpected payload %q", key)
+
+		time.Sleep(delay[key])
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(commitment.Encode())
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	bs.AltDA = altda.NewDAClient(server.URL, false, false)
+
+	txMgr := &stubTxManager{}
+	txQueue := txmgr.NewQueue[txRef](context.Background(), txMgr, 0)
+	receiptsCh := make(chan txmgr.TxReceipt[txRef], 2)
+	commitmentsCh := make(chan chan CommitmentData, bs.Config.MaxConcurrentDARequests)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go bs.publishAltDACommitmentsToL1Loop(&wg, txQueue, receiptsCh, commitmentsCh)
+
+	daGroup := &errgroup.Group{}
+	daGroup.SetLimit(int(bs.Config.MaxConcurrentDARequests))
+
+	tx1 := singleFrameTxData(frameData{data: []byte("first"), id: frameID{frameNumber: 1}})
+	tx2 := singleFrameTxData(frameData{data: []byte("second"), id: frameID{frameNumber: 2}})
+
+	require.NoError(t, bs.sendTransaction(tx1, txQueue, receiptsCh, daGroup, commitmentsCh))
+	require.NoError(t, bs.sendTransaction(tx2, txQueue, receiptsCh, daGroup, commitmentsCh))
+
+	require.NoError(t, daGroup.Wait())
+	close(commitmentsCh)
+	wg.Wait()
+	require.NoError(t, txQueue.Wait())
+
+	sent := txMgr.sentCandidates()
+	require.Len(t, sent, 2)
+	require.Equal(t, commitments["first"].TxData(), sent[0].TxData)
+	require.Equal(t, commitments["second"].TxData(), sent[1].TxData)
 }
 
 // createHTTPHandler creates a mock HTTP handler for testing, it accepts a callback which
