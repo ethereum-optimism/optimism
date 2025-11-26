@@ -1,4 +1,6 @@
 use clap::Parser;
+use env_logger;
+mod gpo;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -11,7 +13,10 @@ struct Args {
 }
 
 fn main() {
+    env_logger::init();
     let args = Args::parse();
     println!("l2: {}", args.l2);
     println!("secret_key: {:?}", args.secret_key);
+
+    gpo::check_gpo();
 }
