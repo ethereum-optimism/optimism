@@ -4,6 +4,7 @@ use clap::{builder::ArgPredicate, Parser};
 use eyre::ErrReport;
 use futures_util::FutureExt;
 use reth_db::DatabaseEnv;
+use reth_db_api::database_metrics::DatabaseMetrics;
 use reth_node_builder::{FullNodeComponents, NodeBuilder, WithLaunchContext};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_cli::{chainspec::OpChainSpecParser, Cli};
@@ -13,10 +14,10 @@ use reth_optimism_rpc::{
     debug::{DebugApiExt, DebugApiOverrideServer},
     eth::proofs::{EthApiExt, EthApiOverrideServer},
 };
-use reth_optimism_trie::{
-    db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage, OpProofsStore,
-};
-use std::{path::PathBuf, sync::Arc};
+use reth_optimism_trie::{db::MdbxProofsStorage, InMemoryProofsStorage, OpProofsStorage};
+use reth_tasks::TaskExecutor;
+use std::{path::PathBuf, sync::Arc, time::Duration};
+use tokio::time::sleep;
 use tracing::info;
 
 #[global_allocator]
@@ -73,42 +74,116 @@ struct Args {
     pub proofs_history_window: u64,
 }
 
-async fn launch_node_with_storage<S>(
+/// Single entry that handles:
+/// - no proofs history (plain node),
+/// - in-mem proofs storage,
+/// - MDBX proofs storage.
+async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, OpChainSpec>>,
     args: Args,
-    storage: OpProofsStorage<S>,
-) -> eyre::Result<(), ErrReport>
-where
-    S: OpProofsStore + Clone + 'static,
-{
-    let storage_exec = storage.clone();
-    let storage_rpc = storage.clone();
+) -> eyre::Result<(), ErrReport> {
     let proofs_history_enabled = args.proofs_history;
-    let handle = builder
-        .node(OpNode::new(args.rollup_args))
-        .install_exex_if(proofs_history_enabled, "proofs-history", async move |exex_context| {
-            Ok(OpProofsExEx::new(exex_context, storage_exec, args.proofs_history_window)
-                .run()
-                .boxed())
-        })
-        .extend_rpc_modules(move |ctx| {
-            if proofs_history_enabled {
-                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage_rpc.clone());
-                let debug_ext = DebugApiExt::new(
-                    ctx.node().provider().clone(),
-                    ctx.registry.eth_api().clone(),
-                    storage_rpc,
-                    Box::new(ctx.node().task_executor().clone()),
-                    ctx.node().evm_config().clone(),
-                );
-                ctx.modules.replace_configured(api_ext.into_rpc())?;
-                ctx.modules.replace_configured(debug_ext.into_rpc())?;
-            }
-            Ok(())
-        })
-        .launch_with_debug_capabilities()
-        .await?;
+    let rollup_args = args.rollup_args.clone();
+    let proofs_history_window = args.proofs_history_window;
+
+    // Start from a plain OpNode builder
+    let mut node_builder = builder.node(OpNode::new(rollup_args));
+
+    if proofs_history_enabled {
+        // Choose storage backend
+        if args.proofs_history_storage_in_mem {
+            info!(target: "reth::cli", "Using in-memory storage for proofs history");
+            let storage: OpProofsStorage<_> = Arc::new(InMemoryProofsStorage::new()).into();
+
+            let storage_exec = storage.clone();
+
+            node_builder = node_builder
+                .install_exex("proofs-history", async move |exex_context| {
+                    Ok(OpProofsExEx::new(exex_context, storage_exec, proofs_history_window)
+                        .run()
+                        .boxed())
+                })
+                .extend_rpc_modules(move |ctx| {
+                    let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                    let debug_ext = DebugApiExt::new(
+                        ctx.node().provider().clone(),
+                        ctx.registry.eth_api().clone(),
+                        storage,
+                        Box::new(ctx.node().task_executor().clone()),
+                        ctx.node().evm_config().clone(),
+                    );
+                    ctx.modules.replace_configured(api_ext.into_rpc())?;
+                    ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                    Ok(())
+                });
+        } else {
+            let path = args
+                .proofs_history_storage_path
+                .clone()
+                .expect("Path must be provided if not using in-memory storage");
+            info!(target: "reth::cli", "Using on-disk storage for proofs history");
+
+            let mdbx = Arc::new(
+                MdbxProofsStorage::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+            );
+            let storage: OpProofsStorage<_> = Arc::new(mdbx.clone()).into();
+
+            let storage_exec = storage.clone();
+
+            node_builder = node_builder
+                .on_node_started(move |node| {
+                    spawn_proofs_db_metrics(
+                        node.task_executor,
+                        mdbx,
+                        node.config.metrics.push_gateway_interval,
+                    );
+                    Ok(())
+                })
+                .install_exex("proofs-history", async move |exex_context| {
+                    Ok(OpProofsExEx::new(exex_context, storage_exec, proofs_history_window)
+                        .run()
+                        .boxed())
+                })
+                .extend_rpc_modules(move |ctx| {
+                    let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                    let debug_ext = DebugApiExt::new(
+                        ctx.node().provider().clone(),
+                        ctx.registry.eth_api().clone(),
+                        storage,
+                        Box::new(ctx.node().task_executor().clone()),
+                        ctx.node().evm_config().clone(),
+                    );
+                    ctx.modules.replace_configured(api_ext.into_rpc())?;
+                    ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                    Ok(())
+                });
+        }
+    }
+
+    // In all cases (with or without proofs), launch the node.
+    let handle = node_builder.launch_with_debug_capabilities().await?;
     handle.node_exit_future.await
+}
+
+/// Spawns a task that periodically reports metrics for the proofs DB.
+fn spawn_proofs_db_metrics(
+    executor: TaskExecutor,
+    storage: Arc<MdbxProofsStorage>,
+    metrics_report_interval: Duration,
+) {
+    executor.spawn_critical("op-proofs-storage-metrics", async move {
+        info!(
+            target: "reth::cli",
+            ?metrics_report_interval,
+            "Starting op-proofs-storage metrics task"
+        );
+
+        loop {
+            sleep(metrics_report_interval).await;
+            storage.report_metrics();
+        }
+    });
 }
 
 fn main() {
@@ -123,29 +198,7 @@ fn main() {
 
     if let Err(err) = Cli::<OpChainSpecParser, Args>::parse().run(async move |builder, args| {
         info!(target: "reth::cli", "Launching node");
-
-        if args.proofs_history_storage_in_mem {
-            // todo: enable launch without metrics
-            let storage = Arc::new(InMemoryProofsStorage::new()).into();
-
-            launch_node_with_storage(builder, args.clone(), storage).await?;
-        } else {
-            let path = args
-                .proofs_history_storage_path
-                .clone()
-                .expect("Path must be provided if not using in-memory storage");
-            info!(target: "reth::cli", "Using on-disk storage for proofs history");
-
-            // todo: enable launch without metrics
-            let storage = Arc::new(
-                MdbxProofsStorage::new(&path)
-                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-            )
-            .into();
-
-            launch_node_with_storage(builder, args.clone(), storage).await?;
-        }
-
+        launch_node(builder, args.clone()).await?;
         Ok(())
     }) {
         eprintln!("Error: {err:?}");

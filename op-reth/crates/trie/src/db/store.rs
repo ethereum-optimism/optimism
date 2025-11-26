@@ -1,4 +1,4 @@
-use super::{BlockNumberHash, ProofWindow, ProofWindowKey};
+use super::{BlockNumberHash, ProofWindow, ProofWindowKey, Tables};
 use crate::{
     api::WriteCounts,
     db::{
@@ -14,9 +14,12 @@ use crate::{
 };
 use alloy_eips::{eip1898::BlockWithParent, NumHash};
 use alloy_primitives::{map::HashMap, B256, U256};
+use eyre::WrapErr;
 use itertools::Itertools;
+use metrics::{gauge, Label};
 use reth_db::{
     cursor::{DbCursorRO, DbCursorRW, DbDupCursorRO, DbDupCursorRW},
+    database_metrics::DatabaseMetrics,
     mdbx::{init_db_for, DatabaseArguments},
     table::{DupSort, Table},
     transaction::{DbTx, DbTxMut},
@@ -28,6 +31,7 @@ use reth_trie::{
     BranchNodeCompact, HashedStorage, Nibbles,
 };
 use std::{cmp::max, ops::RangeBounds, path::Path};
+use tracing::error;
 
 /// MDBX implementation of [`OpProofsStore`].
 #[derive(Debug)]
@@ -43,7 +47,7 @@ struct ProofWindowValue {
 impl MdbxProofsStorage {
     /// Creates a new [`MdbxProofsStorage`] instance with the given path.
     pub fn new(path: &Path) -> Result<Self, OpProofsStorageError> {
-        let env = init_db_for::<_, super::models::Tables>(path, DatabaseArguments::default())
+        let env = init_db_for::<_, Tables>(path, DatabaseArguments::default())
             .map_err(|e| DatabaseError::Other(format!("Failed to open database: {e}")))?;
         Ok(Self { env })
     }
@@ -778,6 +782,89 @@ impl OpProofsStore for MdbxProofsStorage {
         hash: B256,
     ) -> OpProofsStorageResult<()> {
         self.set_earliest_block_number_hash(block_number, hash).await
+    }
+}
+
+/// This implementation is copied from the [`DatabaseMetrics`] implementation for [`DatabaseEnv`].
+/// As the implementation hard-coded the table name, we need to reimplement it.
+impl DatabaseMetrics for MdbxProofsStorage {
+    fn report_metrics(&self) {
+        for (name, value, labels) in self.gauge_metrics() {
+            gauge!(name, labels).set(value);
+        }
+    }
+
+    fn gauge_metrics(&self) -> Vec<(&'static str, f64, Vec<Label>)> {
+        let mut metrics = Vec::new();
+
+        let _ = self
+            .env
+            .view(|tx| {
+                for table in Tables::ALL.iter().map(Tables::name) {
+                    let table_db = tx.inner.open_db(Some(table)).wrap_err("Could not open db.")?;
+
+                    let stats = tx
+                        .inner
+                        .db_stat(&table_db)
+                        .wrap_err(format!("Could not find table: {table}"))?;
+
+                    let page_size = stats.page_size() as usize;
+                    let leaf_pages = stats.leaf_pages();
+                    let branch_pages = stats.branch_pages();
+                    let overflow_pages = stats.overflow_pages();
+                    let num_pages = leaf_pages + branch_pages + overflow_pages;
+                    let table_size = page_size * num_pages;
+                    let entries = stats.entries();
+
+                    metrics.push((
+                        "op_proof_storage.table_size",
+                        table_size as f64,
+                        vec![Label::new("table", table)],
+                    ));
+                    metrics.push((
+                        "op_proof_storage.table_pages",
+                        leaf_pages as f64,
+                        vec![Label::new("table", table), Label::new("type", "leaf")],
+                    ));
+                    metrics.push((
+                        "op_proof_storage.table_pages",
+                        branch_pages as f64,
+                        vec![Label::new("table", table), Label::new("type", "branch")],
+                    ));
+                    metrics.push((
+                        "op_proof_storage.table_pages",
+                        overflow_pages as f64,
+                        vec![Label::new("table", table), Label::new("type", "overflow")],
+                    ));
+                    metrics.push((
+                        "op_proof_storage.table_entries",
+                        entries as f64,
+                        vec![Label::new("table", table)],
+                    ));
+                }
+
+                Ok::<(), eyre::Report>(())
+            })
+            .map_err(|error| error!(%error, "Failed to read db table stats"));
+
+        if let Ok(freelist) =
+            self.env.freelist().map_err(|error| error!(%error, "Failed to read db.freelist"))
+        {
+            metrics.push(("op_proof_storage.freelist", freelist as f64, vec![]));
+        }
+
+        if let Ok(stat) = self.env.stat().map_err(|error| error!(%error, "Failed to read db.stat"))
+        {
+            metrics.push(("op_proof_storage.page_size", stat.page_size() as f64, vec![]));
+        }
+
+        metrics.push((
+            "op_proof_storage.timed_out_not_aborted_transactions",
+            self.env.timed_out_not_aborted_transactions() as f64,
+            vec![],
+        ));
+
+        metrics
     }
 }
 
