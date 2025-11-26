@@ -121,15 +121,6 @@ where
 {
     type Block = alloy_consensus::Block<Tx>;
 
-    fn ensure_well_formed_payload(
-        &self,
-        payload: OpExecutionData,
-    ) -> Result<RecoveredBlock<Self::Block>, NewPayloadError> {
-        let sealed_block =
-            self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)?;
-        sealed_block.try_recover().map_err(|e| NewPayloadError::Other(e.into()))
-    }
-
     fn validate_block_post_execution_with_hashed_state(
         &self,
         state_updates: &HashedPostState,
@@ -158,6 +149,13 @@ where
         }
 
         Ok(())
+    }
+
+    fn convert_payload_to_block(
+        &self,
+        payload: OpExecutionData,
+    ) -> Result<SealedBlock<Self::Block>, NewPayloadError> {
+        self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)
     }
 }
 
