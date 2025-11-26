@@ -246,8 +246,17 @@ contract ForkLive is Deployer, StdAssertions, DisputeGames {
         // Always try to upgrade the SuperchainConfig. Not always necessary but easier to do it
         // every time rather than adding or removing this code for each upgrade.
         vm.prank(superchainPAO, true);
-        (bool success, bytes memory reason) =
-            address(_opcm).delegatecall(abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig)));
+        (bool success, bytes memory reason) = address(_opcm).delegatecall(
+            abi.encodeCall(
+                IOPContractsManagerV2.upgradeSuperchain,
+                (
+                    IOPContractsManagerV2.SuperchainUpgradeInput({
+                        superchainConfig: superchainConfig,
+                        extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+                    })
+                )
+            )
+        );
         if (success == false) {
             // Only acceptable revert reason is downgrade not allowed.
             assertTrue(
