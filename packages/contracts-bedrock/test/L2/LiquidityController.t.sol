@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Contracts
 import { LiquidityController } from "src/L2/LiquidityController.sol";
@@ -38,7 +38,7 @@ contract LiquidityController_TestInit is CommonTest {
     /// @notice Test setup.
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.CUSTOM_GAS_TOKEN);
+        skipIfSysFeatureDisabled(Features.CUSTOM_GAS_TOKEN);
     }
 
     /// @notice Helper function to authorize a minter.

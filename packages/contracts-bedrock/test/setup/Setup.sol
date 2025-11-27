@@ -23,6 +23,7 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -319,6 +320,14 @@ abstract contract Setup is FeatureFlags {
 
         // Update the SystemConfig address.
         setSystemConfig(systemConfig);
+
+        // Setup system features
+        vm.startPrank(proxyAdminOwner);
+        if (Config.sysFeatureCustomGasToken() && !sysCfg.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
+            console.log("Setup: SYS_FEATURE__CUSTOM_GAS_TOKEN is enabled");
+            sysCfg.setFeature(Features.CUSTOM_GAS_TOKEN, true);
+        }
+        vm.stopPrank();
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
