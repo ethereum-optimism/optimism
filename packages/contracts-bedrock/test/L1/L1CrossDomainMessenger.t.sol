@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { GasBurner } from "test/mocks/Callers.sol";
+import { GasBurner } from "test/mocks/GasBurner.sol";
 import { stdError } from "forge-std/StdError.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
