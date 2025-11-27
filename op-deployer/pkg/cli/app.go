@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgradev2"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -45,6 +46,11 @@ func NewApp(versionWithMeta string) *cli.App {
 			Usage:       "upgrades contracts by sending tx to OPCM.upgrade function",
 			Flags:       cliapp.ProtectFlags(deployer.UpgradeFlags),
 			Subcommands: upgrade.Commands,
+		},
+		{
+			Name:   "upgradev2",
+			Usage:  "upgrades contracts using the new upgrade system (will replace 'upgrade')",
+			Action: upgradev2.UpgradeV2CLI(),
 		},
 		{
 			Name:        "bootstrap",
