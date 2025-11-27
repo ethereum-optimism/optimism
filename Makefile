@@ -128,6 +128,10 @@ op-supernode: ## Builds op-supernode binary
 	just $(JUSTFLAGS) ./op-supernode/op-supernode
 .PHONY: op-supernode
 
+op-interop-filter: ## Builds op-interop-filter binary
+	just $(JUSTFLAGS) ./op-interop-filter/op-interop-filter
+.PHONY: op-interop-filter
+
 op-program: ## Builds op-program binary
 	make -C ./op-program op-program
 .PHONY: op-program
