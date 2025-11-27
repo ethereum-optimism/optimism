@@ -1,7 +1,7 @@
 package presets
 
 import (
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
-func WithRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
+func WithRespectedGameType(gameType gameTypes.GameType) stack.CommonOption {
 	opts := WithProposerGameType(gameType)
 	opts = stack.Combine(opts,
 		stack.MakeCommon(sysgo.WithRespectedGameType(gameType)), // Set if sysgo is in use
@@ -20,13 +20,13 @@ func WithRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
 	return opts
 }
 
-func WithAddedGameType(gameType faultTypes.GameType) stack.CommonOption {
+func WithAddedGameType(gameType gameTypes.GameType) stack.CommonOption {
 	opts := stack.Combine(
 		stack.MakeCommon(sysgo.WithGameTypeAdded(gameType)), // Add if sysgo is in use
 		RequireGameTypePresent(gameType),                    // Verify present for other chains
 	)
 
-	if gameType == faultTypes.CannonKonaGameType {
+	if gameType == gameTypes.CannonKonaGameType {
 		opts = stack.Combine(
 			opts,
 			WithCannonKonaFeatureEnabled(),
@@ -36,7 +36,7 @@ func WithAddedGameType(gameType faultTypes.GameType) stack.CommonOption {
 	return opts
 }
 
-func RequireGameTypePresent(gameType faultTypes.GameType) stack.CommonOption {
+func RequireGameTypePresent(gameType gameTypes.GameType) stack.CommonOption {
 	return stack.FnOption[stack.Orchestrator]{
 		PostHydrateFn: func(sys stack.System) {
 			elNode := sys.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)
@@ -53,7 +53,7 @@ func RequireGameTypePresent(gameType faultTypes.GameType) stack.CommonOption {
 	}
 }
 
-func RequireRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
+func RequireRespectedGameType(gameType gameTypes.GameType) stack.CommonOption {
 	return stack.FnOption[stack.Orchestrator]{
 		PostHydrateFn: func(sys stack.System) {
 
@@ -73,7 +73,7 @@ func RequireRespectedGameType(gameType faultTypes.GameType) stack.CommonOption {
 	}
 }
 
-func WithProposerGameType(gameType faultTypes.GameType) stack.CommonOption {
+func WithProposerGameType(gameType gameTypes.GameType) stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(
 			sysgo.WithProposerOption(func(id stack.L2ProposerID, cfg *ps.CLIConfig) {

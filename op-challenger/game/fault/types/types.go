@@ -11,6 +11,7 @@ import (
 
 	"slices"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,65 +24,6 @@ var (
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
 	ErrNotInSync          = errors.New("local node too far behind")
 )
-
-type GameType uint32
-
-const (
-	CannonGameType            GameType = 0
-	PermissionedGameType      GameType = 1
-	AsteriscGameType          GameType = 2
-	AsteriscKonaGameType      GameType = 3
-	SuperCannonGameType       GameType = 4
-	SuperPermissionedGameType GameType = 5
-	OPSuccinctGameType        GameType = 6
-	SuperAsteriscKonaGameType GameType = 7
-	CannonKonaGameType        GameType = 8
-	SuperCannonKonaGameType   GameType = 9
-	OptimisticZKGameType      GameType = 10
-	FastGameType              GameType = 254
-	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337
-	UnknownGameType           GameType = math.MaxUint32
-)
-
-func (t GameType) MarshalText() ([]byte, error) {
-	return []byte(t.String()), nil
-}
-
-func (t GameType) String() string {
-	switch t {
-	case CannonGameType:
-		return "cannon"
-	case PermissionedGameType:
-		return "permissioned"
-	case AsteriscGameType:
-		return "asterisc"
-	case AsteriscKonaGameType:
-		return "asterisc-kona"
-	case SuperCannonGameType:
-		return "super-cannon"
-	case SuperPermissionedGameType:
-		return "super-permissioned"
-	case OPSuccinctGameType:
-		return "op-succinct"
-	case SuperAsteriscKonaGameType:
-		return "super-asterisc-kona"
-	case CannonKonaGameType:
-		return "cannon-kona"
-	case SuperCannonKonaGameType:
-		return "super-cannon-kona"
-	case OptimisticZKGameType:
-		return "optimistic-zk"
-	case FastGameType:
-		return "fast"
-	case AlphabetGameType:
-		return "alphabet"
-	case KailuaGameType:
-		return "kailua"
-	default:
-		return fmt.Sprintf("<invalid: %d>", t)
-	}
-}
 
 type TraceType string
 
@@ -135,32 +77,32 @@ func ValidTraceType(value TraceType) bool {
 	return slices.Contains(TraceTypes, value)
 }
 
-func (t TraceType) GameType() GameType {
+func (t TraceType) GameType() gameTypes.GameType {
 	switch t {
 	case TraceTypeCannon:
-		return CannonGameType
+		return gameTypes.CannonGameType
 	case TraceTypeCannonKona:
-		return CannonKonaGameType
+		return gameTypes.CannonKonaGameType
 	case TraceTypePermissioned:
-		return PermissionedGameType
+		return gameTypes.PermissionedGameType
 	case TraceTypeAsterisc:
-		return AsteriscGameType
+		return gameTypes.AsteriscGameType
 	case TraceTypeAsteriscKona:
-		return AsteriscKonaGameType
+		return gameTypes.AsteriscKonaGameType
 	case TraceTypeFast:
-		return FastGameType
+		return gameTypes.FastGameType
 	case TraceTypeAlphabet:
-		return AlphabetGameType
+		return gameTypes.AlphabetGameType
 	case TraceTypeSuperCannon:
-		return SuperCannonGameType
+		return gameTypes.SuperCannonGameType
 	case TraceTypeSuperCannonKona:
-		return SuperCannonKonaGameType
+		return gameTypes.SuperCannonKonaGameType
 	case TraceTypeSuperPermissioned:
-		return SuperPermissionedGameType
+		return gameTypes.SuperPermissionedGameType
 	case TraceTypeSuperAsteriscKona:
-		return SuperAsteriscKonaGameType
+		return gameTypes.SuperAsteriscKonaGameType
 	default:
-		return UnknownGameType
+		return gameTypes.UnknownGameType
 	}
 }
 

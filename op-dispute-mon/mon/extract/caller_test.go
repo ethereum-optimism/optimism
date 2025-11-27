@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
@@ -29,47 +28,47 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 	}{
 		{
 			name: "validCannonGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.CannonGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.CannonGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validPermissionedGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.PermissionedGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.PermissionedGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validCannonKonaGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.CannonKonaGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.CannonKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validAsteriscGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.AsteriscGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.AsteriscGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validAlphabetGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.AlphabetGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.AlphabetGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validFastGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.FastGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.FastGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validAsteriscKonaGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.AsteriscKonaGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.AsteriscKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperCannonGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.SuperCannonGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.SuperCannonGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperPermissionedGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.SuperPermissionedGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.SuperPermissionedGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperCannonKonaGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.SuperCannonKonaGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.SuperCannonKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name: "validSuperAsteriscKonaGameType",
-			game: types.GameMetadata{GameType: uint32(faultTypes.SuperAsteriscKonaGameType), Proxy: fdgAddr},
+			game: types.GameMetadata{GameType: uint32(types.SuperAsteriscKonaGameType), Proxy: fdgAddr},
 		},
 		{
 			name:        "InvalidGameType",
@@ -101,10 +100,10 @@ func TestMetadataCreator_CreateContract(t *testing.T) {
 
 func setupMetadataLoaderTest(t *testing.T, gameType uint32) (*batching.MultiCaller, *mockCacheMetrics) {
 	fdgAbi := snapshots.LoadFaultDisputeGameABI()
-	if gameType == uint32(faultTypes.SuperPermissionedGameType) ||
-		gameType == uint32(faultTypes.SuperCannonGameType) ||
-		gameType == uint32(faultTypes.SuperCannonKonaGameType) ||
-		gameType == uint32(faultTypes.SuperAsteriscKonaGameType) {
+	if gameType == uint32(types.SuperPermissionedGameType) ||
+		gameType == uint32(types.SuperCannonGameType) ||
+		gameType == uint32(types.SuperCannonKonaGameType) ||
+		gameType == uint32(types.SuperAsteriscKonaGameType) {
 		fdgAbi = snapshots.LoadSuperFaultDisputeGameABI()
 	}
 	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)

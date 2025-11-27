@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +66,7 @@ func TestKnownGameTypeForEveryTraceType(t *testing.T) {
 	for _, traceType := range TraceTypes {
 		traceType := traceType
 		t.Run(traceType.String(), func(t *testing.T) {
-			require.NotEqual(t, UnknownGameType, traceType.GameType())
+			require.NotEqual(t, gameTypes.UnknownGameType, traceType.GameType())
 		})
 	}
 }

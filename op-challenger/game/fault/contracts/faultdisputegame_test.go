@@ -14,7 +14,7 @@ import (
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -39,7 +39,7 @@ var (
 
 type contractVersion struct {
 	version  string
-	gameType faultTypes.GameType
+	gameType gameTypes.GameType
 	loadAbi  func() *abi.ABI
 }
 
@@ -52,7 +52,7 @@ func (c contractVersion) String() string {
 }
 
 func (c contractVersion) IsSuperGame() bool {
-	return c.gameType == faultTypes.SuperCannonGameType || c.gameType == faultTypes.SuperPermissionedGameType || c.gameType == faultTypes.SuperAsteriscKonaGameType
+	return c.gameType == gameTypes.SuperCannonGameType || c.gameType == gameTypes.SuperPermissionedGameType || c.gameType == gameTypes.SuperAsteriscKonaGameType
 }
 
 const (
@@ -68,47 +68,47 @@ const (
 var versions = []contractVersion{
 	{
 		version:  vers080,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi020)
 		},
 	},
 	{
 		version:  vers0180,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi0180)
 		},
 	},
 	{
 		version:  vers111,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi111)
 		},
 	},
 	{
 		version:  vers120,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi120)
 		},
 	},
 	{
 		version:  vers131,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi: func() *abi.ABI {
 			return mustParseAbi(faultDisputeGameAbi131)
 		},
 	},
 	{
 		version:  versLatest,
-		gameType: faultTypes.CannonGameType,
+		gameType: gameTypes.CannonGameType,
 		loadAbi:  snapshots.LoadFaultDisputeGameABI,
 	},
 	{
 		version:  verSuperCannon,
-		gameType: faultTypes.SuperCannonGameType,
+		gameType: gameTypes.SuperCannonGameType,
 		loadAbi:  snapshots.LoadSuperFaultDisputeGameABI,
 	},
 }
@@ -126,7 +126,7 @@ func TestSimpleGetters(t *testing.T) {
 		{
 			methodAlias: "status",
 			method:      methodStatus,
-			result:      types.GameStatusChallengerWon,
+			result:      gameTypes.GameStatusChallengerWon,
 			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.GetStatus(context.Background())
 			},
@@ -192,7 +192,7 @@ func TestSimpleGetters(t *testing.T) {
 		{
 			methodAlias: "resolve",
 			method:      methodResolve,
-			result:      types.GameStatusInProgress,
+			result:      gameTypes.GameStatusInProgress,
 			call: func(game FaultDisputeGameContract) (any, error) {
 				return game.CallResolve(context.Background())
 			},
@@ -581,7 +581,7 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedL2BlockNumber := uint64(123)
 			expectedMaxClockDuration := uint64(456)
 			expectedRootClaim := common.Hash{0x01, 0x02}
-			expectedStatus := types.GameStatusChallengerWon
+			expectedStatus := gameTypes.GameStatusChallengerWon
 			expectedL2BlockNumberChallenged := true
 			expectedL2BlockNumberChallenger := common.Address{0xee}
 			block := rpcblock.ByNumber(889)
@@ -625,7 +625,7 @@ func TestGetMetadata(t *testing.T) {
 			expectedL1Head := common.Hash{0x0a, 0x0b}
 			expectedL2BlockNumber := uint64(123)
 			expectedRootClaim := common.Hash{0x01, 0x02}
-			expectedStatus := types.GameStatusChallengerWon
+			expectedStatus := gameTypes.GameStatusChallengerWon
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
 			if version.IsSuperGame() {
@@ -705,7 +705,7 @@ func TestFaultDisputeGame_GetCredit(t *testing.T) {
 			stubRpc, game := setupFaultDisputeGameTest(t, version)
 			addr := common.Address{0x01}
 			expectedCredit := big.NewInt(4284)
-			expectedStatus := types.GameStatusChallengerWon
+			expectedStatus := gameTypes.GameStatusChallengerWon
 			stubRpc.SetResponse(fdgAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{expectedCredit})
 			stubRpc.SetResponse(fdgAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
 
