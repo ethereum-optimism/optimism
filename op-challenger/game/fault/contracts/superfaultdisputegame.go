@@ -83,7 +83,7 @@ func (f *SuperFaultDisputeGameContractLatest) GetMetadata(ctx context.Context, b
 		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
 	}
 	l1Head := results[0].GetHash(0)
-	l2BlockNumber := results[1].GetBigInt(0).Uint64()
+	l2SequenceNumber := results[1].GetBigInt(0).Uint64()
 	rootClaim := results[2].GetHash(0)
 	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
 	if err != nil {
@@ -91,7 +91,7 @@ func (f *SuperFaultDisputeGameContractLatest) GetMetadata(ctx context.Context, b
 	}
 	return GenericGameMetadata{
 		L1Head:        l1Head,
-		L2SequenceNum: l2BlockNumber,
+		L2SequenceNum: l2SequenceNumber,
 		ProposedRoot:  rootClaim,
 		Status:        status,
 	}, nil
