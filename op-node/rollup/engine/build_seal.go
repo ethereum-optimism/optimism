@@ -111,7 +111,9 @@ func (e *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 	e.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(e.rollupCfg.BlockTime)*time.Second)
 
 	txnCount := len(envelope.ExecutionPayload.Transactions)
-	depositCount, _ := lastDeposit(envelope.ExecutionPayload.Transactions)
+	lastDepositIdx, _ := lastDeposit(envelope.ExecutionPayload.Transactions)
+	// lastDeposit returns the index (0-based), so add 1 to get the count
+	depositCount := lastDepositIdx + 1
 	e.metrics.CountSequencedTxsInBlock(txnCount, depositCount)
 
 	e.log.Debug("Built new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
