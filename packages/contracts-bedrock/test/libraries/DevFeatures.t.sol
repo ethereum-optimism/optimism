@@ -95,4 +95,29 @@ contract DevFeatures_isDevFeatureEnabled_Test is Test {
     function test_isDevFeatureEnabled_allFeaturesAgainstEmpty_succeeds() public pure {
         assertFalse(DevFeatures.isDevFeatureEnabled(EMPTY_FEATURES, ALL_FEATURES));
     }
+
+    /// @notice Fuzz test: any non-zero feature should match itself exactly.
+    function testFuzz_isDevFeatureEnabled_featureMatchesSelf_succeeds(bytes32 _feature) public pure {
+        vm.assume(_feature != bytes32(0));
+        assertTrue(DevFeatures.isDevFeatureEnabled(_feature, _feature));
+    }
+
+    /// @notice Fuzz test: empty feature always returns false regardless of bitmap.
+    function testFuzz_isDevFeatureEnabled_emptyFeatureAlwaysFalse_succeeds(bytes32 _bitmap) public pure {
+        assertFalse(DevFeatures.isDevFeatureEnabled(_bitmap, EMPTY_FEATURES));
+    }
+
+    /// @notice Fuzz test: feature is found when bitmap is a superset containing the feature.
+    function testFuzz_isDevFeatureEnabled_featureInSuperset_succeeds(bytes32 _bitmap, bytes32 _feature) public pure {
+        vm.assume(_feature != bytes32(0));
+        bytes32 superset = _bitmap | _feature;
+        assertTrue(DevFeatures.isDevFeatureEnabled(superset, _feature));
+    }
+
+    /// @notice Fuzz test: feature not found when bitmap has none of the feature's bits.
+    function testFuzz_isDevFeatureEnabled_featureNotInDisjointBitmap_succeeds(bytes32 _feature) public pure {
+        vm.assume(_feature != bytes32(0));
+        bytes32 disjointBitmap = ~_feature;
+        assertFalse(DevFeatures.isDevFeatureEnabled(disjointBitmap, _feature));
+    }
 }
