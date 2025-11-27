@@ -1,0 +1,88 @@
+name: bake
+
+on:
+  pull_request:
+    paths:
+      - 'ops/docker/**'
+      - 'packages/contracts-bedrock/**'
+      - 'docker-bake.hcl'
+      - '.github/workflows/bake.yaml'
+      - 'ops/scripts/compute-git-versions.sh'
+  push:
+    tags:
+      - '*'
+
+jobs:
+  prep:
+    runs-on: ubuntu-24.04
+    outputs:
+      sanitised_ref_name: ${{ steps.sanitize.outputs.ref_name }}
+      versions: ${{ steps.compute_versions.outputs.versions }}
+      kona_version: ${{ steps.kona.outputs.version }}
+    steps:
+      - name: harden-runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v4
+        with:
+          fetch-depth: 0  # Need full history for git tag operations
+      - name: Sanitize ref_name
+        id: sanitize
+        run: echo "ref_name=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9.]/-/g')" >> $GITHUB_OUTPUT
+      - name: Read KONA_VERSION from kona/version.json
+        id: kona
+        run: |
+          KONA_VERSION=$(jq -r .version kona/version.json)
+          echo "version=$KONA_VERSION" >> $GITHUB_OUTPUT
+          echo "KONA_VERSION: $KONA_VERSION"
+      - name: Compute GIT_VERSION for all images
+        id: compute_versions
+        run: |
+          VERSIONS=$(GIT_COMMIT="${{ github.sha }}" make compute-git-versions)
+          echo "versions=$VERSIONS" >> $GITHUB_OUTPUT
+          echo "Computed versions: $VERSIONS"
+
+  build:
+    needs: prep
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - op-node
+          - op-batcher
+          - op-deployer
+          - op-faucet
+          - op-program
+          - op-proposer
+          - op-challenger
+          - op-dispute-mon
+          - op-conductor
+          - da-server
+          - op-supervisor
+          - op-supernode
+          - op-test-sequencer
+          - cannon
+          - op-dripper
+          - op-interop-mon
+    uses: ethereum-optimism/factory/.github/workflows/docker-bake.yaml@35765f06fe9e78ffc4b00aff0adb3fca948959f3
+    with:
+      image_name: ${{ matrix.image_name }}
+      bake_file: docker-bake.hcl
+      target: ${{ matrix.image_name }}
+      tag: ${{ needs.prep.outputs.sanitised_ref_name }}
+      gcp_project_id: ${{ vars.GCP_PROJECT_ID_OPLABS_TOOLS_ARTIFACTS }}
+      gcp_registry: us-docker.pkg.dev/oplabs-tools-artifacts/oss
+      env: |
+        GIT_VERSION=${{ fromJson(needs.prep.outputs.versions)[matrix.image_name] }}
+        KONA_VERSION=${{ needs.prep.outputs.kona_version }}
+      set: |
+        *.args.GIT_COMMIT=${{ github.sha }}
+        *.args.GIT_DATE=${{ github.event.head_commit.timestamp }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+
