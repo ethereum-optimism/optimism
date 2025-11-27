@@ -33,8 +33,9 @@
 # Contracts
 # We require a minimum of 2 reviewers for all changes to the contracts-bedrock
 # directory unless only markdown files are being changed.
-/packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers #[min:2]
-/packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**                            @ethereum-optimism/contract-reviewers #[min:2]
+/packages/contracts-bedrock/**/*.md                       @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/snapshots/abi_loader*.go      @ethereum-optimism/go-reviewers
 
 # Security docs
 /docs @ethereum-optimism/evm-safety
