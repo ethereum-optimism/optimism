@@ -536,7 +536,7 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, block rpcblock.Block, cla
 		})
 }
 
-func TestGetBlockRange(t *testing.T) {
+func TestGetGameRange(t *testing.T) {
 	for _, version := range versions {
 		version := version
 		t.Run(version.String(), func(t *testing.T) {
@@ -601,7 +601,7 @@ func TestGetGameMetadata(t *testing.T) {
 			} else {
 				t.Skip("Can't have challenged L2 block number on this contract version")
 			}
-			actual, err := contract.GetGameMetadata(context.Background(), block)
+			actual, err := contract.GetExtendedMetadata(context.Background(), block)
 			expected := GameMetadata{
 				L1Head:                  expectedL1Head,
 				L2SequenceNum:           expectedL2BlockNumber,
@@ -610,6 +610,37 @@ func TestGetGameMetadata(t *testing.T) {
 				MaxClockDuration:        expectedMaxClockDuration,
 				L2BlockNumberChallenged: expectedL2BlockNumberChallenged,
 				L2BlockNumberChallenger: expectedL2BlockNumberChallenger,
+			}
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestGetMetadata(t *testing.T) {
+	for _, version := range versions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupFaultDisputeGameTest(t, version)
+			expectedL1Head := common.Hash{0x0a, 0x0b}
+			expectedL2BlockNumber := uint64(123)
+			expectedRootClaim := common.Hash{0x01, 0x02}
+			expectedStatus := types.GameStatusChallengerWon
+			block := rpcblock.ByNumber(889)
+			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
+			if version.IsSuperGame() {
+				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+			} else {
+				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+			}
+			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
+			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
+			actual, err := contract.GetMetadata(context.Background(), block)
+			expected := GenericGameMetadata{
+				L1Head:        expectedL1Head,
+				L2SequenceNum: expectedL2BlockNumber,
+				ProposedRoot:  expectedRootClaim,
+				Status:        expectedStatus,
 			}
 			require.NoError(t, err)
 			require.Equal(t, expected, actual)
