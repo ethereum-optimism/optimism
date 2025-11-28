@@ -1,6 +1,7 @@
 package enum
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -10,6 +11,17 @@ func EnumString[T ~string](values []T) string {
 	var out strings.Builder
 	for i, v := range values {
 		out.WriteString(string(v))
+		if i+1 < len(values) {
+			out.WriteString(", ")
+		}
+	}
+	return out.String()
+}
+
+func EnumStringer[T fmt.Stringer](values []T) string {
+	var out strings.Builder
+	for i, v := range values {
+		out.WriteString(v.String())
 		if i+1 < len(values) {
 			out.WriteString(", ")
 		}

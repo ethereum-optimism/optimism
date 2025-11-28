@@ -228,17 +228,17 @@ func TestGetGameFromParameters(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			traceType := uint32(123)
+			gameType := uint32(123)
 			outputRoot := common.Hash{0x01}
 			l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 			stubRpc.SetResponse(
 				factoryAddr,
 				methodGames,
 				rpcblock.Latest,
-				[]interface{}{traceType, outputRoot, l2BlockNum},
+				[]interface{}{gameType, outputRoot, l2BlockNum},
 				[]interface{}{common.Address{0xaa}, uint64(1)},
 			)
-			addr, err := factory.GetGameFromParameters(context.Background(), traceType, outputRoot, uint64(456))
+			addr, err := factory.GetGameFromParameters(context.Background(), gameType, outputRoot, uint64(456))
 			require.NoError(t, err)
 			require.Equal(t, common.Address{0xaa}, addr)
 		})
@@ -444,13 +444,13 @@ func TestCreateTx(t *testing.T) {
 	for _, version := range factoryVersions {
 		t.Run(version.String(), func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t, version)
-			traceType := uint32(123)
+			gameType := uint32(123)
 			outputRoot := common.Hash{0x01}
 			l2BlockNum := common.BigToHash(big.NewInt(456)).Bytes()
 			bond := big.NewInt(49284294829)
-			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{traceType}, []interface{}{bond})
-			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{traceType, outputRoot, l2BlockNum}, nil)
-			tx, err := factory.CreateTx(context.Background(), traceType, outputRoot, uint64(456))
+			stubRpc.SetResponse(factoryAddr, methodInitBonds, rpcblock.Latest, []interface{}{gameType}, []interface{}{bond})
+			stubRpc.SetResponse(factoryAddr, methodCreateGame, rpcblock.Latest, []interface{}{gameType, outputRoot, l2BlockNum}, nil)
+			tx, err := factory.CreateTx(context.Background(), gameType, outputRoot, uint64(456))
 			require.NoError(t, err)
 			stubRpc.VerifyTxCandidate(tx)
 			require.NotNil(t, tx.Value)

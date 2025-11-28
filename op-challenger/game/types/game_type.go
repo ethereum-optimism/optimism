@@ -1,9 +1,12 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"math"
 )
+
+var ErrUnknownGameType = errors.New("unknown game type")
 
 type GameType uint32
 
@@ -14,23 +17,63 @@ const (
 	AsteriscKonaGameType      GameType = 3
 	SuperCannonGameType       GameType = 4
 	SuperPermissionedGameType GameType = 5
-	OPSuccinctGameType        GameType = 6
+	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
 	SuperAsteriscKonaGameType GameType = 7
 	CannonKonaGameType        GameType = 8
 	SuperCannonKonaGameType   GameType = 9
-	OptimisticZKGameType      GameType = 10
+	OptimisticZKGameType      GameType = 10 // Not (yet) supported by op-challenger
 	FastGameType              GameType = 254
 	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337
-	UnknownGameType           GameType = math.MaxUint32
+	KailuaGameType            GameType = 1337           // Not supported by op-challenger
+	UnknownGameType           GameType = math.MaxUint32 // Not supported by op-challenger
 )
 
-func (t GameType) MarshalText() ([]byte, error) {
-	return []byte(t.String()), nil
+// SupportedGameTypes is the list of game types that are supported by op-challenger.
+// Game type codes may be reserved that are not supported by op-challenger.
+var SupportedGameTypes = []GameType{
+	AlphabetGameType,
+	CannonGameType,
+	CannonKonaGameType,
+	PermissionedGameType,
+	AsteriscGameType,
+	AsteriscKonaGameType,
+	FastGameType,
+	SuperCannonGameType,
+	SuperCannonKonaGameType,
+	SuperPermissionedGameType,
+	SuperAsteriscKonaGameType,
 }
 
-func (t GameType) String() string {
-	switch t {
+// Set implements the Set method required by the [cli.Generic] interface.
+func (g *GameType) Set(value string) error {
+	gameType, err := SupportedGameTypeFromString(value)
+	if err != nil {
+		return err
+	}
+	*g = gameType
+	return nil
+}
+
+func SupportedGameTypeFromString(s string) (GameType, error) {
+	for _, candidate := range SupportedGameTypes {
+		if candidate.String() == s {
+			return candidate, nil
+		}
+	}
+	return UnknownGameType, fmt.Errorf("%w: %q", ErrUnknownGameType, s)
+}
+
+func (t *GameType) Clone() any {
+	cpy := *t
+	return &cpy
+}
+
+func (g GameType) MarshalText() ([]byte, error) {
+	return []byte(g.String()), nil
+}
+
+func (g GameType) String() string {
+	switch g {
 	case CannonGameType:
 		return "cannon"
 	case PermissionedGameType:
@@ -60,6 +103,6 @@ func (t GameType) String() string {
 	case KailuaGameType:
 		return "kailua"
 	default:
-		return fmt.Sprintf("<invalid: %d>", t)
+		return fmt.Sprintf("<invalid: %d>", g)
 	}
 }

@@ -4,14 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math"
 	"math/big"
 	"time"
 
-	"slices"
-
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,87 +20,6 @@ var (
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
 	ErrNotInSync          = errors.New("local node too far behind")
 )
-
-type TraceType string
-
-const (
-	TraceTypeAlphabet          TraceType = "alphabet"
-	TraceTypeFast              TraceType = "fast"
-	TraceTypeCannon            TraceType = "cannon"
-	TraceTypeCannonKona        TraceType = "cannon-kona"
-	TraceTypeAsterisc          TraceType = "asterisc"
-	TraceTypeAsteriscKona      TraceType = "asterisc-kona"
-	TraceTypePermissioned      TraceType = "permissioned"
-	TraceTypeSuperCannon       TraceType = "super-cannon"
-	TraceTypeSuperCannonKona   TraceType = "super-cannon-kona"
-	TraceTypeSuperPermissioned TraceType = "super-permissioned"
-	TraceTypeSuperAsteriscKona TraceType = "super-asterisc-kona"
-)
-
-var TraceTypes = []TraceType{
-	TraceTypeAlphabet,
-	TraceTypeCannon,
-	TraceTypeCannonKona,
-	TraceTypePermissioned,
-	TraceTypeAsterisc,
-	TraceTypeAsteriscKona,
-	TraceTypeFast,
-	TraceTypeSuperCannon,
-	TraceTypeSuperCannonKona,
-	TraceTypeSuperPermissioned,
-	TraceTypeSuperAsteriscKona,
-}
-
-func (t TraceType) String() string {
-	return string(t)
-}
-
-// Set implements the Set method required by the [cli.Generic] interface.
-func (t *TraceType) Set(value string) error {
-	if !ValidTraceType(TraceType(value)) {
-		return fmt.Errorf("unknown trace type: %q", value)
-	}
-	*t = TraceType(value)
-	return nil
-}
-
-func (t *TraceType) Clone() any {
-	cpy := *t
-	return &cpy
-}
-
-func ValidTraceType(value TraceType) bool {
-	return slices.Contains(TraceTypes, value)
-}
-
-func (t TraceType) GameType() gameTypes.GameType {
-	switch t {
-	case TraceTypeCannon:
-		return gameTypes.CannonGameType
-	case TraceTypeCannonKona:
-		return gameTypes.CannonKonaGameType
-	case TraceTypePermissioned:
-		return gameTypes.PermissionedGameType
-	case TraceTypeAsterisc:
-		return gameTypes.AsteriscGameType
-	case TraceTypeAsteriscKona:
-		return gameTypes.AsteriscKonaGameType
-	case TraceTypeFast:
-		return gameTypes.FastGameType
-	case TraceTypeAlphabet:
-		return gameTypes.AlphabetGameType
-	case TraceTypeSuperCannon:
-		return gameTypes.SuperCannonGameType
-	case TraceTypeSuperCannonKona:
-		return gameTypes.SuperCannonKonaGameType
-	case TraceTypeSuperPermissioned:
-		return gameTypes.SuperPermissionedGameType
-	case TraceTypeSuperAsteriscKona:
-		return gameTypes.SuperAsteriscKonaGameType
-	default:
-		return gameTypes.UnknownGameType
-	}
-}
 
 type ClockReader interface {
 	Now() time.Time

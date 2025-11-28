@@ -35,7 +35,7 @@ Run the `op-challenger` with:
 ```shell
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
 ./op-challenger/bin/op-challenger \
-  --trace-type cannon \
+  --game-types cannon \
   --l1-eth-rpc http://localhost:8545 \
   --rollup-rpc http://localhost:9546 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
@@ -99,8 +99,7 @@ in the L2 output oracle.
 * `L2_BLOCK_NUM` the L2 block number the proposed output root is from.
 * `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
-Optionally, you may specify the game type (aka "trace type") using the `--trace-type`
-flag, which is set to the cannon trace type by default.
+Optionally, you may override the game types to support using the `--game-types` flag.
 
 For known networks, the `--game-factory-address` option can be replaced by `--network`. See the `--help` output for a
 list of predefined networks.
@@ -226,10 +225,10 @@ configured with multiple different prestates. This allows testing both the curre
 the fault proofs virtual machine used by the trace provider.
 
 The same CLI options as `op-challenger` itself are supported to configure the trace providers. The additional `--run`
-option allows specifying which prestates to use. The format is `traceType/name/prestateHash` where traceType is the
-trace type to use with the prestate (e.g cannon or asterisc-kona), name is an arbitrary name for the prestate to use
+option allows specifying which prestates to use. The format is `gameType/name/prestateHash` where gameType is the
+game type to use with the prestate (e.g cannon or asterisc-kona), name is an arbitrary name for the prestate to use
 when reporting metrics and prestateHash is the hex encoded absolute prestate commitment to use. If name is omitted the
-trace type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
+game type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
 
 For example to run both the production cannon prestate and a custom
 prestate, use `--run cannon,cannon/next-prestate/0x03c1f0d45248190f80430a4c31e24f8108f05f80ff8b16ecb82d20df6b1b43f3`.
