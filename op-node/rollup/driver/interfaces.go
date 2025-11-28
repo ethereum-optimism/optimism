@@ -53,16 +53,6 @@ type L2Chain interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 }
 
-type L2FollowSource interface {
-	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
-	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
-}
-
-type FollowTracker interface {
-	L2FollowSource
-	L1SourceForL2FollowTracker
-}
-
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context, pendingSafeHead eth.L2BlockRef) (*derive.AttributesWithParent, error)
