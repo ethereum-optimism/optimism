@@ -470,27 +470,27 @@ func (s *Driver) followSource() {
 		// Do not interfere with initial EL Sync and wait until it is done
 		return
 	}
-	// Verify that the L1 origin of the current safe L2 head is still canonical.
-	// We do not check the unsafe head because we only reorged while reading the L1 at derivation pipeline, preserving the behavior
-	localSafe := s.SyncDeriver.Engine.SafeL2Head()
-	if localSafe.Number != 0 {
-		s.log.Debug("Follow Source: Checking L1 origin of safe L2 head",
-			"safeL2Head", localSafe,
-			"l1Origin", localSafe.L1Origin,
+	// Verify that the L1 origin of the current unsafe L2 head is still canonical.
+	// Note: Originally the reset was triggered while L1 reorg was detected at derivation pipeline(CurrentL1)
+	localUnsafe := s.SyncDeriver.Engine.UnsafeL2Head()
+	if localUnsafe.Number != 0 {
+		s.log.Debug("Follow Source: Checking L1 origin of unsafe head",
+			"unsafe", localUnsafe,
+			"l1Origin", localUnsafe.L1Origin,
 		)
-		l1Ref, err := s.followTracker.L1BlockRefByNumber(s.driverCtx, localSafe.L1Origin.Number)
+		l1Ref, err := s.followTracker.L1BlockRefByNumber(s.driverCtx, localUnsafe.L1Origin.Number)
 		if errors.Is(err, ethereum.NotFound) {
-			s.log.Warn("Follow Source: Reset: L1 origin of safe L2 head not found (L1 reorg)")
+			s.log.Warn("Follow Source: Reset: L1 origin of unsafe head not found (L1 reorg)")
 			s.emitter.Emit(s.driverCtx, rollup.ResetEvent{
 				Err: errors.New("follow Source: L1 reorg detected: origin block not found"),
 			})
 			return
 		} else if err != nil {
-			s.log.Warn("Follow Source: Failed to look up L1 origin of safe L2 head", "err", err)
+			s.log.Warn("Follow Source: Failed to look up L1 origin of unsafe head", "err", err)
 			return
-		} else if l1Ref.Hash != localSafe.L1Origin.Hash {
-			s.log.Warn("Follow Source: Reset: L1 origin hash mismatch for safe L2 head (L1 reorg)",
-				"expectedOriginHash", localSafe.L1Origin.Hash,
+		} else if l1Ref.Hash != localUnsafe.L1Origin.Hash {
+			s.log.Warn("Follow Source: Reset: L1 origin hash mismatch for unsafe head (L1 reorg)",
+				"expectedOriginHash", localUnsafe.L1Origin.Hash,
 				"actualOriginHash", l1Ref.Hash,
 				"remoteL1Ref", l1Ref,
 			)
