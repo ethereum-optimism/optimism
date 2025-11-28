@@ -2,7 +2,7 @@ use crate::PendingFlashBlock;
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag};
 use alloy_primitives::B256;
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
-use reth_chain_state::ExecutedBlock;
+use reth_chain_state::{ComputedTrieData, ExecutedBlock};
 use reth_errors::RethError;
 use reth_evm::{
     execute::{BlockBuilder, BlockBuilderOutcome},
@@ -121,12 +121,14 @@ where
 
         let pending_block = PendingBlock::with_executed_block(
             Instant::now() + Duration::from_secs(1),
-            ExecutedBlock {
-                recovered_block: block.into(),
-                execution_output: Arc::new(execution_outcome),
-                hashed_state: Arc::new(hashed_state.into_sorted()),
-                trie_updates: Arc::default(),
-            },
+            ExecutedBlock::new(
+                block.into(),
+                Arc::new(execution_outcome),
+                ComputedTrieData::without_trie_input(
+                    Arc::new(hashed_state.into_sorted()),
+                    Arc::default(),
+                ),
+            ),
         );
         let pending_flashblock = PendingFlashBlock::new(
             pending_block,
