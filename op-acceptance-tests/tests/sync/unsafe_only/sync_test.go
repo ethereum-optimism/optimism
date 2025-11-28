@@ -22,7 +22,7 @@ func TestUnsafeOnly_ReorgRecovery(gt *testing.T) {
 	logger := t.Logger()
 	ctx := t.Ctx()
 
-	// L2CLB is the verifier without follow source, derivation enabled
+	// L2CLC is the verifier without follow source, derivation enabled
 
 	ts := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 	cl := sys.L1Network.Escape().L1CLNode(match.FirstL1CL)
