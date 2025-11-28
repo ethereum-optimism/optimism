@@ -108,7 +108,7 @@ where
                             if let Some(flashblock) = flashblock.flatten() {
                                 // if flashblocks are supported, attempt to find id from the pending block
                                 if let Some(receipt) = flashblock
-                                .find_and_convert_transaction_receipt(hash, this.tx_resp_builder())
+                                .find_and_convert_transaction_receipt(hash, this.converter())
                                 {
                                     return receipt;
                                 }
@@ -164,7 +164,7 @@ where
                 // if flashblocks are supported, attempt to find id from the pending block
                 if let Ok(Some(pending_block)) = this.pending_flashblock().await &&
                     let Some(Ok(receipt)) = pending_block
-                        .find_and_convert_transaction_receipt(hash, this.tx_resp_builder())
+                        .find_and_convert_transaction_receipt(hash, this.converter())
                 {
                     return Ok(Some(receipt));
                 }

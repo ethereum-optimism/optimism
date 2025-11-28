@@ -194,8 +194,8 @@ where
     type NetworkTypes = Rpc::Network;
     type RpcConvert = Rpc;
 
-    fn tx_resp_builder(&self) -> &Self::RpcConvert {
-        self.inner.eth_api.tx_resp_builder()
+    fn converter(&self) -> &Self::RpcConvert {
+        self.inner.eth_api.converter()
     }
 }
 
