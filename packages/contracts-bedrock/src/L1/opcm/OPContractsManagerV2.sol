@@ -121,6 +121,8 @@ contract OPContractsManagerV2 is ISemver {
         IResourceMetering.ResourceConfig resourceConfig;
         // Dispute game configuration.
         DisputeGameConfig[] disputeGameConfigs;
+        // Feature flags.
+        bool useCustomGasToken;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -598,7 +600,16 @@ contract OPContractsManagerV2 is ISemver {
                 ),
                 (GameType)
             ),
-            disputeGameConfigs: _upgradeInput.disputeGameConfigs
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs,
+            useCustomGasToken: abi.decode(
+                _loadBytes(
+                    address(_chainContracts.systemConfig),
+                    _chainContracts.systemConfig.isCustomGasToken.selector,
+                    "overrides.cfg.useCustomGasToken",
+                    _upgradeInput.extraInstructions
+                ),
+                (bool)
+            )
         });
     }
 
@@ -802,6 +813,11 @@ contract OPContractsManagerV2 is ISemver {
             );
         }
 
+        // If the custom gas token feature was requested, enable it in the SystemConfig.
+        if (_cfg.useCustomGasToken) {
+            _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
+        }
+
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
         // ProxyAdmin to the PAO. During deployments, this means transferring ownership from the
         // OPCM contract to the target PAO. During upgrades, this would theoretically mean
@@ -855,7 +871,7 @@ contract OPContractsManagerV2 is ISemver {
                 _cfg.gasLimit,
                 _cfg.unsafeBlockSigner,
                 _cfg.resourceConfig,
-                _chainIdToBatchInboxAddress(_cfg.l2ChainId),
+                chainIdToBatchInboxAddress(_cfg.l2ChainId),
                 addrs,
                 _cfg.l2ChainId,
                 _cfg.superchainConfig
@@ -945,10 +961,6 @@ contract OPContractsManagerV2 is ISemver {
         return contractsContainer.isDevFeatureEnabled(_feature);
     }
 
-    ///////////////////////////////////////////////////////////////////////////
-    //                       INTERNAL UTILITY FUNCTIONS                      //
-    ///////////////////////////////////////////////////////////////////////////
-
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
     ///         configuration's convention. This convention is
     ///         `versionByte || keccak256(bytes32(chainId))[:19]`, where || denotes concatenation,
@@ -956,12 +968,16 @@ contract OPContractsManagerV2 is ISemver {
     ///         https://specs.optimism.io/protocol/configurability.html#consensus-parameters
     /// @param _l2ChainId The L2 chain ID to map to an L1 batch inbox address.
     /// @return Chain ID mapped to an L1 batch inbox address.
-    function _chainIdToBatchInboxAddress(uint256 _l2ChainId) internal pure returns (address) {
+    function chainIdToBatchInboxAddress(uint256 _l2ChainId) public pure returns (address) {
         bytes1 versionByte = 0x00;
         bytes32 hashedChainId = keccak256(bytes.concat(bytes32(_l2ChainId)));
         bytes19 first19Bytes = bytes19(hashedChainId);
         return address(uint160(bytes20(bytes.concat(versionByte, first19Bytes))));
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    //                       INTERNAL UTILITY FUNCTIONS                      //
+    ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Computes a unique salt for a contract deployment.
     /// @param _l2ChainId The L2 chain ID of the chain being deployed to.

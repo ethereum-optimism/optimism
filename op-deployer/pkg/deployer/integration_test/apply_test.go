@@ -361,6 +361,8 @@ func TestEndToEndApply(t *testing.T) {
 		require.True(t, exists, "Native asset liquidity predeploy should exist in L2 genesis")
 		require.Equal(t, amount, account.Balance, "Native asset liquidity predeploy should have the configured balance")
 	})
+
+	// TODO: Add tests for OPCMV2
 }
 
 func TestGlobalOverrides(t *testing.T) {

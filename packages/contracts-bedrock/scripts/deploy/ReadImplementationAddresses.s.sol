@@ -60,6 +60,7 @@ contract ReadImplementationAddresses is Script {
         output_.l1StandardBridge = IStaticL1ChugSplashProxy(_input.l1StandardBridgeProxy).getImplementation();
 
         // Get implementations from OPCM
+        // TODO: Adapt to OPCMV2 interface when feature enabled
         IOPContractsManager opcm = IOPContractsManager(_input.opcm);
         output_.opcmGameTypeAdder = address(opcm.opcmGameTypeAdder());
         output_.opcmDeployer = address(opcm.opcmDeployer());
