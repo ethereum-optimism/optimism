@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func TestFollowSourceReorgRecovery(gt *testing.T) {
+func TestFollowSource_ReorgRecovery(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	require := t.Require()
@@ -86,7 +86,7 @@ func TestFollowSourceReorgRecovery(gt *testing.T) {
 	)
 }
 
-func TestFollowSourceSafeAndFinalized(gt *testing.T) {
+func TestFollowSource_SafeAndFinalized(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	logger := t.Logger()
@@ -120,7 +120,7 @@ func TestFollowSourceSafeAndFinalized(gt *testing.T) {
 	logger.Info("Finalized head followed source", "target", target)
 }
 
-func TestFollowSourceWithoutCLP2P(gt *testing.T) {
+func TestFollowSource_WithoutCLP2P(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainTwoVerifiersWithoutCheck(t)
 	require := t.Require()
