@@ -35,8 +35,8 @@ func NewSuperFaultDisputeGameContract(ctx context.Context, metrics metrics.Contr
 }
 
 // GetGameMetadata returns the game's L1 head, L2 block number, root claim, status, max clock duration, and is l2 block number challenged.
-func (f *SuperFaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
-	defer f.metrics.StartContractRequest("GetGameMetadata")()
+func (f *SuperFaultDisputeGameContractLatest) GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error) {
+	defer f.metrics.StartContractRequest("GetExtendedMetadata")()
 	results, err := f.multiCaller.Call(ctx, block,
 		f.contract.Call(methodL1Head),
 		f.contract.Call(methodL2SequenceNumber),
@@ -64,6 +64,36 @@ func (f *SuperFaultDisputeGameContractLatest) GetGameMetadata(ctx context.Contex
 		RootClaim:        rootClaim,
 		Status:           status,
 		MaxClockDuration: duration,
+	}, nil
+}
+
+// GetMetadata returns the basic game metadata
+func (f *SuperFaultDisputeGameContractLatest) GetMetadata(ctx context.Context, block rpcblock.Block) (GenericGameMetadata, error) {
+	defer f.metrics.StartContractRequest("GetMetadata")()
+	results, err := f.multiCaller.Call(ctx, block,
+		f.contract.Call(methodL1Head),
+		f.contract.Call(methodL2SequenceNumber),
+		f.contract.Call(methodRootClaim),
+		f.contract.Call(methodStatus),
+	)
+	if err != nil {
+		return GenericGameMetadata{}, fmt.Errorf("failed to retrieve game metadata: %w", err)
+	}
+	if len(results) != 4 {
+		return GenericGameMetadata{}, fmt.Errorf("expected 4 results but got %v", len(results))
+	}
+	l1Head := results[0].GetHash(0)
+	l2SequenceNumber := results[1].GetBigInt(0).Uint64()
+	rootClaim := results[2].GetHash(0)
+	status, err := gameTypes.GameStatusFromUint8(results[3].GetUint8(0))
+	if err != nil {
+		return GenericGameMetadata{}, fmt.Errorf("failed to convert game status: %w", err)
+	}
+	return GenericGameMetadata{
+		L1Head:        l1Head,
+		L2SequenceNum: l2SequenceNumber,
+		ProposedRoot:  rootClaim,
+		Status:        status,
 	}, nil
 }
 
