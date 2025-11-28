@@ -10,8 +10,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IFeeSplitter } from "interfaces/L2/IFeeSplitter.sol";
 import { IL1Withdrawer } from "interfaces/L2/IL1Withdrawer.sol";
 import { ISuperchainRevSharesCalculator } from "interfaces/L2/ISuperchainRevSharesCalculator.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
-import { Features } from "src/libraries/Features.sol";
 
 /// @notice A struct to keep track of the state when a disburse call fails
 struct DisburseFailureState {

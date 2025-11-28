@@ -16,7 +16,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
-import { Features } from "src/libraries/Features.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { console } from "forge-std/console.sol";
 

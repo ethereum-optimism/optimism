@@ -244,66 +244,46 @@ commands:
             echo "Resolved TARGET_BRANCH=$TARGET_BRANCH"
             echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
 
-  setup-dev-features:
-    description: "Set up dev feature environment variables from comma-separated list"
+  setup-features:
+    description: "Set up dev and system feature environment variables. Features are auto-classified based on system_features registry."
     parameters:
-      dev_features:
-        description: "Comma-separated list of dev features to enable"
+      features:
+        description: "Comma-separated list of features (can mix dev and system features, e.g., 'OPTIMISM_PORTAL_INTEROP,CUSTOM_GAS_TOKEN')"
         type: string
         default: ""
-    steps:
-      - run:
-          name: Set dev feature environment variables
-          command: |
-            # Set dev feature environment variables if provided
-            if [ -n "<<parameters.dev_features>>" ]; then
-              DEV_FEATURES_STRING="<<parameters.dev_features>>"
-
-              # Check if this is just "main" (baseline with no dev features)
-              if [ "$(echo "$DEV_FEATURES_STRING" | tr '[:upper:]' '[:lower:]')" = "main" ]; then
-                echo "Running with baseline configuration (no dev features enabled)"
-              else
-                echo "Enabling dev features: <<parameters.dev_features>>"
-                IFS=','
-                for feature in $DEV_FEATURES_STRING; do
-                  feature=$(echo "$feature" | xargs)  # trim whitespace
-                  if [ -n "$feature" ] && [ "$(echo "$feature" | tr '[:upper:]' '[:lower:]')" != "main" ]; then
-                    env_var="DEV_FEATURE__${feature}"
-                    echo "Setting ${env_var}=true"
-                    echo "export ${env_var}=true" >> $BASH_ENV
-                  fi
-                done
-                unset IFS
-              fi
-            fi
-
-  setup-system-features:
-    description: "Set up system feature environment variables from comma-separated list"
-    parameters:
       system_features:
-        description: "Comma-separated list of system features to enable"
+        description: "Registry of system features (others treated as dev features)"
         type: string
-        default: ""
+        default: "CUSTOM_GAS_TOKEN"
     steps:
       - run:
-          name: Set system feature environment variables
+          name: Set feature environment variables
           command: |
-            # Set system feature environment variables if provided
-            if [ -n "<<parameters.system_features>>" ]; then
-              SYSTEM_FEATURES_STRING="<<parameters.system_features>>"
+            # Define which features are system features (registry)
+            SYSTEM_FEATURES="<<parameters.system_features>>"
 
-              # Check if this is just "main" (baseline with no system features)
-              if [ "$(echo "$SYSTEM_FEATURES_STRING" | tr '[:upper:]' '[:lower:]')" = "main" ]; then
-                echo "Running with baseline configuration (no system features enabled)"
+            if [ -n "<<parameters.features>>" ]; then
+              FEATURES_STRING="<<parameters.features>>"
+
+              # Check if this is just "main" (baseline with no features)
+              if [ "$(echo "$FEATURES_STRING" | tr '[:upper:]' '[:lower:]')" = "main" ]; then
+                echo "Running with baseline configuration (no features enabled)"
               else
-                echo "Enabling system features: <<parameters.system_features>>"
+                echo "Processing features: <<parameters.features>>"
                 IFS=','
-                for feature in $SYSTEM_FEATURES_STRING; do
+                for feature in $FEATURES_STRING; do
                   feature=$(echo "$feature" | xargs)  # trim whitespace
                   if [ -n "$feature" ] && [ "$(echo "$feature" | tr '[:upper:]' '[:lower:]')" != "main" ]; then
-                    env_var="SYS_FEATURE__${feature}"
-                    echo "Setting ${env_var}=true"
-                    echo "export ${env_var}=true" >> $BASH_ENV
+                    # Check if this feature is in the system features registry
+                    if echo "$SYSTEM_FEATURES" | grep -qw "$feature"; then
+                      env_var="SYS_FEATURE__${feature}"
+                      echo "Setting ${env_var}=true (system feature)"
+                      echo "export ${env_var}=true" >> $BASH_ENV
+                    else
+                      env_var="DEV_FEATURE__${feature}"
+                      echo "Setting ${env_var}=true (dev feature)"
+                      echo "export ${env_var}=true" >> $BASH_ENV
+                    fi
                   fi
                 done
                 unset IFS
@@ -945,12 +925,8 @@ jobs:
         description: List of changed files to run tests on
         type: string
         default: contracts-bedrock
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
-        type: string
-        default: ""
-      system_features:
-        description: Comma-separated list of system features to enable (e.g., "CUSTOM_GAS_TOKEN")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     steps:
@@ -985,10 +961,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - go-save-cache:
           namespace: packages/contracts-bedrock/scripts/go-ffi
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
-      - setup-system-features:
-          system_features: <<parameters.system_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Run tests
           command: |
@@ -1124,12 +1098,8 @@ jobs:
         description: Profile to use for testing
         type: string
         default: ci
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
-        type: string
-        default: ""
-      system_features:
-        description: Comma-separated list of system features to enable (e.g., "CUSTOM_GAS_TOKEN")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     steps:
@@ -1165,10 +1135,8 @@ jobs:
       - restore_cache:
           name: Restore forked state
           key: forked-state-contracts-bedrock-tests-upgrade-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
-      - setup-system-features:
-          system_features: <<parameters.system_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Build go-ffi
           command: just build-go-ffi
@@ -1222,12 +1190,8 @@ jobs:
       fork_base_rpc:
         description: Fork Base RPC
         type: string
-      dev_features:
-        description: Comma-separated list of dev features to enable (e.g., "OPTIMISM_PORTAL_INTEROP,ANOTHER_FEATURE")
-        type: string
-        default: ""
-      system_features:
-        description: Comma-separated list of system features to enable (e.g., "CUSTOM_GAS_TOKEN")
+      features:
+        description: Comma-separated list of features to enable (e.g., "OPTIMISM_PORTAL_INTEROP", "CUSTOM_GAS_TOKEN")
         type: string
         default: ""
     docker:
@@ -1262,10 +1226,8 @@ jobs:
       - restore_cache:
           name: Restore forked state
           key: forked-state-contracts-bedrock-tests-upgrade-<<parameters.fork_op_chain>>-<<parameters.fork_base_chain>>-{{ checksum "packages/contracts-bedrock/pinnedBlockNumber.txt" }}
-      - setup-dev-features:
-          dev_features: <<parameters.dev_features>>
-      - setup-system-features:
-          system_features: <<parameters.system_features>>
+      - setup-features:
+          features: <<parameters.features>>
       - run:
           name: Run tests
           command: just test-upgrade
@@ -2585,59 +2547,51 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.dev_features>> <<matrix.system_features>>
+          name: contracts-bedrock-tests-heavy-fuzz-modified <<matrix.features>>
           test_list: git diff origin/develop...HEAD --name-only --diff-filter=AM -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_profile: ciheavy
-          dev_features: <<matrix.dev_features>>
-          system_features: <<matrix.system_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: &dev_features_matrix
+              features: &features_matrix
                 - main
                 - OPTIMISM_PORTAL_INTEROP
                 - CANNON_KONA,DEPLOY_V2_DISPUTE_GAMES
                 - OPCM_V2
-              system_features: &system_features_matrix
                 - CUSTOM_GAS_TOKEN
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests:
-          name: contracts-bedrock-tests <<matrix.dev_features>> <<matrix.system_features>>
+          name: contracts-bedrock-tests <<matrix.features>>
           test_list: find test -name "*.t.sol"
-          dev_features: <<matrix.dev_features>>
-          system_features: <<matrix.system_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
-              system_features: *system_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
           check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-coverage:
           # Generate coverage reports.
-          name: contracts-bedrock-coverage <<matrix.dev_features>> <<matrix.system_features>>
+          name: contracts-bedrock-coverage <<matrix.features>>
           test_timeout: 1h
           test_profile: cicoverage
-          dev_features: <<matrix.dev_features>>
-          system_features: <<matrix.system_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
-              system_features: *system_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.dev_features>> <<matrix.system_features>>
+          name: contracts-bedrock-tests-upgrade op-mainnet <<matrix.features>>
           fork_op_chain: op
           fork_base_chain: mainnet
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
-          dev_features: <<matrix.dev_features>>
-          system_features: <<matrix.system_features>>
+          features: <<matrix.features>>
           matrix:
             parameters:
-              dev_features: *dev_features_matrix
-              system_features: *system_features_matrix
+              features: *features_matrix
           context:
             - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-tests-upgrade:
