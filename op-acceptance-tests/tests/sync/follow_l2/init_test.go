@@ -1,4 +1,4 @@
-package follow_source
+package follow_l2
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSingleChainTwoVerifiersFollowSource(),
+	presets.DoMain(m, presets.WithSingleChainTwoVerifiersFollowL2(),
 		presets.WithReqRespSyncDisabled(),
 		presets.WithNoDiscovery(),
 		presets.WithCompatibleTypes(compat.SysGo),

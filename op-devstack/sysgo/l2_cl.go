@@ -129,13 +129,13 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 	}
 }
 
-func WithL2CLNodeFollowSource(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithL2CLNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_L2CL_KIND") {
 	case "kona":
-		panic("kona does not support follow source")
+		panic("kona does not support following")
 	case "supernode":
-		panic("supernode does not support follow source")
+		panic("supernode does not support following")
 	default:
-		return WithOpNodeFollowSource(l2CLID, l1CLID, l1ELID, l2ELID, l2ELFollowSourceID, opts...)
+		return WithOpNodeFollowL2(l2CLID, l1CLID, l1ELID, l2ELID, l2ELFollowSourceID, opts...)
 	}
 }

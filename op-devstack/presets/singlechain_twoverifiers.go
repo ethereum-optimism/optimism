@@ -48,6 +48,6 @@ func NewSingleChainTwoVerifiersWithoutCheck(t devtest.T) *SingleChainTwoVerifier
 	return preset
 }
 
-func WithSingleChainTwoVerifiersFollowSource() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSingleChainTwoVerifiersFollowSourceSystem(&sysgo.DefaultSingleChainTwoVerifiersSystemIDs{}))
+func WithSingleChainTwoVerifiersFollowL2() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSingleChainTwoVerifiersFollowL2System(&sysgo.DefaultSingleChainTwoVerifiersSystemIDs{}))
 }
