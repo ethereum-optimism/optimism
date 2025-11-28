@@ -47,7 +47,7 @@ func DefaultSingleChainTwoVerifiersSystem(dest *DefaultSingleChainTwoVerifiersSy
 	return opt
 }
 
-func DefaultSingleChainTwoVerifiersFollowSourceSystem(dest *DefaultSingleChainTwoVerifiersSystemIDs) stack.Option[*Orchestrator] {
+func DefaultSingleChainTwoVerifiersFollowL2System(dest *DefaultSingleChainTwoVerifiersSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultSingleChainTwoVerifiersSystemIDs(DefaultL1ID, DefaultL2AID)
 
 	opt := stack.Combine[*Orchestrator]()
@@ -73,10 +73,10 @@ func DefaultSingleChainTwoVerifiersFollowSourceSystem(dest *DefaultSingleChainTw
 	opt.Add(WithL2CLNode(ids.L2CLB, ids.L1CL, ids.L1EL, ids.L2ELB, L2CLVerifierDisableUnsafeOnly()))
 
 	opt.Add(WithL2ELNode(ids.L2EL))
-	opt.Add(WithL2CLNodeFollowSource(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, ids.L2ELB, L2CLSequencer()))
+	opt.Add(WithL2CLNodeFollowL2(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, ids.L2ELB, L2CLSequencer()))
 
 	opt.Add(WithL2ELNode(ids.L2ELC))
-	opt.Add(WithL2CLNodeFollowSource(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2ELB))
+	opt.Add(WithL2CLNodeFollowL2(ids.L2CLC, ids.L1CL, ids.L1EL, ids.L2ELC, ids.L2ELB))
 
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))
 	opt.Add(WithL2ELP2PConnection(ids.L2EL, ids.L2ELB))

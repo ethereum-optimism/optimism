@@ -162,7 +162,7 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNodeFollowSource(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNodeFollowL2(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID, l2ELFollowSourceID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		followSource := func(orch *Orchestrator) string {
 			p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
