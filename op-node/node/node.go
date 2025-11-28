@@ -605,11 +605,12 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		return nil, nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	var followTracker driver.FollowTracker
-	if node.l2FollowSource != nil {
-		followTracker = driver.NewELFollowTracker(node.l2FollowSource, node.l1Source)
+	var followUpstreamSource driver.FollowUpstreamSource
+	if node.cfg.Sync.UnsafeOnly {
+		followUpstreamSource = driver.NewL2ELFollowSource(node.l2FollowSource, node.l1Source)
 	}
-	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, followTracker,
+
+	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, followUpstreamSource,
 		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
 	// Wire up IndexingMode to engine controller for direct procedure call
