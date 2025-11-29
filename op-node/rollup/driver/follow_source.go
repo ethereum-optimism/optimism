@@ -18,7 +18,6 @@ type L1FollowSource interface {
 // L2FollowSource provides access to L2 block references for upstream following.
 type L2FollowSource interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
-	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 }
 
 // FollowUpstreamSource combines L1 and L2 follow sources.
@@ -52,13 +51,6 @@ func (fs *L2ELFollowSource) L2BlockRefByLabel(ctx context.Context, label eth.Blo
 		return eth.L2BlockRef{}, errL2FollowSourceNotEnabled
 	}
 	return fs.l2Source.L2BlockRefByLabel(ctx, label)
-}
-
-func (fs *L2ELFollowSource) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	if fs.l2Source == nil {
-		return eth.L2BlockRef{}, errL2FollowSourceNotEnabled
-	}
-	return fs.l2Source.L2BlockRefByNumber(ctx, num)
 }
 
 func (fs *L2ELFollowSource) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
