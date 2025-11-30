@@ -51,11 +51,11 @@ type RegisterTask struct {
 		poststateBlock uint64) (*trace.Accessor, error)
 }
 
-func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
+func NewSuperCannonRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator SyncValidator) *RegisterTask {
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.Cannon, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState)
 }
 
-func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
+func NewSuperCannonKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator SyncValidator) *RegisterTask {
 	return newSuperCannonVMRegisterTaskWithConfig(gameType, cfg, m, serverExecutor, rootProvider, syncValidator, cfg.CannonKona, cfg.CannonKonaAbsolutePreStateBaseURL, cfg.CannonKonaAbsolutePreState)
 }
 
@@ -230,7 +230,7 @@ func NewAsteriscKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config
 	}
 }
 
-func NewSuperAsteriscKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator *super.SyncValidator) *RegisterTask {
+func NewSuperAsteriscKonaRegisterTask(gameType gameTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, rootProvider super.RootProvider, syncValidator SyncValidator) *RegisterTask {
 	stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
 	return &RegisterTask{
 		gameType:               gameType,

@@ -18,7 +18,6 @@ import (
 var (
 	ErrGameDepthReached   = errors.New("game depth reached")
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
-	ErrNotInSync          = errors.New("local node too far behind")
 )
 
 type ClockReader interface {

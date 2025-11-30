@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/client"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
@@ -183,7 +184,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		g.logger.Trace("Skipping completed game")
 		return g.status
 	}
-	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, types.ErrNotInSync) {
+	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, client.ErrNotInSync) {
 		g.logger.Warn("Local node not sufficiently up to date", "err", err)
 		return g.status
 	} else if err != nil {
