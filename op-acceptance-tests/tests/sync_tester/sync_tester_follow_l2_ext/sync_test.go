@@ -39,7 +39,7 @@ func TestSyncTesterFollowL2ReachTips(gt *testing.T) {
 	require.Equal(initialELSyncTarget.BlockRef, sys.L2EL.UnsafeHead().BlockRef)
 	require.Equal(initialELSyncTarget.BlockRef, sys.L2EL.SafeHead().BlockRef)
 	require.Equal(initialELSyncTarget.BlockRef, sys.L2EL.FinalizedHead().BlockRef)
-	logger.Info("Initial EL Sync done", "target", initialELSyncTarget)
+	logger.Info("Initial EL Sync done", "target", initialELSyncTarget.BlockRef)
 
 	// After initial EL sync is done, follow l2 starts to mirror external safe and finalized
 
