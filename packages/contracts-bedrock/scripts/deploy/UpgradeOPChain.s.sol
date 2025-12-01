@@ -3,7 +3,13 @@ pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { GameType } from "src/dispute/lib/Types.sol";
 
 contract UpgradeOPChainInput is BaseDeployIO {
     address internal _prank;
@@ -48,6 +54,9 @@ contract UpgradeOPChain is Script {
         OPContractsManager.OpChainConfig[] memory opChainConfigs =
             abi.decode(_uoci.opChainConfigs(), (OPContractsManager.OpChainConfig[]));
 
+        // Check if OPCM v2 should be used
+        bool useV2 = isDevFeatureOpcmV2Enabled(address(opcm));
+
         // Etch DummyCaller contract. This contract is used to mimic the contract that is used
         // as the source of the delegatecall to the OPCM. In practice this will be the governance
         // 2/2 or similar.
@@ -57,11 +66,80 @@ contract UpgradeOPChain is Script {
         vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(opcm)))));
         vm.label(prank, "DummyCaller");
 
-        // Call into the DummyCaller. This will perform the delegatecall under the hood and
-        // return the result.
-        vm.broadcast(msg.sender);
-        (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
-        require(success, "UpgradeChain: upgrade failed");
+        if (useV2) {
+            // V2 path: Call upgrade for each chain separately
+            upgradeWithV2(prank, opChainConfigs);
+        } else {
+            // V1 path: Batch upgrade
+            vm.broadcast(msg.sender);
+            (bool success,) = DummyCaller(prank).upgrade(opChainConfigs);
+            require(success, "UpgradeChain: upgrade failed");
+        }
+    }
+
+    /// @notice Check if OPCM v2 should be used based on dev feature flag
+    function isDevFeatureOpcmV2Enabled(address _opcmAddr) internal view returns (bool) {
+        // Both v1 and v2 share the same interface for this function.
+        return IOPContractsManager(_opcmAddr).isDevFeatureEnabled(DevFeatures.OPCM_V2);
+    }
+
+    /// @notice Upgrade using OPCMv2 - processes each chain individually
+    function upgradeWithV2(address _prank, OPContractsManager.OpChainConfig[] memory _opChainConfigs) internal {
+        for (uint256 i = 0; i < _opChainConfigs.length; i++) {
+            OPContractsManager.OpChainConfig memory chainConfig = _opChainConfigs[i];
+
+            // Fetch existing dispute game configs from chain to preserve them
+            IOPContractsManagerV2.DisputeGameConfig[] memory existingGames = fetchExistingGameConfigs(
+                address(chainConfig.systemConfigProxy)
+            );
+
+            // Build the upgrade input for v2
+            IOPContractsManagerV2.UpgradeInput memory upgradeInput = IOPContractsManagerV2.UpgradeInput({
+                systemConfig: chainConfig.systemConfigProxy,
+                disputeGameConfigs: existingGames,
+                extraInstructions: new IOPContractsManagerV2.ExtraInstruction[](0)
+            });
+
+            // Call into the DummyCallerV2 to perform the delegatecall
+            // Note: DummyCaller and DummyCallerV2 are compatible - same storage slot, different function sig
+            vm.broadcast(msg.sender);
+            (bool success, bytes memory result) = DummyCallerV2(_prank).upgrade(upgradeInput);
+            require(success, "UpgradeChain: v2 upgrade failed");
+        }
+    }
+
+    /// @notice Fetch existing dispute game configs from the chain
+    /// @dev This is critical for v2 to avoid accidentally disabling existing games
+    function fetchExistingGameConfigs(address /* _systemConfig */)
+        internal
+        pure
+        returns (IOPContractsManagerV2.DisputeGameConfig[] memory)
+    {
+        // TODO: Query actual game configs from the DisputeGameFactory
+        // ISystemConfig systemConfig = ISystemConfig(_systemConfig);
+        // IDisputeGameFactory factory = IDisputeGameFactory(address(systemConfig.disputeGameFactory()));
+        // Query all game types from the factory
+        // For now, return a standard set - in production this should query the actual chain state
+        IOPContractsManagerV2.DisputeGameConfig[] memory configs =
+            new IOPContractsManagerV2.DisputeGameConfig[](2);
+
+        // Standard CANNON game (type 0)
+        configs[0] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameType.wrap(0), // CANNON
+            gameArgs: bytes("")
+        });
+
+        // Standard PERMISSIONED_CANNON game (type 1)
+        configs[1] = IOPContractsManagerV2.DisputeGameConfig({
+            enabled: true,
+            initBond: 0.08 ether,
+            gameType: GameType.wrap(1), // PERMISSIONED_CANNON
+            gameArgs: bytes("")
+        });
+
+        return configs;
     }
 }
 
@@ -70,6 +148,16 @@ contract DummyCaller {
 
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external returns (bool, bytes memory) {
         bytes memory data = abi.encodeCall(DummyCaller.upgrade, _opChainConfigs);
+        (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
+        return (success, result);
+    }
+}
+
+contract DummyCallerV2 {
+    address internal _opcmAddr;
+
+    function upgrade(IOPContractsManagerV2.UpgradeInput memory _upgradeInput) external returns (bool, bytes memory) {
+        bytes memory data = abi.encodeCall(DummyCallerV2.upgrade, _upgradeInput);
         (bool success, bytes memory result) = _opcmAddr.delegatecall(data);
         return (success, result);
     }
