@@ -10,6 +10,9 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 // Interfaces
 import { ISaferSafes } from "interfaces/safe/ISaferSafes.sol";
 
+// Libraries
+import { SemverComp } from "src/libraries/SemverComp.sol";
+
 /// @title DeploySaferSafes
 /// @notice Deploys the SaferSafes singleton contract using CREATE2 with the default salt.
 contract DeploySaferSafes is Script {
@@ -39,8 +42,9 @@ contract DeploySaferSafes is Script {
     /// @notice Validates the deployment output.
     function assertValidOutput(Output memory _output) public view {
         DeployUtils.assertValidContractAddress(address(_output.saferSafesSingleton));
+
         require(
-            keccak256(bytes(_output.saferSafesSingleton.version())) == keccak256(bytes("1.10.1")),
+            SemverComp.eq(_output.saferSafesSingleton.version(), "1.10.1"),
             "DeploySaferSafes: unexpected version"
         );
     }
