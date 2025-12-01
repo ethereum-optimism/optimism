@@ -1263,6 +1263,7 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           checkout-method: blobless
+      - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
       - get-target-branch
