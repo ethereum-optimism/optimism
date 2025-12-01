@@ -257,22 +257,46 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///////////////////////////////////////////////////////////////////////////
 
     /// @notice Asserts that the upgrade instructions array is valid.
+    /// @dev Developers don't need to touch this function, modify _isPermittedInstruction instead.
     /// @param _extraInstructions The extra upgrade instructions for the chain.
     function _assertValidUpgradeInstructions(IOPContractsManagerUtils.ExtraInstruction[] memory _extraInstructions)
         internal
         pure
     {
         for (uint256 i = 0; i < _extraInstructions.length; i++) {
-            if (
-                LibString.eq(_extraInstructions[i].key, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)
-                    && LibString.eq(string(_extraInstructions[i].data), "DelayedWETH")
-            ) {
-                // Unified DelayedWETH is being deployed for the first time.
-                // TODO:(#?????): Remove this allowance after unified DelayedWETH is deployed.
-            } else {
+            if (!_isPermittedInstruction(_extraInstructions[i])) {
                 revert OPContractsManagerV2_InvalidUpgradeInstruction();
             }
         }
+    }
+
+    /// @notice Checks if an upgrade instruction is permitted.
+    /// @param _instruction The upgrade instruction to check.
+    /// @return True if the instruction is permitted, false otherwise.
+    function _isPermittedInstruction(IOPContractsManagerUtils.ExtraInstruction memory _instruction) internal pure returns (bool) {
+        // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
+        // your specific upgrade. For example, if you are adding a new contract that needs to be
+        // deployed you will need to add an allowance so that the proxy can be deployed.
+        // Allowances MUST always be restricted to one specific upgrade. Here we maintain this
+        // restriction by checking that the version is less than the NEXT release version. Once
+        // developers start working on the next release this will automatically become false so
+        // even if the code is somehow forgotten it will not actually apply to the deployment. Make
+        // sure to REMOVE the allowance once the upgrade is complete.
+        if (SemverComp.lt(version, "7.0.0")) {
+            if (
+                LibString.eq(_instruction.key, Constants.PERMITTED_PROXY_DEPLOYMENT_KEY)
+                    && LibString.eq(string(_instruction.data), "DelayedWETH")
+            ) {
+                // Unified DelayedWETH is being deployed for the first time.
+                // TODO:(#18382): Remove this allowance after unified DelayedWETH is deployed.
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        // Always return false by default.
+        return false;
     }
 
     /// @notice Loads (or builds) the chain contracts from whatever exists.
