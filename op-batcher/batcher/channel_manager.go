@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -524,6 +525,17 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 				discardedBlocks[i].EstimatedDABytes())
 		}
 		s.blockCursor = 0
+	}
+
+	if len(discardedBlocks) > 0 {
+		s.blocks = slices.Insert(s.blocks, s.blockCursor, ToSizedBlock(types.NewBlock(&types.Header{
+			Number: discardedBlocks[len(discardedBlocks)-1].Number(),
+			Time:   discardedBlocks[len(discardedBlocks)-1].Time(),
+		}, &types.Body{
+			Transactions: []*types.Transaction{},
+			Uncles:       []*types.Header{},
+			Withdrawals:  []*types.Withdrawal{},
+		}, []*types.Receipt{}, nil, s.rollupCfg)))
 	}
 }
 
