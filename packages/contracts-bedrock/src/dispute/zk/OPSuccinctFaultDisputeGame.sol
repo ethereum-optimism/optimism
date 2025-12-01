@@ -41,7 +41,7 @@ import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 // Contracts
-import { AccessManager } from "src/dispute/zk/AccessManager.sol";
+import { AccessManager_Zk } from "src/dispute/zk/AccessManager.sol";
 
 /// @title OPSuccinctFaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
@@ -143,11 +143,11 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
 
     /// @notice The access manager.
     // nosemgrep: sol-safety-no-immutable-variables
-    AccessManager internal immutable ACCESS_MANAGER;
+    AccessManager_Zk internal immutable ACCESS_MANAGER;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.0
-    string public constant version = "0.0.0";
+    /// @custom:semver 0.0.1
+    string public constant version = "0.0.1";
 
     /// @notice The starting timestamp of the game.
     Timestamp public createdAt;
@@ -199,7 +199,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
         bytes32 _rangeVkeyCommitment,
         uint256 _challengerBond,
         IAnchorStateRegistry _anchorStateRegistry,
-        AccessManager _accessManager
+        AccessManager_Zk _accessManager
     ) {
         // Set up initial game state.
         GAME_TYPE = GameType.wrap(OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE);
@@ -687,7 +687,7 @@ contract OPSuccinctFaultDisputeGame is Clone, ISemver, IDisputeGame {
     }
 
     /// @notice Returns the access manager contract.
-    function accessManager() external view returns (AccessManager accessManager_) {
+    function accessManager() external view returns (AccessManager_Zk accessManager_) {
         accessManager_ = ACCESS_MANAGER;
     }
 }
