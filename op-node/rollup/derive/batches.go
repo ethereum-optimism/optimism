@@ -316,11 +316,13 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	originIdx := 0
 	originAdvanced := startEpochNum == parentBlock.L1Origin.Number+1
 
+	var numSafeBlocks uint64
 	for i := 0; i < batch.GetBlockCount(); i++ {
 		blockTimestamp := batch.GetBlockTimestamp(i)
 		blockEpoch := batch.GetBlockEpochNum(i)
 
 		if blockTimestamp <= l2SafeHead.Time {
+			numSafeBlocks++
 			continue
 		}
 		if blockEpoch < l2SafeHead.L1Origin.Number {
@@ -395,7 +397,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	// Check overlapped blocks
 	if batch.GetTimestamp() < nextTimestamp {
-		for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
+		for i := uint64(0); i < numSafeBlocks; i++ {
 			safeBlockNum := parentNum + i + 1
 			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
 			if err != nil {
