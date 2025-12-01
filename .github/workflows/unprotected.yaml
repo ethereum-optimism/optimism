@@ -13,7 +13,7 @@ on:
 
 jobs:
   prep:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.compute_versions.outputs.versions }}
       kona_version: ${{ steps.kona.outputs.version }}
@@ -29,7 +29,7 @@ jobs:
         with:
           egress-policy: audit
       - name: Checkout
-        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v4
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e # v6
         with:
           fetch-depth: 0  # Need full history for git tag operations
       - name: Read KONA_VERSION from kona/version.json
