@@ -49,6 +49,7 @@ interface ITimelockGuard {
     error TimelockGuard_TransactionNotReady();
     error TimelockGuard_TransactionAlreadyExecuted();
     error TimelockGuard_InvalidVersion();
+    error SemverComp_InvalidSemverParts();
 
     event CancellationThresholdUpdated(ISafe indexed safe, uint256 oldThreshold, uint256 newThreshold);
     event GuardConfigured(ISafe indexed safe, uint256 timelockDelay);
@@ -58,8 +59,9 @@ interface ITimelockGuard {
     event Message(string message);
 
     function cancelTransaction(ISafe _safe, bytes32 _txHash, uint256 _nonce, bytes memory _signatures) external;
-    function signCancellation(bytes32 _txHash) external;
+    function signCancellation(bytes32) external;
     function cancellationThreshold(ISafe _safe) external view returns (uint256);
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
     function checkTransaction(
         address _to,
         uint256 _value,
@@ -70,11 +72,11 @@ interface ITimelockGuard {
         uint256 _gasPrice,
         address _gasToken,
         address payable _refundReceiver,
-        bytes memory _signatures,
+        bytes memory,
         address _msgSender
     )
         external;
-    function checkAfterExecution(bytes32, bool) external;
+    function checkAfterExecution(bytes32 _txHash, bool _success) external;
     function configureTimelockGuard(uint256 _timelockDelay) external;
     function clearTimelockGuard() external;
     function scheduledTransaction(
