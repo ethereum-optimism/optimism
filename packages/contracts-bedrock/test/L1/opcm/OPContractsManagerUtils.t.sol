@@ -24,7 +24,7 @@ import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 
 /// @title ImplV1_Harness
 /// @notice Implementation contract with version 1.0.0 for testing upgrades.
-contract ImplV1_Harness is ISemver {
+contract OPContractsManagerUtils_ImplV1_Harness is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
@@ -33,7 +33,7 @@ contract ImplV1_Harness is ISemver {
 
 /// @title ImplV1b_Harness
 /// @notice Another v1 implementation for testing same-version upgrades.
-contract ImplV1b_Harness is ISemver {
+contract OPContractsManagerUtils_ImplV1b_Harness is ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
@@ -42,7 +42,7 @@ contract ImplV1b_Harness is ISemver {
 
 /// @title ImplV2_Harness
 /// @notice Implementation contract with version 2.0.0 for testing upgrades.
-contract ImplV2_Harness is ISemver {
+contract OPContractsManagerUtils_ImplV2_Harness is ISemver {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
@@ -460,13 +460,13 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
     IProxy internal proxy;
 
     /// @notice v1 implementation for testing.
-    ImplV1_Harness internal implV1;
+    OPContractsManagerUtils_ImplV1_Harness internal implV1;
 
     /// @notice Another v1 implementation for same-version testing.
-    ImplV1b_Harness internal implV1b;
+    OPContractsManagerUtils_ImplV1b_Harness internal implV1b;
 
     /// @notice v2 implementation for testing.
-    ImplV2_Harness internal implV2;
+    OPContractsManagerUtils_ImplV2_Harness internal implV2;
 
     /// @notice Storage slot to reset during upgrade (slot 0 for OZ Initializable).
     bytes32 internal constant TEST_SLOT = bytes32(uint256(0));
@@ -498,9 +498,9 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
         proxyAdmin.setProxyType(address(proxy), IProxyAdmin.ProxyType.ERC1967);
 
         // Deploy versioned implementations.
-        implV1 = new ImplV1_Harness();
-        implV1b = new ImplV1b_Harness();
-        implV2 = new ImplV2_Harness();
+        implV1 = new OPContractsManagerUtils_ImplV1_Harness();
+        implV1b = new OPContractsManagerUtils_ImplV1b_Harness();
+        implV2 = new OPContractsManagerUtils_ImplV2_Harness();
     }
 
     /// @notice Tests that upgrade reverts when attempting a downgrade.
@@ -519,7 +519,7 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             proxyAdmin,
             address(proxy),
             address(implV1),
-            abi.encodeCall(ImplV1_Harness.initialize, ()),
+            abi.encodeCall(OPContractsManagerUtils_ImplV1_Harness.initialize, ()),
             TEST_SLOT,
             TEST_OFFSET
         );
@@ -536,7 +536,7 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             proxyAdmin,
             address(proxy),
             address(implV1b),
-            abi.encodeCall(ImplV1b_Harness.initialize, ()),
+            abi.encodeCall(OPContractsManagerUtils_ImplV1b_Harness.initialize, ()),
             TEST_SLOT,
             TEST_OFFSET
         );
@@ -556,7 +556,7 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             proxyAdmin,
             address(proxy),
             address(implV2),
-            abi.encodeCall(ImplV2_Harness.initialize, ()),
+            abi.encodeCall(OPContractsManagerUtils_ImplV2_Harness.initialize, ()),
             TEST_SLOT,
             TEST_OFFSET
         );
@@ -572,7 +572,7 @@ contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestIni
             proxyAdmin,
             address(proxy),
             address(implV1),
-            abi.encodeCall(ImplV1_Harness.initialize, ()),
+            abi.encodeCall(OPContractsManagerUtils_ImplV1_Harness.initialize, ()),
             TEST_SLOT,
             TEST_OFFSET
         );
