@@ -118,6 +118,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         DisputeGameConfig[] disputeGameConfigs;
         // CGT
         bool useCustomGasToken;
+        // CGT
+        bool useCustomGasToken;
     }
 
     /// @notice Partial input required for an upgrade.
@@ -610,15 +612,7 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
                 ),
                 (GameType)
             ),
-            useCustomGasToken: abi.decode(
-                _loadBytes(
-                    address(_chainContracts.systemConfig),
-                    _chainContracts.systemConfig.isCustomGasToken.selector,
-                    "overrides.cfg.useCustomGasToken",
-                    _upgradeInput.extraInstructions
-                ),
-                (bool)
-            )
+            disputeGameConfigs: _upgradeInput.disputeGameConfigs
         });
     }
 
@@ -820,20 +814,6 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
             _cts.disputeGameFactory.setInitBond(
                 _cfg.disputeGameConfigs[i].gameType, _cfg.disputeGameConfigs[i].initBond
             );
-        }
-
-        // If the custom gas token feature was requested, enable it in the SystemConfig.
-        // If the cgt is enabled, we skip this step.
-        if (_cfg.useCustomGasToken && !_cts.systemConfig.isCustomGasToken()) {
-            // NOTE: Enabling the custom gas token feature is only allowed during initial deployment to prevent
-            // chains from enabling it during upgrades. Passing in true for this flag during an upgrade is considered an
-            // error and will revert.
-            // Revert only if trying to upgrade from CGT disabled to CGT enabled.
-            if (!_isInitialDeployment) {
-                revert OPContractsManagerV2_CannotUpgradeToCustomGasToken();
-            }
-
-            _cts.systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, true);
         }
 
         // If critical transfer is allowed, tranfer ownership of the DisputeGameFactory and
