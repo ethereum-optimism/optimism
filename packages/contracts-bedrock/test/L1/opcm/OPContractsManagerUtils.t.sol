@@ -11,14 +11,43 @@ import { OPContractsManagerContainer } from "src/L1/opcm/OPContractsManagerConta
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
 import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
+
+/// @title ImplV1_Harness
+/// @notice Implementation contract with version 1.0.0 for testing upgrades.
+contract ImplV1_Harness is ISemver {
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
+    function initialize() external { }
+}
+
+/// @title ImplV1b_Harness
+/// @notice Another v1 implementation for testing same-version upgrades.
+contract ImplV1b_Harness is ISemver {
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
+    function initialize() external { }
+}
+
+/// @title ImplV2_Harness
+/// @notice Implementation contract with version 2.0.0 for testing upgrades.
+contract ImplV2_Harness is ISemver {
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
+    function initialize() external { }
+}
 
 /// @title OPContractsManagerUtils_TestInit
 /// @notice Shared setup for OPContractsManagerUtils tests.
@@ -28,9 +57,20 @@ contract OPContractsManagerUtils_TestInit is Test {
     OPContractsManagerContainer.Blueprints internal blueprints;
     OPContractsManagerContainer.Implementations internal implementations;
 
+    /// @notice Real StorageSetter used by utils.upgrade().
+    IStorageSetter internal storageSetter;
+
     function setUp() public virtual {
         // Etch code into the magic testing address so we're recognized as a test env.
         vm.etch(Constants.TESTING_ENVIRONMENT_ADDRESS, hex"01");
+
+        // Deploy real StorageSetter using DeployUtils.
+        storageSetter = IStorageSetter(
+            DeployUtils.create1({
+                _name: "StorageSetter",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IStorageSetter.__constructor__, ()))
+            })
+        );
 
         // Set up mock blueprints.
         blueprints = OPContractsManagerContainer.Blueprints({
@@ -45,7 +85,7 @@ contract OPContractsManagerUtils_TestInit is Test {
             permissionlessDisputeGame2: makeAddr("permissionlessDisputeGame2")
         });
 
-        // Set up mock implementations.
+        // Set up implementations - use real StorageSetter, mocks for the rest.
         implementations = OPContractsManagerContainer.Implementations({
             superchainConfigImpl: makeAddr("superchainConfigImpl"),
             protocolVersionsImpl: makeAddr("protocolVersionsImpl"),
@@ -65,7 +105,7 @@ contract OPContractsManagerUtils_TestInit is Test {
             permissionedDisputeGameV2Impl: makeAddr("permissionedDisputeGameV2Impl"),
             superFaultDisputeGameImpl: makeAddr("superFaultDisputeGameImpl"),
             superPermissionedDisputeGameImpl: makeAddr("superPermissionedDisputeGameImpl"),
-            storageSetterImpl: makeAddr("storageSetterImpl")
+            storageSetterImpl: address(storageSetter)
         });
 
         // Deploy the container and utils.
@@ -270,8 +310,7 @@ contract OPContractsManagerUtils_LoadBytes_Test is OPContractsManagerUtils_TestI
     /// @notice Tests that loadBytes returns override data when an override instruction exists.
     /// @param _overrideData Fuzzed override data to test with.
     function testFuzz_loadBytes_withOverride_succeeds(bytes calldata _overrideData) public view {
-        OPContractsManagerUtils.ExtraInstruction[] memory instructions =
-            _createInstructions("testField", _overrideData);
+        OPContractsManagerUtils.ExtraInstruction[] memory instructions = _createInstructions("testField", _overrideData);
 
         bytes memory result = utils.loadBytes(mockSource, MOCK_SELECTOR, "testField", instructions);
 
@@ -295,14 +334,17 @@ contract OPContractsManagerUtils_LoadBytes_Test is OPContractsManagerUtils_TestI
 /// @title OPContractsManagerUtils_LoadOrDeployProxy_Test
 /// @notice Tests the loadOrDeployProxy function.
 contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUtils_TestInit {
-    /// @notice Mock source contract for testing loadOrDeployProxy.
+    /// @notice Mock source contract for testing load behavior.
     address internal mockSource;
 
-    /// @notice Mock proxy admin for testing.
-    IProxyAdmin internal mockProxyAdmin;
+    /// @notice Real proxy admin for testing.
+    IProxyAdmin internal proxyAdmin;
 
-    /// @notice Mock address manager for testing.
-    IAddressManager internal mockAddressManager;
+    /// @notice Real address manager for testing.
+    IAddressManager internal addressManager;
+
+    /// @notice Owner for ProxyAdmin.
+    address internal owner;
 
     /// @notice Selector for the mock proxy getter.
     bytes4 internal constant MOCK_SELECTOR = bytes4(keccak256("getProxy()"));
@@ -312,13 +354,36 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
 
     function setUp() public override {
         super.setUp();
+
+        owner = makeAddr("owner");
         mockSource = makeAddr("mockSource");
-        mockProxyAdmin = IProxyAdmin(makeAddr("mockProxyAdmin"));
-        mockAddressManager = IAddressManager(makeAddr("mockAddressManager"));
+
+        // Deploy real ProxyAdmin.
+        proxyAdmin = IProxyAdmin(
+            DeployUtils.create1({
+                _name: "ProxyAdmin",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (owner)))
+            })
+        );
+
+        // Deploy real AddressManager.
+        addressManager = IAddressManager(
+            DeployUtils.create1({
+                _name: "AddressManager",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
+            })
+        );
+
+        // Transfer AddressManager ownership to ProxyAdmin.
+        addressManager.transferOwnership(address(proxyAdmin));
+
+        // Set AddressManager on ProxyAdmin.
+        vm.prank(owner);
+        proxyAdmin.setAddressManager(addressManager);
 
         deployArgs = OPContractsManagerUtils.ProxyDeployArgs({
-            proxyAdmin: mockProxyAdmin,
-            addressManager: mockAddressManager,
+            proxyAdmin: proxyAdmin,
+            addressManager: addressManager,
             l2ChainId: 42,
             saltMixer: "testMixer"
         });
@@ -360,31 +425,26 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
         utils.loadOrDeployProxy(mockSource, MOCK_SELECTOR, deployArgs, "TestProxy", _emptyInstructions());
     }
 
-    /// @notice Tests that specific contract permission allows deployment when load fails.
+    /// @notice Tests that specific contract permission bypasses ProxyMustLoad when load fails.
     function test_loadOrDeployProxy_specificPermission_succeeds() public {
-        // Mock the source to return address(0).
         vm.mockCall(mockSource, abi.encodePacked(MOCK_SELECTOR), abi.encode(address(0)));
 
-        // Create instruction permitting deployment of this specific contract.
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             _createInstructions(Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, bytes("TestProxy"));
 
-        // Should not revert - but will revert on blueprint deployment since blueprints are mocks.
-        // We verify the permission check passed by checking the error is from Blueprint, not ProxyMustLoad.
+        // Permission check passes (no ProxyMustLoad error), but Blueprint deploy fails since mocked.
         vm.expectRevert(Blueprint.NotABlueprint.selector);
         utils.loadOrDeployProxy(mockSource, MOCK_SELECTOR, deployArgs, "TestProxy", instructions);
     }
 
-    /// @notice Tests that ALL permission allows deployment when load fails.
+    /// @notice Tests that ALL permission bypasses ProxyMustLoad when load fails.
     function test_loadOrDeployProxy_allPermission_succeeds() public {
-        // Mock the source to return address(0).
         vm.mockCall(mockSource, abi.encodePacked(MOCK_SELECTOR), abi.encode(address(0)));
 
-        // Create instruction permitting deployment of all contracts.
         OPContractsManagerUtils.ExtraInstruction[] memory instructions =
             _createInstructions(Constants.PERMITTED_PROXY_DEPLOYMENT_KEY, Constants.PERMIT_ALL_CONTRACTS_INSTRUCTION);
 
-        // Should not revert with ProxyMustLoad - will fail on Blueprint since blueprints are mocks.
+        // Permission check passes (no ProxyMustLoad error), but Blueprint deploy fails since mocked.
         vm.expectRevert(Blueprint.NotABlueprint.selector);
         utils.loadOrDeployProxy(mockSource, MOCK_SELECTOR, deployArgs, "TestProxy", instructions);
     }
@@ -393,129 +453,132 @@ contract OPContractsManagerUtils_LoadOrDeployProxy_Test is OPContractsManagerUti
 /// @title OPContractsManagerUtils_Upgrade_Test
 /// @notice Tests the upgrade function.
 contract OPContractsManagerUtils_Upgrade_Test is OPContractsManagerUtils_TestInit {
-    /// @notice Mock proxy admin for testing.
-    address internal mockProxyAdmin;
+    /// @notice Real proxy admin for testing (owned by utils).
+    IProxyAdmin internal proxyAdmin;
 
-    /// @notice Mock target proxy for testing.
-    address internal mockTarget;
+    /// @notice Real proxy for testing.
+    IProxy internal proxy;
 
-    /// @notice Mock implementation for testing.
-    address internal mockImplementation;
+    /// @notice v1 implementation for testing.
+    ImplV1_Harness internal implV1;
 
-    /// @notice Test storage slot.
+    /// @notice Another v1 implementation for same-version testing.
+    ImplV1b_Harness internal implV1b;
+
+    /// @notice v2 implementation for testing.
+    ImplV2_Harness internal implV2;
+
+    /// @notice Storage slot to reset during upgrade (slot 0 for OZ Initializable).
     bytes32 internal constant TEST_SLOT = bytes32(uint256(0));
 
-    /// @notice Test offset.
+    /// @notice Byte offset within the slot for the initialized flag.
     uint8 internal constant TEST_OFFSET = 0;
 
     function setUp() public override {
         super.setUp();
-        mockProxyAdmin = makeAddr("mockProxyAdmin");
-        mockTarget = makeAddr("mockTarget");
-        mockImplementation = makeAddr("mockImplementation");
+
+        // Deploy real ProxyAdmin with utils as owner so utils.upgrade() can call proxyAdmin.
+        proxyAdmin = IProxyAdmin(
+            DeployUtils.create1({
+                _name: "ProxyAdmin",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (address(utils))))
+            })
+        );
+
+        // Deploy real Proxy with ProxyAdmin as admin.
+        proxy = IProxy(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(proxyAdmin))))
+            })
+        );
+
+        // Set proxy type on ProxyAdmin (utils is owner).
+        vm.prank(address(utils));
+        proxyAdmin.setProxyType(address(proxy), IProxyAdmin.ProxyType.ERC1967);
+
+        // Deploy versioned implementations.
+        implV1 = new ImplV1_Harness();
+        implV1b = new ImplV1b_Harness();
+        implV2 = new ImplV2_Harness();
     }
 
     /// @notice Tests that upgrade reverts when attempting a downgrade.
     function test_upgrade_downgradeNotAllowed_reverts() public {
-        // Mock the proxy admin to return the current implementation.
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (payable(mockTarget))),
-            abi.encode(mockImplementation)
-        );
+        // Set v2 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV2));
 
-        // Mock the target to return a newer version (simulating a downgrade attempt).
-        vm.mockCall(mockTarget, abi.encodeCall(ISemver.version, ()), abi.encode("2.0.0"));
-
-        // Mock the new implementation to return an older version.
-        vm.mockCall(mockImplementation, abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-
+        // Try to downgrade to v1 - should revert.
         vm.expectRevert(
             abi.encodeWithSelector(
-                IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector, mockTarget
+                IOPContractsManagerUtils.OPContractsManagerUtils_DowngradeNotAllowed.selector, address(proxy)
             )
         );
-        utils.upgrade(IProxyAdmin(mockProxyAdmin), mockTarget, mockImplementation, "", TEST_SLOT, TEST_OFFSET);
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV1),
+            abi.encodeCall(ImplV1_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
+        );
     }
 
     /// @notice Tests that upgrade allows upgrading to the same version.
     function test_upgrade_sameVersion_succeeds() public {
-        // Mock the proxy admin to return the current implementation.
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (payable(mockTarget))),
-            abi.encode(mockImplementation)
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade to the same version (different contract) should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV1b),
+            abi.encodeCall(ImplV1b_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
         );
 
-        // Both target and implementation return the same version.
-        vm.mockCall(mockTarget, abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        vm.mockCall(mockImplementation, abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-
-        // Mock the storage setter and proxy admin calls.
-        _mockUpgradeCalls();
-
-        // Should not revert.
-        utils.upgrade(IProxyAdmin(mockProxyAdmin), mockTarget, mockImplementation, "", TEST_SLOT, TEST_OFFSET);
+        // Verify the implementation changed.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV1b));
     }
 
     /// @notice Tests that upgrade succeeds when upgrading to a newer version.
     function test_upgrade_newerVersion_succeeds() public {
-        // Mock the proxy admin to return the current implementation.
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (payable(mockTarget))),
-            abi.encode(mockImplementation)
+        // Set v1 as current implementation.
+        vm.prank(address(utils));
+        proxyAdmin.upgrade(payable(address(proxy)), address(implV1));
+
+        // Upgrade to v2 should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV2),
+            abi.encodeCall(ImplV2_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
         );
 
-        // Target is older, implementation is newer.
-        vm.mockCall(mockTarget, abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        vm.mockCall(mockImplementation, abi.encodeCall(ISemver.version, ()), abi.encode("2.0.0"));
-
-        // Mock the storage setter and proxy admin calls.
-        _mockUpgradeCalls();
-
-        // Should not revert.
-        utils.upgrade(IProxyAdmin(mockProxyAdmin), mockTarget, mockImplementation, "", TEST_SLOT, TEST_OFFSET);
+        // Verify the implementation changed.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV2));
     }
 
     /// @notice Tests that upgrade succeeds when target has no implementation (fresh deploy).
     function test_upgrade_noExistingImplementation_succeeds() public {
-        // Mock the proxy admin to return address(0) (no existing implementation).
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (payable(mockTarget))),
-            abi.encode(address(0))
+        // Upgrade fresh proxy (no existing implementation) should succeed.
+        utils.upgrade(
+            proxyAdmin,
+            address(proxy),
+            address(implV1),
+            abi.encodeCall(ImplV1_Harness.initialize, ()),
+            TEST_SLOT,
+            TEST_OFFSET
         );
 
-        // Mock the storage setter and proxy admin calls.
-        _mockUpgradeCalls();
-
-        // Should not revert.
-        utils.upgrade(IProxyAdmin(mockProxyAdmin), mockTarget, mockImplementation, "", TEST_SLOT, TEST_OFFSET);
-    }
-
-    /// @notice Helper to mock the upgrade calls.
-    function _mockUpgradeCalls() internal {
-        // Mock upgrade to storage setter.
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.upgrade, (payable(mockTarget), implementations.storageSetterImpl)),
-            ""
-        );
-
-        // Mock getBytes32 on target (via StorageSetter).
-        vm.mockCall(mockTarget, abi.encodeCall(IStorageSetter.getBytes32, (TEST_SLOT)), abi.encode(bytes32(0)));
-
-        // Mock setBytes32 on target (via StorageSetter).
-        // Using abi.encodeWithSignature to disambiguate the overloaded function.
-        vm.mockCall(mockTarget, abi.encodeWithSignature("setBytes32(bytes32,bytes32)", TEST_SLOT, bytes32(0)), "");
-
-        // Mock upgradeAndCall.
-        vm.mockCall(
-            mockProxyAdmin,
-            abi.encodeCall(IProxyAdmin.upgradeAndCall, (payable(mockTarget), mockImplementation, "")),
-            ""
-        );
+        // Verify the implementation was set.
+        assertEq(proxyAdmin.getProxyImplementation(payable(address(proxy))), address(implV1));
     }
 }
 
