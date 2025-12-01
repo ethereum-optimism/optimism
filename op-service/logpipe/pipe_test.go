@@ -15,14 +15,14 @@ import (
 func TestWriteToLogProcessor(t *testing.T) {
 	logger, capt := testlog.CaptureLogger(t, log.LevelTrace)
 
-	logProc := LogProcessor(func(line []byte) {
+	proc := NewLineBuffer(func(line []byte) {
 		ToLogger(logger)(ParseRustStructuredLogs(line))
 	})
-	_, err := io.Copy(logProc, strings.NewReader(`{"level": "DEBUG", "fields": {"message": "hello", "foo": 1}}`+"\n"))
+	_, err := io.Copy(proc, strings.NewReader(`{"level": "DEBUG", "fields": {"message": "hello", "foo": 1}}`+"\n"))
 	require.NoError(t, err)
-	_, err = io.Copy(logProc, strings.NewReader(`test invalid JSON`+"\n"))
+	_, err = io.Copy(proc, strings.NewReader(`test invalid JSON`+"\n"))
 	require.NoError(t, err)
-	_, err = io.Copy(logProc, strings.NewReader(`{"fields": {"message": "world", "bar": "sunny"}, "level": "INFO"}`+"\n"))
+	_, err = io.Copy(proc, strings.NewReader(`{"fields": {"message": "world", "bar": "sunny"}, "level": "INFO"}`+"\n"))
 	require.NoError(t, err)
 
 	entry1 := capt.FindLog(

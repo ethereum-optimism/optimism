@@ -1,6 +1,9 @@
 package sysgo
 
 import (
+	"os"
+	"strings"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -572,5 +575,110 @@ func ProofSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
 	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := defaultMinimalSystemOpts(&ids, dest)
 	opt.Add(WithCannonGameTypeAdded(ids.L1EL, ids.L2.ChainID()))
+	return opt
+}
+
+type SingleChainSystemWithFlashblocksIDs struct {
+	L1   stack.L1NetworkID
+	L1EL stack.L1ELNodeID
+	L1CL stack.L1CLNodeID
+
+	L2            stack.L2NetworkID
+	L2CL          stack.L2CLNodeID
+	L2EL          stack.L2ELNodeID
+	L2Builder     stack.OPRBuilderNodeID
+	L2RollupBoost stack.RollupBoostNodeID
+
+	L2Batcher    stack.L2BatcherID
+	L2Proposer   stack.L2ProposerID
+	L2Challenger stack.L2ChallengerID
+
+	TestSequencer stack.TestSequencerID
+}
+
+func NewDefaultSingleChainSystemWithFlashblocksIDs(l1ID, l2ID eth.ChainID) SingleChainSystemWithFlashblocksIDs {
+	ids := SingleChainSystemWithFlashblocksIDs{
+		L1:            stack.L1NetworkID(l1ID),
+		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
+		L2:            stack.L2NetworkID(l2ID),
+		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
+		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
+		L2Builder:     stack.NewOPRBuilderNodeID("sequencer", l2ID),
+		L2RollupBoost: stack.NewRollupBoostNodeID("rollup-boost", l2ID),
+		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
+		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
+		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
+		TestSequencer: "test-sequencer",
+	}
+	return ids
+}
+
+func DefaultSingleChainSystemWithFlashblocks(dest *SingleChainSystemWithFlashblocksIDs) stack.Option[*Orchestrator] {
+	ids := NewDefaultSingleChainSystemWithFlashblocksIDs(DefaultL1ID, DefaultL2AID)
+	return singleChainSystemWithFlashblocksOpts(&ids, dest)
+}
+
+func singleChainSystemWithFlashblocksOpts(ids *SingleChainSystemWithFlashblocksIDs, dest *SingleChainSystemWithFlashblocksIDs) stack.CombinedOption[*Orchestrator] {
+	opt := stack.Combine[*Orchestrator]()
+	// Precompute deterministic P2P identity and peering between sequencer EL and op-rbuilder EL.
+	seqID := NewELNodeIdentity("127.0.0.1", 0)
+	builderID := NewELNodeIdentity("127.0.0.1", 30303) // use default reth p2p port
+
+	var missingEnv []string
+	if os.Getenv("OP_RBUILDER_EXEC_PATH") == "" {
+		missingEnv = append(missingEnv, "OP_RBUILDER_EXEC_PATH")
+	}
+	if os.Getenv("ROLLUP_BOOST_EXEC_PATH") == "" {
+		missingEnv = append(missingEnv, "ROLLUP_BOOST_EXEC_PATH")
+	}
+	if len(missingEnv) > 0 {
+		missing := strings.Join(missingEnv, ", ")
+		opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+			o.P().Logger().Warn("Skipping single-chain flashblocks system; missing executables", "missing_env", missing)
+			o.P().SkipNow()
+		}))
+		return opt
+	}
+
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2EL, L2ELWithP2PConfig("127.0.0.1", seqID.Port, seqID.KeyHex(), []string{builderID.Enode}, nil)))
+	opt.Add(WithOPRBuilderNode(ids.L2Builder, OPRBuilderWithNodeIdentity(builderID, "127.0.0.1", []string{seqID.Enode}, []string{seqID.Enode})))
+	opt.Add(WithRollupBoost(ids.L2RollupBoost, ids.L2EL, RollupBoostWithBuilderNode(ids.L2Builder)))
+
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.L2RollupBoost), L2CLSequencer()))
+
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+		ids.L2EL,
+	}))
+
+	opt.Add(WithL2MetricsDashboard())
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = *ids
+	}))
+
 	return opt
 }
