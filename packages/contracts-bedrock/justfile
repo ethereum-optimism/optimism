@@ -356,7 +356,6 @@ pre-pr *ARGS:
   just lint
   just build-source
   just check
-  just update-selectors
 
 
   # Restore build artifacts after running checks.
