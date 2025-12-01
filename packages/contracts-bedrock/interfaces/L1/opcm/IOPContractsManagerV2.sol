@@ -80,6 +80,7 @@ interface IOPContractsManagerV2 {
         uint256 l2ChainId;
         IResourceMetering.ResourceConfig resourceConfig;
         DisputeGameConfig[] disputeGameConfigs;
+        bool useCustomGasToken;
     }
 
     struct ExtraInstruction {
@@ -135,9 +136,7 @@ interface IOPContractsManagerV2 {
     function version() external view returns (string memory);
 
     /// @notice Upgrades Superchain-wide contracts.
-    function upgradeSuperchain(SuperchainUpgradeInput memory _inp)
-        external
-        returns (SuperchainContracts memory);
+    function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory);
 
     /// @notice Deploys and wires a complete OP Chain per the provided configuration.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory);
