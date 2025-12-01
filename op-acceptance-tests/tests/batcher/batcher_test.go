@@ -24,7 +24,6 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 	sys := presets.NewSingleChainMultiNodeWithTestSeq(t)
 	l := t.Logger()
 	ts_L2 := sys.TestSequencer.Escape().ControlAPI(sys.L2EL.ChainID())
-	ts_L1 := sys.TestSequencer.Escape().ControlAPI(sys.L1Network.ChainID())
 
 	alice := sys.FunderL2.NewFundedEOA(eth.OneWei)
 	cathrine := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
@@ -53,7 +52,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 		}
 
 		l.Debug("Sequencing L1 block", "iteration_j", j)
-		sequenceBlock(t, ts_L1, common.Hash{})
+		sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), common.Hash{})
 	}
 
 	sys.L2CL.StartSequencer()
@@ -94,11 +93,6 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 
 	status := sys.L2CL.SyncStatus()
 	spew.Dump(status)
-}
-
-func sequenceBlock(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash) {
-	require.NoError(t, ts.New(t.Ctx(), seqtypes.BuildOpts{Parent: parent}))
-	require.NoError(t, ts.Next(t.Ctx()))
 }
 
 func sequenceBlockWithL1Origin(t devtest.T, ts apis.TestSequencerControlAPI, parent common.Hash, l1Origin common.Hash, alice *dsl.EOA, cathrine *dsl.EOA, nonce uint64) {
