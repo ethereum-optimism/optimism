@@ -16,9 +16,8 @@ workspace = true
 reth-exex.workspace = true
 reth-node-types.workspace = true
 reth-node-api.workspace = true
-reth-provider.workspace = true
-reth-chainspec.workspace = true
 reth-primitives-traits.workspace = true
+reth-provider.workspace = true
 
 # op-reth
 # proofs exex handles `TrieUpdates` in notifications
@@ -44,12 +43,11 @@ tempfile.workspace = true
 
 [features]
 test-utils = [
-    "reth-provider/test-utils",
     "reth-db/test-utils",
-    "reth-chainspec/test-utils",
     "reth-node-builder/test-utils",
     "reth-optimism-node/test-utils",
     "reth-primitives-traits/test-utils",
+    "reth-provider/test-utils",
 ]
 
 [package.metadata.cargo-udeps.ignore]

@@ -37,6 +37,7 @@ reth-node-metrics.workspace = true
 reth-optimism-primitives.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
 reth-optimism-consensus.workspace = true
+reth-optimism-trie.workspace = true
 
 reth-chainspec.workspace = true
 reth-node-events.workspace = true
@@ -108,10 +109,7 @@ jemalloc-symbols = [
 
 tracy = ["reth-tracing/tracy", "reth-node-core/tracy"]
 
-dev = [
-    "dep:proptest",
-    "reth-cli-commands/arbitrary",
-]
+dev = ["dep:proptest", "reth-cli-commands/arbitrary"]
 
 serde = [
     "alloy-consensus/serde",
