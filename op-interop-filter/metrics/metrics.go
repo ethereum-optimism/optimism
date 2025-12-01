@@ -19,6 +19,7 @@ type Metricer interface {
 }
 
 type Metrics struct {
+	ns       string
 	registry *prometheus.Registry
 	factory  opmetrics.Factory
 
@@ -36,39 +37,42 @@ func NewMetrics(procName string) *Metrics {
 	if procName == "" {
 		procName = "default"
 	}
+	ns := Namespace + "_" + procName
+
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
 
 	return &Metrics{
+		ns:       ns,
 		registry: registry,
 		factory:  factory,
 
 		info: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "info",
 			Help:      "Service info",
 		}, []string{"version"}),
 
 		up: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "up",
 			Help:      "1 if service is up",
 		}),
 
 		failsafeEnabled: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "failsafe_enabled",
 			Help:      "1 if failsafe is enabled",
 		}),
 
 		chainHead: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "chain_head",
 			Help:      "Latest ingested block number",
 		}, []string{"chain_id"}),
 
 		checkAccessTotal: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: Namespace,
+			Namespace: ns,
 			Name:      "check_access_list_total",
 			Help:      "Total checkAccessList requests",
 		}, []string{"success"}),
