@@ -91,7 +91,7 @@ contract OPContractsManagerContainer_Constructor_Test is OPContractsManagerConta
         // Set chain ID to mainnet.
         vm.chainId(1);
 
-        vm.expectRevert(OPContractsManagerContainer.OPContractsManagerContractsContainer_DevFeatureInProd.selector);
+        vm.expectRevert(OPContractsManagerContainer.OPContractsManagerContainer_DevFeatureInProd.selector);
         _deploy(_devFeatureBitmap);
     }
 
