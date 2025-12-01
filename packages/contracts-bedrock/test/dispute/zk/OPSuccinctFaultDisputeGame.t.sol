@@ -676,7 +676,7 @@ contract OPSuccinctFaultDisputeGame_Prove_Test is OPSuccinctFaultDisputeGame_Tes
 
         vm.startPrank(prover);
         // Attempting to prove after the deadline is exceeded.
-        vm.expectRevert();
+        vm.expectRevert(GameOver.selector);
         game.prove(bytes(""));
         vm.stopPrank();
     }
