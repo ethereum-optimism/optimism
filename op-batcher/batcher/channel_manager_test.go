@@ -318,6 +318,46 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 	}
 }
 
+// TestChannelManager_MoreComing
+func TestChannelManager_MoreComing(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+
+	cfg := channelManagerTestConfig(10000, derive.SingularBatchType)
+	cfg.MaxChannelDuration = 20
+	cfg.InitNoneCompressor()
+
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+	// Seed channel manager with blocks
+	rng := rand.New(rand.NewSource(99))
+	for range 2 {
+		block := derivetest.RandomL2BlockWithChainId(rng, 2, defaultTestRollupConfig.L2ChainID)
+		m.blocks.Enqueue(SizedBlock{Block: block})
+	}
+
+	// Call TxData a first time - if `moreComing` is `false`, channel would be timed out.
+	_, err := m.TxData(eth.BlockID{Number: 21}, false, false, pubInfo{forcePublish: false, moreComing: true})
+	require.ErrorIs(t, err, io.EOF)
+
+	// Add more blocks to the channel manager
+	for range 2 {
+		block := derivetest.RandomL2BlockWithChainId(rng, 2, defaultTestRollupConfig.L2ChainID)
+		m.blocks.Enqueue(SizedBlock{Block: block})
+	}
+
+	// The test requires us to have something in the channel queue
+	// at this point, but not yet ready to send and not full
+	require.NotEmpty(t, m.channelQueue)
+	require.False(t, m.channelQueue[0].IsFull())
+
+	// Call TxData again, with moreComing set to false
+	_, err = m.TxData(eth.BlockID{Number: 22}, false, false, pubInfo{forcePublish: false, moreComing: false})
+	require.NoError(t, err)
+	require.NotEmpty(t, m.channelQueue)
+	require.True(t, m.channelQueue[0].IsFull())
+	require.ErrorIs(t, m.channelQueue[0].FullErr(), ErrMaxDurationReached)
+}
+
 // TestChannelManager_TxData seeds the channel manager with blocks and triggers the
 // blocks->channels pipeline multiple times. Values are chosen such that a channel
 // is created under one set of market conditions, and then submitted under a different
