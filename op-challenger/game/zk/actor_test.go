@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,12 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var challengeData = []byte{0x99, 0x98}
+var (
+	challengeData = "challenge"
+	resolveData   = "resolve"
+	l1Time        = time.Unix(9892842, 0)
+)
 
 func TestActor_DoNothingIfAlreadyChallenged(t *testing.T) {
 	actor, rootProvider, contract, sender := setupActorTest(t)
 	rootProvider.root = common.Hash{0xba, 0xd0} // Disagree but already challenged
-	contract.challenged = true
+	contract.challenge(t)
 	verifyNoChallenge(t, actor, contract, sender)
 }
 
@@ -40,9 +48,63 @@ func TestActor_ChallengeProposalBeyondCurrentUnsafeHead(t *testing.T) {
 	verifyChallenge(t, actor, contract, sender)
 }
 
+func TestActor_Resolve(t *testing.T) {
+	// Could just call `gameOver()` and check parent.
+	t.Run("ParentNotResolved", func(t *testing.T) {
+
+	})
+
+	t.Run("InChallengePeriodButParentInvalid", func(t *testing.T) {
+
+	})
+
+	t.Run("Unchallenged-DeadlinePassed", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.setDeadlineExpired()
+		verifyResolved(t, actor, sender)
+	})
+
+	t.Run("Challenged-DeadlinePassed", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.challenge(t)
+		// When challenged, the deadline is set to the deadline for proving which has expired
+		contract.setDeadlineExpired()
+		verifyResolved(t, actor, sender)
+	})
+
+	t.Run("Proven-Challenged", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.challenge(t)
+		contract.prove(t, common.Address{0xaa})
+		contract.setDeadlineNotReached()
+		verifyResolved(t, actor, sender)
+	})
+
+	t.Run("Proven-Unchallenged", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.prove(t, common.Address{0xaa})
+		contract.setDeadlineNotReached()
+		verifyResolved(t, actor, sender)
+	})
+
+	t.Run("Resolved", func(t *testing.T) {
+		actor, _, contract, sender := setupActorTest(t)
+		contract.markResolved()
+		err := actor.Act(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, sender.sentData, "should not act on resolved game")
+	})
+}
+
+func verifyResolved(t *testing.T, actor *Actor, sender *stubTxSender) {
+	err := actor.Act(context.Background())
+	require.NoError(t, err)
+	require.Len(t, sender.sentData, 1, "should have sent resolve tx")
+	require.Equal(t, resolveData, sender.sentData[0], "tx should have used resolve data")
+}
+
 func TestActor_DoNotChallengeCorrectProposal(t *testing.T) {
 	actor, rootProvider, contract, sender := setupActorTest(t)
-	contract.challenged = false
 	contract.proposalHash = rootProvider.root
 	contract.l2SequenceNumber = rootProvider.rootBlockNum
 	verifyNoChallenge(t, actor, contract, sender)
@@ -52,15 +114,15 @@ func verifyNoChallenge(t *testing.T, actor *Actor, contract *stubContract, sende
 	err := actor.Act(context.Background())
 	require.NoError(t, err)
 	require.False(t, contract.txCreated, "should not challenge already challenged game")
-	require.Empty(t, sender.sent, "should not send challenge tx")
+	require.Empty(t, sender.sentData, "should not send challenge tx")
 }
 
 func verifyChallenge(t *testing.T, actor *Actor, contract *stubContract, sender *stubTxSender) {
 	err := actor.Act(context.Background())
 	require.NoError(t, err)
 	require.True(t, contract.txCreated, "should not challenge already challenged game")
-	require.Len(t, sender.sent, 1, "should not send challenge tx")
-	require.Equal(t, challengeData, sender.sent[0].TxData, "should have sent expected challenge transaction")
+	require.Len(t, sender.sentData, 1, "should not send challenge tx")
+	require.Equal(t, challengeData, sender.sentData[0], "should have sent expected challenge transaction")
 }
 
 func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *stubTxSender) {
@@ -79,8 +141,10 @@ func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *st
 		proposalHash:     rootProvider.root,
 		l2SequenceNumber: rootProvider.rootBlockNum,
 	}
+	contract.setDeadlineNotReached()
 	txSender := &stubTxSender{}
-	creator := ActorCreator(rootProvider, contract, txSender)
+	l1Clock := clock.NewDeterministicClock(l1Time)
+	creator := ActorCreator(l1Clock, rootProvider, contract, txSender)
 	genericActor, err := creator(context.Background(), logger, l1Head)
 	require.NoError(t, err, "failed to create actor")
 	actor, ok := genericActor.(*Actor)
@@ -107,20 +171,60 @@ func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 }
 
 type stubContract struct {
-	challenged       bool
+	parentIndex      uint32
+	proposalStatus   contracts.ProposalStatus
+	deadline         time.Time
 	txCreated        bool
 	proposalHash     common.Hash
 	l2SequenceNumber uint64
 }
 
-func (s *stubContract) CanChallenge(_ context.Context) (bool, error) {
-	return !s.challenged, nil
+func (s *stubContract) challenge(t *testing.T) {
+	require.Equal(t, contracts.ProposalStatusUnchallenged, s.proposalStatus, "game not in challengable state")
+	s.proposalStatus = contracts.ProposalStatusChallenged
+}
+
+func (s *stubContract) prove(t *testing.T, prover common.Address) {
+	if s.proposalStatus == contracts.ProposalStatusUnchallenged {
+		s.proposalStatus = contracts.ProposalStatusUnchallengedAndValidProofProvided
+		return
+	}
+	require.Equal(t, contracts.ProposalStatusChallenged, s.proposalStatus, "game not in provable state")
+	s.proposalStatus = contracts.ProposalStatusChallengedAndValidProofProvided
+}
+
+func (s *stubContract) setDeadlineExpired() {
+	s.deadline = l1Time.Add(-1 * time.Second)
+}
+
+func (s *stubContract) setDeadlineNotReached() {
+	s.deadline = l1Time.Add(1 * time.Second)
+}
+
+func (s *stubContract) markResolved() {
+	s.proposalStatus = contracts.ProposalStatusResolved
+}
+
+func (s *stubContract) GetChallengerMetadata(_ context.Context, _ rpcblock.Block) (contracts.ChallengerMetadata, error) {
+	return contracts.ChallengerMetadata{
+		ParentIndex:      s.parentIndex,
+		ProposalStatus:   s.proposalStatus,
+		ProposedRoot:     s.proposalHash,
+		L2SequenceNumber: s.l2SequenceNumber,
+		Deadline:         s.deadline,
+	}, nil
 }
 
 func (s *stubContract) ChallengeTx(_ context.Context) (txmgr.TxCandidate, error) {
 	s.txCreated = true
 	return txmgr.TxCandidate{
-		TxData: challengeData,
+		TxData: []byte(challengeData),
+	}, nil
+}
+
+func (s *stubContract) ResolveTx() (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{
+		TxData: []byte(resolveData),
 	}, nil
 }
 
@@ -129,12 +233,14 @@ func (s *stubContract) GetProposal(_ context.Context) (common.Hash, uint64, erro
 }
 
 type stubTxSender struct {
-	sent    []txmgr.TxCandidate
-	sendErr error
+	sentData []string
+	sendErr  error
 }
 
 func (s *stubTxSender) SendAndWaitSimple(_ string, candidates ...txmgr.TxCandidate) error {
-	s.sent = append(s.sent, candidates...)
+	for _, candidate := range candidates {
+		s.sentData = append(s.sentData, string(candidate.TxData))
+	}
 	if s.sendErr != nil {
 		return s.sendErr
 	}

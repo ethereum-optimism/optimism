@@ -41,9 +41,9 @@ type claimData struct {
 
 type OptimisticZKDisputeGameContract interface {
 	DisputeGameContract
-	CanChallenge(ctx context.Context) (bool, error)
 	ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error)
 	GetProposal(ctx context.Context) (common.Hash, uint64, error)
+	GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error)
 }
 
 type OptimisticZKDisputeGameContractLatest struct {
@@ -131,21 +131,34 @@ func (g *OptimisticZKDisputeGameContractLatest) GetGameRange(ctx context.Context
 	return
 }
 
-func (g *OptimisticZKDisputeGameContractLatest) CanChallenge(ctx context.Context) (bool, error) {
-	data, err := g.claimData(ctx)
-	if err != nil {
-		return false, err
-	}
-	return data.Status == ProposalStatusUnchallenged, nil
+type ChallengerMetadata struct {
+	ParentIndex      uint32
+	ProposalStatus   ProposalStatus
+	ProposedRoot     common.Hash
+	L2SequenceNumber uint64
+	Deadline         time.Time
 }
 
-func (g *OptimisticZKDisputeGameContractLatest) claimData(ctx context.Context) (claimData, error) {
-	defer g.metrics.StartContractRequest("ClaimData")()
-	result, err := g.multiCaller.SingleCall(ctx, rpcblock.Latest, g.contract.Call(methodClaimData))
+func (g *OptimisticZKDisputeGameContractLatest) GetChallengerMetadata(ctx context.Context, block rpcblock.Block) (ChallengerMetadata, error) {
+	defer g.metrics.StartContractRequest("GetChallengerMetadata")()
+	results, err := g.multiCaller.Call(ctx, block,
+		g.contract.Call(methodClaimData),
+		g.contract.Call(methodL2SequenceNumber))
 	if err != nil {
-		return claimData{}, fmt.Errorf("failed to retrieve claim data: %w", err)
+		return ChallengerMetadata{}, fmt.Errorf("failed to retrieve challenger metadata: %w", err)
 	}
-	return g.decodeClaimData(result), nil
+	if len(results) != 2 {
+		return ChallengerMetadata{}, fmt.Errorf("expected 2 results but got %v", len(results))
+	}
+	data := g.decodeClaimData(results[0])
+	l2SeqNum := results[1].GetBigInt(0).Uint64()
+	return ChallengerMetadata{
+		ParentIndex:      data.ParentIndex,
+		ProposalStatus:   data.Status,
+		ProposedRoot:     data.Claim,
+		L2SequenceNumber: l2SeqNum,
+		Deadline:         time.Unix(int64(data.Deadline), 0),
+	}, nil
 }
 
 func (g *OptimisticZKDisputeGameContractLatest) ChallengeTx(ctx context.Context) (txmgr.TxCandidate, error) {

@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -31,7 +30,6 @@ type TxSender interface {
 
 func RegisterGameTypes(
 	ctx context.Context,
-	systemClock clock.Clock,
 	l1Clock ClockReader,
 	logger log.Logger,
 	m metrics.Metricer,
@@ -58,7 +56,7 @@ func RegisterGameTypes(
 				syncValidator,
 				nil,
 				clients.L1Client(),
-				ActorCreator(rollupClient, contract, txSender),
+				ActorCreator(l1Clock, rollupClient, contract, txSender),
 			)
 		})
 	}

@@ -157,63 +157,33 @@ func TestZKResolveTx(t *testing.T) {
 	}
 }
 
-func TestZKCanChallenge(t *testing.T) {
+func TestZKGetChallengerMetadata(t *testing.T) {
 	for _, version := range zkVersions {
 		version := version
 		t.Run(version.String(), func(t *testing.T) {
-			parentIndex := uint32(525)
-			claim := common.Hash{0xbb}
-			deadline := uint64(42824240)
-
-			tests := []struct {
-				name           string
-				counteredBy    common.Address
-				prover         common.Address
-				status         ProposalStatus
-				expectedResult bool
-			}{
-				{
-					name:           "Unchallenged",
-					status:         ProposalStatusUnchallenged,
-					expectedResult: true,
-				},
-				{
-					name:           "Challenged",
-					counteredBy:    common.Address{0xaa},
-					status:         ProposalStatusChallenged,
-					expectedResult: false,
-				},
-				{
-					name:           "UnchallengedAndProven",
-					prover:         common.Address{0xaa},
-					status:         ProposalStatusUnchallengedAndValidProofProvided,
-					expectedResult: false,
-				},
-				{
-					name:           "ChallengedAndProven",
-					counteredBy:    common.Address{0xaa},
-					prover:         common.Address{0xbb},
-					status:         ProposalStatusChallengedAndValidProofProvided,
-					expectedResult: false,
-				},
-				{
-					name:           "Resolved",
-					status:         ProposalStatusResolved,
-					expectedResult: false,
-				},
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			expectedParentIndex := uint32(525)
+			expectedProposalStatus := ProposalStatusChallengedAndValidProofProvided
+			counteredBy := common.Address{0xad}
+			prover := common.Address{0xac}
+			expectedL2BlockNumber := uint64(123)
+			expectedRootClaim := common.Hash{0x01, 0x02}
+			expectedDeadline := time.Unix(84928429020, 0)
+			block := rpcblock.ByNumber(889)
+			stubRpc.SetResponse(zkGameAddr, methodClaimData, block, nil, []interface{}{
+				expectedParentIndex, counteredBy, prover, expectedRootClaim, expectedProposalStatus, uint64(expectedDeadline.Unix()),
+			})
+			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
+			actual, err := contract.GetChallengerMetadata(context.Background(), block)
+			expected := ChallengerMetadata{
+				ParentIndex:      expectedParentIndex,
+				ProposalStatus:   expectedProposalStatus,
+				ProposedRoot:     expectedRootClaim,
+				L2SequenceNumber: expectedL2BlockNumber,
+				Deadline:         expectedDeadline,
 			}
-
-			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
-					stubRpc, game := setupZKDisputeGameTest(t, version)
-					stubRpc.SetResponse(zkGameAddr, methodClaimData, rpcblock.Latest, nil, []interface{}{
-						parentIndex, test.counteredBy, test.prover, claim, test.status, deadline,
-					})
-					result, err := game.CanChallenge(context.Background())
-					require.NoError(t, err)
-					require.Equal(t, test.expectedResult, result)
-				})
-			}
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
 		})
 	}
 }
