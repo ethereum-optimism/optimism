@@ -111,12 +111,12 @@ func (k *KonaNode) Start() {
 			metricsTargetChan <- NewPrometheusMetricsTarget(parsedUrl.Hostname(), parsedUrl.Port(), false)
 		}
 	}
-	stdOutLogs := logpipe.LogProcessor(func(line []byte) {
+	stdOutLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logOut(e)
 		onLogEntry(e)
 	})
-	stdErrLogs := logpipe.LogProcessor(func(line []byte) {
+	stdErrLogs := logpipe.LogCallback(func(line []byte) {
 		e := logpipe.ParseRustStructuredLogs(line)
 		logErr(e)
 	})
@@ -181,7 +181,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		l2EL, ok := orch.GetL2EL(l2ELID)
 		require.True(ok, "l2 EL node required")
 
 		cfg := DefaultL2CLConfig()

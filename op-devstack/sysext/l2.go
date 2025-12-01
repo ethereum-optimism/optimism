@@ -65,13 +65,13 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	for _, node := range net.Nodes {
 		o.hydrateL2ELCL(&node, l2, opts)
 		o.hydrateConductors(&node, l2)
-		o.hydrateFlashblocksBuilderIfPresent(&node, l2, opts)
+		o.hydrateRollupBoostNodeMaybe(&node, l2, opts)
+		o.hydrateOPRBuilderMaybe(&node, l2, opts)
 	}
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
 	o.hydrateChallengerMaybe(net, l2)
 	o.hydrateL2ProxydMaybe(net, l2)
-	o.hydrateFlashblocksWebsocketProxyMaybe(net, l2)
 
 	if faucet, ok := net.Services["faucet"]; ok {
 		for _, instance := range faucet {
@@ -193,35 +193,36 @@ func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.Ext
 	l2Net.AddConductor(conductor)
 }
 
-func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node, l2Net stack.ExtensibleL2Network, opts []client.RPCOption) {
+func (o *Orchestrator) hydrateRollupBoostNodeMaybe(node *descriptors.Node, l2Net stack.ExtensibleL2Network, opts []client.RPCOption) {
 	require := l2Net.T().Require()
 	l2ID := l2Net.ID()
 
-	rbuilderService, ok := node.Services[RBuilderServiceName]
+	rollupBoostService, ok := node.Services[RollupBoostServiceName]
 	if !ok {
-		l2Net.Logger().Debug("L2 net node is missing the flashblocksBuilder service", "node", node.Name, "l2", l2ID)
+		l2Net.Logger().Debug("L2 net node does not have a rollup-boost service", "node", node.Name, "l2", l2ID)
 		return
 	}
 
-	associatedConductorService, ok := node.Services[ConductorServiceName]
-	require.True(ok, "L2 rbuilder service must have an associated conductor service", l2ID)
+	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rollupBoostService, WebsocketFlashblocksProtocol)
+	require.NoError(err, "failed to find websocket service for rollup-boost")
 
-	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
-	require.NoError(err, "failed to find websocket service for rbuilder")
-
-	flashblocksBuilder := shim.NewFlashblocksBuilderNode(shim.FlashblocksBuilderNodeConfig{
-		ID: stack.NewFlashblocksBuilderID(rbuilderService.Name, l2ID.ChainID()),
+	rollupBoost := shim.NewRollupBoostNode(shim.RollupBoostNodeConfig{
+		ID: stack.NewRollupBoostNodeID(rollupBoostService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
+			Client:       o.rpcClient(l2Net.T(), rollupBoostService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
-		Conductor:            l2Net.Conductor(stack.ConductorID(associatedConductorService.Name)),
-		FlashblocksWsUrl:     flashblocksWsUrl,
-		FlashblocksWsHeaders: flashblocksWsHeaders,
+		RollupCfg: l2Net.RollupConfig(),
+		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
+			CommonConfig: shim.NewCommonConfig(l2Net.T()),
+			ID:           stack.NewFlashblocksWSClientID(rollupBoostService.Name, l2ID.ChainID()),
+			WsUrl:        flashblocksWsUrl,
+			WsHeaders:    flashblocksWsHeaders,
+		}),
 	})
 
-	l2Net.AddFlashblocksBuilder(flashblocksBuilder)
+	l2Net.AddRollupBoostNode(rollupBoost)
 }
 
 func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
@@ -250,29 +251,35 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 	}
 }
 
-func (o *Orchestrator) hydrateFlashblocksWebsocketProxyMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+func (o *Orchestrator) hydrateOPRBuilderMaybe(node *descriptors.Node, l2Net stack.ExtensibleL2Network, opts []client.RPCOption) {
 	require := l2Net.T().Require()
-	l2ID := getL2ID(net)
-	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
+	l2ID := l2Net.ID()
 
-	fbWsProxyService, ok := net.Services["flashblocks-websocket-proxy"]
+	rbuilderService, ok := node.Services[OPRBuilderServiceName]
 	if !ok {
+		l2Net.Logger().Debug("L2 net node does not have a oprbuilder service", "node", node.Name, "l2", l2ID)
 		return
 	}
 
-	for _, instance := range fbWsProxyService {
-		wsUrl, wsHeaders, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
-		require.NoError(err, "failed to get the websocket url for the flashblocks websocket proxy", "service", instance.Name)
+	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
+	require.NoError(err, "failed to find websocket service for rbuilder")
 
-		fbWsProxyShim := shim.NewFlashblocksWebsocketProxy(shim.FlashblocksWebsocketProxyConfig{
+	flashblocksBuilder := shim.NewOPRBuilderNode(shim.OPRBuilderNodeConfig{
+		ID: stack.NewOPRBuilderNodeID(rbuilderService.Name, l2ID.ChainID()),
+		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID:           stack.NewFlashblocksWebsocketProxyID(instance.Name, l2ID.ChainID()),
-			WsUrl:        wsUrl,
-			WsHeaders:    wsHeaders,
-		})
-		fbWsProxyShim.SetLabel(match.LabelVendor, string(match.FlashblocksWebsocketProxy))
-		l2Net.AddFlashblocksWebsocketProxy(fbWsProxyShim)
-	}
+			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
+			ChainID:      l2ID.ChainID(),
+		},
+		FlashblocksWsClient: shim.NewFlashblocksWSClient(shim.FlashblocksWSClientConfig{
+			CommonConfig: shim.NewCommonConfig(l2Net.T()),
+			ID:           stack.NewFlashblocksWSClientID(rbuilderService.Name, l2ID.ChainID()),
+			WsUrl:        flashblocksWsUrl,
+			WsHeaders:    flashblocksWsHeaders,
+		}),
+	})
+
+	l2Net.AddOPRBuilderNode(flashblocksBuilder)
 }
 
 func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {

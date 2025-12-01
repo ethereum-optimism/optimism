@@ -1,7 +1,6 @@
 package logpipe
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"log/slog"
@@ -76,22 +75,6 @@ type LogEntry interface {
 	LogMessage() string
 	LogFields() []any
 	FieldValue(key string) any
-}
-
-type LogProcessor func(line []byte)
-
-func (lo LogProcessor) Write(data []byte) (int, error) {
-	startingLength := len(data)
-	buf := bytes.NewBuffer(data)
-	scanner := bufio.NewScanner(buf)
-	for scanner.Scan() {
-		lineBytes := scanner.Bytes()
-		if len(lineBytes) == 0 {
-			continue // Skip empty lines
-		}
-		lo(lineBytes)
-	}
-	return startingLength - buf.Len(), scanner.Err()
 }
 
 type LogParser func(line []byte) LogEntry

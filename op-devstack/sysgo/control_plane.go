@@ -42,4 +42,16 @@ func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlActio
 	control(s.fakepos, mode)
 }
 
+func (c *ControlPlane) OPRBuilderNodeState(id stack.OPRBuilderNodeID, mode stack.ControlAction) {
+	s, ok := c.o.oprbuilderNodes.Get(id)
+	c.o.P().Require().True(ok, "need oprbuilder node to change state")
+	control(s, mode)
+}
+
+func (c *ControlPlane) RollupBoostNodeState(id stack.RollupBoostNodeID, mode stack.ControlAction) {
+	s, ok := c.o.rollupBoosts.Get(id)
+	c.o.P().Require().True(ok, "need rollup boost node to change state")
+	control(s, mode)
+}
+
 var _ stack.ControlPlane = (*ControlPlane)(nil)

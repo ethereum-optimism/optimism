@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Reverter } from "test/mocks/Callers.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -185,7 +184,7 @@ abstract contract FeeVault_Uncategorized_Test is CommonTest {
         assertEq(feeVault.totalProcessed(), 0);
 
         // Ensure the RECIPIENT reverts
-        vm.etch(feeVault.RECIPIENT(), type(Reverter).runtimeCode);
+        vm.mockCallRevert(feeVault.RECIPIENT(), bytes(hex""), hex"");
 
         // The entire feeVault's balance is withdrawn
         vm.expectCall(recipient, address(feeVault).balance, bytes(""));
