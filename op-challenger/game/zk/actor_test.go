@@ -48,15 +48,6 @@ func TestActor_DoNotChallengeCorrectProposal(t *testing.T) {
 	verifyNoChallenge(t, actor, contract, sender)
 }
 
-func TestActor_ChallengeCorrectButUnsafeProposal(t *testing.T) {
-	actor, rootProvider, contract, sender := setupActorTest(t)
-	contract.challenged = false
-	contract.proposalHash = rootProvider.root
-	contract.l2SequenceNumber = rootProvider.rootBlockNum
-	rootProvider.safeHeadAtL1Block = rootProvider.rootBlockNum - 1
-	verifyChallenge(t, actor, contract, sender)
-}
-
 func verifyNoChallenge(t *testing.T, actor *Actor, contract *stubContract, sender *stubTxSender) {
 	err := actor.Act(context.Background())
 	require.NoError(t, err)
@@ -80,10 +71,8 @@ func setupActorTest(t *testing.T) (*Actor, *stubRootProvider, *stubContract, *st
 	}
 	rootBlockNum := uint64(28492)
 	rootProvider := &stubRootProvider{
-		root:              common.Hash{0x11},
-		rootBlockNum:      rootBlockNum,
-		l1HeadBlockNum:    l1Head.Number,
-		safeHeadAtL1Block: rootBlockNum + 108,
+		root:         common.Hash{0x11},
+		rootBlockNum: rootBlockNum,
 	}
 	// Default to a valid proposal
 	contract := &stubContract{
@@ -103,9 +92,6 @@ type stubRootProvider struct {
 	outputErr    error
 	rootBlockNum uint64
 	root         common.Hash
-
-	l1HeadBlockNum    uint64
-	safeHeadAtL1Block uint64
 }
 
 func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
@@ -117,15 +103,6 @@ func (s *stubRootProvider) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 	}
 	return &eth.OutputResponse{
 		OutputRoot: eth.Bytes32(s.root),
-	}, nil
-}
-
-func (s *stubRootProvider) SafeHeadAtL1Block(_ context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
-	if blockNum != s.l1HeadBlockNum {
-		return nil, errors.New("unexpected safe head request")
-	}
-	return &eth.SafeHeadResponse{
-		SafeHead: eth.BlockID{Number: s.safeHeadAtL1Block},
 	}, nil
 }
 

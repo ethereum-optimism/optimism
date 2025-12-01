@@ -16,7 +16,6 @@ import (
 
 type RootProvider interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
-	SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error)
 }
 
 type ChallengableContract interface {
@@ -91,14 +90,6 @@ func (a *Actor) isValidProposal(ctx context.Context, proposalSeqNum uint64, prop
 	}
 	if common.Hash(canonicalOutput.OutputRoot) != proposalHash {
 		// Output root doesn't match so can't be valid
-		return false, nil
-	}
-	// Check that the proposal was safe at the L1 head
-	safeHead, err := a.rootProvider.SafeHeadAtL1Block(ctx, a.l1Head.Number)
-	if err != nil {
-		return false, fmt.Errorf("failed to get safe head at L1 head: %w", err)
-	}
-	if safeHead.SafeHead.Number <= proposalSeqNum {
 		return false, nil
 	}
 	return true, nil
