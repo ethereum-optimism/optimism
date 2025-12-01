@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {GnosisSafe} from "safe-contracts/GnosisSafe.sol";
+import {Safe} from "safe-contracts/Safe.sol";
 import {Enum} from "safe-contracts/common/Enum.sol";
 import {ISemver} from "interfaces/universal/ISemver.sol";
 
@@ -36,14 +36,14 @@ interface ISaferSafes is ISemver {
     }
 
     event CancellationThresholdUpdated(
-        GnosisSafe indexed safe,
+        Safe indexed safe,
         uint256 oldThreshold,
         uint256 newThreshold
     );
     event ChallengeCancelled(address indexed safe);
     event ChallengeStarted(address indexed safe, uint256 challengeStartTime);
     event ChallengeSucceeded(address indexed safe, address fallbackOwner);
-    event GuardConfigured(GnosisSafe indexed safe, uint256 timelockDelay);
+    event GuardConfigured(Safe indexed safe, uint256 timelockDelay);
     event Message(string message);
     event ModuleCleared(address indexed safe);
     event ModuleConfigured(
@@ -51,10 +51,10 @@ interface ISaferSafes is ISemver {
         uint256 livenessResponsePeriod,
         address fallbackOwner
     );
-    event TransactionCancelled(GnosisSafe indexed safe, bytes32 indexed txHash);
-    event TransactionExecuted(GnosisSafe indexed safe, bytes32 txHash);
+    event TransactionCancelled(Safe indexed safe, bytes32 indexed txHash);
+    event TransactionExecuted(Safe indexed safe, bytes32 txHash);
     event TransactionScheduled(
-        GnosisSafe indexed safe,
+        Safe indexed safe,
         bytes32 indexed txHash,
         uint256 executionTime
     );
@@ -83,14 +83,14 @@ interface ISaferSafes is ISemver {
     error TimelockGuard_TransactionNotScheduled();
 
     function cancelTransaction(
-        GnosisSafe _safe,
+        Safe _safe,
         bytes32 _txHash,
         uint256 _nonce,
         bytes calldata _signatures
     ) external;
 
     function cancellationThreshold(
-        GnosisSafe _safe
+        Safe _safe
     ) external view returns (uint256);
 
     function challenge(address _safe) external;
@@ -133,31 +133,31 @@ interface ISaferSafes is ISemver {
         returns (uint256 livenessResponsePeriod, address fallbackOwner);
 
     function maxCancellationThreshold(
-        GnosisSafe _safe
+        Safe _safe
     ) external view returns (uint256);
 
     function pendingTransactions(
-        GnosisSafe _safe
+        Safe _safe
     ) external view returns (ScheduledTransaction[] memory);
 
     function respond() external;
 
     function scheduleTransaction(
-        GnosisSafe _safe,
+        Safe _safe,
         uint256 _nonce,
         ExecTransactionParams calldata _params,
         bytes calldata _signatures
     ) external;
 
     function scheduledTransaction(
-        GnosisSafe _safe,
+        Safe _safe,
         bytes32 _txHash
     ) external view returns (ScheduledTransaction memory);
 
     function signCancellation(bytes32 _txHash) external;
 
     function timelockConfiguration(
-        GnosisSafe _safe
+        Safe _safe
     ) external view returns (uint256);
 
     function version() external pure returns (string memory);
