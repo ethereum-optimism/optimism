@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
@@ -195,6 +196,19 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 	spec, err := ktd.Deploy(ctx, buf)
 	if err != nil {
 		return nil, fmt.Errorf("error deploying kurtosis package: %w", err)
+	}
+
+	// In dry-run, do not interact with Kurtosis engine/enclave: skip GetEnvironmentInfo and artifact upload.
+	if d.dryRun {
+		info := &kurtosis.KurtosisEnvironment{
+			DevnetEnvironment: &descriptors.DevnetEnvironment{
+				Name:     d.enclave,
+				Features: spec.Features,
+				L2:       make([]*descriptors.L2Chain, 0, len(spec.Chains)),
+			},
+		}
+		fmt.Printf("Environment dry-run completed\n")
+		return info, nil
 	}
 
 	info, err := ktd.GetEnvironmentInfo(ctx, spec)
