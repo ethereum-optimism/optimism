@@ -81,11 +81,8 @@ if [ -f "$PROMO_JSON" ]; then
     ($meta.date // "") as $date |
     ($meta.gate // "flake-shake") as $gate |
     ($meta.pr_url // "") as $pr_url |
-    ( if (($meta.flake_gate_tests // 0) == 0) then
-        [
-          {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: Flake-Shake — Gate Empty"}},
-          {"type":"section","text":{"type":"mrkdwn","text":"No tests in flake-shake gate; nothing to promote. Artifacts: <\($job)|CircleCI Job>"}}
-        ]
+    ( if (($meta|length) > 0 and ($meta.flake_gate_tests // 0) == 0) then
+        []
       elif ($root.candidates|length) == 0 then
         [
           {"type":"header","text":{"type":"plain_text","text":":partywizard: Acceptance Tests: No Flake-Shake Promotion Candidates — \(if $date != "" then $date else (now|strftime("%Y-%m-%d")) end)"}},
