@@ -66,6 +66,7 @@ func (a *Actor) Act(ctx context.Context) error {
 		return nil
 	}
 
+	a.logger.Info("Challenging game")
 	tx, err := a.contract.ChallengeTx(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create challenge tx: %w", err)
