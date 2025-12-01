@@ -227,6 +227,11 @@
             "internalType": "struct OPContractsManagerV2.DisputeGameConfig[]",
             "name": "disputeGameConfigs",
             "type": "tuple[]"
+          },
+          {
+            "internalType": "bool",
+            "name": "useCustomGasToken",
+            "type": "bool"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
