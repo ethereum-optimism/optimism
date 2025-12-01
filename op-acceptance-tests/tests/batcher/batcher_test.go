@@ -99,9 +99,6 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 		require.Equal(t, len(l2Txs[cathrine.Address()]), 1000) // we expect 1000 transactions total sent from cathrine to alice
 	}
 
-	//sys.L2Chain.PrintChain()
-	//sys.L1Network.PrintChain()
-
 	status := sys.L2CL.SyncStatus()
 	spew.Dump(status)
 }
