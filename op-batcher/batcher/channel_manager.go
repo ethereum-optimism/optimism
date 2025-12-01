@@ -224,8 +224,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling bool, forcePublish pubInfo) (txData, error) {
-	channel, err := s.getReadyChannel(l1Head, forcePublish)
+func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling bool, pi pubInfo) (txData, error) {
+	channel, err := s.getReadyChannel(l1Head, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -259,7 +259,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool, isThrottling 
 	s.defaultCfg = newCfg
 
 	// Try again to get data to send on chain.
-	channel, err = s.getReadyChannel(l1Head, forcePublish)
+	channel, err = s.getReadyChannel(l1Head, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -318,7 +318,12 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*chann
 		return nil, err
 	}
 
-	s.registerL1Block(l1Head)
+	if !pi.moreComing {
+		// Register current L1 head only after all pending blocks have been
+		// processed. Even if a timeout will be triggered now, it is better to have
+		// all pending blocks be included in this channel for submission.
+		s.registerL1Block(l1Head)
+	}
 
 	if err := s.outputFrames(); err != nil {
 		return nil, err

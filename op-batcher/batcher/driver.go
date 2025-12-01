@@ -501,7 +501,7 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 
 	for pi := range l.publishSignal {
 		l.Log.Debug("publishing loop received signal", "force_publish", pi.forcePublish)
-		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup, pi.forcePublish)
+		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup, pi)
 	}
 
 	// First wait for all DA requests to finish to prevent new transactions being queued
@@ -771,7 +771,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is no more data to
 // queue for publishing or if there was an error queuing the data.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, forcePublish bool) {
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -788,7 +788,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queu
 			return
 		}
 
-		err := l.publishTxToL1(ctx, queue, receiptsCh, daGroup, forcePublish)
+		err := l.publishTxToL1(ctx, queue, receiptsCh, daGroup, pi)
 		if err != nil {
 			if err != io.EOF {
 				l.Log.Error("Error publishing tx to l1", "err", err)
@@ -842,7 +842,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 }
 
 // publishTxToL1 submits a single state tx to the L1
-func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, forcePublish bool) error {
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, pi pubInfo) error {
 	// send all available transactions
 	l1tip, isPectra, err := l.l1Tip(ctx)
 	if err != nil {
@@ -855,7 +855,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling(), pubInfo{forcePublish: forcePublish})
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling(), pi)
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {

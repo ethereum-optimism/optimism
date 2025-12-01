@@ -49,6 +49,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 			parent = sys.L2CL.HeadBlockRef(types.LocalUnsafe).Hash
 
 			sys.AdvanceTime(time.Second * 2)
+			time.Sleep(20 * time.Millisecond) // failed to force-include tx: type: 2 sender; err: nonce too high
 		}
 
 		l.Debug("Sequencing L1 block", "iteration_j", j)
@@ -68,7 +69,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 			l.Info("Channel details", "channelID", c.String(), "frameCount", len(channelFrames[c]), "dataLength_frame0", len(channelFrames[c][0].Data))
 		}
 
-		require.Equal(t, 10, len(channels)) // we expect a total of 10 channels, due to existing MaxChannelDuration bug filed at: https://github.com/ethereum-optimism/optimism/issues/18092
+		require.Equal(t, 2, len(channels)) // we expect a total of 2 channels
 
 		// values are dependent on:
 		// - MaxPendingTransactions
@@ -79,16 +80,8 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 			max  int
 			note string
 		}{
-			{min: 7_000, max: 10_000, note: "channel 0 - the first 100 blocks"},
-			{min: 100, max: 1000, note: "channel 1 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 2 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 3 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 4 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 5 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 6 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 100, max: 1000, note: "channel 7 - only a few blocks due to racy behavior, nowhere near the channel capacity"},
-			{min: 20_000, max: 40_000, note: "channel 8 - filled to the max capacity, due to blocking behavior because of MaxPendingTransactions limit reached"},
-			{min: 20_000, max: 40_000, note: "channel 9 - filled to the max capacity, due to blocking behavior because of MaxPendingTransactions limit reached"},
+			{min: 30_000, max: 40_000, note: "channel 0 - filled to the max capacity"},
+			{min: 30_000, max: 40_000, note: "channel 1 - remaining data, filling channel close to max capacity"},
 		}
 
 		for i, entry := range sizeRanges {
