@@ -10,10 +10,8 @@ import { Claim, Duration, GameStatus, GameType, Hash, Timestamp, Proposal } from
 import {
     BadAuth,
     IncorrectBondAmount,
-    AlreadyInitialized,
     UnexpectedRootClaim,
     NoCreditToClaim,
-    GameNotResolved,
     GameNotFinalized,
     ParentGameNotResolved,
     InvalidParentGame,
@@ -22,7 +20,7 @@ import {
     GameNotOver,
     IncorrectDisputeGameFactory
 } from "src/dispute/lib/Errors.sol";
-import { AggregationOutputs, OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
+import { OP_SUCCINCT_FAULT_DISPUTE_GAME_TYPE } from "src/dispute/lib/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Contracts
@@ -37,14 +35,10 @@ import { SP1MockVerifier } from "./mocks/SP1MockVerifier.sol";
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISP1Verifier } from "src/dispute/zk/ISP1Verifier.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 
 /// @title OPSuccinctFaultDisputeGame_TestInit
 /// @notice Base test contract with shared setup for OPSuccinctFaultDisputeGame tests.
@@ -527,7 +521,7 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
         assertEq(challenger.balance, 0);
     }
 
-    function test_resolve_challengedNoProof_challengerWins() public {
+    function test_resolve_challengedNoProof_succeeds() public {
         // Challenge the game.
         vm.startPrank(challenger);
         vm.deal(challenger, 2 ether);
@@ -582,7 +576,7 @@ contract OPSuccinctFaultDisputeGame_Resolve_Test is OPSuccinctFaultDisputeGame_T
         childGame.resolve();
     }
 
-    function test_resolve_parentGameInvalid_challengerWins() public {
+    function test_resolve_parentGameInvalid_succeeds() public {
         // 1) Now create a child game referencing that losing parent at index 1.
         vm.startPrank(proposer);
         OPSuccinctFaultDisputeGame childGame = OPSuccinctFaultDisputeGame(
